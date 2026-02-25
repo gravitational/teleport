@@ -20,9 +20,7 @@ package web
 
 import (
 	"context"
-	"crypto/sha1"
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -31,7 +29,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"net/url"
 	"time"
 
 	gogoproto "github.com/gogo/protobuf/proto"
@@ -62,7 +59,6 @@ import (
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/terminal"
 	webui "github.com/gravitational/teleport/lib/web/ui"
 )
@@ -377,10 +373,10 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 
-	caCRL, err := h.GetProxyClient().GenerateCertAuthorityCRL(r.Context(), types.DatabaseClientCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// caCRL, err := h.GetProxyClient().GenerateCertAuthorityCRL(r.Context(), types.DatabaseClientCA)
+	// if err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
 
 	if len(certAuthority.GetActiveKeys().TLS) != 1 {
 		return nil, trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
@@ -393,22 +389,22 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 	}
 
 	// Split host and port so we can escape domain characters.
-	dbHost, dbPort, err := net.SplitHostPort(dbAddress)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// dbHost, dbPort, err := net.SplitHostPort(dbAddress)
+	// if err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
 
 	httplib.SetScriptHeaders(w.Header())
 	w.WriteHeader(http.StatusOK)
-	err = scripts.DatabaseAccessSQLServerConfigureScript.Execute(w, scripts.DatabaseAccessSQLServerConfigureParams{
-		CACertPEM:       string(keyPair.Cert),
-		CACertSHA1:      fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
-		CACertBase64:    base64.StdEncoding.EncodeToString(utils.CreateCertificateBLOB(block.Bytes)),
-		CRLPEM:          string(encodeCRLPEM(caCRL)),
-		ProxyPublicAddr: proxyServers[0].GetPublicAddr(),
-		ProvisionToken:  tokenStr,
-		DBAddress:       net.JoinHostPort(url.QueryEscape(dbHost), dbPort),
-	})
+	// err = scripts.DatabaseAccessSQLServerConfigureScript.Execute(w, scripts.DatabaseAccessSQLServerConfigureParams{
+	// 	CACertPEM:       string(keyPair.Cert),
+	// 	CACertSHA1:      fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
+	// 	CACertBase64:    base64.StdEncoding.EncodeToString(utils.CreateCertificateBLOB(block.Bytes)),
+	// 	CRLPEM:          string(encodeCRLPEM(caCRL)),
+	// 	ProxyPublicAddr: proxyServers[0].GetPublicAddr(),
+	// 	ProvisionToken:  tokenStr,
+	// 	DBAddress:       net.JoinHostPort(url.QueryEscape(dbHost), dbPort),
+	// })
 
 	return nil, trace.Wrap(err)
 }

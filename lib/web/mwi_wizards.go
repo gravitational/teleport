@@ -29,14 +29,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/gravitational/teleport"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tfgen"
-	"github.com/gravitational/teleport/lib/tfgen/transform"
-	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // machineIDWizardGenerateIaC generates IaC code for the Machine Identity CI/CD wizards.
@@ -100,82 +95,82 @@ func (h *Handler) machineIDWizardGenerateIaC(_ http.ResponseWriter, r *http.Requ
 	}
 
 	// Bot resource.
-	bot := &machineidv1.Bot{
-		Kind:    types.KindBot,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: namePrefix,
-		},
-		Spec: &machineidv1.BotSpec{
-			Roles: []string{role.GetName()},
-		},
-	}
-	botOpts := []tfgen.GenerateOpt{
-		tfgen.WithFieldTransform("spec.traits", transform.BotTraits),
-	}
+	// bot := &machineidv1.Bot{
+	// 	Kind:    types.KindBot,
+	// 	Version: types.V1,
+	// 	Metadata: &headerv1.Metadata{
+	// 		Name: namePrefix,
+	// 	},
+	// 	Spec: &machineidv1.BotSpec{
+	// 		Roles: []string{role.GetName()},
+	// 	},
+	// }
+	// botOpts := []tfgen.GenerateOpt{
+	// 	tfgen.WithFieldTransform("spec.traits", transform.BotTraits),
+	// }
 
-	// Join token resource.
-	token := &types.ProvisionTokenV2{
-		Kind:    types.KindToken,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name: namePrefix,
-		},
-		Spec: types.ProvisionTokenSpecV2{
-			Roles:      []types.SystemRole{types.RoleBot},
-			JoinMethod: types.JoinMethodGitHub,
-			BotName:    namePrefix,
-			GitHub: &types.ProvisionTokenSpecV2GitHub{
-				Allow: slices.Map(req.GitHub.Allow, func(allow machineIDWizardRequestGitHubAllow) *types.ProvisionTokenSpecV2GitHub_Rule {
-					return &types.ProvisionTokenSpecV2GitHub_Rule{
-						Repository:      fmt.Sprintf("%s/%s", allow.Owner, allow.Repository),
-						RepositoryOwner: allow.Owner,
-						Workflow:        allow.Workflow,
-						Environment:     allow.Environment,
-						Actor:           allow.Actor,
-						Ref:             allow.Ref,
-						RefType:         allow.RefType,
-					}
-				}),
-				EnterpriseServerHost: req.GitHub.EnterpriseServerHost,
-				EnterpriseSlug:       req.GitHub.EnterpriseSlug,
-				StaticJWKS:           req.GitHub.StaticJWKS,
-			},
-		},
-	}
+	// // Join token resource.
+	// token := &types.ProvisionTokenV2{
+	// 	Kind:    types.KindToken,
+	// 	Version: types.V2,
+	// 	Metadata: types.Metadata{
+	// 		Name: namePrefix,
+	// 	},
+	// 	Spec: types.ProvisionTokenSpecV2{
+	// 		Roles:      []types.SystemRole{types.RoleBot},
+	// 		JoinMethod: types.JoinMethodGitHub,
+	// 		BotName:    namePrefix,
+	// 		GitHub: &types.ProvisionTokenSpecV2GitHub{
+	// 			Allow: slices.Map(req.GitHub.Allow, func(allow machineIDWizardRequestGitHubAllow) *types.ProvisionTokenSpecV2GitHub_Rule {
+	// 				return &types.ProvisionTokenSpecV2GitHub_Rule{
+	// 					Repository:      fmt.Sprintf("%s/%s", allow.Owner, allow.Repository),
+	// 					RepositoryOwner: allow.Owner,
+	// 					Workflow:        allow.Workflow,
+	// 					Environment:     allow.Environment,
+	// 					Actor:           allow.Actor,
+	// 					Ref:             allow.Ref,
+	// 					RefType:         allow.RefType,
+	// 				}
+	// 			}),
+	// 			EnterpriseServerHost: req.GitHub.EnterpriseServerHost,
+	// 			EnterpriseSlug:       req.GitHub.EnterpriseSlug,
+	// 			StaticJWKS:           req.GitHub.StaticJWKS,
+	// 		},
+	// 	},
+	// }
 
-	roleCfg, err := tfgen.Generate(role, roleOpts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// roleCfg, err := tfgen.Generate(role, roleOpts...)
+	// if err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
 
-	botCfg, err := tfgen.Generate(bot, botOpts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// botCfg, err := tfgen.Generate(bot, botOpts...)
+	// if err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
 
-	tokenCfg, err := tfgen.Generate(token, tfgen.WithResourceType("teleport_provision_token"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// tokenCfg, err := tfgen.Generate(token, tfgen.WithResourceType("teleport_provision_token"))
+	// if err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
 
 	var buf bytes.Buffer
-	err = templates.ExecuteTemplate(&buf, "machine-id-gha-k8s-wizard.tf.tmpl", struct {
-		RoleConfig   string
-		BotConfig    string
-		TokenConfig  string
-		MajorVersion int64
-		ProxyAddr    string
-	}{
-		RoleConfig:   string(roleCfg),
-		BotConfig:    string(botCfg),
-		TokenConfig:  string(tokenCfg),
-		MajorVersion: teleport.SemVer().Major,
-		ProxyAddr:    h.PublicProxyAddr(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// err = templates.ExecuteTemplate(&buf, "machine-id-gha-k8s-wizard.tf.tmpl", struct {
+	// 	RoleConfig   string
+	// 	BotConfig    string
+	// 	TokenConfig  string
+	// 	MajorVersion int64
+	// 	ProxyAddr    string
+	// }{
+	// 	RoleConfig:   string(roleCfg),
+	// 	BotConfig:    string(botCfg),
+	// 	TokenConfig:  string(tokenCfg),
+	// 	MajorVersion: teleport.SemVer().Major,
+	// 	ProxyAddr:    h.PublicProxyAddr(),
+	// })
+	// if err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
 	return machineIDGHAK8sWizardGenerateIaCResponse{Terraform: buf.String()}, nil
 }
 

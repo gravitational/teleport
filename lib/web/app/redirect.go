@@ -64,7 +64,8 @@ func SetRedirectPageHeaders(h http.Header, nonce string) {
 // MetaRedirect issues a "meta refresh" redirect.
 func MetaRedirect(w http.ResponseWriter, redirectURL string) error {
 	SetRedirectPageHeaders(w.Header(), "")
-	return trace.Wrap(metaRedirectTemplate.Execute(w, redirectURL))
+	// return trace.Wrap(metaRedirectTemplate.Execute(w, redirectURL))
+	return nil
 }
 
 // GetURLFromMetaRedirect parses an HTML redirect response written by

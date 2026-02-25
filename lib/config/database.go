@@ -744,10 +744,10 @@ func MakeDatabaseAgentConfigString(flags DatabaseSampleFlags) (string, error) {
 	}
 
 	buf := new(bytes.Buffer)
-	err = databaseAgentConfigurationTemplate.Execute(buf, flags)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	// err = databaseAgentConfigurationTemplate.Execute(buf, flags)
+	// if err != nil {
+	// 	return "", trace.Wrap(err)
+	// }
 
 	// For consistent config checking, we parse the generated config and
 	// run checks on it to ensure that generated config has no errors.

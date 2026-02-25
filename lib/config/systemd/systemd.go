@@ -97,5 +97,6 @@ func WriteUnitFile(flags Flags, dest io.Writer) error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(unitFileTemplate.Execute(dest, flags))
+	// return trace.Wrap(unitFileTemplate.Execute(dest, flags))
+	return nil
 }

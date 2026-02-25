@@ -100,18 +100,18 @@ func fmtSSHDConfigUpdate(u SSHDConfigUpdate) (string, error) {
 		// HostCertPath is the path to the Teleport OpenSSH cert
 		HostCertPath string
 	}
-	keysDir := filepath.Join(u.DataDir, SSHDKeysDir)
-	update := SSHDConfigUpdateBackend{
-		SSHDConfigUpdate: u,
-		OpenSSHCAPath:    filepath.Join(keysDir, TeleportOpenSSHCA),
-		HostKeyPath:      filepath.Join(keysDir, TeleportKey),
-		HostCertPath:     filepath.Join(keysDir, TeleportCert),
-	}
+	// keysDir := filepath.Join(u.DataDir, SSHDKeysDir)
+	// update := SSHDConfigUpdateBackend{
+	// 	SSHDConfigUpdate: u,
+	// 	OpenSSHCAPath:    filepath.Join(keysDir, TeleportOpenSSHCA),
+	// 	HostKeyPath:      filepath.Join(keysDir, TeleportKey),
+	// 	HostCertPath:     filepath.Join(keysDir, TeleportCert),
+	// }
 
 	buf := &bytes.Buffer{}
-	if err := sshdConfigTmpl.Execute(buf, update); err != nil {
-		return "", trace.Wrap(err)
-	}
+	// if err := sshdConfigTmpl.Execute(buf, update); err != nil {
+	// 	return "", trace.Wrap(err)
+	// }
 	return buf.String(), nil
 }
 

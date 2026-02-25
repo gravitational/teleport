@@ -18,7 +18,6 @@ import (
 	"archive/zip"
 	"embed"
 	"fmt"
-	"html/template"
 	"io"
 	"os"
 	"path/filepath"
@@ -168,15 +167,15 @@ func printStep(step *byte, message string, args ...any) {
 
 // renderTemplateTo renders template from a string and writes file to targetPath
 func renderTemplateTo(w io.Writer, content string, payload any) error {
-	tpl, err := template.New("template").Parse(content)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// tpl, err := template.New("template").Parse(content)
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
 
-	err = tpl.ExecuteTemplate(w, "template", payload)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// err = tpl.ExecuteTemplate(w, "template", payload)
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
 
 	return nil
 }

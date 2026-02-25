@@ -27,8 +27,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
-	"text/template"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -83,11 +81,11 @@ func newKinitProvider(logger *slog.Logger, auth winpki.AuthInterface, adConfig t
 }
 
 func newKrb5Config(config types.AD) (string, error) {
-	data := map[string]string{
-		"RealmName":       strings.ToUpper(config.Domain),
-		"KDCHostName":     config.KDCHostName,
-		"AdminServerName": config.Domain,
-	}
+	// data := map[string]string{
+	// 	"RealmName":       strings.ToUpper(config.Domain),
+	// 	"KDCHostName":     config.KDCHostName,
+	// 	"AdminServerName": config.Domain,
+	// }
 
 	const krb5ConfigTemplate = `[libdefaults]
  default_realm = {{ .RealmName }}
@@ -101,15 +99,15 @@ func newKrb5Config(config types.AD) (string, error) {
   pkinit_eku_checking = kpServerAuth
   pkinit_kdc_hostname = {{ .KDCHostName }}
  }`
-	tpl, err := template.New("krb_conf").Parse(krb5ConfigTemplate)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	// tpl, err := template.New("krb_conf").Parse(krb5ConfigTemplate)
+	// if err != nil {
+	// 	return "", trace.Wrap(err)
+	// }
 	b := bytes.NewBuffer([]byte{})
-	err = tpl.Execute(b, data)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	// err = tpl.Execute(b, data)
+	// if err != nil {
+	// 	return "", trace.Wrap(err)
+	// }
 	return b.String(), nil
 }
 

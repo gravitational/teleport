@@ -21,13 +21,10 @@ package auth
 import (
 	"bytes"
 	"context"
-	"crypto/sha1"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	_ "embed"
-	"encoding/base64"
 	"encoding/pem"
-	"fmt"
 	"strconv"
 	"text/template"
 
@@ -39,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/winpki"
 )
 
@@ -174,14 +170,14 @@ func (a *Server) GetDesktopBootstrapScript(ctx context.Context) (*proto.DesktopB
 	}
 
 	var buf bytes.Buffer
-	err = DesktopAccessScriptConfigure.Execute(&buf, map[string]string{
-		"caCertPEM":    string(keyPair.Cert),
-		"caCertSHA1":   fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
-		"caCertBase64": base64.StdEncoding.EncodeToString(utils.CreateCertificateBLOB(block.Bytes)),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// err = DesktopAccessScriptConfigure.Execute(&buf, map[string]string{
+	// 	"caCertPEM":    string(keyPair.Cert),
+	// 	"caCertSHA1":   fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
+	// 	"caCertBase64": base64.StdEncoding.EncodeToString(utils.CreateCertificateBLOB(block.Bytes)),
+	// })
+	// if err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
 
 	return &proto.DesktopBootstrapScriptResponse{
 		Script: buf.String(),

@@ -693,7 +693,7 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	_ = agentChart
 	installCmd.ReleaseName = agentName
 	installCmd.Namespace = agentNamespace
 	installCmd.CreateNamespace = true
@@ -732,9 +732,9 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 
 	vals["labels"] = kubeAgentLabels(kubeCluster, cfg.resourceID, cfg.req.ExtraLabels)
 
-	if _, err := installCmd.RunWithContext(ctx, agentChart, vals); err != nil {
-		return trace.Wrap(err, "could not install Helm chart.")
-	}
+	// if _, err := installCmd.RunWithContext(ctx, agentChart, vals); err != nil {
+	// 	return trace.Wrap(err, "could not install Helm chart.")
+	// }
 
 	return nil
 }

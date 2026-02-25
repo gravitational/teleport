@@ -194,11 +194,13 @@ func Run(ctx context.Context, config OperationConfig) error {
 // writeOperationPlan writes the operational plan to the given [io.Writer] as
 // a structured summary of the operation and the actions that compose it.
 func writeOperationPlan(config OperationConfig) error {
-	data := map[string]any{
-		"config":          config,
-		"showStepNumbers": len(config.Actions) > 1,
-	}
-	return trace.Wrap(operationPlanTemplate.Execute(config.Output, data))
+	// data := map[string]any{
+	// 	"config":          config,
+	// 	"showStepNumbers": len(config.Actions) > 1,
+	// }
+	// return trace.Wrap(operationPlanTemplate.Execute(config.Output, data))
+
+	return nil
 }
 
 var operationPlanTemplate = template.Must(template.New("plan").

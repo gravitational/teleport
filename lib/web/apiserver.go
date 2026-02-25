@@ -28,7 +28,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"log/slog"
 	"math/rand/v2"
@@ -45,7 +44,6 @@ import (
 	"time"
 
 	gogoproto "github.com/gogo/protobuf/proto"
-	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
@@ -72,7 +70,6 @@ import (
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -601,7 +598,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	}
 
 	// serve the web UI from the embedded filesystem
-	var indexPage *template.Template
+	// var indexPage *template.Template
 	// we will set our etag based on the teleport version and
 	// the webasset app hash if available. The version only will not
 	// suffice as it can cause incorrect caching for local development.
@@ -619,14 +616,14 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			return nil, trace.Wrap(err)
 		}
 		defer index.Close()
-		indexContent, err := io.ReadAll(index)
-		if err != nil {
-			return nil, trace.ConvertSystemError(err)
-		}
-		indexPage, err = template.New("index").Parse(string(indexContent))
-		if err != nil {
-			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
-		}
+		// indexContent, err := io.ReadAll(index)
+		// if err != nil {
+		// 	return nil, trace.ConvertSystemError(err)
+		// }
+		// indexPage, err = template.New("index").Parse(string(indexContent))
+		// if err != nil {
+		// 	return nil, trace.BadParameter("failed parsing index.html template: %v", err)
+		// }
 
 		h.Handle("GET", "/robots.txt", httplib.MakeHandler(serveRobotsTxt))
 
@@ -721,9 +718,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			httplib.SetNoCacheHeaders(w.Header())
 			httplib.SetIndexContentSecurityPolicy(w.Header(), r.URL.Path)
 
-			if err := indexPage.Execute(w, session); err != nil {
-				h.logger.ErrorContext(r.Context(), "Failed to execute index page template", "error", err)
-			}
+			// if err := indexPage.Execute(w, session); err != nil {
+			// 	h.logger.ErrorContext(r.Context(), "Failed to execute index page template", "error", err)
+			// }
 		} else {
 			httplib.RouteNotFoundResponse(r.Context(), w)
 			return
@@ -2534,60 +2531,61 @@ func BuildDeviceWebRedirectPath(dwt *types.DeviceWebToken, clientRedirectURL str
 }
 
 func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-	httplib.SetScriptHeaders(w.Header())
+	// 	httplib.SetScriptHeaders(w.Header())
 
-	installerName := p.ByName("name")
-	installer, err := h.auth.proxyClient.GetInstaller(r.Context(), installerName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ping, err := h.auth.Ping(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// 	installerName := p.ByName("name")
+	// 	installer, err := h.auth.proxyClient.GetInstaller(r.Context(), installerName)
+	// 	if err != nil {
+	// 		return nil, trace.Wrap(err)
+	// 	}
+	// 	ping, err := h.auth.Ping(r.Context())
+	// 	if err != nil {
+	// 		return nil, trace.Wrap(err)
+	// 	}
 
-	const group, agentUUD = "", ""
-	targetVersion, err := h.autoUpdateResolver.GetVersion(r.Context(), group, agentUUD)
-	if err != nil {
-		h.logger.WarnContext(r.Context(), "Error retrieving the target version", "error", err)
-		targetVersion = teleport.SemVer()
-	}
+	// 	const group, agentUUD = "", ""
+	// 	targetVersion, err := h.autoUpdateResolver.GetVersion(r.Context(), group, agentUUD)
+	// 	if err != nil {
+	// 		h.logger.WarnContext(r.Context(), "Error retrieving the target version", "error", err)
+	// 		targetVersion = teleport.SemVer()
+	// 	}
 
-	instTmpl, err := template.New("").Parse(installer.GetScript())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// 	instTmpl, err := template.New("").Parse(installer.GetScript())
+	// 	if err != nil {
+	// 		return nil, trace.Wrap(err)
+	// 	}
 
-	teleportPackage := types.PackageNameOSS
-	if h.cfg.Modules.BuildType() == modules.BuildEnterprise || h.cfg.Modules.Features().Cloud {
-		teleportPackage = types.PackageNameEnt
-		if h.cfg.FIPS {
-			teleportPackage = types.PackageNameEntFIPS
-		}
-	}
+	// 	teleportPackage := types.PackageNameOSS
+	// 	if h.cfg.Modules.BuildType() == modules.BuildEnterprise || h.cfg.Modules.Features().Cloud {
+	// 		teleportPackage = types.PackageNameEnt
+	// 		if h.cfg.FIPS {
+	// 			teleportPackage = types.PackageNameEntFIPS
+	// 		}
+	// 	}
 
-	// By default, it uses the stable/v<majorVersion> channel.
-	repoChannel := fmt.Sprintf("stable/v%d", targetVersion.Major)
+	// 	// By default, it uses the stable/v<majorVersion> channel.
+	// 	repoChannel := fmt.Sprintf("stable/v%d", targetVersion.Major)
 
-	// If the updater must be installed, then change the repo to stable/cloud
-	// It must also install the version specified in
-	// https://updates.releases.teleport.dev/v1/stable/cloud/version
-	installUpdater := ping.ServerFeatures.AutomaticUpgrades && ping.ServerFeatures.Cloud
-	if installUpdater {
-		repoChannel = automaticupgrades.DefaultCloudChannelName
-	}
-	azureClientID := r.URL.Query().Get("azure-client-id")
+	// 	// If the updater must be installed, then change the repo to stable/cloud
+	// 	// It must also install the version specified in
+	// 	// https://updates.releases.teleport.dev/v1/stable/cloud/version
+	// 	installUpdater := ping.ServerFeatures.AutomaticUpgrades && ping.ServerFeatures.Cloud
+	// 	if installUpdater {
+	// 		repoChannel = automaticupgrades.DefaultCloudChannelName
+	// 	}
+	// 	azureClientID := r.URL.Query().Get("azure-client-id")
 
-	tmpl := installers.Template{
-		PublicProxyAddr:   h.PublicProxyAddr(),
-		MajorVersion:      shsprintf.EscapeDefaultContext(fmt.Sprintf("v%d", targetVersion.Major)),
-		TeleportPackage:   teleportPackage,
-		RepoChannel:       shsprintf.EscapeDefaultContext(repoChannel),
-		AutomaticUpgrades: strconv.FormatBool(installUpdater),
-		AzureClientID:     shsprintf.EscapeDefaultContext(azureClientID),
-	}
-	err = instTmpl.Execute(w, tmpl)
-	return nil, trace.Wrap(err)
+	// 	// tmpl := installers.Template{
+	// 	// 	PublicProxyAddr:   h.PublicProxyAddr(),
+	// 	// 	MajorVersion:      shsprintf.EscapeDefaultContext(fmt.Sprintf("v%d", targetVersion.Major)),
+	// 	// 	TeleportPackage:   teleportPackage,
+	// 	// 	RepoChannel:       shsprintf.EscapeDefaultContext(repoChannel),
+	// 	// 	AutomaticUpgrades: strconv.FormatBool(installUpdater),
+	// 	// 	AzureClientID:     shsprintf.EscapeDefaultContext(azureClientID),
+	// 	// }
+	// 	// err = instTmpl.Execute(w, tmpl)
+	// 	return nil, trace.Wrap(err)
+	return nil, nil
 }
 
 // AuthParams are used to construct redirect URL containing auth

@@ -132,10 +132,10 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 	SetRedirectPageHeaders(w.Header(), nonce)
 
 	// Serving the HTML page.
-	if err := appRedirectTemplate.Execute(w, nonce); err != nil {
-		h.logger.DebugContext(r.Context(), "Failed executing appRedirect template", "error", err)
-		return trace.AccessDenied("access denied")
-	}
+	// if err := appRedirectTemplate.Execute(w, nonce); err != nil {
+	// 	h.logger.DebugContext(r.Context(), "Failed executing appRedirect template", "error", err)
+	// 	return trace.AccessDenied("access denied")
+	// }
 	return nil
 }
 
