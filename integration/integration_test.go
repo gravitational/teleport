@@ -237,6 +237,8 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 	site := teleInstance.GetSiteAPI(helpers.Site)
 	require.NotNil(t, site)
 
+	require.NoError(t, teleInstance.WaitForNodeCount(t.Context(), helpers.Site, 1))
+
 	connectionProblem := func(t require.TestingT, err error, i ...any) {
 		require.Error(t, err, i...)
 		require.True(t, trace.IsConnectionProblem(err), "expected a connection problem error, got: %v", err)
@@ -269,7 +271,7 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 			cl, err := teleInstance.NewClient(helpers.ClientConfig{
 				Login:    suite.Me.Username,
 				Cluster:  helpers.Site,
-				Host:     Host,
+				Host:     teleInstance.Hostname,
 				Port:     helpers.Port(t, teleInstance.SSH),
 				SourceIP: test.ip,
 			})
