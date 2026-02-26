@@ -877,18 +877,22 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	cf.kingpinApp = utils.InitCLIParser("tsh", "Teleport Command Line Client.").Interspersed(true)
 	app := cf.kingpinApp
 
+	getLogins := func() []string {
+		proxy, err := cf.getClientStore().CurrentProfile()
+		if err != nil {
+			return []string{}
+		}
+		cf.Proxy = proxy
+		profile, _, err := cf.FullProfileStatus()
+		if err != nil {
+			return []string{}
+		}
+		return profile.Logins
+	}
+
 	getUserHostHints := func(suffix string) func() []string {
 		return func() []string {
-			proxy, err := cf.getClientStore().CurrentProfile()
-			if err != nil {
-				return nil
-			}
-			cf.Proxy = proxy
-			var logins []string
-			profile, _, err := cf.FullProfileStatus()
-			if err == nil {
-				logins = profile.Logins
-			}
+			logins := getLogins()
 			cache := autocomplete.NewAutoComplete(nil, nil)
 			hosts, err := cache.Get(autocomplete.HostKey)
 			if err != nil {
@@ -908,7 +912,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		}
 	}
 
-	app.Flag("login", "Remote host login.").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
+	app.Flag("login", "Remote host login.").Short('l').Envar(loginEnvVar).HintAction(getLogins).StringVar(&cf.NodeLogin)
 	app.Flag("proxy", "Teleport proxy address.").Envar(proxyEnvVar).StringVar(&cf.Proxy)
 	app.Flag("relay", "Teleport relay address, \"none\" to explicitly disable the use of a relay, or \"default\" to use the cluster-provided address even if a different address was specified at login time.").Envar(relayEnvVar).StringVar(&cf.Relay)
 	app.Flag("nocache", "Do not cache cluster discovery locally.").Hidden().BoolVar(&cf.NoCache)
@@ -995,7 +999,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("remote-forward", "Forward remote connections to localhost.").Short('R').StringsVar(&cf.RemoteForwardPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node.").Default("false").BoolVar(&cf.LocalExec)
 	ssh.Flag("tty", "Allocate TTY.").Short('t').BoolVar(&cf.Interactive)
-	ssh.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	ssh.Flag("cluster", clusterHelp).HintAction(autocomplete.HintAction(autocomplete.ClusterKey)).Short('c').StringVar(&cf.SiteName)
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file.").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding.").Short('N').BoolVar(&cf.NoRemoteExec)
 	ssh.Flag("x11-untrusted", "Requests untrusted (secure) X11 forwarding for this session.").Short('X').BoolVar(&cf.X11ForwardingUntrusted)
@@ -1282,7 +1286,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	login.Flag("request-reviewers", "Suggested reviewers for role request.").StringVar(&cf.SuggestedReviewers)
 	login.Flag("request-nowait", "Finish without waiting for request resolution.").BoolVar(&cf.NoWait)
 	login.Flag("request-id", "Login with the roles requested in the given request.").StringVar(&cf.RequestID)
-	login.Arg("cluster", clusterHelp).HintAction(autocomplete.HintAction(autocomplete.ClusterLoginKey)).StringVar(&cf.SiteName)
+	login.Arg("cluster", clusterHelp).HintAction(autocomplete.HintAction(autocomplete.ClusterKey)).StringVar(&cf.SiteName)
 	login.Flag("scope", "Scope pins credentials to a given scope.").StringVar(&cf.Scope)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to.").StringVar(&cf.KubernetesCluster)
@@ -1381,7 +1385,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	reqShow := req.Command("show", "Show request details.").Alias("details")
 	reqShow.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
-	reqShow.Arg("request-id", "ID of the target request.").Required().StringVar(&cf.RequestID)
+	reqShow.Arg("request-id", "ID of the target request.").Required().HintAction(autocomplete.HintAction(types.KindAccessRequest)).StringVar(&cf.RequestID)
 
 	// Note: The "tsh request new" subcommand should not be used anymore. It
 	// will be kept around for users that built automation around it, but all
@@ -1398,7 +1402,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqCreate.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqReview := req.Command("review", "Review an Access Request.")
-	reqReview.Arg("request-id", "ID of target request.").Required().StringVar(&cf.RequestID)
+	reqReview.Arg("request-id", "ID of target request.").Required().HintAction(autocomplete.HintAction(types.KindAccessRequest)).StringVar(&cf.RequestID)
 	reqReview.Flag("approve", "Review proposes approval.").BoolVar(&cf.Approve)
 	reqReview.Flag("deny", "Review proposes denial.").BoolVar(&cf.Deny)
 	reqReview.Flag("reason", "Review reason message.").StringVar(&cf.ReviewReason)
@@ -1476,7 +1480,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately.").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
 
 	reqDrop := req.Command("drop", "Drop one more Access Requests from current identity.")
-	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests).").Default("*").StringsVar(&cf.RequestIDs)
+	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests).").Default("*").HintAction(autocomplete.HintAction(types.KindAccessRequest)).StringsVar(&cf.RequestIDs)
 	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster.").Interspersed(false)
 	// This hack is required in order to accept any args for tsh kubectl.
 	kubectl.Arg("", "").StringsVar(new([]string))

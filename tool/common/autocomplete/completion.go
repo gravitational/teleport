@@ -61,14 +61,14 @@ const (
 	HostKey           = "nodes_by_hostname"
 	RecordingsKey     = "recordings"
 	ActiveSessionsKey = "active_sessions"
-	ClusterLoginKey   = "cluster_login"
+	ClusterKey        = "cluster_login"
 )
 
 var virtualResourceKeys = []string{
 	HostKey,
 	RecordingsKey,
 	ActiveSessionsKey,
-	ClusterLoginKey,
+	ClusterKey,
 }
 
 func NewAutoComplete(clt *authclient.Client, tc *client.TeleportClient) *cache {
@@ -147,7 +147,7 @@ func NewAutoComplete(clt *authclient.Client, tc *client.TeleportClient) *cache {
 			}
 			return sessionIDs, nil
 		}
-		updaters[ClusterLoginKey] = func(ctx context.Context) ([]string, error) {
+		updaters[ClusterKey] = func(ctx context.Context) ([]string, error) {
 			clusterClient, err := tc.ConnectToCluster(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
