@@ -223,6 +223,9 @@ If an Admonition has to do with the entire feature presented in the guide, place
 it just before the first H2-level heading and after the introductory text for
 the guide.
 
+Keep Admonitions short. If an Admonition requires multiple paragraphs,
+configuration examples, or example commands, consider a new subsection instead.
+
 #### Collapsible sections
 
 Use `<details>` for optional or advanced content:
