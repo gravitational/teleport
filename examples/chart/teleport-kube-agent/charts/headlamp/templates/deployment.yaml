@@ -236,11 +236,14 @@ spec:
           {{- end }}
           {{- end }}
           args:
-            {{- if .Values.config.inCluster }}
+            {{- if and .Values.config.inCluster (not .Values.teleportAuthProxy.enabled) }}
             - "-in-cluster"
             {{- if .Values.config.inClusterContextName }}
             - "-in-cluster-context-name={{ .Values.config.inClusterContextName }}"
             {{- end }}
+            {{- end }}
+            {{- if .Values.teleportAuthProxy.enabled }}
+            - "-kubeconfig=/etc/headlamp-proxy/kubeconfig"
             {{- end }}
             {{- with .Values.config.enableHelm }}
             - "-enable-helm"
@@ -351,8 +354,13 @@ spec:
               port: {{ if .Values.teleportAuthProxy.enabled }}headlamp{{ else }}http{{ end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or .Values.pluginsManager.enabled .Values.volumeMounts }}
+          {{- if or .Values.pluginsManager.enabled .Values.volumeMounts .Values.teleportAuthProxy.enabled }}
           volumeMounts:
+            {{- if .Values.teleportAuthProxy.enabled }}
+            - name: headlamp-kubeconfig
+              mountPath: /etc/headlamp-proxy
+              readOnly: true
+            {{- end }}
             {{- if .Values.pluginsManager.enabled }}
             - name: plugins-dir
               mountPath: {{ .Values.config.pluginsDir }}
@@ -451,8 +459,13 @@ spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . | quote }}
       {{- end }}
-      {{- if or .Values.pluginsManager.enabled .Values.volumes }}
+      {{- if or .Values.pluginsManager.enabled .Values.volumes .Values.teleportAuthProxy.enabled }}
       volumes:
+        {{- if .Values.teleportAuthProxy.enabled }}
+        - name: headlamp-kubeconfig
+          configMap:
+            name: {{ include "headlamp.fullname" . }}-kubeconfig
+        {{- end }}
         {{- if .Values.pluginsManager.enabled }}
         - name: plugins-dir
           emptyDir: {}

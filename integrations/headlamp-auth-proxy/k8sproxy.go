@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	saTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	saTokenPath  = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 	saCACertPath = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 )
 
@@ -79,26 +79,35 @@ func (kp *K8sProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract the bearer token from the request.
-	authHeader := r.Header.Get("Authorization")
-	bearerToken := strings.TrimPrefix(authHeader, "Bearer ")
+	// Check for the internal HMAC token. The front proxy passes it via
+	// X-Auth-Token header which survives Headlamp's internal reverse proxy.
+	// Also check the Authorization bearer as a fallback.
+	token := r.Header.Get("X-Auth-Token")
+	if token == "" {
+		authHeader := r.Header.Get("Authorization")
+		token = strings.TrimPrefix(authHeader, "Bearer ")
+		if token == authHeader {
+			token = "" // not a Bearer token
+		}
+	}
 
-	if bearerToken != "" && bearerToken != authHeader {
-		// Try to validate as an internal HMAC token.
-		claims, err := kp.signer.Validate(bearerToken)
+	if token != "" {
+		claims, err := kp.signer.Validate(token)
 		if err == nil {
 			// Valid internal token — impersonate the user.
+			r.Header.Del("X-Auth-Token")
 			r.Header.Set("Authorization", "Bearer "+string(saToken))
 			r.Header.Set("Impersonate-User", claims.Username)
 			for _, g := range claims.Groups {
 				r.Header.Add("Impersonate-Group", g)
 			}
-			slog.Debug("impersonating", "user", claims.Username, "groups", claims.Groups)
+			slog.Info("impersonating", "user", claims.Username, "groups", claims.Groups, "path", r.URL.Path)
 			kp.proxy.ServeHTTP(w, r)
 			return
 		}
-		// Not a valid internal token — could be Headlamp's own SA token
-		// from in-cluster config. Let it through as-is.
+		slog.Warn("HMAC validation failed, falling through", "error", err, "path", r.URL.Path)
+	} else {
+		slog.Info("no auth token, using SA", "path", r.URL.Path)
 	}
 
 	// No token or non-HMAC token: forward using the SA token for

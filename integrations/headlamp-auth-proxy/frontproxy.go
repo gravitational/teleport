@@ -61,11 +61,19 @@ func (fp *FrontProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Inject the cookie so Headlamp treats the user as authenticated.
+	slog.Info("authenticated request", "user", claims.Username, "groups", groups, "path", r.URL.Path)
+
+	// Inject the cookie so Headlamp's /me endpoint shows user info.
 	r.AddCookie(&http.Cookie{
 		Name:  fp.cookieName,
 		Value: internalToken,
 	})
+
+	// Pass the token via a custom header that survives Headlamp's
+	// internal reverse proxy (httputil.ReverseProxy preserves
+	// non-hop-by-hop headers). The k8s-proxy reads this for
+	// impersonation instead of relying on the cookie→bearer flow.
+	r.Header.Set("X-Auth-Token", internalToken)
 
 	// Remove the Teleport JWT header — Headlamp doesn't need it.
 	r.Header.Del("teleport-jwt-assertion")
