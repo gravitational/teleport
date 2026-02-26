@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=19.0.0-dev
+VERSION=19.0.0-dev.gus-granular.1
 
 DOCKER_IMAGE ?= teleport
 
@@ -1477,6 +1477,8 @@ IS_CLOUD_SEMVER = $(call find-any,$(CLOUD_VERSIONS),$(VERSION))
 PROD_VERSIONS = -cloud.
 IS_PROD_SEMVER = $(if $(findstring -,$(VERSION)),$(call find-any,$(PROD_VERSIONS),$(VERSION)),true)
 
+include gha-build-profiles.mk
+
 # Builds a tag build on GitHub Actions.
 # Starts a tag publish run using e/.github/workflows/tag-build.yaml
 # for the tag v$(VERSION).
@@ -1486,15 +1488,18 @@ IS_PROD_SEMVER = $(if $(findstring -,$(VERSION)),$(call find-any,$(PROD_VERSIONS
 .PHONY: tag-build
 tag-build: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
 tag-build: ENVIRONMENT = $(if $(IS_PROD_SEMVER),prod/build,stage/build)
+tag-build: BUILD_PROFILE =
+tag-build: REF = $(if $(NO_TAG),$(shell git rev-parse HEAD),v$(VERSION))
 tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-build.yaml \
 		--repo gravitational/teleport.e \
-		--ref "v$(VERSION)" \
+		--ref "$(REF)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)" \
 		-f "cloud-only=$(CLOUD_ONLY)" \
-		-f "environment=$(ENVIRONMENT)"
+		-f "environment=$(ENVIRONMENT)" $(if $(BUILD_PROFILE),\)
+		$(call gha_build_profile_$(BUILD_PROFILE))
 	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
 
 # Publishes a tag build.
@@ -1506,11 +1511,12 @@ tag-build:
 .PHONY: tag-publish
 tag-publish: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
 tag-publish: ENVIRONMENT = $(if $(IS_PROD_SEMVER),prod/publish,stage/publish)
+tag-publish: REF = $(if $(NO_TAG),$(shell git rev-parse HEAD),v$(VERSION))
 tag-publish:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-publish.yaml \
 		--repo gravitational/teleport.e \
-		--ref "v$(VERSION)" \
+		--ref "$(REF)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)" \
 		-f "cloud-only=$(CLOUD_ONLY)" \
