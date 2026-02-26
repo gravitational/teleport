@@ -382,6 +382,24 @@ podDisruptionBudget:
   # -- How are unhealthy, but running, pods counted for eviction
   unhealthyPodEvictionPolicy: null
 
+# Teleport auth proxy sidecar. Bridges Teleport app access identity to
+# Kubernetes RBAC via impersonation. When enabled, the proxy sits in front
+# of Headlamp and translates Teleport JWT assertions into per-user
+# Kubernetes API calls.
+teleportAuthProxy:
+  # -- Enable the Teleport auth proxy sidecar.
+  enabled: false
+  # -- Teleport proxy public address (e.g. cluster.example.com:443).
+  teleportProxy: ""
+  image:
+    registry: ghcr.io
+    repository: gravitational/headlamp-auth-proxy
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  # -- JWT claim to map to Kubernetes groups for impersonation.
+  # Use "roles" for Teleport roles, or "traits.<key>" for a specific trait.
+  groupsClaim: "roles"
+
 # -- Additional Kubernetes manifests to be deployed. Include the manifest as nested YAML.
 extraManifests: []
 # - |

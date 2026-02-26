@@ -227,6 +227,12 @@ spec:
             {{- if .Values.env }}
             {{- toYaml .Values.env | nindent 12 }}
             {{- end }}
+            {{- if .Values.teleportAuthProxy.enabled }}
+            - name: KUBERNETES_SERVICE_HOST
+              value: "127.0.0.1"
+            - name: KUBERNETES_SERVICE_PORT
+              value: "6443"
+            {{- end }}
           {{- end }}
           {{- end }}
           args:
@@ -328,18 +334,21 @@ spec:
             {{- with .Values.config.extraArgs }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
+            {{- if .Values.teleportAuthProxy.enabled }}
+            - "-port=4467"
+            {{- end }}
           ports:
-            - name: http
-              containerPort: 4466
+            - name: {{ if .Values.teleportAuthProxy.enabled }}headlamp{{ else }}http{{ end }}
+              containerPort: {{ if .Values.teleportAuthProxy.enabled }}4467{{ else }}4466{{ end }}
               protocol: TCP
           livenessProbe:
             httpGet:
               path: "{{ .Values.config.baseURL }}/"
-              port: http
+              port: {{ if .Values.teleportAuthProxy.enabled }}headlamp{{ else }}http{{ end }}
           readinessProbe:
             httpGet:
               path: "{{ .Values.config.baseURL }}/"
-              port: http
+              port: {{ if .Values.teleportAuthProxy.enabled }}headlamp{{ else }}http{{ end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           {{- if or .Values.pluginsManager.enabled .Values.volumeMounts }}
@@ -391,6 +400,27 @@ spec:
               {{- $defaultSC := dict "allowPrivilegeEscalation" false "runAsNonRoot" true "seccompProfile" (dict "type" "RuntimeDefault") "capabilities" (dict "drop" (list "ALL")) }}
               {{- toYaml $defaultSC | nindent 12 }}
             {{- end }}
+        {{- end }}
+        {{- if .Values.teleportAuthProxy.enabled }}
+        - name: auth-proxy
+          image: "{{ .Values.teleportAuthProxy.image.registry }}/{{ .Values.teleportAuthProxy.image.repository }}:{{ .Values.teleportAuthProxy.image.tag }}"
+          imagePullPolicy: {{ .Values.teleportAuthProxy.image.pullPolicy }}
+          args:
+            - "--teleport-proxy={{ .Values.teleportAuthProxy.teleportProxy }}"
+            - "--headlamp-addr=127.0.0.1:4467"
+            - "--listen-http=:4466"
+            - "--listen-k8s=127.0.0.1:6443"
+            {{- with .Values.teleportAuthProxy.groupsClaim }}
+            - "--groups-claim={{ . }}"
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 4466
+              protocol: TCP
+          securityContext:
+            runAsNonRoot: true
+            privileged: false
+            allowPrivilegeEscalation: false
         {{- end }}
         {{- with .Values.extraContainers }}
         {{- toYaml . | nindent 8 }}
