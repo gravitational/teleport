@@ -7,6 +7,8 @@ metadata:
   labels:
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: {{ .Release.Name }}
+  annotations:
+    teleport.dev/name: Headlamp
 spec:
   type: ClusterIP
   ports:
