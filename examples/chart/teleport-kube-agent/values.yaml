@@ -1398,10 +1398,23 @@ probeTimeoutSeconds: 1
 # https://headlamp.dev/
 ################################################################
 
-# headlamp(object) -- configures the bundled Headlamp subchart.
-# Set `headlamp.enabled` to `true` to deploy Headlamp alongside the Teleport agent.
-# The auth-proxy sidecar is always included — it bridges Teleport app access
+# headlamp(object) -- deploys Headlamp (Kubernetes web UI) alongside the
+# Teleport agent with an auth-proxy sidecar that bridges Teleport app access
 # identity to Kubernetes RBAC via impersonation.
 headlamp:
-  # headlamp.enabled(bool) -- controls whether the Headlamp subchart is deployed.
+  # headlamp.enabled(bool) -- controls whether Headlamp is deployed.
   enabled: false
+  image:
+    registry: ghcr.io
+    repository: headlamp-k8s/headlamp
+    tag: "v0.40.0"
+    pullPolicy: IfNotPresent
+  authProxy:
+    image:
+      registry: ghcr.io
+      repository: jakealti/headlamp-auth-proxy
+      tag: "latest"
+      pullPolicy: Always
+    # -- JWT claim to map to Kubernetes groups for impersonation.
+    # Use "roles" for Teleport roles, or "traits.<key>" for a specific trait.
+    groupsClaim: "roles"

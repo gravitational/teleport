@@ -12,6 +12,3 @@ keywords:
 dependencies:
   - name: teleport-kube-updater
     version: *version
-  - name: headlamp
-    version: "0.40.0"
-    condition: headlamp.enabled

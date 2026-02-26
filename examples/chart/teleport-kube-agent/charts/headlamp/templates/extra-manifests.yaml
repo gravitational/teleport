@@ -1,6 +1,0 @@
-{{- if .Values.extraManifests }}
-{{- range $manifest := .Values.extraManifests }}
----
-{{- tpl $manifest $ | nindent 0 }}
-{{- end }}
-{{- end }}

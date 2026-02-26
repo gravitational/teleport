@@ -1,4 +1,0 @@
-# -- Headlamp OIDC me user info URL test case
-config:
-  oidc:
-    meUserInfoURL: /oauth2/userinfocustom2

@@ -1,0 +1,29 @@
+{{- if .Values.headlamp.enabled -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-headlamp-impersonate
+  labels:
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/instance: {{ .Release.Name }}
+rules:
+  - apiGroups: [""]
+    resources: ["users", "groups", "serviceaccounts"]
+    verbs: ["impersonate"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-headlamp-impersonate
+  labels:
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/instance: {{ .Release.Name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Release.Name }}-headlamp-impersonate
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Release.Name }}-headlamp
+    namespace: {{ .Release.Namespace }}
+{{- end }}
