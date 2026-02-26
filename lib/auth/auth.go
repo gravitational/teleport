@@ -5860,7 +5860,21 @@ func (a *Server) ListMatchingAccessRequests(ctx context.Context, req *proto.List
 	return a.AccessRequestCache.ListMatchingAccessRequests(ctx, req, match)
 }
 
+func idFromContext(ctx context.Context) (string, bool) {
+	untypedID := ctx.Value("request_id")
+	if untypedID == nil {
+		return "", false
+	}
+
+	if id, ok := untypedID.(string); ok {
+		return id, true
+	}
+
+	return "", false
+}
+
 func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
+	a.logger.InfoContext(ctx, "Creating new Access Request")
 	now := a.clock.Now().UTC()
 
 	req.SetCreationTime(now)
@@ -5872,6 +5886,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	// Look for user groups and associated applications to the request.
+	a.logger.InfoContext(ctx, "Adding implicitly-required resorces")
 	requestedResourceIDs, err := a.appendImplicitlyRequiredResources(ctx, req.GetRequestedResourceIDs())
 	if err != nil {
 		return nil, trace.Wrap(err, "adding additional implicitly required resources")
@@ -5948,7 +5963,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
+	err = a.EmitAuditEvent(ctx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,
@@ -6242,7 +6257,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 			event.Annotations = annotations
 		}
 	}
-	err = a.emitter.EmitAuditEvent(a.closeCtx, event)
+	err = a.EmitAuditEvent(ctx, event)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit access request update event", "error", err)
 	}

@@ -77,6 +77,7 @@ import (
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	httptracing "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -5501,6 +5502,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Server: &http.Server{
 				Handler: utils.ChainHTTPMiddlewares(
 					webHandler,
+					httptracing.ServerMiddleware,
 					limiter.MakeMiddleware(proxyLimiter),
 					httplib.MakeTracingMiddleware(teleport.ComponentProxy),
 					makeXForwardedForMiddleware(cfg),
