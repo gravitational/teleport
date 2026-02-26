@@ -33,10 +33,10 @@ import (
 	"sync/atomic"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgproto3/v2"
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgproto3"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -232,7 +232,7 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 }
 
 func (s *TestServer) startTLS(conn net.Conn) (*pgproto3.Backend, error) {
-	client := pgproto3.NewBackend(pgproto3.NewChunkReader(conn), conn)
+	client := pgproto3.NewBackend(conn, conn)
 	startupMessage, err := client.ReceiveStartupMessage()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -247,7 +247,7 @@ func (s *TestServer) startTLS(conn net.Conn) (*pgproto3.Backend, error) {
 	}
 	// Upgrade connection to TLS.
 	conn = tls.Server(conn, s.tlsConfig)
-	return pgproto3.NewBackend(pgproto3.NewChunkReader(conn), conn), nil
+	return pgproto3.NewBackend(conn, conn), nil
 }
 
 func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgproto3.StartupMessage) error {
@@ -261,8 +261,9 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgp
 		// simulates cloud provider IAM auth.
 		if err := s.handlePasswordAuth(client); err != nil {
 			if trace.IsAccessDenied(err) {
-				if err := client.Send(&pgproto3.ErrorResponse{Code: pgerrcode.InvalidPassword, Message: err.Error()}); err != nil {
-					return trace.Wrap(err)
+				client.Send(&pgproto3.ErrorResponse{Code: pgerrcode.InvalidPassword, Message: err.Error()})
+				if flushErr := client.Flush(); flushErr != nil {
+					return trace.Wrap(flushErr)
 				}
 			}
 			return trace.Wrap(err)
@@ -274,22 +275,18 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgp
 	}
 
 	// Accept auth and send ready for query.
-	if err := client.Send(&pgproto3.AuthenticationOk{}); err != nil {
-		return trace.Wrap(err)
-	}
+	client.Send(&pgproto3.AuthenticationOk{})
 
 	pid := s.newPid()
 	defer s.cleanupPid(pid)
 
-	err := client.Send(&pgproto3.BackendKeyData{
+	client.Send(&pgproto3.BackendKeyData{
 		ProcessID: pid,
 		SecretKey: testSecretKey,
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	if err := client.Send(&pgproto3.ReadyForQuery{}); err != nil {
+	client.Send(&pgproto3.ReadyForQuery{})
+	if err := client.Flush(); err != nil {
 		return trace.Wrap(err)
 	}
 	// Enter the loop replying to client messages.
@@ -372,7 +369,8 @@ func (s *TestServer) handleCancelRequest(client *pgproto3.Backend, req *pgproto3
 
 func (s *TestServer) handlePasswordAuth(client *pgproto3.Backend) error {
 	// Request cleartext password.
-	if err := client.Send(&pgproto3.AuthenticationCleartextPassword{}); err != nil {
+	client.Send(&pgproto3.AuthenticationCleartextPassword{})
+	if err := client.Flush(); err != nil {
 		return trace.Wrap(err)
 	}
 	// Wait for response which should be PasswordMessage.
@@ -410,34 +408,19 @@ func (s *TestServer) handleQuery(client *pgproto3.Backend, query string, pid uin
 	}
 
 	messages := []pgproto3.BackendMessage{
-		&pgproto3.RowDescription{Fields: TestQueryResponse.FieldDescriptions},
+		&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte(TestQueryResponse.FieldDescriptions[0].Name)}}},
 		&pgproto3.DataRow{Values: TestQueryResponse.Rows[0]},
-		&pgproto3.CommandComplete{CommandTag: TestQueryResponse.CommandTag},
+		&pgproto3.CommandComplete{CommandTag: []byte(TestQueryResponse.CommandTag.String())},
 		&pgproto3.ReadyForQuery{},
 	}
-	for _, message := range messages {
-		s.log.DebugContext(context.Background(), "Sending.", "message", fmt.Sprintf("%#v", message))
-		err := client.Send(message)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
+	return trace.Wrap(s.sendMessages(client, messages...))
 }
 
 func (s *TestServer) handleQueryWithError(client *pgproto3.Backend) error {
-	for _, message := range []pgproto3.BackendMessage{
+	return trace.Wrap(s.sendMessages(client,
 		&pgproto3.ErrorResponse{Severity: "ERROR", Code: "42703", Message: "error"},
 		&pgproto3.ReadyForQuery{},
-	} {
-		s.log.DebugContext(context.Background(), "Sending.", "message", fmt.Sprintf("%#v", message))
-		err := client.Send(message)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
+	))
 }
 
 func (s *TestServer) handleCreateStoredProcedure(query string, pid uint32) error {
@@ -576,25 +559,16 @@ func (s *TestServer) handleBenchmarkQuery(query string, client *pgproto3.Backend
 	s.log.DebugContext(context.Background(), "Responding to query", "query", query, "repeat", repeats, "length", len(mm.payload))
 
 	// preamble
-	err = client.Send(&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte("dummy")}}})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	client.Send(&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte("dummy")}}})
 
 	// send messages in bulk, which is fast.
-	err = client.Send(mm)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	client.Send(mm)
 
 	// epilogue
-	err = client.Send(&pgproto3.CommandComplete{CommandTag: []byte("SELECT 100")})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	client.Send(&pgproto3.CommandComplete{CommandTag: []byte("SELECT 100")})
 
-	err = client.Send(&pgproto3.ReadyForQuery{})
-	if err != nil {
+	client.Send(&pgproto3.ReadyForQuery{})
+	if err = client.Flush(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -720,7 +694,7 @@ func (s *TestServer) handleDeactivateUser(client *pgproto3.Backend, sendDeleteRe
 	}
 	if sendDeleteResponse {
 		messages = append(messages,
-			&pgproto3.RowDescription{Fields: TestDeleteUserResponse.FieldDescriptions},
+			&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte(TestDeleteUserResponse.FieldDescriptions[0].Name)}}},
 			&pgproto3.DataRow{Values: TestDeleteUserResponse.Rows[0]},
 		)
 	} else {
@@ -940,7 +914,7 @@ func (s *TestServer) receiveFrontendMessage(client *pgproto3.Backend) (pgproto3.
 
 func getVarchar(formatCode int16, src []byte) (string, error) {
 	var dst any
-	err := pgtype.NewConnInfo().Scan(pgtype.VarcharOID, formatCode, src, &dst)
+	err := pgtype.NewMap().Scan(pgtype.VarcharOID, formatCode, src, &dst)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -953,17 +927,17 @@ func getVarchar(formatCode int16, src []byte) (string, error) {
 
 func getVarcharArray(formatCode int16, src []byte) ([]string, error) {
 	var dst any
-	err := pgtype.NewConnInfo().Scan(pgtype.VarcharArrayOID, formatCode, src, &dst)
+	err := pgtype.NewMap().Scan(pgtype.VarcharArrayOID, formatCode, src, &dst)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	arr, ok := dst.(pgtype.VarcharArray)
+	arr, ok := dst.([]any)
 	if !ok {
 		return nil, trace.BadParameter("expected string array, got %#v", dst)
 	}
 	var strs []string
-	for _, el := range arr.Elements {
-		strs = append(strs, el.String)
+	for _, el := range arr {
+		strs = append(strs, el.(string))
 	}
 	return strs, nil
 }
@@ -971,7 +945,7 @@ func getVarcharArray(formatCode int16, src []byte) ([]string, error) {
 // getJSONB parses the incoming JSONB data into target type. To get raw data, pass pgtype.JSONB as T.
 func getJSONB[T any](formatCode int16, src []byte) (T, error) {
 	var dst T
-	err := pgtype.NewConnInfo().Scan(pgtype.JSONBOID, formatCode, src, &dst)
+	err := pgtype.NewMap().Scan(pgtype.JSONBOID, formatCode, src, &dst)
 	if err != nil {
 		return dst, trace.Wrap(err)
 	}
@@ -981,12 +955,9 @@ func getJSONB[T any](formatCode int16, src []byte) (T, error) {
 func (s *TestServer) sendMessages(client *pgproto3.Backend, messages ...pgproto3.BackendMessage) error {
 	for _, message := range messages {
 		s.log.DebugContext(context.Background(), "Sending.", "message", fmt.Sprintf("%#v", message))
-		err := client.Send(message)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		client.Send(message)
 	}
-	return nil
+	return trace.Wrap(client.Flush())
 }
 
 func (s *TestServer) fakeLongRunningQuery(client *pgproto3.Backend, pid uint32) error {
@@ -996,31 +967,17 @@ func (s *TestServer) fakeLongRunningQuery(client *pgproto3.Backend, pid uint32) 
 		return trace.Wrap(err)
 	}
 	<-ctx.Done()
-	messages := []pgproto3.BackendMessage{
+	return trace.Wrap(s.sendMessages(client,
 		&pgproto3.ErrorResponse{
 			Code:    pgerrcode.QueryCanceled,
 			Message: "canceling statement due to user request",
 		},
 		&pgproto3.ReadyForQuery{},
-	}
-	for _, message := range messages {
-		s.log.DebugContext(context.Background(), "Sending.", "message", fmt.Sprintf("%#v", message))
-		err := client.Send(message)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
+	))
 }
 
 func (s *TestServer) handleSync(client *pgproto3.Backend) error {
-	message := &pgproto3.ReadyForQuery{}
-	s.log.DebugContext(context.Background(), "Sending.", "message", fmt.Sprintf("%#v", message))
-	err := client.Send(message)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(s.sendMessages(client, &pgproto3.ReadyForQuery{}))
 }
 
 // Port returns the port server is listening on.
@@ -1102,15 +1059,15 @@ func (s *TestServer) registerCancel(pid uint32, cancel context.CancelFunc) error
 // TestQueryResponse is the response test Postgres server sends to every success
 // query.
 var TestQueryResponse = &pgconn.Result{
-	FieldDescriptions: []pgproto3.FieldDescription{{Name: []byte("test-field")}},
+	FieldDescriptions: []pgconn.FieldDescription{{Name: "test-field"}},
 	Rows:              [][][]byte{{[]byte("test-value")}},
-	CommandTag:        pgconn.CommandTag("select 1"),
+	CommandTag:        pgconn.NewCommandTag("select 1"),
 }
 
 // TestDeleteUserResponse is the response test Postgres server sends to every
 // query that calls the auto user deletion procedure.
 var TestDeleteUserResponse = &pgconn.Result{
-	FieldDescriptions: []pgproto3.FieldDescription{{Name: []byte("state")}},
+	FieldDescriptions: []pgconn.FieldDescription{{Name: "state"}},
 	Rows:              [][][]byte{{[]byte("TP003")}},
 }
 

@@ -29,9 +29,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 
 	"github.com/gravitational/teleport/api/types"

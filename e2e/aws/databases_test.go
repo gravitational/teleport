@@ -36,10 +36,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool" // TODO(gavin): change this to v5 after updating other test packages to use v5 as well
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -333,7 +333,7 @@ func connectPostgres(t *testing.T, ctx context.Context, info dbUserLogin, dbName
 		RootCAs:    awsCertPool.Clone(),
 	}
 
-	pool, err := pgxpool.ConnectConfig(ctx, pgCfg)
+	pool, err := pgxpool.NewWithConfig(ctx, pgCfg)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 	return &pgConn{
