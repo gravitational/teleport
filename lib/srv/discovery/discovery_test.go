@@ -31,6 +31,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"cloud.google.com/go/container/apiv1/containerpb"
@@ -95,7 +96,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/server"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	libutils "github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 func TestMain(m *testing.M) {
