@@ -1400,8 +1400,8 @@ probeTimeoutSeconds: 1
 
 # headlamp(object) -- configures the bundled Headlamp subchart.
 # Set `headlamp.enabled` to `true` to deploy Headlamp alongside the Teleport agent.
-# All values under `headlamp` are passed directly to the Headlamp chart.
-# See https://github.com/kubernetes-sigs/headlamp/tree/main/charts/headlamp for full options.
+# The auth-proxy sidecar is always included — it bridges Teleport app access
+# identity to Kubernetes RBAC via impersonation.
 headlamp:
   # headlamp.enabled(bool) -- controls whether the Headlamp subchart is deployed.
   enabled: false

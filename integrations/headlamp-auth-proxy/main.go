@@ -2,7 +2,7 @@
 // RBAC via impersonation. It runs as a sidecar alongside Headlamp with two
 // proxy roles:
 //
-//  1. Front proxy (:4466) — validates the Teleport JWT, mints an internal
+//  1. Front proxy (:4466) — decodes the Teleport JWT, mints an internal
 //     HMAC token encoding the user identity, injects it as a Headlamp session
 //     cookie, and forwards to Headlamp (:4467).
 //
@@ -26,20 +26,14 @@ import (
 
 func main() {
 	var (
-		teleportProxy = flag.String("teleport-proxy", "", "Teleport proxy public address (e.g. cluster.example.com:443)")
-		headlampAddr  = flag.String("headlamp-addr", "127.0.0.1:4467", "Headlamp backend address")
-		listenHTTP    = flag.String("listen-http", ":4466", "Front proxy listen address")
-		listenK8s     = flag.String("listen-k8s", "127.0.0.1:6443", "K8s API proxy listen address")
-		groupsClaim   = flag.String("groups-claim", "roles", "JWT claim to map to K8s groups (roles or traits.<key>)")
-		cookieName    = flag.String("cookie-name", "headlamp_main_token", "Headlamp session cookie name")
-		tokenTTL      = flag.Duration("token-ttl", 5*time.Minute, "Internal HMAC token TTL")
+		headlampAddr = flag.String("headlamp-addr", "127.0.0.1:4467", "Headlamp backend address")
+		listenHTTP   = flag.String("listen-http", ":4466", "Front proxy listen address")
+		listenK8s    = flag.String("listen-k8s", "127.0.0.1:6443", "K8s API proxy listen address")
+		groupsClaim  = flag.String("groups-claim", "roles", "JWT claim to map to K8s groups (roles or traits.<key>)")
+		cookieName   = flag.String("cookie-name", "headlamp_main_token", "Headlamp session cookie name")
+		tokenTTL     = flag.Duration("token-ttl", 5*time.Minute, "Internal HMAC token TTL")
 	)
 	flag.Parse()
-
-	if *teleportProxy == "" {
-		slog.Error("--teleport-proxy is required")
-		os.Exit(1)
-	}
 
 	// Generate an ephemeral HMAC key. Tokens are invalidated on pod restart.
 	hmacKey := make([]byte, 32)
@@ -48,18 +42,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer cancel()
+
 	signer := &TokenSigner{
 		key: hmacKey,
 		ttl: *tokenTTL,
 	}
 
-	jwks, err := NewJWKSProvider(*teleportProxy)
-	if err != nil {
-		slog.Error("creating JWKS provider", "error", err)
-		os.Exit(1)
-	}
-
-	frontProxy, err := NewFrontProxy(*headlampAddr, jwks, signer, *groupsClaim, *cookieName)
+	frontProxy, err := NewFrontProxy(*headlampAddr, signer, *groupsClaim, *cookieName)
 	if err != nil {
 		slog.Error("creating front proxy", "error", err)
 		os.Exit(1)
@@ -70,9 +61,6 @@ func main() {
 		slog.Error("creating K8s proxy", "error", err)
 		os.Exit(1)
 	}
-
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	defer cancel()
 
 	frontServer := &http.Server{
 		Addr:    *listenHTTP,

@@ -9,26 +9,24 @@ import (
 	"strings"
 )
 
-// FrontProxy sits between Teleport and Headlamp. It validates the Teleport
+// FrontProxy sits between Teleport and Headlamp. It decodes the Teleport
 // JWT, mints an internal HMAC token, and injects it as a Headlamp session
-// cookie before forwarding the request.
+// cookie and X-Auth-Token header before forwarding the request.
 type FrontProxy struct {
 	proxy       *httputil.ReverseProxy
-	jwks        *JWKSProvider
 	signer      *TokenSigner
 	groupsClaim string
 	cookieName  string
 }
 
 // NewFrontProxy creates the HTTP proxy that faces Teleport.
-func NewFrontProxy(headlampAddr string, jwks *JWKSProvider, signer *TokenSigner, groupsClaim, cookieName string) (*FrontProxy, error) {
+func NewFrontProxy(headlampAddr string, signer *TokenSigner, groupsClaim, cookieName string) (*FrontProxy, error) {
 	target, err := url.Parse(fmt.Sprintf("http://%s", headlampAddr))
 	if err != nil {
 		return nil, fmt.Errorf("parsing headlamp address: %w", err)
 	}
 
 	fp := &FrontProxy{
-		jwks:        jwks,
 		signer:      signer,
 		groupsClaim: groupsClaim,
 		cookieName:  cookieName,
@@ -45,9 +43,9 @@ func (fp *FrontProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := fp.jwks.Validate(jwtToken)
+	claims, err := ParseTeleportJWT(jwtToken)
 	if err != nil {
-		slog.Error("JWT validation failed", "error", err)
+		slog.Error("JWT decode failed", "error", err)
 		http.Error(w, "invalid JWT", http.StatusUnauthorized)
 		return
 	}
@@ -65,14 +63,16 @@ func (fp *FrontProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Inject the cookie so Headlamp's /me endpoint shows user info.
 	r.AddCookie(&http.Cookie{
-		Name:  fp.cookieName,
-		Value: internalToken,
+		Name:     fp.cookieName,
+		Value:    internalToken,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	// Pass the token via a custom header that survives Headlamp's
 	// internal reverse proxy (httputil.ReverseProxy preserves
 	// non-hop-by-hop headers). The k8s-proxy reads this for
-	// impersonation instead of relying on the cookie→bearer flow.
+	// impersonation instead of relying on the cookie->bearer flow.
 	r.Header.Set("X-Auth-Token", internalToken)
 
 	// Remove the Teleport JWT header — Headlamp doesn't need it.

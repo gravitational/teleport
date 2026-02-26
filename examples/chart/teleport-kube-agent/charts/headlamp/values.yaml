@@ -32,8 +32,8 @@ initContainers: []
 extraContainers: []
 
 config:
-  inCluster: true
-  inClusterContextName: "main"
+  # inCluster is false — the auth-proxy provides a kubeconfig instead.
+  inCluster: false
   # -- base url path at which headlamp should run
   baseURL: ""
   oidc:
@@ -137,7 +137,9 @@ clusterRoleBinding:
   create: true
   # -- Set name of the Cluster Role with limited permissions from you cluster
   # for example - clusterRoleName: user-ro
-  clusterRoleName: cluster-admin
+  # The auth-proxy uses impersonation, not direct cluster-admin access.
+  # The impersonate ClusterRole is created automatically.
+  clusterRoleName: ""
   # -- Annotations to add to the cluster role binding
   annotations: {}
 
@@ -383,19 +385,14 @@ podDisruptionBudget:
   unhealthyPodEvictionPolicy: null
 
 # Teleport auth proxy sidecar. Bridges Teleport app access identity to
-# Kubernetes RBAC via impersonation. When enabled, the proxy sits in front
-# of Headlamp and translates Teleport JWT assertions into per-user
-# Kubernetes API calls.
+# Kubernetes RBAC via impersonation. The proxy sits in front of Headlamp
+# and translates Teleport JWT assertions into per-user Kubernetes API calls.
 teleportAuthProxy:
-  # -- Enable the Teleport auth proxy sidecar.
-  enabled: false
-  # -- Teleport proxy public address (e.g. cluster.example.com:443).
-  teleportProxy: ""
   image:
     registry: ghcr.io
-    repository: gravitational/headlamp-auth-proxy
+    repository: jakealti/headlamp-auth-proxy
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   # -- JWT claim to map to Kubernetes groups for impersonation.
   # Use "roles" for Teleport roles, or "traits.<key>" for a specific trait.
   groupsClaim: "roles"

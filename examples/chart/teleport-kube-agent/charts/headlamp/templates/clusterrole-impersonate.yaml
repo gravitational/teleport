@@ -1,4 +1,4 @@
-{{- if and .Values.clusterRoleBinding.create .Values.teleportAuthProxy.enabled -}}
+{{- if .Values.clusterRoleBinding.create -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
