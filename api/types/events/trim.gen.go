@@ -11,6 +11,12 @@ func (m *CookieDelete) TrimToMaxSize(maxSize int) AuditEvent { return m }
 
 func (m *CookieUpdate) TrimToMaxSize(maxSize int) AuditEvent { return m }
 
+func (m *TagCreate) TrimToMaxSize(maxSize int) AuditEvent { return m }
+
+func (m *TagDelete) TrimToMaxSize(maxSize int) AuditEvent { return m }
+
+func (m *TagUpdate) TrimToMaxSize(maxSize int) AuditEvent { return m }
+
 func (m *WebhookCreate) TrimToMaxSize(maxSize int) AuditEvent { return m }
 
 func (m *WebhookDelete) TrimToMaxSize(maxSize int) AuditEvent { return m }

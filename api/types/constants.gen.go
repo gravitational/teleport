@@ -6,6 +6,8 @@ package types
 const (
 	// KindCookie is the resource kind for Cookie resources.
 	KindCookie = "cookie"
+	// KindTag is the resource kind for Tag resources.
+	KindTag = "tag"
 	// KindWebhook is the resource kind for Webhook resources.
 	KindWebhook = "webhook"
 )

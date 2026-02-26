@@ -5,6 +5,7 @@ package client
 import (
 	proto "github.com/gravitational/teleport/api/client/proto"
 	cookiev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/cookie/v1"
+	tagv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/tag/v1"
 	webhookv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/webhook/v1"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -15,6 +16,9 @@ func generatedEventToGRPC(out *proto.Event, r types.Resource) bool {
 	switch r := r.(type) {
 	case types.Resource153UnwrapperT[*cookiev1.Cookie]:
 		out.Resource = &proto.Event_Cookie{Cookie: r.UnwrapT()}
+		return true
+	case types.Resource153UnwrapperT[*tagv1.Tag]:
+		out.Resource = &proto.Event_Tag{Tag: r.UnwrapT()}
 		return true
 	case types.Resource153UnwrapperT[*webhookv1.Webhook]:
 		out.Resource = &proto.Event_Webhook{Webhook: r.UnwrapT()}
@@ -27,6 +31,9 @@ func generatedEventToGRPC(out *proto.Event, r types.Resource) bool {
 // generatedEventFromGRPC handles EventFromGRPC dispatch for resource-gen resources.
 func generatedEventFromGRPC(in *proto.Event) (types.Resource, bool) {
 	if r := in.GetCookie(); r != nil {
+		return types.ProtoResource153ToLegacy(r), true
+	}
+	if r := in.GetTag(); r != nil {
 		return types.ProtoResource153ToLegacy(r), true
 	}
 	if r := in.GetWebhook(); r != nil {

@@ -11,5 +11,6 @@ import "github.com/gravitational/teleport/lib/services"
 // callers via the exported field.
 type GeneratedConfig struct {
 	services.Cookies
+	services.Tags
 	services.Webhooks
 }

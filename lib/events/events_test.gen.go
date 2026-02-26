@@ -23,6 +23,21 @@ func init() {
 		event:     &apievents.CookieUpdate{},
 	})
 	RegisterGeneratedTestEvent(testEvent{
+		eventType: TagCreateEvent,
+		eventCode: TagCreateCode,
+		event:     &apievents.TagCreate{},
+	})
+	RegisterGeneratedTestEvent(testEvent{
+		eventType: TagDeleteEvent,
+		eventCode: TagDeleteCode,
+		event:     &apievents.TagDelete{},
+	})
+	RegisterGeneratedTestEvent(testEvent{
+		eventType: TagUpdateEvent,
+		eventCode: TagUpdateCode,
+		event:     &apievents.TagUpdate{},
+	})
+	RegisterGeneratedTestEvent(testEvent{
 		eventType: WebhookCreateEvent,
 		eventCode: WebhookCreateCode,
 		event:     &apievents.WebhookCreate{},

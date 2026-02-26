@@ -9,6 +9,9 @@ export const generatedEventCodes = {
   COOKIE_CREATE: 'CK001I',
   COOKIE_DELETE: 'CK003I',
   COOKIE_UPDATE: 'CK002I',
+  TAG_CREATE: 'TA001I',
+  TAG_DELETE: 'TA003I',
+  TAG_UPDATE: 'TA002I',
   WEBHOOK_CREATE: 'WH001I',
   WEBHOOK_DELETE: 'WH003I',
   WEBHOOK_UPDATE: 'WH002I',
@@ -29,6 +32,18 @@ export type GeneratedRawEvents = {
   >;
   [typeof generatedEventCodes.COOKIE_UPDATE]: RawEvent<
     typeof generatedEventCodes.COOKIE_UPDATE,
+    HasName
+  >;
+  [typeof generatedEventCodes.TAG_CREATE]: RawEvent<
+    typeof generatedEventCodes.TAG_CREATE,
+    HasName
+  >;
+  [typeof generatedEventCodes.TAG_DELETE]: RawEvent<
+    typeof generatedEventCodes.TAG_DELETE,
+    HasName
+  >;
+  [typeof generatedEventCodes.TAG_UPDATE]: RawEvent<
+    typeof generatedEventCodes.TAG_UPDATE,
     HasName
   >;
   [typeof generatedEventCodes.WEBHOOK_CREATE]: RawEvent<
@@ -66,6 +81,24 @@ export function generatedFormatters() {
       format: ({ user, name }: { user: string; name: string }) =>
         `User [${user}] updated a cookie [${name}]`,
     },
+    [generatedEventCodes.TAG_CREATE]: {
+      type: 'resource.tag.create',
+      desc: 'Tag Created',
+      format: ({ user, name }: { user: string; name: string }) =>
+        `User [${user}] created a tag [${name}]`,
+    },
+    [generatedEventCodes.TAG_DELETE]: {
+      type: 'resource.tag.delete',
+      desc: 'Tag Deleted',
+      format: ({ user, name }: { user: string; name: string }) =>
+        `User [${user}] deleted a tag [${name}]`,
+    },
+    [generatedEventCodes.TAG_UPDATE]: {
+      type: 'resource.tag.update',
+      desc: 'Tag Updated',
+      format: ({ user, name }: { user: string; name: string }) =>
+        `User [${user}] updated a tag [${name}]`,
+    },
     [generatedEventCodes.WEBHOOK_CREATE]: {
       type: 'resource.webhook.create',
       desc: 'Webhook Created',
@@ -92,6 +125,9 @@ export const generatedEventIcons: Record<GeneratedEventCode, string> = {
   [generatedEventCodes.COOKIE_CREATE]: 'Info',
   [generatedEventCodes.COOKIE_DELETE]: 'Info',
   [generatedEventCodes.COOKIE_UPDATE]: 'Info',
+  [generatedEventCodes.TAG_CREATE]: 'Info',
+  [generatedEventCodes.TAG_DELETE]: 'Info',
+  [generatedEventCodes.TAG_UPDATE]: 'Info',
   [generatedEventCodes.WEBHOOK_CREATE]: 'Info',
   [generatedEventCodes.WEBHOOK_DELETE]: 'Info',
   [generatedEventCodes.WEBHOOK_UPDATE]: 'Info',
@@ -124,12 +160,36 @@ export const generatedFixtures = [
     uid: '00000000-0000-0000-0000-000000000003',
   },
   {
+    code: 'TA001I' as const,
+    event: 'resource.tag.create',
+    name: 'example',
+    user: 'alice',
+    time: '2026-01-01T00:00:00Z',
+    uid: '00000000-0000-0000-0000-000000000004',
+  },
+  {
+    code: 'TA003I' as const,
+    event: 'resource.tag.delete',
+    name: 'example',
+    user: 'alice',
+    time: '2026-01-01T00:00:00Z',
+    uid: '00000000-0000-0000-0000-000000000005',
+  },
+  {
+    code: 'TA002I' as const,
+    event: 'resource.tag.update',
+    name: 'example',
+    user: 'alice',
+    time: '2026-01-01T00:00:00Z',
+    uid: '00000000-0000-0000-0000-000000000006',
+  },
+  {
     code: 'WH001I' as const,
     event: 'resource.webhook.create',
     name: 'example',
     user: 'alice',
     time: '2026-01-01T00:00:00Z',
-    uid: '00000000-0000-0000-0000-000000000004',
+    uid: '00000000-0000-0000-0000-000000000007',
   },
   {
     code: 'WH003I' as const,
@@ -137,7 +197,7 @@ export const generatedFixtures = [
     name: 'example',
     user: 'alice',
     time: '2026-01-01T00:00:00Z',
-    uid: '00000000-0000-0000-0000-000000000005',
+    uid: '00000000-0000-0000-0000-000000000008',
   },
   {
     code: 'WH002I' as const,
@@ -145,6 +205,6 @@ export const generatedFixtures = [
     name: 'example',
     user: 'alice',
     time: '2026-01-01T00:00:00Z',
-    uid: '00000000-0000-0000-0000-000000000006',
+    uid: '00000000-0000-0000-0000-000000000009',
   },
 ];

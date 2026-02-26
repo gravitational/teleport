@@ -39,6 +39,7 @@ import "teleport/recordingencryption/v1/recording_encryption.proto";
 import "teleport/scopes/access/v1/assignment.proto";
 import "teleport/scopes/access/v1/role.proto";
 import "teleport/secreports/v1/secreports.proto";
+import "teleport/tag/v1/tag.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
 import "teleport/usertasks/v1/user_tasks.proto";
@@ -249,5 +250,7 @@ message Event {
     teleport.webhook.v1.Webhook Webhook = 89;
     // Cookie is a resource for cookie management.
     teleport.cookie.v1.Cookie Cookie = 90;
+    // Tag is a resource for tag management.
+    teleport.tag.v1.Tag Tag = 91;
   }
 }

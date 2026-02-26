@@ -221,6 +221,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWorkloadCluster},
 		{Kind: types.KindWebhook},
 		{Kind: types.KindCookie},
+		{Kind: types.KindTag},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream

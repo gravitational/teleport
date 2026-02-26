@@ -7,6 +7,8 @@ package services
 var generatedShortcuts = map[string]string{
 	"cookie": "cookie",
 	"cookies": "cookie",
+	"tag": "tag",
+	"tags": "tag",
 	"webhook": "webhook",
 	"webhooks": "webhook",
 }

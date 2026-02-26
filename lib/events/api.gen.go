@@ -11,6 +11,12 @@ const (
 	CookieDeleteEvent = "resource.cookie.delete"
 	// CookieUpdateEvent is the event type for cookie update operations.
 	CookieUpdateEvent = "resource.cookie.update"
+	// TagCreateEvent is the event type for tag create operations.
+	TagCreateEvent = "resource.tag.create"
+	// TagDeleteEvent is the event type for tag delete operations.
+	TagDeleteEvent = "resource.tag.delete"
+	// TagUpdateEvent is the event type for tag update operations.
+	TagUpdateEvent = "resource.tag.update"
 	// WebhookCreateEvent is the event type for webhook create operations.
 	WebhookCreateEvent = "resource.webhook.create"
 	// WebhookDeleteEvent is the event type for webhook delete operations.

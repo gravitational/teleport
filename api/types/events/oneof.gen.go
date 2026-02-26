@@ -24,6 +24,24 @@ func init() {
 		return nil
 	})
 	RegisterGeneratedOneOf(func(e AuditEvent) isOneOf_Event {
+		if evt, ok := e.(*TagCreate); ok {
+			return &OneOf_TagCreate{TagCreate: evt}
+		}
+		return nil
+	})
+	RegisterGeneratedOneOf(func(e AuditEvent) isOneOf_Event {
+		if evt, ok := e.(*TagDelete); ok {
+			return &OneOf_TagDelete{TagDelete: evt}
+		}
+		return nil
+	})
+	RegisterGeneratedOneOf(func(e AuditEvent) isOneOf_Event {
+		if evt, ok := e.(*TagUpdate); ok {
+			return &OneOf_TagUpdate{TagUpdate: evt}
+		}
+		return nil
+	})
+	RegisterGeneratedOneOf(func(e AuditEvent) isOneOf_Event {
 		if evt, ok := e.(*WebhookCreate); ok {
 			return &OneOf_WebhookCreate{WebhookCreate: evt}
 		}

@@ -11,6 +11,12 @@ const (
 	CookieDeleteCode = "CK003I"
 	// CookieUpdateCode is the event code for cookie update operations.
 	CookieUpdateCode = "CK002I"
+	// TagCreateCode is the event code for tag create operations.
+	TagCreateCode = "TA001I"
+	// TagDeleteCode is the event code for tag delete operations.
+	TagDeleteCode = "TA003I"
+	// TagUpdateCode is the event code for tag update operations.
+	TagUpdateCode = "TA002I"
 	// WebhookCreateCode is the event code for webhook create operations.
 	WebhookCreateCode = "WH001I"
 	// WebhookDeleteCode is the event code for webhook delete operations.

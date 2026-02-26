@@ -12,6 +12,7 @@ import (
 )
 type servicesGenerated struct {
 	services.Cookies
+	services.Tags
 	services.Webhooks
 }
 
@@ -20,6 +21,11 @@ func newServicesGenerated(cfg *InitConfig) (*servicesGenerated, error) {
 	gen := &servicesGenerated{}
 
 	gen.Cookies, err = local.NewCookieService(cfg.Backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	gen.Tags, err = local.NewTagService(cfg.Backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -37,6 +43,7 @@ func newServicesGenerated(cfg *InitConfig) (*servicesGenerated, error) {
 func (sg *servicesGenerated) ToCacheConfig() cache.GeneratedConfig {
 	return cache.GeneratedConfig{
 		Cookies: sg.Cookies,
+		Tags: sg.Tags,
 		Webhooks: sg.Webhooks,
 	}
 }
