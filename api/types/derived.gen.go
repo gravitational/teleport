@@ -198,6 +198,16 @@ func deriveTeleportEqualMetadata(this, that *Metadata) bool {
 			((this.Expires == nil && that.Expires == nil) || (this.Expires != nil && that.Expires != nil && (*(this.Expires)).Equal(*(that.Expires))))
 }
 
+// deriveTeleportEqualExternalIdentity returns whether this and that are equal.
+func deriveTeleportEqualExternalIdentity(this, that *ExternalIdentity) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.ConnectorID == that.ConnectorID &&
+			this.Username == that.Username &&
+			this.SAMLSingleLogoutURL == that.SAMLSingleLogoutURL &&
+			this.UserID == that.UserID
+}
+
 // deriveTeleportEqualUserGroupV1 returns whether this and that are equal.
 func deriveTeleportEqualUserGroupV1(this, that *UserGroupV1) bool {
 	return (this == nil && that == nil) ||
