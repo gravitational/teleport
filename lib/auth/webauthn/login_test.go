@@ -22,13 +22,11 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
-	"maps"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -113,9 +111,7 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 	}
 	for _, test := range tests {
 		runTest := func(t *testing.T, validate bool) {
-			t.Parallel()
-
-			identity := test.identity.clone()
+			identity := test.identity
 			user := test.user
 
 			webLogin := &wanlib.LoginFlow{
@@ -1294,38 +1290,6 @@ func newFakeIdentity(user string, devices ...*types.MFADevice) *fakeIdentity {
 			},
 		},
 		SessionData: make(map[string]*wantypes.SessionData),
-	}
-}
-
-func (f *fakeIdentity) clone() *fakeIdentity {
-	mfaCopy := make([]*types.MFADevice, len(f.User.GetLocalAuth().MFA))
-	for i, dev := range f.User.GetLocalAuth().MFA {
-		mfaCopy[i] = proto.Clone(dev).(*types.MFADevice)
-	}
-
-	var wlaCopy *types.WebauthnLocalAuth
-	if wla := f.User.GetLocalAuth().Webauthn; wla != nil {
-		wlaCopy = proto.Clone(wla).(*types.WebauthnLocalAuth)
-	}
-
-	userCopy := &types.UserV2{
-		Metadata: f.User.Metadata,
-		Spec: types.UserSpecV2{
-			LocalAuth: &types.LocalAuthSecrets{
-				MFA:      mfaCopy,
-				Webauthn: wlaCopy,
-			},
-		},
-	}
-
-	sessionDataCopy := make(map[string]*wantypes.SessionData, len(f.SessionData))
-	maps.Copy(sessionDataCopy, f.SessionData)
-
-	return &fakeIdentity{
-		User:           userCopy,
-		MappedUser:     f.MappedUser,
-		UpdatedDevices: slices.Clone(f.UpdatedDevices),
-		SessionData:    sessionDataCopy,
 	}
 }
 
