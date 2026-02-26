@@ -5907,7 +5907,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
 
 		suggestedReviewers := a.generateAccessRequestSuggestedReviewers(ctx, req, allAccessLists)
-		updateAccessRequestWithAdditionalReviewers(ctx, req, suggestedReviewers)
+		updateAccessRequestWithAdditionalReviewers(req, suggestedReviewers)
 
 		// TODO(kiosion): if long-term, skip promotion generation, and instead, use info from LongTermResourceGrouping to add additional reviewers.
 		if req.GetRequestKind().IsLongTerm() {
@@ -6166,8 +6166,8 @@ func (a *Server) generateAccessRequestSuggestedReviewers(ctx context.Context, re
 	return suggestedReviewers
 }
 
-// updateAccessRequestWithAdditionalReviewers will update the given access request with the given additional reviewers.
-func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, suggestedReviewers *types.AccessRequestSuggestedReviewers) {
+// updateAccessRequestWithAdditionalReviewers will update the given access request with the suggested reviewers.
+func updateAccessRequestWithAdditionalReviewers(req types.AccessRequest, suggestedReviewers *types.AccessRequestSuggestedReviewers) {
 	if suggestedReviewers == nil {
 		return
 	}

@@ -458,7 +458,7 @@ func (p *defaultModules) GenerateAccessRequestPromotions(_ context.Context, _ Ac
 
 // GenerateAccessRequestSuggestedReviewers is a noop for OSS teleport.
 func (p *defaultModules) GenerateAccessRequestSuggestedReviewers(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestSuggestedReviewers, error) {
-	return types.NewAccessRequestSuggestedReviewers(nil), nil
+	return &types.AccessRequestSuggestedReviewers{}, nil
 }
 
 func (p *defaultModules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient,

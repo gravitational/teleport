@@ -1021,7 +1021,7 @@ func NewAccessRequestAllowedPromotions(promotions []*AccessRequestAllowedPromoti
 // NewAccessRequestSuggestedReviewers returns a new AccessRequestSuggestedReviewers resource.
 func NewAccessRequestSuggestedReviewers(suggestedReviewers []string) *AccessRequestSuggestedReviewers {
 	if suggestedReviewers == nil {
-		suggestedReviewers = make([]string, 0)
+		suggestedReviewers = []string{}
 	}
 
 	return &AccessRequestSuggestedReviewers{

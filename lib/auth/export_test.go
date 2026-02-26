@@ -253,8 +253,8 @@ func ConfigureCAsForTrustedCluster(tc types.TrustedCluster, cas []types.CertAuth
 	configureCAsForTrustedCluster(tc, cas)
 }
 
-func UpdateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, suggestedReviewersAccessLists *types.AccessRequestSuggestedReviewers) {
-	updateAccessRequestWithAdditionalReviewers(ctx, req, suggestedReviewersAccessLists)
+func UpdateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, suggestedReviewers *types.AccessRequestSuggestedReviewers) {
+	updateAccessRequestWithAdditionalReviewers(req, suggestedReviewers)
 }
 
 func EncodeProquint(x uint16) string {
