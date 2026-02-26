@@ -1,0 +1,131 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.cookie.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/cookie/v1/cookie.proto";
+import "teleport/options/v1/resource.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/cookie/v1;cookiev1";
+
+// CookieService manages cookie policy resources.
+service CookieService {
+  option (teleport.options.v1.resource_config) = {
+    storage: {
+      backend_prefix: "cookies"
+      standard: {}
+    }
+    cache: {enabled: true}
+    hooks: {enable_lifecycle_hooks: true}
+    audit: {
+      emit_on_create: true
+      emit_on_update: true
+      emit_on_delete: true
+      code_prefix: "CK"
+    }
+    tctl: {
+      description: "cookie policies"
+      mfa_required: false
+      columns: [
+        "metadata.name",
+        "spec.domain",
+        "spec.secure",
+        "spec.same_site"
+      ]
+      verbose_columns: [
+        "metadata.name",
+        "spec.domain",
+        "spec.path",
+        "spec.secure",
+        "spec.http_only",
+        "spec.same_site",
+        "spec.max_age_seconds",
+        "status.active_sessions",
+        "status.last_rotated"
+      ]
+      timestamp_columns: ["status.last_rotated"]
+    }
+    pagination: {
+      default_page_size: 100
+      max_page_size: 500
+    }
+  };
+
+  // GetCookie returns a cookie policy by name.
+  rpc GetCookie(GetCookieRequest) returns (Cookie);
+
+  // ListCookies returns a paginated list of cookie policies.
+  rpc ListCookies(ListCookiesRequest) returns (ListCookiesResponse);
+
+  // CreateCookie creates a new cookie policy.
+  rpc CreateCookie(CreateCookieRequest) returns (Cookie);
+
+  // UpdateCookie updates an existing cookie policy.
+  rpc UpdateCookie(UpdateCookieRequest) returns (Cookie);
+
+  // UpsertCookie creates or updates a cookie policy.
+  rpc UpsertCookie(UpsertCookieRequest) returns (Cookie);
+
+  // DeleteCookie deletes a cookie policy by name.
+  rpc DeleteCookie(DeleteCookieRequest) returns (google.protobuf.Empty);
+}
+
+// GetCookieRequest is the request for GetCookie.
+message GetCookieRequest {
+  // name is the name of the cookie policy.
+  string name = 1;
+}
+
+// ListCookiesRequest is the request for ListCookies.
+message ListCookiesRequest {
+  // page_size is the maximum number of items to return.
+  int32 page_size = 1;
+  // page_token is the next_page_token value returned from a previous List request.
+  string page_token = 2;
+}
+
+// ListCookiesResponse is the response for ListCookies.
+message ListCookiesResponse {
+  // cookies is the list of cookie policies.
+  repeated Cookie cookies = 1;
+  // next_page_token is the token for the next page.
+  string next_page_token = 2;
+}
+
+// CreateCookieRequest is the request for CreateCookie.
+message CreateCookieRequest {
+  // cookie is the cookie policy to create.
+  Cookie cookie = 1;
+}
+
+// UpdateCookieRequest is the request for UpdateCookie.
+message UpdateCookieRequest {
+  // cookie is the cookie policy to update.
+  Cookie cookie = 1;
+}
+
+// UpsertCookieRequest is the request for UpsertCookie.
+message UpsertCookieRequest {
+  // cookie is the cookie policy to create or update.
+  Cookie cookie = 1;
+}
+
+// DeleteCookieRequest is the request for DeleteCookie.
+message DeleteCookieRequest {
+  // name is the name of the cookie policy to delete.
+  string name = 1;
+}

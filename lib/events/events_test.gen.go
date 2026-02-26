@@ -8,6 +8,21 @@ import apievents "github.com/gravitational/teleport/api/types/events"
 
 func init() {
 	RegisterGeneratedTestEvent(testEvent{
+		eventType: CookieCreateEvent,
+		eventCode: CookieCreateCode,
+		event:     &apievents.CookieCreate{},
+	})
+	RegisterGeneratedTestEvent(testEvent{
+		eventType: CookieDeleteEvent,
+		eventCode: CookieDeleteCode,
+		event:     &apievents.CookieDelete{},
+	})
+	RegisterGeneratedTestEvent(testEvent{
+		eventType: CookieUpdateEvent,
+		eventCode: CookieUpdateCode,
+		event:     &apievents.CookieUpdate{},
+	})
+	RegisterGeneratedTestEvent(testEvent{
 		eventType: WebhookCreateEvent,
 		eventCode: WebhookCreateCode,
 		event:     &apievents.WebhookCreate{},

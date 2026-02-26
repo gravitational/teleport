@@ -5,6 +5,12 @@ package events
 // Generated TrimToMaxSize implementations for resource-gen managed event types.
 // These satisfy the AuditEvent interface for resource CRUD events.
 
+func (m *CookieCreate) TrimToMaxSize(maxSize int) AuditEvent { return m }
+
+func (m *CookieDelete) TrimToMaxSize(maxSize int) AuditEvent { return m }
+
+func (m *CookieUpdate) TrimToMaxSize(maxSize int) AuditEvent { return m }
+
 func (m *WebhookCreate) TrimToMaxSize(maxSize int) AuditEvent { return m }
 
 func (m *WebhookDelete) TrimToMaxSize(maxSize int) AuditEvent { return m }

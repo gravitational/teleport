@@ -5,6 +5,12 @@ package events
 // Generated event type constants for resource-gen managed resources.
 
 const (
+	// CookieCreateEvent is the event type for cookie create operations.
+	CookieCreateEvent = "resource.cookie.create"
+	// CookieDeleteEvent is the event type for cookie delete operations.
+	CookieDeleteEvent = "resource.cookie.delete"
+	// CookieUpdateEvent is the event type for cookie update operations.
+	CookieUpdateEvent = "resource.cookie.update"
 	// WebhookCreateEvent is the event type for webhook create operations.
 	WebhookCreateEvent = "resource.webhook.create"
 	// WebhookDeleteEvent is the event type for webhook delete operations.

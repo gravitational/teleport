@@ -21,6 +21,7 @@ import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
 import "teleport/appauthconfig/v1/appauthconfig.proto";
 import "teleport/autoupdate/v1/autoupdate.proto";
 import "teleport/clusterconfig/v1/access_graph_settings.proto";
+import "teleport/cookie/v1/cookie.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/dbobject/v1/dbobject.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
@@ -246,5 +247,7 @@ message Event {
     teleport.workloadcluster.v1.WorkloadCluster WorkloadCluster = 88;
     // Webhook is a resource for webhook management.
     teleport.webhook.v1.Webhook Webhook = 89;
+    // Cookie is a resource for cookie management.
+    teleport.cookie.v1.Cookie Cookie = 90;
   }
 }

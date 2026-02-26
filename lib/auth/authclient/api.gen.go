@@ -7,5 +7,6 @@ package authclient
 import "github.com/gravitational/teleport/lib/services"
 
 type cacheGeneratedServices interface {
+	services.CookiesGetter
 	services.WebhooksGetter
 }

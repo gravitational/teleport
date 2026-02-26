@@ -11,12 +11,18 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 )
 type servicesGenerated struct {
+	services.Cookies
 	services.Webhooks
 }
 
 func newServicesGenerated(cfg *InitConfig) (*servicesGenerated, error) {
 	var err error
 	gen := &servicesGenerated{}
+
+	gen.Cookies, err = local.NewCookieService(cfg.Backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	gen.Webhooks, err = local.NewWebhookService(cfg.Backend)
 	if err != nil {
@@ -30,6 +36,7 @@ func newServicesGenerated(cfg *InitConfig) (*servicesGenerated, error) {
 // construct GeneratedConfig literals when adding new cache-enabled resources.
 func (sg *servicesGenerated) ToCacheConfig() cache.GeneratedConfig {
 	return cache.GeneratedConfig{
+		Cookies: sg.Cookies,
 		Webhooks: sg.Webhooks,
 	}
 }

@@ -6,6 +6,9 @@ type HasName = { name: string };
 
 // Event codes for resource-gen managed resources.
 export const generatedEventCodes = {
+  COOKIE_CREATE: 'CK001I',
+  COOKIE_DELETE: 'CK003I',
+  COOKIE_UPDATE: 'CK002I',
   WEBHOOK_CREATE: 'WH001I',
   WEBHOOK_DELETE: 'WH003I',
   WEBHOOK_UPDATE: 'WH002I',
@@ -16,6 +19,18 @@ export type GeneratedEventCode =
 
 // RawEvent type entries for generated resource events.
 export type GeneratedRawEvents = {
+  [typeof generatedEventCodes.COOKIE_CREATE]: RawEvent<
+    typeof generatedEventCodes.COOKIE_CREATE,
+    HasName
+  >;
+  [typeof generatedEventCodes.COOKIE_DELETE]: RawEvent<
+    typeof generatedEventCodes.COOKIE_DELETE,
+    HasName
+  >;
+  [typeof generatedEventCodes.COOKIE_UPDATE]: RawEvent<
+    typeof generatedEventCodes.COOKIE_UPDATE,
+    HasName
+  >;
   [typeof generatedEventCodes.WEBHOOK_CREATE]: RawEvent<
     typeof generatedEventCodes.WEBHOOK_CREATE,
     HasName
@@ -33,6 +48,24 @@ export type GeneratedRawEvents = {
 // Formatter entries for generated resource events.
 export function generatedFormatters() {
   return {
+    [generatedEventCodes.COOKIE_CREATE]: {
+      type: 'resource.cookie.create',
+      desc: 'Cookie Created',
+      format: ({ user, name }: { user: string; name: string }) =>
+        `User [${user}] created a cookie [${name}]`,
+    },
+    [generatedEventCodes.COOKIE_DELETE]: {
+      type: 'resource.cookie.delete',
+      desc: 'Cookie Deleted',
+      format: ({ user, name }: { user: string; name: string }) =>
+        `User [${user}] deleted a cookie [${name}]`,
+    },
+    [generatedEventCodes.COOKIE_UPDATE]: {
+      type: 'resource.cookie.update',
+      desc: 'Cookie Updated',
+      format: ({ user, name }: { user: string; name: string }) =>
+        `User [${user}] updated a cookie [${name}]`,
+    },
     [generatedEventCodes.WEBHOOK_CREATE]: {
       type: 'resource.webhook.create',
       desc: 'Webhook Created',
@@ -56,6 +89,9 @@ export function generatedFormatters() {
 
 // Icon mappings for generated resource events.
 export const generatedEventIcons: Record<GeneratedEventCode, string> = {
+  [generatedEventCodes.COOKIE_CREATE]: 'Info',
+  [generatedEventCodes.COOKIE_DELETE]: 'Info',
+  [generatedEventCodes.COOKIE_UPDATE]: 'Info',
   [generatedEventCodes.WEBHOOK_CREATE]: 'Info',
   [generatedEventCodes.WEBHOOK_DELETE]: 'Info',
   [generatedEventCodes.WEBHOOK_UPDATE]: 'Info',
@@ -64,12 +100,36 @@ export const generatedEventIcons: Record<GeneratedEventCode, string> = {
 // Fixture entries for generated resource events.
 export const generatedFixtures = [
   {
+    code: 'CK001I' as const,
+    event: 'resource.cookie.create',
+    name: 'example',
+    user: 'alice',
+    time: '2026-01-01T00:00:00Z',
+    uid: '00000000-0000-0000-0000-000000000001',
+  },
+  {
+    code: 'CK003I' as const,
+    event: 'resource.cookie.delete',
+    name: 'example',
+    user: 'alice',
+    time: '2026-01-01T00:00:00Z',
+    uid: '00000000-0000-0000-0000-000000000002',
+  },
+  {
+    code: 'CK002I' as const,
+    event: 'resource.cookie.update',
+    name: 'example',
+    user: 'alice',
+    time: '2026-01-01T00:00:00Z',
+    uid: '00000000-0000-0000-0000-000000000003',
+  },
+  {
     code: 'WH001I' as const,
     event: 'resource.webhook.create',
     name: 'example',
     user: 'alice',
     time: '2026-01-01T00:00:00Z',
-    uid: '00000000-0000-0000-0000-000000000001',
+    uid: '00000000-0000-0000-0000-000000000004',
   },
   {
     code: 'WH003I' as const,
@@ -77,7 +137,7 @@ export const generatedFixtures = [
     name: 'example',
     user: 'alice',
     time: '2026-01-01T00:00:00Z',
-    uid: '00000000-0000-0000-0000-000000000002',
+    uid: '00000000-0000-0000-0000-000000000005',
   },
   {
     code: 'WH002I' as const,
@@ -85,6 +145,6 @@ export const generatedFixtures = [
     name: 'example',
     user: 'alice',
     time: '2026-01-01T00:00:00Z',
-    uid: '00000000-0000-0000-0000-000000000003',
+    uid: '00000000-0000-0000-0000-000000000006',
   },
 ];

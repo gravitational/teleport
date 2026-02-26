@@ -5,6 +5,12 @@ package events
 // Generated event code constants for resource-gen managed resources.
 
 const (
+	// CookieCreateCode is the event code for cookie create operations.
+	CookieCreateCode = "CK001I"
+	// CookieDeleteCode is the event code for cookie delete operations.
+	CookieDeleteCode = "CK003I"
+	// CookieUpdateCode is the event code for cookie update operations.
+	CookieUpdateCode = "CK002I"
 	// WebhookCreateCode is the event code for webhook create operations.
 	WebhookCreateCode = "WH001I"
 	// WebhookDeleteCode is the event code for webhook delete operations.

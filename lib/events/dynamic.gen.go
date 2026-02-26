@@ -7,6 +7,9 @@ package events
 import apievents "github.com/gravitational/teleport/api/types/events"
 
 func init() {
+	RegisterGeneratedDynamicEvent(CookieCreateEvent, func() apievents.AuditEvent { return &apievents.CookieCreate{} })
+	RegisterGeneratedDynamicEvent(CookieDeleteEvent, func() apievents.AuditEvent { return &apievents.CookieDelete{} })
+	RegisterGeneratedDynamicEvent(CookieUpdateEvent, func() apievents.AuditEvent { return &apievents.CookieUpdate{} })
 	RegisterGeneratedDynamicEvent(WebhookCreateEvent, func() apievents.AuditEvent { return &apievents.WebhookCreate{} })
 	RegisterGeneratedDynamicEvent(WebhookDeleteEvent, func() apievents.AuditEvent { return &apievents.WebhookDelete{} })
 	RegisterGeneratedDynamicEvent(WebhookUpdateEvent, func() apievents.AuditEvent { return &apievents.WebhookUpdate{} })

@@ -10,5 +10,6 @@ import "github.com/gravitational/teleport/lib/services"
 // managed by resource-gen. It is embedded in cache.Config and set by
 // callers via the exported field.
 type GeneratedConfig struct {
+	services.Cookies
 	services.Webhooks
 }

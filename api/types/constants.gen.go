@@ -4,6 +4,8 @@ package types
 
 // Generated kind constants for resource-gen managed resources.
 const (
+	// KindCookie is the resource kind for Cookie resources.
+	KindCookie = "cookie"
 	// KindWebhook is the resource kind for Webhook resources.
 	KindWebhook = "webhook"
 )

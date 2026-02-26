@@ -1,0 +1,62 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.cookie.v1;
+
+import "google/protobuf/timestamp.proto";
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/cookie/v1;cookiev1";
+
+// Cookie represents a browser cookie policy for managed web applications.
+message Cookie {
+  // kind is the resource kind.
+  string kind = 1;
+  // sub_kind differentiates variants of the same resource kind.
+  string sub_kind = 2;
+  // version is the resource schema version.
+  string version = 3;
+  // metadata is common resource metadata.
+  teleport.header.v1.Metadata metadata = 4;
+  // spec is user-owned desired state.
+  CookieSpec spec = 5;
+  // status contains runtime-only state.
+  CookieStatus status = 6;
+}
+
+// CookieSpec contains user-configurable cookie properties.
+message CookieSpec {
+  // domain is the cookie domain scope (e.g. ".example.com").
+  string domain = 1;
+  // path is the URL path prefix for the cookie.
+  string path = 2;
+  // secure requires HTTPS for cookie transmission.
+  bool secure = 3;
+  // http_only prevents JavaScript access to the cookie.
+  bool http_only = 4;
+  // same_site controls cross-site request behavior ("strict", "lax", "none").
+  string same_site = 5;
+  // max_age_seconds is the cookie lifetime in seconds (0 = session cookie).
+  int32 max_age_seconds = 6;
+}
+
+// CookieStatus contains runtime-only cookie state.
+message CookieStatus {
+  // last_rotated is the timestamp of the most recent cookie secret rotation.
+  google.protobuf.Timestamp last_rotated = 1;
+  // active_sessions is the number of sessions currently using this cookie policy.
+  int64 active_sessions = 2;
+}

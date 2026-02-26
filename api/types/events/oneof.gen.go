@@ -6,6 +6,24 @@ package events
 
 func init() {
 	RegisterGeneratedOneOf(func(e AuditEvent) isOneOf_Event {
+		if evt, ok := e.(*CookieCreate); ok {
+			return &OneOf_CookieCreate{CookieCreate: evt}
+		}
+		return nil
+	})
+	RegisterGeneratedOneOf(func(e AuditEvent) isOneOf_Event {
+		if evt, ok := e.(*CookieDelete); ok {
+			return &OneOf_CookieDelete{CookieDelete: evt}
+		}
+		return nil
+	})
+	RegisterGeneratedOneOf(func(e AuditEvent) isOneOf_Event {
+		if evt, ok := e.(*CookieUpdate); ok {
+			return &OneOf_CookieUpdate{CookieUpdate: evt}
+		}
+		return nil
+	})
+	RegisterGeneratedOneOf(func(e AuditEvent) isOneOf_Event {
 		if evt, ok := e.(*WebhookCreate); ok {
 			return &OneOf_WebhookCreate{WebhookCreate: evt}
 		}

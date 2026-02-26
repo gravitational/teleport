@@ -5,6 +5,8 @@ package services
 // generatedShortcuts maps aliases to canonical kind names for
 // resources managed by resource-gen.
 var generatedShortcuts = map[string]string{
+	"cookie": "cookie",
+	"cookies": "cookie",
 	"webhook": "webhook",
 	"webhooks": "webhook",
 }
