@@ -524,8 +524,8 @@ func (c *Client) ClusterDetails(ctx context.Context) (ClusterDetails, error) {
 
 // ProxyWindowsDesktopSession establishes a connection to the target desktop over a bidirectional stream.
 // The caller is required to pass a valid desktop certificate.
-func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, cluster string, desktopName string, windowsDesktopCert tls.Certificate, rootCAs *x509.CertPool) (*tls.Conn, error) {
-	session, err := c.transport.ProxyWindowsDesktopSession(ctx, cluster, desktopName, windowsDesktopCert, rootCAs)
+func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, cluster string, desktopName string, windowsDesktopCert tls.Certificate, rootCAs *x509.CertPool, protocol string) (*tls.Conn, error) {
+	session, err := c.transport.ProxyWindowsDesktopSession(ctx, cluster, desktopName, windowsDesktopCert, rootCAs, protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

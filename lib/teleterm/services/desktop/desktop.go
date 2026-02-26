@@ -121,7 +121,7 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 	}
 
 	// conn is the server connection
-	conn, err := proxyClient.ProxyWindowsDesktopSession(ctx, clusterClient.SiteName, s.desktopName(), cert, tlsConfig.RootCAs)
+	conn, err := proxyClient.ProxyWindowsDesktopSession(ctx, clusterClient.SiteName, s.desktopName(), cert, tlsConfig.RootCAs, tdpb.ProtocolName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -158,7 +158,7 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 	// the server's serverProtocol selection.
 	serverProtocol := conn.ConnectionState().NegotiatedProtocol
 	var tdpServerConn *tdp.Conn
-	if serverProtocol == "teleport-tdpb-1.0" {
+	if serverProtocol == tdpb.ProtocolName {
 		// Use TDPB decoder
 		tdpServerConn = tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive))
 		// Send the client hello
@@ -207,7 +207,7 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		return nil, nil
 	}, nil)
 
-	if serverProtocol != "teleport-tdpb-1.0" {
+	if serverProtocol != tdpb.ProtocolName {
 		// Wrap this in another interceptor to handle TDP translation
 		serverConn = tdp.NewReadWriteInterceptor(serverConn, tdpb.TranslateToModern, tdpb.TranslateToLegacy)
 	}
