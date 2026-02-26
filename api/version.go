@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.7.1"
+const Version = "18.7.1-dev.rhammonds.v18rusttoolchain.1"
 
 const VersionMajor = 18
 const VersionMinor = 7
 const VersionPatch = 1
-const VersionPreRelease = ""
+const VersionPreRelease = "dev.rhammonds.v18rusttoolchain.1"
 const VersionMetadata = ""
