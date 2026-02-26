@@ -27,11 +27,17 @@ The guided flow lets you:
 
 1. A Teleport Enterprise Cloud account.
 1. Access to the Integrations enrollment page in the Teleport Web UI.
-1. An existing AWS OIDC integration name to reference in the form.
+1. An existing Teleport AWS OIDC integration (OIDC IdP + IAM role) configured
+   in your cluster.
+1. The AWS OIDC integration name from that setup, to reference in this form.
+
+If you do not have an AWS OIDC integration yet, set it up first using:
+[AWS OIDC Integration](../../enroll-resources/application-access/cloud-apis/awsoidc-integration.mdx).
 
 ## Guided setup
 
 1. Open **Management** -> **Integrations**.
+1. Confirm your AWS OIDC integration already exists in the Integrations list.
 1. Choose **External CA Key Storage**.
 1. Complete **Step 1: Configure target AWS account** and click **Save Draft**.
 1. In **Step 2: Review and activate**, verify values and click
