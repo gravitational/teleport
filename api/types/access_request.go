@@ -1018,14 +1018,14 @@ func NewAccessRequestAllowedPromotions(promotions []*AccessRequestAllowedPromoti
 	}
 }
 
-// NewAccessRequestSuggestedReviewerLists returns a new AccessRequestSuggestedReviewerLists resource.
-func NewAccessRequestSuggestedReviewerLists(lists []*AccessRequestSuggestedReviewerList) *AccessRequestSuggestedReviewerLists {
-	if lists == nil {
-		lists = make([]*AccessRequestSuggestedReviewerList, 0)
+// NewAccessRequestSuggestedReviewers returns a new AccessRequestSuggestedReviewers resource.
+func NewAccessRequestSuggestedReviewers(suggestedReviewers []string) *AccessRequestSuggestedReviewers {
+	if len(suggestedReviewers) == 0 {
+		return new(AccessRequestSuggestedReviewers)
 	}
 
-	return &AccessRequestSuggestedReviewerLists{
-		Lists: lists,
+	return &AccessRequestSuggestedReviewers{
+		Reviewers: suggestedReviewers,
 	}
 }
 

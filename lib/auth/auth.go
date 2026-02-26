@@ -5906,11 +5906,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if req.GetDryRun() {
 		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
 
-		lists := a.generateAccessRequestSuggestedReviewerLists(ctx, req, allAccessLists)
+		suggestedReviewers := a.generateAccessRequestSuggestedReviewers(ctx, req, allAccessLists)
+		updateAccessRequestWithAdditionalReviewers(ctx, req, suggestedReviewers)
 
 		// TODO(kiosion): if long-term, skip promotion generation, and instead, use info from LongTermResourceGrouping to add additional reviewers.
-		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListsInternal, lists)
-
 		if req.GetRequestKind().IsLongTerm() {
 			req.SetLongTermResourceGrouping(longTermResourceGrouping)
 		}
@@ -6158,41 +6157,35 @@ func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.
 	return reqCopy, promotions
 }
 
-func (a *Server) generateAccessRequestSuggestedReviewerLists(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) *types.AccessRequestSuggestedReviewerLists {
+func (a *Server) generateAccessRequestSuggestedReviewers(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) *types.AccessRequestSuggestedReviewers {
 	reqCopy := req.Copy()
-	lists, err := modules.GetModules().GenerateAccessRequestSuggestedReviewerLists(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, reqCopy)
+	suggestedReviewers, err := modules.GetModules().GenerateAccessRequestSuggestedReviewers(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, reqCopy)
 	if err != nil {
-		a.logger.WarnContext(ctx, "Failed to determine access list memberships", "error", err)
+		a.logger.WarnContext(ctx, "Failed to determine suggested reviewers", "error", err)
 	}
-	return lists
+	return suggestedReviewers
 }
 
 // updateAccessRequestWithAdditionalReviewers will update the given access request with additional reviewers from the owners
 // of the given suggestedReviewersAccessLists.
-func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, accessLists services.AccessListsGetter, suggestedReviewersAccessLists *types.AccessRequestSuggestedReviewerLists) {
-	if suggestedReviewersAccessLists == nil {
+func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, suggestedReviewers *types.AccessRequestSuggestedReviewers) {
+	if suggestedReviewers == nil {
 		return
 	}
 
 	// Add in access list owners as additional suggested reviewers and ensure deduplicated.
 	additionalReviewers := set.New[string]()
 
-	for _, list := range suggestedReviewersAccessLists.Lists {
-		allOwners, err := accessLists.GetAccessListOwners(ctx, list.AccessListName)
-		if err != nil {
-			logger.WarnContext(ctx, "Failed to get nested access list owners, skipping access list", "error", err, "access_list", list)
-			// Continue with remaining lists so we add all we can.
-			continue
-		}
-
-		for _, owner := range allOwners {
-			additionalReviewers.Add(owner.Name)
-		}
+	for _, suggestedReviewer := range slices.Concat(
+		req.GetSuggestedReviewers(),
+		suggestedReviewers.Reviewers,
+	) {
+		additionalReviewers.Add(suggestedReviewer)
 	}
 
 	// Only modify the original request if additional reviewers were found.
-	if additionalReviewers.Len() > 0 {
-		req.SetSuggestedReviewers(append(req.GetSuggestedReviewers(), additionalReviewers.Elements()...))
+	if additionalReviewers.Len() > len(req.GetSuggestedReviewers()) {
+		req.SetSuggestedReviewers(additionalReviewers.Elements())
 	}
 }
 

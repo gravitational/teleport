@@ -4301,16 +4301,10 @@ message AccessRequestAllowedPromotions {
   repeated AccessRequestAllowedPromotion promotions = 1;
 }
 
-// AccessRequestSuggestedReviewerList describes an access list where the owners are
-// suggested reviewers.
-message AccessRequestSuggestedReviewerList {
-  string access_list_name = 1;
-}
-
-// AccessRequestSuggestedReviewerLists represents a list of access lists where the
-// owners are suggested reviewers.
-message AccessRequestSuggestedReviewerLists {
-  repeated AccessRequestSuggestedReviewerList lists = 1;
+// AccessRequestSuggestedReviewers represents a list of suggested reviewers for an
+// access request.
+message AccessRequestSuggestedReviewers {
+  repeated string reviewers = 1;
 }
 
 // ResourceIDList represents a list of ResourceID objects.

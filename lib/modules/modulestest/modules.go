@@ -87,9 +87,9 @@ type Modules struct {
 	// attestation data is shared by all logins when set.
 	MockAttestationData *keys.AttestationData
 
-	GenerateAccessRequestPromotionsFn             func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
-	GenerateAccessRequestSuggestedReviewerListsFn func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestSuggestedReviewerLists, error)
-	GenerateLongTermResourceGroupingFn            func(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error)
+	GenerateAccessRequestPromotionsFn         func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	GenerateAccessRequestSuggestedReviewersFn func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestSuggestedReviewers, error)
+	GenerateLongTermResourceGroupingFn        func(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error)
 }
 
 // AttestHardwareKey implements modules.Modules.
@@ -138,12 +138,12 @@ func (m *Modules) GenerateAccessRequestPromotions(ctx context.Context, getter mo
 	return types.NewAccessRequestAllowedPromotions(nil), nil
 }
 
-// GenerateAccessRequestSuggestedReviewerLists implements modules.Modules.
-func (m *Modules) GenerateAccessRequestSuggestedReviewerLists(ctx context.Context, getter modules.AccessResourcesGetter, request types.AccessRequest) (*types.AccessRequestSuggestedReviewerLists, error) {
-	if m.GenerateAccessRequestSuggestedReviewerListsFn != nil {
-		return m.GenerateAccessRequestSuggestedReviewerListsFn(ctx, getter, request)
+// GenerateAccessRequestSuggestedReviewers implements modules.Modules.
+func (m *Modules) GenerateAccessRequestSuggestedReviewers(ctx context.Context, getter modules.AccessResourcesGetter, request types.AccessRequest) (*types.AccessRequestSuggestedReviewers, error) {
+	if m.GenerateAccessRequestSuggestedReviewersFn != nil {
+		return m.GenerateAccessRequestSuggestedReviewersFn(ctx, getter, request)
 	}
-	return types.NewAccessRequestSuggestedReviewerLists(nil), nil
+	return types.NewAccessRequestSuggestedReviewers(nil), nil
 }
 
 // GetSuggestedAccessLists implements modules.Modules.
