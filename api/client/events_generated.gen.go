@@ -3,10 +3,27 @@
 package client
 
 import (
-	"github.com/gravitational/teleport/api/client/proto"
+	proto "github.com/gravitational/teleport/api/client/proto"
+	webhookv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/webhook/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
-func generatedEventToGRPC(_ *proto.Event, _ types.Resource) bool { return false }
+// generatedEventToGRPC handles EventToGRPC dispatch for resource-gen resources.
+// Returns true with out.Resource set if handled, false if not.
+func generatedEventToGRPC(out *proto.Event, r types.Resource) bool {
+	switch r := r.(type) {
+	case types.Resource153UnwrapperT[*webhookv1.Webhook]:
+		out.Resource = &proto.Event_Webhook{Webhook: r.UnwrapT()}
+		return true
+	default:
+		return false
+	}
+}
 
-func generatedEventFromGRPC(_ *proto.Event) (types.Resource, bool) { return nil, false }
+// generatedEventFromGRPC handles EventFromGRPC dispatch for resource-gen resources.
+func generatedEventFromGRPC(in *proto.Event) (types.Resource, bool) {
+	if r := in.GetWebhook(); r != nil {
+		return types.ProtoResource153ToLegacy(r), true
+	}
+	return nil, false
+}

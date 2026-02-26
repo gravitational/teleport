@@ -4,5 +4,8 @@ package authclient
 
 // Generated authclient cache services for resource-gen managed resources.
 
+import "github.com/gravitational/teleport/lib/services"
+
 type cacheGeneratedServices interface {
+	services.WebhooksGetter
 }

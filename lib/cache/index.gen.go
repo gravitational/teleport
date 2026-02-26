@@ -4,8 +4,11 @@ package cache
 
 // Generated cache gathering for resource-gen managed resources.
 
+import "github.com/gravitational/teleport/lib/services"
+
 // GeneratedConfig holds service interfaces for cache-enabled resources
 // managed by resource-gen. It is embedded in cache.Config and set by
 // callers via the exported field.
 type GeneratedConfig struct {
+	services.Webhooks
 }

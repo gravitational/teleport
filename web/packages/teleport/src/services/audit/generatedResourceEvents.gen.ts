@@ -5,21 +5,86 @@ import type { RawEvent } from './types';
 type HasName = { name: string };
 
 // Event codes for resource-gen managed resources.
-export const generatedEventCodes = {} as const;
+export const generatedEventCodes = {
+  WEBHOOK_CREATE: 'WH001I',
+  WEBHOOK_DELETE: 'WH003I',
+  WEBHOOK_UPDATE: 'WH002I',
+} as const;
 
 export type GeneratedEventCode =
   (typeof generatedEventCodes)[keyof typeof generatedEventCodes];
 
 // RawEvent type entries for generated resource events.
-export type GeneratedRawEvents = {};
+export type GeneratedRawEvents = {
+  [typeof generatedEventCodes.WEBHOOK_CREATE]: RawEvent<
+    typeof generatedEventCodes.WEBHOOK_CREATE,
+    HasName
+  >;
+  [typeof generatedEventCodes.WEBHOOK_DELETE]: RawEvent<
+    typeof generatedEventCodes.WEBHOOK_DELETE,
+    HasName
+  >;
+  [typeof generatedEventCodes.WEBHOOK_UPDATE]: RawEvent<
+    typeof generatedEventCodes.WEBHOOK_UPDATE,
+    HasName
+  >;
+};
 
 // Formatter entries for generated resource events.
 export function generatedFormatters() {
-  return {};
+  return {
+    [generatedEventCodes.WEBHOOK_CREATE]: {
+      type: 'resource.webhook.create',
+      desc: 'Webhook Created',
+      format: ({ user, name }: { user: string; name: string }) =>
+        `User [${user}] created a webhook [${name}]`,
+    },
+    [generatedEventCodes.WEBHOOK_DELETE]: {
+      type: 'resource.webhook.delete',
+      desc: 'Webhook Deleted',
+      format: ({ user, name }: { user: string; name: string }) =>
+        `User [${user}] deleted a webhook [${name}]`,
+    },
+    [generatedEventCodes.WEBHOOK_UPDATE]: {
+      type: 'resource.webhook.update',
+      desc: 'Webhook Updated',
+      format: ({ user, name }: { user: string; name: string }) =>
+        `User [${user}] updated a webhook [${name}]`,
+    },
+  };
 }
 
 // Icon mappings for generated resource events.
-export const generatedEventIcons: Record<GeneratedEventCode, string> = {};
+export const generatedEventIcons: Record<GeneratedEventCode, string> = {
+  [generatedEventCodes.WEBHOOK_CREATE]: 'Info',
+  [generatedEventCodes.WEBHOOK_DELETE]: 'Info',
+  [generatedEventCodes.WEBHOOK_UPDATE]: 'Info',
+};
 
 // Fixture entries for generated resource events.
-export const generatedFixtures = [];
+export const generatedFixtures = [
+  {
+    code: 'WH001I' as const,
+    event: 'resource.webhook.create',
+    name: 'example',
+    user: 'alice',
+    time: '2026-01-01T00:00:00Z',
+    uid: '00000000-0000-0000-0000-000000000001',
+  },
+  {
+    code: 'WH003I' as const,
+    event: 'resource.webhook.delete',
+    name: 'example',
+    user: 'alice',
+    time: '2026-01-01T00:00:00Z',
+    uid: '00000000-0000-0000-0000-000000000002',
+  },
+  {
+    code: 'WH002I' as const,
+    event: 'resource.webhook.update',
+    name: 'example',
+    user: 'alice',
+    time: '2026-01-01T00:00:00Z',
+    uid: '00000000-0000-0000-0000-000000000003',
+  },
+];

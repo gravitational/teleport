@@ -41,6 +41,7 @@ import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
 import "teleport/usertasks/v1/user_tasks.proto";
+import "teleport/webhook/v1/webhook.proto";
 import "teleport/workloadcluster/v1/workloadcluster.proto";
 import "teleport/workloadidentity/v1/resource.proto";
 import "teleport/workloadidentity/v1/revocation_resource.proto";
@@ -243,5 +244,7 @@ message Event {
     teleport.linuxdesktop.v1.LinuxDesktop LinuxDesktop = 87;
     // WorkloadCluster is a resource for defining workload clusters.
     teleport.workloadcluster.v1.WorkloadCluster WorkloadCluster = 88;
+    // Webhook is a resource for webhook management.
+    teleport.webhook.v1.Webhook Webhook = 89;
   }
 }

@@ -5003,6 +5003,9 @@ message OneOf {
     events.InferencePolicyUpdate InferencePolicyUpdate = 245;
     events.InferencePolicyDelete InferencePolicyDelete = 246;
     events.SessionSummarized SessionSummarized = 247;
+    events.WebhookCreate WebhookCreate = 248;
+    events.WebhookDelete WebhookDelete = 249;
+    events.WebhookUpdate WebhookUpdate = 250;
   }
 }
 
@@ -10117,6 +10120,105 @@ message InferencePolicyDelete {
   ];
 
   // Status indicates whether the deletion was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// WebhookCreate is emitted when a webhook resource is created.
+message WebhookCreate {
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// WebhookDelete is emitted when a webhook resource is deleted.
+message WebhookDelete {
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// WebhookUpdate is emitted when a webhook resource is updated.
+message WebhookUpdate {
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
   Status Status = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,

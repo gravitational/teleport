@@ -1,0 +1,129 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.webhook.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/options/v1/resource.proto";
+import "teleport/webhook/v1/webhook.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/webhook/v1;webhookv1";
+
+// WebhookService manages webhook resources.
+service WebhookService {
+  option (teleport.options.v1.resource_config) = {
+    storage: {
+      backend_prefix: "webhooks"
+      standard: {}
+    }
+    cache: {enabled: true}
+    hooks: {enable_lifecycle_hooks: true}
+    audit: {
+      emit_on_create: true
+      emit_on_update: true
+      emit_on_delete: true
+      code_prefix: "WH"
+    }
+    tctl: {
+      description: "webhooks"
+      mfa_required: false
+      columns: [
+        "metadata.name",
+        "spec.url",
+        "spec.enabled",
+        "spec.max_retries"
+      ]
+      verbose_columns: [
+        "metadata.name",
+        "spec.url",
+        "spec.enabled",
+        "spec.max_retries",
+        "status.total_deliveries",
+        "status.failed_deliveries",
+        "status.last_delivery"
+      ]
+      timestamp_columns: ["status.last_delivery"]
+    }
+    pagination: {
+      default_page_size: 100
+      max_page_size: 500
+    }
+  };
+
+  // GetWebhook returns a webhook by name.
+  rpc GetWebhook(GetWebhookRequest) returns (Webhook);
+
+  // ListWebhooks returns a paginated list of webhooks.
+  rpc ListWebhooks(ListWebhooksRequest) returns (ListWebhooksResponse);
+
+  // CreateWebhook creates a new webhook.
+  rpc CreateWebhook(CreateWebhookRequest) returns (Webhook);
+
+  // UpdateWebhook updates an existing webhook.
+  rpc UpdateWebhook(UpdateWebhookRequest) returns (Webhook);
+
+  // UpsertWebhook creates or updates a webhook.
+  rpc UpsertWebhook(UpsertWebhookRequest) returns (Webhook);
+
+  // DeleteWebhook deletes a webhook by name.
+  rpc DeleteWebhook(DeleteWebhookRequest) returns (google.protobuf.Empty);
+}
+
+// GetWebhookRequest is the request for GetWebhook.
+message GetWebhookRequest {
+  // name is the name of the webhook.
+  string name = 1;
+}
+
+// ListWebhooksRequest is the request for ListWebhooks.
+message ListWebhooksRequest {
+  // page_size is the maximum number of items to return.
+  int32 page_size = 1;
+  // page_token is the next_page_token value returned from a previous List request.
+  string page_token = 2;
+}
+
+// ListWebhooksResponse is the response for ListWebhooks.
+message ListWebhooksResponse {
+  // webhooks is the list of webhooks.
+  repeated Webhook webhooks = 1;
+  // next_page_token is the token for the next page.
+  string next_page_token = 2;
+}
+
+// CreateWebhookRequest is the request for CreateWebhook.
+message CreateWebhookRequest {
+  // webhook is the webhook to create.
+  Webhook webhook = 1;
+}
+
+// UpdateWebhookRequest is the request for UpdateWebhook.
+message UpdateWebhookRequest {
+  // webhook is the webhook to update.
+  Webhook webhook = 1;
+}
+
+// UpsertWebhookRequest is the request for UpsertWebhook.
+message UpsertWebhookRequest {
+  // webhook is the webhook to create or update.
+  Webhook webhook = 1;
+}
+
+// DeleteWebhookRequest is the request for DeleteWebhook.
+message DeleteWebhookRequest {
+  // name is the name of the webhook to delete.
+  string name = 1;
+}

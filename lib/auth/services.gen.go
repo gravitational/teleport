@@ -4,13 +4,24 @@ package auth
 
 // Generated services gathering for resource-gen managed resources.
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/cache"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 type servicesGenerated struct {
+	services.Webhooks
 }
 
 func newServicesGenerated(cfg *InitConfig) (*servicesGenerated, error) {
+	var err error
 	gen := &servicesGenerated{}
+
+	gen.Webhooks, err = local.NewWebhookService(cfg.Backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return gen, nil
 }
@@ -19,5 +30,6 @@ func newServicesGenerated(cfg *InitConfig) (*servicesGenerated, error) {
 // construct GeneratedConfig literals when adding new cache-enabled resources.
 func (sg *servicesGenerated) ToCacheConfig() cache.GeneratedConfig {
 	return cache.GeneratedConfig{
+		Webhooks: sg.Webhooks,
 	}
 }
