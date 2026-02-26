@@ -6166,14 +6166,13 @@ func (a *Server) generateAccessRequestSuggestedReviewers(ctx context.Context, re
 	return suggestedReviewers
 }
 
-// updateAccessRequestWithAdditionalReviewers will update the given access request with additional reviewers from the owners
-// of the given suggestedReviewersAccessLists.
+// updateAccessRequestWithAdditionalReviewers will update the given access request with the given additional reviewers.
 func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, suggestedReviewers *types.AccessRequestSuggestedReviewers) {
 	if suggestedReviewers == nil {
 		return
 	}
 
-	// Add in access list owners as additional suggested reviewers and ensure deduplicated.
+	// Add additional suggested reviewers and ensure deduplicated.
 	additionalReviewers := set.New[string]()
 
 	for _, suggestedReviewer := range slices.Concat(
