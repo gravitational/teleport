@@ -21,7 +21,6 @@ package aggregating
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -184,16 +183,12 @@ func (r *Reporter) GracefulStop(ctx context.Context) error {
 func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 	filtered := events[:0]
 	for _, event := range events {
-		fmt.Printf("got an event %v\n", event)
 		// this should drop all events that we don't care about
 		// note: make sure this matches the set of all events handled in [*Reporter.run]
 		switch event := event.(type) {
 		case *usagereporter.UserLoginEvent:
-			fmt.Printf("it IS a user login event %T\n------\n", event)
-
 			event.StoreAnonymizationMapping(context.Background(), r.anonymizer, r.svc.b)
 			filtered = append(filtered, event)
-
 		case *usagereporter.SessionStartEvent,
 			*usagereporter.KubeRequestEvent,
 			*usagereporter.SFTPEvent,

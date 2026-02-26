@@ -20,8 +20,10 @@ package usagereporter
 
 import (
 	"context"
+	"encoding/hex"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -64,15 +66,26 @@ func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 		},
 	}
 }
-func anonUsernameKey(username string) backend.Key {
-	return backend.NewKey("anonymization-", username)
+
+// anonMappingTTL is how long anonymization mappings are retained. This matches
+// the maximum data retention window so that historical usernames can always be
+// deanonymized. The TTL is refreshed on every login, so active users never
+// lose their mapping; inactive or deleted users' entries expire naturally.
+const anonMappingTTL = 365 * 24 * time.Hour
+
+// AnonUsernameKey returns the backend key for looking up the original
+// username for a given anonymized username. The anon username is hex-encoded
+// to produce a key-safe string using only [0-9a-f].
+func AnonUsernameKey(anonUsername string) backend.Key {
+	return backend.NewKey("anonymization", hex.EncodeToString([]byte(anonUsername)))
 }
 
 func (u *UserLoginEvent) StoreAnonymizationMapping(ctx context.Context, a utils.Anonymizer, be backend.Backend) error {
 	anonUsername := a.AnonymizeString(u.UserName)
 	_, err := be.Put(ctx, backend.Item{
-		Key:   anonUsernameKey(u.UserName),
-		Value: []byte(anonUsername),
+		Key:     AnonUsernameKey(anonUsername),
+		Value:   []byte(u.UserName),
+		Expires: time.Now().UTC().Add(anonMappingTTL),
 	})
 	return err
 }

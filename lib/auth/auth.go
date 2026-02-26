@@ -2548,15 +2548,15 @@ func (a *Server) GetAnonymizationKey(ctx context.Context) (string, error) {
 }
 
 // GetAnonMapping looks up original usernames for a list of anonymized usernames.
-// For each anonymized username that has a stored reverse mapping, the result
-// map contains an entry from the anonymized form to the original username.
-// Anonymized usernames without a stored mapping are omitted from the result.
+// Every input username is present in the result map. If a reverse mapping exists,
+// the value is the original username; otherwise the value is an empty string.
 func (a *Server) GetAnonMapping(ctx context.Context, anonUsernames []string) (map[string]string, error) {
 	result := make(map[string]string, len(anonUsernames))
 	for _, anonUsername := range anonUsernames {
-		item, err := a.bk.Get(ctx, usagereporter.ReverseAnonUsernameKey(anonUsername))
+		item, err := a.bk.Get(ctx, usagereporter.AnonUsernameKey(anonUsername))
 		if err != nil {
 			if trace.IsNotFound(err) {
+				result[anonUsername] = ""
 				continue
 			}
 			return nil, trace.Wrap(err)
