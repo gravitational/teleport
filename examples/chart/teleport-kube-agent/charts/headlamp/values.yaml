@@ -36,8 +36,6 @@ config:
   inClusterContextName: "main"
   # -- base url path at which headlamp should run
   baseURL: ""
-  # -- session token TTL in seconds (default is 24 hours)
-  sessionTTL: 86400
   oidc:
     # Option 1:
     # @param config.oidc.secret - OIDC secret configuration
