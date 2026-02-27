@@ -2710,96 +2710,7 @@ func (process *TeleportProcess) initAuthService() error {
 		process.localDebugDialer.Set(authDebugConnListener, hostUUID)
 	}
 
-	// debugForwarder forwards debug connections to other auth servers in split
-	// deployments where the reverse tunnel is not available locally.
-	debugForwarder := func(ctx context.Context, serverID string) (net.Conn, error) {
-		authServers, err := authServer.GetAuthServers()
-		if err != nil {
-			return nil, trace.Wrap(err, "looking up auth servers for debug forwarding")
-		}
-		var targetAddr string
-		for _, as := range authServers {
-			if as.GetName() == serverID {
-				targetAddr = as.GetAddr()
-				break
-			}
-		}
-		if targetAddr == "" {
-			return nil, trace.NotFound("server %s is not a local or known auth server; debugging nodes and proxies requires the auth server to have a reverse tunnel (combined auth+proxy deployment)", serverID)
-		}
-
-		cert, err := connector.ClientGetCertificate()
-		if err != nil {
-			return nil, trace.Wrap(err, "getting TLS certificate for debug forwarding")
-		}
-		pool, err := connector.ClientGetPool()
-		if err != nil {
-			return nil, trace.Wrap(err, "getting TLS CA pool for debug forwarding")
-		}
-		tlsCfg := &tls.Config{
-			Certificates: []tls.Certificate{*cert},
-			RootCAs:      pool,
-			ServerName:   apiutils.EncodeClusterName(clusterName),
-		}
-
-		grpcConn, err := grpc.NewClient(targetAddr,
-			grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err, "dialing auth server %s at %s", serverID, targetAddr)
-		}
-
-		debugClient := debugpb.NewDebugServiceClient(grpcConn)
-		stream, err := debugClient.Connect(ctx)
-		if err != nil {
-			grpcConn.Close()
-			return nil, trace.Wrap(err, "opening debug stream to auth server %s", serverID)
-		}
-
-		if err := stream.Send(&debugpb.Frame{
-			Payload: &debugpb.Frame_ServerId{ServerId: serverID},
-		}); err != nil {
-			grpcConn.Close()
-			return nil, trace.Wrap(err, "sending server ID to auth server %s", serverID)
-		}
-
-		// Bridge the gRPC stream to a net.Conn using net.Pipe.
-		pipeClient, pipeServer := net.Pipe()
-		go func() {
-			defer pipeServer.Close()
-			for {
-				frame, err := stream.Recv()
-				if err != nil {
-					return
-				}
-				if _, err := pipeServer.Write(frame.GetData()); err != nil {
-					return
-				}
-			}
-		}()
-		go func() {
-			defer func() {
-				stream.CloseSend()
-				grpcConn.Close()
-			}()
-			buf := make([]byte, 32*1024)
-			for {
-				n, err := pipeServer.Read(buf)
-				if n > 0 {
-					if sendErr := stream.Send(&debugpb.Frame{
-						Payload: &debugpb.Frame_Data{Data: append([]byte(nil), buf[:n]...)},
-					}); sendErr != nil {
-						return
-					}
-				}
-				if err != nil {
-					return
-				}
-			}
-		}()
-
-		return pipeClient, nil
-	}
+	debugForwarder := newDebugForwarder(authServer, connector, clusterName)
 
 	apiConf := &auth.APIConfig{
 		AuthServer:       authServer,
@@ -5035,6 +4946,132 @@ func (process *TeleportProcess) muxPostgresOnWebPort(cfg *servicecfg.Config, lis
 	}
 }
 
+// debugServerLister provides access to server lists for debug forwarding.
+type debugServerLister interface {
+	GetAuthServers() ([]types.Server, error)
+	GetProxies() ([]types.Server, error)
+}
+
+// debugTLSProvider provides TLS certificate and CA pool for debug forwarding.
+type debugTLSProvider interface {
+	ClientGetCertificate() (*tls.Certificate, error)
+	ClientGetPool() (*x509.CertPool, error)
+}
+
+// newDebugForwarder creates a forwarder function that routes debug connections
+// to other auth servers or proxies. It first looks up auth servers by UUID and
+// dials via standard gRPC TLS. If no auth server matches, it looks up proxies
+// and dials via gRPC TLS with the ALPN protocol for proxy SSH gRPC.
+func newDebugForwarder(lister debugServerLister, tlsProvider debugTLSProvider, clusterName string) func(ctx context.Context, serverID string) (net.Conn, error) {
+	return func(ctx context.Context, serverID string) (net.Conn, error) {
+		// Try to find the target among auth servers first.
+		authServers, err := lister.GetAuthServers()
+		if err != nil {
+			return nil, trace.Wrap(err, "looking up auth servers for debug forwarding")
+		}
+		var targetAddr string
+		var nextProtos []string
+		for _, as := range authServers {
+			if as.GetName() == serverID {
+				targetAddr = as.GetAddr()
+				break
+			}
+		}
+
+		// If not found among auth servers, look up proxies.
+		if targetAddr == "" {
+			proxies, err := lister.GetProxies()
+			if err != nil {
+				return nil, trace.Wrap(err, "looking up proxies for debug forwarding")
+			}
+			for _, p := range proxies {
+				if p.GetName() == serverID {
+					targetAddr = p.GetAddr()
+					nextProtos = []string{string(alpncommon.ProtocolProxySSHGRPC)}
+					break
+				}
+			}
+		}
+
+		if targetAddr == "" {
+			return nil, trace.NotFound("server %s is not a known auth server or proxy", serverID)
+		}
+
+		cert, err := tlsProvider.ClientGetCertificate()
+		if err != nil {
+			return nil, trace.Wrap(err, "getting TLS certificate for debug forwarding")
+		}
+		pool, err := tlsProvider.ClientGetPool()
+		if err != nil {
+			return nil, trace.Wrap(err, "getting TLS CA pool for debug forwarding")
+		}
+		tlsCfg := &tls.Config{
+			Certificates: []tls.Certificate{*cert},
+			RootCAs:      pool,
+			ServerName:   apiutils.EncodeClusterName(clusterName),
+			NextProtos:   nextProtos,
+		}
+
+		grpcConn, err := grpc.NewClient(targetAddr,
+			grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "dialing server %s at %s", serverID, targetAddr)
+		}
+
+		debugClient := debugpb.NewDebugServiceClient(grpcConn)
+		stream, err := debugClient.Connect(ctx)
+		if err != nil {
+			grpcConn.Close()
+			return nil, trace.Wrap(err, "opening debug stream to server %s", serverID)
+		}
+
+		if err := stream.Send(&debugpb.Frame{
+			Payload: &debugpb.Frame_ServerId{ServerId: serverID},
+		}); err != nil {
+			grpcConn.Close()
+			return nil, trace.Wrap(err, "sending server ID to server %s", serverID)
+		}
+
+		// Bridge the gRPC stream to a net.Conn using net.Pipe.
+		pipeClient, pipeServer := net.Pipe()
+		go func() {
+			defer pipeServer.Close()
+			for {
+				frame, err := stream.Recv()
+				if err != nil {
+					return
+				}
+				if _, err := pipeServer.Write(frame.GetData()); err != nil {
+					return
+				}
+			}
+		}()
+		go func() {
+			defer func() {
+				stream.CloseSend()
+				grpcConn.Close()
+			}()
+			buf := make([]byte, 32*1024)
+			for {
+				n, err := pipeServer.Read(buf)
+				if n > 0 {
+					if sendErr := stream.Send(&debugpb.Frame{
+						Payload: &debugpb.Frame_Data{Data: append([]byte(nil), buf[:n]...)},
+					}); sendErr != nil {
+						return
+					}
+				}
+				if err != nil {
+					return
+				}
+			}
+		}()
+
+		return pipeClient, nil
+	}
+}
+
 func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// clean up unused descriptors passed for proxy, but not used by it
 	defer func() {
@@ -5987,6 +6024,49 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 	transportpb.RegisterTransportServiceServer(sshGRPCServer, transportService)
+
+	// Register the debug gRPC service on the proxy's SSH gRPC server so that
+	// tctl can reach nodes and proxies through the reverse tunnel.
+	proxyDebugDialer := &debugv1.LazyLocalDebugDialer{}
+	if cfg.DebugService.Enabled {
+		proxyDebugConnListener := debug.NewConnListener()
+		debugSvc := debug.NewService(debug.ServiceConfig{
+			Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDebug, process.id)),
+			Leveler:     process.Config,
+			Broadcaster: process.Config.LogBroadcaster,
+		})
+		debugMux := http.NewServeMux()
+		debug.RegisterProfilingHandlers(debugMux, process.logger)
+		debug.RegisterLogLevelHandlers(debugMux, debugSvc)
+		if process.Config.LogBroadcaster != nil {
+			debug.RegisterLogStreamHandler(debugMux, debugSvc)
+		}
+		debugMux.HandleFunc("/readyz", process.HandleReadiness)
+		debugMux.Handle("/metrics", process.newMetricsHandler())
+		proxyDebugHTTPServer := &http.Server{Handler: debugMux}
+		go func() {
+			if err := proxyDebugHTTPServer.Serve(proxyDebugConnListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				process.logger.ErrorContext(process.ExitContext(), "Proxy debug HTTP server exited with error", "error", err)
+			}
+		}()
+		process.OnExit("proxy.debug.http.shutdown", func(payload any) {
+			proxyDebugHTTPServer.Close()
+			proxyDebugConnListener.Close()
+		})
+		proxyDebugDialer.Set(proxyDebugConnListener, conn.HostUUID())
+	}
+	proxyForwarder := newDebugForwarder(accessPoint, conn, clusterName)
+	debugService, err := debugv1.NewService(debugv1.ServiceConfig{
+		Authorizer:       authorizer,
+		ClusterDialer:    tsrv,
+		ClusterName:      clusterName,
+		LocalDebugDialer: proxyDebugDialer,
+		Forwarder:        proxyForwarder,
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating proxy debug service")
+	}
+	debugpb.RegisterDebugServiceServer(sshGRPCServer, debugService)
 
 	process.RegisterCriticalFunc("proxy.ssh", func() error {
 		sshListenerAddr := listeners.ssh.Addr().String()

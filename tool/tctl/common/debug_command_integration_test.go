@@ -325,3 +325,72 @@ func TestDebugCommandIntegration(t *testing.T) {
 		}, 30*time.Second, 500*time.Millisecond, "hostname resolution should work")
 	})
 }
+
+// TestDebugCommandSplitDeployment verifies the debug service works in
+// auth-only deployments without a proxy or reverse tunnel.
+func TestDebugCommandSplitDeployment(t *testing.T) {
+	apidefaults.SetTestTimeouts(3*time.Second, 3*time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+
+	// Start an auth-only process (no proxy, no node) with debug enabled.
+	authProcess, err := testenv.NewTeleportProcess(shortTempDir(t, "auth-"),
+		testenv.WithLogger(logtest.NewLogger()),
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Proxy.Enabled = false
+			cfg.SSH.Enabled = false
+			cfg.DebugService.Enabled = true
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
+
+	client := newAuthClientNoBreaker(t, authProcess)
+	t.Cleanup(func() { _ = client.Close() })
+
+	authID, err := authProcess.WaitForHostID(ctx)
+	require.NoError(t, err)
+
+	// Wait for the debug service to become reachable via self-targeting
+	// (LazyLocalDebugDialer handles in-process connections).
+	waitForDebugReady(t, ctx, client, authID)
+
+	t.Run("SelfTarget/GetLogLevel", func(t *testing.T) {
+		var stdout bytes.Buffer
+		cmd := &DebugCommand{stdout: &stdout}
+		err := runDebugCmd(t, ctx, client, cmd, []string{"get-log-level", authID})
+		require.NoError(t, err)
+		out := strings.TrimSpace(stdout.String())
+		assert.NotEmpty(t, out, "should return a log level")
+	})
+
+	t.Run("SelfTarget/SetLogLevel", func(t *testing.T) {
+		var stdout bytes.Buffer
+		cmd := &DebugCommand{stdout: &stdout}
+		err := runDebugCmd(t, ctx, client, cmd, []string{"set-log-level", authID, "DEBUG"})
+		require.NoError(t, err)
+		out := strings.TrimSpace(stdout.String())
+		assert.Contains(t, out, "DEBUG", "should mention the new level")
+
+		// Verify it was actually set.
+		var verifyBuf bytes.Buffer
+		verifyCmd := &DebugCommand{stdout: &verifyBuf}
+		err = runDebugCmd(t, ctx, client, verifyCmd, []string{"get-log-level", authID})
+		require.NoError(t, err)
+		assert.Equal(t, "DEBUG", strings.TrimSpace(verifyBuf.String()))
+	})
+
+	t.Run("SelfTarget/Readyz", func(t *testing.T) {
+		var stdout bytes.Buffer
+		cmd := &DebugCommand{stdout: &stdout}
+		err := runDebugCmd(t, ctx, client, cmd, []string{"readyz", authID})
+		require.NoError(t, err)
+		out := stdout.String()
+		assert.Contains(t, out, "PID")
+		assert.Contains(t, out, "status:")
+	})
+}
