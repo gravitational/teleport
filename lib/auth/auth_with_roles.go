@@ -4090,30 +4090,6 @@ func hasOneNonPresetUser(users []types.User) bool {
 	return qtyNonPreset == 1
 }
 
-// CompareAndSwapUser updates an existing user in a backend, but fails if the
-// backend's value does not match the expected value.
-// Captures the auth user who modified the user record.
-func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
-	if err := a.authorizeAction(types.KindUser, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := okta.CheckOrigin(&a.context, new); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Checking the `existing` origin should be enough to assert that okta has
-	// write access to the user, because if the backend record says something
-	// different then the `CompareAndSwap()` will fail anyway, and this way we
-	// save ourselves a backend user lookup.
-
-	if err := okta.CheckAccess(&a.context, existing, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.CompareAndSwapUser(ctx, new, existing)
-}
-
 // UpsertOIDCConnector creates or updates an OIDC connector.
 func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
 	if err := a.authConnectorAction(types.KindOIDC, types.VerbCreate); err != nil {
