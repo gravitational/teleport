@@ -1327,7 +1327,7 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 }
 
 func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	s := newAuthSuite(t)
 
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
