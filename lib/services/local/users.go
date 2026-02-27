@@ -34,7 +34,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -652,7 +651,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (type
 	}
 	for _, u := range users {
 		for _, uid := range u.GetOIDCIdentities() {
-			if cmp.Equal(uid, &id) {
+			if uid.IsEqual(&id) {
 				return u, nil
 			}
 		}
@@ -669,7 +668,7 @@ func (s *IdentityService) GetUserBySAMLIdentity(id types.ExternalIdentity) (type
 	}
 	for _, u := range users {
 		for _, uid := range u.GetSAMLIdentities() {
-			if cmp.Equal(uid, &id) {
+			if uid.IsEqual(&id) {
 				return u, nil
 			}
 		}
@@ -685,7 +684,7 @@ func (s *IdentityService) GetUserByGithubIdentity(id types.ExternalIdentity) (ty
 	}
 	for _, u := range users {
 		for _, uid := range u.GetGithubIdentities() {
-			if cmp.Equal(uid, &id) {
+			if uid.IsEqual(&id) {
 				return u, nil
 			}
 		}
