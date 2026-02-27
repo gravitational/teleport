@@ -340,7 +340,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 				DomainName: localClusterName,
 			}, false)
 			require.NoError(t, err)
-			require.True(t, services.CertAuthoritiesEquivalent(localCA, returnedCA))
+			require.True(t, localCA.IsEqual(returnedCA))
 		}
 
 		rcs, err := a.GetRemoteClusters(ctx)
