@@ -34,7 +34,6 @@ import (
 	"os"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -66,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/services"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -336,9 +336,22 @@ func (n noUpstreamNameservers) UpstreamNameservers(ctx context.Context) ([]strin
 }
 
 type appSpec struct {
-	// publicAddr is used both as the name of the app and its public address in the final spec.
+	// name is optional and will default to publicAddr if unset
+	name       string
 	publicAddr string
+	isWebApp   bool
 	tcpPorts   []*types.PortRange
+}
+
+func (s *appSpec) getName() string {
+	return cmp.Or(s.name, s.publicAddr)
+}
+
+func (s *appSpec) getURI() string {
+	if s.isWebApp {
+		return "http://" + s.publicAddr
+	}
+	return "tcp://" + s.publicAddr
 }
 
 type nodeSpec struct {
@@ -676,8 +689,7 @@ func (c *fakeClusterClient) SessionSSHKeyRing(ctx context.Context, user string, 
 	return k, false, nil
 }
 
-// fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
-// basic/faked predicate filtering.
+// fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps.
 type fakeAuthClient struct {
 	authclient.ClientI
 	clusterSpec     testClusterSpec
@@ -686,37 +698,44 @@ type fakeAuthClient struct {
 }
 
 func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	filter, err := services.MatchResourceFilterFromListResourceRequest(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	resp := &proto.ListResourcesResponse{}
 	for _, app := range c.clusterSpec.apps {
-		// Poor-man's predicate expression filter.
-		if !strings.Contains(req.PredicateExpression, app.publicAddr) {
-			continue
-		}
-		spec := &types.AppV3{
+		appServer := &types.AppServerV3{
+			Kind: types.KindAppServer,
 			Metadata: types.Metadata{
-				Name: app.publicAddr,
+				Name: app.getName(),
 			},
-			Spec: types.AppSpecV3{
-				PublicAddr: app.publicAddr,
-				URI:        "tcp://" + app.publicAddr,
+			Spec: types.AppServerSpecV3{
+				App: &types.AppV3{
+					Metadata: types.Metadata{
+						Name: app.getName(),
+					},
+					Spec: types.AppSpecV3{
+						PublicAddr: app.publicAddr,
+						URI:        app.getURI(),
+					},
+				},
 			},
+		}
+		if len(app.tcpPorts) != 0 {
+			appServer.Spec.App.SetTCPPorts(app.tcpPorts)
 		}
 
-		if len(app.tcpPorts) != 0 {
-			spec.SetTCPPorts(app.tcpPorts)
+		match, err := services.MatchResourceByFilters(appServer, filter, nil /* seenMap */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !match {
+			continue
 		}
 
 		resp.Resources = append(resp.Resources, &proto.PaginatedResource{
 			Resource: &proto.PaginatedResource_AppServer{
-				AppServer: &types.AppServerV3{
-					Kind: types.KindAppServer,
-					Metadata: types.Metadata{
-						Name: app.publicAddr,
-					},
-					Spec: types.AppServerSpecV3{
-						App: spec,
-					},
-				},
+				AppServer: appServer,
 			},
 		})
 	}
@@ -780,6 +799,11 @@ func TestDialFakeApp(t *testing.T) {
 							{Port: 4242},
 						},
 					},
+					{
+						name:       "webroot",
+						publicAddr: "webroot.root1.example.com",
+						isWebApp:   true,
+					},
 				},
 				customDNSZones: []string{
 					"myzone.example.com",
@@ -795,6 +819,18 @@ func TestDialFakeApp(t *testing.T) {
 									{Port: 1337},
 									{Port: 4242},
 								},
+							},
+							{
+								// Important: leaf web apps are reachable at
+								// their public_addr if the user logs in
+								// directly to the leaf, and they must also be
+								// reachable at <name>.<root-proxy-public-addr>
+								// if the user is logged in to the root.
+								// In this case webleaf.root1.example.com must
+								// be reachable.
+								name:       "webleaf",
+								publicAddr: "webleaf.leaf1.example.com",
+								isWebApp:   true,
 							},
 						},
 					},
@@ -986,6 +1022,14 @@ func TestDialFakeApp(t *testing.T) {
 		}
 	})
 
+	lookupShouldFailFast := func(t *testing.T, host string) {
+		t.Helper()
+		lookupCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		_, err := p.lookupHost(lookupCtx, host)
+		require.Error(t, err)
+	}
+
 	t.Run("invalid FQDN", func(t *testing.T) {
 		t.Parallel()
 		invalidTestCases := []string{
@@ -995,10 +1039,7 @@ func TestDialFakeApp(t *testing.T) {
 		for _, fqdn := range invalidTestCases {
 			t.Run(fqdn, func(t *testing.T) {
 				t.Parallel()
-				ctx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
-				defer cancel()
-				_, err := p.lookupHost(ctx, fqdn)
-				require.Error(t, err)
+				lookupShouldFailFast(t, fqdn)
 			})
 		}
 	})
@@ -1018,6 +1059,29 @@ func TestDialFakeApp(t *testing.T) {
 			return int(route.TargetPort) == port
 		}), "no certs are supposed to be requested for target port %d in app %s", port, app)
 		require.Equal(t, uint32(1), clientApp.onInvalidLocalPortCallCount.Load(), "unexpected number of calls to OnInvalidLocalPort")
+	})
+
+	// Test that VNet does not resolve known web app addrs to VNet IP
+	// addresses. The expected behavior is for VNet to forward these requests
+	// to upstream nameservers so that clients can go around VNet and the
+	// browser hit the proxy public IP directly.
+	t.Run("web", func(t *testing.T) {
+		t.Parallel()
+		for _, addr := range []string{
+			"webroot.root1.example.com",
+			"webleaf.leaf1.example.com",
+			"webleaf.root1.example.com", // leaf web app name as subdomain of root proxy addr must work.
+		} {
+			t.Run(addr, func(t *testing.T) {
+				t.Parallel()
+
+				// For the test we've configured VNet with no upstream
+				// nameservers, so we expect the DNS lookup to fail.
+				// net.Resolver.LookupHost takes a while to fail unless we
+				// provide a short context.
+				lookupShouldFailFast(t, addr)
+			})
+		}
 	})
 }
 
@@ -1055,7 +1119,7 @@ func TestOnNewAppConnection(t *testing.T) {
 		clusters: map[string]testClusterSpec{
 			"root1.example.com": {
 				apps: []appSpec{
-					{publicAddr: "echo1"},
+					{publicAddr: "echo1.root1.example.com"},
 				},
 				cidrRange:    "192.168.2.0/24",
 				leafClusters: map[string]testClusterSpec{},
@@ -1116,15 +1180,15 @@ func testWithAlgorithmSuite(t *testing.T, suite types.SignatureAlgorithmSuite) {
 		clusters: map[string]testClusterSpec{
 			"root.example.com": {
 				apps: []appSpec{
-					{publicAddr: "echo1"},
-					{publicAddr: "echo2"},
+					{publicAddr: "echo1.root.example.com"},
+					{publicAddr: "echo2.root.example.com"},
 				},
 				cidrRange: "192.168.2.0/24",
 				leafClusters: map[string]testClusterSpec{
 					"leaf.example.com": {
 						apps: []appSpec{
-							{publicAddr: "echo1"},
-							{publicAddr: "echo2"},
+							{publicAddr: "echo1.leaf.example.com"},
+							{publicAddr: "echo2.leaf.example.com"},
 						},
 						cidrRange: "192.168.2.0/24",
 					},
@@ -1470,6 +1534,180 @@ func TestSSH(t *testing.T) {
 		for i := range connections - 1 {
 			require.NotEqual(t, checkedHostCerts[i], checkedHostCerts[i+1])
 		}
+	})
+}
+
+// TestPriority tests resolution priority in case a query may match multiple targets:
+//
+//  1. A matching TCP app gets first priority (resolves to a VNet IP and is reachable)
+//  2. A matching web app gets second priority (no address should be resolved)
+//  3. A matching SSH host gets third priority (any subdomain of the cluster
+//     should resolve if it's not an app, only reachable if there's an SSH node)
+//
+// Between multiple clusters:
+//
+//  1. Any app in a root cluster gets priority over apps in leaf clusters that also match
+//  2. If falling back to a cluster/SSH match, longest matching cluster name wins
+//  3. If the same app public_addr is present in multiple root clusters, resolution is arbitrary.
+func TestPriority(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	const (
+		rootCIDR = "192.168.10.0/24"
+		leafCIDR = "192.168.20.0/24"
+	)
+
+	homePath := t.TempDir()
+	clientApp := newFakeClientApp(ctx, t, &fakeClientAppConfig{
+		clusters: map[string]testClusterSpec{
+			"example.com": {
+				apps: []appSpec{
+					{name: "dual-web", publicAddr: "dual.example.com", isWebApp: true},
+					{name: "dual-tcp", publicAddr: "dual.example.com"},
+					{name: "shared-root", publicAddr: "shared.apps.shared.test"},
+				},
+				nodes: map[string]nodeSpec{
+					"node": {},
+				},
+				cidrRange:      rootCIDR,
+				customDNSZones: []string{"apps.shared.test"},
+				leafClusters: map[string]testClusterSpec{
+					"leaf.example.com": {
+						apps: []appSpec{
+							{name: "webwins", publicAddr: "webwins.leaf.example.com", isWebApp: true},
+							{name: "shared-leaf", publicAddr: "shared.apps.shared.test"},
+						},
+						nodes: map[string]nodeSpec{
+							"webwins": {},
+							"node":    {},
+						},
+						cidrRange:      leafCIDR,
+						customDNSZones: []string{"apps.shared.test"},
+					},
+				},
+			},
+		},
+		clock:                   clock,
+		signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+	})
+
+	p := newTestPack(t, ctx, testPackConfig{
+		fakeClientApp: clientApp,
+		clock:         clock,
+		homePath:      homePath,
+	})
+
+	assertConnInCIDR := func(t *testing.T, conn net.Conn, expectCIDR string) {
+		t.Helper()
+		remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
+		require.NoError(t, err)
+		remoteIP := net.ParseIP(remoteAddr)
+		require.NotNil(t, remoteIP)
+
+		_, expectNet, err := net.ParseCIDR(expectCIDR)
+		require.NoError(t, err)
+		remoteIPSuffix := remoteIP[len(remoteIP)-4:]
+		assert.True(t, expectNet.Contains(remoteIPSuffix), "expected CIDR range %s does not include remote IP %s", expectNet, remoteIPSuffix)
+	}
+
+	dialAndAssertCIDR := func(t *testing.T, host string, port int, expectCIDR string) net.Conn {
+		t.Helper()
+		conn, err := p.dialHost(ctx, host, port)
+		require.NoError(t, err)
+		assertConnInCIDR(t, conn, expectCIDR)
+		return conn
+	}
+
+	lookupShouldFailFast := func(t *testing.T, host string) {
+		t.Helper()
+		lookupCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		_, err := p.lookupHost(lookupCtx, host)
+		require.Error(t, err)
+	}
+
+	knownHosts, err := os.ReadFile(keypaths.VNetKnownHostsPath(homePath))
+	require.NoError(t, err)
+	marker, hosts, hostCAPubKey, _, _, err := ssh.ParseKnownHosts(knownHosts)
+	require.NoError(t, err)
+	require.Equal(t, "cert-authority", marker)
+	require.Equal(t, []string{"*"}, hosts)
+
+	sshUserKey, err := os.ReadFile(keypaths.VNetClientSSHKeyPath(homePath))
+	require.NoError(t, err)
+	sshUserSigner, err := ssh.ParsePrivateKey(sshUserKey)
+	require.NoError(t, err)
+
+	t.Run("tcp app beats web app", func(t *testing.T) {
+		t.Parallel()
+
+		conn := dialAndAssertCIDR(t, "dual.example.com", 80, rootCIDR)
+		t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+		testEchoConnection(t, conn)
+
+		routes := clientApp.RequestedRouteToApps("dual.example.com")
+		require.Len(t, routes, 1)
+		route := routes[0]
+		expectedRoute := &proto.RouteToApp{
+			ClusterName: "example.com",
+			Name:        "dual-tcp",
+			PublicAddr:  "dual.example.com",
+			URI:         "tcp://dual.example.com",
+		}
+		assert.Equal(t, expectedRoute, route)
+	})
+
+	t.Run("web app beats SSH cluster match", func(t *testing.T) {
+		t.Parallel()
+
+		lookupShouldFailFast(t, "webwins.leaf.example.com")
+		assert.Empty(t, clientApp.RequestedRouteToApps("webwins.leaf.example.com"))
+	})
+
+	t.Run("cluster SSH fallback longest match wins", func(t *testing.T) {
+		t.Parallel()
+
+		conn := dialAndAssertCIDR(t, "node.leaf.example.com", 22, leafCIDR)
+		t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+
+		certChecker := ssh.CertChecker{
+			IsHostAuthority: func(auth ssh.PublicKey, address string) bool {
+				return sshutils.KeysEqual(auth, hostCAPubKey)
+			},
+			Clock: clock.Now,
+		}
+		clientConfig := &ssh.ClientConfig{
+			User:            "testuser",
+			Auth:            []ssh.AuthMethod{ssh.PublicKeys(sshUserSigner)},
+			HostKeyCallback: certChecker.CheckHostKey,
+		}
+
+		sshConn, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort("node.leaf.example.com", "22"), clientConfig)
+		require.NoError(t, err)
+		defer sshConn.Close()
+
+		testConnectionToSshEchoServer(t, sshConn, chans, reqs)
+	})
+
+	t.Run("root app beats leaf app when both match", func(t *testing.T) {
+		t.Parallel()
+
+		conn := dialAndAssertCIDR(t, "shared.apps.shared.test", 80, rootCIDR)
+		t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+		testEchoConnection(t, conn)
+
+		routes := clientApp.RequestedRouteToApps("shared.apps.shared.test")
+		require.Len(t, routes, 1)
+		route := routes[0]
+		expectedRoute := &proto.RouteToApp{
+			ClusterName: "example.com",
+			Name:        "shared-root",
+			PublicAddr:  "shared.apps.shared.test",
+			URI:         "tcp://shared.apps.shared.test",
+		}
+		assert.Equal(t, expectedRoute, route)
 	})
 }
 

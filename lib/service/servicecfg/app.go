@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	netutils "github.com/gravitational/teleport/api/utils/net"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 )
@@ -49,7 +50,10 @@ type AppsConfig struct {
 	// Apps is the list of applications that are being proxied.
 	Apps []App
 
-	// ResourceMatchers match cluster database resources.
+	// Limiter limits the connection and request rates.
+	Limiter limiter.Config
+
+	// ResourceMatchers match cluster application resources.
 	ResourceMatchers []services.ResourceMatcher
 
 	// MonitorCloseChannel will be signaled when a monitor closes a connection.

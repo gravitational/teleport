@@ -37,6 +37,12 @@ ca = "/home/bob/event-handler/ca.crt"
 cert = "/home/bob/event-handler/client.crt"
 key = "/home/bob/event-handler/client.key"
 url = "https://fluentd.example.com:8888/test.log"
+# The Event Handler appends `.<session-id>.log` to `session-url` when sending
+# session recording events. For example, if `session-url` is
+# `https://fluentd.example.com:8888/session`, the actual requests are sent to
+# paths like `/session.<session-id>.log`. Ensure that your log collector's
+# tag matching or routing rules account for this suffix (e.g., use `session.*`
+# as a match pattern in Fluentd or Fluent Bit).
 session-url = "https://fluentd.example.com:8888/session"
 
 [teleport]
@@ -87,6 +93,12 @@ teleport:
 
 fluentd:
   url: "https://fluentd.fluentd.svc.cluster.local/events.log"
+  # The Event Handler appends `.<session-id>.log` to `session-url` when sending
+  # session recording events. For example, if `session-url` is
+  # `https://fluentd.example.com:8888/session`, the actual requests are sent to
+  # paths like `/session.<session-id>.log`. Ensure that your log collector's
+  # tag matching or routing rules account for this suffix (e.g., use `session.*`
+  # as a match pattern in Fluentd or Fluent Bit).
   sessionUrl: "https://fluentd.fluentd.svc.cluster.local/session.log"
   certificate:
     secretName: "teleport-event-handler-client-tls"

@@ -196,8 +196,9 @@ message AWS {
   repeated Rule allow = 1;
 
   // The TTL to use for AWS EC2 Instance Identity Documents used
-  // to join the cluster with this token.
-  int64 aws_iid_ttl = 2;
+  // to join the cluster with this token. This should be a duration
+  // string such as "8h" or "6mo".
+  string iid_ttl = 2;
 
   // Integration name which provides credentials for validating join attempts.
   // Currently only in use for validating the AWS Organization ID in the IAM Join method.

@@ -30,6 +30,10 @@ service MFAService {
   // ValidateSessionChallenge validates the MFA challenge response for a user session and stores the validated response
   // in the backend.
   rpc ValidateSessionChallenge(ValidateSessionChallengeRequest) returns (ValidateSessionChallengeResponse);
+  // ListValidatedMFAChallenges lists validated MFA challenges that have been created for all user sessions. This is
+  // intended to be used by the reverse tunnel server to watch for new validated challenges that need to be replicated
+  // for SSH session establishment in leaf clusters.
+  rpc ListValidatedMFAChallenges(ListValidatedMFAChallengesRequest) returns (ListValidatedMFAChallengesResponse);
   // ReplicateValidatedMFAChallenge replicates a validated MFA challenge from root cluster to leaf cluster for
   // verification during SSH session establishment. The reverse tunnel server watches for validated challenges in the
   // root cluster and invokes this RPC on the leaf cluster. This is a NOOP when invoked in the root cluster.
@@ -73,6 +77,32 @@ message ValidateSessionChallengeRequest {
 
 // ValidateSessionChallengeResponse is the response message for ValidateSessionChallenge.
 message ValidateSessionChallengeResponse {}
+
+// ListValidatedMFAChallengesFilter is used to filter validated MFA challenges in ListValidatedMFAChallengesRequest.
+message ListValidatedMFAChallengesFilter {
+  // If set, only return validated MFA challenges for the specified target cluster.
+  optional string target_cluster = 1;
+}
+
+// ListValidatedMFAChallengesRequest is the request message for ListValidatedMFAChallenges.
+message ListValidatedMFAChallengesRequest {
+  // The maximum number of items to return. The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // Collection of fields to filter challenges by. Challenges must match all filter fields to be included in the
+  // results. If unset, no filtering is performed and all validated MFA challenges are returned (up to the page size
+  // limit).
+  ListValidatedMFAChallengesFilter filter = 3;
+}
+
+// ListValidatedMFAChallengesResponse is the response message for ListValidatedMFAChallenges.
+message ListValidatedMFAChallengesResponse {
+  // List of validated MFA challenges that have been created for user sessions.
+  repeated ValidatedMFAChallenge validated_challenges = 1;
+  // Token to retrieve the next page of results, or empty if there are no more results exist.
+  string next_page_token = 2;
+}
 
 // ReplicateValidatedMFAChallengeRequest is the request message for ReplicateValidatedMFAChallenge.
 message ReplicateValidatedMFAChallengeRequest {

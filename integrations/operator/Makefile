@@ -41,6 +41,8 @@ PLATFORM_BUILDBOX ?= $(BUILDBOX_ARM)
 endif
 endif
 
+TEST_LOG_DIR ?= ${abspath ./test-logs}
+
 .PHONY: all
 all: build
 
@@ -165,9 +167,12 @@ debug-dump-request:
 			"$${proto}"; \
 	done
 
+$(TEST_LOG_DIR):
+	mkdir $(TEST_LOG_DIR)
+
 .PHONY: test
-test: generate ## Run tests.
-	gotestsum --junitfile unit-tests-operator.xml --jsonfile unit-tests-operator.json
+test: generate | $(TEST_LOG_DIR) ## Run tests.
+	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-operator.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-operator.json
 
 ##@ Build
 

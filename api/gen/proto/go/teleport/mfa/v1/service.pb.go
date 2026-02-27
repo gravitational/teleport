@@ -242,6 +242,210 @@ func (m *ValidateSessionChallengeResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ValidateSessionChallengeResponse proto.InternalMessageInfo
 
+// ListValidatedMFAChallengesFilter is used to filter validated MFA challenges in ListValidatedMFAChallengesRequest.
+type ListValidatedMFAChallengesFilter struct {
+	// Types that are valid to be assigned to XTargetCluster:
+	//	*ListValidatedMFAChallengesFilter_TargetCluster
+	XTargetCluster       isListValidatedMFAChallengesFilter_XTargetCluster `protobuf_oneof:"_target_cluster"`
+	XXX_NoUnkeyedLiteral struct{}                                          `json:"-"`
+	XXX_unrecognized     []byte                                            `json:"-"`
+	XXX_sizecache        int32                                             `json:"-"`
+}
+
+func (m *ListValidatedMFAChallengesFilter) Reset()         { *m = ListValidatedMFAChallengesFilter{} }
+func (m *ListValidatedMFAChallengesFilter) String() string { return proto.CompactTextString(m) }
+func (*ListValidatedMFAChallengesFilter) ProtoMessage()    {}
+func (*ListValidatedMFAChallengesFilter) Descriptor() ([]byte, []int) {
+	return fileDescriptor_62d1ff43205b9484, []int{4}
+}
+func (m *ListValidatedMFAChallengesFilter) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ListValidatedMFAChallengesFilter) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ListValidatedMFAChallengesFilter.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ListValidatedMFAChallengesFilter) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListValidatedMFAChallengesFilter.Merge(m, src)
+}
+func (m *ListValidatedMFAChallengesFilter) XXX_Size() int {
+	return m.Size()
+}
+func (m *ListValidatedMFAChallengesFilter) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListValidatedMFAChallengesFilter.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListValidatedMFAChallengesFilter proto.InternalMessageInfo
+
+type isListValidatedMFAChallengesFilter_XTargetCluster interface {
+	isListValidatedMFAChallengesFilter_XTargetCluster()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type ListValidatedMFAChallengesFilter_TargetCluster struct {
+	TargetCluster string `protobuf:"bytes,1,opt,name=target_cluster,json=targetCluster,proto3,oneof" json:"target_cluster,omitempty"`
+}
+
+func (*ListValidatedMFAChallengesFilter_TargetCluster) isListValidatedMFAChallengesFilter_XTargetCluster() {
+}
+
+func (m *ListValidatedMFAChallengesFilter) GetXTargetCluster() isListValidatedMFAChallengesFilter_XTargetCluster {
+	if m != nil {
+		return m.XTargetCluster
+	}
+	return nil
+}
+
+func (m *ListValidatedMFAChallengesFilter) GetTargetCluster() string {
+	if x, ok := m.GetXTargetCluster().(*ListValidatedMFAChallengesFilter_TargetCluster); ok {
+		return x.TargetCluster
+	}
+	return ""
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*ListValidatedMFAChallengesFilter) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*ListValidatedMFAChallengesFilter_TargetCluster)(nil),
+	}
+}
+
+// ListValidatedMFAChallengesRequest is the request message for ListValidatedMFAChallenges.
+type ListValidatedMFAChallengesRequest struct {
+	// The maximum number of items to return. The server may impose a different page size at its discretion.
+	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// The next_page_token value returned from a previous List request, if any.
+	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// Collection of fields to filter challenges by. Challenges must match all filter fields to be included in the
+	// results. If unset, no filtering is performed and all validated MFA challenges are returned (up to the page size
+	// limit).
+	Filter               *ListValidatedMFAChallengesFilter `protobuf:"bytes,3,opt,name=filter,proto3" json:"filter,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                          `json:"-"`
+	XXX_unrecognized     []byte                            `json:"-"`
+	XXX_sizecache        int32                             `json:"-"`
+}
+
+func (m *ListValidatedMFAChallengesRequest) Reset()         { *m = ListValidatedMFAChallengesRequest{} }
+func (m *ListValidatedMFAChallengesRequest) String() string { return proto.CompactTextString(m) }
+func (*ListValidatedMFAChallengesRequest) ProtoMessage()    {}
+func (*ListValidatedMFAChallengesRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_62d1ff43205b9484, []int{5}
+}
+func (m *ListValidatedMFAChallengesRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ListValidatedMFAChallengesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ListValidatedMFAChallengesRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ListValidatedMFAChallengesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListValidatedMFAChallengesRequest.Merge(m, src)
+}
+func (m *ListValidatedMFAChallengesRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *ListValidatedMFAChallengesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListValidatedMFAChallengesRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListValidatedMFAChallengesRequest proto.InternalMessageInfo
+
+func (m *ListValidatedMFAChallengesRequest) GetPageSize() int32 {
+	if m != nil {
+		return m.PageSize
+	}
+	return 0
+}
+
+func (m *ListValidatedMFAChallengesRequest) GetPageToken() string {
+	if m != nil {
+		return m.PageToken
+	}
+	return ""
+}
+
+func (m *ListValidatedMFAChallengesRequest) GetFilter() *ListValidatedMFAChallengesFilter {
+	if m != nil {
+		return m.Filter
+	}
+	return nil
+}
+
+// ListValidatedMFAChallengesResponse is the response message for ListValidatedMFAChallenges.
+type ListValidatedMFAChallengesResponse struct {
+	// List of validated MFA challenges that have been created for user sessions.
+	ValidatedChallenges []*ValidatedMFAChallenge `protobuf:"bytes,1,rep,name=validated_challenges,json=validatedChallenges,proto3" json:"validated_challenges,omitempty"`
+	// Token to retrieve the next page of results, or empty if there are no more results exist.
+	NextPageToken        string   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListValidatedMFAChallengesResponse) Reset()         { *m = ListValidatedMFAChallengesResponse{} }
+func (m *ListValidatedMFAChallengesResponse) String() string { return proto.CompactTextString(m) }
+func (*ListValidatedMFAChallengesResponse) ProtoMessage()    {}
+func (*ListValidatedMFAChallengesResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_62d1ff43205b9484, []int{6}
+}
+func (m *ListValidatedMFAChallengesResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ListValidatedMFAChallengesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ListValidatedMFAChallengesResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ListValidatedMFAChallengesResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListValidatedMFAChallengesResponse.Merge(m, src)
+}
+func (m *ListValidatedMFAChallengesResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *ListValidatedMFAChallengesResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListValidatedMFAChallengesResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListValidatedMFAChallengesResponse proto.InternalMessageInfo
+
+func (m *ListValidatedMFAChallengesResponse) GetValidatedChallenges() []*ValidatedMFAChallenge {
+	if m != nil {
+		return m.ValidatedChallenges
+	}
+	return nil
+}
+
+func (m *ListValidatedMFAChallengesResponse) GetNextPageToken() string {
+	if m != nil {
+		return m.NextPageToken
+	}
+	return ""
+}
+
 // ReplicateValidatedMFAChallengeRequest is the request message for ReplicateValidatedMFAChallenge.
 type ReplicateValidatedMFAChallengeRequest struct {
 	// Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
@@ -267,7 +471,7 @@ func (m *ReplicateValidatedMFAChallengeRequest) Reset()         { *m = Replicate
 func (m *ReplicateValidatedMFAChallengeRequest) String() string { return proto.CompactTextString(m) }
 func (*ReplicateValidatedMFAChallengeRequest) ProtoMessage()    {}
 func (*ReplicateValidatedMFAChallengeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_62d1ff43205b9484, []int{4}
+	return fileDescriptor_62d1ff43205b9484, []int{7}
 }
 func (m *ReplicateValidatedMFAChallengeRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -346,7 +550,7 @@ func (m *ReplicateValidatedMFAChallengeResponse) Reset() {
 func (m *ReplicateValidatedMFAChallengeResponse) String() string { return proto.CompactTextString(m) }
 func (*ReplicateValidatedMFAChallengeResponse) ProtoMessage()    {}
 func (*ReplicateValidatedMFAChallengeResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_62d1ff43205b9484, []int{5}
+	return fileDescriptor_62d1ff43205b9484, []int{8}
 }
 func (m *ReplicateValidatedMFAChallengeResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -407,7 +611,7 @@ func (m *VerifyValidatedMFAChallengeRequest) Reset()         { *m = VerifyValida
 func (m *VerifyValidatedMFAChallengeRequest) String() string { return proto.CompactTextString(m) }
 func (*VerifyValidatedMFAChallengeRequest) ProtoMessage()    {}
 func (*VerifyValidatedMFAChallengeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_62d1ff43205b9484, []int{6}
+	return fileDescriptor_62d1ff43205b9484, []int{9}
 }
 func (m *VerifyValidatedMFAChallengeRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -475,7 +679,7 @@ func (m *VerifyValidatedMFAChallengeResponse) Reset()         { *m = VerifyValid
 func (m *VerifyValidatedMFAChallengeResponse) String() string { return proto.CompactTextString(m) }
 func (*VerifyValidatedMFAChallengeResponse) ProtoMessage()    {}
 func (*VerifyValidatedMFAChallengeResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_62d1ff43205b9484, []int{7}
+	return fileDescriptor_62d1ff43205b9484, []int{10}
 }
 func (m *VerifyValidatedMFAChallengeResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -509,6 +713,9 @@ func init() {
 	proto.RegisterType((*CreateSessionChallengeResponse)(nil), "teleport.mfa.v1.CreateSessionChallengeResponse")
 	proto.RegisterType((*ValidateSessionChallengeRequest)(nil), "teleport.mfa.v1.ValidateSessionChallengeRequest")
 	proto.RegisterType((*ValidateSessionChallengeResponse)(nil), "teleport.mfa.v1.ValidateSessionChallengeResponse")
+	proto.RegisterType((*ListValidatedMFAChallengesFilter)(nil), "teleport.mfa.v1.ListValidatedMFAChallengesFilter")
+	proto.RegisterType((*ListValidatedMFAChallengesRequest)(nil), "teleport.mfa.v1.ListValidatedMFAChallengesRequest")
+	proto.RegisterType((*ListValidatedMFAChallengesResponse)(nil), "teleport.mfa.v1.ListValidatedMFAChallengesResponse")
 	proto.RegisterType((*ReplicateValidatedMFAChallengeRequest)(nil), "teleport.mfa.v1.ReplicateValidatedMFAChallengeRequest")
 	proto.RegisterType((*ReplicateValidatedMFAChallengeResponse)(nil), "teleport.mfa.v1.ReplicateValidatedMFAChallengeResponse")
 	proto.RegisterType((*VerifyValidatedMFAChallengeRequest)(nil), "teleport.mfa.v1.VerifyValidatedMFAChallengeRequest")
@@ -518,46 +725,56 @@ func init() {
 func init() { proto.RegisterFile("teleport/mfa/v1/service.proto", fileDescriptor_62d1ff43205b9484) }
 
 var fileDescriptor_62d1ff43205b9484 = []byte{
-	// 624 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x55, 0x4f, 0x6f, 0xd3, 0x4e,
-	0x10, 0xd5, 0xf6, 0x97, 0x1f, 0xd0, 0x29, 0x05, 0x69, 0x29, 0x10, 0x05, 0x35, 0xad, 0x8c, 0x52,
-	0x15, 0x0e, 0x36, 0x69, 0xf9, 0x73, 0xe0, 0x14, 0x82, 0xaa, 0x22, 0x54, 0x09, 0xb9, 0xa2, 0x12,
-	0x5c, 0xac, 0xad, 0x3d, 0x76, 0x57, 0xd8, 0x5e, 0xb3, 0xbb, 0x8e, 0xc8, 0x89, 0x03, 0x17, 0xae,
-	0x7c, 0x0a, 0x3e, 0x07, 0x37, 0x8e, 0x7c, 0x04, 0xd4, 0x2b, 0x77, 0xce, 0xa8, 0xf6, 0x3a, 0xa9,
-	0x92, 0x3a, 0x6d, 0xc4, 0x85, 0x9b, 0x77, 0xe7, 0xbd, 0x9d, 0x79, 0x33, 0x6f, 0xbd, 0xb0, 0xaa,
-	0x31, 0xc6, 0x4c, 0x48, 0xed, 0x24, 0x21, 0x73, 0x06, 0x5d, 0x47, 0xa1, 0x1c, 0x70, 0x1f, 0xed,
-	0x4c, 0x0a, 0x2d, 0xe8, 0xf5, 0x2a, 0x6c, 0x27, 0x21, 0xb3, 0x07, 0xdd, 0xd6, 0xda, 0x24, 0xde,
-	0x3f, 0x62, 0x71, 0x8c, 0x69, 0x64, 0x18, 0xad, 0x7b, 0x93, 0x80, 0x01, 0x8b, 0x79, 0xc0, 0x34,
-	0x06, 0xde, 0x04, 0xd4, 0xfa, 0x4d, 0x60, 0xb5, 0x2f, 0x91, 0x69, 0xdc, 0x47, 0xa5, 0xb8, 0x48,
-	0xfb, 0x15, 0xc0, 0xc5, 0xf7, 0x39, 0x2a, 0x4d, 0x9f, 0xc3, 0xe5, 0x8c, 0x0d, 0x63, 0xc1, 0x82,
-	0x26, 0x59, 0x27, 0x9b, 0x4b, 0x5b, 0xf7, 0xed, 0x89, 0x82, 0x6c, 0x43, 0x7d, 0x11, 0x60, 0xaa,
-	0x79, 0x38, 0xe4, 0x69, 0xf4, 0xaa, 0x64, 0xb8, 0x15, 0x95, 0x76, 0xe0, 0x9a, 0x66, 0x32, 0x42,
-	0xed, 0xf9, 0x71, 0xae, 0x34, 0xca, 0xe6, 0xc2, 0x3a, 0xd9, 0x5c, 0x74, 0x97, 0xcb, 0xdd, 0x7e,
-	0xb9, 0x49, 0x1f, 0xc1, 0x6d, 0xa5, 0x84, 0xe7, 0xc7, 0x1c, 0x53, 0xed, 0x49, 0x0c, 0xb8, 0x44,
-	0x5f, 0x7b, 0xb9, 0x8c, 0x9b, 0xff, 0x15, 0xf8, 0x15, 0xa5, 0x44, 0xbf, 0x88, 0xba, 0x26, 0xf8,
-	0x5a, 0xc6, 0xb4, 0x0b, 0x37, 0x33, 0x29, 0x3e, 0x0c, 0x3d, 0x16, 0x04, 0x12, 0x95, 0xf2, 0x42,
-	0x21, 0x3d, 0xa5, 0x44, 0xb3, 0x51, 0x90, 0x68, 0x11, 0xec, 0x95, 0xb1, 0x1d, 0x21, 0xf7, 0x95,
-	0xb0, 0x12, 0x68, 0xd7, 0xe9, 0x56, 0x99, 0x48, 0x15, 0xd2, 0x97, 0xb0, 0x9c, 0x84, 0x6c, 0xdc,
-	0x31, 0x23, 0x7f, 0x63, 0x4a, 0x7e, 0x2f, 0xd7, 0x47, 0x27, 0xca, 0x7d, 0xa6, 0x71, 0x7c, 0xcc,
-	0xd5, 0x24, 0x64, 0xa3, 0x95, 0xf5, 0x0e, 0xd6, 0x0e, 0xcc, 0x10, 0xea, 0x1a, 0xbd, 0x0b, 0x27,
-	0x14, 0x4f, 0x9a, 0xfc, 0x26, 0x5d, 0x67, 0x66, 0xba, 0xaa, 0x58, 0x77, 0x29, 0x09, 0x59, 0xb5,
-	0xb0, 0x2c, 0x58, 0xaf, 0x4f, 0x66, 0x30, 0xbf, 0x08, 0x74, 0x5c, 0xcc, 0xe2, 0xe2, 0x98, 0x0a,
-	0x1d, 0xec, 0xed, 0xf4, 0xa6, 0xea, 0xa2, 0xd0, 0x48, 0x59, 0x52, 0xd6, 0xb3, 0xe8, 0x16, 0xdf,
-	0xa7, 0x4d, 0xb1, 0xf0, 0x57, 0xa6, 0x50, 0x22, 0x97, 0x3e, 0x8e, 0x4c, 0x51, 0x0e, 0x79, 0xb9,
-	0xdc, 0xad, 0x4c, 0x31, 0xed, 0x9d, 0xc6, 0x59, 0xde, 0x69, 0xc1, 0x95, 0x5c, 0xa1, 0x2c, 0x6a,
-	0xfd, 0xbf, 0x00, 0x8c, 0xd6, 0xd6, 0x27, 0x02, 0x1b, 0xe7, 0xa9, 0x35, 0x63, 0x7f, 0x03, 0x2b,
-	0xb2, 0x42, 0x06, 0x17, 0x98, 0xfe, 0xd9, 0xa7, 0xdd, 0x18, 0x9f, 0x31, 0x36, 0xc1, 0x37, 0x02,
-	0xd6, 0x01, 0x4a, 0x1e, 0x0e, 0xff, 0xed, 0x86, 0x9f, 0xee, 0x64, 0x63, 0xa2, 0x93, 0x1d, 0xb8,
-	0x3b, 0x53, 0x42, 0xd9, 0xc5, 0xad, 0xaf, 0x0d, 0x80, 0xbd, 0x9d, 0xde, 0x7e, 0xf9, 0x27, 0xa3,
-	0x43, 0xb8, 0x75, 0xf6, 0x6d, 0xa3, 0xf6, 0x94, 0x8e, 0x99, 0xbf, 0xa3, 0x96, 0x73, 0x61, 0xbc,
-	0x99, 0xe7, 0x47, 0x68, 0xd6, 0x5d, 0x06, 0xfa, 0xa0, 0x76, 0x9a, 0x75, 0xe9, 0xbb, 0x73, 0x30,
-	0x4c, 0x01, 0x5f, 0x08, 0xb4, 0x67, 0x7b, 0x8f, 0x3e, 0x9e, 0x3a, 0xf5, 0x42, 0x57, 0xb3, 0xf5,
-	0x64, 0x6e, 0x9e, 0xa9, 0xe9, 0x33, 0x81, 0x3b, 0x33, 0xc6, 0x48, 0xb7, 0xa7, 0x65, 0x9e, 0xeb,
-	0xdb, 0xd6, 0xc3, 0xf9, 0x48, 0x65, 0x29, 0xcf, 0x0e, 0xbe, 0x1f, 0xb7, 0xc9, 0x8f, 0xe3, 0x36,
-	0xf9, 0x79, 0xdc, 0x26, 0x6f, 0x77, 0x23, 0xae, 0x8f, 0xf2, 0x43, 0xdb, 0x17, 0x89, 0x13, 0x49,
-	0x36, 0xe0, 0x9a, 0x69, 0x2e, 0x52, 0x16, 0x3b, 0xa3, 0x37, 0x8d, 0x65, 0xdc, 0x89, 0x30, 0x75,
-	0x8a, 0x07, 0xcc, 0x89, 0x84, 0x33, 0xf1, 0xda, 0x3d, 0x4d, 0x42, 0x36, 0xe8, 0x1e, 0x5e, 0x2a,
-	0xe2, 0xdb, 0x7f, 0x02, 0x00, 0x00, 0xff, 0xff, 0x67, 0x7c, 0x5c, 0x01, 0x5e, 0x07, 0x00, 0x00,
+	// 782 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x56, 0x3d, 0x6f, 0xfb, 0x44,
+	0x18, 0xe7, 0xda, 0xb4, 0x34, 0x4f, 0x09, 0x15, 0x47, 0x81, 0x28, 0x55, 0xd3, 0x60, 0x94, 0xaa,
+	0x74, 0x88, 0x49, 0xca, 0xcb, 0xc0, 0x94, 0x06, 0x45, 0xad, 0xa0, 0x52, 0xe5, 0x40, 0x25, 0x58,
+	0xac, 0xab, 0x7d, 0x76, 0x4f, 0xb5, 0x7d, 0xe6, 0xee, 0x12, 0x35, 0x5d, 0x18, 0x10, 0x52, 0x57,
+	0x3e, 0x05, 0x12, 0x0b, 0x9f, 0x81, 0x8d, 0x91, 0x8f, 0x80, 0xba, 0xb2, 0x33, 0xa3, 0xd8, 0xe7,
+	0xa4, 0xc4, 0x71, 0xda, 0x88, 0xe5, 0xbf, 0xf9, 0x9e, 0xe7, 0xf7, 0xbc, 0xfc, 0x9e, 0x97, 0xf3,
+	0xc1, 0xbe, 0xa2, 0x01, 0x8d, 0xb9, 0x50, 0x66, 0xe8, 0x11, 0x73, 0xd4, 0x36, 0x25, 0x15, 0x23,
+	0xe6, 0xd0, 0x56, 0x2c, 0xb8, 0xe2, 0x78, 0x27, 0x53, 0xb7, 0x42, 0x8f, 0xb4, 0x46, 0xed, 0xda,
+	0xc1, 0x3c, 0xde, 0xb9, 0x21, 0x41, 0x40, 0x23, 0x5f, 0x5b, 0xd4, 0x3e, 0x9c, 0x07, 0x8c, 0x48,
+	0xc0, 0x5c, 0xa2, 0xa8, 0x6b, 0xcf, 0x41, 0x8d, 0x7f, 0x10, 0xec, 0xf7, 0x04, 0x25, 0x8a, 0x0e,
+	0xa8, 0x94, 0x8c, 0x47, 0xbd, 0x0c, 0x60, 0xd1, 0xef, 0x87, 0x54, 0x2a, 0xfc, 0x05, 0xbc, 0x1e,
+	0x93, 0x71, 0xc0, 0x89, 0x5b, 0x45, 0x0d, 0x74, 0xb4, 0xdd, 0x39, 0x6e, 0xcd, 0x25, 0xd4, 0xd2,
+	0xa6, 0xe7, 0x2e, 0x8d, 0x14, 0xf3, 0xc6, 0x2c, 0xf2, 0x2f, 0x53, 0x0b, 0x2b, 0x33, 0xc5, 0x4d,
+	0x78, 0x53, 0x11, 0xe1, 0x53, 0x65, 0x3b, 0xc1, 0x50, 0x2a, 0x2a, 0xaa, 0x6b, 0x0d, 0x74, 0x54,
+	0xb6, 0x2a, 0xa9, 0xb4, 0x97, 0x0a, 0xf1, 0x27, 0xf0, 0x9e, 0x94, 0xdc, 0x76, 0x02, 0x46, 0x23,
+	0x65, 0x0b, 0xea, 0x32, 0x41, 0x1d, 0x65, 0x0f, 0x45, 0x50, 0x5d, 0x4f, 0xf0, 0xbb, 0x52, 0xf2,
+	0x5e, 0xa2, 0xb5, 0xb4, 0xf2, 0x1b, 0x11, 0xe0, 0x36, 0xbc, 0x13, 0x0b, 0x7e, 0x37, 0xb6, 0x89,
+	0xeb, 0x0a, 0x2a, 0xa5, 0xed, 0x71, 0x61, 0x4b, 0xc9, 0xab, 0xa5, 0xc4, 0x08, 0x27, 0xca, 0x6e,
+	0xaa, 0xeb, 0x73, 0x31, 0x90, 0xdc, 0x08, 0xa1, 0x5e, 0xc4, 0x5b, 0xc6, 0x3c, 0x92, 0x14, 0x7f,
+	0x09, 0x95, 0xd0, 0x23, 0xb3, 0x8a, 0x69, 0xfa, 0x87, 0x39, 0xfa, 0xdd, 0xa1, 0xba, 0x99, 0x30,
+	0x77, 0x88, 0xa2, 0x33, 0x37, 0x6f, 0x84, 0x1e, 0x99, 0x9e, 0x8c, 0x5b, 0x38, 0xb8, 0xd2, 0x4d,
+	0x28, 0x2a, 0xf4, 0x19, 0x4c, 0x4c, 0x6c, 0xa1, 0xe3, 0xeb, 0x70, 0xcd, 0xa5, 0xe1, 0xb2, 0x64,
+	0xad, 0xed, 0xd0, 0x23, 0xd9, 0xc1, 0x30, 0xa0, 0x51, 0x1c, 0x4c, 0x63, 0x08, 0x34, 0xbe, 0x62,
+	0x52, 0x65, 0x38, 0xf7, 0xa2, 0xdf, 0x9d, 0x82, 0x64, 0x9f, 0x05, 0x93, 0x6e, 0x1c, 0xe7, 0x9a,
+	0x36, 0xc9, 0xa9, 0x7c, 0xf6, 0xda, 0x5c, 0xdb, 0x1e, 0x10, 0x3a, 0x7d, 0x0b, 0x76, 0xec, 0xff,
+	0x82, 0x8d, 0x5f, 0x11, 0xbc, 0x5f, 0x1c, 0x23, 0xa3, 0xbd, 0x07, 0xe5, 0x98, 0xf8, 0xd4, 0x96,
+	0xec, 0x3e, 0xe5, 0xbc, 0x61, 0x6d, 0x4d, 0x04, 0x03, 0x76, 0x4f, 0xf1, 0x3e, 0x40, 0xa2, 0x54,
+	0xfc, 0x96, 0x46, 0x7a, 0x64, 0x12, 0xf8, 0xd7, 0x13, 0x01, 0x3e, 0x87, 0x4d, 0x2f, 0x49, 0x35,
+	0x99, 0x8e, 0xed, 0x4e, 0x3b, 0x57, 0xac, 0xe7, 0x38, 0x5a, 0xda, 0x81, 0xf1, 0x0b, 0x02, 0x63,
+	0x59, 0xb2, 0x7a, 0x28, 0xbe, 0x85, 0xdd, 0x05, 0xcb, 0x24, 0xab, 0xa8, 0xb1, 0xbe, 0x70, 0x36,
+	0x16, 0xba, 0xb3, 0xde, 0x9e, 0xfa, 0x98, 0x85, 0xc0, 0x87, 0xb0, 0x13, 0xd1, 0x3b, 0x65, 0xe7,
+	0x08, 0x57, 0x26, 0xe2, 0xcb, 0x8c, 0xb4, 0xf1, 0x37, 0x82, 0xa6, 0x45, 0xe3, 0x20, 0x19, 0x80,
+	0xc5, 0xfe, 0x75, 0x69, 0x31, 0x94, 0x22, 0x12, 0xa6, 0x55, 0x2d, 0x5b, 0xc9, 0xf7, 0xd3, 0x75,
+	0x5e, 0xfb, 0x5f, 0xeb, 0x2c, 0xf9, 0x50, 0x38, 0x74, 0x3a, 0x19, 0xe9, 0x7a, 0x56, 0x52, 0x69,
+	0xb6, 0xce, 0xf9, 0xad, 0x2f, 0x2d, 0xda, 0xfa, 0x1a, 0x6c, 0x0d, 0x25, 0x15, 0x49, 0xae, 0x1b,
+	0x09, 0x60, 0x7a, 0x36, 0x7e, 0x44, 0x70, 0xf8, 0x1c, 0xdb, 0x59, 0x6f, 0x44, 0x86, 0x74, 0x5f,
+	0xb0, 0xb7, 0x05, 0xbd, 0x99, 0xf9, 0x98, 0xad, 0xef, 0xef, 0x08, 0x8c, 0x2b, 0x2a, 0x98, 0x37,
+	0x7e, 0xb5, 0x0b, 0xfe, 0xb4, 0x92, 0xa5, 0xb9, 0x4a, 0x36, 0xe1, 0x83, 0xa5, 0x14, 0xd2, 0x2a,
+	0x76, 0x7e, 0xdb, 0x00, 0xb8, 0xe8, 0x77, 0x07, 0xe9, 0x3f, 0x08, 0x8f, 0xe1, 0xdd, 0xc5, 0xf7,
+	0x24, 0x6e, 0xe5, 0x78, 0x2c, 0xfd, 0x91, 0xd4, 0xcc, 0x17, 0xe3, 0x75, 0x3f, 0x7f, 0x80, 0x6a,
+	0xd1, 0x35, 0x86, 0x3f, 0x2a, 0xec, 0x66, 0x51, 0xf8, 0xf6, 0x0a, 0x16, 0x3a, 0x81, 0x9f, 0x10,
+	0xd4, 0x8a, 0xef, 0x04, 0xdc, 0x59, 0xe1, 0xb6, 0xc9, 0xb2, 0x38, 0x59, 0xc9, 0x46, 0xe7, 0xf1,
+	0x33, 0x82, 0xfa, 0xf2, 0x1d, 0xc0, 0x9f, 0xe6, 0xfc, 0xbe, 0xe8, 0x8a, 0xa8, 0x7d, 0xb6, 0xb2,
+	0x9d, 0xce, 0xe9, 0x01, 0xc1, 0xde, 0x92, 0x71, 0xc2, 0x79, 0xa2, 0xcf, 0xef, 0x4f, 0xed, 0xe3,
+	0xd5, 0x8c, 0xd2, 0x54, 0x4e, 0xaf, 0xfe, 0x78, 0xac, 0xa3, 0x3f, 0x1f, 0xeb, 0xe8, 0xaf, 0xc7,
+	0x3a, 0xfa, 0xee, 0xcc, 0x67, 0xea, 0x66, 0x78, 0xdd, 0x72, 0x78, 0x68, 0xfa, 0x82, 0x8c, 0x98,
+	0x22, 0x8a, 0xf1, 0x88, 0x04, 0xe6, 0xf4, 0x55, 0x44, 0x62, 0x66, 0xfa, 0x34, 0x32, 0x93, 0x27,
+	0x90, 0xe9, 0x73, 0x73, 0xee, 0xbd, 0xf4, 0x79, 0xe8, 0x91, 0x51, 0xfb, 0x7a, 0x33, 0xd1, 0x9f,
+	0xfc, 0x1b, 0x00, 0x00, 0xff, 0xff, 0xdc, 0x58, 0xc8, 0x3b, 0xa0, 0x09, 0x00, 0x00,
 }
 
 func (m *CreateSessionChallengeRequest) Marshal() (dAtA []byte, err error) {
@@ -721,6 +938,155 @@ func (m *ValidateSessionChallengeResponse) MarshalToSizedBuffer(dAtA []byte) (in
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ListValidatedMFAChallengesFilter) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ListValidatedMFAChallengesFilter) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ListValidatedMFAChallengesFilter) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.XTargetCluster != nil {
+		{
+			size := m.XTargetCluster.Size()
+			i -= size
+			if _, err := m.XTargetCluster.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ListValidatedMFAChallengesFilter_TargetCluster) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ListValidatedMFAChallengesFilter_TargetCluster) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i -= len(m.TargetCluster)
+	copy(dAtA[i:], m.TargetCluster)
+	i = encodeVarintService(dAtA, i, uint64(len(m.TargetCluster)))
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+func (m *ListValidatedMFAChallengesRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ListValidatedMFAChallengesRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ListValidatedMFAChallengesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Filter != nil {
+		{
+			size, err := m.Filter.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.PageToken) > 0 {
+		i -= len(m.PageToken)
+		copy(dAtA[i:], m.PageToken)
+		i = encodeVarintService(dAtA, i, uint64(len(m.PageToken)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.PageSize != 0 {
+		i = encodeVarintService(dAtA, i, uint64(m.PageSize))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ListValidatedMFAChallengesResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ListValidatedMFAChallengesResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ListValidatedMFAChallengesResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.NextPageToken) > 0 {
+		i -= len(m.NextPageToken)
+		copy(dAtA[i:], m.NextPageToken)
+		i = encodeVarintService(dAtA, i, uint64(len(m.NextPageToken)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ValidatedChallenges) > 0 {
+		for iNdEx := len(m.ValidatedChallenges) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.ValidatedChallenges[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintService(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
 	}
 	return len(dAtA) - i, nil
 }
@@ -995,6 +1361,76 @@ func (m *ValidateSessionChallengeResponse) Size() (n int) {
 	}
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ListValidatedMFAChallengesFilter) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XTargetCluster != nil {
+		n += m.XTargetCluster.Size()
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ListValidatedMFAChallengesFilter_TargetCluster) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.TargetCluster)
+	n += 1 + l + sovService(uint64(l))
+	return n
+}
+func (m *ListValidatedMFAChallengesRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.PageSize != 0 {
+		n += 1 + sovService(uint64(m.PageSize))
+	}
+	l = len(m.PageToken)
+	if l > 0 {
+		n += 1 + l + sovService(uint64(l))
+	}
+	if m.Filter != nil {
+		l = m.Filter.Size()
+		n += 1 + l + sovService(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ListValidatedMFAChallengesResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.ValidatedChallenges) > 0 {
+		for _, e := range m.ValidatedChallenges {
+			l = e.Size()
+			n += 1 + l + sovService(uint64(l))
+		}
+	}
+	l = len(m.NextPageToken)
+	if l > 0 {
+		n += 1 + l + sovService(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1481,6 +1917,344 @@ func (m *ValidateSessionChallengeResponse) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: ValidateSessionChallengeResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipService(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthService
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ListValidatedMFAChallengesFilter) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowService
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ListValidatedMFAChallengesFilter: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ListValidatedMFAChallengesFilter: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TargetCluster", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XTargetCluster = &ListValidatedMFAChallengesFilter_TargetCluster{string(dAtA[iNdEx:postIndex])}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipService(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthService
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ListValidatedMFAChallengesRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowService
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ListValidatedMFAChallengesRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ListValidatedMFAChallengesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PageSize", wireType)
+			}
+			m.PageSize = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PageSize |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PageToken", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PageToken = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Filter", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Filter == nil {
+				m.Filter = &ListValidatedMFAChallengesFilter{}
+			}
+			if err := m.Filter.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipService(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthService
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ListValidatedMFAChallengesResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowService
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ListValidatedMFAChallengesResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ListValidatedMFAChallengesResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ValidatedChallenges", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ValidatedChallenges = append(m.ValidatedChallenges, &ValidatedMFAChallenge{})
+			if err := m.ValidatedChallenges[len(m.ValidatedChallenges)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NextPageToken", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NextPageToken = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipService(dAtA[iNdEx:])

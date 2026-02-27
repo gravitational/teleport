@@ -103,12 +103,17 @@ Label              | `v3` Default   | `v4` and higher Default
 `kubernetes_labels` | `[{"*": "*"}]` | `[]`
 `db_labels`         | `[{"*": "*"}]` | `[]`
 
-Role `v6` introduced a new field `kubernetes_resources` that allows
+Role v6 introduced a new field, `kubernetes_resources`, that allows
 fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../../enroll-resources/kubernetes-access/controls.mdx) for more details.
 
-Role `v7` added support for more `kind` values in the `kubernetes_resources` field.
+Role v7 added support for more `kind` values in the `kubernetes_resources` field.
 
-Role `v8` added support for Kubernetes CRDs and introduced changes for how `kubernetes_resources` behave and are defined.
+Role v8 added support for Kubernetes CRDs and introduced changes in how
+`kubernetes_resources` behave and are defined. Role v8 is not compatible with
+Teleport v17 agents: if your a user has a v8 role, a v17 agent running the
+Teleport Kubernetes Service may silently deny the user access, because the agent
+cannot interpret the fields specific to v8 roles. Upgrade all agents to v18 before using
+role v8.
 
 See [Kubernetes Resources](../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources) for more details about the difference between versions.
 

@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,24 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ComponentProps } from 'react';
-import styled, { StyleFunction } from 'styled-components';
+import { css } from 'styled-components';
 
-// TODO(ravicious): Put MenuList definition next to Menu once Menu is rewritten in TypeScript.
-const MenuList = styled.div.attrs({ role: 'menu' })<{
-  menuListCss?: StyleFunction<ComponentProps<'div'>>;
-}>`
-  background-color: ${props => props.theme.colors.levels.elevated};
-  border-radius: 4px;
-  box-shadow: ${props => props.theme.boxShadow[0]};
+// Shared base styles for pill-shaped inline elements (Status, Tag).
+// Provides consistent sizing, shape, and overflow behavior.
+export const pillBase = css`
+  display: inline-flex;
+  align-items: center;
+  gap: ${p => p.theme.space[1]}px;
+  padding: 2px ${p => p.theme.space[2]}px;
+  border-radius: 98px;
+  ${p => p.theme.typography.body3}
+  white-space: nowrap;
   box-sizing: border-box;
-  max-height: calc(100% - 96px);
   overflow: hidden;
-  overflow-y: auto;
-  position: relative;
-  padding: 0;
-
-  ${props => props.menuListCss && props.menuListCss(props)}
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: middle;
 `;
-
-export default MenuList;

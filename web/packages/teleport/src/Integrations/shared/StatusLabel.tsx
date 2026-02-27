@@ -16,24 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ComponentType } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Text } from 'design';
+import { Wrench } from 'design/Icon';
 import {
-  CircleCheck,
-  CircleCross,
-  Info,
-  Question,
-  Warning,
-  Wrench,
-} from 'design/Icon';
-import { IconSize } from 'design/Icon/Icon';
-import Label, {
-  DangerOutlined,
-  SecondaryOutlined,
-  WarningOutlined,
-} from 'design/Label/Label';
+  Status as StatusBadge,
+  StatusKind,
+  StatusVariant,
+} from 'design/Status';
 import { HoverTooltip } from 'design/Tooltip';
 import { pluralize } from 'shared/utils/text';
 
@@ -139,10 +131,6 @@ const SCANNING = (tooltip?: string) => ({
   tooltip,
 });
 
-const PrimaryOutlined = (props: { children: React.ReactNode }) => (
-  <Label kind="outline-primary" {...props} />
-);
-
 export function getStatus(item: IntegrationLike): {
   status: Status;
   label: string;
@@ -193,46 +181,45 @@ export function getStatus(item: IntegrationLike): {
 const StatusUI: Record<
   Status,
   {
-    Icon: ComponentType<{ size?: IconSize }>;
-    Label: ComponentType<{ children: React.ReactNode }>;
+    kind: StatusKind;
+    variant: StatusVariant;
+    icon?: React.ComponentType<any>;
   }
 > = {
   [Status.Healthy]: {
-    Icon: CircleCheck,
-    Label: SecondaryOutlined,
+    kind: 'success',
+    variant: 'border',
   },
   [Status.Draft]: {
-    Icon: Wrench,
-    Label: SecondaryOutlined,
+    kind: 'neutral',
+    variant: 'filled-tonal',
+    icon: Wrench,
   },
   [Status.Unknown]: {
-    Icon: Question,
-    Label: SecondaryOutlined,
+    kind: 'neutral',
+    variant: 'filled-tonal',
   },
   [Status.Failed]: {
-    Icon: CircleCross,
-    Label: DangerOutlined,
+    kind: 'danger',
+    variant: 'filled-tonal',
   },
   [Status.Issues]: {
-    Icon: Warning,
-    Label: WarningOutlined,
+    kind: 'warning',
+    variant: 'filled-tonal',
   },
   [Status.Scanning]: {
-    Icon: Info,
-    Label: PrimaryOutlined,
+    kind: 'info',
+    variant: 'filled-tonal',
   },
 };
 
 const statusLabel = (status: Status, label: string) => {
-  const { Icon, Label } = StatusUI[status];
+  const { kind, variant, icon } = StatusUI[status];
 
   return (
-    <Label aria-label="status">
-      <Flex alignItems="center" gap={1}>
-        <Icon size="small" />
-        {label}
-      </Flex>
-    </Label>
+    <StatusBadge kind={kind} variant={variant} icon={icon} aria-label="status">
+      {label}
+    </StatusBadge>
   );
 };
 
