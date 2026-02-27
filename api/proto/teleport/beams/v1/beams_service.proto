@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.beams.v1;
 
+import "teleport/beams/v1/beam.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
 
 // BeamsService enables users to create ephemeral AI-optimized compute
@@ -23,13 +25,19 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 service BeamsService {
   // CreateBeam creates a new beam.
   rpc CreateBeam(CreateBeamRequest) returns (Beam);
+
+  // WatchBeam returns the current state of the beam, and streams changes (e.g.
+  // domains being allowed/denied).
+  //
+  // buf:lint:ignore RPC_NO_SERVER_STREAMING
+  rpc WatchBeam(WatchBeamRequest) returns (stream Beam);
 }
 
 // CreateBeamRequest contains the parameters to CreateBeam.
 message CreateBeamRequest {}
 
-// Beam is an ephemeral AI-optimized compute environment.
-message Beam {
-  // ID uniquely identifies the beam.
+// WatchBeamRequest contains the parameters to WatchBeam.
+message WatchBeamRequest {
+  // ID of the beam that will be watched.
   string id = 1;
 }

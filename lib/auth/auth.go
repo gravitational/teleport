@@ -568,6 +568,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return nil, trace.Wrap(err, "creating HealthCheckConfigs service")
 		}
 	}
+	if cfg.Beams == nil {
+		cfg.Beams, err = local.NewBeamService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating Beams service")
+		}
+	}
 	if cfg.BackendInfo == nil {
 		cfg.BackendInfo, err = local.NewBackendInfoService(cfg.Backend)
 		if err != nil {
@@ -705,6 +711,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		WorkloadIdentityX509Overrides:   cfg.WorkloadIdentityX509Overrides,
 		SigstorePolicies:                cfg.SigstorePolicies,
 		HealthCheckConfig:               cfg.HealthCheckConfig,
+		Beams:                           cfg.Beams,
 		BackendInfoService:              cfg.BackendInfo,
 		VnetConfigService:               cfg.VnetConfigService,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,

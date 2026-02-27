@@ -72,29 +72,29 @@ func (*CreateBeamRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{0}
 }
 
-// Beam is an ephemeral AI-optimized compute environment.
-type Beam struct {
+// WatchBeamRequest contains the parameters to WatchBeam.
+type WatchBeamRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// ID uniquely identifies the beam.
+	// ID of the beam that will be watched.
 	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *Beam) Reset() {
-	*x = Beam{}
+func (x *WatchBeamRequest) Reset() {
+	*x = WatchBeamRequest{}
 	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Beam) String() string {
+func (x *WatchBeamRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Beam) ProtoMessage() {}
+func (*WatchBeamRequest) ProtoMessage() {}
 
-func (x *Beam) ProtoReflect() protoreflect.Message {
+func (x *WatchBeamRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -106,12 +106,12 @@ func (x *Beam) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Beam.ProtoReflect.Descriptor instead.
-func (*Beam) Descriptor() ([]byte, []int) {
+// Deprecated: Use WatchBeamRequest.ProtoReflect.Descriptor instead.
+func (*WatchBeamRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *Beam) GetId() string {
+func (x *WatchBeamRequest) GetId() string {
 	if x != nil {
 		return x.Id
 	}
@@ -122,13 +122,14 @@ var File_teleport_beams_v1_beams_service_proto protoreflect.FileDescriptor
 
 const file_teleport_beams_v1_beams_service_proto_rawDesc = "" +
 	"\n" +
-	"%teleport/beams/v1/beams_service.proto\x12\x11teleport.beams.v1\"\x13\n" +
-	"\x11CreateBeamRequest\"\x16\n" +
-	"\x04Beam\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id2[\n" +
+	"%teleport/beams/v1/beams_service.proto\x12\x11teleport.beams.v1\x1a\x1cteleport/beams/v1/beam.proto\"\x13\n" +
+	"\x11CreateBeamRequest\"\"\n" +
+	"\x10WatchBeamRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id2\xa8\x01\n" +
 	"\fBeamsService\x12K\n" +
 	"\n" +
-	"CreateBeam\x12$.teleport.beams.v1.CreateBeamRequest\x1a\x17.teleport.beams.v1.BeamBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
+	"CreateBeam\x12$.teleport.beams.v1.CreateBeamRequest\x1a\x17.teleport.beams.v1.Beam\x12K\n" +
+	"\tWatchBeam\x12#.teleport.beams.v1.WatchBeamRequest\x1a\x17.teleport.beams.v1.Beam0\x01BNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
 
 var (
 	file_teleport_beams_v1_beams_service_proto_rawDescOnce sync.Once
@@ -145,13 +146,16 @@ func file_teleport_beams_v1_beams_service_proto_rawDescGZIP() []byte {
 var file_teleport_beams_v1_beams_service_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_beams_v1_beams_service_proto_goTypes = []any{
 	(*CreateBeamRequest)(nil), // 0: teleport.beams.v1.CreateBeamRequest
-	(*Beam)(nil),              // 1: teleport.beams.v1.Beam
+	(*WatchBeamRequest)(nil),  // 1: teleport.beams.v1.WatchBeamRequest
+	(*Beam)(nil),              // 2: teleport.beams.v1.Beam
 }
 var file_teleport_beams_v1_beams_service_proto_depIdxs = []int32{
 	0, // 0: teleport.beams.v1.BeamsService.CreateBeam:input_type -> teleport.beams.v1.CreateBeamRequest
-	1, // 1: teleport.beams.v1.BeamsService.CreateBeam:output_type -> teleport.beams.v1.Beam
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	1, // 1: teleport.beams.v1.BeamsService.WatchBeam:input_type -> teleport.beams.v1.WatchBeamRequest
+	2, // 2: teleport.beams.v1.BeamsService.CreateBeam:output_type -> teleport.beams.v1.Beam
+	2, // 3: teleport.beams.v1.BeamsService.WatchBeam:output_type -> teleport.beams.v1.Beam
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -162,6 +166,7 @@ func file_teleport_beams_v1_beams_service_proto_init() {
 	if File_teleport_beams_v1_beams_service_proto != nil {
 		return
 	}
+	file_teleport_beams_v1_beam_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

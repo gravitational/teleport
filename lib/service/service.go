@@ -3074,6 +3074,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.RecordingEncryption = services.RecordingEncryptionManager
 	cfg.Plugin = services.Plugins
 	cfg.AppAuthConfig = services.AppAuthConfig
+	cfg.Beams = services.Beams
 
 	return accesspoint.NewCache(cfg)
 }

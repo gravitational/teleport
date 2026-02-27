@@ -552,6 +552,9 @@ const (
 	// KindBackendInfo contains backend info.
 	KindBackendInfo = "backend_info"
 
+	// KindBeam is an ephemeral compute environment.
+	KindBeam = "beam"
+
 	// MetaNameBackendInfo name backend info entity.
 	MetaNameBackendInfo = "backend-info"
 

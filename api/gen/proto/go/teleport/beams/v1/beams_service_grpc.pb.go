@@ -34,6 +34,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	BeamsService_CreateBeam_FullMethodName = "/teleport.beams.v1.BeamsService/CreateBeam"
+	BeamsService_WatchBeam_FullMethodName  = "/teleport.beams.v1.BeamsService/WatchBeam"
 )
 
 // BeamsServiceClient is the client API for BeamsService service.
@@ -45,6 +46,11 @@ const (
 type BeamsServiceClient interface {
 	// CreateBeam creates a new beam.
 	CreateBeam(ctx context.Context, in *CreateBeamRequest, opts ...grpc.CallOption) (*Beam, error)
+	// WatchBeam returns the current state of the beam, and streams changes (e.g.
+	// domains being allowed/denied).
+	//
+	// buf:lint:ignore RPC_NO_SERVER_STREAMING
+	WatchBeam(ctx context.Context, in *WatchBeamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Beam], error)
 }
 
 type beamsServiceClient struct {
@@ -65,6 +71,25 @@ func (c *beamsServiceClient) CreateBeam(ctx context.Context, in *CreateBeamReque
 	return out, nil
 }
 
+func (c *beamsServiceClient) WatchBeam(ctx context.Context, in *WatchBeamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Beam], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &BeamsService_ServiceDesc.Streams[0], BeamsService_WatchBeam_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchBeamRequest, Beam]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type BeamsService_WatchBeamClient = grpc.ServerStreamingClient[Beam]
+
 // BeamsServiceServer is the server API for BeamsService service.
 // All implementations must embed UnimplementedBeamsServiceServer
 // for forward compatibility.
@@ -74,6 +99,11 @@ func (c *beamsServiceClient) CreateBeam(ctx context.Context, in *CreateBeamReque
 type BeamsServiceServer interface {
 	// CreateBeam creates a new beam.
 	CreateBeam(context.Context, *CreateBeamRequest) (*Beam, error)
+	// WatchBeam returns the current state of the beam, and streams changes (e.g.
+	// domains being allowed/denied).
+	//
+	// buf:lint:ignore RPC_NO_SERVER_STREAMING
+	WatchBeam(*WatchBeamRequest, grpc.ServerStreamingServer[Beam]) error
 	mustEmbedUnimplementedBeamsServiceServer()
 }
 
@@ -86,6 +116,9 @@ type UnimplementedBeamsServiceServer struct{}
 
 func (UnimplementedBeamsServiceServer) CreateBeam(context.Context, *CreateBeamRequest) (*Beam, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateBeam not implemented")
+}
+func (UnimplementedBeamsServiceServer) WatchBeam(*WatchBeamRequest, grpc.ServerStreamingServer[Beam]) error {
+	return status.Errorf(codes.Unimplemented, "method WatchBeam not implemented")
 }
 func (UnimplementedBeamsServiceServer) mustEmbedUnimplementedBeamsServiceServer() {}
 func (UnimplementedBeamsServiceServer) testEmbeddedByValue()                      {}
@@ -126,6 +159,17 @@ func _BeamsService_CreateBeam_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BeamsService_WatchBeam_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchBeamRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(BeamsServiceServer).WatchBeam(m, &grpc.GenericServerStream[WatchBeamRequest, Beam]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type BeamsService_WatchBeamServer = grpc.ServerStreamingServer[Beam]
+
 // BeamsService_ServiceDesc is the grpc.ServiceDesc for BeamsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -138,6 +182,12 @@ var BeamsService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _BeamsService_CreateBeam_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "WatchBeam",
+			Handler:       _BeamsService_WatchBeam_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "teleport/beams/v1/beams_service.proto",
 }

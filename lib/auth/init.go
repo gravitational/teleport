@@ -390,6 +390,9 @@ type InitConfig struct {
 	// HealthCheckConfig manages health check config resources.
 	HealthCheckConfig services.HealthCheckConfig
 
+	// Beams manages beam resources.
+	Beams services.Beams
+
 	// BackendInfo is a service of backend information.
 	BackendInfo services.BackendInfoService
 

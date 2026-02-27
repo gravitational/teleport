@@ -613,6 +613,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 		Plugin:                  p.AuthServer.Services.Plugins,
 		AppAuthConfig:           p.AuthServer.Services.AppAuthConfig,
+		Beams:                   p.AuthServer.Services.Beams,
 	})
 	if err != nil {
 		return trace.Wrap(err)

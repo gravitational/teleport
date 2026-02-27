@@ -57,7 +57,7 @@ func onBeamsAdd(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		beamID = beam.GetId()
+		beamID = beam.GetMetadata().GetName()
 		return nil
 	}); err != nil {
 		return trace.Wrap(err)

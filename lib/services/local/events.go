@@ -277,6 +277,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newScopedTokenParser()
 		case types.KindAppAuthConfig:
 			parser = newAppAuthConfigParser()
+		case types.KindBeam:
+			parser = newBeamParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
