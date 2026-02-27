@@ -18,8 +18,9 @@
 
 import { useState } from 'react';
 
-import { ButtonBorder, Flex } from 'design';
+import { ButtonBorder, Flex, Label } from 'design';
 import Table, { Cell } from 'design/DataTable';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { Event } from 'teleport/services/audit';
 
@@ -97,8 +98,22 @@ export const renderTimeCell = ({ time }: Event) => (
   <Cell style={{ minWidth: '120px' }}>{time.toISOString()}</Cell>
 );
 
-export function renderDescCell({ message }: Event) {
-  return <Cell style={{ wordBreak: 'break-word' }}>{message}</Cell>;
+export function renderDescCell({ message, raw }: Event) {
+  const piiEntities = (raw as { pii_entities?: string[] }).pii_entities;
+  return (
+    <Cell style={{ wordBreak: 'break-word' }}>
+      <Flex alignItems="center" gap={2} flexWrap="wrap">
+        {message}
+        {piiEntities && piiEntities.length > 0 && (
+          <HoverTooltip tipContent={piiEntities.join(', ')} placement="top">
+            <Label kind="warning" style={{ cursor: 'default', flexShrink: 0 }}>
+              PII
+            </Label>
+          </HoverTooltip>
+        )}
+      </Flex>
+    </Cell>
+  );
 }
 
 type Props = {

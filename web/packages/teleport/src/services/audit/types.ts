@@ -835,6 +835,7 @@ export type RawEvents = {
       db_name: string;
       db_user: string;
       db_query: string;
+      pii_entities?: string[];
     }
   >;
   [eventCodes.DATABASE_SESSION_QUERY_FAILURE]: RawEvent<
@@ -845,6 +846,7 @@ export type RawEvents = {
       db_name: string;
       db_user: string;
       db_query: string;
+      pii_entities?: string[];
     }
   >;
   [eventCodes.DATABASE_SESSION_MALFORMED_PACKET]: RawEvent<

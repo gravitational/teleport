@@ -3365,6 +3365,8 @@ message DatabaseSessionQuery {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // PIIEntities is a list of PII entity types detected in the query by AWS Comprehend.
+  repeated string PIIEntities = 8 [(gogoproto.jsontag) = "pii_entities,omitempty"];
 }
 
 // DatabaseSessionCommandResult represents the result of a user command. It is

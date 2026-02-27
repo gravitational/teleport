@@ -192,6 +192,9 @@ type Config struct {
 	getEngineFn func(types.Database, common.EngineConfig) (common.Engine, error)
 	// healthCheckManager manages registered health checks for databases.
 	healthCheckManager healthcheck.Manager
+	// PIIDetector is an optional PII detector for database queries.
+	// When set, detected PII entity types are logged on every query audit event.
+	PIIDetector *common.PIIDetector
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -217,6 +220,14 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.NewAudit == nil {
 		c.NewAudit = common.NewAudit
+	}
+	if c.PIIDetector == nil {
+		detector, err := common.NewPIIDetector(ctx)
+		if err != nil {
+			return trace.Wrap(err, "initializing PII detector")
+		}
+		c.PIIDetector = detector
+		slog.WarnContext(ctx, "==== PII detector is enabled")
 	}
 	if c.AzureClients == nil {
 		azureClients, err := azure.NewClients()
@@ -1297,10 +1308,11 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 // dispatch creates and initializes an appropriate database engine for the session.
 func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparerRecorder, clientConn net.Conn) (common.Engine, error) {
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
-		Emitter:  s.cfg.Emitter,
-		Recorder: rec,
-		Database: sessionCtx.Database,
-		Clock:    s.cfg.Clock,
+		Emitter:     s.cfg.Emitter,
+		Recorder:    rec,
+		Database:    sessionCtx.Database,
+		Clock:       s.cfg.Clock,
+		PIIDetector: s.cfg.PIIDetector,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

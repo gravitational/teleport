@@ -29,6 +29,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -92,6 +93,10 @@ type AuditConfig struct {
 	Component string
 	// Clock used to control time.
 	Clock clockwork.Clock
+	// PIIDetector is an optional detector that annotates query audit events
+	// with the PII entity types found in the query (e.g. ["SSN", "EMAIL"]).
+	// When nil, PII detection is skipped.
+	PIIDetector *PIIDetector
 }
 
 // Check validates the config.
@@ -196,6 +201,22 @@ func (a *audit) OnSessionEnd(ctx context.Context, session *Session) {
 
 // OnQuery emits an audit event when a database query is executed.
 func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
+	queryText := query.Query
+	var piiEntities []string
+	if a.cfg.PIIDetector != nil {
+		if redacted, piiTypes, err := a.cfg.PIIDetector.Redact(ctx, query.Query); err != nil {
+			a.logger.WarnContext(ctx, "PII detection failed", "error", err)
+		} else if len(piiTypes) > 0 {
+			piiEntities = apiutils.Deduplicate(piiTypes)
+			a.logger.InfoContext(ctx, "PII detected in database query, redacting",
+				"pii_types", piiEntities,
+				"db_service", session.Database.GetName(),
+				"db_user", session.DatabaseUser,
+			)
+			queryText = redacted
+		}
+	}
+
 	event := &events.DatabaseSessionQuery{
 		Metadata: MakeEventMetadata(session,
 			libevents.DatabaseSessionQueryEvent,
@@ -203,8 +224,9 @@ func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
 		UserMetadata:            MakeUserMetadata(session),
 		SessionMetadata:         MakeSessionMetadata(session),
 		DatabaseMetadata:        MakeDatabaseMetadata(session),
-		DatabaseQuery:           query.Query,
+		DatabaseQuery:           queryText,
 		DatabaseQueryParameters: query.Parameters,
+		PIIEntities:             piiEntities,
 		Status: events.Status{
 			Success: true,
 		},
