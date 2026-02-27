@@ -34,20 +34,29 @@ func TestGenerateSelfSignedCA(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
 
+		const clusterName = "localhost"
 		keyPEM, certPEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{
-			ClusterName: "localhost",
+			ClusterName: clusterName,
 		})
 		require.NoError(t, err)
 
+		// Parse key.
 		_, err = keys.ParsePrivateKey(keyPEM)
 		require.NoError(t, err, "Parse private key")
 
+		// Parse cert.
 		cert, err := tlsca.ParseCertificatePEM(certPEM)
 		require.NoError(t, err, "Parse certificate")
 
+		// Verify timestamps.
 		now := time.Now().Add(1 * time.Nanosecond) // add 1ns just to extra safe.
 		assert.True(t, cert.NotBefore.Before(now), "NotBefore in the future")
 		assert.True(t, cert.NotAfter.After(now), "NotAfter in the past")
+
+		// Verify cluster name in certificate.
+		gotClusterName, err := tlsca.ClusterName(cert.Subject)
+		require.NoError(t, err, "Extract cluster name from certificate")
+		assert.Equal(t, clusterName, gotClusterName, "Cluster name mismatch")
 	})
 
 	t.Run("custom timestamps", func(t *testing.T) {
