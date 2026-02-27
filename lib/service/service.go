@@ -4958,117 +4958,152 @@ type debugTLSProvider interface {
 	ClientGetPool() (*x509.CertPool, error)
 }
 
-// newDebugForwarder creates a forwarder function that routes debug connections
-// to other auth servers or proxies. It first looks up auth servers by UUID and
-// dials via standard gRPC TLS. If no auth server matches, it looks up proxies
-// and dials via gRPC TLS with the ALPN protocol for proxy SSH gRPC.
+// debugStreamToConn bridges a Debug.Connect gRPC stream to a net.Conn using
+// net.Pipe. It sends the initial server_id frame and starts bidirectional
+// copying goroutines. The returned conn carries raw HTTP traffic.
+func debugStreamToConn(stream grpc.BidiStreamingClient[debugpb.Frame, debugpb.Frame], grpcConn *grpc.ClientConn, serverID string) (net.Conn, error) {
+	if err := stream.Send(&debugpb.Frame{
+		Payload: &debugpb.Frame_ServerId{ServerId: serverID},
+	}); err != nil {
+		grpcConn.Close()
+		return nil, trace.Wrap(err, "sending server ID to server %s", serverID)
+	}
+
+	pipeClient, pipeServer := net.Pipe()
+	go func() {
+		defer pipeServer.Close()
+		for {
+			frame, err := stream.Recv()
+			if err != nil {
+				return
+			}
+			if _, err := pipeServer.Write(frame.GetData()); err != nil {
+				return
+			}
+		}
+	}()
+	go func() {
+		defer func() {
+			stream.CloseSend()
+			grpcConn.Close()
+		}()
+		buf := make([]byte, 32*1024)
+		for {
+			n, err := pipeServer.Read(buf)
+			if n > 0 {
+				if sendErr := stream.Send(&debugpb.Frame{
+					Payload: &debugpb.Frame_Data{Data: append([]byte(nil), buf[:n]...)},
+				}); sendErr != nil {
+					return
+				}
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	return pipeClient, nil
+}
+
+// dialDebugGRPC opens a Debug.Connect stream to the given address and bridges
+// it to a net.Conn. nextProtos sets the TLS ALPN protocols (nil for auth,
+// ProtocolProxySSHGRPC for proxies).
+func dialDebugGRPC(ctx context.Context, addr string, serverID string, tlsProvider debugTLSProvider, clusterName string, nextProtos []string) (net.Conn, error) {
+	cert, err := tlsProvider.ClientGetCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting TLS certificate for debug forwarding")
+	}
+	pool, err := tlsProvider.ClientGetPool()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting TLS CA pool for debug forwarding")
+	}
+	tlsCfg := &tls.Config{
+		Certificates: []tls.Certificate{*cert},
+		RootCAs:      pool,
+		ServerName:   apiutils.EncodeClusterName(clusterName),
+		NextProtos:   nextProtos,
+	}
+
+	grpcConn, err := grpc.NewClient(addr,
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "dialing server %s at %s", serverID, addr)
+	}
+
+	debugClient := debugpb.NewDebugServiceClient(grpcConn)
+	stream, err := debugClient.Connect(ctx)
+	if err != nil {
+		grpcConn.Close()
+		return nil, trace.Wrap(err, "opening debug stream to server %s", serverID)
+	}
+
+	return debugStreamToConn(stream, grpcConn, serverID)
+}
+
+// newDebugForwarder creates a forwarder function for the auth server. Auth
+// targets are dialed directly via gRPC TLS. Everything else (nodes, proxies)
+// is forwarded through any available proxy's Debug.Connect RPC, letting the
+// proxy route via its reverse tunnel.
 func newDebugForwarder(lister debugServerLister, tlsProvider debugTLSProvider, clusterName string) func(ctx context.Context, serverID string) (net.Conn, error) {
 	return func(ctx context.Context, serverID string) (net.Conn, error) {
-		// Try to find the target among auth servers first.
+		// If the target is an auth server, dial it directly.
 		authServers, err := lister.GetAuthServers()
 		if err != nil {
 			return nil, trace.Wrap(err, "looking up auth servers for debug forwarding")
 		}
-		var targetAddr string
-		var nextProtos []string
 		for _, as := range authServers {
 			if as.GetName() == serverID {
-				targetAddr = as.GetAddr()
-				break
+				return dialDebugGRPC(ctx, as.GetAddr(), serverID, tlsProvider, clusterName, nil)
 			}
 		}
 
-		// If not found among auth servers, look up proxies.
-		if targetAddr == "" {
-			proxies, err := lister.GetProxies()
+		// For anything else, forward through any available proxy.
+		// The proxy has a reverse tunnel and can route to nodes,
+		// other proxies, and even auth servers.
+		proxies, err := lister.GetProxies()
+		if err != nil {
+			return nil, trace.Wrap(err, "looking up proxies for debug forwarding")
+		}
+		if len(proxies) == 0 {
+			return nil, trace.NotFound("server %s is not a known auth server and no proxies are available for forwarding", serverID)
+		}
+
+		alpnProtos := []string{string(alpncommon.ProtocolProxySSHGRPC)}
+		var lastErr error
+		for _, p := range proxies {
+			addr := p.GetPublicAddr()
+			if addr == "" {
+				addr = p.GetAddr()
+			}
+			conn, err := dialDebugGRPC(ctx, addr, serverID, tlsProvider, clusterName, alpnProtos)
 			if err != nil {
-				return nil, trace.Wrap(err, "looking up proxies for debug forwarding")
+				lastErr = err
+				continue
 			}
-			for _, p := range proxies {
-				if p.GetName() == serverID {
-					targetAddr = p.GetAddr()
-					nextProtos = []string{string(alpncommon.ProtocolProxySSHGRPC)}
-					break
-				}
+			return conn, nil
+		}
+		return nil, trace.Wrap(lastErr, "failed to forward debug request for %s through any proxy", serverID)
+	}
+}
+
+// newProxyDebugForwarder creates a forwarder function for the proxy server.
+// It only handles auth server targets by dialing them directly. All other
+// targets (nodes, other proxies) are reached via the reverse tunnel, so the
+// forwarder is not needed for those.
+func newProxyDebugForwarder(lister debugServerLister, tlsProvider debugTLSProvider, clusterName string) func(ctx context.Context, serverID string) (net.Conn, error) {
+	return func(ctx context.Context, serverID string) (net.Conn, error) {
+		authServers, err := lister.GetAuthServers()
+		if err != nil {
+			return nil, trace.Wrap(err, "looking up auth servers for debug forwarding")
+		}
+		for _, as := range authServers {
+			if as.GetName() == serverID {
+				return dialDebugGRPC(ctx, as.GetAddr(), serverID, tlsProvider, clusterName, nil)
 			}
 		}
-
-		if targetAddr == "" {
-			return nil, trace.NotFound("server %s is not a known auth server or proxy", serverID)
-		}
-
-		cert, err := tlsProvider.ClientGetCertificate()
-		if err != nil {
-			return nil, trace.Wrap(err, "getting TLS certificate for debug forwarding")
-		}
-		pool, err := tlsProvider.ClientGetPool()
-		if err != nil {
-			return nil, trace.Wrap(err, "getting TLS CA pool for debug forwarding")
-		}
-		tlsCfg := &tls.Config{
-			Certificates: []tls.Certificate{*cert},
-			RootCAs:      pool,
-			ServerName:   apiutils.EncodeClusterName(clusterName),
-			NextProtos:   nextProtos,
-		}
-
-		grpcConn, err := grpc.NewClient(targetAddr,
-			grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err, "dialing server %s at %s", serverID, targetAddr)
-		}
-
-		debugClient := debugpb.NewDebugServiceClient(grpcConn)
-		stream, err := debugClient.Connect(ctx)
-		if err != nil {
-			grpcConn.Close()
-			return nil, trace.Wrap(err, "opening debug stream to server %s", serverID)
-		}
-
-		if err := stream.Send(&debugpb.Frame{
-			Payload: &debugpb.Frame_ServerId{ServerId: serverID},
-		}); err != nil {
-			grpcConn.Close()
-			return nil, trace.Wrap(err, "sending server ID to server %s", serverID)
-		}
-
-		// Bridge the gRPC stream to a net.Conn using net.Pipe.
-		pipeClient, pipeServer := net.Pipe()
-		go func() {
-			defer pipeServer.Close()
-			for {
-				frame, err := stream.Recv()
-				if err != nil {
-					return
-				}
-				if _, err := pipeServer.Write(frame.GetData()); err != nil {
-					return
-				}
-			}
-		}()
-		go func() {
-			defer func() {
-				stream.CloseSend()
-				grpcConn.Close()
-			}()
-			buf := make([]byte, 32*1024)
-			for {
-				n, err := pipeServer.Read(buf)
-				if n > 0 {
-					if sendErr := stream.Send(&debugpb.Frame{
-						Payload: &debugpb.Frame_Data{Data: append([]byte(nil), buf[:n]...)},
-					}); sendErr != nil {
-						return
-					}
-				}
-				if err != nil {
-					return
-				}
-			}
-		}()
-
-		return pipeClient, nil
+		return nil, trace.NotFound("server %s is not a known auth server; nodes and proxies should be reached via the reverse tunnel", serverID)
 	}
 }
 
@@ -6055,7 +6090,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 		proxyDebugDialer.Set(proxyDebugConnListener, conn.HostUUID())
 	}
-	proxyForwarder := newDebugForwarder(accessPoint, conn, clusterName)
+	proxyForwarder := newProxyDebugForwarder(accessPoint, conn, clusterName)
 	debugService, err := debugv1.NewService(debugv1.ServiceConfig{
 		Authorizer:       authorizer,
 		ClusterDialer:    tsrv,
