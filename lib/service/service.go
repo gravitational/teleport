@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	debugpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/debug/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -2677,6 +2678,129 @@ func (process *TeleportProcess) initAuthService() error {
 	process.debugClusterDialer = &debugv1.LazyClusterDialer{}
 	process.localDebugDialer = &debugv1.LazyLocalDebugDialer{}
 
+	// Set up a ConnListener-based debug HTTP server for the auth process so
+	// that the debug gRPC service can handle requests targeting this server
+	// without requiring a reverse tunnel. In combined processes the node init
+	// will overwrite this with the node's own ConnListener, which is fine.
+	if cfg.DebugService.Enabled {
+		authDebugConnListener := debug.NewConnListener()
+		debugSvc := debug.NewService(debug.ServiceConfig{
+			Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDebug, process.id)),
+			Leveler:     process.Config,
+			Broadcaster: process.Config.LogBroadcaster,
+		})
+		debugMux := http.NewServeMux()
+		debug.RegisterProfilingHandlers(debugMux, process.logger)
+		debug.RegisterLogLevelHandlers(debugMux, debugSvc)
+		if process.Config.LogBroadcaster != nil {
+			debug.RegisterLogStreamHandler(debugMux, debugSvc)
+		}
+		debugMux.HandleFunc("/readyz", process.HandleReadiness)
+		debugMux.Handle("/metrics", process.newMetricsHandler())
+		authDebugHTTPServer := &http.Server{Handler: debugMux}
+		go func() {
+			if err := authDebugHTTPServer.Serve(authDebugConnListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				process.logger.ErrorContext(process.ExitContext(), "Auth debug HTTP server exited with error", "error", err)
+			}
+		}()
+		process.OnExit("auth.debug.http.shutdown", func(payload any) {
+			authDebugHTTPServer.Close()
+			authDebugConnListener.Close()
+		})
+		process.localDebugDialer.Set(authDebugConnListener, hostUUID)
+	}
+
+	// debugForwarder forwards debug connections to other auth servers in split
+	// deployments where the reverse tunnel is not available locally.
+	debugForwarder := func(ctx context.Context, serverID string) (net.Conn, error) {
+		authServers, err := authServer.GetAuthServers()
+		if err != nil {
+			return nil, trace.Wrap(err, "looking up auth servers for debug forwarding")
+		}
+		var targetAddr string
+		for _, as := range authServers {
+			if as.GetName() == serverID {
+				targetAddr = as.GetAddr()
+				break
+			}
+		}
+		if targetAddr == "" {
+			return nil, trace.NotFound("server %s is not a local or known auth server; debugging nodes and proxies requires the auth server to have a reverse tunnel (combined auth+proxy deployment)", serverID)
+		}
+
+		cert, err := connector.ClientGetCertificate()
+		if err != nil {
+			return nil, trace.Wrap(err, "getting TLS certificate for debug forwarding")
+		}
+		pool, err := connector.ClientGetPool()
+		if err != nil {
+			return nil, trace.Wrap(err, "getting TLS CA pool for debug forwarding")
+		}
+		tlsCfg := &tls.Config{
+			Certificates: []tls.Certificate{*cert},
+			RootCAs:      pool,
+			ServerName:   apiutils.EncodeClusterName(clusterName),
+		}
+
+		grpcConn, err := grpc.NewClient(targetAddr,
+			grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "dialing auth server %s at %s", serverID, targetAddr)
+		}
+
+		debugClient := debugpb.NewDebugServiceClient(grpcConn)
+		stream, err := debugClient.Connect(ctx)
+		if err != nil {
+			grpcConn.Close()
+			return nil, trace.Wrap(err, "opening debug stream to auth server %s", serverID)
+		}
+
+		if err := stream.Send(&debugpb.Frame{
+			Payload: &debugpb.Frame_ServerId{ServerId: serverID},
+		}); err != nil {
+			grpcConn.Close()
+			return nil, trace.Wrap(err, "sending server ID to auth server %s", serverID)
+		}
+
+		// Bridge the gRPC stream to a net.Conn using net.Pipe.
+		pipeClient, pipeServer := net.Pipe()
+		go func() {
+			defer pipeServer.Close()
+			for {
+				frame, err := stream.Recv()
+				if err != nil {
+					return
+				}
+				if _, err := pipeServer.Write(frame.GetData()); err != nil {
+					return
+				}
+			}
+		}()
+		go func() {
+			defer func() {
+				stream.CloseSend()
+				grpcConn.Close()
+			}()
+			buf := make([]byte, 32*1024)
+			for {
+				n, err := pipeServer.Read(buf)
+				if n > 0 {
+					if sendErr := stream.Send(&debugpb.Frame{
+						Payload: &debugpb.Frame_Data{Data: append([]byte(nil), buf[:n]...)},
+					}); sendErr != nil {
+						return
+					}
+				}
+				if err != nil {
+					return
+				}
+			}
+		}()
+
+		return pipeClient, nil
+	}
+
 	apiConf := &auth.APIConfig{
 		AuthServer:       authServer,
 		Authorizer:       authorizer,
@@ -2694,6 +2818,7 @@ func (process *TeleportProcess) initAuthService() error {
 		ClusterDialer:    process.debugClusterDialer,
 		ClusterName:      clusterName,
 		LocalDebugDialer: process.localDebugDialer,
+		DebugForwarder:   debugForwarder,
 	}
 
 	// Auth initialization is done (including creation/updating of all singleton

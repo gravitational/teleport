@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -75,6 +76,9 @@ type APIConfig struct {
 	// LocalDebugDialer provides local connections for the debug service
 	// in combined processes where no reverse tunnel is used. Optional.
 	LocalDebugDialer *debugv1.LazyLocalDebugDialer
+	// DebugForwarder forwards debug connections to remote servers in split
+	// deployments where the cluster dialer is not available. Optional.
+	DebugForwarder func(ctx context.Context, serverID string) (net.Conn, error)
 }
 
 // CheckAndSetDefaults checks and sets default values

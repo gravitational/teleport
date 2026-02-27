@@ -116,6 +116,10 @@ type ServiceConfig struct {
 	ClusterName string
 	// LocalDebugDialer provides local connections for combined processes.
 	LocalDebugDialer *LazyLocalDebugDialer
+	// Forwarder forwards debug connections to remote servers that are not
+	// reachable via the local or cluster dialers. Used in split deployments
+	// where the auth server needs to forward to other auth servers.
+	Forwarder func(ctx context.Context, serverID string) (net.Conn, error)
 }
 
 // Service implements the teleport.debug.v1.DebugService RPC service.
@@ -127,6 +131,7 @@ type Service struct {
 	clusterDialer    ClusterDialer
 	clusterName      string
 	localDebugDialer *LazyLocalDebugDialer
+	forwarder        func(ctx context.Context, serverID string) (net.Conn, error)
 }
 
 // NewService returns a new debug gRPC service.
@@ -140,6 +145,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		clusterDialer:    cfg.ClusterDialer,
 		clusterName:      cfg.ClusterName,
 		localDebugDialer: cfg.LocalDebugDialer,
+		forwarder:        cfg.Forwarder,
 	}, nil
 }
 
@@ -226,6 +232,8 @@ func (s *Service) authorize(ctx context.Context) error {
 
 // dialNode dials the target node's debug HTTP service through the reverse
 // tunnel. For combined processes it uses a local in-process connection.
+// In split deployments where neither is available, it falls back to the
+// forwarder which routes through other auth servers.
 func (s *Service) dialNode(ctx context.Context, serverID string) (net.Conn, error) {
 	// For combined processes (auth+node in same process), try a local
 	// in-process connection before falling back to the reverse tunnel.
@@ -236,19 +244,28 @@ func (s *Service) dialNode(ctx context.Context, serverID string) (net.Conn, erro
 		}
 	}
 
-	if s.clusterDialer == nil {
-		return nil, trace.NotImplemented("debug service cluster dialer not configured")
+	if s.clusterDialer != nil {
+		cluster, err := s.clusterDialer.Cluster(ctx, s.clusterName)
+		if err == nil {
+			conn, err := cluster.DialTCP(reversetunnelclient.DialParams{
+				ServerID: serverID + "." + s.clusterName,
+				ConnType: types.DebugTunnel,
+			})
+			if err == nil {
+				return conn, nil
+			}
+		}
 	}
-	cluster, err := s.clusterDialer.Cluster(ctx, s.clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	// Fall back to the forwarder for split deployments where the cluster
+	// dialer is not available (auth and proxy run in separate processes).
+	if s.forwarder != nil {
+		conn, err := s.forwarder(ctx, serverID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conn, nil
 	}
-	conn, err := cluster.DialTCP(reversetunnelclient.DialParams{
-		ServerID: serverID + "." + s.clusterName,
-		ConnType: types.DebugTunnel,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return conn, nil
+
+	return nil, trace.NotImplemented("debug service cannot reach server %s: no reverse tunnel or forwarding path available", serverID)
 }

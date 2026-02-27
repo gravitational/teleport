@@ -6057,6 +6057,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		ClusterDialer:    cfg.ClusterDialer,
 		ClusterName:      cfg.ClusterName,
 		LocalDebugDialer: cfg.LocalDebugDialer,
+		Forwarder:        cfg.DebugForwarder,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating debug service")
