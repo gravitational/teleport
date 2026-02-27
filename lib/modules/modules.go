@@ -298,7 +298,7 @@ type Modules interface {
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
 	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	// GenerateAccessRequestSuggestedReviewers generates a list of suggested reviewers for a given access request.
-	GenerateAccessRequestSuggestedReviewers(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestSuggestedReviewers, error)
+	GenerateAccessRequestSuggestedReviewers(context.Context, AccessResourcesGetter, types.AccessRequest) ([]string, error)
 	// GenerateLongTermResourceGrouping analyzes how resources can be grouped into access lists and returns information about optimal groupings for long-term access.
 	GenerateLongTermResourceGrouping(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.LongTermResourceGrouping, error)
 	// GetSuggestedAccessLists generates a list of valid promotions for given access request.
@@ -457,8 +457,8 @@ func (p *defaultModules) GenerateAccessRequestPromotions(_ context.Context, _ Ac
 }
 
 // GenerateAccessRequestSuggestedReviewers is a noop for OSS teleport.
-func (p *defaultModules) GenerateAccessRequestSuggestedReviewers(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestSuggestedReviewers, error) {
-	return &types.AccessRequestSuggestedReviewers{}, nil
+func (p *defaultModules) GenerateAccessRequestSuggestedReviewers(context.Context, AccessResourcesGetter, types.AccessRequest) ([]string, error) {
+	return []string{}, nil
 }
 
 func (p *defaultModules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient,

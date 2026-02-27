@@ -253,7 +253,7 @@ func ConfigureCAsForTrustedCluster(tc types.TrustedCluster, cas []types.CertAuth
 	configureCAsForTrustedCluster(tc, cas)
 }
 
-func UpdateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, suggestedReviewers *types.AccessRequestSuggestedReviewers) {
+func UpdateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, suggestedReviewers []string) {
 	updateAccessRequestWithAdditionalReviewers(req, suggestedReviewers)
 }
 

@@ -88,7 +88,7 @@ type Modules struct {
 	MockAttestationData *keys.AttestationData
 
 	GenerateAccessRequestPromotionsFn         func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
-	GenerateAccessRequestSuggestedReviewersFn func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestSuggestedReviewers, error)
+	GenerateAccessRequestSuggestedReviewersFn func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) ([]string, error)
 	GenerateLongTermResourceGroupingFn        func(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error)
 }
 
@@ -139,11 +139,11 @@ func (m *Modules) GenerateAccessRequestPromotions(ctx context.Context, getter mo
 }
 
 // GenerateAccessRequestSuggestedReviewers implements modules.Modules.
-func (m *Modules) GenerateAccessRequestSuggestedReviewers(ctx context.Context, getter modules.AccessResourcesGetter, request types.AccessRequest) (*types.AccessRequestSuggestedReviewers, error) {
+func (m *Modules) GenerateAccessRequestSuggestedReviewers(ctx context.Context, getter modules.AccessResourcesGetter, request types.AccessRequest) ([]string, error) {
 	if m.GenerateAccessRequestSuggestedReviewersFn != nil {
 		return m.GenerateAccessRequestSuggestedReviewersFn(ctx, getter, request)
 	}
-	return types.NewAccessRequestSuggestedReviewers(nil), nil
+	return []string{}, nil
 }
 
 // GetSuggestedAccessLists implements modules.Modules.

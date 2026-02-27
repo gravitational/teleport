@@ -1561,7 +1561,7 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 	tests := []struct {
 		name               string
 		req                types.AccessRequest
-		suggestedReviewers *types.AccessRequestSuggestedReviewers
+		suggestedReviewers []string
 		expectedReviewers  []string
 	}{
 		{
@@ -1570,26 +1570,22 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 			expectedReviewers: []string{"rev1", "rev2"},
 		},
 		{
-			name: "a few additional reviewers",
-			req:  mustRequest("rev1", "rev2"),
-			suggestedReviewers: &types.AccessRequestSuggestedReviewers{
-				Reviewers: []string{"name1", "name2", "name3"},
-			},
-			expectedReviewers: []string{"rev1", "rev2", "name1", "name2", "name3"},
+			name:               "a few additional reviewers",
+			req:                mustRequest("rev1", "rev2"),
+			suggestedReviewers: []string{"name1", "name2", "name3"},
+			expectedReviewers:  []string{"rev1", "rev2", "name1", "name2", "name3"},
 		},
 		{
 			name:               "no additional reviewers",
 			req:                mustRequest("rev1", "rev2"),
-			suggestedReviewers: &types.AccessRequestSuggestedReviewers{Reviewers: []string{}},
+			suggestedReviewers: []string{},
 			expectedReviewers:  []string{"rev1", "rev2"},
 		},
 		{
-			name: "duplicate additional reviewers",
-			req:  mustRequest("rev1", "rev2"),
-			suggestedReviewers: &types.AccessRequestSuggestedReviewers{
-				Reviewers: []string{"rev2", "name1", "name2", "name1"},
-			},
-			expectedReviewers: []string{"rev1", "rev2", "name1", "name2"},
+			name:               "duplicate additional reviewers",
+			req:                mustRequest("rev1", "rev2"),
+			suggestedReviewers: []string{"rev2", "name1", "name2", "name1"},
+			expectedReviewers:  []string{"rev1", "rev2", "name1", "name2"},
 		},
 	}
 

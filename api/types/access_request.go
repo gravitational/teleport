@@ -1018,17 +1018,6 @@ func NewAccessRequestAllowedPromotions(promotions []*AccessRequestAllowedPromoti
 	}
 }
 
-// NewAccessRequestSuggestedReviewers returns a new AccessRequestSuggestedReviewers resource.
-func NewAccessRequestSuggestedReviewers(suggestedReviewers []string) *AccessRequestSuggestedReviewers {
-	if suggestedReviewers == nil {
-		suggestedReviewers = []string{}
-	}
-
-	return &AccessRequestSuggestedReviewers{
-		Reviewers: suggestedReviewers,
-	}
-}
-
 // ValidateAssumeStartTime returns error if start time is in an invalid range.
 func ValidateAssumeStartTime(assumeStartTime time.Time, accessExpiry time.Time, creationTime time.Time) error {
 	// Guard against requesting a start time before the request creation time.

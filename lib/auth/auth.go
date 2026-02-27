@@ -6157,7 +6157,7 @@ func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.
 	return reqCopy, promotions
 }
 
-func (a *Server) generateAccessRequestSuggestedReviewers(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) *types.AccessRequestSuggestedReviewers {
+func (a *Server) generateAccessRequestSuggestedReviewers(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) []string {
 	reqCopy := req.Copy()
 
 	suggestedReviewers, err := modules.GetModules().GenerateAccessRequestSuggestedReviewers(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, reqCopy)
@@ -6168,18 +6168,15 @@ func (a *Server) generateAccessRequestSuggestedReviewers(ctx context.Context, re
 }
 
 // updateAccessRequestWithAdditionalReviewers will update the given access request with the suggested reviewers.
-func updateAccessRequestWithAdditionalReviewers(req types.AccessRequest, suggestedReviewers *types.AccessRequestSuggestedReviewers) {
-	if suggestedReviewers == nil {
+func updateAccessRequestWithAdditionalReviewers(req types.AccessRequest, suggestedReviewers []string) {
+	if len(suggestedReviewers) == 0 {
 		return
 	}
 
 	// Add additional suggested reviewers and ensure deduplicated.
 	additionalReviewers := set.New[string]()
 
-	for _, suggestedReviewer := range slices.Concat(
-		req.GetSuggestedReviewers(),
-		suggestedReviewers.Reviewers,
-	) {
+	for _, suggestedReviewer := range slices.Concat(req.GetSuggestedReviewers(), suggestedReviewers) {
 		additionalReviewers.Add(suggestedReviewer)
 	}
 
