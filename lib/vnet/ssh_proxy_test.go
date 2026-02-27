@@ -17,6 +17,7 @@
 package vnet
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -312,8 +313,50 @@ func runTestSSHProxyInstance(
 		conn:  outgoingSSHConn,
 		chans: outgoingChans,
 		reqs:  outgoingReqs,
-	})
+	}, noopMoshAttemptReporter{}, nil)
 	return trace.Wrap(err)
+}
+
+type noopMoshAttemptReporter struct{}
+
+func (noopMoshAttemptReporter) reportMoshAttempt(moshAttempt) {}
+
+func TestParseMoshConnectPort(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+		port uint16
+		ok   bool
+	}{
+		{name: "missing", data: []byte("hello"), ok: false},
+		{name: "invalid", data: []byte("MOSH CONNECT abc"), ok: false},
+		{name: "zero", data: []byte("MOSH CONNECT 0"), ok: false},
+		{name: "valid", data: []byte("MOSH CONNECT 60001 secret"), port: 60001, ok: true},
+		{name: "embedded", data: []byte("prefix\nMOSH CONNECT 60123 x\n"), port: 60123, ok: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			port, ok := parseMoshConnectPort(tt.data)
+			require.Equal(t, tt.ok, ok)
+			require.Equal(t, tt.port, port)
+		})
+	}
+}
+
+func TestMoshDetector(t *testing.T) {
+	var reported uint16
+	d := newMoshDetector(func(port uint16) {
+		reported = port
+	})
+
+	_, err := io.Copy(d, bytes.NewBufferString("noise\nMOSH CONNECT "))
+	require.NoError(t, err)
+	require.Zero(t, reported)
+
+	_, err = io.Copy(d, bytes.NewBufferString("60042 secret\n"))
+	require.NoError(t, err)
+	require.Equal(t, uint16(60042), reported)
 }
 
 // runTestSSHServer runs a test SSH server that responds to new channel

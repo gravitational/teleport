@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/asn1"
+	"io"
 	"net"
 	"slices"
 	"sync/atomic"
@@ -35,12 +36,15 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
+	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/proxy/transport/transportv1"
 	"github.com/gravitational/teleport/api/defaults"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/types"
 	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 )
 
 // ClientConfig contains configuration needed for a Client
@@ -510,6 +514,80 @@ func (c *Client) DialHost(ctx context.Context, target, cluster string, keyring a
 	}
 
 	return conn, ClusterDetails{FIPS: details.FipsEnabled}, nil
+}
+
+// DialNode opens a raw transport tunnel to a node via the proxy's peer dial service.
+func (c *Client) DialNode(ctx context.Context, nodeID string, tunnelType types.TunnelType, src, dst net.Addr, targetScope string) (net.Conn, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	stream, err := clientapi.NewProxyServiceClient(c.grpcConn).DialNode(ctx)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	err = stream.Send(&clientapi.Frame{Message: &clientapi.Frame_DialRequest{DialRequest: &clientapi.DialRequest{
+		NodeID:     nodeID,
+		TunnelType: tunnelType,
+		Source: &clientapi.NetAddr{
+			Network: src.Network(),
+			Addr:    src.String(),
+		},
+		Destination: &clientapi.NetAddr{
+			Network: dst.Network(),
+			Addr:    dst.String(),
+		},
+		TargetScope: targetScope,
+	}}})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	msg, err := stream.Recv()
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+	if msg.GetConnectionEstablished() == nil {
+		cancel()
+		return nil, trace.ConnectionProblem(nil, "received malformed connection established frame")
+	}
+
+	source := &proxyDialStream{stream: stream, cancel: cancel}
+	rw, err := streamutils.NewReadWriter(source)
+	if err != nil {
+		_ = source.Close()
+		return nil, trace.Wrap(err)
+	}
+	return streamutils.NewConn(rw, src, dst), nil
+}
+
+type proxyDialStream struct {
+	stream clientapi.ProxyService_DialNodeClient
+	cancel context.CancelFunc
+}
+
+func (s *proxyDialStream) Send(frame []byte) error {
+	return trace.Wrap(s.stream.Send(&clientapi.Frame{Message: &clientapi.Frame_Data{Data: &clientapi.Data{Bytes: frame}}}))
+}
+
+func (s *proxyDialStream) Recv() ([]byte, error) {
+	msg, err := s.stream.Recv()
+	if err != nil {
+		if err == io.EOF {
+			return nil, io.EOF
+		}
+		return nil, trace.Wrap(err)
+	}
+	if msg.GetData() == nil {
+		return nil, trace.BadParameter("received invalid frame")
+	}
+	return msg.GetData().GetBytes(), nil
+}
+
+func (s *proxyDialStream) Close() error {
+	s.cancel()
+	return trace.Wrap(s.stream.CloseSend())
 }
 
 // ClusterDetails retrieves cluster information as seen by the Proxy.

@@ -22,8 +22,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
+	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -40,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	quicpeeringv1a "github.com/gravitational/teleport/gen/proto/go/teleport/quicpeering/v1alpha"
+	"github.com/gravitational/teleport/lib/moshtunnel"
 	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
 	"github.com/gravitational/teleport/lib/proxy/peer/internal"
 	"github.com/gravitational/teleport/lib/utils"
@@ -52,6 +55,8 @@ type ServerConfig struct {
 	// Dialer is the dialer used to open connections to agents on behalf of the
 	// peer proxies. Required.
 	Dialer peerdial.Dialer
+	// Broker handles proxy-level mosh datagram forwarding.
+	Broker *moshtunnel.Broker
 
 	// GetCertificate should return the server certificate at time of use. It
 	// should be a certificate with the Proxy host role. Required.
@@ -92,6 +97,7 @@ type Server struct {
 	dialer     peerdial.Dialer
 	tlsConfig  *tls.Config
 	quicConfig *quic.Config
+	broker     *moshtunnel.Broker
 
 	replayStore replayStore
 
@@ -166,6 +172,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 
 		MaxIdleTimeout:  maxIdleTimeout,
 		KeepAlivePeriod: keepAlivePeriod,
+		EnableDatagrams: true,
 
 		Allow0RTT: true,
 	}
@@ -178,6 +185,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		dialer:     cfg.Dialer,
 		tlsConfig:  tlsConfig,
 		quicConfig: quicConfig,
+		broker:     cfg.Broker,
 
 		runCtx:      runCtx,
 		runCancel:   runCancel,
@@ -376,6 +384,52 @@ func (s *Server) handleStream(stream *quic.Stream, conn *quic.Conn, log *slog.Lo
 		return
 	}
 
+	if req.GetConnectionType() == string(types.MoshUDPTunnel) {
+		nodeConn, err := s.dialer.Dial(clusterName, peerdial.DialParams{
+			From: &utils.NetAddr{
+				Addr:        req.GetSource().GetAddr(),
+				AddrNetwork: req.GetSource().GetNetwork(),
+			},
+			To: &utils.NetAddr{
+				Addr:        localNodeDialAddr,
+				AddrNetwork: "tcp",
+			},
+			ServerID:    req.GetTargetHostId(),
+			ConnType:    types.MoshUDPTunnel,
+			TargetScope: req.GetTargetScope(),
+		})
+		if err != nil {
+			sendErr(err)
+			return
+		}
+
+		stream.CancelRead(noStreamErrorCode)
+		if _, err := stream.Write([]byte(dialResponseOK)); err != nil {
+			nodeConn.Close()
+			return
+		}
+		_ = stream.Close()
+		closedStream = true
+		err = s.proxyDatagramsViaStream(conn, nodeConn, req.GetDestination().GetNetwork(), req.GetDestination().GetAddr())
+		log.DebugContext(conn.Context(), "done forwarding mosh datagrams", "error", err)
+		return
+	}
+	if req.GetConnectionType() == string(types.MoshProxyTunnel) {
+		if s.broker == nil {
+			sendErr(trace.BadParameter("mosh broker not configured"))
+			return
+		}
+		stream.CancelRead(noStreamErrorCode)
+		if _, err := stream.Write([]byte(dialResponseOK)); err != nil {
+			return
+		}
+		_ = stream.Close()
+		closedStream = true
+		err := s.proxyMoshDatagrams(conn)
+		log.DebugContext(conn.Context(), "done forwarding mosh broker datagrams", "error", err)
+		return
+	}
+
 	nodeConn, err := s.dialer.Dial(clusterName, peerdial.DialParams{
 		From: &utils.NetAddr{
 			Addr:        req.GetSource().GetAddr(),
@@ -427,6 +481,118 @@ func (s *Server) handleStream(stream *quic.Stream, conn *quic.Conn, log *slog.Lo
 	})
 	err = eg.Wait()
 	log.DebugContext(conn.Context(), "done forwarding data", "error", err)
+}
+
+func (s *Server) proxyMoshDatagrams(conn *quic.Conn) error {
+	endpoint := moshtunnel.NewEndpoint(func(payload []byte) error {
+		return conn.SendDatagram(payload)
+	})
+
+	for {
+		payload, err := conn.ReceiveDatagram(conn.Context())
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return nil
+			}
+			return trace.Wrap(ignoreCodeZero(err))
+		}
+		if len(payload) == 0 {
+			continue
+		}
+		pkt, err := moshtunnel.UnmarshalPacket(payload)
+		if err != nil {
+			continue
+		}
+		peer, err := s.broker.HandlePacket(endpoint, pkt, payload)
+		if err != nil {
+			continue
+		}
+		if peer == nil || pkt.Type != moshtunnel.PacketData {
+			continue
+		}
+		if err := peer.Send(payload); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+}
+
+func (s *Server) proxyDatagramsViaStream(conn *quic.Conn, nodeConn net.Conn, dstNetwork, dstAddr string) error {
+	defer nodeConn.Close()
+
+	if err := writeFrame(nodeConn, []byte(dstNetwork+"\n"+dstAddr)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var eg errgroup.Group
+	eg.Go(func() error {
+		for {
+			payload, err := conn.ReceiveDatagram(conn.Context())
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return nil
+				}
+				return trace.Wrap(ignoreCodeZero(err))
+			}
+			if len(payload) == 0 {
+				continue
+			}
+			if err := writeFrame(nodeConn, payload); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	})
+	eg.Go(func() error {
+		for {
+			payload, err := readFrame(nodeConn)
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
+					return nil
+				}
+				return trace.Wrap(err)
+			}
+			if len(payload) == 0 {
+				continue
+			}
+			if len(payload) > maxDatagramSize {
+				continue
+			}
+			if err := conn.SendDatagram(append([]byte(nil), payload...)); err != nil {
+				return trace.Wrap(ignoreCodeZero(err))
+			}
+		}
+	})
+	return trace.Wrap(eg.Wait())
+}
+
+func writeFrame(w io.Writer, payload []byte) error {
+	if len(payload) > 0xffff {
+		return trace.LimitExceeded("frame too large: %d", len(payload))
+	}
+	var hdr [2]byte
+	binary.BigEndian.PutUint16(hdr[:], uint16(len(payload)))
+	if _, err := w.Write(hdr[:]); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := w.Write(payload); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func readFrame(r io.Reader) ([]byte, error) {
+	var hdr [2]byte
+	if _, err := io.ReadFull(r, hdr[:]); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	n := int(binary.BigEndian.Uint16(hdr[:]))
+	if n == 0 {
+		return nil, nil
+	}
+	buf := make([]byte, n)
+	if _, err := io.ReadFull(r, buf); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf, nil
 }
 
 // dialResponseOK is the length-prefixed encoding of a DialResponse message that

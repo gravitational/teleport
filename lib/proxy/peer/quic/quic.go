@@ -150,6 +150,8 @@ const (
 	dialTimeout          = 30 * time.Second
 	requestTimeout       = 10 * time.Second
 	errorResponseTimeout = 10 * time.Second
+	maxDatagramSize      = 1200
+	localNodeDialAddr    = "@local-node"
 
 	// noStreamErrorCode indicates that the stream was closed with no errors.
 	noStreamErrorCode quic.StreamErrorCode = 0

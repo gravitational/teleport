@@ -159,6 +159,9 @@ func (h *sshHandler) handleTCPConnectorWithTargetConn(
 		},
 		*clientConn,
 		h.cfg.moshAttemptReporter,
+		func(ctx context.Context, nodeID string, token string, proxyID string, dst *net.UDPAddr) (net.Conn, error) {
+			return h.cfg.sshProvider.dialMoshViaProxy(ctx, target, nodeID, token, proxyID, dst)
+		},
 	)
 	return nil
 }

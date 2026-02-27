@@ -20,12 +20,15 @@ package reversetunnel
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -37,11 +40,14 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/moshtunnel"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+const maxMoshTunnelPayload = 1200
 
 // parseDialReq parses the dial request. Is backward compatible with legacy
 // payload.
@@ -243,6 +249,20 @@ func (p *transport) start() {
 				return
 			}
 
+			if dreq.ConnType == types.MoshUDPTunnel {
+				if err := req.Reply(true, []byte("Connected.")); err != nil {
+					p.logger.ErrorContext(p.closeContext, "Failed responding OK to request",
+						"request_type", req.Type,
+						"error", err,
+					)
+					return
+				}
+				if err := p.handleMoshTunnel(dreq); err != nil && !errors.Is(err, io.EOF) && !utils.IsOKNetworkError(err) {
+					p.logger.DebugContext(p.closeContext, "Mosh tunnel closed", "error", err)
+				}
+				return
+			}
+
 			if err := req.Reply(true, []byte("Connected.")); err != nil {
 				p.logger.ErrorContext(p.closeContext, "Failed responding OK to request",
 					"request_type", req.Type,
@@ -366,6 +386,119 @@ func (p *transport) start() {
 			return
 		}
 	}
+}
+
+func (p *transport) handleMoshTunnel(dreq *sshutils.DialReq) error {
+	if dreq == nil {
+		return trace.BadParameter("missing dial request")
+	}
+	if dreq.TargetScope == "" {
+		return trace.AccessDenied("missing mosh session token")
+	}
+	if dreq.ServerID == "" {
+		return trace.AccessDenied("missing mosh node ID")
+	}
+
+	target, err := readFramedPayload(p.channel)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	network, addr, ok := strings.Cut(string(target), "\n")
+	if !ok {
+		return trace.BadParameter("invalid mosh target payload")
+	}
+	if network != "udp" {
+		return trace.BadParameter("invalid mosh network %q", network)
+	}
+
+	udpAddr, err := net.ResolveUDPAddr(network, addr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if udpAddr.Port <= 0 || udpAddr.Port > 0xffff {
+		return trace.BadParameter("invalid mosh UDP port %d", udpAddr.Port)
+	}
+	if err := moshtunnel.ValidateAndTouch(dreq.TargetScope, dreq.ServerID, uint16(udpAddr.Port)); err != nil {
+		return trace.Wrap(err)
+	}
+	udpConn, err := net.DialUDP(network, nil, udpAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer udpConn.Close()
+
+	errCh := make(chan error, 2)
+	go func() {
+		for {
+			payload, err := readFramedPayload(p.channel)
+			if err != nil {
+				errCh <- trace.Wrap(err)
+				return
+			}
+			if err := moshtunnel.ValidateAndTouch(dreq.TargetScope, dreq.ServerID, uint16(udpAddr.Port)); err != nil {
+				errCh <- trace.Wrap(err)
+				return
+			}
+			if len(payload) == 0 {
+				continue
+			}
+			if _, err := udpConn.Write(payload); err != nil {
+				errCh <- trace.Wrap(err)
+				return
+			}
+		}
+	}()
+	go func() {
+		buf := make([]byte, maxMoshTunnelPayload)
+		for {
+			n, err := udpConn.Read(buf)
+			if err != nil {
+				errCh <- trace.Wrap(err)
+				return
+			}
+			if n == 0 {
+				continue
+			}
+			if err := writeFramedPayload(p.channel, buf[:n]); err != nil {
+				errCh <- trace.Wrap(err)
+				return
+			}
+		}
+	}()
+
+	return <-errCh
+}
+
+func writeFramedPayload(w io.Writer, payload []byte) error {
+	if len(payload) > 0xffff {
+		return trace.LimitExceeded("payload too large: %d", len(payload))
+	}
+	var hdr [2]byte
+	binary.BigEndian.PutUint16(hdr[:], uint16(len(payload)))
+	if _, err := w.Write(hdr[:]); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := w.Write(payload); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func readFramedPayload(r io.Reader) ([]byte, error) {
+	var hdr [2]byte
+	if _, err := io.ReadFull(r, hdr[:]); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	n := int(binary.BigEndian.Uint16(hdr[:]))
+	if n == 0 {
+		return nil, nil
+	}
+	buf := make([]byte, n)
+	if _, err := io.ReadFull(r, buf); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf, nil
 }
 
 // handleChannelRequests processes client requests from the reverse tunnel

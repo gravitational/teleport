@@ -1415,6 +1415,12 @@ const (
 
 	// OktaTunnel is a tunnel where the Okta service dials back to the proxy.
 	OktaTunnel TunnelType = "okta"
+
+	// MoshUDPTunnel is an unstable tunnel type used for mosh UDP packet relaying.
+	MoshUDPTunnel TunnelType = "mosh-udp"
+
+	// MoshProxyTunnel is an unstable tunnel type used for proxy-to-proxy mosh relaying.
+	MoshProxyTunnel TunnelType = "mosh-proxy"
 )
 
 type TunnelStrategyType string

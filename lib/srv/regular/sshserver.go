@@ -22,6 +22,7 @@ package regular
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -61,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/moshtunnel"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -76,6 +78,13 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+)
+
+const (
+	moshIPRequestType      = "mosh-ip@goteleport.com"
+	moshNodeIDRequestType  = "mosh-node-id@goteleport.com"
+	moshTokenRequestType   = "mosh-token@goteleport.com"
+	moshProxyIDRequestType = "mosh-proxy-id@goteleport.com"
 )
 
 // Server implements SSH server that uses configuration backend and
@@ -1385,7 +1394,7 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 			s.logger.WarnContext(ctx, "Failed to reply to session ID query request", "error", err)
 		}
 		return
-	case "mosh-ip@goteleport.com":
+	case moshIPRequestType:
 		if !s.moshPublicIP.IsValid() {
 			s.logger.WarnContext(ctx, "Failed to handle mosh IP query request: ssh_service.mosh_public_ip is not set")
 			if err := r.Reply(false, nil); err != nil {
@@ -1394,7 +1403,78 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 			return
 		}
 		if err := r.Reply(true, s.moshPublicIP.AsSlice()); err != nil {
-			s.logger.WarnContext(ctx, "Failed to reply to most IP query request", "error", err)
+			s.logger.WarnContext(ctx, "Failed to reply to mosh IP query request", "error", err)
+		}
+		return
+	case moshNodeIDRequestType:
+		clusterName, err := s.GetAccessPoint().GetClusterName(ctx)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to get cluster name for mosh node ID request", "error", err)
+			if err := r.Reply(false, nil); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reply to mosh node ID query request", "error", err)
+			}
+			return
+		}
+		qualifiedNodeID := []byte(s.ID() + "." + clusterName.GetClusterName())
+		if err := r.Reply(true, qualifiedNodeID); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to mosh node ID query request", "error", err)
+		}
+		return
+	case moshTokenRequestType:
+		if len(r.Payload) != 2 {
+			s.logger.WarnContext(ctx, "Failed to handle mosh token query request: invalid payload length", "length", len(r.Payload))
+			if err := r.Reply(false, nil); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reply to mosh token query request", "error", err)
+			}
+			return
+		}
+		port := binary.BigEndian.Uint16(r.Payload)
+		if port == 0 {
+			s.logger.WarnContext(ctx, "Failed to handle mosh token query request: invalid port")
+			if err := r.Reply(false, nil); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reply to mosh token query request", "error", err)
+			}
+			return
+		}
+		clusterName, err := s.GetAccessPoint().GetClusterName(ctx)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to get cluster name for mosh token query request", "error", err)
+			if err := r.Reply(false, nil); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reply to mosh token query request", "error", err)
+			}
+			return
+		}
+		nodeID := s.ID() + "." + clusterName.GetClusterName()
+		token, err := moshtunnel.Issue(nodeID, port)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to issue mosh token", "error", err)
+			if err := r.Reply(false, nil); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reply to mosh token query request", "error", err)
+			}
+			return
+		}
+		if err := r.Reply(true, []byte(token)); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to mosh token query request", "error", err)
+		}
+		return
+	case moshProxyIDRequestType:
+		if s.connectedProxyGetter == nil {
+			s.logger.WarnContext(ctx, "Failed to handle mosh proxy ID query request: missing proxy getter")
+			if err := r.Reply(false, nil); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reply to mosh proxy ID query request", "error", err)
+			}
+			return
+		}
+		proxyIDs := s.connectedProxyGetter.GetProxyIDs()
+		if len(proxyIDs) == 0 {
+			s.logger.WarnContext(ctx, "Failed to handle mosh proxy ID query request: no connected proxies")
+			if err := r.Reply(false, nil); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reply to mosh proxy ID query request", "error", err)
+			}
+			return
+		}
+		if err := r.Reply(true, []byte(proxyIDs[0])); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to mosh proxy ID query request", "error", err)
 		}
 		return
 	default:

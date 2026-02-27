@@ -19,7 +19,6 @@ package vnet
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -52,7 +51,7 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, logComponent)
 const (
 	logComponent                     = "vnet"
 	nicID                            = 1
-	mtu                              = 1500
+	mtu                              = 1200
 	tcpReceiveBufferSize             = 0 // 0 means a default will be used.
 	maxInFlightTCPConnectionAttempts = 1024
 )
@@ -109,7 +108,6 @@ type tcpHandlerSpec struct {
 func (s *tcpHandlerSpec) reportMoshAttempt(a moshAttempt) {
 	s.moshAttemptMu.Lock()
 	defer s.moshAttemptMu.Unlock()
-	fmt.Println("tcpHandlerSpec mosh attempt reported")
 	s.moshAttempts = append(s.moshAttempts, a)
 }
 
@@ -123,7 +121,12 @@ func (s *tcpHandlerSpec) latestMoshAttempt() (moshAttempt, bool) {
 }
 
 type moshAttempt struct {
-	ip []byte
+	ip         []byte
+	port       uint16
+	nodeID     string
+	token      string
+	proxyID    string
+	openTunnel func(context.Context) (net.Conn, error)
 }
 
 // tcpHandler defines the behavior for handling TCP connections from VNet.
@@ -521,16 +524,16 @@ func (ns *networkStack) handleUDP(req *udp.ForwarderRequest) {
 
 type udpForwarder struct {
 	id          stack.TransportEndpointID
-	outConn     *net.UDPConn
+	outConn     net.Conn
 	moshAttempt moshAttempt
 }
 
 func newUDPForwarder(ctx context.Context, id stack.TransportEndpointID, moshAttempt moshAttempt) (*udpForwarder, error) {
-	log.DebugContext(ctx, "newUDPForwarder", "ip", tcpip.AddrFromSlice(moshAttempt.ip))
-	outConn, err := net.DialUDP("udp", nil, &net.UDPAddr{
-		IP:   moshAttempt.ip,
-		Port: int(id.LocalPort),
-	})
+	log.DebugContext(ctx, "newUDPForwarder", "ip", tcpip.AddrFromSlice(moshAttempt.ip), "port", moshAttempt.port, "node_id", moshAttempt.nodeID)
+	if moshAttempt.openTunnel == nil {
+		return nil, trace.BadParameter("missing mosh tunnel opener")
+	}
+	outConn, err := moshAttempt.openTunnel(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -581,15 +584,14 @@ func (ns *networkStack) handleUDPConcurrent(req *udp.ForwarderRequest) {
 			slog.DebugContext(ctx, "No mosh attempts at this IP")
 			return
 		}
+		if id.LocalPort != moshAttempt.port {
+			slog.DebugContext(ctx, "No mosh tunnel for UDP port", "local_port", id.LocalPort, "mosh_port", moshAttempt.port)
+			return
+		}
 		var err error
 		handler, err = newUDPForwarder(ctx, id, moshAttempt)
 		if err != nil {
-			slog.DebugContext(ctx, "Failed to make UDP forwarded", "error", err)
-			return
-		}
-		// Check if maybe mosh and blindly forward lol.
-		if id.LocalPort < 60000 || id.LocalPort > 61000 {
-			slog.DebugContext(ctx, "No handler for address.")
+			slog.DebugContext(ctx, "Failed to make UDP forwarder", "error", err)
 			return
 		}
 	}

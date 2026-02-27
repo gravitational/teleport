@@ -19,14 +19,23 @@ package vnet
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"strconv"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+)
+
+const (
+	moshIPRequestType  = "mosh-ip@goteleport.com"
+	moshNodeIDReqType  = "mosh-node-id@goteleport.com"
+	moshTokenReqType   = "mosh-token@goteleport.com"
+	moshProxyIDReqType = "mosh-proxy-id@goteleport.com"
 )
 
 // sshConn represents an established SSH client or server connection.
@@ -55,6 +64,7 @@ func proxySSHConnection(
 	serverConn sshConn,
 	clientConn sshConn,
 	moshAttemptReporter moshAttemptReporter,
+	openMoshTunnel func(context.Context, string, string, string, *net.UDPAddr) (net.Conn, error),
 ) {
 	closeConnections := sync.OnceFunc(func() {
 		clientConn.Close()
@@ -85,15 +95,57 @@ func proxySSHConnection(
 		proxyGlobalRequests(ctx, clientConn.conn, serverConn.reqs, closeConnections)
 	})
 
-	reportMoshAttempt := func() {
-		success, reply, err := clientConn.conn.SendRequest("mosh-ip@goteleport.com", true, nil)
+	reportMoshAttempt := func(port uint16) {
+		success, reply, err := clientConn.conn.SendRequest(moshIPRequestType, true, nil)
 		if err != nil || !success {
 			log.WarnContext(ctx, "Mosh IP request failed", "error", err, "success", success)
 			return
 		}
-		log.DebugContext(ctx, "Mosh IP request succeeded")
+		if len(reply) == 0 {
+			log.WarnContext(ctx, "Mosh IP request returned an empty IP")
+			return
+		}
+		nodeSuccess, nodeReply, err := clientConn.conn.SendRequest(moshNodeIDReqType, true, nil)
+		if err != nil || !nodeSuccess || len(nodeReply) == 0 {
+			log.WarnContext(ctx, "Mosh node ID request failed", "error", err, "success", nodeSuccess)
+			return
+		}
+		nodeID := string(nodeReply)
+		remoteIP := net.IP(append([]byte(nil), reply...))
+		var tokenPayload [2]byte
+		binary.BigEndian.PutUint16(tokenPayload[:], port)
+		tokenSuccess, tokenReply, err := clientConn.conn.SendRequest(moshTokenReqType, true, tokenPayload[:])
+		if err != nil || !tokenSuccess || len(tokenReply) == 0 {
+			log.WarnContext(ctx, "Mosh token request failed", "error", err, "success", tokenSuccess)
+			return
+		}
+		token := string(tokenReply)
+		proxySuccess, proxyReply, err := clientConn.conn.SendRequest(moshProxyIDReqType, true, nil)
+		if err != nil || !proxySuccess || len(proxyReply) == 0 {
+			log.WarnContext(ctx, "Mosh proxy ID request failed", "error", err, "success", proxySuccess)
+			return
+		}
+		proxyID := string(proxyReply)
+		log.DebugContext(ctx, "Mosh IP request succeeded", "port", port)
+		attempt := moshAttempt{
+			ip:      append([]byte(nil), reply...),
+			port:    port,
+			nodeID:  nodeID,
+			token:   token,
+			proxyID: proxyID,
+		}
+		if openMoshTunnel != nil {
+			attempt.openTunnel = func(ctx context.Context) (net.Conn, error) {
+				return openMoshTunnel(ctx, nodeID, token, proxyID, &net.UDPAddr{IP: remoteIP, Port: int(port)})
+			}
+		}
 		moshAttemptReporter.reportMoshAttempt(moshAttempt{
-			ip: reply,
+			ip:         attempt.ip,
+			port:       attempt.port,
+			nodeID:     attempt.nodeID,
+			token:      attempt.token,
+			proxyID:    attempt.proxyID,
+			openTunnel: attempt.openTunnel,
 		})
 	}
 
@@ -113,7 +165,7 @@ func proxyChannels(
 	targetConn ssh.Conn,
 	chans <-chan ssh.NewChannel,
 	closeConnections func(),
-	reportMoshAttempt func(),
+	reportMoshAttempt func(uint16),
 ) {
 	// Proxy each SSH channel in its own goroutine, make sure they don't leak by
 	// tracking with a WaitGroup.
@@ -133,7 +185,7 @@ func proxyChannel(
 	targetConn ssh.Conn,
 	newChan ssh.NewChannel,
 	closeConnections func(),
-	reportMoshAttempt func(),
+	reportMoshAttempt func(uint16),
 ) {
 	log := log.With("channel_type", newChan.ChannelType())
 	log.DebugContext(ctx, "Proxying new SSH channel")
@@ -211,10 +263,10 @@ type sshChan struct {
 	ch                ssh.Channel
 	requests          <-chan *ssh.Request
 	log               *slog.Logger
-	reportMoshAttempt func()
+	reportMoshAttempt func(uint16)
 }
 
-func newSSHChan(ch ssh.Channel, requests <-chan *ssh.Request, log *slog.Logger, reportMoshAttempt func()) *sshChan {
+func newSSHChan(ch ssh.Channel, requests <-chan *ssh.Request, log *slog.Logger, reportMoshAttempt func(uint16)) *sshChan {
 	return &sshChan{
 		ch:                ch,
 		requests:          requests,
@@ -314,10 +366,10 @@ func (c *sshChan) writeRequestsFrom(ctx context.Context, source *sshChan) {
 type moshDetector struct {
 	data              []byte
 	decided           bool
-	reportMoshAttempt func()
+	reportMoshAttempt func(uint16)
 }
 
-func newMoshDetector(reportMoshAttempt func()) *moshDetector {
+func newMoshDetector(reportMoshAttempt func(uint16)) *moshDetector {
 	return &moshDetector{
 		reportMoshAttempt: reportMoshAttempt,
 	}
@@ -328,15 +380,39 @@ func (d *moshDetector) Write(b []byte) (int, error) {
 		return len(b), nil
 	}
 	d.data = append(d.data, b...)
-	if len(d.data) < 20 {
+	const maxInspectBytes = 4096
+	if port, ok := parseMoshConnectPort(d.data); ok {
+		d.reportMoshAttempt(port)
+		d.decided = true
 		return len(b), nil
 	}
-	if bytes.Contains(d.data, []byte("MOSH CONNECT")) {
-		fmt.Println("Found Mosh:", string(d.data))
-		d.reportMoshAttempt()
+	if len(d.data) < len("MOSH CONNECT 0") && len(d.data) < maxInspectBytes {
+		return len(b), nil
 	}
-	d.decided = true
+	if len(d.data) > maxInspectBytes {
+		d.data = d.data[len(d.data)-maxInspectBytes:]
+	}
 	return len(b), nil
+}
+
+func parseMoshConnectPort(data []byte) (uint16, bool) {
+	idx := bytes.Index(data, []byte("MOSH CONNECT "))
+	if idx < 0 {
+		return 0, false
+	}
+	start := idx + len("MOSH CONNECT ")
+	end := start
+	for end < len(data) && data[end] >= '0' && data[end] <= '9' {
+		end++
+	}
+	if end == start {
+		return 0, false
+	}
+	p, err := strconv.ParseUint(string(data[start:end]), 10, 16)
+	if err != nil || p == 0 {
+		return 0, false
+	}
+	return uint16(p), true
 }
 
 func proxyGlobalRequests(

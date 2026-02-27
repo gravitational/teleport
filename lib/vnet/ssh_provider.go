@@ -32,6 +32,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/moshtunnel"
+	moshquic "github.com/gravitational/teleport/lib/moshtunnel/quic"
 )
 
 // sshProvider provides methods necessary for VNet SSH access.
@@ -135,6 +137,33 @@ func (p *sshProvider) dialViaProxy(
 	// Make sure to close the proxy client, but not until we're done with the
 	// target connection or else it would close the underlying gRPC stream.
 	conn = newConnWithExtraCloser(conn, pclt.Close)
+	return conn, nil
+}
+
+func (p *sshProvider) dialMoshViaProxy(ctx context.Context, target dialTarget, nodeID string, token string, proxyID string, dst *net.UDPAddr) (net.Conn, error) {
+	userTLSCertResp, err := p.cfg.clt.UserTLSCert(ctx, target.profile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rawCert := userTLSCertResp.GetCert()
+	dialOpts := userTLSCertResp.GetDialOptions()
+	tlsConfig, err := p.userTLSConfig(ctx, target.profile, rawCert, dialOpts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	addr := dialOpts.GetWebProxyAddr()
+	conn, err := moshquic.Dial(ctx, moshquic.DialConfig{
+		Addr:    addr,
+		TLS:     tlsConfig,
+		Token:   token,
+		NodeID:  nodeID,
+		ProxyID: proxyID,
+		Port:    uint16(dst.Port),
+		Role:    moshtunnel.RoleClient,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "dialing mosh UDP datagram service")
+	}
 	return conn, nil
 }
 

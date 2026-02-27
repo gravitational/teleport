@@ -117,6 +117,7 @@ func NewClientConn(config ClientConnConfig) (*ClientConn, error) {
 
 		MaxIdleTimeout:  maxIdleTimeout,
 		KeepAlivePeriod: keepAlivePeriod,
+		EnableDatagrams: true,
 
 		TokenStore: quic.NewLRUTokenStore(10, 10),
 	}
@@ -233,6 +234,7 @@ func (c *ClientConn) Dial(nodeID, scope string, src net.Addr, dst net.Addr, tunn
 	}
 
 	log := c.log.With("conn_nonce", nonce)
+	useDatagrams := tunnelType == types.MoshUDPTunnel || tunnelType == types.MoshProxyTunnel
 
 	req := &quicpeeringv1a.DialRequest{
 		TargetHostId:   nodeID,
@@ -355,6 +357,28 @@ func (c *ClientConn) Dial(nodeID, scope string, src net.Addr, dst net.Addr, tunn
 			)
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	if useDatagrams {
+		stream.CancelRead(noStreamErrorCode)
+		_ = stream.Close()
+
+		dc := &datagramConn{
+			conn: conn,
+			src:  src,
+			dst:  dst,
+		}
+
+		detach := context.AfterFunc(c.runCtx, func() { _ = dc.Close() })
+		c.wg.Add(1)
+		context.AfterFunc(conn.Context(), func() {
+			err := ignoreCodeZero(context.Cause(conn.Context()))
+			log.DebugContext(conn.Context(), "connection closed", "error", err)
+			c.wg.Done()
+			detach()
+		})
+
+		return dc, nil
 	}
 
 	sc := &streamConn{
@@ -550,4 +574,109 @@ func (c *streamConn) LocalAddr() net.Addr {
 // RemoteAddr implements [net.Conn].
 func (c *streamConn) RemoteAddr() net.Addr {
 	return c.dst
+}
+
+type datagramConn struct {
+	conn *quic.Conn
+
+	src net.Addr
+	dst net.Addr
+
+	readMu        sync.Mutex
+	readRemainder []byte
+	readDeadline  time.Time
+
+	writeMu       sync.Mutex
+	writeDeadline time.Time
+}
+
+var _ net.Conn = (*datagramConn)(nil)
+
+func (c *datagramConn) Read(b []byte) (int, error) {
+	c.readMu.Lock()
+	defer c.readMu.Unlock()
+
+	if len(c.readRemainder) == 0 {
+		ctx := context.Background()
+		if !c.readDeadline.IsZero() {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithDeadline(ctx, c.readDeadline)
+			defer cancel()
+		}
+		payload, err := c.conn.ReceiveDatagram(ctx)
+		if err != nil {
+			err = ignoreCodeZero(err)
+			if err == nil {
+				return 0, io.EOF
+			}
+			return 0, trace.Wrap(err)
+		}
+		c.readRemainder = payload
+	}
+
+	n := copy(b, c.readRemainder)
+	c.readRemainder = c.readRemainder[n:]
+	if n == 0 {
+		return 0, io.ErrShortBuffer
+	}
+	return n, nil
+}
+
+func (c *datagramConn) Write(b []byte) (int, error) {
+	if len(b) == 0 {
+		return 0, nil
+	}
+	if len(b) > maxDatagramSize {
+		return 0, trace.LimitExceeded("payload too large for mosh datagram: %d", len(b))
+	}
+
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
+	if err := c.conn.SendDatagram(append([]byte(nil), b...)); err != nil {
+		err = ignoreCodeZero(err)
+		if err == nil {
+			return 0, net.ErrClosed
+		}
+		return 0, trace.Wrap(err)
+	}
+	return len(b), nil
+}
+
+func (c *datagramConn) Close() error {
+	return trace.Wrap(c.conn.CloseWithError(noApplicationErrorCode, ""))
+}
+
+func (c *datagramConn) LocalAddr() net.Addr {
+	return c.src
+}
+
+func (c *datagramConn) RemoteAddr() net.Addr {
+	return c.dst
+}
+
+func (c *datagramConn) SetDeadline(t time.Time) error {
+	c.readMu.Lock()
+	c.readDeadline = t
+	c.readMu.Unlock()
+
+	c.writeMu.Lock()
+	c.writeDeadline = t
+	c.writeMu.Unlock()
+
+	return nil
+}
+
+func (c *datagramConn) SetReadDeadline(t time.Time) error {
+	c.readMu.Lock()
+	defer c.readMu.Unlock()
+	c.readDeadline = t
+	return nil
+}
+
+func (c *datagramConn) SetWriteDeadline(t time.Time) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	c.writeDeadline = t
+	return nil
 }

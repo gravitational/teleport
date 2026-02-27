@@ -552,7 +552,7 @@ func (s *localCluster) skipDirectDial(params reversetunnelclient.DialParams) (bo
 	// over a direct dial.
 	switch params.ConnType {
 	case types.KubeTunnel, types.NodeTunnel, types.ProxyTunnel, types.WindowsDesktopTunnel:
-	case types.AppTunnel, types.DatabaseTunnel, types.OktaTunnel:
+	case types.AppTunnel, types.DatabaseTunnel, types.OktaTunnel, types.MoshUDPTunnel:
 		return true, nil
 	default:
 		return true, trace.BadParameter("unknown tunnel type: %s", params.ConnType)
@@ -921,6 +921,10 @@ func (s *localCluster) getRemoteConn(dreq *sshutils.DialReq) (*remoteConn, error
 		uuid:     dreq.ServerID,
 		connType: dreq.ConnType,
 		scope:    dreq.TargetScope,
+	}
+	if dreq.ConnType == types.MoshUDPTunnel {
+		key.connType = types.NodeTunnel
+		key.scope = ""
 	}
 
 	conns := s.remoteConns[key]

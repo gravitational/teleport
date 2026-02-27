@@ -151,6 +151,8 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/moshtunnel"
+	moshquic "github.com/gravitational/teleport/lib/moshtunnel/quic"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -3685,6 +3687,67 @@ func (process *TeleportProcess) initSSH() error {
 			}
 		}
 
+		// Start mosh QUIC node agent to handle datagram-only tunnels.
+		go func() {
+			for {
+				addr, _, err := conn.TunnelProxyResolver()(process.ExitContext())
+				if err != nil {
+					logger.WarnContext(process.ExitContext(), "failed to resolve proxy address for mosh QUIC", "error", err)
+					select {
+					case <-time.After(5 * time.Second):
+						continue
+					case <-process.ExitContext().Done():
+						return
+					}
+				}
+				if addr == nil {
+					select {
+					case <-time.After(5 * time.Second):
+						continue
+					case <-process.ExitContext().Done():
+						return
+					}
+				}
+				addrCopy := *addr
+				addrCopy.Addr = utils.ReplaceUnspecifiedHost(&addrCopy, defaults.HTTPListenPort)
+				rootCAs, err := conn.ClientGetPool()
+				if err != nil {
+					logger.WarnContext(process.ExitContext(), "failed to get mosh QUIC client roots", "error", err)
+					return
+				}
+				host, _, err := net.SplitHostPort(addrCopy.Addr)
+				if err != nil {
+					logger.WarnContext(process.ExitContext(), "failed to parse mosh QUIC address", "error", err)
+					return
+				}
+				tlsConfig := &tls.Config{
+					RootCAs:    rootCAs,
+					ServerName: host,
+					MinVersion: tls.VersionTLS13,
+					GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+						return conn.ClientGetCertificate()
+					},
+				}
+				nodeID := conn.HostUUID() + "." + conn.ClusterName()
+				_, err = moshquic.NewNodeAgent(process.ExitContext(), moshquic.NodeAgentConfig{
+					Addr:   addrCopy.Addr,
+					TLS:    tlsConfig,
+					NodeID: nodeID,
+				})
+				if err != nil {
+					logger.WarnContext(process.ExitContext(), "failed to start mosh QUIC node agent", "error", err)
+					select {
+					case <-time.After(5 * time.Second):
+						continue
+					case <-process.ExitContext().Done():
+						return
+					}
+				}
+				<-process.ExitContext().Done()
+				return
+			}
+		}()
+
 		if conn.UseTunnel() {
 			var serverHandler reversetunnel.ServerHandler = s
 			if resumableServer != nil {
@@ -5001,6 +5064,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		tsrv                     reversetunnelclient.Server
 		peerClient               *peer.Client
 		peerQUICTransport        *quic.Transport
+		moshQUICTransport        *quic.Transport
 		rcWatcher                *reversetunnel.RemoteClusterTunnelManager
 		peerServer               *peer.Server
 		peerQUICServer           *peerquic.Server
@@ -5027,6 +5091,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		// cases and prevent shutdown from running prematurely.
 		initShutdownMtx sync.Mutex
 	)
+	moshBroker := moshtunnel.NewBroker()
 	initShutdownMtx.Lock()
 	defer initShutdownMtx.Unlock()
 
@@ -5166,6 +5231,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			_ = peerQUICTransport.Close()
 			_ = peerQUICTransport.Conn.Close()
 		}
+		if moshQUICTransport != nil {
+			_ = moshQUICTransport.Close()
+			_ = moshQUICTransport.Conn.Close()
+		}
 		warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)
 		logger.InfoContext(process.ExitContext(), "Exited")
@@ -5175,21 +5244,36 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// from remote teleport nodes
 	if !process.Config.Proxy.DisableReverseTunnel {
 		if listeners.proxyPeer != nil {
-			if process.Config.Proxy.QUICProxyPeering {
+			var resetKey *quic.StatelessResetKey
+			if process.Config.Proxy.QUICProxyPeering || listeners.web != nil {
 				// the stateless reset key is important in case there's a crash
 				// so peers can be told to close their side of the connections
 				// instead of having to wait for a timeout; for this reason, we
 				// store it in the datadir, which should persist just as much as
 				// the host ID and the cluster credentials
-				resetKey, err := process.readOrInitPeerStatelessResetKey()
+				resetKey, err = process.readOrInitPeerStatelessResetKey()
 				if err != nil {
 					return trace.Wrap(err)
 				}
+			}
+			if process.Config.Proxy.QUICProxyPeering {
 				pc, err := process.createPacketConn(string(ListenerProxyPeer), listeners.proxyPeer.Addr().String())
 				if err != nil {
 					return trace.Wrap(err)
 				}
 				peerQUICTransport = &quic.Transport{
+					Conn: pc,
+
+					StatelessResetKey: resetKey,
+				}
+			}
+			if listeners.web != nil {
+				// Use the web proxy address for the mosh QUIC datagram service.
+				pc, err := process.createPacketConn(string(ListenerProxyMoshQUIC), listeners.web.Addr().String())
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				moshQUICTransport = &quic.Transport{
 					Conn: pc,
 
 					StatelessResetKey: resetKey,
@@ -5212,6 +5296,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			moshBroker.SetPeerForwarder(newMoshPeerForwarder(moshPeerForwarderConfig{
+				Broker:     moshBroker,
+				PeerClient: peerClient,
+				Log:        process.logger,
+			}))
 		}
 
 		rtListener, err := reverseTunnelLimiter.WrapListener(listeners.reverseTunnel)
@@ -5602,6 +5691,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			peerQUICServer, err := peerquic.NewServer(peerquic.ServerConfig{
 				Log:    process.logger,
 				Dialer: reversetunnelclient.NewPeerDialer(tsrv),
+				Broker: moshBroker,
 				GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 					return conn.serverGetCertificate()
 				},
@@ -5630,6 +5720,53 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				}
 
 				return nil
+			})
+		}
+		if moshQUICTransport != nil {
+			moshServer, err := moshquic.NewServer(moshquic.ServerConfig{
+				Log:    process.logger,
+				Broker: moshBroker,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			process.RegisterCriticalFunc("proxy.mosh.quic", func() error {
+				pool, _, _, err := authclient.DefaultClientCertPool(process.ExitContext(), accessPoint, clusterName)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				tlsConfig := &tls.Config{
+					ClientAuth: tls.RequireAndVerifyClientCert,
+					ClientCAs:  pool,
+					GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+						return conn.serverGetCertificate()
+					},
+					NextProtos: []string{moshquic.ALPNProtocol},
+					MinVersion: tls.VersionTLS13,
+				}
+				quicConfig := &quic.Config{
+					EnableDatagrams: true,
+					KeepAlivePeriod: 10 * time.Second,
+				}
+
+				lis, err := moshQUICTransport.ListenEarly(tlsConfig, quicConfig)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				defer lis.Close()
+				logger.InfoContext(process.ExitContext(), "starting mosh QUIC datagram service", "local_addr", logutils.StringerAttr(moshQUICTransport.Conn.LocalAddr()))
+
+				for {
+					conn, err := lis.Accept(process.ExitContext())
+					if err != nil {
+						if errors.Is(err, quic.ErrServerClosed) {
+							return nil
+						}
+						return trace.Wrap(err)
+					}
+					go moshServer.HandleConn(conn)
+				}
 			})
 		}
 	}
