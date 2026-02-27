@@ -253,6 +253,7 @@ func ConfigureCAsForTrustedCluster(tc types.TrustedCluster, cas []types.CertAuth
 	configureCAsForTrustedCluster(tc, cas)
 }
 
+// UpdateAccessRequestWithAdditionalReviewers updates the access request with the suggested reviewers.
 func UpdateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, suggestedReviewers []string) {
 	updateAccessRequestWithAdditionalReviewers(req, suggestedReviewers)
 }
