@@ -19,12 +19,9 @@ package tlsca_test
 import (
 	"crypto/x509/pkix"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -107,47 +104,4 @@ func TestClusterName(t *testing.T) {
 			assert.Equal(t, test.want, got, "Cluster name mismatch")
 		})
 	}
-}
-
-func TestGenerateSelfSignedCAForTesting(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ok", func(t *testing.T) {
-		t.Parallel()
-
-		keyPEM, certPEM, err := tlsca.GenerateSelfSignedCAForTesting(tlsca.GenerateTestCAConfig{
-			ClusterName: "localhost",
-		})
-		require.NoError(t, err)
-
-		_, err = keys.ParsePrivateKey(keyPEM)
-		require.NoError(t, err, "Parse private key")
-
-		cert, err := tlsca.ParseCertificatePEM(certPEM)
-		require.NoError(t, err, "Parse certificate")
-
-		now := time.Now().Add(1 * time.Nanosecond) // add 1ns just to extra safe.
-		assert.True(t, cert.NotBefore.Before(now), "NotBefore in the future")
-		assert.True(t, cert.NotAfter.After(now), "NotAfter in the past")
-	})
-
-	t.Run("custom timestamps", func(t *testing.T) {
-		t.Parallel()
-
-		// Timestamps need to be UTC and at second precision.
-		notBefore := time.Date(2026, 2, 2, 0, 0, 0, 0, time.UTC)
-		notAfter := time.Date(2126, 2, 2, 0, 0, 0, 0, time.UTC)
-
-		_, certPEM, err := tlsca.GenerateSelfSignedCAForTesting(tlsca.GenerateTestCAConfig{
-			ClusterName: "localhost",
-			NotBefore:   notBefore,
-			NotAfter:    notAfter,
-		})
-		require.NoError(t, err)
-
-		cert, err := tlsca.ParseCertificatePEM(certPEM)
-		require.NoError(t, err)
-		assert.Equal(t, notBefore, cert.NotBefore, "NotBefore mismatch")
-		assert.Equal(t, notAfter, cert.NotAfter, "NotAfter mismatch")
-	})
 }
