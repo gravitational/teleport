@@ -188,7 +188,7 @@ func (a *Server) AutoRotateCertAuthorities(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	// Use the CA-rotation keystore override if configured.
-	keyStore := a.getCAKeyStoreForRotation()
+	keyStore := a.getCAKeyStoreForRotation(ctx)
 
 	usableKeysResults := make(map[types.CertAuthType]*keystore.UsableKeysResult)
 	for _, caType := range types.CertAuthTypes {
@@ -376,7 +376,7 @@ func (a *Server) startNewRotation(ctx context.Context, req rotationReq, ca types
 	activeKeys := ca.GetActiveKeys()
 	additionalKeys := ca.GetAdditionalTrustedKeys()
 	// Use the CA-rotation keystore override if configured.
-	keyStore := a.getCAKeyStoreForRotation()
+	keyStore := a.getCAKeyStoreForRotation(ctx)
 	var newKeys types.CAKeySet
 
 	// generate keys and certificates:

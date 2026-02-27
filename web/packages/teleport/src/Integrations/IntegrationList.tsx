@@ -54,7 +54,10 @@ import {
 } from 'teleport/services/integrations';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
+import {
+  ExternalAuditStorageOpType,
+  ExternalCAKeyStorageOpType,
+} from './Operations/useIntegrationOperation';
 import { StatusLabel } from './shared/StatusLabel';
 import { StatusOptions, type Status } from './types';
 
@@ -66,6 +69,7 @@ type Props = {
     onEditIntegration(i: Integration): void;
   };
   onDeleteExternalAuditStorage?(opType: ExternalAuditStorageOpType): void;
+  onDeleteExternalCAKeyStorage?(opType: ExternalCAKeyStorageOpType): void;
 };
 
 export type IntegrationLike =
@@ -306,16 +310,39 @@ export function IntegrationList(props: Props) {
                 return (
                   <Cell align="right">
                     <MenuButton>
+                        <MenuItem
+                          as={InternalRouteLink}
+                          to={{
+                            pathname: cfg.getIntegrationEnrollRoute(
+                              IntegrationKind.ExternalCAKeyStorage
+                            ),
+                            state: { continueDraft: true },
+                          }}
+                        >
+                          Continue Setup...
+                        </MenuItem>
+                        <MenuItem
+                          onClick={() =>
+                            props.onDeleteExternalCAKeyStorage?.('draft')
+                          }
+                        >
+                          Delete...
+                        </MenuItem>
+                      </MenuButton>
+                    </Cell>
+                  );
+              }
+
+              if (item.resourceType === 'external-ca-key-storage') {
+                return (
+                  <Cell align="right">
+                    <MenuButton>
                       <MenuItem
-                        as={InternalRouteLink}
-                        to={{
-                          pathname: cfg.getIntegrationEnrollRoute(
-                            IntegrationKind.ExternalCAKeyStorage
-                          ),
-                          state: { continueDraft: true },
-                        }}
+                        onClick={() =>
+                          props.onDeleteExternalCAKeyStorage?.('cluster')
+                        }
                       >
-                        Continue Setup...
+                        Delete...
                       </MenuItem>
                     </MenuButton>
                   </Cell>

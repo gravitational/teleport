@@ -85,7 +85,8 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caCert, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
+	keyStore := a.getCAKeyStoreForSigningCA(ctx, ca)
+	caCert, signer, err := keyStore.GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

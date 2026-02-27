@@ -142,7 +142,8 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caCert, signer, err := getCAandSigner(ctx, a.GetKeyStore(), ca, req)
+	keyStore := a.getCAKeyStoreForSigningCA(ctx, ca)
+	caCert, signer, err := getCAandSigner(ctx, keyStore, ca, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -292,7 +293,8 @@ func (a *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 		return nil, trace.Wrap(err)
 	}
 
-	cert, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
+	keyStore := a.getCAKeyStoreForSigningCA(ctx, ca)
+	cert, signer, err := keyStore.GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -369,7 +371,8 @@ func (a *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 
 	subject, issuer := getSnowflakeJWTParams(ctx, req.AccountName, req.UserName, pubKey)
 
-	_, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
+	keyStore := a.getCAKeyStoreForSigningCA(ctx, ca)
+	_, signer, err := keyStore.GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

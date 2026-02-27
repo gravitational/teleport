@@ -193,6 +193,12 @@ type Options struct {
 	Logger *slog.Logger
 	// AuthPreferenceGetter provides the current cluster auth preference.
 	AuthPreferenceGetter cryptosuites.AuthPreferenceGetter
+	// IntegrationGetter fetches AWS OIDC integrations by name when the keystore
+	// is configured to use integration-backed credentials.
+	IntegrationGetter integrationGetter
+	// AWSOIDCTokenGenerator generates AWS OIDC tokens used when the keystore is
+	// configured to use integration-backed credentials.
+	AWSOIDCTokenGenerator awsOIDCTokenGenerator
 	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
 	// OAEPHash function to use with keystores that support OAEP with a configurable hash.
@@ -210,6 +216,14 @@ type Options struct {
 
 	// GCPKMS uses a special fake clock that seemed more testable at the time.
 	faketimeOverride faketime.Clock
+}
+
+type integrationGetter interface {
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+}
+
+type awsOIDCTokenGenerator interface {
+	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
 }
 
 // CheckAndSetDefaults checks that the options are valid and sets defaults.

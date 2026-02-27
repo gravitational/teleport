@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
@@ -85,17 +86,44 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 	mrkClient := opts.mrkClient
 
 	if stsClient == nil || kmsClient == nil || rgtClient == nil {
-		useFIPSEndpoint := aws.FIPSEndpointStateUnset
-		if opts.FIPS {
-			useFIPSEndpoint = aws.FIPSEndpointStateEnabled
+		var awsCfg aws.Config
+		switch cfg.IntegrationName {
+		case "":
+			useFIPSEndpoint := aws.FIPSEndpointStateUnset
+			if opts.FIPS {
+				useFIPSEndpoint = aws.FIPSEndpointStateEnabled
+			}
+			loadedCfg, err := config.LoadDefaultConfig(ctx,
+				config.WithRegion(cfg.AWSRegion),
+				config.WithUseFIPSEndpoint(useFIPSEndpoint),
+			)
+			if err != nil {
+				return nil, trace.Wrap(err, "loading default AWS config")
+			}
+			awsCfg = loadedCfg
+
+		default:
+			if opts.IntegrationGetter == nil {
+				return nil, trace.BadParameter("missing IntegrationGetter for AWS KMS integration-backed credentials")
+			}
+			if opts.AWSOIDCTokenGenerator == nil {
+				return nil, trace.BadParameter("missing AWSOIDCTokenGenerator for AWS KMS integration-backed credentials")
+			}
+
+			integrationCfg, err := credprovider.CreateAWSConfigForIntegration(ctx, credprovider.Config{
+				Region:                cfg.AWSRegion,
+				IntegrationName:       cfg.IntegrationName,
+				IntegrationGetter:     opts.IntegrationGetter,
+				AWSOIDCTokenGenerator: opts.AWSOIDCTokenGenerator,
+				Logger:                opts.Logger.With("component", "awsoidc_credentials_provider"),
+				Clock:                 opts.Clock,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err, "building AWS integration credentials provider")
+			}
+			awsCfg = *integrationCfg
 		}
-		awsCfg, err := config.LoadDefaultConfig(ctx,
-			config.WithRegion(cfg.AWSRegion),
-			config.WithUseFIPSEndpoint(useFIPSEndpoint),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err, "loading default AWS config")
-		}
+
 		if stsClient == nil {
 			stsClient = stsutils.NewFromConfig(awsCfg, func(o *sts.Options) {
 				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
@@ -123,10 +151,10 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 	}
 	id, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
-		return nil, trace.Wrap(err, "checking AWS account of local credentials for AWS KMS")
+		return nil, trace.Wrap(err, "checking AWS account for AWS KMS credentials")
 	}
 	if aws.ToString(id.Account) != cfg.AWSAccount {
-		return nil, trace.BadParameter("configured AWS KMS account %q does not match AWS account of ambient credentials %q",
+		return nil, trace.BadParameter("configured AWS KMS account %q does not match AWS account of resolved credentials %q",
 			cfg.AWSAccount, aws.ToString(id.Account))
 	}
 

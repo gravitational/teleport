@@ -193,7 +193,106 @@ func TestAWSKMS_WrongAccount(t *testing.T) {
 		},
 	}
 	_, err = NewManager(context.Background(), cfg, opts)
-	require.ErrorIs(t, err, trace.BadParameter(`configured AWS KMS account "111111111111" does not match AWS account of ambient credentials "222222222222"`))
+	require.ErrorIs(t, err, trace.BadParameter(`configured AWS KMS account "111111111111" does not match AWS account of resolved credentials "222222222222"`))
+}
+
+func TestAWSKMS_IntegrationCredentialsRequireDependencies(t *testing.T) {
+	cfg := &servicecfg.KeystoreConfig{
+		AWSKMS: &servicecfg.AWSKMSConfig{
+			AWSAccount:      "111111111111",
+			AWSRegion:       "us-west-2",
+			IntegrationName: "test-integration",
+		},
+	}
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "test-cluster"})
+	require.NoError(t, err)
+
+	t.Run("missing integration getter", func(t *testing.T) {
+		opts := &Options{
+			ClusterName:          clusterName,
+			HostUUID:             "uuid",
+			AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
+		}
+
+		_, err := NewManager(context.Background(), cfg, opts)
+		require.ErrorIs(t, err, trace.BadParameter("missing IntegrationGetter for AWS KMS integration-backed credentials"))
+	})
+
+	t.Run("missing aws oidc token generator", func(t *testing.T) {
+		opts := &Options{
+			ClusterName:          clusterName,
+			HostUUID:             "uuid",
+			AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
+			IntegrationGetter:    &fakeIntegrationGetter{},
+		}
+
+		_, err := NewManager(context.Background(), cfg, opts)
+		require.ErrorIs(t, err, trace.BadParameter("missing AWSOIDCTokenGenerator for AWS KMS integration-backed credentials"))
+	})
+}
+
+func TestAWSKMS_IntegrationCredentialsProviderError(t *testing.T) {
+	cfg := &servicecfg.KeystoreConfig{
+		AWSKMS: &servicecfg.AWSKMSConfig{
+			AWSAccount:      "111111111111",
+			AWSRegion:       "us-west-2",
+			IntegrationName: "test-integration",
+		},
+	}
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "test-cluster"})
+	require.NoError(t, err)
+
+	opts := &Options{
+		ClusterName:           clusterName,
+		HostUUID:              "uuid",
+		AuthPreferenceGetter:  &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
+		IntegrationGetter:     &fakeIntegrationGetter{},
+		AWSOIDCTokenGenerator: &fakeAWSOIDCTokenGenerator{},
+	}
+
+	_, err = NewManager(context.Background(), cfg, opts)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "building AWS integration credentials provider")
+	require.ErrorContains(t, err, "not implemented")
+}
+
+func TestAWSKMS_IntegrationCredentialsWithProvidedSTSClient(t *testing.T) {
+	cfg := &servicecfg.KeystoreConfig{
+		AWSKMS: &servicecfg.AWSKMSConfig{
+			AWSAccount:      "111111111111",
+			AWSRegion:       "us-west-2",
+			IntegrationName: "test-integration",
+		},
+	}
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "test-cluster"})
+	require.NoError(t, err)
+
+	integration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: "test-integration"},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:iam::111111111111:role/test-role",
+		},
+	)
+	require.NoError(t, err)
+
+	opts := &Options{
+		ClusterName:           clusterName,
+		HostUUID:              "uuid",
+		AuthPreferenceGetter:  &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
+		IntegrationGetter:     &fakeIntegrationGetter{integration: integration},
+		AWSOIDCTokenGenerator: &fakeAWSOIDCTokenGenerator{token: "dummy-token"},
+		awsSTSClient: &fakeAWSSTSClient{
+			account: "111111111111",
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	manager, err := NewManager(ctx, cfg, opts)
+	require.NoError(t, err)
+	require.NotNil(t, manager)
+	require.IsType(t, &awsKMSKeystore{}, manager.backendForNewKeys)
 }
 
 func TestAWSKMS_RetryWhilePending(t *testing.T) {
@@ -941,4 +1040,28 @@ func (f *fakeAuthPreferenceGetter) GetAuthPreference(context.Context) (types.Aut
 			SignatureAlgorithmSuite: f.suite,
 		},
 	}, nil
+}
+
+type fakeIntegrationGetter struct {
+	integration types.Integration
+}
+
+func (f *fakeIntegrationGetter) GetIntegration(context.Context, string) (types.Integration, error) {
+	if f.integration != nil {
+		return f.integration, nil
+	}
+
+	return nil, trace.NotImplemented("not implemented")
+}
+
+type fakeAWSOIDCTokenGenerator struct {
+	token string
+}
+
+func (f *fakeAWSOIDCTokenGenerator) GenerateAWSOIDCToken(context.Context, string) (string, error) {
+	if f.token != "" {
+		return f.token, nil
+	}
+
+	return "", trace.NotImplemented("not implemented")
 }

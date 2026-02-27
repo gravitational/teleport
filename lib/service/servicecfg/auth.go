@@ -311,6 +311,10 @@ type AWSKMSConfig struct {
 	AWSAccount string
 	// AWSRegion is the region used for KMS key operations.
 	AWSRegion string
+	// IntegrationName is the Teleport AWS OIDC integration used to obtain
+	// temporary credentials for AWS KMS operations. When empty, ambient AWS
+	// credentials are used.
+	IntegrationName string
 	// MultiRegion contains configuration for multi-region AWS KMS.
 	MultiRegion MultiRegionKeyStore
 	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'

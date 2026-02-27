@@ -959,7 +959,18 @@ func HandleBoundKeypairJoin(
 		}
 	}
 
-	signer, err := params.AuthService.GetKeyStore().GetJWTSigner(ctx, ca)
+	keyStore := params.AuthService.GetKeyStore()
+	if caKeyStoreGetter, ok := params.AuthService.(interface {
+		GetCAKeyStoreForSigningWithCA(ctx context.Context, ca types.CertAuthority) *keystore.Manager
+	}); ok {
+		keyStore = caKeyStoreGetter.GetCAKeyStoreForSigningWithCA(ctx, ca)
+	} else if caKeyStoreGetter, ok := params.AuthService.(interface {
+		GetCAKeyStoreForSigning(ctx context.Context) *keystore.Manager
+	}); ok {
+		keyStore = caKeyStoreGetter.GetCAKeyStoreForSigning(ctx)
+	}
+
+	signer, err := keyStore.GetJWTSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err, "issuing join state document")
 	}

@@ -31,6 +31,8 @@ import (
 // GenerateExternalAuditStorageOIDCToken generates a signed OIDC token for use by
 // the External Audit Storage feature when authenticating to customer AWS accounts.
 func (a *Server) GenerateExternalAuditStorageOIDCToken(ctx context.Context, integration string) (string, error) {
+	// Always use the default auth keystore to avoid bootstrap loops while
+	// external CA key storage is being initialized.
 	token, err := awsoidc.GenerateAWSOIDCToken(ctx, a, a.GetKeyStore(), awsoidc.GenerateAWSOIDCTokenRequest{
 		Integration: integration,
 		Username:    a.ServerID,

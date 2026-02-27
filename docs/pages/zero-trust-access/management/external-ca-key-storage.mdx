@@ -28,7 +28,34 @@ The guided flow lets you:
 1. A Teleport Enterprise Cloud account.
 1. Access to the Integrations enrollment page in the Teleport Web UI.
 1. An existing Teleport AWS OIDC integration (OIDC IdP + IAM role) configured
-   in your cluster.
+   in your cluster. The IAM role should have the following permissions in order to manage keys in KMS.
+
+   ```json
+   {
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+        "Sid": "TeleportExternalCAKMS",
+        "Effect": "Allow",
+        "Action": [
+            "kms:CreateKey",
+            "kms:TagResource",
+            "kms:DescribeKey",
+            "kms:GetPublicKey",
+            "kms:Sign",
+            "kms:Decrypt",
+            "kms:ListKeys",
+            "kms:ListResourceTags",
+            "kms:ScheduleKeyDeletion",
+            "tag:GetResources",
+            "sts:GetCallerIdentity"
+        ],
+        "Resource": "*"
+        }
+    ]
+   }
+   ```
+
 1. The AWS OIDC integration name from that setup, to reference in this form.
 
 If you do not have an AWS OIDC integration yet, set it up first using:

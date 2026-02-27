@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/gravitational/trace"
 
@@ -32,6 +33,10 @@ import (
 
 const (
 	integrationsPrefix = "integrations"
+
+	externalCAKeyStoragePrefix      = "external_ca_key_storage"
+	externalCAKeyStorageDraftName   = "draft"
+	externalCAKeyStorageClusterName = "cluster"
 )
 
 // IntegrationsService manages Integrations in the Backend.
@@ -153,11 +158,83 @@ func integrationDeletionConditions(ctx context.Context, bk backend.Backend, name
 	}
 	deleteConditionalActions = append(deleteConditionalActions, easDeleteConditions...)
 
+	externalCADeleteConditions, err := integrationExternalCAKeyStorageDeletionConditions(ctx, bk, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	deleteConditionalActions = append(deleteConditionalActions, externalCADeleteConditions...)
+
 	if err := integrationReferencedByAWSICPlugin(ctx, bk, name); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return deleteConditionalActions, nil
+}
+
+type externalCAKeyStorageConfig struct {
+	Spec     externalCAKeyStorageSpec `json:"spec"`
+	Revision string                   `json:"-"`
+}
+
+type externalCAKeyStorageSpec struct {
+	IntegrationName string `json:"integrationName"`
+}
+
+var (
+	draftExternalCAKeyStorageBackendKey   = backend.NewKey(externalCAKeyStoragePrefix, externalCAKeyStorageDraftName)
+	clusterExternalCAKeyStorageBackendKey = backend.NewKey(externalCAKeyStoragePrefix, externalCAKeyStorageClusterName)
+)
+
+// integrationExternalCAKeyStorageDeletionConditions returns conditional
+// actions for external CA key storage state that references [name].
+//
+// If draft/cluster external CA key storage references the integration being
+// deleted, those configs are removed atomically with integration deletion so
+// auth falls back to its default cloud-managed keystore.
+func integrationExternalCAKeyStorageDeletionConditions(ctx context.Context, bk backend.Backend, name string) ([]backend.ConditionalAction, error) {
+	var conditionalActions []backend.ConditionalAction
+	for _, key := range []backend.Key{draftExternalCAKeyStorageBackendKey, clusterExternalCAKeyStorageBackendKey} {
+		condition := backend.ConditionalAction{
+			Key: key,
+		}
+
+		cfg, err := getExternalCAKeyStorageConfig(ctx, bk, key)
+		switch {
+		case trace.IsNotFound(err):
+			condition.Condition = backend.NotExists()
+			condition.Action = backend.Nop()
+
+		case err != nil:
+			return nil, trace.Wrap(err)
+
+		case cfg.Spec.IntegrationName == name:
+			condition.Condition = backend.Revision(cfg.Revision)
+			condition.Action = backend.Delete()
+
+		default:
+			condition.Condition = backend.Revision(cfg.Revision)
+			condition.Action = backend.Nop()
+		}
+
+		conditionalActions = append(conditionalActions, condition)
+	}
+
+	return conditionalActions, nil
+}
+
+func getExternalCAKeyStorageConfig(ctx context.Context, bk backend.Backend, key backend.Key) (*externalCAKeyStorageConfig, error) {
+	item, err := bk.Get(ctx, key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var cfg externalCAKeyStorageConfig
+	if err := json.Unmarshal(item.Value, &cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg.Revision = item.Revision
+	return &cfg, nil
 }
 
 // integrationReferencedByEAS returns a slice of ConditionalActions to use with a backend.AtomicWrite to ensure that

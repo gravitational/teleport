@@ -22,6 +22,7 @@ package service
 
 import (
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
@@ -742,6 +743,26 @@ type TeleportProcess struct {
 
 	tsrv            reversetunnelclient.Server
 	immutableLabels *joiningv1.ImmutableLabels
+}
+
+type caSigningKeyManager struct {
+	authServer *auth.Server
+}
+
+func (m *caSigningKeyManager) GetTLSSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error) {
+	return m.authServer.GetCAKeyStoreForSigningWithCA(ctx, ca).GetTLSSigner(ctx, ca)
+}
+
+func (m *caSigningKeyManager) GetSSHSigner(ctx context.Context, ca types.CertAuthority) (ssh.Signer, error) {
+	return m.authServer.GetCAKeyStoreForSigningWithCA(ctx, ca).GetSSHSigner(ctx, ca)
+}
+
+func (m *caSigningKeyManager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error) {
+	return m.authServer.GetCAKeyStoreForSigningWithCA(ctx, ca).GetJWTSigner(ctx, ca)
+}
+
+func (m *caSigningKeyManager) GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error) {
+	return m.authServer.GetCAKeyStoreForSigningWithCA(ctx, ca).GetTLSCertAndSigner(ctx, ca)
 }
 
 // processIndex is an internal process index
@@ -2871,6 +2892,8 @@ func (process *TeleportProcess) initAuthService() error {
 	process.ExpectService(teleport.ComponentAuth)
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
 
+	caSigningKeys := &caSigningKeyManager{authServer: authServer}
+
 	if cfg.Auth.KeyStore.HealthCheck != nil &&
 		cfg.Auth.KeyStore.HealthCheck.Active != nil &&
 		cfg.Auth.KeyStore.HealthCheck.Active.Enabled {
@@ -2891,7 +2914,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		keystoreHealth, err := health.NewActiveHealthChecker(health.ActiveHealthCheckConfig{
 			Callback:   process.OnHeartbeat(teleport.ComponentKeyStore),
-			KeyManager: authServer.GetKeyStore(),
+			KeyManager: caSigningKeys,
 			Logger:     logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKeyStore, "health")),
 			ResourceC:  cawatcher.ResourcesC,
 		})
@@ -2963,7 +2986,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(awsra.RunAWSRolesAnywhereProfileSyncerWhileLocked(process.GracefulExitContext(), awsra.AWSRolesAnywhereProfileSyncerParams{
 			Clock:             process.Clock,
 			Logger:            logger,
-			KeyStoreManager:   authServer.GetKeyStore(),
+			KeyStoreManager:   caSigningKeys,
 			Cache:             authServer.Cache,
 			StatusReporter:    authServer.Services,
 			Backend:           process.backend,

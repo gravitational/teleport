@@ -100,6 +100,7 @@ export type EditableIntegrationFields = AwsOidcIntegrationEditableFields;
 export type OperationType = 'create' | 'edit' | 'delete' | 'reset' | 'none';
 
 export type ExternalAuditStorageOpType = 'draft' | 'cluster';
+export type ExternalCAKeyStorageOpType = 'draft' | 'cluster';
 
 export type Operation = {
   type: OperationType;

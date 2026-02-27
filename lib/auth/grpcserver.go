@@ -20,6 +20,7 @@ package auth
 
 import (
 	"context"
+	"crypto"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -39,6 +40,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
@@ -140,6 +142,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/workloadcluster/workloadclusterv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/decision/decisionv1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -228,6 +231,32 @@ type GRPCServer struct {
 	// in-flight CreateAuditStream RPCs, by sending a value in at the beginning
 	// of the RPC and pulling one out before returning.
 	createAuditStreamSemaphore chan struct{}
+}
+
+type caSigningKeyStore struct {
+	authServer *Server
+}
+
+func newCASigningKeyStore(authServer *Server) *caSigningKeyStore {
+	return &caSigningKeyStore{authServer: authServer}
+}
+
+func (s *caSigningKeyStore) GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error) {
+	keyStore := s.authServer.getCAKeyStoreForSigningCA(ctx, ca)
+	return keyStore.GetTLSCertAndSigner(ctx, ca)
+}
+
+func (s *caSigningKeyStore) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error) {
+	keyStore := s.authServer.getCAKeyStoreForSigningCA(ctx, ca)
+	return keyStore.GetJWTSigner(ctx, ca)
+}
+
+func (s *caSigningKeyStore) NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.SSHKeyPair, error) {
+	return s.authServer.keyStore.NewSSHKeyPair(ctx, purpose)
+}
+
+func (s *caSigningKeyStore) GetSSHSignerFromKeySet(ctx context.Context, keySet types.CAKeySet) (ssh.Signer, error) {
+	return s.authServer.keyStore.GetSSHSignerFromKeySet(ctx, keySet)
 }
 
 func (g *GRPCServer) SetServingStatus(service string, servingStatus grpc_health_v1.HealthCheckResponse_ServingStatus) {
@@ -6081,7 +6110,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Reporter:   cfg.AuthServer.Services.UsageReporter,
 		Emitter:    cfg.Emitter,
 		Clock:      cfg.AuthServer.GetClock(),
-		KeyStore:   cfg.AuthServer.keyStore,
+		KeyStore:   newCASigningKeyStore(cfg.AuthServer),
 		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "workload-identity.service"),
 	})
 	if err != nil {
@@ -6122,7 +6151,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Cache:                      cfg.AuthServer.Cache,
 		Emitter:                    cfg.Emitter,
 		Clock:                      cfg.AuthServer.GetClock(),
-		KeyStore:                   cfg.AuthServer.keyStore,
+		KeyStore:                   newCASigningKeyStore(cfg.AuthServer),
 		OverrideGetter:             cfg.AuthServer,
 		ClusterName:                clusterName.GetClusterName(),
 		GetSigstorePolicyEvaluator: cfg.AuthServer.GetSigstorePolicyEvaluator,
@@ -6137,7 +6166,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Emitter:             cfg.Emitter,
 		Clock:               cfg.AuthServer.GetClock(),
 		Store:               cfg.AuthServer.Services.WorkloadIdentityX509Revocations,
-		KeyStore:            cfg.AuthServer.keyStore,
+		KeyStore:            newCASigningKeyStore(cfg.AuthServer),
 		CertAuthorityGetter: cfg.AuthServer.Cache,
 		EventsWatcher:       cfg.AuthServer.Services,
 		ClusterName:         clusterName.GetClusterName(),
@@ -6291,7 +6320,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer:      cfg.Authorizer,
 		Backend:         cfg.AuthServer.Services,
 		Cache:           cfg.AuthServer.Cache,
-		KeyStoreManager: cfg.AuthServer.GetKeyStore(),
+		KeyStoreManager: newCASigningKeyStore(cfg.AuthServer),
 		Clock:           cfg.AuthServer.clock,
 		Emitter:         cfg.Emitter,
 		Logger:          cfg.AuthServer.logger.With(teleport.ComponentKey, "integrations.service"),

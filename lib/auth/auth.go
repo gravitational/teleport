@@ -33,6 +33,7 @@ import (
 	"crypto/subtle"
 	"crypto/x509"
 	"encoding/base32"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -201,6 +202,12 @@ const (
 
 	accessListsPageReadInterval = 5 * time.Millisecond
 	accessListsPageSize         = 20
+)
+
+const (
+	externalCAKeyStorageBackendPrefix      = "external_ca_key_storage"
+	externalCAKeyStorageBackendClusterName = "cluster"
+	externalCAKeyStoreBackendSyncInterval  = 5 * time.Second
 )
 
 const (
@@ -1313,8 +1320,10 @@ type Server struct {
 	// keys during CA rotation.
 	//
 	// Nil means CA rotation uses keyStore.
-	externalCAKeyStore   *keystore.Manager
-	externalCAKeyStoreMu sync.RWMutex
+	externalCAKeyStore           *keystore.Manager
+	externalCAKeyStoreConfigHash string
+	externalCAKeyStoreLastSync   time.Time
+	externalCAKeyStoreMu         sync.RWMutex
 
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
@@ -1505,6 +1514,16 @@ type Server struct {
 	EncryptedIO *recordingencryption.EncryptedIO
 }
 
+type externalCAKeyStorageClusterConfig struct {
+	Spec externalCAKeyStorageClusterSpec `json:"spec"`
+}
+
+type externalCAKeyStorageClusterSpec struct {
+	IntegrationName string `json:"integrationName"`
+	AWSAccountID    string `json:"awsAccountID"`
+	AWSRegion       string `json:"awsRegion"`
+}
+
 // SetMockExternalCAKeyStoreForCluster configures a process-local mock external
 // CA keystore override for the given cluster.
 //
@@ -1530,7 +1549,7 @@ func SetMockExternalCAKeyStoreForCluster(ctx context.Context, clusterName string
 
 // SetExternalCAKeyStoreAWSForCluster configures an AWS KMS external CA
 // keystore override for the given cluster.
-func SetExternalCAKeyStoreAWSForCluster(ctx context.Context, clusterName, awsAccountID, awsRegion string) error {
+func SetExternalCAKeyStoreAWSForCluster(ctx context.Context, clusterName, integrationName, awsAccountID, awsRegion string) error {
 	if clusterName == "" {
 		return trace.BadParameter("clusterName is required")
 	}
@@ -1555,8 +1574,9 @@ func SetExternalCAKeyStoreAWSForCluster(ctx context.Context, clusterName, awsAcc
 
 	return trace.Wrap(server.setExternalCAKeyStoreFromConfig(ctx, servicecfg.KeystoreConfig{
 		AWSKMS: &servicecfg.AWSKMSConfig{
-			AWSAccount: awsAccountID,
-			AWSRegion:  awsRegion,
+			AWSAccount:      awsAccountID,
+			AWSRegion:       awsRegion,
+			IntegrationName: integrationName,
 		},
 	}))
 }
@@ -1582,6 +1602,8 @@ func (a *Server) setExternalCAKeyStore(keyStore *keystore.Manager) {
 	defer a.externalCAKeyStoreMu.Unlock()
 
 	a.externalCAKeyStore = keyStore
+	a.externalCAKeyStoreConfigHash = ""
+	a.externalCAKeyStoreLastSync = a.clock.Now()
 }
 
 func (a *Server) setExternalCAKeyStoreFromConfig(ctx context.Context, keyStoreConfig servicecfg.KeystoreConfig) error {
@@ -1591,12 +1613,14 @@ func (a *Server) setExternalCAKeyStoreFromConfig(ctx context.Context, keyStoreCo
 	}
 
 	externalCAKeyStore, err := keystore.NewManager(ctx, &keyStoreConfig, &keystore.Options{
-		HostUUID:             a.ServerID,
-		ClusterName:          clusterName,
-		AuthPreferenceGetter: a,
-		FIPS:                 a.fips,
-		Clock:                a.clock,
-		Logger:               a.logger.With("component", "external_ca_keystore"),
+		HostUUID:              a.ServerID,
+		ClusterName:           clusterName,
+		AuthPreferenceGetter:  a,
+		IntegrationGetter:     a,
+		AWSOIDCTokenGenerator: a,
+		FIPS:                  a.fips,
+		Clock:                 a.clock,
+		Logger:                a.logger.With("component", "external_ca_keystore"),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1606,6 +1630,110 @@ func (a *Server) setExternalCAKeyStoreFromConfig(ctx context.Context, keyStoreCo
 	a.logger.InfoContext(ctx, "Configured external CA keystore override")
 
 	return nil
+}
+
+func (a *Server) ensureExternalCAKeyStoreFromBackend(ctx context.Context) error {
+	if !a.tryMarkExternalCAKeyStoreSync() {
+		return nil
+	}
+
+	cfg, err := a.getClusterExternalCAKeyStorageConfig(ctx)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			a.externalCAKeyStoreMu.Lock()
+			switch {
+			case a.externalCAKeyStore != nil && a.externalCAKeyStoreConfigHash == "":
+				// Preserve process-local overrides set before backend persistence
+				// completes (for example, during promote flows).
+
+			default:
+				a.externalCAKeyStore = nil
+				a.externalCAKeyStoreConfigHash = ""
+			}
+			a.externalCAKeyStoreMu.Unlock()
+
+			return nil
+		}
+
+		return trace.Wrap(err)
+	}
+
+	useMock := os.Getenv("TELEPORT_UNSTABLE_EXTERNAL_CA_KEY_STORE_MOCK") == "1"
+	configHash := fmt.Sprintf(
+		"integration=%s;account=%s;region=%s;mock=%t",
+		cfg.Spec.IntegrationName,
+		cfg.Spec.AWSAccountID,
+		cfg.Spec.AWSRegion,
+		useMock,
+	)
+
+	a.externalCAKeyStoreMu.RLock()
+	externalKeyStore := a.externalCAKeyStore
+	currentConfigHash := a.externalCAKeyStoreConfigHash
+	a.externalCAKeyStoreMu.RUnlock()
+	if externalKeyStore != nil && currentConfigHash == configHash {
+		return nil
+	}
+
+	keyStoreConfig := servicecfg.KeystoreConfig{
+		AWSKMS: &servicecfg.AWSKMSConfig{
+			AWSAccount:      cfg.Spec.AWSAccountID,
+			AWSRegion:       cfg.Spec.AWSRegion,
+			IntegrationName: cfg.Spec.IntegrationName,
+		},
+	}
+
+	if useMock {
+		keyStoreConfig = servicecfg.KeystoreConfig{}
+	}
+
+	if err := a.setExternalCAKeyStoreFromConfig(ctx, keyStoreConfig); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.externalCAKeyStoreMu.Lock()
+	if a.externalCAKeyStore != nil {
+		a.externalCAKeyStoreConfigHash = configHash
+	}
+	a.externalCAKeyStoreMu.Unlock()
+
+	return nil
+}
+
+func (a *Server) tryMarkExternalCAKeyStoreSync() bool {
+	now := a.clock.Now()
+
+	a.externalCAKeyStoreMu.Lock()
+	defer a.externalCAKeyStoreMu.Unlock()
+
+	if now.Sub(a.externalCAKeyStoreLastSync) < externalCAKeyStoreBackendSyncInterval {
+		return false
+	}
+
+	a.externalCAKeyStoreLastSync = now
+	return true
+}
+
+func (a *Server) getClusterExternalCAKeyStorageConfig(ctx context.Context) (*externalCAKeyStorageClusterConfig, error) {
+	item, err := a.bk.Get(ctx, backend.NewKey(externalCAKeyStorageBackendPrefix, externalCAKeyStorageBackendClusterName))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var cfg externalCAKeyStorageClusterConfig
+	if err := json.Unmarshal(item.Value, &cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if cfg.Spec.AWSAccountID == "" {
+		return nil, trace.BadParameter("cluster external CA key storage config is missing awsAccountID")
+	}
+
+	if cfg.Spec.AWSRegion == "" {
+		return nil, trace.BadParameter("cluster external CA key storage config is missing awsRegion")
+	}
+
+	return &cfg, nil
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1828,6 +1956,8 @@ func (a *Server) GetDeviceAssertionServer() CreateDeviceAssertionFunc {
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 func (a *Server) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	// Always use the default auth keystore to avoid bootstrap loops while
+	// external CA key storage is being initialized.
 	token, err := awsoidc.GenerateAWSOIDCToken(ctx, a, a.GetKeyStore(), awsoidc.GenerateAWSOIDCTokenRequest{
 		Integration: integration,
 		Username:    a.ServerID,
@@ -2544,9 +2674,11 @@ func (a *Server) refreshRemoteClusters(ctx context.Context) {
 }
 
 func (a *Server) Close() error {
-	if clusterName, err := a.GetClusterName(context.Background()); err == nil {
-		if name := clusterName.GetClusterName(); name != "" {
-			mockExternalCAKeyStoreRegistry.Delete(name)
+	if clusterConfig := a.Services.ClusterConfigurationInternal; clusterConfig != nil {
+		if clusterName, err := clusterConfig.GetClusterName(context.Background()); err == nil {
+			if name := clusterName.GetClusterName(); name != "" {
+				mockExternalCAKeyStoreRegistry.Delete(name)
+			}
 		}
 	}
 
@@ -2736,7 +2868,8 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 		return nil, trace.BadParameter("failed to load host CA for %q: %v", domainName, err)
 	}
 
-	caSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
+	keyStore := a.getCAKeyStoreForSigningCA(ctx, ca)
+	caSigner, err := keyStore.GetSSHSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2794,6 +2927,24 @@ func (a *Server) generateHostCert(
 // GetKeyStore returns the KeyStore used by the auth server
 func (a *Server) GetKeyStore() *keystore.Manager {
 	return a.keyStore
+}
+
+// GetCAKeyStoreForSigning returns the keystore that should be used for CA
+// signing operations.
+//
+// When external CA key storage is configured, this returns the external CA
+// keystore. Otherwise, it returns the auth server default keystore.
+func (a *Server) GetCAKeyStoreForSigning(ctx context.Context) *keystore.Manager {
+	return a.getCAKeyStoreForRotation(ctx)
+}
+
+// GetCAKeyStoreForSigningWithCA returns the keystore that should be used for
+// signing operations with the given CA.
+//
+// This may fall back to the default auth keystore when external CA key storage
+// is configured but no usable active keys are available for the given CA yet.
+func (a *Server) GetCAKeyStoreForSigningWithCA(ctx context.Context, ca types.CertAuthority) *keystore.Manager {
+	return a.getCAKeyStoreForSigningCA(ctx, ca)
 }
 
 type certRequest struct {
@@ -3935,9 +4086,11 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		allowedResourceAccessIDs = unscopedChecker.GetAllowedResourceAccessIDs()
 	}
 
+	keyStore := a.getCAKeyStoreForSigningCA(ctx, ca)
+
 	var signedSSHCert []byte
 	if req.sshPublicKey != nil {
-		sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
+		sshSigner, err := keyStore.GetSSHSigner(ctx, ca)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4136,7 +4289,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
+		tlsCert, tlsSigner, err := keyStore.GetTLSCertAndSigner(ctx, ca)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4334,7 +4487,9 @@ func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType ty
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
+	keyStore := a.getCAKeyStoreForSigningCA(ctx, ca)
+
+	tlsCert, tlsSigner, err := keyStore.GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -4343,7 +4498,7 @@ func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType ty
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
+	sshSigner, err := keyStore.GetSSHSigner(ctx, ca)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -5522,14 +5677,16 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 
 	isAdminRole := req.Role == types.RoleAdmin
 
-	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
+	keyStore := a.getCAKeyStoreForSigningCA(ctx, ca)
+
+	cert, signer, err := keyStore.GetTLSCertAndSigner(ctx, ca)
 	if trace.IsNotFound(err) && isAdminRole {
 		// If there is no local TLS signer found in the host CA ActiveKeys, this
 		// auth server may have a newly configured HSM and has only populated
 		// local keys in the AdditionalTrustedKeys until the next CA rotation.
 		// This is the only case where we should be able to get a signer from
 		// AdditionalTrustedKeys but not ActiveKeys.
-		cert, signer, err = a.keyStore.GetAdditionalTrustedTLSCertAndSigner(ctx, ca)
+		cert, signer, err = keyStore.GetAdditionalTrustedTLSCertAndSigner(ctx, ca)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5539,14 +5696,14 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 		return nil, trace.Wrap(err)
 	}
 
-	caSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
+	caSigner, err := keyStore.GetSSHSigner(ctx, ca)
 	if trace.IsNotFound(err) && isAdminRole {
 		// If there is no local SSH signer found in the host CA ActiveKeys, this
 		// auth server may have a newly configured HSM and has only populated
 		// local keys in the AdditionalTrustedKeys until the next CA rotation.
 		// This is the only case where we should be able to get a signer from
 		// AdditionalTrustedKeys but not ActiveKeys.
-		caSigner, err = a.keyStore.GetAdditionalTrustedSSHSigner(ctx, ca)
+		caSigner, err = keyStore.GetAdditionalTrustedSSHSigner(ctx, ca)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -7406,14 +7563,16 @@ func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 
 	// Note: this will only create a CRL for a single active signer.
 	// If there are multiple signers (HSMs), we won't have the full CRL coverage.
-	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
+	keyStore := a.getCAKeyStoreForSigningCA(ctx, ca)
+
+	cert, signer, err := keyStore.GetTLSCertAndSigner(ctx, ca)
 	if trace.IsNotFound(err) {
 		// If there is no local TLS signer found in the host CA ActiveKeys, this
 		// auth server may have a newly configured HSM and has only populated
 		// local keys in the AdditionalTrustedKeys until the next CA rotation.
 		// This is the only case where we should be able to get a signer from
 		// AdditionalTrustedKeys but not ActiveKeys.
-		cert, signer, err = a.keyStore.GetAdditionalTrustedTLSCertAndSigner(ctx, ca)
+		cert, signer, err = keyStore.GetAdditionalTrustedTLSCertAndSigner(ctx, ca)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -8654,7 +8813,12 @@ func jwtCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 // generation.
 //
 // ExternalCAKeyStore is preferred when configured, otherwise keyStore is used.
-func (a *Server) getCAKeyStoreForRotation() *keystore.Manager {
+func (a *Server) getCAKeyStoreForRotation(ctx context.Context) *keystore.Manager {
+	if err := a.ensureExternalCAKeyStoreFromBackend(ctx); err != nil {
+		a.logger.WarnContext(ctx, "Failed to load external CA keystore configuration from backend", "error", err)
+		return a.keyStore
+	}
+
 	a.externalCAKeyStoreMu.RLock()
 	defer a.externalCAKeyStoreMu.RUnlock()
 
@@ -8665,10 +8829,41 @@ func (a *Server) getCAKeyStoreForRotation() *keystore.Manager {
 	return a.keyStore
 }
 
+// getCAKeyStoreForSigningCA returns the preferred keystore for signing with
+// the given CA.
+//
+// If the external CA keystore is configured but does not yet have any usable
+// active keys for this CA, it falls back to the default auth keystore. This
+// preserves service availability while CA rotation to external storage is in
+// progress.
+func (a *Server) getCAKeyStoreForSigningCA(ctx context.Context, ca types.CertAuthority) *keystore.Manager {
+	keyStore := a.getCAKeyStoreForRotation(ctx)
+	if keyStore == a.keyStore {
+		return keyStore
+	}
+
+	usable, err := keyStore.HasUsableActiveKeys(ctx, ca)
+	switch {
+	case err != nil:
+		a.logger.WarnContext(ctx, "Failed to evaluate external CA keystore usability, falling back to default keystore",
+			"ca_type", ca.GetType(),
+			"ca_domain", ca.GetClusterName(),
+			"error", err,
+		)
+		return a.keyStore
+
+	case !usable.CAHasUsableKeys:
+		return a.keyStore
+
+	default:
+		return keyStore
+	}
+}
+
 // ensureLocalAdditionalKeys adds additional trusted keys to the CA if they are not
 // already present.
 func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAuthority) error {
-	keyStore := a.getCAKeyStoreForRotation()
+	keyStore := a.getCAKeyStoreForSigningCA(ctx, ca)
 
 	usableKeysResult, err := keyStore.HasUsableAdditionalKeys(ctx, ca)
 	if err != nil {

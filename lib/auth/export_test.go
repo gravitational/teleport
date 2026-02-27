@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/join/boundkeypair"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -339,4 +340,15 @@ type MigrateWindowsCAParams = migrateWindowsCAParams
 
 func MigrateWindowsCA(ctx context.Context, params MigrateWindowsCAParams) error {
 	return migrateWindowsCA(ctx, params)
+}
+
+func (a *Server) ExternalCAKeyStoreLastSync() time.Time {
+	a.externalCAKeyStoreMu.RLock()
+	defer a.externalCAKeyStoreMu.RUnlock()
+
+	return a.externalCAKeyStoreLastSync
+}
+
+func (a *Server) SetExternalCAKeyStoreFromConfig(ctx context.Context, cfg servicecfg.KeystoreConfig) error {
+	return a.setExternalCAKeyStoreFromConfig(ctx, cfg)
 }

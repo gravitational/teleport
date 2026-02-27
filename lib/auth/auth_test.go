@@ -24,6 +24,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -263,6 +264,214 @@ func TestMain(m *testing.M) {
 	exitCode := m.Run()
 	cancel()
 	os.Exit(exitCode)
+}
+
+func TestExternalCAKeyStoreSyncPreservesProcessLocalOverride(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir: t.TempDir(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, p.bk.Close())
+	})
+
+	require.NoError(t, p.a.SetExternalCAKeyStoreFromConfig(ctx, servicecfg.KeystoreConfig{}))
+
+	initialStore := p.a.GetCAKeyStoreForSigning(ctx)
+	require.NotSame(t, p.a.GetKeyStore(), initialStore)
+
+	// Advance beyond the backend sync interval to force a sync attempt.
+	clock.Advance(10 * time.Second)
+	afterSyncStore := p.a.GetCAKeyStoreForSigning(ctx)
+
+	// No persisted backend config exists yet, so the process-local override
+	// should be preserved.
+	require.Same(t, initialStore, afterSyncStore)
+	require.NotSame(t, p.a.GetKeyStore(), afterSyncStore)
+}
+
+func TestExternalCAKeyStoreSyncIsThrottled(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir: t.TempDir(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, p.bk.Close())
+	})
+
+	require.True(t, p.a.ExternalCAKeyStoreLastSync().IsZero())
+
+	_ = p.a.GetCAKeyStoreForSigning(ctx)
+	initialSyncTime := p.a.ExternalCAKeyStoreLastSync()
+	require.False(t, initialSyncTime.IsZero())
+
+	// Repeated reads inside the sync interval should not trigger another sync.
+	_ = p.a.GetCAKeyStoreForSigning(ctx)
+	require.Equal(t, initialSyncTime, p.a.ExternalCAKeyStoreLastSync())
+
+	clock.Advance(4 * time.Second)
+	_ = p.a.GetCAKeyStoreForSigning(ctx)
+	require.Equal(t, initialSyncTime, p.a.ExternalCAKeyStoreLastSync())
+
+	// Moving past the interval should trigger a new sync timestamp.
+	clock.Advance(2 * time.Second)
+	_ = p.a.GetCAKeyStoreForSigning(ctx)
+	require.True(t, p.a.ExternalCAKeyStoreLastSync().After(initialSyncTime))
+}
+
+func TestExternalCAKeyStoreSyncLoadsAndReloadsPersistedConfig(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_EXTERNAL_CA_KEY_STORE_MOCK", "1")
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir: t.TempDir(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, p.bk.Close())
+	})
+
+	putExternalCAKeyStorageClusterConfig(t, ctx, p.bk, "oidc-a", "111111111111", "us-west-2")
+	firstStore := p.a.GetCAKeyStoreForSigning(ctx)
+	require.NotSame(t, p.a.GetKeyStore(), firstStore)
+
+	clock.Advance(10 * time.Second)
+	unchangedStore := p.a.GetCAKeyStoreForSigning(ctx)
+	require.Same(t, firstStore, unchangedStore)
+
+	putExternalCAKeyStorageClusterConfig(t, ctx, p.bk, "oidc-b", "111111111111", "us-east-1")
+	clock.Advance(10 * time.Second)
+	reloadedStore := p.a.GetCAKeyStoreForSigning(ctx)
+	require.NotSame(t, unchangedStore, reloadedStore)
+	require.NotSame(t, p.a.GetKeyStore(), reloadedStore)
+}
+
+func TestExternalCAKeyStoreSyncClearsPersistedOverrideWhenConfigRemoved(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_EXTERNAL_CA_KEY_STORE_MOCK", "1")
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir: t.TempDir(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, p.bk.Close())
+	})
+
+	putExternalCAKeyStorageClusterConfig(t, ctx, p.bk, "oidc-a", "111111111111", "us-west-2")
+	externalStore := p.a.GetCAKeyStoreForSigning(ctx)
+	require.NotSame(t, p.a.GetKeyStore(), externalStore)
+
+	require.NoError(t, p.bk.Delete(ctx, backend.NewKey("external_ca_key_storage", "cluster")))
+	clock.Advance(10 * time.Second)
+
+	keyStoreAfterDelete := p.a.GetCAKeyStoreForSigning(ctx)
+	require.Same(t, p.a.GetKeyStore(), keyStoreAfterDelete)
+}
+
+func TestExternalCAKeyStoreSyncInvalidPersistedConfigKeepsCurrentStore(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		writer func(t *testing.T, ctx context.Context, bk backend.Backend)
+	}{
+		{
+			name: "missing account id",
+			writer: func(t *testing.T, ctx context.Context, bk backend.Backend) {
+				putExternalCAKeyStorageClusterConfig(t, ctx, bk, "oidc-a", "", "us-west-2")
+			},
+		},
+		{
+			name: "missing region",
+			writer: func(t *testing.T, ctx context.Context, bk backend.Backend) {
+				putExternalCAKeyStorageClusterConfig(t, ctx, bk, "oidc-a", "111111111111", "")
+			},
+		},
+		{
+			name: "malformed json",
+			writer: func(t *testing.T, ctx context.Context, bk backend.Backend) {
+				putRawExternalCAKeyStorageClusterConfig(t, ctx, bk, []byte("{not-json"))
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			clock := clockwork.NewFakeClock()
+			p, err := newTestPack(ctx, testPackOptions{
+				DataDir: t.TempDir(),
+				Clock:   clock,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, p.bk.Close())
+			})
+
+			require.NoError(t, p.a.SetExternalCAKeyStoreFromConfig(ctx, servicecfg.KeystoreConfig{}))
+			initialStore := p.a.GetCAKeyStoreForSigning(ctx)
+			require.NotSame(t, p.a.GetKeyStore(), initialStore)
+
+			tc.writer(t, ctx, p.bk)
+			clock.Advance(10 * time.Second)
+
+			storeAfterBadConfig := p.a.GetCAKeyStoreForSigning(ctx)
+			require.Same(t, p.a.GetKeyStore(), storeAfterBadConfig)
+		})
+	}
+}
+
+func putExternalCAKeyStorageClusterConfig(
+	t *testing.T,
+	ctx context.Context,
+	bk backend.Backend,
+	integrationName string,
+	awsAccountID string,
+	awsRegion string,
+) {
+	t.Helper()
+
+	data, err := json.Marshal(map[string]any{
+		"spec": map[string]string{
+			"integrationName": integrationName,
+			"awsAccountID":    awsAccountID,
+			"awsRegion":       awsRegion,
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = bk.Put(ctx, backend.Item{
+		Key:   backend.NewKey("external_ca_key_storage", "cluster"),
+		Value: data,
+	})
+	require.NoError(t, err)
+}
+
+func putRawExternalCAKeyStorageClusterConfig(t *testing.T, ctx context.Context, bk backend.Backend, data []byte) {
+	t.Helper()
+
+	_, err := bk.Put(ctx, backend.Item{
+		Key:   backend.NewKey("external_ca_key_storage", "cluster"),
+		Value: data,
+	})
+	require.NoError(t, err)
 }
 
 func TestSessions(t *testing.T) {
