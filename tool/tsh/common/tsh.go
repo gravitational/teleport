@@ -1553,7 +1553,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	// parse CLI commands+flags:
-	utils.UpdateAppUsageTemplate(app, args)
+	utils.UpdateAppUsageTemplate(app)
 	command, err := app.Parse(insertDoubleDashAfterKubectl(args))
 	if errors.Is(err, kingpin.ErrExpectedCommand) {
 		if _, ok := cf.TSHConfig.Aliases[aliasCommand]; ok {
