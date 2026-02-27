@@ -35,8 +35,11 @@ import (
 	debugpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/debug/v1"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/storage"
+	"github.com/gravitational/teleport/lib/cloud/imds"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -324,6 +327,154 @@ func TestDebugCommandIntegration(t *testing.T) {
 			assert.NotEmpty(collect, strings.TrimSpace(stdout.String()))
 		}, 30*time.Second, 500*time.Millisecond, "hostname resolution should work")
 	})
+}
+
+// TestDebugCommandSplitAuthProxyNode verifies debug commands work across
+// separate auth, proxy, and node processes. It exercises three routing paths:
+//   - Auth → Auth: via LazyLocalDebugDialer (in-process)
+//   - Auth → Proxy: via auth forwarder → proxy Debug.Connect → proxy local dialer
+//   - Auth → Node: via auth forwarder → proxy Debug.Connect → reverse tunnel → node
+func TestDebugCommandSplitAuthProxyNode(t *testing.T) {
+	// Insecure mode is required for the node to establish a TLS connection
+	// to the proxy before it has the cluster CA (initial join flow).
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	apidefaults.SetTestTimeouts(3*time.Second, 3*time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+
+	// 1. Start auth-only process with debug enabled.
+	authProcess, err := testenv.NewTeleportProcess(shortTempDir(t, "a-"),
+		testenv.WithLogger(logtest.NewLogger()),
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Proxy.Enabled = false
+			cfg.SSH.Enabled = false
+			cfg.DebugService.Enabled = true
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
+
+	authAddr := authProcess.Config.Auth.ListenAddr
+	client := newAuthClientNoBreaker(t, authProcess)
+	t.Cleanup(func() { _ = client.Close() })
+
+	authID, err := authProcess.WaitForHostID(ctx)
+	require.NoError(t, err)
+
+	// 2. Start proxy-only process connected to auth with debug enabled.
+	proxyProcess, err := testenv.NewTeleportProcess(shortTempDir(t, "p-"),
+		testenv.WithLogger(logtest.NewLogger()),
+		testenv.WithHostname("proxy01"),
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.Enabled = false
+			cfg.SSH.Enabled = false
+			cfg.DebugService.Enabled = true
+			cfg.SetAuthServerAddress(authAddr)
+			// Set the proxy's public address to its web address so the auth
+			// forwarder dials the web listener (which has ALPN routing to the
+			// SSH gRPC server where Debug.Connect is registered).
+			cfg.Proxy.PublicAddrs = []utils.NetAddr{cfg.Proxy.WebAddr}
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, proxyProcess.Close())
+		require.NoError(t, proxyProcess.Wait())
+	})
+
+	proxyID, err := proxyProcess.WaitForHostID(ctx)
+	require.NoError(t, err)
+
+	proxyWebAddr := proxyProcess.Config.Proxy.WebAddr
+
+	// 3. Start node-only process connected to the proxy via reverse tunnel.
+	// We use service.NewTeleport directly because testenv.NewTeleportProcess
+	// has a 10s timeout for service readiness, which is too short for a node
+	// that connects through a proxy (TLS handshake + token join + tunnel).
+	nodeCfg := servicecfg.MakeDefaultConfig()
+	nodeCfg.Version = defaults.TeleportConfigVersionV3
+	nodeCfg.Hostname = "node01"
+	nodeCfg.DataDir = shortTempDir(t, "n-")
+	nodeCfg.Logger = logtest.NewLogger()
+	nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	nodeCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	nodeCfg.SetToken(testenv.StaticToken)
+	nodeCfg.ProxyServer = proxyWebAddr
+	nodeCfg.Auth.Enabled = false
+	nodeCfg.Proxy.Enabled = false
+	nodeCfg.SSH.Enabled = true
+	nodeCfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	nodeCfg.SSH.DisableCreateHostUser = true
+	nodeCfg.DebugService.Enabled = true
+
+	nodeProcess, err := service.NewTeleport(nodeCfg)
+	require.NoError(t, err)
+	require.NoError(t, nodeProcess.Start())
+	t.Cleanup(func() {
+		require.NoError(t, nodeProcess.Close())
+		require.NoError(t, nodeProcess.Wait())
+	})
+	_, err = nodeProcess.WaitForEventTimeout(60*time.Second, service.NodeSSHReady)
+	require.NoError(t, err, "node SSH service not ready within 60s")
+
+	nodeID, err := nodeProcess.WaitForHostID(ctx)
+	require.NoError(t, err)
+
+	// 4. Wait for debug services to be reachable on all targets.
+	// Auth uses the local dialer; proxy and node require tunnel establishment.
+	waitForDebugReady(t, ctx, client, authID)
+	waitForDebugReady(t, ctx, client, proxyID)
+	waitForDebugReady(t, ctx, client, nodeID)
+
+	// 5. Verify debug commands work for each target.
+	for _, tc := range []struct {
+		name     string
+		serverID string
+	}{
+		{"Auth", authID},
+		{"Proxy", proxyID},
+		{"Node", nodeID},
+	} {
+		t.Run(tc.name+"/GetLogLevel", func(t *testing.T) {
+			var stdout bytes.Buffer
+			cmd := &DebugCommand{stdout: &stdout}
+			err := runDebugCmd(t, ctx, client, cmd, []string{"get-log-level", tc.serverID})
+			require.NoError(t, err)
+			out := strings.TrimSpace(stdout.String())
+			assert.NotEmpty(t, out, "should return a log level")
+		})
+
+		t.Run(tc.name+"/SetLogLevel", func(t *testing.T) {
+			var stdout bytes.Buffer
+			cmd := &DebugCommand{stdout: &stdout}
+			err := runDebugCmd(t, ctx, client, cmd, []string{"set-log-level", tc.serverID, "DEBUG"})
+			require.NoError(t, err)
+			out := strings.TrimSpace(stdout.String())
+			assert.Contains(t, out, "DEBUG")
+
+			var verifyBuf bytes.Buffer
+			verifyCmd := &DebugCommand{stdout: &verifyBuf}
+			err = runDebugCmd(t, ctx, client, verifyCmd, []string{"get-log-level", tc.serverID})
+			require.NoError(t, err)
+			assert.Equal(t, "DEBUG", strings.TrimSpace(verifyBuf.String()))
+		})
+
+		t.Run(tc.name+"/Readyz", func(t *testing.T) {
+			var stdout bytes.Buffer
+			cmd := &DebugCommand{stdout: &stdout}
+			err := runDebugCmd(t, ctx, client, cmd, []string{"readyz", tc.serverID})
+			require.NoError(t, err)
+			out := stdout.String()
+			assert.Contains(t, out, "PID")
+			assert.Contains(t, out, "status:")
+		})
+	}
 }
 
 // TestDebugCommandSplitDeployment verifies the debug service works in

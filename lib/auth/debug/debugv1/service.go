@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/peer"
 
 	debugpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/debug/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -221,10 +222,38 @@ func (s *Service) Connect(stream grpc.BidiStreamingServer[debugpb.Frame, debugpb
 	return trace.Wrap(err)
 }
 
+// authzContextProvider is implemented by gRPC AuthInfo types that carry
+// a pre-authorized context from the transport handshake.
+type authzContextProvider interface {
+	AuthzContext() (*authz.Context, bool)
+}
+
 // authorize checks that the caller has permission to use the debug service.
+// It supports two authorization paths:
+//  1. Standard gRPC servers where the user identity is set in the context
+//     via middleware (e.g. auth server's main gRPC).
+//  2. The proxy's SSH gRPC server where the identity is in the peer's
+//     AuthInfo (set during TLS handshake by TransportCredentials).
 func (s *Service) authorize(ctx context.Context) error {
+	// Path 1: try the standard authorizer (works when middleware sets the user in context).
 	authCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
+	if err == nil {
+		return authCtx.CheckAccessToKind(types.KindDebugService, types.VerbCreate)
+	}
+
+	// Path 2: extract auth context from the peer's transport credentials.
+	// The proxy's SSH gRPC server uses TransportCredentials that store
+	// the pre-authorized context in the peer's AuthInfo.
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return trace.Wrap(err)
+	}
+	provider, ok := p.AuthInfo.(authzContextProvider)
+	if !ok {
+		return trace.Wrap(err)
+	}
+	authCtx, ok = provider.AuthzContext()
+	if !ok {
 		return trace.Wrap(err)
 	}
 	return authCtx.CheckAccessToKind(types.KindDebugService, types.VerbCreate)

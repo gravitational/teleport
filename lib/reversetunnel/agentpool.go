@@ -588,7 +588,16 @@ func (p *AgentPool) handleTransport(ctx context.Context, channel ssh.Channel, re
 }
 
 func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channel, reqC <-chan *ssh.Request, sconn sshutils.Conn) {
-	defer channel.Close()
+	// closeChannel tracks whether we should close the SSH channel when this
+	// function returns. For most connection types the handler blocks for the
+	// lifetime of the session, but DebugTunnel connections are handed off to
+	// the HTTP server which closes the channel when it finishes.
+	closeChannel := true
+	defer func() {
+		if closeChannel {
+			channel.Close()
+		}
+	}()
 	go io.Copy(io.Discard, channel.Stderr())
 
 	// the only valid teleport-transport-dial request here is to reach the local service
@@ -637,8 +646,12 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 		conn = utils.NewConnWithSrcAddr(conn, getTCPAddr(src))
 	}
 
-	// Route DebugTunnel connections to the dedicated handler.
+	// Route DebugTunnel connections to the dedicated handler. The handler
+	// accepts the connection and returns immediately; the HTTP server
+	// processes the request asynchronously and closes the connection when
+	// done, so we must not close the SSH channel here.
 	if dialReq.ConnType == types.DebugTunnel && p.DebugHandler != nil {
+		closeChannel = false
 		p.DebugHandler.HandleConnection(conn)
 		return
 	}

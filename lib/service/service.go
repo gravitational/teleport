@@ -5038,36 +5038,22 @@ func dialDebugGRPC(ctx context.Context, addr string, serverID string, tlsProvide
 		grpcConn.Close()
 		return nil, trace.Wrap(err, "opening debug stream to server %s", serverID)
 	}
-
 	return debugStreamToConn(stream, grpcConn, serverID)
 }
 
-// newDebugForwarder creates a forwarder function for the auth server. Auth
-// targets are dialed directly via gRPC TLS. Everything else (nodes, proxies)
-// is forwarded through any available proxy's Debug.Connect RPC, letting the
-// proxy route via its reverse tunnel.
+// newDebugForwarder creates a forwarder function for the auth server. All
+// non-local targets are forwarded through any available proxy's Debug.Connect
+// RPC. The proxy can reach nodes and other proxies via its reverse tunnel, and
+// auth servers via direct cluster-internal connections. The auth server never
+// dials raw IPs itself.
 func newDebugForwarder(lister debugServerLister, tlsProvider debugTLSProvider, clusterName string) func(ctx context.Context, serverID string) (net.Conn, error) {
 	return func(ctx context.Context, serverID string) (net.Conn, error) {
-		// If the target is an auth server, dial it directly.
-		authServers, err := lister.GetAuthServers()
-		if err != nil {
-			return nil, trace.Wrap(err, "looking up auth servers for debug forwarding")
-		}
-		for _, as := range authServers {
-			if as.GetName() == serverID {
-				return dialDebugGRPC(ctx, as.GetAddr(), serverID, tlsProvider, clusterName, nil)
-			}
-		}
-
-		// For anything else, forward through any available proxy.
-		// The proxy has a reverse tunnel and can route to nodes,
-		// other proxies, and even auth servers.
 		proxies, err := lister.GetProxies()
 		if err != nil {
 			return nil, trace.Wrap(err, "looking up proxies for debug forwarding")
 		}
 		if len(proxies) == 0 {
-			return nil, trace.NotFound("server %s is not a known auth server and no proxies are available for forwarding", serverID)
+			return nil, trace.NotFound("no proxies are available for forwarding debug request to %s", serverID)
 		}
 
 		alpnProtos := []string{string(alpncommon.ProtocolProxySSHGRPC)}

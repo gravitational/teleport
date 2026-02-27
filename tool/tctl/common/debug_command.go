@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/debuglive"
 )
 
 // DebugCommand implements `tctl debug` group of commands.
@@ -62,6 +63,8 @@ type DebugCommand struct {
 	logStream          *kingpin.CmdClause
 	logStreamLevel     string
 	logStreamComponent string
+
+	live *debuglive.Command
 
 	// stdout and stderr for output. If nil, defaults to os.Stdout/os.Stderr.
 	stdout     io.Writer
@@ -111,10 +114,18 @@ func (c *DebugCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLI
 
 	c.metrics = debug.Command("metrics", "Fetch Prometheus metrics.")
 	c.metrics.Arg("target", "Server ID or hostname of the target instance.").Required().StringVar(&c.serverID)
+
+	c.live = &debuglive.Command{}
+	c.live.Initialize(debug, config)
 }
 
 // TryRun takes the CLI command as an argument and executes it.
 func (c *DebugCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	// Handle the live TUI command separately (it manages its own client).
+	if cmd == c.live.FullCommand() {
+		return true, trace.Wrap(c.live.Run(ctx, clientFunc))
+	}
+
 	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.getLogLevel.FullCommand():
