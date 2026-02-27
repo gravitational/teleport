@@ -349,6 +349,7 @@ func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memb
 	return member.Clone(), nil
 }
 
+// GetAccessListOwners returns the owners of the specified access list, including those inherited.
 func (c *Cache) GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessListOwners")
 	defer span.End()

@@ -6159,6 +6159,7 @@ func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.
 
 func (a *Server) generateAccessRequestSuggestedReviewers(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) *types.AccessRequestSuggestedReviewers {
 	reqCopy := req.Copy()
+
 	suggestedReviewers, err := modules.GetModules().GenerateAccessRequestSuggestedReviewers(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, reqCopy)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Failed to determine suggested reviewers", "error", err)
