@@ -40,6 +40,10 @@ func HandleDocsRequest(req *gogoplugin.CodeGeneratorRequest) error {
 	return handleRequest(req, formatAsDocsPage)
 }
 
+func HandleJSONSchemaRequest(req *gogoplugin.CodeGeneratorRequest) error {
+	return handleRequest(req, formatAsJSONSchema)
+}
+
 func handleRequest(req *gogoplugin.CodeGeneratorRequest, out crdFormatFunc) error {
 	if len(req.FileToGenerate) == 0 {
 		return trace.Errorf("no input file provided")

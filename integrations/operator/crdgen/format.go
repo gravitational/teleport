@@ -20,6 +20,7 @@ package crdgen
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -41,6 +42,25 @@ func formatAsCRD(crd apiextv1.CustomResourceDefinition, groupName, pluralName st
 		return nil, "", err
 	}
 	filename := fmt.Sprintf("%s_%s.%v", groupName, pluralName, "yaml")
+	return doc, filename, nil
+}
+
+func formatAsJSONSchema(crd apiextv1.CustomResourceDefinition, groupName, pluralName string) ([]byte, string, error) {
+	if len(crd.Spec.Versions) == 0 {
+		return nil, "", fmt.Errorf("CRD has no versions")
+	}
+	
+	version := crd.Spec.Versions[0]
+	if version.Schema == nil || version.Schema.OpenAPIV3Schema == nil {
+		return nil, "", fmt.Errorf("CRD version %s has no schema", version.Name)
+	}
+	
+	doc, err := json.MarshalIndent(version.Schema.OpenAPIV3Schema, "", "  ")
+	if err != nil {
+		return nil, "", err
+	}
+	
+	filename := fmt.Sprintf("%s_%s_%s.%v", groupName, pluralName, version.Name, "json")
 	return doc, filename, nil
 }
 

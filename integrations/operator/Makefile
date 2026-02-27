@@ -78,7 +78,7 @@ generate-types: controller-gen
 crdgenfiles := $(wildcard crdgen/*.go)
 
 .PHONY: crdgen ## Builds both crd and crd documentation protoc plugins.
-crdgen: crdgen/build/protoc-gen-crd crdgen/build/protoc-gen-crd-docs
+crdgen: crdgen/build/protoc-gen-crd crdgen/build/protoc-gen-crd-docs crdgen/build/protoc-gen-crd-jsonschema
 
 crdgen/build/%: crdgen/cmd/%/main.go crdgen/cmd/%/debug.go $(crdgenfiles)
 	mkdir -p crdgen/build
@@ -128,6 +128,22 @@ crd-docs: crdgen/build/protoc-gen-crd-docs ## Generate CRD reference docs.
 			-I=$(PROTOBUF_MOD_PATH) \
 			--plugin=./crdgen/build/protoc-gen-crd-docs \
 			--crd-docs_out=../../docs/pages/reference/infrastructure-as-code/operator-resources/ \
+			"$${proto}"; \
+	done
+
+.PHONY: crd-jsonschema
+crd-jsonschema: crdgen/build/protoc-gen-crd-jsonschema ## Generate CRD JSON schemas.
+	@echo "## Generating CRD JSON schemas"
+# The wrappers.proto file needed for this generator exist only inside the go mod cache,
+# so we retrieve the file path for the cached proto files with go mod tools.
+	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
+
+	for proto in $(PROTOS); do \
+		protoc \
+			-I=../../api/proto \
+			-I=$(PROTOBUF_MOD_PATH) \
+			--plugin=./crdgen/build/protoc-gen-crd-jsonschema \
+			--crd-jsonschema_out=./config/crd/jsonschema \
 			"$${proto}"; \
 	done
 

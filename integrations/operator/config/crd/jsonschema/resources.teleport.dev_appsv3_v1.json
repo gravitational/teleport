@@ -1,0 +1,347 @@
+{
+  "description": "AppV3 is the Schema for the appsv3 API",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": "string"
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "spec": {
+      "description": "App resource definition v3 from Teleport",
+      "type": "object",
+      "properties": {
+        "UserGroups": {
+          "description": "UserGroups are a list of user group IDs that this app is associated with.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "nullable": true
+        },
+        "aws": {
+          "description": "AWS contains additional options for AWS applications.",
+          "type": "object",
+          "properties": {
+            "external_id": {
+              "description": "ExternalID is the AWS External ID used when assuming roles in this app.",
+              "type": "string"
+            },
+            "roles_anywhere_profile": {
+              "description": "RolesAnywhereProfile contains the IAM Roles Anywhere fields associated with this Application. These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.",
+              "type": "object",
+              "properties": {
+                "accept_role_session_name": {
+                  "description": "Whether this Roles Anywhere Profile accepts a custom role session name. When not supported, the AWS Session Name will be the X.509 certificate's serial number. When supported, the AWS Session Name will be the identity's username. This value comes from: https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ProfileDetail.html / acceptRoleSessionName",
+                  "type": "boolean"
+                },
+                "profile_arn": {
+                  "description": "ProfileARN is the AWS IAM Roles Anywhere Profile ARN that originated this Teleport App.",
+                  "type": "string"
+                }
+              },
+              "nullable": true
+            }
+          },
+          "nullable": true
+        },
+        "cloud": {
+          "description": "Cloud identifies the cloud instance the app represents.",
+          "type": "string"
+        },
+        "cors": {
+          "description": "CORSPolicy defines the Cross-Origin Resource Sharing settings for the app.",
+          "type": "object",
+          "properties": {
+            "allow_credentials": {
+              "description": "allow_credentials indicates whether credentials are allowed.",
+              "type": "boolean"
+            },
+            "allowed_headers": {
+              "description": "allowed_headers specifies which headers can be used when accessing the app.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "nullable": true
+            },
+            "allowed_methods": {
+              "description": "allowed_methods specifies which methods are allowed when accessing the app.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "nullable": true
+            },
+            "allowed_origins": {
+              "description": "allowed_origins specifies which origins are allowed to access the app.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "nullable": true
+            },
+            "exposed_headers": {
+              "description": "exposed_headers indicates which headers are made available to scripts via the browser.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "nullable": true
+            },
+            "max_age": {
+              "description": "max_age indicates how long (in seconds) the results of a preflight request can be cached.",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "nullable": true
+        },
+        "dynamic_labels": {
+          "description": "DynamicLabels are the app's command labels.",
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "value": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "description": "Command is a command to run",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "nullable": true
+                },
+                "period": {
+                  "description": "Period is a time between command runs",
+                  "type": "string",
+                  "format": "duration"
+                },
+                "result": {
+                  "description": "Result captures standard output",
+                  "type": "string"
+                }
+              },
+              "nullable": true
+            }
+          }
+        },
+        "identity_center": {
+          "description": "IdentityCenter encapsulates information specific to AWS IAM Identity Center. Only valid for Identity Center account apps.",
+          "type": "object",
+          "properties": {
+            "account_id": {
+              "description": "Account ID is the AWS-assigned ID of the account",
+              "type": "string"
+            },
+            "permission_sets": {
+              "description": "PermissionSets lists the available permission sets on the given account",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "arn": {
+                    "description": "ARN is the fully-formed ARN of the Permission Set.",
+                    "type": "string"
+                  },
+                  "assignment_name": {
+                    "description": "AssignmentID is the ID of the Teleport Account Assignment resource that represents this permission being assigned on the enclosing Account.",
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "Name is the human-readable name of the Permission Set.",
+                    "type": "string"
+                  }
+                }
+              },
+              "nullable": true
+            }
+          },
+          "nullable": true
+        },
+        "insecure_skip_verify": {
+          "description": "InsecureSkipVerify disables app's TLS certificate verification.",
+          "type": "boolean"
+        },
+        "integration": {
+          "description": "Integration is the integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.",
+          "type": "string"
+        },
+        "mcp": {
+          "description": "MCP contains MCP server related configurations.",
+          "type": "object",
+          "properties": {
+            "args": {
+              "description": "Args to execute with the command.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "nullable": true
+            },
+            "command": {
+              "description": "Command to launch stdio-based MCP servers.",
+              "type": "string"
+            },
+            "run_as_host_user": {
+              "description": "RunAsHostUser is the host user account under which the command will be executed. Required for stdio-based MCP servers.",
+              "type": "string"
+            }
+          },
+          "nullable": true
+        },
+        "public_addr": {
+          "description": "PublicAddr is the public address the application is accessible at.",
+          "type": "string"
+        },
+        "required_app_names": {
+          "description": "RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate alongside this app.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "nullable": true
+        },
+        "rewrite": {
+          "description": "Rewrite is a list of rewriting rules to apply to requests and responses.",
+          "type": "object",
+          "properties": {
+            "headers": {
+              "description": "Headers is a list of headers to inject when passing the request over to the application.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "description": "Name is the http header name.",
+                    "type": "string"
+                  },
+                  "value": {
+                    "description": "Value is the http header value.",
+                    "type": "string"
+                  }
+                }
+              },
+              "nullable": true
+            },
+            "jwt_claims": {
+              "description": "JWTClaims configures whether roles/traits are included in the JWT token.",
+              "type": "string"
+            },
+            "redirect": {
+              "description": "Redirect defines a list of hosts which will be rewritten to the public address of the application if they occur in the \"Location\" header.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "nullable": true
+            }
+          },
+          "nullable": true
+        },
+        "tcp_ports": {
+          "description": "TCPPorts is a list of ports and port ranges that an app agent can forward connections to. Only applicable to TCP App Access. If this field is not empty, URI is expected to contain no port number and start with the tcp protocol.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "end_port": {
+                "description": "EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and be greater than Port when describing a port range. When omitted or set to zero, it signifies that the port range defines a single port.",
+                "type": "integer",
+                "format": "int32"
+              },
+              "port": {
+                "description": "Port describes the start of the range. It must be between 1 and 65535.",
+                "type": "integer",
+                "format": "int32"
+              }
+            }
+          },
+          "nullable": true
+        },
+        "uri": {
+          "description": "URI is the web app endpoint.",
+          "type": "string"
+        },
+        "use_any_proxy_public_addr": {
+          "description": "UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the request originated from. This should be true if your proxy has multiple proxy public addrs and you want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec, setting this value to true will overwrite that public address in the web UI.",
+          "type": "boolean"
+        }
+      }
+    },
+    "status": {
+      "description": "Status defines the observed state of the Teleport resource",
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "description": "Conditions represent the latest available observations of an object's state",
+          "type": "array",
+          "items": {
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "type": "object",
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "type": "string",
+                "format": "date-time"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "type": "string",
+                "maxLength": 32768
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "type": "string",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "type": "string",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ]
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "type": "string",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$"
+              }
+            }
+          }
+        },
+        "teleportResourceID": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    }
+  }
+}
