@@ -157,8 +157,24 @@ func (s *Server) handleGetApplication(w http.ResponseWriter, r *http.Request, ap
 	jsonResponse(w, app)
 }
 
+func (s *Server) handleAppRolesAssignedTo(w http.ResponseWriter, r *http.Request, appID string) {
+	s.mu.RLock()
+	principals, ok := s.Storage.AppRoleAssignedTo[appID]
+	s.mu.RUnlock()
+
+	if !ok {
+		http.Error(w, "service principal by app id not found", http.StatusNotFound)
+		return
+	}
+
+	jsonResponse(w, map[string]interface{}{
+		"value": principals,
+	})
+}
+
 var (
-	applicationByAppIDPattern = regexp.MustCompile(`^/v1\.0/applications\(appId='([^']+)'\)$`)
+	applicationByAppIDPattern      = regexp.MustCompile(`^/v1\.0/applications\(appId='([^']+)'\)$`)
+	servicePrincipalByAppIDPattern = regexp.MustCompile(`^/v1\.0/servicePrincipals\(appId='([^']+)'\)/appRoleAssignedTo.*$`)
 )
 
 // handleCatchAll handles other endpoints like applications(appId='app-id').
@@ -168,6 +184,12 @@ func (s *Server) handleCatchAll(w http.ResponseWriter, r *http.Request) {
 		if matches := applicationByAppIDPattern.FindStringSubmatch(r.URL.Path); matches != nil {
 			appID := matches[1]
 			s.handleGetApplication(w, r, appID)
+			return
+		}
+
+		if matches := servicePrincipalByAppIDPattern.FindStringSubmatch(r.URL.Path); matches != nil {
+			appID := matches[1]
+			s.handleAppRolesAssignedTo(w, r, appID)
 			return
 		}
 	}

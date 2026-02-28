@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -267,6 +268,18 @@ func (c *Client) IterateGroupOwners(ctx context.Context, groupID string, f func(
 	// Group owners of user type is requested by
 	// using "microsoft.graph.user" OData cast.
 	return iterateSimple(c, ctx, path.Join("groups", groupID, "owners", "microsoft.graph.user"), f, opts...)
+}
+
+// IteratePrincipalsAssignedToApp lists users and groups assigned
+// to the enterprise application [appID] either via a direct user
+// assignment or via group membership assignment. The API does not
+// support resolving user membership via nested group assignment.
+// `f` will be called for each object in the result set.
+// If `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
+// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-list-approleassignedto?view=graph-rest-1.0]
+func (c *Client) IteratePrincipalsAssignedToApp(ctx context.Context, appID string, f func(*AppRoleAssignment) bool, opts ...IterateOpt) error {
+	principalPath := fmt.Sprintf("servicePrincipals(appId='%s')", appID)
+	return iterateSimple(c, ctx, path.Join(principalPath, "appRoleAssignedTo"), f, opts...)
 }
 
 const (

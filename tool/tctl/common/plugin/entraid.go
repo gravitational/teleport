@@ -86,15 +86,16 @@ After completing the Entra ID setup, copy and paste the following information:
 )
 
 type entraArgs struct {
-	cmd                    *kingpin.CmdClause
-	authConnectorName      string
-	defaultOwners          []string
-	useSystemCredentials   bool
-	accessGraph            bool
-	force                  bool
-	manualEntraIDSetup     bool
-	groupFilters           filter.Inputs
-	accessListOwnersSource string
+	cmd                      *kingpin.CmdClause
+	authConnectorName        string
+	defaultOwners            []string
+	useSystemCredentials     bool
+	accessGraph              bool
+	force                    bool
+	manualEntraIDSetup       bool
+	groupFilters             filter.Inputs
+	accessListOwnersSource   string
+	filterUsersAssignedToApp bool
 }
 
 func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
@@ -147,6 +148,11 @@ func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
 		StringsVar(&p.install.entraID.groupFilters.ExcludeID)
 	cmd.Flag("exclude-group-name", "Exclude groups matching the specified group name regex.").
 		StringsVar(&p.install.entraID.groupFilters.ExcludeNameRegex)
+
+	cmd.
+		Flag("filter-users-assigned-to-app", "Import users that are assigned to the referenced enterprise application.").
+		Default("false").
+		BoolVar(&p.install.entraID.filterUsersAssignedToApp)
 }
 
 type entraSettings struct {
@@ -375,13 +381,14 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 				Settings: &types.PluginSpecV1_EntraId{
 					EntraId: &types.PluginEntraIDSettings{
 						SyncSettings: &types.PluginEntraIDSyncSettings{
-							DefaultOwners:          inputs.entraID.defaultOwners,
-							SsoConnectorId:         inputs.entraID.authConnectorName,
-							CredentialsSource:      credentialsSource,
-							TenantId:               settings.tenantID,
-							EntraAppId:             settings.clientID,
-							GroupFilters:           groupFilters,
-							AccessListOwnersSource: ownersSource,
+							DefaultOwners:            inputs.entraID.defaultOwners,
+							SsoConnectorId:           inputs.entraID.authConnectorName,
+							CredentialsSource:        credentialsSource,
+							TenantId:                 settings.tenantID,
+							EntraAppId:               settings.clientID,
+							GroupFilters:             groupFilters,
+							AccessListOwnersSource:   ownersSource,
+							FilterUsersAssignedToApp: inputs.entraID.filterUsersAssignedToApp,
 						},
 						AccessGraphSettings: tagSyncSettings,
 					},
