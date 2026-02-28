@@ -455,7 +455,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				cl, err := teleport.NewClient(helpers.ClientConfig{
 					Login:        suite.Me.Username,
 					Cluster:      helpers.Site,
-					Host:         Host,
+					Host:         nodeConf.Hostname,
 					Port:         helpers.Port(t, nodeConf.SSH.Addr.Addr),
 					ForwardAgent: tt.inForwardAgent,
 				})
