@@ -62,11 +62,7 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 	}
 	g, ctx := errgroup.WithContext(ctx)
 
-	// Somewhat arbitrary limit to make sure Teleport doesn't have to install
-	// hundreds of nodes at once.
-	// TODO (Tener): increase limit/make it configurable.
-	const azureParallelInstallLimit = 10
-	g.SetLimit(azureParallelInstallLimit)
+	g.SetLimit(installConcurrencyLimit(req.InstallerParams))
 
 	var failures []AzureInstallFailure
 	var mu sync.Mutex

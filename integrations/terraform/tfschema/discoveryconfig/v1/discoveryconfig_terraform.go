@@ -273,6 +273,11 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Description: "HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.",
 									Optional:    true,
 								},
+								"install_concurrency_limit": {
+									Description: "InstallConcurrencyLimit overrides the default limit for concurrent Teleport agent installations on discovered cloud VMs. Zero means use the default.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
 								"install_teleport": {
 									Description: "InstallTeleport disables agentless discovery",
 									Optional:    true,
@@ -427,6 +432,11 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Description: "HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.",
 									Optional:    true,
 								},
+								"install_concurrency_limit": {
+									Description: "InstallConcurrencyLimit overrides the default limit for concurrent Teleport agent installations on discovered cloud VMs. Zero means use the default.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
 								"install_teleport": {
 									Description: "InstallTeleport disables agentless discovery",
 									Optional:    true,
@@ -551,6 +561,11 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									}),
 									Description: "HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.",
 									Optional:    true,
+								},
+								"install_concurrency_limit": {
+									Description: "InstallConcurrencyLimit overrides the default limit for concurrent Teleport agent installations on discovered cloud VMs. Zero means use the default.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
 								"install_teleport": {
 									Description: "InstallTeleport disables agentless discovery",
@@ -1300,6 +1315,23 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attrs["install_concurrency_limit"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Params.InstallConcurrencyLimit"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.InstallConcurrencyLimit", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																		} else {
+																			var t uint32
+																			if !v.Null && !v.Unknown {
+																				t = uint32(v.Value)
+																			}
+																			obj.InstallConcurrencyLimit = t
+																		}
+																	}
+																}
 															}
 														}
 													}
@@ -1912,6 +1944,23 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attrs["install_concurrency_limit"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.azure.Params.InstallConcurrencyLimit"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.InstallConcurrencyLimit", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																		} else {
+																			var t uint32
+																			if !v.Null && !v.Unknown {
+																				t = uint32(v.Value)
+																			}
+																			obj.InstallConcurrencyLimit = t
+																		}
+																	}
+																}
 															}
 														}
 													}
@@ -2345,6 +2394,23 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																					}
 																				}
 																			}
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["install_concurrency_limit"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.gcp.Params.InstallConcurrencyLimit"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.InstallConcurrencyLimit", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																		} else {
+																			var t uint32
+																			if !v.Null && !v.Unknown {
+																				t = uint32(v.Value)
+																			}
+																			obj.InstallConcurrencyLimit = t
 																		}
 																	}
 																}
@@ -3748,6 +3814,28 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																	}
 																}
 															}
+															{
+																t, ok := tf.AttrTypes["install_concurrency_limit"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.Params.InstallConcurrencyLimit"})
+																} else {
+																	v, ok := tf.Attrs["install_concurrency_limit"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.InstallConcurrencyLimit", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.InstallConcurrencyLimit", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																		}
+																		v.Null = int64(obj.InstallConcurrencyLimit) == 0
+																	}
+																	v.Value = int64(obj.InstallConcurrencyLimit)
+																	v.Unknown = false
+																	tf.Attrs["install_concurrency_limit"] = v
+																}
+															}
 														}
 														v.Unknown = false
 														tf.Attrs["install"] = v
@@ -4721,6 +4809,28 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																	}
 																}
 															}
+															{
+																t, ok := tf.AttrTypes["install_concurrency_limit"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.azure.Params.InstallConcurrencyLimit"})
+																} else {
+																	v, ok := tf.Attrs["install_concurrency_limit"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.InstallConcurrencyLimit", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.InstallConcurrencyLimit", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																		}
+																		v.Null = int64(obj.InstallConcurrencyLimit) == 0
+																	}
+																	v.Value = int64(obj.InstallConcurrencyLimit)
+																	v.Unknown = false
+																	tf.Attrs["install_concurrency_limit"] = v
+																}
+															}
 														}
 														v.Unknown = false
 														tf.Attrs["install_params"] = v
@@ -5402,6 +5512,28 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																		v.Unknown = false
 																		tf.Attrs["http_proxy_settings"] = v
 																	}
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["install_concurrency_limit"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.gcp.Params.InstallConcurrencyLimit"})
+																} else {
+																	v, ok := tf.Attrs["install_concurrency_limit"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.InstallConcurrencyLimit", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.InstallConcurrencyLimit", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																		}
+																		v.Null = int64(obj.InstallConcurrencyLimit) == 0
+																	}
+																	v.Value = int64(obj.InstallConcurrencyLimit)
+																	v.Unknown = false
+																	tf.Attrs["install_concurrency_limit"] = v
 																}
 															}
 														}

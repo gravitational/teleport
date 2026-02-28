@@ -283,7 +283,8 @@ func deriveTeleportEqual_17(this, that *types.InstallerParams) bool {
 			this.EnrollMode == that.EnrollMode &&
 			this.Suffix == that.Suffix &&
 			this.UpdateGroup == that.UpdateGroup &&
-			deriveTeleportEqual_23(this.HTTPProxySettings, that.HTTPProxySettings)
+			deriveTeleportEqual_23(this.HTTPProxySettings, that.HTTPProxySettings) &&
+			this.InstallConcurrencyLimit == that.InstallConcurrencyLimit
 }
 
 // deriveTeleportEqual_18 returns whether this and that are equal.

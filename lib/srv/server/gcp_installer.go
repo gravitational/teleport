@@ -58,9 +58,7 @@ func (gi *GCPInstaller) Run(ctx context.Context, req GCPRunRequest) error {
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
-	// Somewhat arbitrary limit to make sure Teleport doesn't have to install
-	// hundreds of nodes at once.
-	g.SetLimit(10)
+	g.SetLimit(installConcurrencyLimit(req.InstallerParams))
 
 	for _, inst := range req.Instances {
 		g.Go(func() error {
