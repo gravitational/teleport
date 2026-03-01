@@ -39,16 +39,16 @@ utf16string = "0.2.0"
 uuid = { version = "1.21.0", features = ["v4"] }
 url = "2.5.8"
 picky = { version = "7.0.0-rc.17", default-features = false }
-picky-asn1-der = "0.5.4"
-picky-asn1-x509 = "0.15.2"
+picky-asn1-der = "0.5.5"
+picky-asn1-x509 = "0.15.3"
 reqwest = { version = "0.13", default-features = false }
-rustls = { version = "0.23.36", default-features = false, features = [
+rustls = { version = "0.23.37", default-features = false, features = [
     "aws-lc-rs",
 ] }
 
 [build-dependencies]
 cbindgen = "0.29.2"
-tempfile = "3.25.0"
+tempfile = "3.26.0"
 
 [features]
 fips = ["tokio-boring/fips", "boring/fips"]
