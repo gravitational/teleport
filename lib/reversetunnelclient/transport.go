@@ -55,6 +55,10 @@ type TunnelAuthDialerConfig struct {
 	Log *slog.Logger
 	// InsecureSkipTLSVerify is whether to skip certificate validation.
 	InsecureSkipTLSVerify bool
+	// AllowALPNRouting allows the dialer to return connections to the auth
+	// service that will only succeed when carrying the correct ALPN tag for
+	// auth connections.
+	AllowALPNRouting bool
 	// GetClusterCAs contains cluster CAs.
 	GetClusterCAs client.GetClusterCAsFunc
 }
@@ -94,6 +98,17 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 	}
 
 	if mode == types.ProxyListenerMode_Multiplex {
+		alpnConnUpgradeRequired := client.IsALPNConnUpgradeRequired(ctx, addr.Addr, t.InsecureSkipTLSVerify)
+		if t.AllowALPNRouting && !alpnConnUpgradeRequired {
+			// in multiplex mode the address of the tunnel returned by the
+			// resolver is also the address of the web listener which also
+			// allows ALPN-tagged connections to the auth without further
+			// wrapping
+			t.Log.DebugContext(ctx, "Dialing auth directly")
+			dialer := proxy.DialerFromEnvironment(addr.Addr, opts...)
+			return dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, t.ClientConfig.Timeout)
+		}
+
 		opts = append(opts, proxy.WithALPNDialer(client.ALPNDialerConfig{
 			TLSConfig: &tls.Config{
 				NextProtos: []string{
@@ -103,7 +118,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 				InsecureSkipVerify: t.InsecureSkipTLSVerify,
 			},
 			DialTimeout:             t.ClientConfig.Timeout,
-			ALPNConnUpgradeRequired: client.IsALPNConnUpgradeRequired(ctx, addr.Addr, t.InsecureSkipTLSVerify),
+			ALPNConnUpgradeRequired: alpnConnUpgradeRequired,
 			GetClusterCAs:           t.GetClusterCAs,
 		}))
 	}
