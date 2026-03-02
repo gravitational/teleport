@@ -38,6 +38,10 @@ func TestLoginRuleController(t *testing.T) {
 			test: testlib.LoginRuleCreationTest,
 		},
 		{
+			desc: "deletion",
+			test: testlib.LoginRuleDeletionTest,
+		},
+		{
 			desc: "deletion drift",
 			test: testlib.LoginRuleDeletionDriftTest,
 		},

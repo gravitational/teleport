@@ -29,6 +29,10 @@ func TestInferenceSecretController(t *testing.T) {
 			test: testlib.InferenceSecretCreationTest,
 		},
 		{
+			desc: "deletion",
+			test: testlib.InferenceSecretDeletionTest,
+		},
+		{
 			desc: "deletion drift",
 			test: testlib.InferenceSecretDeletionDriftTest,
 		},

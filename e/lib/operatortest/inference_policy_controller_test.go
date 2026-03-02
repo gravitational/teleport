@@ -29,6 +29,10 @@ func TestInferencePolicyController(t *testing.T) {
 			test: testlib.InferencePolicyCreationTest,
 		},
 		{
+			desc: "deletion",
+			test: testlib.InferencePolicyDeletionTest,
+		},
+		{
 			desc: "deletion drift",
 			test: testlib.InferencePolicyDeletionDriftTest,
 		},

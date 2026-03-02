@@ -32,6 +32,10 @@ func TestAccessListController(t *testing.T) {
 			test: testlib.AccessListCreationTest,
 		},
 		{
+			desc: "deletion",
+			test: testlib.AccessListDeletionTest,
+		},
+		{
 			desc: "deletion drift",
 			test: testlib.AccessListDeletionDriftTest,
 		},

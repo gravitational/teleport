@@ -29,6 +29,10 @@ func TestInferenceModelController(t *testing.T) {
 			test: testlib.InferenceModelCreationTest,
 		},
 		{
+			desc: "deletion",
+			test: testlib.InferenceModelDeletionTest,
+		},
+		{
 			desc: "deletion drift",
 			test: testlib.InferenceModelDeletionDriftTest,
 		},
