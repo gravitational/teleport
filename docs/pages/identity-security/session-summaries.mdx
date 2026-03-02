@@ -106,7 +106,7 @@ permissions. You can skip directly to
 start summarizing sessions.
 </Admonition>
 
-## Step 1: Configure access to inference configuration
+## Step 1/5: Configure access to inference configuration
 
 In order to manage the summary inference configuration, you need write access
 to `inference_model`, `inference_secret`, and `inference_policy` resources,
@@ -149,7 +149,7 @@ access to all necessary resources. To create a new role:
 
 1. (!docs/pages/includes/add-role-to-user.mdx role="summarizer-admin"!)
 
-## Step 2: Configure the inference model
+## Step 2/5: Configure the inference model
 
 In this step, you will create an `inference_model` resource. It tells Teleport
 how to summarize a session by pointing it to a large language model (LLM) API.
@@ -367,7 +367,7 @@ modify the role specified in the **IAM Role** section of the instance summary.
 </TabItem>
 </Tabs>
 
-## Step 3: Set up an inference policy
+## Step 3/5: Set up an inference policy
 
 In this step, you will add an `inference_policy` resource that routes sessions
 to inference models using session kinds and optional custom filters. Only one
@@ -458,7 +458,7 @@ sections of [Teleport Resources Reference](../reference/infrastructure-as-code/t
 - [`inference_secret`](../reference/infrastructure-as-code/teleport-resources/inference-secret.mdx) (only for OpenAI and compatible APIs)
 - [`inference_policy`](../reference/infrastructure-as-code/teleport-resources/inference-policy.mdx)
 
-## Step 4: Configure access to session summaries
+## Step 4/5: Configure access to session summaries
 
 Every user who has access to
 [given session recording](../reference/access-controls/roles.mdx#rbac-for-session-recordings)
@@ -495,7 +495,7 @@ access to all recordings. To create a new role:
 
 1. (!docs/pages/includes/add-role-to-user.mdx role="summary-auditor"!)
 
-## Step 5: Conduct a session and view its summary
+## Step 5/5: Conduct a session and view its summary
 
 That's it! We are ready to conduct a test session. Connect to any of your
 cluster resources using `tsh ssh`, `kubectl exec`, `tsh db connect`, or a web
