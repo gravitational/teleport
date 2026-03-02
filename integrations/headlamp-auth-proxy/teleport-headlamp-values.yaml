@@ -22,11 +22,6 @@ extraContainers:
   - name: auth-proxy
     image: ghcr.io/jakealti/headlamp-auth-proxy:latest
     imagePullPolicy: Always
-    args:
-      - "--headlamp-addr=127.0.0.1:4467"
-      - "--listen-http=:4466"
-      - "--listen-k8s=127.0.0.1:6443"
-      - "--groups-claim=roles"
     env:
       - name: TELEPORT_PROXY_ADDR
         valueFrom:

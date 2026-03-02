@@ -16,9 +16,8 @@ import (
 
 // TeleportClaims are the claims extracted from the Teleport app access JWT.
 type TeleportClaims struct {
-	Username string              `json:"username"`
-	Roles    []string            `json:"roles"`
-	Traits   map[string][]string `json:"traits"`
+	Username string   `json:"username"`
+	Roles    []string `json:"roles"`
 }
 
 // JWKSVerifier verifies Teleport app access JWTs against JWKS public keys
