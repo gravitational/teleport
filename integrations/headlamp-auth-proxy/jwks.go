@@ -19,7 +19,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -43,6 +42,7 @@ type TeleportClaims struct {
 type JWKSVerifier struct {
 	mu      sync.RWMutex
 	keySet  jose.JSONWebKeySet
+	expires time.Time
 	jwksURL string
 	client  http.Client
 }
@@ -62,21 +62,29 @@ func NewJWKSVerifier(proxyAddr string) (*JWKSVerifier, error) {
 	return v, nil
 }
 
-// RefreshLoop periodically refreshes the JWKS key set. It blocks until ctx is cancelled.
-func (v *JWKSVerifier) RefreshLoop(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if err := v.refresh(); err != nil {
-				slog.Error("JWKS refresh failed", "error", err)
-			}
-		}
+// keys returns the cached JWKS key set, refreshing it from the Teleport
+// proxy if older than 5 minutes.
+func (v *JWKSVerifier) keys() jose.JSONWebKeySet {
+	v.mu.RLock()
+	if time.Now().Before(v.expires) {
+		ks := v.keySet
+		v.mu.RUnlock()
+		return ks
 	}
+	v.mu.RUnlock()
+
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	// Double-check after acquiring write lock.
+	if time.Now().Before(v.expires) {
+		return v.keySet
+	}
+
+	if err := v.refresh(); err != nil {
+		slog.Error("JWKS refresh failed, using cached keys", "error", err)
+	}
+	return v.keySet
 }
 
 // Verify parses the raw JWT string, verifies its signature against the cached
@@ -87,9 +95,7 @@ func (v *JWKSVerifier) Verify(rawToken string) (*TeleportClaims, error) {
 		return nil, fmt.Errorf("parsing JWT: %w", err)
 	}
 
-	v.mu.RLock()
-	keys := v.keySet
-	v.mu.RUnlock()
+	keys := v.keys()
 
 	var claims TeleportClaims
 	var registered jwt.Claims
@@ -131,10 +137,8 @@ func (v *JWKSVerifier) refresh() error {
 		return fmt.Errorf("parsing JWKS: %w", err)
 	}
 
-	v.mu.Lock()
 	v.keySet = keySet
-	v.mu.Unlock()
-
+	v.expires = time.Now().Add(5 * time.Minute)
 	slog.Info("JWKS refreshed", "keys", len(keySet.Keys))
 	return nil
 }

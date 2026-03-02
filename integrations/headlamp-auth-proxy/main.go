@@ -60,8 +60,6 @@ func main() {
 		slog.Error("initializing JWKS verifier", "error", err)
 		os.Exit(1)
 	}
-	go verifier.RefreshLoop(ctx)
-
 	signer := &TokenSigner{key: hmacKey}
 
 	frontProxy := NewFrontProxy(verifier, signer)
