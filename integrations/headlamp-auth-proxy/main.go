@@ -30,7 +30,7 @@ func main() {
 		listenHTTP   = flag.String("listen-http", ":4466", "Front proxy listen address")
 		listenK8s    = flag.String("listen-k8s", "127.0.0.1:6443", "K8s API proxy listen address")
 		groupsClaim  = flag.String("groups-claim", "roles", "JWT claim to map to K8s groups (roles or traits.<key>)")
-		cookieName   = flag.String("cookie-name", "headlamp_main_token", "Headlamp session cookie name")
+		cookieName   = flag.String("cookie-name", "headlamp-auth-main.0", "Headlamp session cookie name (format: headlamp-auth-{cluster}.{chunk})")
 		tokenTTL     = flag.Duration("token-ttl", 5*time.Minute, "Internal HMAC token TTL")
 	)
 	flag.Parse()
