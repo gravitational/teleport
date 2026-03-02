@@ -165,6 +165,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   private keyboardLayout: number | undefined;
   private screenSpec: ClientScreenSpec | undefined;
   private codec: Codec | undefined;
+  hidpiSupported = false;
 
   private logger = new Logger('TDPClient');
 
@@ -344,7 +345,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     // select the wasm log level
     let wasmLogLevel = LogType.OFF;
     if (import.meta.env.MODE === 'development') {
-      wasmLogLevel = LogType.TRACE;
+      wasmLogLevel = LogType.WARN;
     }
 
     // Convert the inlined (base64) WASM to a raw buffer. The init function will
@@ -503,9 +504,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   handleServerHello(hello: ServerHello) {
-    // In the future, we may add new server capability advertisements
-    // that will affect client configuration.
-    // For now we'll just activate the the connection.
+    this.hidpiSupported = hello.hidpiSupported;
     this.handleRdpConnectionActivated(hello.activationEvent);
   }
 
@@ -547,7 +546,12 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   handleRdpConnectionActivated(activated: RdpConnectionActivated) {
     const { ioChannelId, userChannelId, screenWidth, screenHeight } = activated;
-    const spec = { width: screenWidth, height: screenHeight };
+    // Scale is not relevant for the server's response; use 100 (1x) as default.
+    const spec: ClientScreenSpec = {
+      width: screenWidth,
+      height: screenHeight,
+      scale: 100,
+    };
     this.logger.info(
       `screen spec received from server ${spec.width} x ${spec.height}`
     );
@@ -555,6 +559,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.initFastPathProcessor(ioChannelId, userChannelId, {
       width: screenWidth,
       height: screenHeight,
+      scale: 100,
     });
 
     // Emit the spec to any listeners. Listeners can then resize
