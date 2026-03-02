@@ -33,7 +33,6 @@ extraContainers:
         containerPort: 4466
         protocol: TCP
     securityContext:
-      runAsNonRoot: true
       privileged: false
       allowPrivilegeEscalation: false
 
