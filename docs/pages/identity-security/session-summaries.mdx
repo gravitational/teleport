@@ -67,39 +67,36 @@ There are three fundamental concepts that underpin session summarization:
 - **Inference policies** indicate *what* gets summarized and which inference
   model is used in given case.
 
-<Admonition type="warning">
-This feature is powered by AI leveraging a Large Language Model, and as such,
-its accuracy may vary.
-</Admonition>
-
 <Admonition type="warning" scope={["oss", "enterprise"]} scopeOnly>
-Teleport doesn't currently support any spend controls; controlling the LLM
-token budget is your responsibility.
+This feature is powered by AI leveraging a Large Language Model, and as such,
+its accuracy may vary. Teleport doesn't currently support any spend controls;
+controlling the LLM token budget is your responsibility.
 </Admonition>
 
-<Admonition type="note" scope={["cloud"]} scopeOnly>
-For Teleport Enterprise Cloud customers using the Teleport-managed model,
-session recording summary costs are included in the price of Identity Security.
-If you bring your own LLM provider, controlling the token budget is your
-responsibility.
+<Admonition type="warning" scope={["cloud"]} scopeOnly>
+This feature is powered by AI leveraging a Large Language Model, and as such,
+its accuracy may vary. For Teleport Enterprise Cloud customers using the
+Teleport-managed model, session recording summary costs are included in the
+price of Identity Security. If you bring your own LLM provider, controlling the
+token budget is your responsibility.
 </Admonition>
 
 ## Prerequisites
 
 <Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-- A running Teleport Enterprise cluster v18.2.0 or later with Identity
-  Security enabled.
-- Access to an LLM API. This can be:
-  - OpenAI or OpenAI-compatible inference API, either public or self-hosted.
-  - Amazon Bedrock (see the availability table above).
-</TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 - A Teleport Enterprise Cloud tenant running v18.7.1 or later with Identity
   Security enabled.
 - Optionally, access to your own LLM API (OpenAI, Amazon Bedrock, or an
   OpenAI-compatible gateway). If you don't bring your own, you can use the
   Teleport-managed model included with your Cloud tenant.
+</TabItem>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+- A running Teleport Enterprise cluster v18.2.0 or later with Identity
+  Security enabled.
+- Access to an LLM API. This can be:
+  - OpenAI or OpenAI-compatible inference API, either public or self-hosted.
+  - Amazon Bedrock (see the availability table above).
 </TabItem>
 </Tabs>
 
