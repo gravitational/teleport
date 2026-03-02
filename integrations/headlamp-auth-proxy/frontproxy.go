@@ -39,7 +39,8 @@ func NewFrontProxy(headlampAddr string, signer *TokenSigner, groupsClaim, cookie
 func (fp *FrontProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	jwtToken := r.Header.Get("teleport-jwt-assertion")
 	if jwtToken == "" {
-		http.Error(w, "missing teleport-jwt-assertion header", http.StatusUnauthorized)
+		// No Teleport JWT — forward as-is (health checks, probes).
+		fp.proxy.ServeHTTP(w, r)
 		return
 	}
 

@@ -1392,29 +1392,3 @@ tolerations: []
 # probeTimeoutSeconds(int) -- sets the timeout for the readiness and liveness probes
 # https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 probeTimeoutSeconds: 1
-
-################################################################
-# Headlamp - Kubernetes Web UI
-# https://headlamp.dev/
-################################################################
-
-# headlamp(object) -- deploys Headlamp (Kubernetes web UI) alongside the
-# Teleport agent with an auth-proxy sidecar that bridges Teleport app access
-# identity to Kubernetes RBAC via impersonation.
-headlamp:
-  # headlamp.enabled(bool) -- controls whether Headlamp is deployed.
-  enabled: false
-  image:
-    registry: ghcr.io
-    repository: headlamp-k8s/headlamp
-    tag: "v0.40.0"
-    pullPolicy: IfNotPresent
-  authProxy:
-    image:
-      registry: ghcr.io
-      repository: jakealti/headlamp-auth-proxy
-      tag: "latest"
-      pullPolicy: Always
-    # -- JWT claim to map to Kubernetes groups for impersonation.
-    # Use "roles" for Teleport roles, or "traits.<key>" for a specific trait.
-    groupsClaim: "roles"

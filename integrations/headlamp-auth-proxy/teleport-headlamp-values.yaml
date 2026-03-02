@@ -1,0 +1,110 @@
+# Values overlay for the official Headlamp Helm chart (v0.40.0+).
+#
+# Usage:
+#   helm repo add headlamp https://headlamp-k8s.github.io/headlamp/
+#   helm install headlamp headlamp/headlamp \
+#     --namespace <namespace> \
+#     -f teleport-headlamp-values.yaml
+#
+# Port architecture:
+#   Service:80 -> pod:4466 (auth-proxy front) -> 127.0.0.1:4467 (Headlamp)
+#                                                  | K8s API calls
+#                                               127.0.0.1:6443 (auth-proxy k8s) -> real K8s API
+
+# Disable in-cluster mode — Headlamp uses the kubeconfig provided below,
+# which points to the auth-proxy's K8s API endpoint on localhost.
+config:
+  inCluster: false
+  extraArgs:
+    - "-port=4467"
+    - "-kubeconfig=/etc/headlamp-proxy/kubeconfig"
+
+# The auth-proxy handles impersonation — no need for cluster-admin on the
+# Headlamp ServiceAccount's default binding.
+clusterRoleBinding:
+  create: false
+
+# Teleport's discovery service picks up this annotation and registers
+# Headlamp as an application.
+service:
+  annotations:
+    teleport.dev/name: headlamp
+
+# Auth-proxy sidecar: front proxy on :4466, K8s API proxy on :6443.
+extraContainers:
+  - name: auth-proxy
+    image: ghcr.io/jakealti/headlamp-auth-proxy:latest
+    imagePullPolicy: Always
+    args:
+      - "--headlamp-addr=127.0.0.1:4467"
+      - "--listen-http=:4466"
+      - "--listen-k8s=127.0.0.1:6443"
+      - "--groups-claim=roles"
+    ports:
+      - name: http
+        containerPort: 4466
+        protocol: TCP
+    securityContext:
+      runAsNonRoot: true
+      privileged: false
+      allowPrivilegeEscalation: false
+
+# Mount the kubeconfig into the Headlamp container.
+volumeMounts:
+  - name: kubeconfig
+    mountPath: /etc/headlamp-proxy
+    readOnly: true
+
+volumes:
+  - name: kubeconfig
+    configMap:
+      name: headlamp-kubeconfig
+
+# Extra manifests rendered by the chart (supports tpl for Helm templating).
+# Creates the kubeconfig ConfigMap, impersonation ClusterRole, and binding.
+extraManifests:
+  - |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: headlamp-kubeconfig
+      namespace: {{ .Release.Namespace }}
+    data:
+      kubeconfig: |
+        apiVersion: v1
+        kind: Config
+        clusters:
+        - cluster:
+            server: http://127.0.0.1:6443
+          name: main
+        users:
+        - name: default
+          user: {}
+        contexts:
+        - context:
+            cluster: main
+            user: default
+          name: main
+        current-context: main
+  - |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: {{ .Release.Name }}-headlamp-impersonate
+    rules:
+      - apiGroups: [""]
+        resources: ["users", "groups", "serviceaccounts"]
+        verbs: ["impersonate"]
+  - |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: {{ .Release.Name }}-headlamp-impersonate
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: {{ .Release.Name }}-headlamp-impersonate
+    subjects:
+      - kind: ServiceAccount
+        name: {{ include "headlamp.serviceAccountName" . }}
+        namespace: {{ .Release.Namespace }}
