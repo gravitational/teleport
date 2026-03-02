@@ -2055,18 +2055,19 @@ cli-docs-tctl:
 	$(BUILDDIR)/tctldocs help 2>docs/pages/reference/cli/tctl.mdx && \
 	rm $(BUILDDIR)/tctldocs
 
-# audit-event-reference generates audit event reference docs using the Web UI
-# source.
-.PHONY: audit-event-reference
-audit-event-reference:
-	pnpm run -C ./web/packages/teleport event-reference
+# web-ui-docs generates all documentation derived from the Web UI source,
+# including the audit event reference and the list of resources with guided
+# enrollment flows in the Web UI.
+.PHONY: web-ui-docs
+web-ui-docs:
+	pnpm run -C ./web/packages/teleport gen-docs
 
-# audit-event-reference-up-to-date ensures the audit event reference
-# documentation reflects the Web UI source.
-.PHONY: audit-event-reference-up-to-date
-audit-event-reference-up-to-date: must-start-clean/host audit-event-reference
+# web-ui-docs-up-to-date ensures all documentation generated from the Web UI
+# source is up to date.
+.PHONY: web-ui-docs-up-to-date
+web-ui-docs-up-to-date: must-start-clean/host web-ui-docs
 	@if ! git diff --quiet; then \
-		./build.assets/please-run.sh "audit event reference docs" "make audit-event-reference"; \
+		./build.assets/please-run.sh "docs generated from the Web UI source" "make web-ui-docs"; \
 		exit 1; \
 	fi
 
@@ -2082,7 +2083,7 @@ access-monitoring-reference-up-to-date: access-monitoring-reference
 	fi
 
 .PHONY: gen-docs
-gen-docs: gen-resource-docs audit-event-reference
+gen-docs: gen-resource-docs web-ui-docs
 	$(MAKE) -C integrations/terraform docs
 	$(MAKE) -C integrations/operator crd-docs
 	$(MAKE) -C examples/chart render-chart-ref

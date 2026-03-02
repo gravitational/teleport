@@ -21,7 +21,7 @@ import { DiscoverEventResource } from 'teleport/services/userEvent';
 import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 
 import { SelectResourceSpec } from '.';
-import { ResourceKind } from '../../Shared';
+import { ResourceKind } from '../../Shared/ResourceKind';
 
 export const SAML_APPLICATIONS: SelectResourceSpec[] = [
   {
