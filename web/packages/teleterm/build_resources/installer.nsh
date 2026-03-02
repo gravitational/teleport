@@ -102,7 +102,7 @@
     Pop $1 # Output
     ${If} $0 != 0
         MessageBox MB_ICONSTOP \
-            "tsh.exe connect-updater-uninstall-service failed with exit code $0. The installer is going to continue. Output: $1"
+            "tsh.exe connect-updater-uninstall-service failed with exit code $0. The uninstaller is going to continue. Output: $1"
     ${Endif}
 
   ${Else}

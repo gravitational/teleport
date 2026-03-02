@@ -102,7 +102,7 @@ export class NsisDualModeUpdater extends NsisUpdater {
     } catch (error) {
       this.dispatchError(error);
       const errorMessage = getErrorMessage(error);
-      if (!errorMessage.includes('failed to ensure service running')) {
+      if (!errorMessage.includes('failed to ensure service is running')) {
         // If not a problem with starting the service, keep the app open and surface the error in the UI.
         return false;
       }
