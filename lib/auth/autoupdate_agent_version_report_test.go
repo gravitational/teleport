@@ -92,6 +92,7 @@ type fakeServer struct {
 }
 
 func TestServer_generateAgentVersionReport(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	now := time.Now()
 	twoMinutesAgo := now.Add(-time.Minute * 2)
@@ -298,6 +299,7 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 }
 
 func TestServer_reportAgentVersions(t *testing.T) {
+	t.Parallel()
 	// Test setup: create auth.
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
