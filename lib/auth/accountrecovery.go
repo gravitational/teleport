@@ -54,11 +54,6 @@ const (
 	completeRecoveryGenericErrMsg = "unable to recover your account, please contact your system administrator"
 )
 
-// fakeRecoveryCodeHash is bcrypt hash for "fake-barbaz x 8".
-// This is a fake hash used to mitigate timing attacks against invalid usernames or if user does
-// exist but does not have recovery codes.
-var fakeRecoveryCodeHash = []byte(`$2a$10$c2.h4pF9AA25lbrWo6U0D.ZmnYpFDaNzN3weNNYNC3jAkYEX9kpzu`)
-
 // StartAccountRecovery implements AuthService.StartAccountRecovery.
 func (a *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
 	if err := a.isAccountRecoveryAllowed(ctx); err != nil {
@@ -163,8 +158,8 @@ func (a *Server) verifyRecoveryCode(ctx context.Context, username string, recove
 			ctx, "Account recovery codes not found for user, using fake hashes to mitigate timing attacks",
 			"user", username,
 		)
-		for i := 0; i < numOfRecoveryCodes; i++ {
-			hashedCodes[i].HashedCode = fakeRecoveryCodeHash
+		for i := range numOfRecoveryCodes {
+			hashedCodes[i].HashedCode = a.fakeRecoveryCodeHash
 		}
 	} else {
 		hasRecoveryCodes = true
