@@ -98,11 +98,21 @@ token budget is your responsibility.
 </TabItem>
 </Tabs>
 
+<Admonition type="tip" title="Teleport Enterprise Cloud Quick Start" scope={["cloud"]} scopeOnly>
+Teleport Enterprise Cloud tenants include a pre-provisioned inference model
+(`teleport-cloud-default`) and the `editor` role already has the required
+permissions. You can skip directly to
+[Step 3: Set up an inference policy](#step-3-set-up-an-inference-policy) to
+start summarizing sessions.
+</Admonition>
+
 ## Step 1: Configure access to inference configuration
 
-In order to manage the summary inference configuration, you need a write access
+In order to manage the summary inference configuration, you need write access
 to `inference_model`, `inference_secret`, and `inference_policy` resources,
 which is granted by default through the preset `editor` role.
+
+
 
 Alternatively, you can create a new role to make sure you have
 access to all necessary resources. To create a new role:
