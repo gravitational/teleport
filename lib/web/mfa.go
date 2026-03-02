@@ -176,6 +176,7 @@ type CreateAuthenticateChallengeRequest struct {
 	ChallengeAllowReuse         bool                  `json:"challenge_allow_reuse"`
 	UserVerificationRequirement string                `json:"user_verification_requirement"`
 	ProxyAddress                string                `json:"proxy_address"`
+	BrowserMFARequestID         string                `json:"browser_mfa_request_id"`
 }
 
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
@@ -253,18 +254,27 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 	query.Set("channel_id", channelID)
 	ssoClientRedirectURL.RawQuery = query.Encode()
 
+	// If BrowserMFARequestID is set, don't set the challenge extensions.
+	// They will be gotten from the stored MFASession on the backend and
+	// applied to the challenge.
+	var challengeExtensions *mfav1.ChallengeExtensions
+	if req.BrowserMFARequestID == "" {
+		challengeExtensions = &mfav1.ChallengeExtensions{
+			Scope:                       mfav1.ChallengeScope(req.ChallengeScope),
+			AllowReuse:                  allowReuse,
+			UserVerificationRequirement: req.UserVerificationRequirement,
+		}
+	}
+
 	chal, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
-		MFARequiredCheck: mfaRequiredCheckProto,
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope:                       mfav1.ChallengeScope(req.ChallengeScope),
-			AllowReuse:                  allowReuse,
-			UserVerificationRequirement: req.UserVerificationRequirement,
-		},
+		MFARequiredCheck:     mfaRequiredCheckProto,
+		ChallengeExtensions:  challengeExtensions,
 		SSOClientRedirectURL: ssoClientRedirectURL.String(),
 		ProxyAddress:         req.ProxyAddress,
+		BrowserMFARequestID:  req.BrowserMFARequestID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -646,6 +656,9 @@ func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge, ssoCha
 	if protoChal.GetSSOChallenge() != nil {
 		chal.SSOChallenge = client.SSOChallengeFromProto(protoChal.GetSSOChallenge())
 		chal.SSOChallenge.ChannelID = ssoChannelID
+	}
+	if protoChal.GetBrowserMFAChallenge() != nil {
+		chal.BrowserMFAChallenge = client.BrowserChallengeFromProto(protoChal.GetBrowserMFAChallenge())
 	}
 	return chal
 }
