@@ -69,8 +69,8 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 			}
 		}
 		scopedToken.Spec.Aws = &joiningv1.AWS{
-			Allow:     allow,
-			AwsIidTtl: int64(base.AWSIIDTTL),
+			Allow:  allow,
+			IidTtl: base.AWSIIDTTL.Duration().String(),
 		}
 	case types.JoinMethodIAM:
 		allow := make([]*joiningv1.AWS_Rule, len(base.Allow))

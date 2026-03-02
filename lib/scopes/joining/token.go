@@ -53,7 +53,13 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		if token.GetStatus().GetSecret() == "" {
 			return trace.BadParameter("secret value must be defined for a scoped token when using the token join method")
 		}
-	case types.JoinMethodEC2, types.JoinMethodIAM:
+	case types.JoinMethodEC2:
+		ttl := token.GetSpec().GetAws().GetIidTtl()
+		if _, err := types.ParseDuration(ttl); ttl != "" && err != nil {
+			return trace.BadParameter("invalid IID TTL value %q, must be empty or a valid duration string (e.g. 30m, 12h, 1mo)", ttl)
+		}
+		fallthrough
+	case types.JoinMethodIAM:
 		if len(token.GetSpec().GetAws().GetAllow()) == 0 {
 			return trace.BadParameter("aws configuration must be defined for a scoped token when using the ec2 or iam join methods")
 		}
@@ -345,12 +351,13 @@ func (t *Token) GetAWSAllowRules() []*types.TokenRule {
 
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (t *Token) GetAWSIIDTTL() types.Duration {
-	ttl := t.scoped.GetSpec().GetAws().GetAwsIidTtl()
-	if ttl == 0 {
-		// default to 5 minute ttl if unspecified
+	ttl, err := types.ParseDuration(t.scoped.GetSpec().GetAws().GetIidTtl())
+	if err != nil {
+		// if parsing fails for any reason (including an empty value) we fallback to the 5 minute default
 		return types.Duration(5 * time.Minute)
 	}
-	return types.Duration(ttl)
+
+	return ttl
 }
 
 // GetIntegration returns the Integration field which is used to provide

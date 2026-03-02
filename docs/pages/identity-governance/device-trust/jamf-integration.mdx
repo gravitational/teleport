@@ -111,6 +111,7 @@ teleport:
   # Necessary to write devices back to Teleport.
   proxy_server: (=clusterDefaults.clusterName=):443 # CHANGEME
   join_params:
+    method: "token"
     token_name: "/tmp/token"
 
 jamf_service:

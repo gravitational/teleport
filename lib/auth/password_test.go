@@ -32,7 +32,6 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -53,7 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 type passwordSuite struct {
@@ -89,6 +88,9 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 	a, err := authority.NewKeygen(modules.BuildOSS, s.clock.Now)
 	require.NoError(t, err)
 
+	identity, err := local.NewTestIdentityService(s.bk)
+	require.NoError(t, err)
+
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
@@ -97,6 +99,9 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
 		Clock:                  s.clock,
+		Identity:               identity,
+		FakePasswordHash:       []byte(authtest.FakePasswordHash),
+		FakeRecoveryCodeHash:   []byte(authtest.FakeRecoveryCodeHash),
 	}
 	s.a, err = auth.NewServer(authConfig)
 	require.NoError(t, err)
@@ -144,33 +149,33 @@ func TestUserNotFound(t *testing.T) {
 func TestPasswordLengthChange(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
-	authServer := srv.Auth()
-
-	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+		AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOff,
+		},
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
-	_, err = authServer.UpsertAuthPreference(ctx, ap)
-	require.NoError(t, err)
+	const (
+		username = "llama@goteleport.com"
+		password = "a"
+		// Pre-calculated bcrypt hash of "a" at minimum cost.
+		passwordHash = `$2a$10$xyxHFtG04s0kegyq1jwGB.faThKRIzDTCArbvKPxH6UKHriWz79H6`
+	)
 
-	username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
-	password := []byte("a")
-	u, _, err := authtest.CreateUserAndRole(authServer, username, []string{username}, nil)
-	require.NoError(t, err)
-
-	hash, err := utils.BcryptFromPassword(password, bcrypt.DefaultCost)
+	u, _, err := authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
 	require.NoError(t, err)
 
 	// Set an initial password that is shorter than minimum length
-	u.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: hash})
-	authServer.UpsertUser(ctx, u)
+	u.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: []byte(passwordHash)})
+	_, err = as.AuthServer.UpsertUser(ctx, u)
 	require.NoError(t, err)
 
 	// Ensure that a shorter password still works for auth
-	err = authServer.CheckPasswordWOToken(ctx, username, password)
+	err = as.AuthServer.CheckPasswordWOToken(ctx, username, []byte(password))
 	require.NoError(t, err)
 }
 
