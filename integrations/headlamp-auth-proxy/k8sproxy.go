@@ -55,14 +55,12 @@ func NewK8sProxy(signer *TokenSigner) (*K8sProxy, error) {
 		return nil, fmt.Errorf("failed to parse CA cert")
 	}
 
-	transport := &http.Transport{
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy.Transport = &http.Transport{
 		TLSClientConfig: &tls.Config{
 			RootCAs: caCertPool,
 		},
 	}
-
-	proxy := httputil.NewSingleHostReverseProxy(target)
-	proxy.Transport = transport
 
 	return &K8sProxy{
 		proxy:  proxy,
