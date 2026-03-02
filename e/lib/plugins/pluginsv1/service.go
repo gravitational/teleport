@@ -656,6 +656,14 @@ func (s *Service) GetPlugin(ctx context.Context, req *pluginspb.GetPluginRequest
 		readVerb = types.VerbRead
 	}
 
+	// If the user lacks the read verb entirely, deny immediately.
+	// If the read verb is conditional (i.e. scoped by a where clause),
+	// we need the plugin's spec to evaluate access, but we avoid fetching
+	// it when the user has no read permission at all.
+	if err := authCtx.MaybeAccessToKind(types.KindPlugin, readVerb); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	plugin, err := s.pluginService.GetPlugin(ctx, req.Name, req.WithSecrets)
 	if err != nil {
 		// If the user has no RBAC to list the plugins,
@@ -665,9 +673,10 @@ func (s *Service) GetPlugin(ctx context.Context, req *pluginspb.GetPluginRequest
 		// Log the original error instead.
 
 		if authErr := authCtx.CheckAccessToKind(types.KindPlugin, types.VerbList); authErr != nil {
-			// Generate a fake auth error equivalent to a real one
-			// using a dummy context which does not have user info, so will never have permissions
-			fakeAuthError := authCtx.CheckAccessToKind(types.KindPlugin, readVerb)
+			// Generate a fake auth error to avoid leaking whether the resource
+			// exists: return the same kind of error a caller receives when RBAC
+			// denies the read verb, regardless of what the backend returned.
+			fakeAuthError := trace.AccessDenied("access to %v with verb %v is not allowed", types.KindPlugin, readVerb)
 			s.logger.ErrorContext(ctx, "user does not have access to retrieve plugin", "error", err)
 			return nil, fakeAuthError
 		}

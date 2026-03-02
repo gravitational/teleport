@@ -92,7 +92,8 @@ func createSuite(t *testing.T) *suite {
 		PluginService:                  pluginService,
 		PluginStaticCredentialsService: pluginStaticCredentialsService,
 		PluginAuthorizers:              pluginAuthorizers,
-		KeyStoreManager:                authServer.AuthServer.GetKeyStore()})
+		KeyStoreManager:                authServer.AuthServer.GetKeyStore(),
+	})
 	require.NoError(t, err)
 
 	return &suite{
@@ -130,6 +131,15 @@ type fakeChecker struct {
 	services.AccessChecker
 	rules []types.Rule
 	roles []string
+}
+
+func (f *fakeChecker) GuessIfAccessIsPossible(context services.RuleContext, namespace string, kind string, verb string) error {
+	for _, r := range f.rules {
+		if r.HasResource(kind) && r.HasVerb(verb) {
+			return nil
+		}
+	}
+	return trace.AccessDenied("access to %s with verb %s is not allowed", kind, verb)
 }
 
 func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, kind string, verb string) error {

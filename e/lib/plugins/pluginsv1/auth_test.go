@@ -102,8 +102,19 @@ func TestGetPluginWithSecrets(t *testing.T) {
 				Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
 			},
 		})
-		_, err := suite.svc.GetPlugin(ctx, &pluginspb.GetPluginRequest{Name: "non-existent", WithSecrets: true})
+		_, err := suite.svc.GetPlugin(ctx, &pluginspb.GetPluginRequest{Name: "non-existent", WithSecrets: false})
 		assertNotFound(t, err)
+	})
+
+	t.Run("relay access denied when plugin is not found and user misses list permission", func(t *testing.T) {
+		suite.setRules([]types.Rule{
+			{
+				Resources: []string{types.KindPlugin},
+				Verbs:     []string{types.VerbRead},
+			},
+		})
+		_, err := suite.svc.GetPlugin(ctx, &pluginspb.GetPluginRequest{Name: "non-existent", WithSecrets: true})
+		assertAccessDenied(t, err)
 	})
 
 	t.Run("do not relay notfound when user has no list permission", func(t *testing.T) {
