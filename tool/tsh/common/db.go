@@ -759,6 +759,18 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	if cf.Headless || cf.AuthConnector == constants.HeadlessConnector {
+		if cf.DatabaseName == "" || cf.DatabaseUser == "" {
+			return trace.BadParameter("must specify database name and user with headless auth")
+		}
+		tc.RouteToDatabase = &tlsca.RouteToDatabase{
+			ServiceName: tc.DatabaseService,
+			Protocol:    defaults.ProtocolPostgres,
+			Username:    cf.DatabaseUser,
+			Database:    cf.DatabaseName,
+		}
+	}
+
 	tc.AllowHeadless = true
 
 	var profile *client.ProfileStatus

@@ -806,6 +806,13 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
 		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 	}
+	if req.RouteToDatabase != nil {
+		certReq.dbName = req.RouteToDatabase.Database
+		certReq.dbUser = req.RouteToDatabase.Username
+		certReq.dbProtocol = req.RouteToDatabase.Protocol
+		certReq.dbService = req.RouteToDatabase.ServiceName
+		certReq.dbRoles = req.RouteToDatabase.Roles
+	}
 
 	// For headless authentication, a short-lived mfa-verified cert should be generated.
 	if req.HeadlessAuthenticationID != "" {

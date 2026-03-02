@@ -4712,6 +4712,7 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httpro
 		TTL:                     req.TTL,
 		RouteToCluster:          req.RouteToCluster,
 		KubernetesCluster:       req.KubernetesCluster,
+		RouteToDatabase:         req.RouteToDatabase,
 		SSHAttestationStatement: req.SSHAttestationStatement,
 		TLSAttestationStatement: req.TLSAttestationStatement,
 	}

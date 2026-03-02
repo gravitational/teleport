@@ -48,6 +48,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/tlsca"
 	websession "github.com/gravitational/teleport/lib/web/session"
 )
 
@@ -209,6 +210,7 @@ type HeadlessLoginReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+	RouteToDatabase   *tlsca.RouteToDatabase
 }
 
 // CheckAndSetDefaults checks and sets default values.
@@ -321,6 +323,7 @@ type SSHLogin struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+	RouteToDatabase   *tlsca.RouteToDatabase
 	// SSHAttestationStatement is an attestation statement for SSHPubKey.
 	SSHAttestationStatement *hardwarekey.AttestationStatement
 	// TLSAttestationStatement is an attestation statement for TLSPubKey.
@@ -529,6 +532,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 		Compatibility:     login.Compatibility,
 		RouteToCluster:    login.RouteToCluster,
 		KubernetesCluster: login.KubernetesCluster,
+		RouteToDatabase:   login.RouteToDatabase,
 	}
 
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "headless", "login"), req)

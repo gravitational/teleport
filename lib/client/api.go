@@ -311,6 +311,8 @@ type Config struct {
 	// cluster every time) but unspecified logic.
 	KubernetesCluster string
 
+	RouteToDatabase *tlsca.RouteToDatabase
+
 	// DatabaseService specifies name of the database proxy server to issue
 	// certificate for.
 	DatabaseService string
@@ -4255,7 +4257,7 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := SSHAgentHeadlessLogin(ctx, SSHLoginHeadless{
+	sshAgentHeadlessLoginConf := SSHLoginHeadless{
 		SSHLogin: SSHLogin{
 			ProxyAddr:         tc.WebProxyAddr,
 			SSHPubKey:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
@@ -4267,7 +4269,11 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (
 		},
 		User:                     tc.Username,
 		HeadlessAuthenticationID: headlessAuthenticationID,
-	})
+	}
+	if tc.RouteToDatabase != nil {
+		sshAgentHeadlessLoginConf.SSHLogin.RouteToDatabase = tc.RouteToDatabase
+	}
+	response, err := SSHAgentHeadlessLogin(ctx, sshAgentHeadlessLoginConf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
