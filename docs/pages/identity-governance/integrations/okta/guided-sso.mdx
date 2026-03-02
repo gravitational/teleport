@@ -165,9 +165,9 @@ to the Okta app are now able to log in to Teleport.
 By default, the Okta SSO integration supports the SP-initiated flow. To enable the IdP-initiated flow you will have to:
 
  1. Edit the Okta SAML connector with the following command:
-   ```code
-   $ tctl edit saml/<Var name="okta" />
-   ``` 
+    ```code
+    $ tctl edit saml/<Var name="okta" />
+    ```
    
  2. In your editor, set `spec.allow_idp_initiated` to `true`.
 
