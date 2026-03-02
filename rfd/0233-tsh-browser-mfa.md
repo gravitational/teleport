@@ -116,8 +116,7 @@ sequenceDiagram
     browser->>browser: User taps TouchID /<br/>Uses password manager passkey
     browser->>proxy: PUT /webapi/mfa/browser/:request_id
   
-    proxy->>auth: rpc ValidateBrowserMFAChallenge
-    auth->>auth: ValidateMFAResponse()
+    proxy->>auth: rpc CompleteBrowserMFAChallenge
     auth->>auth: Encrypt WebAuthn response<br/>with secret_key
     auth-->>proxy: Return http://127.0.0.1:port/callback?response={encrypted_webauthn}
     proxy-->>browser: HTTP 200 with redirect URL
@@ -186,9 +185,10 @@ with the `browser_mfa_request_id` from the URL. The auth server looks up the
 challenge accordingly. The user will then solve the MFA challenge. Once they've
 done so, a request to
 `PUT /webapi/mfa/browser/:request_id` will take the WebAuthn challenge response
-and verify it through `rpc ValidateBrowserMFAChallenge`. If the response is
-valid, the auth server will encrypt the WebAuthn response using the secret key
-from the client redirect URL and return it in the callback URL.
+through `rpc CompleteBrowserMFAChallenge`. The auth server will encrypt the
+WebAuthn response using the secret key from the client redirect URL and return
+it in the callback URL. Validation of the WebAuth response is completed when
+`tsh` submits the response.
 
 ##### `tsh` receiving certificates
 
@@ -196,7 +196,7 @@ The browser receives the redirect URL with encrypted WebAuthn response and
 redirects to it. `tsh`'s callback server receives the request and extracts the
 encrypted response. It decrypts the WebAuthn response with the secret key and
 calls `POST /webapi/mfa/login/finish` with the WebAuthn response. The proxy
-calls `AuthenticateSSHUser`, which validates the WebAuthn response again and
+calls `AuthenticateSSHUser`, which validates the WebAuthn response and
 generates certificates, which `tsh` then saves to disk.
 
 #### Per-session MFA
@@ -272,18 +272,18 @@ automatic fallback behavior will skip browser MFA on Windows platforms.
 
 ### Security
 
-#### `rpc ValidateBrowserMFAChallenge`
+#### `rpc CompleteBrowserMFAChallenge`
 
 The RPC endpoint is restricted to the proxy service only via builtin role
 authorization, verifying the caller has the `RoleProxy` builtin role before
-processing requests. When validating the MFA response, the implementation uses
+processing requests. When completing the MFA response, the implementation uses
 the username stored in the `SSOMFASession` (created during `tsh`'s initial login
 request to `POST /webapi/mfa/login/begin`) rather than the caller's identity,
-ensuring the MFA challenge is validated against the correct user and preventing
+ensuring the MFA challenge is completed for the correct user and preventing
 session confusion attacks. `/web/mfa/browser/:request_id` will verify that the
 intended user is the one completing MFA request.
 
-After successful validation, the WebAuthn response is encrypted with the secret
+After successful completion, the WebAuthn response is encrypted with the secret
 key from the client redirect URL and returned to be sent to `tsh`. If reuse is
 disabled, the `SSOMFASession` is deleted to prevent reuse attacks. Browser MFA
 challenges support challenge reuse as described in
@@ -417,31 +417,6 @@ message BrowserMFAResponse {
   webauthn.CredentialAssertionResponse webauthn_response = 2;
 }
 
-// ValidateBrowserMFAChallengeRequest is used to validate an MFA response
-// during a browser-based MFA authentication flow.
-message ValidateBrowserMFAChallengeRequest {
-  BrowserMFAResponse browser_mfa_response = 1;
-}
-
-// ValidateBrowserMFAChallengeResponse contains the redirect URL to send
-// the user back to after successfully completing browser-based MFA authentication.
-message ValidateBrowserMFAChallengeResponse {
-  // tsh_redirect_url is the callback URL to tsh's local HTTP server with the encrypted WebAuthn response.
-  // Format: http://127.0.0.1:[random_port]/callback?response={encrypted_webauthn_response}
-  string tsh_redirect_url = 1;
-}
-
-// AuthService is authentication/authorization service implementation
-service AuthService {
-  ...
-
-  // ValidateBrowserMFAChallenge validates browser MFA challenge responses and returns an encrypted redirect URL.
-  // This endpoint is restricted to proxy service only via builtin role authorization. The MFA WebAuthn response
-  // from the request is encrypted using a secret key extracted from the SSOMFASession's redirect URL and
-  // embedded as a query parameter in the returned redirect URL.
-  rpc ValidateBrowserMFAChallenge(ValidateBrowserMFAChallengeRequest) returns (ValidateBrowserMFAChallengeResponse);
-}
-
 // CreateAuthenticateChallengeRequest is a request for creating MFA authentication challenges for a
 // users mfa devices.
 message CreateAuthenticateChallengeRequest {
@@ -490,20 +465,31 @@ message CreateSessionChallengeRequest {
   string browser_mfa_tsh_redirect_url = 5;
 }
 
-// BrowserMFAChallenge contains browser auth request details to perform a browser MFA check.
-message BrowserMFAChallenge {
-  // RequestId is the ID of a browser auth request.
-  string request_id = 1;
-  // ClientRedirectUrl is a redirect URL to initiate the browser MFA flow in the browser.
-  string client_redirect_url = 2;
+// CompleteBrowserMFAChallengeRequest is used to complete an MFA response
+// during a browser-based MFA authentication flow.
+message CompleteBrowserMFAChallengeRequest {
+  BrowserMFAResponse browser_mfa_response = 1;
 }
 
-// BrowserMFAResponse is a response to BrowserMFAChallenge.
-message BrowserMFAResponse {
-  // RequestId is the ID of a browser auth request.
-  string request_id = 1;
-  // WebauthnResponse is the WebAuthn credential assertion response from the browser MFA flow.
-  webauthn.CredentialAssertionResponse webauthn_response = 2;
+// CompleteBrowserMFAChallengeResponse contains the redirect URL to send
+// the user back to after successfully completing browser-based MFA authentication.
+message CompleteBrowserMFAChallengeResponse {
+  // tsh_redirect_url is the callback URL to tsh's local HTTP server with the encrypted WebAuthn response.
+  // Format: http://127.0.0.1:[random_port]/callback?response={encrypted_webauthn_response}
+  string tsh_redirect_url = 1;
+}
+
+service MFAService {
+  ...
+
+	// CompleteBrowserMFAChallenge completes a browser MFA challenge request by encrypting
+	// it and returning it to the browser.
+	// This is called when a user has been sent to the browser to solve an MFA challenge
+	// that was triggered by tsh or tctl. When the user solves the MFA challenge, the
+	// response is sent to this RPC. CompleteBrowserMFAChallenge receives the MFA
+	// response, encrypts it, appends it to tsh/tctl's callback URL and returns it to the browser.
+	// More info: https://github.com/gravitational/teleport/blob/master/rfd/0233-tsh-browser-mfa.md
+  rpc CompleteBrowserMFAChallenge(CompleteBrowserMFAChallengeRequest) returns (CompleteBrowserMFAChallengeResponse);
 }
 ```
 
@@ -710,7 +696,7 @@ connection.
 However, In-band MFA doesn't require that a short-lived MFA certificate is
 returned to the client. Taking advantage of this, instead of returning the
 WebAuthn response to the client to have it call `rpc ValidateSessionChallenge`,
-`rpc ValidateBrowserMFAChallenge` could validate the session itself with the
+`rpc CompleteBrowserMFAChallenge` could validate the session itself with the
 WebAuthn it receives from the browser and return a redirect to `tsh` that sends
 the user straight to the `/web/success` page.
 
