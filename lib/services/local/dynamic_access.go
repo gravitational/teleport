@@ -351,7 +351,7 @@ func (s *DynamicAccessService) collectPage(ctx context.Context, limit int, start
 		return nil, "", trace.BadParameter("page size of %d is too large", limit)
 	}
 
-	startKey := backend.ExactKey(start)
+	startKey := backend.ExactKey(accessRequestsPrefix)
 	if start != "" {
 		startKey = backend.NewKey(accessRequestsPrefix, start)
 	}
