@@ -29,10 +29,6 @@ extraContainers:
           configMapKeyRef:
             name: headlamp-teleport-proxy
             key: proxyAddr
-    ports:
-      - name: auth-http
-        containerPort: 4466
-        protocol: TCP
     securityContext:
       privileged: false
       allowPrivilegeEscalation: false
