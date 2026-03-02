@@ -21,6 +21,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -44,26 +45,7 @@ func TestWrapper(t *testing.T) {
 	require.NoError(t, err)
 	eventsService := local.NewEventsService(mem)
 
-	watcher, err := watchers.NewWrapper(watchers.WrapperConfig{
-		Source:            eventsService,
-		EventsChannelSize: 1, // arbitrary
-		Watch: &types.Watch{
-			Name: "test-watcher",
-			Kinds: []types.WatchKind{
-				{Kind: types.KindClusterAuthPreference},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// Start watcher.
-	ctx, cancel := context.WithCancel(t.Context())
-	var wg sync.WaitGroup
-	wg.Go(func() { _ = watcher.Run(ctx) })
-	t.Cleanup(func() {
-		cancel()
-		wg.Wait()
-	})
+	watcher, cancel, done := newAuthPrefWrapper(t, eventsService)
 
 	assertNoEvent := func(t *testing.T) {
 		t.Helper()
@@ -94,6 +76,8 @@ func TestWrapper(t *testing.T) {
 		t.Fatal("Timed out waiting for watcher first connection")
 	}
 
+	ctx := t.Context()
+
 	// 1st event: OpPut (create).
 	pref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:          constants.Local,
@@ -118,7 +102,7 @@ func TestWrapper(t *testing.T) {
 
 	// Stop watcher.
 	cancel()
-	wg.Wait() // Confirm goroutine stopped.
+	<-done // Confirm goroutine stopped.
 
 	// Further events are not monitored.
 	_, err = clusterConfigService.CreateAuthPreference(ctx, pref)
@@ -140,26 +124,7 @@ func TestWrapper_reconnection(t *testing.T) {
 		source: local.NewEventsService(mem),
 	}
 
-	watcher, err := watchers.NewWrapper(watchers.WrapperConfig{
-		Source:            sw,
-		EventsChannelSize: 1, // arbitrary
-		Watch: &types.Watch{
-			Name: "test-watcher",
-			Kinds: []types.WatchKind{
-				{Kind: types.KindClusterAuthPreference},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// Start watcher.
-	ctx, cancel := context.WithCancel(t.Context())
-	var wg sync.WaitGroup
-	wg.Go(func() { _ = watcher.Run(ctx) })
-	t.Cleanup(func() {
-		cancel()
-		wg.Wait()
-	})
+	watcher, _, _ := newAuthPrefWrapper(t, sw)
 
 	waitForHealthy := func(*testing.T) {
 		t.Helper()
@@ -187,6 +152,8 @@ func TestWrapper_reconnection(t *testing.T) {
 	_ = sw.MustWatcher(t).Close()
 	waitForHealthy(t)
 
+	ctx := t.Context()
+
 	// Fire 1st event.
 	pref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:          constants.Local,
@@ -208,23 +175,124 @@ func TestWrapper_reconnection(t *testing.T) {
 	assertHasEvent(t, types.OpDelete)
 }
 
-// sourceWrapper wraps a watchers.WatcherSource and captures the returned
-// Watcher, so it may be forcefully closed.
+func TestWrapper_backoff(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		mem, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+
+		sw := &sourceWrapper{
+			source: local.NewEventsService(mem),
+		}
+		// Setup so we fail 2 attempts.
+		sw.SetAttemptsToFail(2)
+
+		watcher, _, _ := newAuthPrefWrapper(t, sw)
+
+		waitForHealthy := func(*testing.T) {
+			t.Helper()
+			select {
+			case <-watcher.WaitUntilHealthy():
+			case <-time.After(2 * time.Second):
+				t.Fatal("Timed out waiting for watcher first connection")
+			}
+		}
+
+		assertForcedFailure := func(t *testing.T) {
+			t.Helper()
+			_, err = sw.LastWatcher()
+			assert.ErrorIs(t, err, errForcedSourceFailure, "want forced source failure")
+		}
+
+		// 1st attempt is immediate.
+		// 2nd attempt blocks (1m), then fails.
+		synctest.Wait()
+		assertForcedFailure(t)
+		time.Sleep(1 * time.Minute)
+		// 3rd attempt blocks (2m), then works.
+		synctest.Wait()
+		assertForcedFailure(t)
+		time.Sleep(2 * time.Minute)
+		waitForHealthy(t)
+
+		// Close the watcher and simulate 3 failures.
+		sw.SetAttemptsToFail(3)
+		sw.MustWatcher(t).Close()
+		// 1st is immediate.
+		// 2nd, 3rd, 4th: exponential.
+		backoff := 1 * time.Minute
+		for range 3 {
+			synctest.Wait()
+			assertForcedFailure(t)
+			time.Sleep(backoff)
+			backoff *= 2
+		}
+		waitForHealthy(t)
+	})
+}
+
+func newAuthPrefWrapper(
+	t *testing.T,
+	source watchers.WatcherSource,
+) (_ *watchers.Wrapper, _ context.CancelFunc, done <-chan struct{}) {
+	t.Helper()
+
+	watcher, err := watchers.NewWrapper(watchers.WrapperConfig{
+		Source:            source,
+		EventsChannelSize: 1, // arbitrary
+		Watch: &types.Watch{
+			Name: "test-watcher",
+			Kinds: []types.WatchKind{
+				{Kind: types.KindClusterAuthPreference},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	doneC := make(chan struct{})
+
+	// Start watcher.
+	go func() {
+		_ = watcher.Run(ctx)
+		close(doneC)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-doneC
+	})
+
+	return watcher, cancel, doneC
+}
+
+var errForcedSourceFailure = errors.New("forced source failure")
+
+// sourceWrapper wraps a watchers.WatcherSource and allow manipulating and
+// capturing the outcome of NewWatcher.
 //
-// Useful to test reconnection.
+// Useful to test backoff and reconnections.
 type sourceWrapper struct {
 	source watchers.WatcherSource
 
-	mu          sync.Mutex
-	lastWatcher types.Watcher
-	lastErr     error
+	mu             sync.Mutex
+	attemptsToFail int
+	lastWatcher    types.Watcher
+	lastErr        error
 }
 
 func (sw *sourceWrapper) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
-	w, err := sw.source.NewWatcher(ctx, watch)
-
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
+
+	if sw.attemptsToFail > 0 {
+		sw.attemptsToFail--
+		sw.lastErr = errForcedSourceFailure
+		return nil, sw.lastErr
+	}
+
+	w, err := sw.source.NewWatcher(ctx, watch)
+
 	sw.lastWatcher = w
 	sw.lastErr = err
 	return w, err
@@ -249,4 +317,11 @@ func (sw *sourceWrapper) MustWatcher(t *testing.T) types.Watcher {
 	w, err := sw.LastWatcher()
 	require.NoError(t, err)
 	return w
+}
+
+func (sw *sourceWrapper) SetAttemptsToFail(num int) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+
+	sw.attemptsToFail = num
 }
