@@ -1,0 +1,68 @@
+{/* Generated file. Do not edit. */}
+{/* To regenerate, run: make web-ui-docs */}
+
+<style dangerouslySetInnerHTML={{__html: `
+  /*
+    Since the list of supported Web UI enrollment flows includes multiple
+    tables, set a fixed cell width to ensure that all tables are aligned.
+  */
+  table {
+    table-layout: fixed;
+  }
+
+  th, td {
+    width: 125px;
+  }
+
+  th:first-child, td:first-child {
+    width: 400px;
+  }
+  `
+  }}
+/>
+
+### Applications
+
+| Resource | Deployment Type |
+|----------|----------|
+| AWS CLI/Console Access via AWS OIDC IdP | Amazon Web Services (AWS) |
+| AWS CLI/Console Access via AWS Roles Anywhere | Amazon Web Services (AWS) |
+| Web Application | HTTP Proxy |
+
+### Databases
+
+| Resource | Deployment Type |
+|----------|----------|
+| MySQL/MariaDB | Self-Hosted |
+| PostgreSQL | Self-Hosted |
+| RDS Aurora MySQL | Amazon Web Services (AWS) |
+| RDS Aurora PostgreSQL | Amazon Web Services (AWS) |
+| RDS MySQL/MariaDB | Amazon Web Services (AWS) |
+| RDS PostgreSQL | Amazon Web Services (AWS) |
+
+### Kubernetes
+
+| Resource | Deployment Type |
+|----------|----------|
+| EKS | Amazon Web Services (AWS) |
+| Kubernetes | Self-Hosted |
+
+### SAML Applications
+
+| Resource | Deployment Type |
+|----------|----------|
+| Grafana SAML | Teleport as IDP |
+| Microsoft Entra External ID | SAML Application |
+| SAML Application (Generic) | Teleport as IDP |
+| Workforce Identity Federation | SAML Application |
+
+### Servers
+
+| Resource | Deployment Type |
+|----------|----------|
+| Amazon Linux 2/2023 | SSH |
+| Debian 11+ | SSH |
+| EC2 Auto Enrollment via SSM | Amazon Web Services (AWS) |
+| macOS | SSH |
+| RHEL 8+/CentOS Stream 9+ | SSH |
+| Ubuntu 18.04+ | SSH |
