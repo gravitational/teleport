@@ -160,7 +160,7 @@ func TestAzureWatcher(t *testing.T) {
 
 			const noDiscoveryConfig = ""
 			watcher.SetFetchers(noDiscoveryConfig,
-				MatchersToAzureInstanceFetchers(logger, []types.AzureMatcher{tc.matcher},
+				MatchersToAzureInstanceFetchers(t.Context(), logger, []types.AzureMatcher{tc.matcher},
 					func(ctx context.Context, integration string) (azure.Clients, error) {
 						return &clients, nil
 					}, noDiscoveryConfig),

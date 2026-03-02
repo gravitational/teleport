@@ -111,13 +111,40 @@ func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Serve
 	})
 }
 
+func getAzureSubscriptions(ctx context.Context, azureClientGetter azureClientGetter, integration string, subs []string) ([]string, error) {
+	subscriptionIds := subs
+	if slices.Contains(subs, types.Wildcard) {
+		azureClients, err := azureClientGetter(ctx, integration)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		subsClient, err := azureClients.GetSubscriptionClient(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		subscriptionIds, err = subsClient.ListSubscriptionIDs(ctx)
+		return subscriptionIds, trace.Wrap(err)
+	}
+
+	return subscriptionIds, nil
+}
+
 type azureClientGetter func(ctx context.Context, integration string) (azure.Clients, error)
 
 // MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
-func MatchersToAzureInstanceFetchers(logger *slog.Logger, matchers []types.AzureMatcher, getClient azureClientGetter, discoveryConfigName string) []Fetcher[*AzureInstances] {
+func MatchersToAzureInstanceFetchers(ctx context.Context, logger *slog.Logger, matchers []types.AzureMatcher, getClient azureClientGetter, discoveryConfigName string) []Fetcher[*AzureInstances] {
 	ret := make([]Fetcher[*AzureInstances], 0)
 	for _, matcher := range matchers {
-		for _, subscription := range matcher.Subscriptions {
+		subscriptions, err := getAzureSubscriptions(ctx, getClient, matcher.Integration, matcher.Subscriptions)
+		if err != nil {
+			logger.WarnContext(ctx, `Failed to get Azure subscription IDs, either enumerate all the subscriptions in the discovery configuration or ensure the `,
+				"integration", matcher.Integration,
+				"discovery_config", discoveryConfigName,
+				"error", err,
+			)
+			continue
+		}
+		for _, subscription := range subscriptions {
 			for _, resourceGroup := range matcher.ResourceGroups {
 				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
 					Matcher:             matcher,
