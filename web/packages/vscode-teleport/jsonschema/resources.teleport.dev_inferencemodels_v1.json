@@ -1,5 +1,5 @@
 {
-  "description": "InferencePolicy is the Schema for the inferencepolicies API",
+  "description": "InferenceModel is the Schema for the inferencemodels API",
   "type": "object",
   "properties": {
     "apiVersion": {
@@ -14,24 +14,59 @@
       "type": "object"
     },
     "spec": {
-      "description": "InferencePolicy resource definition v1 from Teleport",
+      "description": "InferenceModel resource definition v1 from Teleport",
       "type": "object",
       "properties": {
-        "filter": {
-          "description": "Filter is an optional filter expression using Teleport Predicate Language to select sessions for summarization. If it's empty, all sessions that match the list of kinds will be summarized using this model.",
-          "type": "string"
-        },
-        "kinds": {
-          "description": "Kinds are session kinds matched by this policy, e.g., \"ssh\", \"k8s\", \"db\"",
-          "type": "array",
-          "items": {
-            "type": "string"
+        "bedrock": {
+          "description": "Bedrock indicates that this model uses Amazon Bedrock as the inference provider and specifies Bedrock-specific parameters.",
+          "type": "object",
+          "properties": {
+            "bedrock_model_id": {
+              "description": "BedrockModelId specifies a model ID or an inference profile as understood by the Bedrock API.",
+              "type": "string"
+            },
+            "integration": {
+              "description": "Integration is the AWS OIDC Integration name. If unset, Teleport will use AWS credentials available on the Auth Service machine; otherwise, it will use the specified OIDC integration for assuming appropriate role.",
+              "type": "string"
+            },
+            "region": {
+              "description": "Region is the AWS region which will be used for inference.",
+              "type": "string"
+            },
+            "temperature": {
+              "description": "Temperature controls the randomness of the model's output.",
+              "type": "number"
+            }
           },
           "nullable": true
         },
-        "model": {
-          "description": "Model is the name of the `InferenceModel` resource to be used for summarization.",
-          "type": "string"
+        "max_session_length_bytes": {
+          "description": "MaxSessionLengthBytes is the maximum session length that can be sent to inference provider. Currently, it's determined by the size of model's context window; future versions of Teleport will allow summarizing larger sessions by splitting them.  Inference providers will reject requests that are larger than given model's context window. Since context windows are usually sized in tokens, this value is an approximation. Assuming 2 bytes per input token should be safe.  Currently, Teleport will outright reject sessions larger than this limit; future versions will split sessions in chunks, treating this size as a maximum.  If unset or set to 0, defaults to 1MB.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "openai": {
+          "description": "Openai indicates that this model uses OpenAI as the inference provider and specifies OpenAI-specific parameters.",
+          "type": "object",
+          "properties": {
+            "api_key_secret_ref": {
+              "description": "ApiKeySecretRef is a reference to an InferenceSecret that contains the OpenAI API key.",
+              "type": "string"
+            },
+            "base_url": {
+              "description": "BaseUrl is the OpenAI API base URL. Optional, defaults to the public OpenAI API URL. May be used to point to a custom OpenAI-compatible API, such as LiteLLM. In such case, the `api_key_secret_ref` must point to a secret that contains the API key for that custom API.",
+              "type": "string"
+            },
+            "openai_model_id": {
+              "description": "OpenaiModelId specifies the model ID, as understood by the OpenAI API.",
+              "type": "string"
+            },
+            "temperature": {
+              "description": "Temperature controls the randomness of the model's output.",
+              "type": "number"
+            }
+          },
+          "nullable": true
         }
       }
     },
@@ -79,7 +114,11 @@
               "status": {
                 "description": "status of the condition, one of True, False, Unknown.",
                 "type": "string",
-                "enum": ["True", "False", "Unknown"]
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ]
               },
               "type": {
                 "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",

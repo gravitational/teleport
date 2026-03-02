@@ -1,5 +1,5 @@
 {
-  "description": "InferencePolicy is the Schema for the inferencepolicies API",
+  "description": "LoginRule is the Schema for the loginrules API",
   "type": "object",
   "properties": {
     "apiVersion": {
@@ -14,24 +14,28 @@
       "type": "object"
     },
     "spec": {
-      "description": "InferencePolicy resource definition v1 from Teleport",
+      "description": "LoginRule resource definition v1 from Teleport",
       "type": "object",
       "properties": {
-        "filter": {
-          "description": "Filter is an optional filter expression using Teleport Predicate Language to select sessions for summarization. If it's empty, all sessions that match the list of kinds will be summarized using this model.",
+        "priority": {
+          "description": "Priority is the priority of the login rule relative to other login rules in the same cluster. Login rules with a lower numbered priority will be evaluated first.",
+          "type": "integer",
+          "format": "int32"
+        },
+        "traits_expression": {
+          "description": "TraitsExpression is a predicate expression which should return the desired traits for the user upon login.",
           "type": "string"
         },
-        "kinds": {
-          "description": "Kinds are session kinds matched by this policy, e.g., \"ssh\", \"k8s\", \"db\"",
-          "type": "array",
-          "items": {
-            "type": "string"
+        "traits_map": {
+          "description": "TraitsMap is a map of trait keys to lists of predicate expressions which should evaluate to the desired values for that trait.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "nullable": true
-        },
-        "model": {
-          "description": "Model is the name of the `InferenceModel` resource to be used for summarization.",
-          "type": "string"
         }
       }
     },
@@ -79,7 +83,11 @@
               "status": {
                 "description": "status of the condition, one of True, False, Unknown.",
                 "type": "string",
-                "enum": ["True", "False", "Unknown"]
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ]
               },
               "type": {
                 "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",

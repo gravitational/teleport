@@ -1,5 +1,5 @@
 {
-  "description": "InferencePolicy is the Schema for the inferencepolicies API",
+  "description": "OktaImportRule is the Schema for the oktaimportrules API",
   "type": "object",
   "properties": {
     "apiVersion": {
@@ -14,24 +14,78 @@
       "type": "object"
     },
     "spec": {
-      "description": "InferencePolicy resource definition v1 from Teleport",
+      "description": "OktaImportRule resource definition v1 from Teleport",
       "type": "object",
       "properties": {
-        "filter": {
-          "description": "Filter is an optional filter expression using Teleport Predicate Language to select sessions for summarization. If it's empty, all sessions that match the list of kinds will be summarized using this model.",
-          "type": "string"
-        },
-        "kinds": {
-          "description": "Kinds are session kinds matched by this policy, e.g., \"ssh\", \"k8s\", \"db\"",
+        "mappings": {
+          "description": "Mappings is a list of matches that will map match conditions to labels.",
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "object",
+            "properties": {
+              "add_labels": {
+                "description": "AddLabels specifies which labels to add if any of the previous matches match.",
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "nullable": true
+              },
+              "match": {
+                "description": "Match is a set of matching rules for this mapping. If any of these match, then the mapping will be applied.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "app_ids": {
+                      "description": "AppIDs is a list of app IDs to match against.",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true
+                    },
+                    "app_name_regexes": {
+                      "description": "AppNameRegexes is a list of regexes to match against app names.",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true
+                    },
+                    "group_ids": {
+                      "description": "GroupIDs is a list of group IDs to match against.",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true
+                    },
+                    "group_name_regexes": {
+                      "description": "GroupNameRegexes is a list of regexes to match against group names.",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true
+                    }
+                  }
+                },
+                "nullable": true
+              }
+            }
           },
           "nullable": true
         },
-        "model": {
-          "description": "Model is the name of the `InferenceModel` resource to be used for summarization.",
-          "type": "string"
+        "priority": {
+          "description": "Priority represents the priority of the rule application. Lower numbered rules will be applied first.",
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
@@ -79,7 +133,11 @@
               "status": {
                 "description": "status of the condition, one of True, False, Unknown.",
                 "type": "string",
-                "enum": ["True", "False", "Unknown"]
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ]
               },
               "type": {
                 "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",

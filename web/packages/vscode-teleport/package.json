@@ -28,8 +28,113 @@
           "icon": "resources/teleport.svg"
         }
       ]
-    }
+    },
+    "yamlValidation": [
+      {
+        "fileMatch": "tctl:/access_list/*",
+        "url": "./jsonschema/resources.teleport.dev_accesslists_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/access_monitoring_rule/*",
+        "url": "./jsonschema/resources.teleport.dev_accessmonitoringrulesv1_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/app/*",
+        "url": "./jsonschema/resources.teleport.dev_appsv3_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/autoupdate_config/*",
+        "url": "./jsonschema/resources.teleport.dev_autoupdateconfigsv1_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/autoupdate_version/*",
+        "url": "./jsonschema/resources.teleport.dev_autoupdateversionsv1_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/bot/*",
+        "url": "./jsonschema/resources.teleport.dev_botsv1_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/db/*",
+        "url": "./jsonschema/resources.teleport.dev_databasesv3_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/github/*",
+        "url": "./jsonschema/resources.teleport.dev_githubconnectors_v3.json"
+      },
+      {
+        "fileMatch": "tctl:/inference_model/*",
+        "url": "./jsonschema/resources.teleport.dev_inferencemodels_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/inference_policy/*",
+        "url": "./jsonschema/resources.teleport.dev_inferencepolicies_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/inference_secret/*",
+        "url": "./jsonschema/resources.teleport.dev_inferencesecrets_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/login_rule/*",
+        "url": "./jsonschema/resources.teleport.dev_loginrules_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/oidc/*",
+        "url": "./jsonschema/resources.teleport.dev_oidcconnectors_v3.json"
+      },
+      {
+        "fileMatch": "tctl:/okta_import_rule/*",
+        "url": "./jsonschema/resources.teleport.dev_oktaimportrules_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/node/*",
+        "url": "./jsonschema/resources.teleport.dev_openssheiceserversv2_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/node/*",
+        "url": "./jsonschema/resources.teleport.dev_opensshserversv2_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/token/*",
+        "url": "./jsonschema/resources.teleport.dev_provisiontokens_v2.json"
+      },
+      {
+        "fileMatch": "tctl:/role/*",
+        "url": "./jsonschema/resources.teleport.dev_roles_v5.json"
+      },
+      {
+        "fileMatch": "tctl:/role/*",
+        "url": "./jsonschema/resources.teleport.dev_rolesv6_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/role/*",
+        "url": "./jsonschema/resources.teleport.dev_rolesv7_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/role/*",
+        "url": "./jsonschema/resources.teleport.dev_rolesv8_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/saml/*",
+        "url": "./jsonschema/resources.teleport.dev_samlconnectors_v2.json"
+      },
+      {
+        "fileMatch": "tctl:/trusted_cluster/*",
+        "url": "./jsonschema/resources.teleport.dev_trustedclustersv2_v1.json"
+      },
+      {
+        "fileMatch": "tctl:/user/*",
+        "url": "./jsonschema/resources.teleport.dev_users_v2.json"
+      },
+      {
+        "fileMatch": "tctl:/workload_identity/*",
+        "url": "./jsonschema/resources.teleport.dev_workloadidentitiesv1_v1.json"
+      }
+    ]
   },
+  "extensionDependencies": [
+    "redhat.vscode-yaml"
+  ],
   "scripts": {
     "vscode:prepublish": "pnpm run compile",
     "compile": "tsc -p ./",

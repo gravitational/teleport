@@ -1,5 +1,5 @@
 {
-  "description": "InferencePolicy is the Schema for the inferencepolicies API",
+  "description": "AutoupdateConfigV1 is the Schema for the autoupdateconfigsv1 API",
   "type": "object",
   "properties": {
     "apiVersion": {
@@ -14,24 +14,81 @@
       "type": "object"
     },
     "spec": {
-      "description": "InferencePolicy resource definition v1 from Teleport",
+      "description": "AutoupdateConfig resource definition v1 from Teleport",
       "type": "object",
       "properties": {
-        "filter": {
-          "description": "Filter is an optional filter expression using Teleport Predicate Language to select sessions for summarization. If it's empty, all sessions that match the list of kinds will be summarized using this model.",
-          "type": "string"
-        },
-        "kinds": {
-          "description": "Kinds are session kinds matched by this policy, e.g., \"ssh\", \"k8s\", \"db\"",
-          "type": "array",
-          "items": {
-            "type": "string"
+        "agents": {
+          "type": "object",
+          "properties": {
+            "maintenance_window_duration": {
+              "description": "maintenance_window_duration is the maintenance window duration. This can only be set if `strategy` is \"time-based\". Once the window is over, the group transitions to the done state. Existing agents won't be updated until the next maintenance window.",
+              "type": "string",
+              "format": "duration"
+            },
+            "mode": {
+              "description": "mode specifies whether agent autoupdates are enabled, disabled, or paused.",
+              "type": "string"
+            },
+            "schedules": {
+              "description": "schedules specifies schedules for updates of grouped agents.",
+              "type": "object",
+              "properties": {
+                "regular": {
+                  "description": "regular schedules for non-critical versions.",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "canary_count": {
+                        "description": "canary_count is the number of canary agents that will be updated before the whole group is updated. when set to 0, the group does not enter the canary phase. This number is capped to 5. This number must always be lower than the total number of agents in the group, else the rollout will be stuck.",
+                        "type": "integer",
+                        "format": "int32"
+                      },
+                      "days": {
+                        "description": "days when the update can run. Supported values are \"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\", \"Sat\", \"Sun\" and \"*\"",
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "nullable": true
+                      },
+                      "name": {
+                        "description": "name of the group",
+                        "type": "string"
+                      },
+                      "start_hour": {
+                        "description": "start_hour to initiate update",
+                        "type": "integer",
+                        "format": "int32"
+                      },
+                      "wait_hours": {
+                        "description": "wait_hours after last group succeeds before this group can run. This can only be used when the strategy is \"halt-on-failure\". This field must be positive.",
+                        "type": "integer",
+                        "format": "int32"
+                      }
+                    }
+                  },
+                  "nullable": true
+                }
+              },
+              "nullable": true
+            },
+            "strategy": {
+              "description": "strategy to use for updating the agents.",
+              "type": "string"
+            }
           },
           "nullable": true
         },
-        "model": {
-          "description": "Model is the name of the `InferenceModel` resource to be used for summarization.",
-          "type": "string"
+        "tools": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "description": "Mode defines state of the client tools auto update.",
+              "type": "string"
+            }
+          },
+          "nullable": true
         }
       }
     },
@@ -79,7 +136,11 @@
               "status": {
                 "description": "status of the condition, one of True, False, Unknown.",
                 "type": "string",
-                "enum": ["True", "False", "Unknown"]
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ]
               },
               "type": {
                 "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",

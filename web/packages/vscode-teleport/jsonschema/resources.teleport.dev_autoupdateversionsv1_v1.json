@@ -1,5 +1,5 @@
 {
-  "description": "InferencePolicy is the Schema for the inferencepolicies API",
+  "description": "AutoupdateVersionV1 is the Schema for the autoupdateversionsv1 API",
   "type": "object",
   "properties": {
     "apiVersion": {
@@ -14,24 +14,40 @@
       "type": "object"
     },
     "spec": {
-      "description": "InferencePolicy resource definition v1 from Teleport",
+      "description": "AutoupdateVersion resource definition v1 from Teleport",
       "type": "object",
       "properties": {
-        "filter": {
-          "description": "Filter is an optional filter expression using Teleport Predicate Language to select sessions for summarization. If it's empty, all sessions that match the list of kinds will be summarized using this model.",
-          "type": "string"
-        },
-        "kinds": {
-          "description": "Kinds are session kinds matched by this policy, e.g., \"ssh\", \"k8s\", \"db\"",
-          "type": "array",
-          "items": {
-            "type": "string"
+        "agents": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "description": "autoupdate_mode to use for the rollout",
+              "type": "string"
+            },
+            "schedule": {
+              "description": "schedule to use for the rollout",
+              "type": "string"
+            },
+            "start_version": {
+              "description": "start_version is the version used for newly installed agents before their update window.",
+              "type": "string"
+            },
+            "target_version": {
+              "description": "target_version is the version that all agents will update to during their update window.",
+              "type": "string"
+            }
           },
           "nullable": true
         },
-        "model": {
-          "description": "Model is the name of the `InferenceModel` resource to be used for summarization.",
-          "type": "string"
+        "tools": {
+          "type": "object",
+          "properties": {
+            "target_version": {
+              "description": "TargetVersion specifies the semantic version required for tools to establish a connection with the cluster. Client tools after connection to the cluster going to be updated to this version automatically.",
+              "type": "string"
+            }
+          },
+          "nullable": true
         }
       }
     },
@@ -79,7 +95,11 @@
               "status": {
                 "description": "status of the condition, one of True, False, Unknown.",
                 "type": "string",
-                "enum": ["True", "False", "Unknown"]
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ]
               },
               "type": {
                 "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",

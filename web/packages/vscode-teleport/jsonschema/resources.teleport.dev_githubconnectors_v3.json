@@ -1,5 +1,5 @@
 {
-  "description": "InferencePolicy is the Schema for the inferencepolicies API",
+  "description": "GithubConnector is the Schema for the githubconnectors API",
   "type": "object",
   "properties": {
     "apiVersion": {
@@ -14,24 +14,88 @@
       "type": "object"
     },
     "spec": {
-      "description": "InferencePolicy resource definition v1 from Teleport",
+      "description": "GithubConnector resource definition v3 from Teleport",
       "type": "object",
       "properties": {
-        "filter": {
-          "description": "Filter is an optional filter expression using Teleport Predicate Language to select sessions for summarization. If it's empty, all sessions that match the list of kinds will be summarized using this model.",
+        "api_endpoint_url": {
+          "description": "APIEndpointURL is the URL of the API endpoint of the Github instance this connector is for.",
           "type": "string"
         },
-        "kinds": {
-          "description": "Kinds are session kinds matched by this policy, e.g., \"ssh\", \"k8s\", \"db\"",
+        "client_id": {
+          "description": "ClientID is the Github OAuth app client ID.",
+          "type": "string"
+        },
+        "client_redirect_settings": {
+          "description": "ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.",
+          "type": "object",
+          "properties": {
+            "allowed_https_hostnames": {
+              "description": "a list of hostnames allowed for https client redirect URLs",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "nullable": true
+            },
+            "insecure_allowed_cidr_ranges": {
+              "description": "a list of CIDRs allowed for HTTP or HTTPS client redirect URLs",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "nullable": true
+            }
+          },
+          "nullable": true
+        },
+        "client_secret": {
+          "description": "ClientSecret is the Github OAuth app client secret. This field supports secret lookup. See the operator documentation for more details.",
+          "type": "string"
+        },
+        "display": {
+          "description": "Display is the connector display name.",
+          "type": "string"
+        },
+        "endpoint_url": {
+          "description": "EndpointURL is the URL of the GitHub instance this connector is for.",
+          "type": "string"
+        },
+        "redirect_url": {
+          "description": "RedirectURL is the authorization callback URL.",
+          "type": "string"
+        },
+        "teams_to_roles": {
+          "description": "TeamsToRoles maps Github team memberships onto allowed roles.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "organization": {
+                "description": "Organization is a Github organization a user belongs to.",
+                "type": "string"
+              },
+              "roles": {
+                "description": "Roles is a list of allowed logins for this org/team.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "nullable": true
+              },
+              "team": {
+                "description": "Team is a team within the organization a user belongs to.",
+                "type": "string"
+              }
+            }
+          }
+        },
+        "user_matchers": {
+          "description": "UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.",
           "type": "array",
           "items": {
             "type": "string"
           },
           "nullable": true
-        },
-        "model": {
-          "description": "Model is the name of the `InferenceModel` resource to be used for summarization.",
-          "type": "string"
         }
       }
     },
@@ -79,7 +143,11 @@
               "status": {
                 "description": "status of the condition, one of True, False, Unknown.",
                 "type": "string",
-                "enum": ["True", "False", "Unknown"]
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ]
               },
               "type": {
                 "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",

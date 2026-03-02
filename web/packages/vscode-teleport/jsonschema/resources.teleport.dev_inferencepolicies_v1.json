@@ -1,4 +1,5 @@
 {
+  "title": "InferencePolicy schema",
   "description": "InferencePolicy is the Schema for the inferencepolicies API",
   "type": "object",
   "properties": {

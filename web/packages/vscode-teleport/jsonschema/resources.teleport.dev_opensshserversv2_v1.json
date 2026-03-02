@@ -1,0 +1,260 @@
+{
+  "description": "OpenSSHServerV2 is the Schema for the opensshserversv2 API",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": "string"
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "spec": {
+      "description": "OpenSSHServer resource definition v2 from Teleport",
+      "type": "object",
+      "properties": {
+        "addr": {
+          "description": "Addr is a host:port address where this server can be reached.",
+          "type": "string"
+        },
+        "cloud_metadata": {
+          "description": "CloudMetadata contains info about the cloud instance the server is running on, if any.",
+          "type": "object",
+          "properties": {
+            "aws": {
+              "description": "AWSInfo contains attributes to match to an EC2 instance.",
+              "type": "object",
+              "properties": {
+                "account_id": {
+                  "description": "AccountID is an AWS account ID.",
+                  "type": "string"
+                },
+                "instance_id": {
+                  "description": "InstanceID is an EC2 instance ID.",
+                  "type": "string"
+                },
+                "integration": {
+                  "description": "Integration is the integration name that added this Node. When connecting to it, it will use this integration to issue AWS API calls in order to set up the connection. This includes sending an SSH Key and then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can connect to it.",
+                  "type": "string"
+                },
+                "region": {
+                  "description": "Region is the AWS EC2 Instance Region.",
+                  "type": "string"
+                },
+                "subnet_id": {
+                  "description": "SubnetID is the Subnet ID in use by the instance.",
+                  "type": "string"
+                },
+                "vpc_id": {
+                  "description": "VPCID is the AWS VPC ID where the Instance is running.",
+                  "type": "string"
+                }
+              },
+              "nullable": true
+            }
+          },
+          "nullable": true
+        },
+        "github": {
+          "description": "GitHub contains info about GitHub proxies where each server represents a GitHub organization.",
+          "type": "object",
+          "properties": {
+            "integration": {
+              "description": "Integration is the integration that is associated with this Server.",
+              "type": "string"
+            },
+            "organization": {
+              "description": "Organization specifies the name of the organization for the GitHub integration.",
+              "type": "string"
+            }
+          },
+          "nullable": true
+        },
+        "hostname": {
+          "description": "Hostname is server hostname",
+          "type": "string"
+        },
+        "immutable_labels": {
+          "description": "The immutable labels assigned to the server when joining. The hash of these labels is expected to match the hash included in the server's certificate.",
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "nullable": true
+        },
+        "peer_addr": {
+          "description": "PeerAddr is the address a proxy server is reachable at by its peer proxies.",
+          "type": "string"
+        },
+        "proxy_ids": {
+          "description": "ProxyIDs is a list of proxy IDs this server is expected to be connected to.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "nullable": true
+        },
+        "public_addrs": {
+          "description": "PublicAddrs is a list of public addresses where this server can be reached.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "nullable": true
+        },
+        "relay_group": {
+          "description": "the name of the Relay group that the server is connected to",
+          "type": "string"
+        },
+        "relay_ids": {
+          "description": "the list of Relay host IDs that the server is connected to",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "nullable": true
+        },
+        "rotation": {
+          "description": "Rotation specifies server rotation",
+          "type": "object",
+          "properties": {
+            "current_id": {
+              "description": "CurrentID is the ID of the rotation operation to differentiate between rotation attempts.",
+              "type": "string"
+            },
+            "grace_period": {
+              "description": "GracePeriod is a period during which old and new CA are valid for checking purposes, but only new CA is issuing certificates.",
+              "type": "string",
+              "format": "duration"
+            },
+            "last_rotated": {
+              "description": "LastRotated specifies the last time of the completed rotation.",
+              "type": "string",
+              "format": "date-time"
+            },
+            "mode": {
+              "description": "Mode sets manual or automatic rotation mode.",
+              "type": "string"
+            },
+            "phase": {
+              "description": "Phase is the current rotation phase.",
+              "type": "string"
+            },
+            "schedule": {
+              "description": "Schedule is a rotation schedule - used in automatic mode to switch between phases.",
+              "type": "object",
+              "properties": {
+                "standby": {
+                  "description": "Standby specifies time to switch to the \"Standby\" phase.",
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "update_clients": {
+                  "description": "UpdateClients specifies time to switch to the \"Update clients\" phase",
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "update_servers": {
+                  "description": "UpdateServers specifies time to switch to the \"Update servers\" phase.",
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            "started": {
+              "description": "Started is set to the time when rotation has been started in case if the state of the rotation is \"in_progress\".",
+              "type": "string",
+              "format": "date-time"
+            },
+            "state": {
+              "description": "State could be one of \"init\" or \"in_progress\".",
+              "type": "string"
+            }
+          }
+        },
+        "use_tunnel": {
+          "description": "UseTunnel indicates that connections to this server should occur over a reverse tunnel.",
+          "type": "boolean"
+        },
+        "version": {
+          "description": "TeleportVersion is the teleport version that the server is running on",
+          "type": "string"
+        }
+      }
+    },
+    "status": {
+      "description": "Status defines the observed state of the Teleport resource",
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "description": "Conditions represent the latest available observations of an object's state",
+          "type": "array",
+          "items": {
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "type": "object",
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "type": "string",
+                "format": "date-time"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "type": "string",
+                "maxLength": 32768
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "type": "string",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "type": "string",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ]
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "type": "string",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$"
+              }
+            }
+          }
+        },
+        "teleportResourceID": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    }
+  }
+}

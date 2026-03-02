@@ -1,5 +1,5 @@
 {
-  "description": "InferencePolicy is the Schema for the inferencepolicies API",
+  "description": "TrustedClusterV2 is the Schema for the trustedclustersv2 API",
   "type": "object",
   "properties": {
     "apiVersion": {
@@ -14,23 +14,44 @@
       "type": "object"
     },
     "spec": {
-      "description": "InferencePolicy resource definition v1 from Teleport",
+      "description": "TrustedCluster resource definition v2 from Teleport",
       "type": "object",
       "properties": {
-        "filter": {
-          "description": "Filter is an optional filter expression using Teleport Predicate Language to select sessions for summarization. If it's empty, all sessions that match the list of kinds will be summarized using this model.",
-          "type": "string"
+        "enabled": {
+          "description": "Enabled is a bool that indicates if the TrustedCluster is enabled or disabled. Setting Enabled to false has a side effect of deleting the user and host certificate authority (CA).",
+          "type": "boolean"
         },
-        "kinds": {
-          "description": "Kinds are session kinds matched by this policy, e.g., \"ssh\", \"k8s\", \"db\"",
+        "role_map": {
+          "description": "RoleMap specifies role mappings to remote roles.",
           "type": "array",
           "items": {
-            "type": "string"
-          },
-          "nullable": true
+            "type": "object",
+            "properties": {
+              "local": {
+                "description": "Local specifies local roles to map to",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "nullable": true
+              },
+              "remote": {
+                "description": "Remote specifies remote role name to map from",
+                "type": "string"
+              }
+            }
+          }
         },
-        "model": {
-          "description": "Model is the name of the `InferenceModel` resource to be used for summarization.",
+        "token": {
+          "description": "Token is the authorization token provided by another cluster needed by this cluster to join. This field supports secret lookup. See the operator documentation for more details.",
+          "type": "string"
+        },
+        "tunnel_addr": {
+          "description": "ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If not set, it is derived from `\u003cmetadata.name\u003e:\u003cdefault reverse tunnel port\u003e`.",
+          "type": "string"
+        },
+        "web_proxy_addr": {
+          "description": "ProxyAddress is the address of the web proxy server of the cluster to join. If not set, it is derived from `\u003cmetadata.name\u003e:\u003cdefault web proxy server port\u003e`.",
           "type": "string"
         }
       }
@@ -79,7 +100,11 @@
               "status": {
                 "description": "status of the condition, one of True, False, Unknown.",
                 "type": "string",
-                "enum": ["True", "False", "Unknown"]
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ]
               },
               "type": {
                 "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",

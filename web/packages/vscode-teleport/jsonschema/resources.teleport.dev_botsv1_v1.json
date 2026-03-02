@@ -1,5 +1,5 @@
 {
-  "description": "InferencePolicy is the Schema for the inferencepolicies API",
+  "description": "BotV1 is the Schema for the botsv1 API",
   "type": "object",
   "properties": {
     "apiVersion": {
@@ -14,24 +14,43 @@
       "type": "object"
     },
     "spec": {
-      "description": "InferencePolicy resource definition v1 from Teleport",
+      "description": "Bot resource definition v1 from Teleport",
       "type": "object",
       "properties": {
-        "filter": {
-          "description": "Filter is an optional filter expression using Teleport Predicate Language to select sessions for summarization. If it's empty, all sessions that match the list of kinds will be summarized using this model.",
-          "type": "string"
+        "max_session_ttl": {
+          "description": "The max session TTL value for the bot's internal role. Unless specified, bots may not request a value beyond the default maximum TTL of 12 hours. This value may not be larger than 7 days (168 hours).",
+          "type": "string",
+          "format": "duration"
         },
-        "kinds": {
-          "description": "Kinds are session kinds matched by this policy, e.g., \"ssh\", \"k8s\", \"db\"",
+        "roles": {
+          "description": "The roles that the bot should be able to impersonate.",
           "type": "array",
           "items": {
             "type": "string"
           },
           "nullable": true
         },
-        "model": {
-          "description": "Model is the name of the `InferenceModel` resource to be used for summarization.",
-          "type": "string"
+        "traits": {
+          "description": "The traits that will be associated with the bot for the purposes of role templating.  Where multiple specified with the same name, these will be merged by the server.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "description": "The name of the trait. This is what allows the trait to be queried in role templates.",
+                "type": "string"
+              },
+              "values": {
+                "description": "The values associated with the named trait.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "nullable": true
+              }
+            }
+          },
+          "nullable": true
         }
       }
     },
@@ -79,7 +98,11 @@
               "status": {
                 "description": "status of the condition, one of True, False, Unknown.",
                 "type": "string",
-                "enum": ["True", "False", "Unknown"]
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ]
               },
               "type": {
                 "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
