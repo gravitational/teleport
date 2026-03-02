@@ -28,6 +28,8 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
+	"time"
 )
 
 const (
@@ -41,6 +43,10 @@ const (
 type K8sProxy struct {
 	proxy  *httputil.ReverseProxy
 	signer *TokenSigner
+
+	saTokenMu      sync.RWMutex
+	saToken        string
+	saTokenExpires time.Time
 }
 
 // NewK8sProxy creates the K8s API proxy. It reads the real API server address
@@ -86,33 +92,58 @@ func NewK8sProxy(signer *TokenSigner) (*K8sProxy, error) {
 	}, nil
 }
 
+// readSAToken returns the cached ServiceAccount token, refreshing it from
+// disk if older than 1 minute to pick up Kubernetes token rotation.
+func (kp *K8sProxy) readSAToken() (string, error) {
+	kp.saTokenMu.RLock()
+	if kp.saToken != "" && time.Now().Before(kp.saTokenExpires) {
+		t := kp.saToken
+		kp.saTokenMu.RUnlock()
+		return t, nil
+	}
+	kp.saTokenMu.RUnlock()
+
+	kp.saTokenMu.Lock()
+	defer kp.saTokenMu.Unlock()
+
+	// Double-check after acquiring write lock.
+	if kp.saToken != "" && time.Now().Before(kp.saTokenExpires) {
+		return kp.saToken, nil
+	}
+
+	b, err := os.ReadFile(saTokenPath)
+	if err != nil {
+		return "", err
+	}
+	kp.saToken = string(b)
+	kp.saTokenExpires = time.Now().Add(time.Minute)
+	return kp.saToken, nil
+}
+
 func (kp *K8sProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Read the ServiceAccount token on each request (it may be rotated).
-	saToken, err := os.ReadFile(saTokenPath)
+	// Every request must carry a valid internal HMAC token.
+	token := r.Header.Get("X-Auth-Token")
+	if token == "" {
+		http.Error(w, "missing auth token", http.StatusUnauthorized)
+		return
+	}
+
+	claims, err := kp.signer.Validate(token)
+	if err != nil {
+		slog.Warn("HMAC validation failed", "error", err, "path", r.URL.Path)
+		http.Error(w, "invalid auth token", http.StatusUnauthorized)
+		return
+	}
+
+	saToken, err := kp.readSAToken()
 	if err != nil {
 		slog.Error("reading SA token", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
-	// Check for the internal HMAC token passed from the front proxy.
-	token := r.Header.Get("X-Auth-Token")
-	if token == "" {
-		kp.proxy.ServeHTTP(w, r)
-		return
-	}
-
-	// Validate the token and extract the user identity.
-	claims, err := kp.signer.Validate(token)
-	if err != nil {
-		slog.Warn("HMAC validation failed, falling through", "error", err, "path", r.URL.Path)
-		kp.proxy.ServeHTTP(w, r)
-		return
-	}
-
-	// Valid internal token — impersonate the user.
 	r.Header.Del("X-Auth-Token")
-	r.Header.Set("Authorization", "Bearer "+string(saToken))
+	r.Header.Set("Authorization", "Bearer "+saToken)
 	r.Header.Set("Impersonate-User", claims.Username)
 	for _, g := range claims.Groups {
 		r.Header.Add("Impersonate-Group", g)

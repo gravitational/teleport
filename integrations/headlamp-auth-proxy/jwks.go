@@ -98,6 +98,7 @@ func (v *JWKSVerifier) Verify(rawToken string) (*TeleportClaims, error) {
 		return nil, fmt.Errorf("verifying JWT signature: %w", err)
 	}
 
+	// Allow 1 minute of clock skew between the Teleport proxy and this pod.
 	if err := registered.ValidateWithLeeway(jwt.Expected{Time: time.Now()}, time.Minute); err != nil {
 		return nil, fmt.Errorf("validating JWT claims: %w", err)
 	}
@@ -120,7 +121,7 @@ func (v *JWKSVerifier) refresh() error {
 		return fmt.Errorf("JWKS endpoint returned %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1 MB limit
 	if err != nil {
 		return fmt.Errorf("reading JWKS response: %w", err)
 	}

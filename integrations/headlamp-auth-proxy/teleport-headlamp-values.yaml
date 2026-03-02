@@ -20,6 +20,7 @@ service:
 # Auth-proxy sidecar: front proxy on :4466, K8s API proxy on :6443.
 extraContainers:
   - name: auth-proxy
+    # TODO: move to a Gravitational-owned registry before merging.
     image: ghcr.io/jakealti/headlamp-auth-proxy:latest
     imagePullPolicy: Always
     env:
@@ -29,7 +30,7 @@ extraContainers:
             name: headlamp-teleport-proxy
             key: proxyAddr
     ports:
-      - name: http
+      - name: auth-http
         containerPort: 4466
         protocol: TCP
     securityContext:

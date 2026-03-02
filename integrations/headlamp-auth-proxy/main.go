@@ -21,6 +21,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -82,7 +83,7 @@ func main() {
 
 	go func() {
 		slog.Info("front proxy listening", "addr", listenHTTP)
-		if err := frontServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := frontServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("front proxy", "error", err)
 			cancel()
 		}
@@ -90,7 +91,7 @@ func main() {
 
 	go func() {
 		slog.Info("k8s proxy listening", "addr", listenK8s)
-		if err := k8sServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := k8sServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("k8s proxy", "error", err)
 			cancel()
 		}

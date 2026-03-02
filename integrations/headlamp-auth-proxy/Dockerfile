@@ -6,6 +6,7 @@ RUN go mod download
 COPY *.go ./
 RUN CGO_ENABLED=0 go build -o headlamp-auth-proxy .
 
-FROM gcr.io/distroless/static-debian12
+ARG BASE_IMAGE=gcr.io/distroless/static-debian12
+FROM $BASE_IMAGE
 COPY --from=builder /app/headlamp-auth-proxy /
 ENTRYPOINT ["/headlamp-auth-proxy"]

@@ -47,7 +47,9 @@ func NewFrontProxy(verifier *JWKSVerifier, signer *TokenSigner) *FrontProxy {
 func (fp *FrontProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	jwtToken := r.Header.Get("teleport-jwt-assertion")
 	if jwtToken == "" {
-		// No Teleport JWT — forward as-is (health checks, probes).
+		// No Teleport JWT — forward as-is. This path is only hit by
+		// Kubernetes health checks and readiness probes. Headlamp itself
+		// does not expose sensitive data without a valid session cookie.
 		fp.proxy.ServeHTTP(w, r)
 		return
 	}
