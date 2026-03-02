@@ -89,6 +89,7 @@ jobs:
               - 'tsconfig.json'
               - 'tsconfig.node.json'
               - 'docs/pages/reference/audit-events.mdx'
+              - 'docs/pages/includes/ui-guided-resources.mdx'
             has_bpf:
               - '.github/workflows/lint.yaml'
               - 'bpf/**.c'
@@ -371,7 +372,7 @@ jobs:
 
       - name: Check audit event reference docs
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
-        run: git config --global --add safe.directory $(realpath .) && make audit-event-reference-up-to-date
+        run: git config --global --add safe.directory $(realpath .) && make web-ui-docs-up-to-date
 
   lint-bpf:
     name: BPF Generated Files
