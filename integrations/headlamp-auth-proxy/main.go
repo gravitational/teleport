@@ -16,40 +16,31 @@ import (
 	"context"
 	"crypto/rand"
 	"flag"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 func main() {
 	var (
-		headlampAddr   = flag.String("headlamp-addr", "127.0.0.1:4467", "Headlamp backend address")
-		listenHTTP     = flag.String("listen-http", ":4466", "Front proxy listen address")
-		listenK8s      = flag.String("listen-k8s", "127.0.0.1:6443", "K8s API proxy listen address")
-		proxyAddr      = flag.String("proxy-addr", "", "Teleport proxy URL for JWKS verification (overrides --teleport-config)")
-		teleportConfig = flag.String("teleport-config", "", "Path to teleport.yaml to read proxy_server from")
-		groupsClaim    = flag.String("groups-claim", "roles", "JWT claim to map to K8s groups (roles or traits.<key>)")
-		cookieName     = flag.String("cookie-name", "headlamp-auth-main.0", "Headlamp session cookie name (format: headlamp-auth-{cluster}.{chunk})")
-		tokenTTL       = flag.Duration("token-ttl", 5*time.Minute, "Internal HMAC token TTL")
+		headlampAddr = flag.String("headlamp-addr", "127.0.0.1:4467", "Headlamp backend address")
+		listenHTTP   = flag.String("listen-http", ":4466", "Front proxy listen address")
+		listenK8s    = flag.String("listen-k8s", "127.0.0.1:6443", "K8s API proxy listen address")
+		proxyAddr    = flag.String("proxy-addr", "", "Teleport proxy URL for JWKS verification (e.g. https://teleport.example.com)")
+		groupsClaim  = flag.String("groups-claim", "roles", "JWT claim to map to K8s groups (roles or traits.<key>)")
+		cookieName   = flag.String("cookie-name", "headlamp-auth-main.0", "Headlamp session cookie name (format: headlamp-auth-{cluster}.{chunk})")
+		tokenTTL     = flag.Duration("token-ttl", 5*time.Minute, "Internal HMAC token TTL")
 	)
 	flag.Parse()
 
-	if *proxyAddr == "" && *teleportConfig != "" {
-		addr, err := proxyAddrFromConfig(*teleportConfig)
-		if err != nil {
-			slog.Error("reading proxy address from teleport config", "error", err)
-			os.Exit(1)
-		}
-		*proxyAddr = addr
+	if *proxyAddr == "" {
+		*proxyAddr = os.Getenv("TELEPORT_PROXY_ADDR")
 	}
 	if *proxyAddr == "" {
-		slog.Error("either --proxy-addr or --teleport-config is required")
+		slog.Error("--proxy-addr flag or TELEPORT_PROXY_ADDR env var is required")
 		os.Exit(1)
 	}
 
@@ -119,28 +110,4 @@ func main() {
 	defer shutdownCancel()
 	frontServer.Shutdown(shutdownCtx)
 	k8sServer.Shutdown(shutdownCtx)
-}
-
-// proxyAddrFromConfig reads the Teleport proxy address from a teleport.yaml
-// config file (the teleport-agent ConfigMap) and returns it as an https URL.
-func proxyAddrFromConfig(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("reading %s: %w", path, err)
-	}
-
-	var cfg struct {
-		Teleport struct {
-			ProxyServer string `yaml:"proxy_server"`
-		} `yaml:"teleport"`
-	}
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return "", fmt.Errorf("parsing %s: %w", path, err)
-	}
-
-	if cfg.Teleport.ProxyServer == "" {
-		return "", fmt.Errorf("teleport.proxy_server not set in %s", path)
-	}
-
-	return "https://" + cfg.Teleport.ProxyServer, nil
 }

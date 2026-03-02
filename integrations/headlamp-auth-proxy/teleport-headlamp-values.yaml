@@ -4,6 +4,7 @@
 #   helm repo add headlamp https://headlamp-k8s.github.io/headlamp/
 #   helm install headlamp headlamp/headlamp \
 #     --namespace <namespace> \
+#     --set teleportProxyAddr=https://teleport.example.com \
 #     -f teleport-headlamp-values.yaml
 #
 # Port architecture:
@@ -40,15 +41,16 @@ extraContainers:
       - "--listen-http=:4466"
       - "--listen-k8s=127.0.0.1:6443"
       - "--groups-claim=roles"
-      - "--teleport-config=/etc/teleport-agent/teleport.yaml"
+    env:
+      - name: TELEPORT_PROXY_ADDR
+        valueFrom:
+          configMapKeyRef:
+            name: headlamp-teleport-proxy
+            key: proxyAddr
     ports:
       - name: http
         containerPort: 4466
         protocol: TCP
-    volumeMounts:
-      - name: teleport-agent-config
-        mountPath: /etc/teleport-agent
-        readOnly: true
     securityContext:
       runAsNonRoot: true
       privileged: false
@@ -64,13 +66,18 @@ volumes:
   - name: kubeconfig
     configMap:
       name: headlamp-kubeconfig
-  - name: teleport-agent-config
-    configMap:
-      name: teleport-agent
 
 # Extra manifests rendered by the chart (supports tpl for Helm templating).
 # Creates the kubeconfig ConfigMap, impersonation ClusterRole, and binding.
 extraManifests:
+  - |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: headlamp-teleport-proxy
+      namespace: {{ .Release.Namespace }}
+    data:
+      proxyAddr: {{ required "teleportProxyAddr must be set (e.g. --set teleportProxyAddr=https://teleport.example.com)" .Values.teleportProxyAddr | quote }}
   - |
     apiVersion: v1
     kind: ConfigMap
