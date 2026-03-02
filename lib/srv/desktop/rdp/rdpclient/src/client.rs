@@ -798,7 +798,10 @@ impl Client {
             SvcProcessorMessages::<DrdynvcClient>::new(messages),
         )
         .await?;
-        debug!("Writing resize to [{:?}x{:?}] scale [{:?}]", width, height, scale);
+        debug!(
+            "Writing resize to [{:?}x{:?}] scale [{:?}]",
+            width, height, scale
+        );
         write_stream.write_all(&encoded).await?;
 
         Ok(())
@@ -1186,7 +1189,12 @@ impl ClientHandle {
         self.blocking_send(ClientFunction::WriteScreenResize(width, height, scale))
     }
 
-    pub async fn write_screen_resize_async(&self, width: u32, height: u32, scale: u32) -> ClientResult<()> {
+    pub async fn write_screen_resize_async(
+        &self,
+        width: u32,
+        height: u32,
+        scale: u32,
+    ) -> ClientResult<()> {
         self.send(ClientFunction::WriteScreenResize(width, height, scale))
             .await
     }
