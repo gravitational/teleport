@@ -563,6 +563,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_inference_model":            resourceTeleportInferenceModelType{},
 		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
 		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
+		"teleport_workload_cluster":           resourceTeleportWorkloadClusterType{},
 	}, nil
 }
 
@@ -605,6 +606,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		// - Data sources use the same schema as resources, which means that fields
 		//   required on a resource also need to be set on the data source
 		//   definition.
+		"teleport_workload_cluster": dataSourceTeleportWorkloadClusterType{},
 	}, nil
 }
 
