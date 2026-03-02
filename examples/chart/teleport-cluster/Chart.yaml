@@ -1,4 +1,4 @@
-.version: &version "17.7.19"
+.version: &version "17.7.19-dev.rhammonds.rusttoolchainv17.2"
 
 name: teleport-cluster
 apiVersion: v2
