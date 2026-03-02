@@ -14,19 +14,21 @@ import (
 // cookie and X-Auth-Token header before forwarding the request.
 type FrontProxy struct {
 	proxy       *httputil.ReverseProxy
+	verifier    *JWKSVerifier
 	signer      *TokenSigner
 	groupsClaim string
 	cookieName  string
 }
 
 // NewFrontProxy creates the HTTP proxy that faces Teleport.
-func NewFrontProxy(headlampAddr string, signer *TokenSigner, groupsClaim, cookieName string) (*FrontProxy, error) {
+func NewFrontProxy(headlampAddr string, verifier *JWKSVerifier, signer *TokenSigner, groupsClaim, cookieName string) (*FrontProxy, error) {
 	target, err := url.Parse(fmt.Sprintf("http://%s", headlampAddr))
 	if err != nil {
 		return nil, fmt.Errorf("parsing headlamp address: %w", err)
 	}
 
 	fp := &FrontProxy{
+		verifier:    verifier,
 		signer:      signer,
 		groupsClaim: groupsClaim,
 		cookieName:  cookieName,
@@ -44,9 +46,9 @@ func (fp *FrontProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := ParseTeleportJWT(jwtToken)
+	claims, err := fp.verifier.Verify(jwtToken)
 	if err != nil {
-		slog.Error("JWT decode failed", "error", err)
+		slog.Error("JWT verification failed", "error", err)
 		http.Error(w, "invalid JWT", http.StatusUnauthorized)
 		return
 	}

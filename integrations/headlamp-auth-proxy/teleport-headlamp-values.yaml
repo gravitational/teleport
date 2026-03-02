@@ -28,7 +28,7 @@ clusterRoleBinding:
 # Headlamp as an application.
 service:
   annotations:
-    teleport.dev/name: Headlamp
+    teleport.dev/name: headlamp
 
 # Auth-proxy sidecar: front proxy on :4466, K8s API proxy on :6443.
 extraContainers:
@@ -40,10 +40,15 @@ extraContainers:
       - "--listen-http=:4466"
       - "--listen-k8s=127.0.0.1:6443"
       - "--groups-claim=roles"
+      - "--teleport-config=/etc/teleport-agent/teleport.yaml"
     ports:
       - name: http
         containerPort: 4466
         protocol: TCP
+    volumeMounts:
+      - name: teleport-agent-config
+        mountPath: /etc/teleport-agent
+        readOnly: true
     securityContext:
       runAsNonRoot: true
       privileged: false
@@ -59,6 +64,9 @@ volumes:
   - name: kubeconfig
     configMap:
       name: headlamp-kubeconfig
+  - name: teleport-agent-config
+    configMap:
+      name: teleport-agent
 
 # Extra manifests rendered by the chart (supports tpl for Helm templating).
 # Creates the kubeconfig ConfigMap, impersonation ClusterRole, and binding.
