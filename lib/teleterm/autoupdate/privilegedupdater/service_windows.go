@@ -48,8 +48,13 @@ import (
 	"github.com/gravitational/teleport/lib/windowsservice"
 )
 
+// ServiceCommand is the tsh subcommand that the Windows service manager invokes when starting the
+// updater service.
+var ServiceCommand = []string{"connect-updater", ServiceSubCommand}
+
 const (
-	ServiceCommand     = "connect-updater-service"
+	// ServiceSubCommand is the tsh subcommand under "connect-updater" that runs the updater service.
+	ServiceSubCommand  = "service"
 	serviceName        = "TeleportConnectUpdater"
 	serviceDescription = "Installs Teleport Connect updates without requiring administrator privileges."
 	eventSource        = "connect-updater"

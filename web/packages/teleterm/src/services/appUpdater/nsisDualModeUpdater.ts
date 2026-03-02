@@ -85,7 +85,8 @@ export class NsisDualModeUpdater extends NsisUpdater {
     // options.isSilent is ignored.
     // The system service runs in Session 0 and cannot display any UI.
     const args = [
-      'connect-updater-install-update',
+      'connect-updater',
+      'install-update',
       `--path=${this.installerPath}`,
       `--update-version=${this.updateVersion}`,
     ];

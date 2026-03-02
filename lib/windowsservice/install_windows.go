@@ -40,8 +40,9 @@ type InstallConfig struct {
 	Name string
 	// Description is the service description.
 	Description string
-	// Command is the tsh subcommand that the service manager invokes on start.
-	Command string
+	// Command is the tsh subcommand (and its arguments) that the service manager
+	// invokes on start. Each element becomes a separate command-line argument.
+	Command []string
 	// EventSourceName is the name of an event source that will log service events.
 	EventSourceName string
 	// AccessPermissions defines which service control actions are granted to
@@ -59,7 +60,7 @@ func Install(ctx context.Context, cfg *InstallConfig) (err error) {
 	if cfg.Name == "" {
 		return trace.BadParameter("service name is required")
 	}
-	if cfg.Command == "" {
+	if len(cfg.Command) == 0 {
 		return trace.BadParameter("command is required")
 	}
 	if cfg.EventSourceName == "" {
@@ -94,7 +95,7 @@ func Install(ctx context.Context, cfg *InstallConfig) (err error) {
 				StartType:   mgr.StartManual,
 				Description: cfg.Description,
 			},
-			cfg.Command,
+			cfg.Command...,
 		)
 		if err != nil {
 			return trace.Wrap(err, "creating VNet Windows service")

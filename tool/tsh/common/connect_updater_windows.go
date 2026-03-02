@@ -27,9 +27,9 @@ type updateServiceCommand struct {
 	*kingpin.CmdClause
 }
 
-func newPlatformConnectUpdaterServiceRunCommand(app *kingpin.Application) *updateServiceCommand {
+func newPlatformConnectUpdaterServiceRunCommand(parent *kingpin.CmdClause) *updateServiceCommand {
 	return &updateServiceCommand{
-		CmdClause: app.Command(privilegedupdater.ServiceCommand, "Start the Teleport Connect updater service.").Hidden(),
+		CmdClause: parent.Command(privilegedupdater.ServiceSubCommand, "Start the Teleport Connect updater service.").Hidden(),
 	}
 }
 
@@ -47,9 +47,9 @@ type connectUpdaterServiceInstallCommand struct {
 	*kingpin.CmdClause
 }
 
-func newPlatformConnectUpdaterServiceInstallCommand(app *kingpin.Application) *connectUpdaterServiceInstallCommand {
+func newPlatformConnectUpdaterServiceInstallCommand(parent *kingpin.CmdClause) *connectUpdaterServiceInstallCommand {
 	return &connectUpdaterServiceInstallCommand{
-		CmdClause: app.Command("connect-updater-install-service", "Install the Teleport Connect updater service.").Hidden(),
+		CmdClause: parent.Command("install-service", "Install the Teleport Connect updater service.").Hidden(),
 	}
 }
 
@@ -61,9 +61,9 @@ type connectUpdaterServiceUninstallCommand struct {
 	*kingpin.CmdClause
 }
 
-func newPlatformConnectUpdaterServiceUninstallCommand(app *kingpin.Application) *connectUpdaterServiceUninstallCommand {
+func newPlatformConnectUpdaterServiceUninstallCommand(parent *kingpin.CmdClause) *connectUpdaterServiceUninstallCommand {
 	return &connectUpdaterServiceUninstallCommand{
-		CmdClause: app.Command("connect-updater-uninstall-service", "Uninstall the Teleport Connect updater service.").Hidden(),
+		CmdClause: parent.Command("uninstall-service", "Uninstall the Teleport Connect updater service.").Hidden(),
 	}
 }
 
@@ -78,9 +78,9 @@ type connectUpdaterServiceInstallUpdateCommand struct {
 	version  string
 }
 
-func newPlatformConnectUpdaterServiceInstallUpdateCommand(app *kingpin.Application) *connectUpdaterServiceInstallUpdateCommand {
+func newPlatformConnectUpdaterServiceInstallUpdateCommand(parent *kingpin.CmdClause) *connectUpdaterServiceInstallUpdateCommand {
 	cmd := &connectUpdaterServiceInstallUpdateCommand{
-		CmdClause: app.Command("connect-updater-install-update", "Install the update with the Teleport Connect updater service.").Hidden(),
+		CmdClause: parent.Command("install-update", "Install the update with the Teleport Connect updater service.").Hidden(),
 	}
 	cmd.Flag("path", "Path to the update.").Required().StringVar(&cmd.path)
 	cmd.Flag("update-version", "Update version").Required().StringVar(&cmd.version)
