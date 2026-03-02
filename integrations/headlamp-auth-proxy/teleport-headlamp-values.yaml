@@ -28,7 +28,7 @@ clusterRoleBinding:
 # Headlamp as an application.
 service:
   annotations:
-    teleport.dev/name: headlamp
+    teleport.dev/name: Headlamp
 
 # Auth-proxy sidecar: front proxy on :4466, K8s API proxy on :6443.
 extraContainers:
