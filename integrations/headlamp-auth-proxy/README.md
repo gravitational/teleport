@@ -17,13 +17,6 @@ The auth-proxy runs as a sidecar alongside Headlamp with two proxy roles:
    token, validates it, and forwards to the real K8s API with
    `Impersonate-User`/`Impersonate-Group` headers.
 
-### JWT Verification
-
-The auth-proxy fetches Teleport's JWKS public keys from
-`<proxy-addr>/.well-known/jwks.json` at startup and refreshes them every 5
-minutes. Every incoming JWT is verified against these keys (RS256/ES256) and
-checked for expiry before the request is forwarded.
-
 ## Installation
 
 The integration uses the official Headlamp Helm chart with a values overlay —
@@ -42,7 +35,7 @@ helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/
 helm install headlamp headlamp/headlamp \
   --namespace headlamp \
   --create-namespace \
-  --set teleportProxyAddr=https://teleport.example.com \
+  --set teleportProxyAddr=https://example.cloud.gravitational.io \
   -f integrations/headlamp-auth-proxy/teleport-headlamp-values.yaml
 ```
 
