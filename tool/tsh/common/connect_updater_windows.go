@@ -19,6 +19,7 @@ package common
 import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows/svc"
 
 	"github.com/gravitational/teleport/lib/teleterm/autoupdate/privilegedupdater"
 )
@@ -34,10 +35,14 @@ func newPlatformConnectUpdaterServiceRunCommand(parent *kingpin.CmdClause) *upda
 }
 
 func (c *updateServiceCommand) run(_ *CLIConf) error {
-	if !isWindowsService() {
+	isSvc, err := svc.IsWindowsService()
+	if err != nil {
+		return trace.Wrap(err, "failed to determine if running as a Windows service, cannot run %s command", c.FullCommand())
+	}
+	if !isSvc {
 		return trace.Errorf("not running as a Windows service, cannot run %s command", c.FullCommand())
 	}
-	if err := privilegedupdater.RunService(); err != nil {
+	if err = privilegedupdater.RunService(); err != nil {
 		return trace.Wrap(err, "running Teleport Connect updater service")
 	}
 	return nil
