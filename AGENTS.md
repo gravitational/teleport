@@ -10,7 +10,7 @@ Use Codex/LLMs to explore ideas, prototypes, and design alternatives only. Any L
 
 ## Review Guidelines
 - Focus only on critical security, reliability, performance, and scalability issues.
-- Ignore style, performance micro-optimizations, and readability nits unless they are tied to a signficant failure
+- Ignore style, performance micro-optimizations, and readability nits unless they are tied to a significant failure
 
 ### What to Look For
 - Authentication/authorization bypasses
