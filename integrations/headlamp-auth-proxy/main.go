@@ -1,15 +1,3 @@
-// headlamp-auth-proxy bridges Teleport app access identity to Kubernetes
-// RBAC via impersonation. It runs as a sidecar alongside Headlamp with two
-// proxy roles:
-//
-//  1. Front proxy (:4466) — decodes the Teleport JWT, mints an internal
-//     HMAC token encoding the user identity, injects it as a Headlamp session
-//     cookie, and forwards to Headlamp (:4467).
-//
-//  2. K8s API proxy (:6443) — receives requests from Headlamp bearing the
-//     HMAC token, validates it, and forwards to the real K8s API with
-//     Impersonate-User/Impersonate-Group headers using the pod's
-//     ServiceAccount credentials.
 package main
 
 import (

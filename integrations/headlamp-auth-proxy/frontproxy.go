@@ -27,15 +27,13 @@ func NewFrontProxy(headlampAddr string, verifier *JWKSVerifier, signer *TokenSig
 		return nil, fmt.Errorf("parsing headlamp address: %w", err)
 	}
 
-	fp := &FrontProxy{
+	return &FrontProxy{
 		verifier:    verifier,
 		signer:      signer,
 		groupsClaim: groupsClaim,
 		cookieName:  cookieName,
-	}
-
-	fp.proxy = httputil.NewSingleHostReverseProxy(target)
-	return fp, nil
+		proxy:       httputil.NewSingleHostReverseProxy(target),
+	}, nil
 }
 
 func (fp *FrontProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -74,8 +72,7 @@ func (fp *FrontProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Pass the token via a custom header that survives Headlamp's
 	// internal reverse proxy (httputil.ReverseProxy preserves
-	// non-hop-by-hop headers). The k8s-proxy reads this for
-	// impersonation instead of relying on the cookie->bearer flow.
+	// non-hop-by-hop headers). The k8s-proxy reads this for impersonation.
 	r.Header.Set("X-Auth-Token", internalToken)
 
 	// Remove the Teleport JWT header — Headlamp doesn't need it.
@@ -90,8 +87,7 @@ func (fp *FrontProxy) extractGroups(claims *TeleportClaims) []string {
 	}
 
 	// Support traits.<key> syntax (e.g. "traits.groups").
-	if strings.HasPrefix(fp.groupsClaim, "traits.") {
-		key := strings.TrimPrefix(fp.groupsClaim, "traits.")
+	if key, ok := strings.CutPrefix(fp.groupsClaim, "traits."); ok {
 		if vals, ok := claims.Traits[key]; ok {
 			return vals
 		}

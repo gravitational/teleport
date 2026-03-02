@@ -24,10 +24,10 @@ type TeleportClaims struct {
 // JWKSVerifier verifies Teleport app access JWTs against JWKS public keys
 // fetched from the Teleport proxy's /.well-known/jwks.json endpoint.
 type JWKSVerifier struct {
-	mu       sync.RWMutex
-	keySet   jose.JSONWebKeySet
-	jwksURL  string
-	client   http.Client
+	mu      sync.RWMutex
+	keySet  jose.JSONWebKeySet
+	jwksURL string
+	client  http.Client
 }
 
 // NewJWKSVerifier creates a verifier and performs an initial JWKS fetch.
@@ -45,8 +45,7 @@ func NewJWKSVerifier(proxyAddr string) (*JWKSVerifier, error) {
 	return v, nil
 }
 
-// RefreshLoop periodically refreshes the JWKS key set. It blocks until ctx
-// is cancelled.
+// RefreshLoop periodically refreshes the JWKS key set. It blocks until ctx is cancelled.
 func (v *JWKSVerifier) RefreshLoop(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()

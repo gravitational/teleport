@@ -79,39 +79,28 @@ func (kp *K8sProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check for the internal HMAC token. The front proxy passes it via
-	// X-Auth-Token header which survives Headlamp's internal reverse proxy.
-	// Also check the Authorization bearer as a fallback.
+	// Check for the internal HMAC token passed from the front proxy.
 	token := r.Header.Get("X-Auth-Token")
 	if token == "" {
-		authHeader := r.Header.Get("Authorization")
-		token = strings.TrimPrefix(authHeader, "Bearer ")
-		if token == authHeader {
-			token = "" // not a Bearer token
-		}
+		kp.proxy.ServeHTTP(w, r)
+		return
 	}
 
-	if token != "" {
-		claims, err := kp.signer.Validate(token)
-		if err == nil {
-			// Valid internal token — impersonate the user.
-			r.Header.Del("X-Auth-Token")
-			r.Header.Set("Authorization", "Bearer "+string(saToken))
-			r.Header.Set("Impersonate-User", claims.Username)
-			for _, g := range claims.Groups {
-				r.Header.Add("Impersonate-Group", g)
-			}
-			slog.Info("impersonating", "user", claims.Username, "groups", claims.Groups, "path", r.URL.Path)
-			kp.proxy.ServeHTTP(w, r)
-			return
-		}
+	// Validate the token and extract the user identity.
+	claims, err := kp.signer.Validate(token)
+	if err != nil {
 		slog.Warn("HMAC validation failed, falling through", "error", err, "path", r.URL.Path)
-	} else {
-		slog.Info("no auth token, using SA", "path", r.URL.Path)
+		kp.proxy.ServeHTTP(w, r)
+		return
 	}
 
-	// No token or non-HMAC token: forward using the SA token for
-	// Headlamp's own operations (not user-scoped).
+	// Valid internal token — impersonate the user.
+	r.Header.Del("X-Auth-Token")
 	r.Header.Set("Authorization", "Bearer "+string(saToken))
+	r.Header.Set("Impersonate-User", claims.Username)
+	for _, g := range claims.Groups {
+		r.Header.Add("Impersonate-Group", g)
+	}
+	slog.Info("impersonating", "user", claims.Username, "groups", claims.Groups, "path", r.URL.Path)
 	kp.proxy.ServeHTTP(w, r)
 }
