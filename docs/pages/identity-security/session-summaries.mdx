@@ -158,35 +158,34 @@ underlying API-specific model name
 <Tabs>
 <TabItem label="Teleport-Managed Model" scope={["cloud"]}>
 
-Teleport Enterprise Cloud includes a built-in inference model powered by Amazon
-Bedrock.  Teleport manages the underlying infrastructure.
+Teleport Enterprise Cloud tenants come with a pre-provisioned inference model
+called `teleport-cloud-default`, powered by Amazon Bedrock. Teleport manages the
+underlying model, Claude Sonnet 4.6, and infrastructure. 
+
+No additional configuration is needed for this step. Skip to
+[Step 3](#step-35-set-up-an-inference-policy) and reference
+`teleport-cloud-default` as the model in your inference policy.
+
+You can also add your own inference models using the **OpenAI** or **Amazon
+Bedrock** tabs, or through the Teleport Web UI.
+
+![Create Inference Model dialog in the Teleport Web UI](https://website.goteleport.com/_uploads/internal_ben_session_teleport_sh_web_cluster_internal_ben_session_teleport_sh_recordings_summaries_b778b06360.png)
 
 <Admonition type="note">
 The Teleport-managed model is available starting with Teleport v18.7.1. There
 are currently no usage limits, but quotas may be introduced in the future.
 </Admonition>
 
-1. Create an `inference-model.yaml` file with the following content:
+</TabItem>
+<TabItem label="Web UI">
 
-   ```yaml
-   kind: inference_model
-   version: v1
-   metadata:
-     name: shell-summary-model
-   spec:
-     # TODO: Add Teleport-managed model spec here.
-     teleport_managed: {}
-     # It's a good idea to limit the session length to prevent incurring cost for
-     # sessions that were too long anyway to fit in the model's context window.
-     # If unset, defaults to 200kB. See the Limitations section for more details.
-     max_session_length_bytes: 190000
-   ```
+You can also create an inference model through the Teleport Web UI. Navigate to
+**Identity Security -> Session Recording Summaries** and click **Add Inference Model**.
+Choose **OpenAI-Compatible API** or **Amazon Bedrock** as the provider, fill in the
+required fields, and click **Create**. You can use **Test Connection** to verify
+your configuration before saving.
 
-1. Apply your changes:
-
-   ```code
-   $ tctl create -f inference-model.yaml
-   ```
+![Create Inference Model dialog in the Teleport Web UI](https://website.goteleport.com/_uploads/internal_ben_session_teleport_sh_web_cluster_internal_ben_session_teleport_sh_recordings_summaries_b778b06360.png)
 
 </TabItem>
 <TabItem label="OpenAI">
@@ -378,9 +377,45 @@ can be expressed using inference policies:
 See [Session matching examples](#session-matching-examples) for details on how
 to configure Teleport to achieve these goals.
 
-To create the required configuration resources:
+You can create an inference policy through the Teleport Web UI or using `tctl`.
+
+<Tabs>
+<TabItem label="Web UI">
+
+Navigate to **Identity Security -> Session Recording Summaries** and click **Add Inference Policy**.
+Select **Teleport Cloud** to use the managed model, or **Use your own model**
+to use a model you configured in Step 2. Choose which session types to
+summarize (Kubernetes, Database, SSH), give the policy a name, and click
+**Create**.
+
+![Create Inference Policy dialog in the Teleport Web UI](https://goteleport.com/_uploads/sh_recordings_summaries_f317d70e86.png)
+
+</TabItem>
+<TabItem label="tctl">
 
 1. Create an `inference-policy.yaml` file with the following content:
+
+   <Tabs>
+   <TabItem scope={["cloud"]} label="Teleport-Managed Model">
+
+   ```yaml
+   kind: inference_policy
+   version: v1
+   metadata:
+     name: shell-sessions
+     description: Summarize all sessions
+   spec:
+     # Session kinds affected by this policy. Allowed values: "ssh", "k8s", "db".
+     kinds:
+     - ssh
+     - k8s
+     - db
+     # Name of the pre-provisioned Teleport-managed inference model.
+     model: teleport-cloud-default
+   ```
+
+   </TabItem>
+   <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
    ```yaml
    kind: inference_policy
@@ -399,11 +434,17 @@ To create the required configuration resources:
      model: shell-summary-model
    ```
 
+   </TabItem>
+   </Tabs>
+
 1. Create the inference policy in the backend:
 
    ```code
    $ tctl create -f inference-policy.yaml
    ```
+
+</TabItem>
+</Tabs>
 
 For full description of the inference configuration resources, see appropriate
 sections of [Teleport Resources Reference](../reference/infrastructure-as-code/teleport-resources/teleport-resources.mdx):
