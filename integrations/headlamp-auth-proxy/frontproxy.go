@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
@@ -18,17 +17,13 @@ type FrontProxy struct {
 }
 
 // NewFrontProxy creates the HTTP proxy that faces Teleport.
-func NewFrontProxy(verifier *JWKSVerifier, signer *TokenSigner) (*FrontProxy, error) {
-	target, err := url.Parse(fmt.Sprintf("http://%s", headlampAddr))
-	if err != nil {
-		return nil, fmt.Errorf("parsing headlamp address: %w", err)
-	}
-
+func NewFrontProxy(verifier *JWKSVerifier, signer *TokenSigner) *FrontProxy {
+	target, _ := url.Parse("http://" + headlampAddr)
 	return &FrontProxy{
 		verifier: verifier,
 		signer:   signer,
 		proxy:    httputil.NewSingleHostReverseProxy(target),
-	}, nil
+	}
 }
 
 func (fp *FrontProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {

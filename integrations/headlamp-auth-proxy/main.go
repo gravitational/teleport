@@ -41,18 +41,11 @@ func main() {
 		slog.Error("initializing JWKS verifier", "error", err)
 		os.Exit(1)
 	}
-	go verifier.RefreshLoop(ctx, 5*time.Minute)
+	go verifier.RefreshLoop(ctx)
 
-	signer := &TokenSigner{
-		key: hmacKey,
-		ttl: tokenTTL,
-	}
+	signer := &TokenSigner{key: hmacKey}
 
-	frontProxy, err := NewFrontProxy(verifier, signer)
-	if err != nil {
-		slog.Error("creating front proxy", "error", err)
-		os.Exit(1)
-	}
+	frontProxy := NewFrontProxy(verifier, signer)
 
 	k8sProxy, err := NewK8sProxy(signer)
 	if err != nil {

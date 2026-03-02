@@ -11,7 +11,6 @@ import (
 // between the front proxy and the K8s proxy within the same pod.
 type TokenSigner struct {
 	key []byte
-	ttl time.Duration
 }
 
 // InternalClaims are the claims encoded in the internal HMAC token.
@@ -29,7 +28,7 @@ func (s *TokenSigner) Mint(username string, groups []string) (string, error) {
 	claims := InternalClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(s.ttl)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(tokenTTL)),
 		},
 		Username: username,
 		Email:    username,

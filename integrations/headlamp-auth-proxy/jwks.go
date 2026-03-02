@@ -45,8 +45,8 @@ func NewJWKSVerifier(proxyAddr string) (*JWKSVerifier, error) {
 }
 
 // RefreshLoop periodically refreshes the JWKS key set. It blocks until ctx is cancelled.
-func (v *JWKSVerifier) RefreshLoop(ctx context.Context, interval time.Duration) {
-	ticker := time.NewTicker(interval)
+func (v *JWKSVerifier) RefreshLoop(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
 	for {
