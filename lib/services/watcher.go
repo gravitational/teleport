@@ -1483,7 +1483,7 @@ func (c *caCollector) processEventsAndUpdateCurrent(ctx context.Context, events 
 			}
 
 			authority, ok := c.cas[ca.GetType()][ca.GetName()]
-			if ok && CertAuthoritiesEquivalent(authority, ca) {
+			if ok && authority.IsEqual(ca) {
 				continue
 			}
 

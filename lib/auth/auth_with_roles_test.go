@@ -346,6 +346,7 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 // TestSSOUserCanReissueCert makes sure that SSO user can reissue certificate
 // for themselves.
 func TestSSOUserCanReissueCert(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -372,6 +373,7 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 }
 
 func TestInstaller(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -464,6 +466,7 @@ func TestInstaller(t *testing.T) {
 }
 
 func TestGithubAuthRequest(t *testing.T) {
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -533,7 +536,7 @@ func TestGithubAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	upserted, err := auth.UpsertGithubConnector(context.Background(), srv.Auth(), conn)
+	upserted, err := auth.UpsertGithubConnector(ctx, srv.Auth(), conn)
 	require.NoError(t, err)
 	require.NotNil(t, upserted)
 
@@ -648,6 +651,7 @@ func TestGithubAuthRequest(t *testing.T) {
 // github/requests/validate which must have the same format as the requested
 // keys to support both old and new proxies.
 func TestGithubAuthCompat(t *testing.T) {
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -663,7 +667,7 @@ func TestGithubAuthCompat(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	_, err = auth.UpsertGithubConnector(context.Background(), srv.Auth(), connector)
+	_, err = auth.UpsertGithubConnector(ctx, srv.Auth(), connector)
 	require.NoError(t, err)
 
 	srv.Auth().GithubUserAndTeamsOverride = func() (*auth.GithubUserResponse, []auth.GithubTeamResponse, error) {
@@ -770,6 +774,7 @@ func TestGithubAuthCompat(t *testing.T) {
 }
 
 func TestAWSRolesAnywhereCredentialGenerationForApps(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
@@ -873,6 +878,7 @@ func TestAWSRolesAnywhereCredentialGenerationForApps(t *testing.T) {
 }
 
 func TestAppAccessUsingAWSOIDC_doesntGenerateClientCredentials(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
@@ -964,6 +970,7 @@ func TestAppAccessUsingAWSOIDC_doesntGenerateClientCredentials(t *testing.T) {
 }
 
 func TestSSODiagnosticInfo(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -1321,6 +1328,7 @@ func TestGenerateUserCertsWithMFAVerification(t *testing.T) {
 }
 
 func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -1579,6 +1587,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 // impersonated client can reissue certificates but that role impersonation
 // cannot be escaped.
 func TestRolesRequestsExplicitAllowReissue(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -1728,6 +1737,7 @@ func TestRolesRequestsExplicitAllowReissue(t *testing.T) {
 // re-escalate privileges using a (perhaps compromised) set of role
 // impersonated certs.
 func TestRoleRequestDenyReimpersonation(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -3790,6 +3800,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 // TestIsMFARequired_databaseProtocols tests the MFA requirement logic per
 // database protocol where different role matchers are used.
 func TestIsMFARequired_databaseProtocols(t *testing.T) {
+	t.Parallel()
 	const (
 		databaseName = "test-database"
 		userName     = "test-username"
@@ -4511,7 +4522,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 // and get them with login information.
 func TestListResources_WithLogins(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t, withCacheEnabled(true))
 
 	require.Eventually(t, func() bool {
@@ -4589,12 +4600,27 @@ func TestListResources_WithLogins(t *testing.T) {
 	clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
 	require.NoError(t, err)
 
+	resourceTypes := []string{types.KindNode, types.KindWindowsDesktop, types.KindDatabaseServer, types.KindAppServer}
+
+	// Wait for all resources to show up in the cache.
+	for _, resourceType := range resourceTypes {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+				Limit:        100,
+				ResourceType: resourceType,
+			})
+			if assert.NoError(t, err) {
+				assert.Len(t, resp.Resources, 5)
+			}
+		}, 15*time.Second, 200*time.Millisecond)
+	}
+
 	t.Run("with fake pagination", func(t *testing.T) {
-		for _, resourceType := range []string{types.KindNode, types.KindWindowsDesktop, types.KindDatabaseServer, types.KindAppServer} {
+		for _, resourceType := range resourceTypes {
 			var results []*types.EnrichedResource
 			var start string
 
-			for len(results) != 5 {
+			for len(results) < 5 {
 				resp, err := apiclient.GetEnrichedResourcePage(ctx, clt, &proto.ListResourcesRequest{
 					ResourceType:  resourceType,
 					Limit:         2,
@@ -4606,6 +4632,9 @@ func TestListResources_WithLogins(t *testing.T) {
 
 				results = append(results, resp.Resources...)
 				start = resp.NextKey
+				if start == "" {
+					break
+				}
 			}
 
 			// Check that only server, desktop, and app server resources contain the expected logins
@@ -4627,7 +4656,7 @@ func TestListResources_WithLogins(t *testing.T) {
 			var results []*types.EnrichedResource
 			var start string
 
-			for len(results) != 5 {
+			for len(results) < 5 {
 				resp, err := apiclient.GetEnrichedResourcePage(ctx, clt, &proto.ListResourcesRequest{
 					ResourceType:  resourceType,
 					Limit:         2,
@@ -4638,6 +4667,9 @@ func TestListResources_WithLogins(t *testing.T) {
 
 				results = append(results, resp.Resources...)
 				start = resp.NextKey
+				if start == "" {
+					break
+				}
 			}
 
 			// Check that only server, desktop, and app server resources contain the expected logins
@@ -5033,6 +5065,7 @@ func createUserGroup(t *testing.T, s *auth.Server, name string, labels map[strin
 }
 
 func TestDeleteUserAppSessions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	srv := newTestTLSServer(t)
@@ -6550,6 +6583,7 @@ func withAccountAssignment(condition types.RoleConditionType, accountID, permiss
 }
 
 func TestUnifiedResources_IdentityCenter(t *testing.T) {
+	t.Parallel()
 	const (
 		validAccountID        = "11111111"
 		validPermissionSetARN = "some:ps:arn"
@@ -7326,6 +7360,7 @@ func newScopedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hostID, 
 }
 
 func TestGenerateHostCertsScoped(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -7372,6 +7407,7 @@ func TestGenerateHostCertsScoped(t *testing.T) {
 // This is because only one uploader service runs per Teleport process, and it will use
 // the first available identity.
 func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
+	t.Parallel()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err, trace.DebugReport(err))
 	t.Cleanup(func() { require.NoError(t, srv.Close()) })
@@ -7813,6 +7849,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 }
 
 func TestListReleasesPermissions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -7868,6 +7905,7 @@ func TestListReleasesPermissions(t *testing.T) {
 }
 
 func TestGetLicensePermissions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -7925,6 +7963,7 @@ func TestGetLicensePermissions(t *testing.T) {
 const errSAMLAppLabelsDenied = "access to saml_idp_service_provider denied"
 
 func TestCreateSAMLIdPServiceProvider(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -8077,6 +8116,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 }
 
 func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -8250,6 +8290,7 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 }
 
 func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 	user := createSAMLIdPTestUser(t, srv.Auth(), types.RoleSpecV6{Allow: samlIdPRoleCondition(types.Labels{"*": []string{"*"}}, types.VerbCreate)})
@@ -8354,6 +8395,7 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 }
 
 func TestUpdateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 	user := createSAMLIdPTestUser(t, srv.Auth(), types.RoleSpecV6{Allow: samlIdPRoleCondition(types.Labels{"*": []string{"*"}}, types.VerbCreate, types.VerbUpdate)})
@@ -8433,6 +8475,7 @@ func TestUpdateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 }
 
 func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -8535,6 +8578,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 }
 
 func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -10061,7 +10105,7 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 					t.Fatalf("Watcher unexpectedly closed with error: %v", watcher.Error())
 				}
 
-				// If the watcher was intitialized successfully, attach it to the
+				// If the watcher was initialized successfully, attach it to the
 				// test case for the watch_events portion of the test.
 				tc.watcher = watcher
 			})
@@ -10086,19 +10130,19 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				var events []types.Event
-			loop:
+				events := make([]types.Event, 0, len(tc.expectEvents))
 				for {
 					select {
 					case event := <-tc.watcher.Events():
 						events = append(events, event)
-					case <-time.After(500 * time.Millisecond):
-						break loop
+						if len(events) == len(tc.expectEvents) {
+							require.Equal(t, tc.expectEvents, events)
+							return
+						}
 					case <-tc.watcher.Done():
 						t.Fatalf("Watcher unexpectedly closed with error: %v", tc.watcher.Error())
 					}
 				}
-				require.Equal(t, tc.expectEvents, events)
 			})
 		}
 	})
@@ -10415,6 +10459,7 @@ func inlineEventually(t *testing.T, cond func() bool, waitFor time.Duration, tic
 }
 
 func TestIsMFARequired_AdminAction(t *testing.T) {
+	t.Parallel()
 	for _, tt := range []struct {
 		name                 string
 		adminActionAuthState authz.AdminActionAuthState
@@ -10601,6 +10646,7 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 }
 
 func TestRoleRequestReasonModeValidation(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -10716,6 +10762,7 @@ func testUserName(testName string) string {
 }
 
 func TestFilterIdentityCenterPermissionSets(t *testing.T) {
+	t.Parallel()
 	const (
 		allAccessRoleName      = "all-access"
 		accountID              = "1234567890"
@@ -11048,6 +11095,7 @@ func createTestMCPAppServer(t *testing.T, auth *auth.Server, name string, labels
 }
 
 func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 

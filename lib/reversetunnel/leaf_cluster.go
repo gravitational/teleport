@@ -665,7 +665,7 @@ func (s *leafCluster) watchCertAuthorities(leafClusterWatcher *services.CertAuth
 		}
 
 		// if CA is changed or does not exist, update backend
-		if err != nil || !services.CertAuthoritiesEquivalent(oldLeafClusterCA, leafClusterCA) {
+		if err != nil || !oldLeafClusterCA.IsEqual(leafClusterCA) {
 			s.logger.DebugContext(s.ctx, "Ingesting leaf cluster cert authority", "cert_authority", logutils.StringerAttr(leafClusterCA.GetID()))
 			if err := s.localClient.UpsertCertAuthority(s.ctx, leafClusterCA); err != nil {
 				return trace.Wrap(err)
@@ -704,7 +704,7 @@ func (s *leafCluster) watchCertAuthorities(leafClusterWatcher *services.CertAuth
 				}
 
 				previousCA, ok := localCAs[newCA.GetType()]
-				if ok && services.CertAuthoritiesEquivalent(previousCA, newCA) {
+				if ok && previousCA.IsEqual(newCA) {
 					continue
 				}
 
