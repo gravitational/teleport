@@ -16,19 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link } from 'react-router-dom';
-
-import { Flex, Text } from 'design';
-import { ResourceIconName } from 'design/ResourceIcon';
-
 import {
   BadgeTitle,
   ToolTipNoPermBadge,
 } from 'teleport/components/ToolTipNoPermBadge';
-import cfg from 'teleport/config';
-import { IntegrationKind } from 'teleport/services/integrations';
-
-import { IntegrationIcon, IntegrationTile } from '../common';
 
 export function renderExternalAuditStorageBadge(
   hasExternalAuditStorageAccess: boolean,
@@ -66,33 +57,4 @@ export function GenericNoPermBadge({
       </ToolTipNoPermBadge>
     );
   }
-}
-
-export function GenericIntegrationTile({
-  kind,
-  hasAccess,
-  name,
-  icon,
-}: {
-  kind: IntegrationKind;
-  hasAccess: boolean;
-  name: string;
-  icon: ResourceIconName;
-}) {
-  return (
-    <IntegrationTile
-      disabled={!hasAccess}
-      as={hasAccess ? Link : null}
-      to={hasAccess ? cfg.getIntegrationEnrollRoute(kind) : null}
-      data-testid={`tile-${kind}`}
-    >
-      <Flex flexBasis={100}>
-        <IntegrationIcon name={icon} size={80} />
-      </Flex>
-      <Flex>
-        <Text>{name}</Text>
-      </Flex>
-      <GenericNoPermBadge noAccess={!hasAccess} />
-    </IntegrationTile>
-  );
 }

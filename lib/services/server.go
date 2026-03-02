@@ -109,6 +109,7 @@ func compareServers(a, b types.Server) int {
 	if a.GetUseTunnel() != b.GetUseTunnel() {
 		return Different
 	}
+
 	if !maps.Equal(a.GetStaticLabels(), b.GetStaticLabels()) {
 		return Different
 	}
@@ -120,6 +121,11 @@ func compareServers(a, b types.Server) int {
 	}) {
 		return Different
 	}
+
+	if !maps.Equal(a.GetImmutableLabels(), b.GetImmutableLabels()) {
+		return Different
+	}
+
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}

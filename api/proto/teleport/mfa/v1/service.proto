@@ -87,6 +87,9 @@ message ReplicateValidatedMFAChallengeRequest {
   // Name of the target cluster where the SSH session is being established. Required in order to match the validated
   // challenge to the correct session.
   string target_cluster = 4;
+  // Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
+  // login name) and must correspond to a user in the cluster specified by source_cluster.
+  string username = 5;
 }
 
 // ReplicateValidatedMFAChallengeResponse is the response message for ReplicateValidatedMFAChallenge.

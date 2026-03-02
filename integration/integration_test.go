@@ -668,7 +668,7 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 			go func() {
 				// don't check for err, because sometimes this process should fail
 				// with an error and that's what the test is checking for.
-				cl.SSH(context.TODO(), []string{tt.inCommand})
+				cl.SSH(t.Context(), []string{tt.inCommand})
 				sessionEndC <- true
 			}()
 			err = waitFor(sessionEndC, time.Second*10)
@@ -2004,7 +2004,6 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 					require.Empty(t, next)
 					require.NoError(t, err)
 					require.Len(t, sems, 1)
-
 				}, 2*time.Second, 100*time.Millisecond)
 
 				tracker := waitForSessionToBeEstablished(t, site, 1)
@@ -2718,7 +2717,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// and 'tc' (client) is also supposed to reconnect
 	for range 10 {
 		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(context.TODO(), cmd)
+		err = tc.SSH(t.Context(), cmd)
 		if err == nil {
 			break
 		}
@@ -3660,7 +3659,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	for range 10 {
 		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(context.TODO(), cmd)
+		err = tc.SSH(t.Context(), cmd)
 		if err == nil {
 			break
 		}
@@ -5175,7 +5174,7 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 				cl.Stdin = termSession
 
 				termSession.Type("\aecho hi\n\r\aexit\n\r\a")
-				err = cl.SSH(context.TODO(), []string{})
+				err = cl.SSH(t.Context(), []string{})
 				if !isSSHError(err) {
 					errCh <- err
 					return
@@ -5313,7 +5312,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// client works as is before servers have been rotated
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 	checkSSHPrincipals(svc)
 
@@ -5341,7 +5340,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// new client works
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 	checkSSHPrincipals(svc)
 
@@ -5362,7 +5361,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	waitForCredentialsUpdated()
 
 	// new client still works
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 	checkSSHPrincipals(svc)
 
@@ -5474,7 +5473,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// client works as is before servers have been rotated
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 	checkSSHPrincipals(svc)
 
@@ -5503,7 +5502,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	waitForCredentialsUpdated()
 
 	// old client works
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 	checkSSHPrincipals(svc)
 
@@ -5627,7 +5626,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	clt, err := main.NewClientWithCreds(cfg, *initialCreds)
 	require.NoError(t, err)
 
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 
 	t.Logf("Setting rotation state to %v", types.RotationPhaseInit)
@@ -5680,7 +5679,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	waitForPhase(types.RotationPhaseUpdateClients)
 
 	// old client should work as is
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 
 	t.Logf("Service reloaded. Setting rotation state to %v", types.RotationPhaseUpdateServers)
@@ -5705,7 +5704,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// new client works
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 
 	t.Logf("Service reloaded. Setting rotation state to %v.", types.RotationPhaseStandby)
@@ -5724,7 +5723,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	t.Log("Phase completed.")
 
 	// new client still works
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 
 	t.Log("Service reloaded. Rotation has completed. Shutting down service.")
@@ -5757,12 +5756,12 @@ func waitForProcessEvent(svc *service.TeleportProcess, event string, timeout tim
 }
 
 // runAndMatch runs command and makes sure it matches the pattern
-func runAndMatch(tc *client.TeleportClient, attempts int, command []string, pattern string) error {
+func runAndMatch(ctx context.Context, tc *client.TeleportClient, attempts int, command []string, pattern string) error {
 	output := &bytes.Buffer{}
 	tc.Stdout = output
 	var err error
 	for range attempts {
-		err = tc.SSH(context.TODO(), command)
+		err = tc.SSH(ctx, command)
 		if err != nil {
 			time.Sleep(500 * time.Millisecond)
 			continue
@@ -6217,9 +6216,6 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			// Create temporary directory where cgroup2 hierarchy will be mounted.
-			dir := t.TempDir()
-
 			// Create and start a Teleport cluster.
 			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -6244,7 +6240,6 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 				tconf.SSH.Enabled = true
 				if tt.inBPFEnabled {
 					tconf.SSH.BPF.Enabled = true
-					tconf.SSH.BPF.CgroupPath = dir
 				}
 				return t, nil, nil, tconf
 			}
@@ -6271,7 +6266,7 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 
 				// "Type" a command into the terminal.
 				term.Type(fmt.Sprintf("\a%v\n\r\aexit\n\r\a", lsPath))
-				err = client.SSH(context.TODO(), []string{})
+				err = client.SSH(t.Context(), []string{})
 				require.NoError(t, err)
 
 				// Signal that the client has finished the interactive session.
@@ -6344,9 +6339,6 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			// Create temporary directory where cgroup2 hierarchy will be mounted.
-			dir := t.TempDir()
-
 			// Create and start a Teleport cluster.
 			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -6371,7 +6363,6 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 				tconf.SSH.Enabled = true
 				if tt.inBPFEnabled {
 					tconf.SSH.BPF.Enabled = true
-					tconf.SSH.BPF.CgroupPath = dir
 				}
 				return t, nil, nil, tconf
 			}
@@ -6545,9 +6536,6 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 	lsPath, err := exec.LookPath("ls")
 	require.NoError(t, err)
 
-	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	dir := t.TempDir()
-
 	// Create and start a Teleport cluster.
 	makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 		recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -6571,7 +6559,6 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 		// BPF to simulate an OpenSSH node.
 		tconf.SSH.Enabled = true
 		tconf.SSH.BPF.Enabled = true
-		tconf.SSH.BPF.CgroupPath = dir
 		return t, nil, nil, tconf
 	}
 	main := suite.NewTeleportWithConfig(makeConfig())
@@ -7017,7 +7004,7 @@ func runCommandWithCertReissue(t *testing.T, instance *helpers.TeleInstance, cmd
 	out := &bytes.Buffer{}
 	tc.Stdout = out
 
-	err = tc.SSH(context.TODO(), cmd)
+	err = tc.SSH(t.Context(), cmd)
 	if err != nil {
 		return trace.Wrap(err)
 	}

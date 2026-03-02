@@ -325,9 +325,6 @@ const (
 	// PPID is the PID of the parent process.
 	PPID = "ppid"
 
-	// CgroupID is the internal cgroupv2 ID of the event.
-	CgroupID = "cgroup_id"
-
 	// Program is name of the executable.
 	Program = "program"
 
@@ -1019,6 +1016,9 @@ const (
 	InferencePolicyUpdateEvent = "inference_policy.update"
 	// InferencePolicyDeleteEvent is emitted when an inference policy resource is deleted.
 	InferencePolicyDeleteEvent = "inference_policy.delete"
+
+	// SessionSummarizedEvent is emitted when a session summary is created.
+	SessionSummarizedEvent = "session.summarized"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

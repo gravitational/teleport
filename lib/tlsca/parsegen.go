@@ -38,12 +38,33 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ClusterName returns cluster name from organization
-func ClusterName(subject pkix.Name) (string, error) {
-	if len(subject.Organization) == 0 {
-		return "", trace.BadParameter("missing subject organization")
+// ClusterName returns cluster name from a Teleport CA name (Issuer or Subject).
+func ClusterName(name pkix.Name) (string, error) {
+	// Cluster name in custom OID.
+	for _, atv := range name.Names {
+		if atv.Type.Equal(CAClusterNameExtensionOID) {
+			var ok bool
+			clusterName, ok := atv.Value.(string)
+			switch {
+			case !ok:
+				return "", trace.BadParameter("OID %s has value of unexpected type %T", atv.Type, atv.Value)
+			case clusterName == "":
+				return "", trace.BadParameter("OID %s has empty value", atv.Type)
+			default:
+				return clusterName, nil
+			}
+		}
 	}
-	return subject.Organization[0], nil
+
+	// Cluster name in "O=".
+	if len(name.Organization) == 0 {
+		return "", trace.BadParameter("missing cluster name")
+	}
+	clusterName := name.Organization[0]
+	if clusterName == "" {
+		return "", trace.BadParameter("empty organization value")
+	}
+	return clusterName, nil
 }
 
 // GenerateSelfSignedCAWithSigner generates self-signed certificate authority used for internal inter-node communications

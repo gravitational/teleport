@@ -2575,6 +2575,18 @@ export const formatters: Formatters = {
     format: ({ name, user }) =>
       `Inference Policy [${name}] was deleted by [${user}]`,
   },
+  [eventCodes.SESSION_SUMMARIZED]: {
+    type: 'session.summarized',
+    desc: 'Session Summarized',
+    format: ({ sid, session_type, model_name }) =>
+      `Session summary for ${session_type || 'session'} [${sid}] was summarized${model_name ? ` using [${model_name}]` : ''}`,
+  },
+  [eventCodes.SESSION_SUMMARIZED_FAILURE]: {
+    type: 'session.summarized',
+    desc: 'Session Summarization Failed',
+    format: ({ sid, session_type, model_name }) =>
+      `Session summary for ${session_type || 'session'} [${sid}] failed to be summarized${model_name ? ` using [${model_name}]` : ''}`,
+  },
 };
 
 const unknownFormatter = {

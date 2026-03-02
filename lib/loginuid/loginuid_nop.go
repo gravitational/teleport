@@ -1,6 +1,8 @@
+//go:build !bpf || 386
+
 /*
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +18,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package autoupdate
+package loginuid
 
-// InstallSuffixEnvVar specifies the Teleport install suffix.
-const InstallSuffixEnvVar = "TELEPORT_INSTALL_SUFFIX"
+// Write is a no-op in non-BPF builds.
+func Write(uid string) error {
+	return nil
+}

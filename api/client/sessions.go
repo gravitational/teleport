@@ -54,10 +54,6 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 func (r *webSessions) List(ctx context.Context) ([]types.WebSession, error) {
 	sessions, err := r.listStream(ctx)
 	if err != nil {
-		// TODO(espadolini): DELETE IN 19.0.0
-		if trace.IsNotImplemented(err) {
-			return r.listUnary(ctx)
-		}
 		return nil, trace.Wrap(err)
 	}
 	return sessions, nil
@@ -80,19 +76,6 @@ func (r *webSessions) listStream(ctx context.Context) ([]types.WebSession, error
 		}
 		sessions = append(sessions, session)
 	}
-}
-
-func (r *webSessions) listUnary(ctx context.Context) ([]types.WebSession, error) {
-	//nolint:staticcheck // this rpc is used as a fallback
-	resp, err := r.c.grpc.GetWebSessions(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out := make([]types.WebSession, 0, len(resp.Sessions))
-	for _, session := range resp.Sessions {
-		out = append(out, session)
-	}
-	return out, nil
 }
 
 // Upsert not implemented: can only be called locally.

@@ -35,7 +35,7 @@ import (
 const kubeEventPrefix = "kube/"
 
 func (s *Server) startKubeWatchers() error {
-	if len(s.getKubeNonIntegrationFetchers()) == 0 && s.dynamicMatcherWatcher == nil {
+	if len(s.getKubeNonIntegrationFetchers()) == 0 && s.DiscoveryGroup == "" {
 		return nil
 	}
 

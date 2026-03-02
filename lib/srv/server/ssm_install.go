@@ -253,40 +253,66 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(10)
 	for instanceID, instanceName := range validInstances {
+		metadata := instanceMetadata{
+			InstanceID:   instanceID,
+			InstanceName: instanceName,
+		}
+		if instancesState != nil {
+			if richMetadata, found := instancesState.instanceMetadataByID[instanceID]; found {
+				metadata = richMetadata
+			}
+		}
 		g.Go(func() error {
-			return trace.Wrap(si.checkCommand(ctx, req, output.Command.CommandId, &instanceID, instanceName))
+			return trace.Wrap(si.checkCommand(ctx, req, output.Command.CommandId, metadata))
 		})
 	}
 	return trace.Wrap(g.Wait())
 }
 
-func invalidSSMInstanceInstallationResult(req SSMRunRequest, instanceID, instanceName, status, issueType string) *SSMInstallationResult {
+type instanceMetadata struct {
+	InstanceID      string
+	InstanceName    string
+	PlatformName    string
+	PlatformType    string
+	PlatformVersion string
+}
+
+func invalidSSMInstanceInstallationResult(req SSMRunRequest, instanceMetadata instanceMetadata, status, issueType string) *SSMInstallationResult {
 	return &SSMInstallationResult{
 		SSMRunEvent: &apievents.SSMRun{
 			Metadata: apievents.Metadata{
 				Type: libevents.SSMRunEvent,
 				Code: libevents.SSMRunFailCode,
 			},
-			CommandID:  "no-command",
-			AccountID:  req.AccountID,
-			Region:     req.Region,
-			ExitCode:   -1,
-			InstanceID: instanceID,
-			Status:     status,
+			CommandID:       "no-command",
+			AccountID:       req.AccountID,
+			Region:          req.Region,
+			ExitCode:        -1,
+			InstanceID:      instanceMetadata.InstanceID,
+			Status:          status,
+			PlatformName:    instanceMetadata.PlatformName,
+			PlatformType:    instanceMetadata.PlatformType,
+			PlatformVersion: instanceMetadata.PlatformVersion,
 		},
 		IntegrationName:     req.IntegrationName,
 		DiscoveryConfigName: req.DiscoveryConfigName,
 		IssueType:           issueType,
 		SSMDocumentName:     req.DocumentName,
 		InstallerScript:     req.InstallerScriptName(),
-		InstanceName:        instanceName,
+		InstanceName:        instanceMetadata.InstanceName,
 	}
 }
 
 func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRunRequest, instanceIDsState *instanceIDsSSMState) error {
 	var errs []error
 	for instanceID, instanceName := range instanceIDsState.missing {
-		installationResult := invalidSSMInstanceInstallationResult(req, instanceID, instanceName,
+		// For missing instances, we don't have platform info since they're not registered in SSM
+		installationResult := invalidSSMInstanceInstallationResult(req,
+			instanceMetadata{
+				InstanceID:   instanceID,
+				InstanceName: instanceName,
+				// no platform info available
+			},
 			"EC2 Instance is not registered in SSM. Make sure that the instance has AmazonSSMManagedInstanceCore policy assigned.",
 			usertasks.AutoDiscoverEC2IssueSSMInstanceNotRegistered,
 		)
@@ -296,7 +322,15 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 	}
 
 	for instanceID, instanceName := range instanceIDsState.connectionLost {
-		installationResult := invalidSSMInstanceInstallationResult(req, instanceID, instanceName,
+		metadata := instanceIDsState.instanceMetadataByID[instanceID]
+		installationResult := invalidSSMInstanceInstallationResult(req,
+			instanceMetadata{
+				InstanceID:      instanceID,
+				InstanceName:    instanceName,
+				PlatformName:    metadata.PlatformName,
+				PlatformType:    metadata.PlatformType,
+				PlatformVersion: metadata.PlatformVersion,
+			},
 			"SSM Agent in EC2 Instance is not connecting to SSM Service. Restart or reinstall the SSM service. See https://docs.aws.amazon.com/systems-manager/latest/userguide/ami-preinstalled-agent.html#verify-ssm-agent-status for more details.",
 			usertasks.AutoDiscoverEC2IssueSSMInstanceConnectionLost,
 		)
@@ -306,7 +340,15 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 	}
 
 	for instanceID, instanceName := range instanceIDsState.unsupportedOS {
-		installationResult := invalidSSMInstanceInstallationResult(req, instanceID, instanceName,
+		metadata := instanceIDsState.instanceMetadataByID[instanceID]
+		installationResult := invalidSSMInstanceInstallationResult(req,
+			instanceMetadata{
+				InstanceID:      instanceID,
+				InstanceName:    instanceName,
+				PlatformName:    metadata.PlatformName,
+				PlatformType:    metadata.PlatformType,
+				PlatformVersion: metadata.PlatformVersion,
+			},
 			"EC2 instance is running an unsupported Operating System. Only Linux is supported.",
 			usertasks.AutoDiscoverEC2IssueSSMInstanceUnsupportedOS,
 		)
@@ -320,10 +362,11 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 
 // instanceIDsSSMState contains a list of EC2 Instance IDs for a given state.
 type instanceIDsSSMState struct {
-	valid          map[string]string
-	missing        map[string]string
-	connectionLost map[string]string
-	unsupportedOS  map[string]string
+	valid                map[string]string
+	missing              map[string]string
+	connectionLost       map[string]string
+	unsupportedOS        map[string]string
+	instanceMetadataByID map[string]instanceMetadata
 }
 
 func instanceIDsFrom(m map[string]string) []string {
@@ -333,10 +376,11 @@ func instanceIDsFrom(m map[string]string) []string {
 // describeSSMAgentState returns the instanceIDsSSMState for all the instances.
 func (si *SSMInstaller) describeSSMAgentState(ctx context.Context, req SSMRunRequest, allInstances map[string]string) (*instanceIDsSSMState, error) {
 	ret := &instanceIDsSSMState{
-		valid:          make(map[string]string),
-		missing:        make(map[string]string),
-		connectionLost: make(map[string]string),
-		unsupportedOS:  make(map[string]string),
+		valid:                make(map[string]string),
+		missing:              make(map[string]string),
+		connectionLost:       make(map[string]string),
+		unsupportedOS:        make(map[string]string),
+		instanceMetadataByID: make(map[string]instanceMetadata),
 	}
 	instanceIDs := instanceIDsFrom(allInstances)
 
@@ -363,6 +407,15 @@ func (si *SSMInstaller) describeSSMAgentState(ctx context.Context, req SSMRunReq
 			continue
 		}
 
+		// Store platform information for all instances that are registered in SSM
+		ret.instanceMetadataByID[instanceID] = instanceMetadata{
+			InstanceID:      instanceID,
+			InstanceName:    instanceName,
+			PlatformName:    aws.ToString(instanceState.PlatformName),
+			PlatformType:    string(instanceState.PlatformType),
+			PlatformVersion: aws.ToString(instanceState.PlatformVersion),
+		}
+
 		if instanceState.PingStatus == ssmtypes.PingStatusConnectionLost {
 			ret.connectionLost[instanceID] = instanceName
 			continue
@@ -379,10 +432,10 @@ func (si *SSMInstaller) describeSSMAgentState(ctx context.Context, req SSMRunReq
 	return ret, nil
 }
 
-func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, commandID, instanceID *string, instanceName string) error {
+func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, commandID *string, instanceMetadata instanceMetadata) error {
 	err := si.getWaiter(req.SSM).Wait(ctx, &ssm.GetCommandInvocationInput{
 		CommandId:  commandID,
-		InstanceId: instanceID,
+		InstanceId: aws.String(instanceMetadata.InstanceID),
 		// 100 seconds to match v1 sdk waiter default.
 	}, 100*time.Second)
 	switch {
@@ -405,7 +458,7 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		return trace.Wrap(err)
 	}
 
-	invocationSteps, err := si.getInvocationSteps(ctx, req, commandID, instanceID)
+	invocationSteps, err := si.getInvocationSteps(ctx, req, commandID, aws.String(instanceMetadata.InstanceID))
 	switch {
 	case trace.IsAccessDenied(err):
 		// getInvocationSteps uses `ssm:ListCommandInvocations` to gather all the executed steps.
@@ -423,14 +476,14 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 	}
 
 	for i, step := range invocationSteps {
-		stepResultEvent, err := si.getCommandStepStatusEvent(ctx, step, req, commandID, instanceID)
+		stepResultEvent, err := si.getCommandStepStatusEvent(ctx, step, req, commandID, instanceMetadata)
 		if err != nil {
 			var invalidPluginNameErr *ssmtypes.InvalidPluginName
 			if errors.As(err, &invalidPluginNameErr) {
 				// If using a custom SSM Document and the client does not have access to ssm:ListCommandInvocations
 				// the list of invocationSteps (ie plugin name) might be wrong.
 				// If that's the case, emit an event with the overall invocation result (ignoring specific steps' stdout and stderr).
-				invocationResultEvent, err := si.getCommandStepStatusEvent(ctx, "" /*no step*/, req, commandID, instanceID)
+				invocationResultEvent, err := si.getCommandStepStatusEvent(ctx, "" /*no step*/, req, commandID, instanceMetadata)
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -442,7 +495,7 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 					IssueType:           usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
 					SSMDocumentName:     req.DocumentName,
 					InstallerScript:     req.InstallerScriptName(),
-					InstanceName:        instanceName,
+					InstanceName:        instanceMetadata.InstanceName,
 				}))
 			}
 
@@ -459,7 +512,7 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 				IssueType:           usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
 				SSMDocumentName:     req.DocumentName,
 				InstallerScript:     req.InstallerScriptName(),
-				InstanceName:        instanceName,
+				InstanceName:        instanceMetadata.InstanceName,
 			}))
 		}
 	}
@@ -503,10 +556,10 @@ func (si *SSMInstaller) getInvocationSteps(ctx context.Context, req SSMRunReques
 	return documentSteps, nil
 }
 
-func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step string, req SSMRunRequest, commandID, instanceID *string) (*apievents.SSMRun, error) {
+func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step string, req SSMRunRequest, commandID *string, instanceMetadata instanceMetadata) (*apievents.SSMRun, error) {
 	getCommandInvocationReq := &ssm.GetCommandInvocationInput{
 		CommandId:  commandID,
-		InstanceId: instanceID,
+		InstanceId: aws.String(instanceMetadata.InstanceID),
 	}
 	if step != "" {
 		getCommandInvocationReq.PluginName = aws.String(step)
@@ -532,7 +585,7 @@ func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step stri
 	// Example:
 	// https://eu-west-2.console.aws.amazon.com/systems-manager/run-command/3cb11aaa-11aa-1111-aaaa-2188108225de/i-0775091aa11111111
 	invocationURL := fmt.Sprintf("https://%s.console.aws.amazon.com/systems-manager/run-command/%s/%s",
-		req.Region, aws.ToString(commandID), aws.ToString(instanceID),
+		req.Region, aws.ToString(commandID), instanceMetadata.InstanceID,
 	)
 
 	return &apievents.SSMRun{
@@ -540,14 +593,17 @@ func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step stri
 			Type: libevents.SSMRunEvent,
 			Code: eventCode,
 		},
-		CommandID:      aws.ToString(commandID),
-		InstanceID:     aws.ToString(instanceID),
-		AccountID:      req.AccountID,
-		Region:         req.Region,
-		ExitCode:       exitCode,
-		Status:         string(status),
-		StandardOutput: aws.ToString(stepResult.StandardOutputContent),
-		StandardError:  aws.ToString(stepResult.StandardErrorContent),
-		InvocationURL:  invocationURL,
+		CommandID:       aws.ToString(commandID),
+		InstanceID:      instanceMetadata.InstanceID,
+		AccountID:       req.AccountID,
+		Region:          req.Region,
+		ExitCode:        exitCode,
+		Status:          string(status),
+		StandardOutput:  aws.ToString(stepResult.StandardOutputContent),
+		StandardError:   aws.ToString(stepResult.StandardErrorContent),
+		InvocationURL:   invocationURL,
+		PlatformName:    instanceMetadata.PlatformName,
+		PlatformType:    instanceMetadata.PlatformType,
+		PlatformVersion: instanceMetadata.PlatformVersion,
 	}, nil
 }

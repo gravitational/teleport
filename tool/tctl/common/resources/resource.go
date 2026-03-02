@@ -84,6 +84,7 @@ func Handlers() map[string]Handler {
 		types.KindUIConfig:                           uiConfigHandler(),
 		types.KindUser:                               userHandler(),
 		types.KindUserTask:                           userTasksHandler(),
+		types.KindVnetConfig:                         vnetConfigHandler(),
 		types.KindWindowsDesktop:                     windowsDesktopHandler(),
 		types.KindWindowsDesktopService:              windowsDesktopServiceHandler(),
 		types.KindWorkloadIdentity:                   workloadIdentityHandler(),
@@ -93,6 +94,7 @@ func Handlers() map[string]Handler {
 		scopedaccess.KindScopedRole:                  scopedRoleHandler(),
 		scopedaccess.KindScopedRoleAssignment:        scopedRoleAssignmentHandler(),
 		types.KindWorkloadCluster:                    workloadClusterHandler(),
+		scopedaccess.KindScopedToken:                 scopedTokenHandler(),
 	}
 }
 

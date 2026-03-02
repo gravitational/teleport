@@ -152,7 +152,7 @@ export function ListSessionRecordings({
 function RecordingsListLoading() {
   return (
     <Box textAlign="center" m={10} width="100%">
-      <Indicator />
+      <Indicator delay="none" />
     </Box>
   );
 }

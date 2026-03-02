@@ -64,7 +64,15 @@ export function ResourcesSection({
       </Text>
       <AwsService
         label="EC2 Instances"
-        helperText="Discover EC2 instances and establish SSH access through the Teleport proxy."
+        helperText={
+          <Text>
+            Discover EC2 instances and establish SSH access through the Teleport
+            proxy.
+            <br />
+            Note: If no tags are specified, all EC2 instances in the selected
+            regions will be enrolled.
+          </Text>
+        }
         tooltipText="Filter for EC2 instances by their tags. If no tags are added, Teleport will enroll all EC2 instances."
         config={ec2Config}
         onChange={onEc2Change}
@@ -77,7 +85,7 @@ type ServiceConfig = Ec2Config;
 
 type AwsServiceProps = {
   label: string;
-  helperText: string;
+  helperText: React.ReactNode;
   tooltipText: string;
   config: ServiceConfig;
   onChange: (config: ServiceConfig) => void;
@@ -107,8 +115,11 @@ function AwsService({
         checked={config.enabled}
         onChange={toggle}
       />
+      <Text fontSize="small" ml={4}>
+        Note
+      </Text>
       <Box ml={4}>
-        <FilterButton onClick={toggle} size="small">
+        <FilterButton onClick={toggle}>
           <Flex alignItems="center" gap={1} mb={2}>
             <FilterChevron size="small" expanded={config.enabled} />
             Filter by tag
