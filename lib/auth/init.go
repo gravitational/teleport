@@ -441,6 +441,15 @@ type InitConfig struct {
 
 	// WorkloadClusterService is the service that manages WorkloadClusters.
 	WorkloadClusterService services.WorkloadClusterService
+
+	// FakePasswordHash is the password hash given to all users without a password.
+	// This helps eliminate timing attacks by ensuring that all authentication attempts
+	// with a password do a bcrypt comparison.
+	FakePasswordHash []byte
+	// FakeRecoveryCodeHash is the recovery code hash given to all users without codes.
+	// This helps eliminate timing attacks by ensuring that all recovery attempts
+	// with codes do a bcrypt comparison.
+	FakeRecoveryCodeHash []byte
 }
 
 // Init instantiates and configures an instance of AuthServer

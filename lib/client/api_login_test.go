@@ -378,6 +378,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	authPref.SetSecondFactor(constants.SecondFactorOff)
 	authPref.SetAllowPasswordless(false)
 	authPref.SetAllowHeadless(false)
+	authPref.SetAllowBrowserAuthentication(false)
 	_, err = authServer.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err, "UpsertAuthPreference failed")
 

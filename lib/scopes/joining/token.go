@@ -19,6 +19,7 @@ package joining
 import (
 	"cmp"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"slices"
 	"time"
@@ -52,7 +53,13 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		if token.GetStatus().GetSecret() == "" {
 			return trace.BadParameter("secret value must be defined for a scoped token when using the token join method")
 		}
-	case types.JoinMethodEC2, types.JoinMethodIAM:
+	case types.JoinMethodEC2:
+		ttl := token.GetSpec().GetAws().GetIidTtl()
+		if _, err := types.ParseDuration(ttl); ttl != "" && err != nil {
+			return trace.BadParameter("invalid IID TTL value %q, must be empty or a valid duration string (e.g. 30m, 12h, 1mo)", ttl)
+		}
+		fallthrough
+	case types.JoinMethodIAM:
 		if len(token.GetSpec().GetAws().GetAllow()) == 0 {
 			return trace.BadParameter("aws configuration must be defined for a scoped token when using the ec2 or iam join methods")
 		}
@@ -344,12 +351,13 @@ func (t *Token) GetAWSAllowRules() []*types.TokenRule {
 
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (t *Token) GetAWSIIDTTL() types.Duration {
-	ttl := t.scoped.GetSpec().GetAws().GetAwsIidTtl()
-	if ttl == 0 {
-		// default to 5 minute ttl if unspecified
+	ttl, err := types.ParseDuration(t.scoped.GetSpec().GetAws().GetIidTtl())
+	if err != nil {
+		// if parsing fails for any reason (including an empty value) we fallback to the 5 minute default
 		return types.Duration(5 * time.Minute)
 	}
-	return types.Duration(ttl)
+
+	return ttl
 }
 
 // GetIntegration returns the Integration field which is used to provide
@@ -473,7 +481,13 @@ func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
 	}
 
 	hash := sha256.New()
-	if sshLabels := labels.GetSsh(); sshLabels != nil {
+	var bytesWrittenToHash int
+	writeHash := func(p []byte) {
+		n, _ := hash.Write(p)
+		bytesWrittenToHash += n
+	}
+
+	if sshLabels := labels.GetSsh(); len(sshLabels) > 0 {
 		sorted := make([]struct{ key, value string }, 0, len(sshLabels))
 		for k, v := range sshLabels {
 			sorted = append(sorted, struct{ key, value string }{k, v})
@@ -482,10 +496,33 @@ func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
 			return cmp.Compare(a.key, b.key)
 		})
 
+		// first we write the service type so that the following labels do not collide with identical labels
+		// from other services e.g. app labels or database labels
+		writeHash([]byte("ssh"))
+
+		// Each map entry is added to the hash as 4 components:
+		// 1. The length of the key
+		// 2. The value of the key
+		// 3. The length of the value
+		// 4. The value itself
+		// This combination prevents collisions between:
+		// - single labels (e.g. aaa=bbb and aaab=bb)
+		// - splitting labels (e.g. aaa=bbbcccddd and aaa=bbb,ccc=ddd)
+		// ...because in both cases the lengths of the keys/values must change to create different labels from
+		// the same set of characters.
 		for _, v := range sorted {
-			_, _ = hash.Write([]byte(v.key))
-			_, _ = hash.Write([]byte(v.value))
+			buf := [8]byte{}
+			binary.BigEndian.PutUint64(buf[:], uint64(len(v.key)))
+			writeHash(buf[:])
+			writeHash([]byte(v.key))
+			binary.BigEndian.PutUint64(buf[:], uint64(len(v.value)))
+			writeHash(buf[:])
+			writeHash([]byte(v.value))
 		}
+	}
+
+	if bytesWrittenToHash == 0 {
+		return ""
 	}
 
 	return hex.EncodeToString(hash.Sum(nil))
