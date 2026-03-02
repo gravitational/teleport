@@ -983,7 +983,7 @@ func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Ide
 	process.Lock()
 	defer process.Unlock()
 
-	i, err = process.storage.ReadIdentity(state.IdentityCurrent, role)
+	i, err = process.storage.ReadIdentity(process.GracefulExitContext(), state.IdentityCurrent, role)
 
 	if err == nil {
 		return i, nil
@@ -1018,7 +1018,7 @@ func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Ide
 		return nil, trace.Wrap(err)
 	}
 	process.logger.InfoContext(process.ExitContext(), "Found static identity, writing to disk.", "role", role)
-	if err = process.storage.WriteIdentity(state.IdentityCurrent, *i); err != nil {
+	if err = process.storage.WriteIdentity(process.GracefulExitContext(), state.IdentityCurrent, *i); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2214,7 +2214,7 @@ func (process *TeleportProcess) initAuthService() error {
 	process.backend = b
 
 	clusterName := cfg.Auth.ClusterName.GetClusterName()
-	ident, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleAdmin)
+	ident, err := process.storage.ReadIdentity(process.GracefulExitContext(), state.IdentityCurrent, types.RoleAdmin)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
