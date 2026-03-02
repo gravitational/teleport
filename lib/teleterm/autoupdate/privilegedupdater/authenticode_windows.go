@@ -102,9 +102,9 @@ func verifyTrust(path *uint16) error {
 
 	// close
 	data.StateAction = windows.WTD_STATEACTION_CLOSE
-	_ = windows.WinVerifyTrustEx(windows.InvalidHWND, &windows.WINTRUST_ACTION_GENERIC_VERIFY_V2, data)
+	closeErr := windows.WinVerifyTrustEx(windows.InvalidHWND, &windows.WINTRUST_ACTION_GENERIC_VERIFY_V2, data)
 
-	return trace.Wrap(err)
+	return trace.NewAggregate(err, closeErr)
 }
 
 // getCertContext extracts the certificate context from a signed file.
