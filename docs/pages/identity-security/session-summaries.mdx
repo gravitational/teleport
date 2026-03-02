@@ -70,9 +70,18 @@ There are three fundamental concepts that underpin session summarization:
 <Admonition type="warning">
 This feature is powered by AI leveraging a Large Language Model, and as such,
 its accuracy may vary.
+</Admonition>
 
+<Admonition type="warning" scope={["oss", "enterprise"]} scopeOnly>
 Teleport doesn't currently support any spend controls; controlling the LLM
 token budget is your responsibility.
+</Admonition>
+
+<Admonition type="note" scope={["cloud"]} scopeOnly>
+For Teleport Enterprise Cloud customers using the Teleport-managed model,
+session recording summary costs are included in the price of Identity Security.
+If you bring your own LLM provider, controlling the token budget is your
+responsibility.
 </Admonition>
 
 ## Prerequisites
