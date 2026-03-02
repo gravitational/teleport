@@ -1302,6 +1302,8 @@ message MFAAuthenticateChallenge {
   // IdP redirect URL to perform an MFA check in the IdP and obtain an MFA token.
   // This token paired with the request id can then be used as MFA verification.
   SSOChallenge SSOChallenge = 5;
+  // Browser Challenge is an MFA challenge that the user solves in the browser.
+  BrowserMFAChallenge BrowserMFAChallenge = 6;
 }
 
 // MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one
@@ -1312,6 +1314,7 @@ message MFAAuthenticateResponse {
     TOTPResponse TOTP = 2;
     webauthn.CredentialAssertionResponse Webauthn = 3;
     SSOResponse SSO = 4;
+    BrowserMFAResponse Browser = 5;
   }
 }
 
@@ -1344,6 +1347,20 @@ message SSOResponse {
   string request_id = 1;
   // Token is a secret token used to verify the user's SSO MFA session.
   string token = 2;
+}
+
+// BrowserMFAChallenge contains browser MFA request details to perform a browser MFA check.
+message BrowserMFAChallenge {
+  // RequestId is the ID of a browser MFA request.
+  string request_id = 1;
+}
+
+// BrowserMFAResponse is a response to BrowserMFAChallenge.
+message BrowserMFAResponse {
+  // RequestId is the ID of a browser MFA request.
+  string request_id = 1;
+  // WebauthnResponse is the WebAuthn credential assertion response from the browser MFA flow.
+  webauthn.CredentialAssertionResponse webauthn_response = 2;
 }
 
 // MFARegisterChallenge is a challenge for registering a new MFA device.
@@ -2081,6 +2098,13 @@ message CreateAuthenticateChallengeRequest {
   // When using SSO MFA, this address is required to determine which URL to redirect the
   // user to when there are multiple options.
   string ProxyAddress = 8 [(gogoproto.jsontag) = "proxy_address,omitempty"];
+  // BrowserMFATSHRedirectURL should be supplied if the client supports Browser MFA checks.
+  // This is used by tsh to provide the tsh callback URL for browser MFA flows.
+  string BrowserMFATSHRedirectURL = 9 [(gogoproto.jsontag) = "browser_mfa_tsh_redirect_url,omitempty"];
+  // BrowserMFARequestID should be supplied when the browser is generating an MFA challenge
+  // for browser MFA. The auth server will look up the SSOMFASession with this ID to retrieve
+  // the challenge extensions and validate the requesting user matches the session owner.
+  string BrowserMFARequestID = 10 [(gogoproto.jsontag) = "browser_mfa_request_id,omitempty"];
 }
 
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.

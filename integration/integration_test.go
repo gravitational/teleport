@@ -889,15 +889,16 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 
 	// startSession starts an interactive session, users must terminate the
 	// session by typing "exit" in the terminal.
-	startSession := func(username string) (*Terminal, chan error) {
+	startSession := func(login, teleportUser string) (*Terminal, chan error) {
 		term := NewTerminal(250)
 		errCh := make(chan error)
 
 		go func() {
 			cl, err := teleport.NewClient(helpers.ClientConfig{
-				Login:   username,
-				Cluster: helpers.Site,
-				Host:    Host,
+				Login:        login,
+				TeleportUser: teleportUser,
+				Cluster:      helpers.Site,
+				Host:         Host,
 			})
 			if err != nil {
 				errCh <- trace.Wrap(err)
@@ -946,10 +947,15 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			// Setup user and session recording mode.
-			username := suite.Me.Username
-			role, err := types.NewRole("devs", types.RoleSpecV6{
+			login := suite.Me.Username
+			// Use unique Teleport user and role names per subtest to avoid
+			// cross-test cache/state reuse when role mappings are updated.
+			id := uuid.NewString()[:8]
+			teleportUser := fmt.Sprintf("%s-%s", strings.ToLower(name), id)
+			roleName := fmt.Sprintf("devs-%s", id)
+			role, err := types.NewRole(roleName, types.RoleSpecV6{
 				Allow: types.RoleConditions{
-					Logins:     []string{username},
+					Logins:     []string{login},
 					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 				Options: types.RoleOptions{
@@ -959,7 +965,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 				},
 			})
 			require.NoError(t, err)
-			require.NoError(t, helpers.SetupUser(teleport.Process, username, []types.Role{role}))
+			require.NoError(t, helpers.SetupUser(teleport.Process, teleportUser, []types.Role{role}))
 
 			t.Run("BeforeStartFailure", func(t *testing.T) {
 				// Enable disk failure.
@@ -967,7 +973,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 				defer disableDiskFailure()
 
 				// Start session.
-				term, errCh := startSession(username)
+				term, errCh := startSession(login, teleportUser)
 				if test.expectSessionFailure {
 					waitSessionTermination(t, errCh, require.Error)
 					return
@@ -990,7 +996,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 
 			t.Run("MidSessionFailure", func(t *testing.T) {
 				// Start session.
-				term, errCh := startSession(username)
+				term, errCh := startSession(login, teleportUser)
 
 				// Guarantee the session started properly.
 				select {
@@ -1016,6 +1022,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 				term.Type("exit\n\r")
 				waitSessionTermination(t, errCh, require.NoError)
 			})
+
 		})
 	}
 }

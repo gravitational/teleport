@@ -6,137 +6,138 @@ version: v3
 # This section of the configuration file applies to all teleport
 # services.
 teleport:
-    # nodename allows one to assign an alternative name this node can be
-    # reached by. By default it's equal to hostname.
-    nodename: graviton
+  # nodename allows one to assign an alternative name this node can be
+  # reached by. By default it's equal to hostname.
+  nodename: graviton
 
-    # Data directory where Teleport daemon keeps its data.
-    data_dir: /var/lib/teleport
+  # Data directory where Teleport daemon keeps its data.
+  data_dir: /var/lib/teleport
 
-    # PID file for Teleport process
-    #pid_file: /var/run/teleport.pid
+  # PID file for Teleport process
+  #pid_file: /var/run/teleport.pid
 
-    # The invitation token or an absolute path to a file containing the token used
-    # to join a cluster. It is not used on subsequent starts.
+  # The invitation token or an absolute path to a file containing the token used
+  # to join a cluster. It is not used on subsequent starts.
+  # If using a file, it only needs to exist when teleport is first ran.
+  #
+  # File path example:
+  # auth_token: /var/lib/teleport/tokenjoin
+  #
+  # This is the same as setting join_params.method to "token", and join_params.token_name
+  # to the value of auth_token.
+  # You should only use either auth_token or join_params.
+  auth_token: xxxx-token-xxxx
+
+  # join_params are parameters to set when joining a cluster via
+  # EC2, IAM or a token.
+  join_params:
+    # When `method` is set to "token", it is the equivalent to using `auth_token` above.
+    # You should only use either auth_token or join_params.
+    method: "token"|"ec2"|"iam"|"github"|"circleci"|"kubernetes"
+
+    # If method is not "token", token_name will be will be the name of
+    # the joining token resource, e.g., "ec2-token" or "iam-token" as created
+    # in the Joining Nodes via EC2 or IAM guides.
+
+    # If method is "token", token_name will be the invitation token
+    # or an absolute path to a file containing the token used to join a cluster.
+    # It is not used on subsequent starts.
     # If using a file, it only needs to exist when teleport is first ran.
     #
     # File path example:
-    # auth_token: /var/lib/teleport/tokenjoin
-    #
-    # This is the same as setting join_params.method to "token", and join_params.token_name
-    # to the value of auth_token.
-    # You should only use either auth_token or join_params.
-    auth_token: xxxx-token-xxxx
+    # token_name: /var/lib/teleport/tokenjoin
+    token_name: "token-name"
 
-    # join_params are parameters to set when joining a cluster via
-    # EC2, IAM or a token.
-    join_params:
-        # When `method` is set to "token", it is the equivalent to using `auth_token` above.
-        # You should only use either auth_token or join_params.
-        method: "token"|"ec2"|"iam"|"github"|"circleci"|"kubernetes"
+  # Optional CA pin of the Auth Service. Specifying a CA pin enables new
+  # agents to trust a Teleport cluster when joining via the Auth Service
+  # directly. You can assign the ca_pin field to the literal value of the CA
+  # pin or an absolute path to a file. If you specify a file, the file should
+  # only contain the CA pin.
+  #
+  # You can also specify the value of the ca_pin key as a YAML list of CA pins
+  # or file paths, e.g.:
+  #
+  # ca_pin:
+  #   - /var/lib/teleport/pin1
+  #   - /var/lib/teleport/pin2
+  ca_pin:
+    "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
 
-        # If method is not "token", token_name will be will be the name of
-        # the joining token resource, e.g., "ec2-token" or "iam-token" as created
-        # in the Joining Nodes via EC2 or IAM guides.
+  # When running in multi-homed or NATed environments Teleport Nodes need
+  # to know which IP it will be reachable at by other Nodes.
+  #
+  # This value can be specified as FQDN e.g. host.example.com
+  advertise_ip: 10.1.0.5
 
-        # If method is "token", token_name will be the invitation token
-        # or an absolute path to a file containing the token used to join a cluster.
-        # It is not used on subsequent starts.
-        # If using a file, it only needs to exist when teleport is first ran.
-        #
-        # File path example:
-        # token_name: /var/lib/teleport/tokenjoin
-        token_name: "token-name"
+  # Teleport provides HTTP endpoints for monitoring purposes. They are
+  # disabled by default but you can enable them using the diagnosis address.
+  diag_addr: "127.0.0.1:3000"
 
-    # Optional CA pin of the Auth Service. Specifying a CA pin enables new
-    # agents to trust a Teleport cluster when joining via the Auth Service
-    # directly. You can assign the ca_pin field to the literal value of the CA
-    # pin or an absolute path to a file. If you specify a file, the file should
-    # only contain the CA pin.
-    #
-    # You can also specify the value of the ca_pin key as a YAML list of CA pins
-    # or file paths, e.g.:
-    #
-    # ca_pin:
-    #   - /var/lib/teleport/pin1
-    #   - /var/lib/teleport/pin2
-    ca_pin:
-      "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
+  # Only use one of auth_server or proxy_server.
+  #
+  # When you have either the application service or database service enabled,
+  # only tunneling through the proxy is supported, so you should specify proxy_server.
+  # All other services support both tunneling through the proxy and directly connecting
+  # to the auth server, so you can specify either auth_server or proxy_server.
 
-    # When running in multi-homed or NATed environments Teleport Nodes need
-    # to know which IP it will be reachable at by other Nodes.
-    #
-    # This value can be specified as FQDN e.g. host.example.com
-    advertise_ip: 10.1.0.5
+  # Auth Server address and port to connect to. If you enable the Teleport
+  # Auth Server to run in High Availability configuration, the address should
+  # point to a Load Balancer.
+  # If adding a node located behind NAT, use the Proxy URL (e.g. teleport-proxy.example.com:443)
+  # and set `proxy_server` instead.
+  auth_server: 10.1.0.5:3025
 
-    # Teleport provides HTTP endpoints for monitoring purposes. They are
-    # disabled by default but you can enable them using the diagnosis address.
-    diag_addr: "127.0.0.1:3000"
+  # Proxy Server address and port to connect to. If you enable the Teleport
+  # Proxy Server to run in High Availability configuration, the address should
+  # point to a Load Balancer.
+  proxy_server: teleport-proxy.example.com:443
 
-    # Only use one of auth_server or proxy_server.
-    #
-    # When you have either the application service or database service enabled,
-    # only tunneling through the proxy is supported, so you should specify proxy_server.
-    # All other services support both tunneling through the proxy and directly connecting
-    # to the auth server, so you can specify either auth_server or proxy_server.
+  # Relay tunnel address and port to connect to, if set. Used by some services
+  # to open additional tunnels to a Relay group if Teleport is configured to
+  # connect to a Proxy Server. If a Relay group consists of more than one
+  # Relay Service instance, the address should point to a Load Balancer.
+  # Used in Teleport v18.3.0 and later for the SSH service.
+  relay_server: teleport-relay.example.com:3042
 
-    # Auth Server address and port to connect to. If you enable the Teleport
-    # Auth Server to run in High Availability configuration, the address should
-    # point to a Load Balancer.
-    # If adding a node located behind NAT, use the Proxy URL (e.g. teleport-proxy.example.com:443)
-    # and set `proxy_server` instead.
-    auth_server: 10.1.0.5:3025
+  # cache:
+  #  # The cache is enabled by default, it can be disabled with this flag
+  #  enabled: true
 
-    # Proxy Server address and port to connect to. If you enable the Teleport
-    # Proxy Server to run in High Availability configuration, the address should
-    # point to a Load Balancer.
-    proxy_server: teleport-proxy.example.com:443
+  # The duration (in string form) of the delay between receiving a termination
+  # signal and the beginning of the shutdown procedures. It can be used to
+  # give time to load balancers to stop routing connections to the Teleport
+  # instance while the instance is still capable of handling them. If unset or
+  # negative, no delay is applied.
+  #shutdown_delay: "0s"
 
-    # Relay tunnel address and port to connect to, if set. Used by some services
-    # to open additional tunnels to a Relay group if Teleport is configured to
-    # connect to a Proxy Server. If a Relay group consists of more than one
-    # Relay Service instance, the address should point to a Load Balancer.
-    # Used in Teleport v18.3.0 and later for the SSH service.
-    relay_server: teleport-relay.example.com:3042
+  # Teleport can limit the number of connections coming from each client
+  # IP address to avoid abuse. These limits are enforced separately for
+  # each service (Auth, Proxy, SSH, Kubernetes, Database, Windows
+  # Desktop, and Application).
+  connection_limits:
+    max_connections: 1000
 
-    # cache:
-    #  # The cache is enabled by default, it can be disabled with this flag
-    #  enabled: true
+  # Auth Service connection configuration.
+  # These settings can be tweaked to control how aggresively the Proxy or Agent instances will retry to connect. In addition
+  # each instance will apply jitter.
+  # auth_connection_config:
+  #   upper_limit_between_retries: "90s"  # Cannot be lower than 10s
+  #   initial_connection_delay: "9s"      # When unset upper_limit_between_retries / 10
+  #   backoff_step_duration: "18s"        # When unset upper_limit_between_retries / 5
 
-    # The duration (in string form) of the delay between receiving a termination
-    # signal and the beginning of the shutdown procedures. It can be used to
-    # give time to load balancers to stop routing connections to the Teleport
-    # instance while the instance is still capable of handling them. If unset or
-    # negative, no delay is applied.
-    #shutdown_delay: "0s"
+  # Logging configuration. Possible output values to disk via
+  # '/var/lib/teleport/teleport.log',
+  # 'stdout', 'stderr' and 'syslog'. Possible severity values are DEBUG, INFO (default), WARN,
+  # and ERROR.
+  log:
+    output: /var/lib/teleport/teleport.log
+    severity: INFO
 
-    # Teleport can limit the number of connections coming from each client
-    # IP address to avoid abuse. Note that these limits are enforced separately
-    # for each service (SSH, Kubernetes, etc.)
-    connection_limits:
-        max_connections: 1000
-
-    # Auth Service connection configuration.
-    # These settings can be tweaked to control how aggresively the Proxy or Agent instances will retry to connect. In addition
-    # each instance will apply jitter.
-    # auth_connection_config:
-    #     upper_limit_between_retries: "90s"  # Cannot be lower than 10s
-    #     initial_connection_delay: "9s"      # When unset upper_limit_between_retries / 10
-    #     backoff_step_duration: "18s"        # When unset upper_limit_between_retries / 5
-
-    # Logging configuration. Possible output values to disk via
-    # '/var/lib/teleport/teleport.log',
-    # 'stdout', 'stderr' and 'syslog'. Possible severity values are DEBUG, INFO (default), WARN,
-    # and ERROR.
-    log:
-        output: /var/lib/teleport/teleport.log
-        severity: INFO
-
-        # Log format configuration
-        # Possible output values are 'json' and 'text' (default).
-        # Possible extra_fields values include: timestamp, component, caller,
-        # and level.
-        # All extra fields are included by default.
-        format:
-          output: text
-          extra_fields: [level, timestamp, component, caller]
+    # Log format configuration
+    # Possible output values are 'json' and 'text' (default).
+    # Possible extra_fields values include: timestamp, component, caller,
+    # and level.
+    # All extra fields are included by default.
+    format:
+      output: text
+      extra_fields: [level, timestamp, component, caller]

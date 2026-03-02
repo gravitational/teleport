@@ -33,6 +33,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	gocmp "github.com/google/go-cmp/cmp"
@@ -1371,7 +1372,7 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 }
 
 func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 	s := newAuthSuite(t)
 
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
@@ -1548,6 +1549,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 }
 
 func TestEmitSSOLoginFailureEvent(t *testing.T) {
+	t.Parallel()
 	mockE := &eventstest.MockRecorderEmitter{}
 
 	auth.EmitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), false)
@@ -3066,6 +3068,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 }
 
 func TestGenerateKubernetesUserCert(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	p := newAuthSuite(t)
 
@@ -4051,6 +4054,7 @@ func (f *fakeAuthPreferenceGetter) GetAuthPreference(context.Context) (types.Aut
 }
 
 func TestCAGeneration(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	const (
 		clusterName = "cluster1"
@@ -4089,6 +4093,7 @@ func TestCAGeneration(t *testing.T) {
 }
 
 func TestGetLicense(t *testing.T) {
+	t.Parallel()
 	s := newAuthSuite(t)
 
 	// GetLicense should return error if license is not set
@@ -4542,6 +4547,7 @@ func TestAccessRequestDryRunEnrichment(t *testing.T) {
 }
 
 func TestCleanupNotifications(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -4676,13 +4682,18 @@ func TestCleanupNotifications(t *testing.T) {
 }
 
 func TestCreateAccessListReminderNotifications(t *testing.T) {
+	synctest.Test(t, testCreateAccessListReminderNotifications)
+}
+
+func testCreateAccessListReminderNotifications(t *testing.T) {
 	ctx := context.Background()
 
 	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
 	// Setup test auth server
-	testServer := newTestTLSServer(t)
+	testServer := newTestTLSServer(t, withBufconnListener())
 	authServer := testServer.Auth()
+	defer testServer.Close()
 
 	testRole, err := types.NewRole("test", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -4703,6 +4714,7 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 
 	client, err := testServer.NewClient(authtest.TestUser(testUsername))
 	require.NoError(t, err)
+	defer client.Close()
 
 	// Create access lists with different expiry times
 	accessLists := []struct {
@@ -4757,26 +4769,20 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	}
 
 	// Check notifications
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind))
-	}, 5*time.Minute, 500*time.Millisecond)
+	synctest.Wait()
+	resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind))
 
 	// Run CreateAccessListReminderNotifications() again to verify no duplicates are created
 	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond))
 
 	// Check notifications again, counts should remain the same.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind),
-			"notifications should not have changed after second reconciliation")
-	}, 5*time.Minute, 500*time.Millisecond)
+	synctest.Wait()
+	resp, err = client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind),
+		"notifications should not have changed after second reconciliation")
 }
 
 type createAccessListOptions struct {

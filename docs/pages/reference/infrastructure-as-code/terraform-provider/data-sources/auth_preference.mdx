@@ -35,6 +35,7 @@ Teleport Terraform provider.
 
 Optional:
 
+- `allow_browser_authentication` (Boolean) AllowBrowserAuthentication enables/disables browser-based authentication for authenticating CLI sessions. When set to false, authentication flows that require a browser will be disabled. Defaults to true.
 - `allow_headless` (Boolean) AllowHeadless enables/disables headless support. Headless authentication requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.
 - `allow_local_auth` (Boolean) AllowLocalAuth is true if local authentication is enabled.
 - `allow_passwordless` (Boolean) AllowPasswordless enables/disables passwordless support. Passwordless requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.

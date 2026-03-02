@@ -63,7 +63,6 @@ func BenchmarkGenerate(b *testing.B) {
 			}
 
 			b.ReportAllocs()
-			b.ResetTimer()
 
 			for b.Loop() {
 				_, err := svc.generate(b.Context(), user, backendSvc, false /* pure */)

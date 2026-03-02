@@ -85,6 +85,7 @@ import (
 // TestReadIdentity makes parses identity from private key and certificate
 // and checks that all parameters are valid
 func TestReadIdentity(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
 	a, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
 	require.NoError(t, err)
@@ -135,6 +136,7 @@ func TestReadIdentity(t *testing.T) {
 }
 
 func TestBadIdentity(t *testing.T) {
+	t.Parallel()
 	a, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
 	require.NoError(t, err)
 
@@ -878,6 +880,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 }
 
 func TestClusterID(t *testing.T) {
+	t.Parallel()
 	conf := setupConfig(t)
 	ctx := context.Background()
 	authServer, err := auth.Init(ctx, conf)
@@ -901,6 +904,7 @@ func TestClusterID(t *testing.T) {
 
 // TestClusterName ensures that a cluster can not be renamed.
 func TestClusterName(t *testing.T) {
+	t.Parallel()
 	conf := setupConfig(t)
 	ctx := context.Background()
 	authServer, err := auth.Init(ctx, conf)
@@ -935,6 +939,7 @@ func (t *failingTrustInternal) CreateCertAuthority(ctx context.Context, ca types
 // TestInitCertFailureRecovery ensures the auth server is able to recover from
 // a failure in the cert creation process.
 func TestInitCertFailureRecovery(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	cap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type: constants.SAML,
@@ -1414,6 +1419,7 @@ func TestDashboardMode(t *testing.T) {
 }
 
 func TestGetPresetUsers(t *testing.T) {
+	t.Parallel()
 	// no preset users for OSS
 	require.Empty(t, auth.GetPresetUsers(modules.BuildOSS))
 
@@ -2092,6 +2098,7 @@ func newHealthCheckConfig(t *testing.T, opts ...func(*healthcheckconfigv1.Health
 // TestSyncUpgadeWindowStartHour verifies the core logic of the upgrade window start
 // hour behavior.
 func TestSyncUpgradeWindowStartHour(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	conf := setupConfig(t)
@@ -2232,6 +2239,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 // TestIdentityChecker verifies auth identity properly validates host
 // certificates when connecting to an SSH server.
 func TestIdentityChecker(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	conf := setupConfig(t)
@@ -2326,6 +2334,7 @@ func TestIdentityChecker(t *testing.T) {
 }
 
 func TestInitCreatesCertsIfMissing(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	conf := setupConfig(t)
 	auth, err := auth.Init(ctx, conf)

@@ -69,17 +69,31 @@ async function mockTshClient(tshDir: string, initial: { clusters: Cluster[] }) {
       }
       throw err;
     }
-    return Promise.all(
+
+    const clusters = await Promise.all(
       paths.map(async singlePath => {
-        const file = await fs.readFile(
-          path.join(tshDir, singlePath, 'cluster.json'),
-          {
-            encoding: 'utf-8',
+        let file: string;
+        try {
+          file = await fs.readFile(
+            path.join(tshDir, singlePath, 'cluster.json'),
+            {
+              encoding: 'utf-8',
+            }
+          );
+        } catch (err) {
+          // The file with the cluster disappeared between fs.readdir above and fs.readFile.
+          // This is possible in tests where we call `void tshClientMock.removeCluster` without
+          // awaiting.
+          if (err.code === 'ENOENT') {
+            return null;
           }
-        );
+          throw err;
+        }
         return Cluster.fromJsonString(file);
       })
     );
+
+    return clusters.filter(Boolean);
   };
 
   const insertOrUpdateCluster = async (cluster: Cluster) => {
