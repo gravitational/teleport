@@ -55,6 +55,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -199,6 +200,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindInferencePolicy:                    rc.createInferencePolicy,
 		scopedaccess.KindScopedRole:                  rc.createScopedRole,
 		scopedaccess.KindScopedRoleAssignment:        rc.createScopedRoleAssignment,
+		scopedaccess.KindScopedToken:                 rc.createScopedToken,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                               rc.updateUser,
@@ -229,6 +231,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindInferencePolicy:                    rc.updateInferencePolicy,
 		scopedaccess.KindScopedRole:                  rc.updateScopedRole,
 		scopedaccess.KindScopedRoleAssignment:        rc.updateScopedRoleAssignment,
+		scopedaccess.KindScopedToken:                 rc.updateScopedToken,
 	}
 	rc.config = config
 
@@ -1283,6 +1286,34 @@ func (rc *ResourceCommand) updateScopedRole(ctx context.Context, client *authcli
 	return nil
 }
 
+func (rc *ResourceCommand) createScopedToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	verb := "created"
+	r, err := services.UnmarshalProtoResource[*joiningv1.ScopedToken](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var token *joiningv1.ScopedToken
+	if rc.IsForced() {
+		token, err = client.UpsertScopedToken(ctx, r)
+		verb = "updated"
+	} else {
+		token, err = client.CreateScopedToken(ctx, r)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf(
+		"%v %q has been %s\n",
+		types.KindScopedToken,
+		token.GetMetadata().GetName(),
+		verb,
+	)
+
+	return nil
+}
+
 func (rc *ResourceCommand) createScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	if rc.IsForced() {
 		return trace.BadParameter("scoped role assignment creation does not support --force")
@@ -1311,6 +1342,10 @@ func (rc *ResourceCommand) createScopedRoleAssignment(ctx context.Context, clien
 
 func (rc *ResourceCommand) updateScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	return trace.NotImplemented("scoped_role_assignment resources do not support updates")
+}
+
+func (rc *ResourceCommand) updateScopedToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	return trace.NotImplemented("scoped_token resources do not support updates")
 }
 
 func (rc *ResourceCommand) createSigstorePolicy(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2336,6 +2371,16 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			scopedaccess.KindScopedRoleAssignment+" %q has been deleted\n",
 			rc.ref.Name,
 		)
+	case scopedaccess.KindScopedToken:
+		if err := client.DeleteScopedToken(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf(
+			"%v %q has been deleted\n",
+			types.KindScopedToken,
+			rc.ref.Name,
+		)
+		return nil
 	case types.KindSigstorePolicy:
 		c := client.SigstorePolicyResourceServiceClient()
 		if _, err := c.DeleteSigstorePolicy(
@@ -3792,6 +3837,44 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &scopedRoleAssignmentCollection{items: items}, nil
+	case scopedaccess.KindScopedToken:
+		// If a specific token name is requested, filter the results
+		if rc.ref.Name != "" {
+			token, err := client.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+				Name:       rc.ref.Name,
+				WithSecret: rc.withSecrets,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if !rc.withSecrets {
+				token.GetStatus().Secret = "******"
+			}
+			return &scopedTokenCollection{[]*joiningv1.ScopedToken{token}}, nil
+		}
+
+		tokens, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*joiningv1.ScopedToken, string, error) {
+			res, err := client.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{
+				Limit:       uint32(pageSize),
+				Cursor:      pageKey,
+				WithSecrets: rc.withSecrets,
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			if !rc.withSecrets {
+				for _, token := range res.GetTokens() {
+					token.GetStatus().Secret = "******"
+				}
+			}
+
+			return res.GetTokens(), res.GetCursor(), nil
+		}))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &scopedTokenCollection{tokens: tokens}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
