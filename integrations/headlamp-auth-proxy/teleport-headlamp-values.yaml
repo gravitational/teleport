@@ -1,16 +1,11 @@
 # Values overlay for the official Headlamp Helm chart (v0.40.0+).
 #
 # Usage:
-#   helm repo add headlamp https://headlamp-k8s.github.io/headlamp/
+#   helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/
 #   helm install headlamp headlamp/headlamp \
 #     --namespace <namespace> \
 #     --set teleportProxyAddr=https://teleport.example.com \
 #     -f teleport-headlamp-values.yaml
-#
-# Port architecture:
-#   Service:80 -> pod:4466 (auth-proxy front) -> 127.0.0.1:4467 (Headlamp)
-#                                                  | K8s API calls
-#                                               127.0.0.1:6443 (auth-proxy k8s) -> real K8s API
 
 # Disable in-cluster mode — Headlamp uses the kubeconfig provided below,
 # which points to the auth-proxy's K8s API endpoint on localhost.
