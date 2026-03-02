@@ -2364,6 +2364,12 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"allow_browser_authentication": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Computed:      true,
+					Description:   "AllowBrowserAuthentication enables/disables browser-based authentication for authenticating CLI sessions. When set to false, authentication flows that require a browser will be disabled. Defaults to true.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+				}),
 				"allow_headless": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "AllowHeadless enables/disables headless support. Headless authentication requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
@@ -25697,6 +25703,13 @@ func CopyAuthPreferenceV2FromTerraform(_ context.Context, tf github_com_hashicor
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["allow_browser_authentication"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.AllowBrowserAuthentication"})
+						}
+						CopyFromBoolOption(diags, a, &obj.AllowBrowserAuthentication)
+					}
 				}
 			}
 		}
@@ -27064,6 +27077,15 @@ func CopyAuthPreferenceV2ToTerraform(ctx context.Context, obj *github_com_gravit
 								v.Unknown = false
 								tf.Attrs["stable_unix_user_config"] = v
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["allow_browser_authentication"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.AllowBrowserAuthentication"})
+						} else {
+							v := CopyToBoolOption(diags, obj.AllowBrowserAuthentication, t, tf.Attrs["allow_browser_authentication"])
+							tf.Attrs["allow_browser_authentication"] = v
 						}
 					}
 				}

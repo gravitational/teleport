@@ -91,7 +91,6 @@ linters:
             - '!**/lib/services/suite/**'
             - '!**/e/lib/accesslist/equal.go'
             - '!**/e/lib/auth/saml.go'
-            - '!**lib/services/authority.go'
             - '!**lib/services/compare.go'
             - '!**/lib/services/local/access_list.go'
             - '!**/lib/services/local/users.go'

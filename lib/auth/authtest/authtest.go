@@ -160,7 +160,11 @@ type ServerConfig struct {
 	TLS *TLSServerConfig
 }
 
-// NewTestServer creates a new test server configuration
+// NewTestServer creates a new test server configuration and exposes
+// the Auth Service on a random local address. It is the callers
+// responsibility close the server when it is no longer needed.
+//
+// Prefer NewAuthServer if Auth Service RPCs are never invoked.
 func NewTestServer(cfg ServerConfig) (*Server, error) {
 	authServer, err := NewAuthServer(cfg.Auth)
 	if err != nil {
@@ -262,8 +266,23 @@ type AuthServer struct {
 	LockWatcher *services.LockWatcher
 }
 
-// NewAuthServer returns a new test auth server.
-// The caller should close the server when it is no longer needed.
+const (
+	// FakePasswordHash is the bcrypt hash for password "barbaz", the same as the default used
+	// by auth.Server, except, it is generated with the minimum cost instead of the default
+	// cost to speed tests up.
+	FakePasswordHash = `$2a$04$uTNg/AhzeGARChkxBsddyeHuCI7SBr2SG7PYhu63mIXqzuqRD.cgq`
+
+	// FakeRecoveryCodeHash is the bcrypt hash for recovery code "fake-barbaz-barbaz-barbaz-barbaz-barbaz-barbaz-barbaz-barbaz",
+	// the same as the default used by auth.Server, except, it is generated with the minimum
+	// cost instead of the default cost to speed tests up.
+	FakeRecoveryCodeHash = `$2a$04$04QoQDbwYTwSIppmJLQQkebbFrMS9V02ttus3rHi2cwujcnDHKbL6`
+)
+
+// NewAuthServer returns a new test auth server. It is the callers
+// responsibility close the server when it is no longer needed.
+//
+// Prefer using this over NewTestTLSServer if Auth Service RPCs are
+// never invoked.
 func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	ctx := context.Background()
 
@@ -359,6 +378,8 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		SessionSummarizerProvider:    cfg.SessionSummarizerProvider,
 		RecordingMetadataProvider:    cfg.RecordingMetadataProvider,
 		AWSOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
+		FakePasswordHash:             []byte(FakePasswordHash),
+		FakeRecoveryCodeHash:         []byte(FakeRecoveryCodeHash),
 	},
 		// Reduce auth.Server bcrypt costs when testing.
 		WithBcryptCost(bcrypt.MinCost),
@@ -840,7 +861,8 @@ func (a *AuthServer) Trust(ctx context.Context, remote *AuthServer, roleMap type
 	return nil
 }
 
-// NewTestTLSServer returns new test TLS server
+// NewTestTLSServer creates a test TLS server configured to use
+// this AuthServer.
 func (a *AuthServer) NewTestTLSServer(opts ...TestTLSServerOption) (*TLSServer, error) {
 	apiConfig := &auth.APIConfig{
 		AuthServer:       a.AuthServer,
@@ -976,7 +998,10 @@ func (cfg *TLSServerConfig) CheckAndSetDefaults() error {
 }
 
 // NewTestTLSServer returns new test TLS server that is started and is listening
-// on 127.0.0.1 loopback on any available port
+// on 127.0.0.1 loopback on any available port. It is the callers responsibility
+// close the server when it is no longer needed.
+//
+// Prefer using authtest.AuthServer directly if Auth Service RPCs are never used.
 func NewTestTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {

@@ -76,26 +76,10 @@ const cfg = {
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
-  /** @deprecated */
-  isTeam: false,
   isStripeManaged: false,
   hasQuestionnaire: false,
   externalAuditStorage: false,
   premiumSupport: false,
-  accessRequests: false,
-  /** @deprecated Use entitlements instead. */
-  trustedDevices: false,
-  oidc: false,
-  saml: false,
-  /** @deprecated Use entitlements instead. */
-  joinActiveSessions: false,
-  /** @deprecated Use entitlements instead. */
-  mobileDeviceManagement: false,
-  /** @deprecated Use entitlements instead. */
-  isIgsEnabled: false,
-
-  // isPolicyEnabled refers to the Teleport Policy product
-  isPolicyEnabled: false,
 
   // sessionSummarizerEnabled refers to the AI session summary feature
   sessionSummarizerEnabled: false,
@@ -114,19 +98,18 @@ const cfg = {
   // see `getNonExactRoutes` for details about non-exact routes
   nonExactRoutes: [],
 
-  // featureLimits define limits for features.
-  /** @deprecated Use entitlements instead. */
-  featureLimits: {
-    /** @deprecated Use entitlements instead. */
-    accessListCreateLimit: 0,
-    /** @deprecated Use entitlements instead. */
-    accessMonitoringMaxReportRangeLimit: 0,
-    /** @deprecated Use entitlements instead. */
-    AccessRequestMonthlyRequestLimit: 0,
-  },
-
   // default entitlements to false
   entitlements: defaultEntitlements,
+
+  /** @deprecated Use entitlements instead; remove in v20 */
+  accessRequests: false,
+  /** @deprecated Use entitlements instead; remove in v20 */
+  oidc: false,
+  /** @deprecated Use entitlements instead; remove in v20 */
+  saml: false,
+  // isPolicyEnabled refers to the Teleport Policy product
+  /** @deprecated Use entitlements instead; remove in v20 */
+  isPolicyEnabled: false,
 
   ui: {
     scrollbackLines: 1000,

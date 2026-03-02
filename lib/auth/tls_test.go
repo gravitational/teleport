@@ -1438,6 +1438,7 @@ func TestGetCurrentUser(t *testing.T) {
 }
 
 func TestGetCurrentUserRoles(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -1740,35 +1741,37 @@ func TestPasswordCRUD(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.AuthServerConfig.Clock
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	clock := as.Clock()
 
 	// Create a user.
 	u, err := types.NewUser("user1")
 	require.NoError(t, err)
-	_, err = testSrv.Auth().CreateUser(ctx, u)
+	_, err = as.AuthServer.CreateUser(ctx, u)
 	require.NoError(t, err)
 
 	pass := []byte("abcdef123456")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	err = testSrv.Auth().CheckPassword(ctx, "user1", pass, "123456")
+	err = as.AuthServer.CheckPassword(ctx, "user1", pass, "123456")
 	require.Error(t, err)
 
-	err = testSrv.Auth().UpsertPassword("user1", pass)
+	err = as.AuthServer.UpsertPassword("user1", pass)
 	require.NoError(t, err)
 
 	dev, err := services.NewTOTPDevice("otp", otpSecret, clock.Now())
 	require.NoError(t, err)
 
-	err = testSrv.Auth().UpsertMFADevice(ctx, "user1", dev)
+	err = as.AuthServer.UpsertMFADevice(ctx, "user1", dev)
 	require.NoError(t, err)
 
-	validToken, err := totp.GenerateCode(otpSecret, testSrv.Clock().Now())
+	validToken, err := totp.GenerateCode(otpSecret, clock.Now())
 	require.NoError(t, err)
 
-	err = testSrv.Auth().CheckPassword(ctx, "user1", pass, validToken)
+	err = as.AuthServer.CheckPassword(ctx, "user1", pass, validToken)
 	require.NoError(t, err)
 }
 
@@ -1776,8 +1779,10 @@ func TestOTPCRUD(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.AuthServerConfig.Clock
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	clock := as.Clock()
 
 	user := "user1"
 	pass := []byte("abcdef123456")
@@ -1787,20 +1792,20 @@ func TestOTPCRUD(t *testing.T) {
 	// Create a user.
 	u, err := types.NewUser(user)
 	require.NoError(t, err)
-	_, err = testSrv.Auth().CreateUser(ctx, u)
+	_, err = as.AuthServer.CreateUser(ctx, u)
 	require.NoError(t, err)
 
 	// upsert a password and totp secret
-	err = testSrv.Auth().UpsertPassword("user1", pass)
+	err = as.AuthServer.UpsertPassword("user1", pass)
 	require.NoError(t, err)
 	dev, err := services.NewTOTPDevice("otp", otpSecret, clock.Now())
 	require.NoError(t, err)
 
-	err = testSrv.Auth().UpsertMFADevice(ctx, user, dev)
+	err = as.AuthServer.UpsertMFADevice(ctx, user, dev)
 	require.NoError(t, err)
 
 	// a completely invalid token should return access denied
-	err = testSrv.Auth().CheckPassword(ctx, "user1", pass, "123456")
+	err = as.AuthServer.CheckPassword(ctx, "user1", pass, "123456")
 	require.Error(t, err)
 
 	// an invalid token should return access denied
@@ -1810,20 +1815,20 @@ func TestOTPCRUD(t *testing.T) {
 	// valid for 30 seconds + 30 second skew before and after for a usability
 	// reasons. so a token made between seconds 31 and 60 is still valid, and
 	// invalidity starts at 61 seconds in the future.
-	invalidToken, err := totp.GenerateCode(otpSecret, testSrv.Clock().Now().Add(61*time.Second))
+	invalidToken, err := totp.GenerateCode(otpSecret, clock.Now().Add(61*time.Second))
 	require.NoError(t, err)
-	err = testSrv.Auth().CheckPassword(ctx, "user1", pass, invalidToken)
+	err = as.AuthServer.CheckPassword(ctx, "user1", pass, invalidToken)
 	require.Error(t, err)
 
 	// a valid token (created right now and from a valid key) should return success
-	validToken, err := totp.GenerateCode(otpSecret, testSrv.Clock().Now())
+	validToken, err := totp.GenerateCode(otpSecret, clock.Now())
 	require.NoError(t, err)
 
-	err = testSrv.Auth().CheckPassword(ctx, "user1", pass, validToken)
+	err = as.AuthServer.CheckPassword(ctx, "user1", pass, validToken)
 	require.NoError(t, err)
 
 	// try the same valid token now it should fail because we don't allow re-use of tokens
-	err = testSrv.Auth().CheckPassword(ctx, "user1", pass, validToken)
+	err = as.AuthServer.CheckPassword(ctx, "user1", pass, validToken)
 	require.Error(t, err)
 }
 
@@ -3098,6 +3103,7 @@ func TestGenerateCerts(t *testing.T) {
 // TestGenerateAppToken checks the identity of the caller and makes sure only
 // certain roles can request JWT tokens.
 func TestGenerateAppToken(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
@@ -3209,6 +3215,7 @@ func TestGenerateAppToken(t *testing.T) {
 // TestCertificateFormat makes sure that certificates are generated with the
 // correct format.
 func TestCertificateFormat(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
 
@@ -3605,6 +3612,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 // TestCipherSuites makes sure that clients with invalid cipher suites can
 // not connect.
 func TestCipherSuites(t *testing.T) {
+	t.Parallel()
 	testSrv := newTestTLSServer(t)
 	ctx := context.Background()
 
@@ -5733,10 +5741,10 @@ func withBufconnListener() testTLSServerOption {
 }
 
 // newTestTLSServer is a helper that returns a *authtest.TLSServer with sensible
-// defaults for most tests that are exercising Auth Service RPCs.
+// defaults for most tests that are exercising Auth Service RPCs. For more advanced
+// use-cases, NewTestTLSServer to provide a more detailed configuration.
 //
-// For more advanced use-cases, call NewTestAuthServer and NewTestTLSServer
-// to provide a more detailed configuration.
+// Prefer using authtest.AuthServer directly if Auth Service RPCs are never used.
 func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TLSServer {
 	var options testTLSServerOptions
 	for _, opt := range opts {
