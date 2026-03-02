@@ -65,6 +65,7 @@ export const KeysEnum = {
   USE_NEW_ROLE_EDITOR: 'grv_teleport_use_new_role_editor',
   //TODO(rudream): Remove once sidenav implementation is complete.
   USE_TOP_BAR: 'grv_teleport_use_topbar',
+  DESKTOP_HIDPI: 'grv_teleport_desktop_hidpi',
 };
 
 // SurveyRequest is the request for sending data to the back end

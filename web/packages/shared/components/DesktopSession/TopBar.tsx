@@ -21,6 +21,7 @@ import { useTheme } from 'styled-components';
 import { Flex, Text, TopNav } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
+import { DisplaySettings } from 'shared/components/DesktopSession/DisplaySettings';
 import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 
@@ -41,6 +42,10 @@ export default function TopBar(props: Props) {
     onRemoveAlert,
     isConnected,
     latency,
+    hiDpiEnabled,
+    onToggleHiDpi,
+    screenIsHiDpi,
+    hiDpiSupported,
   } = props;
   const theme = useTheme();
 
@@ -63,6 +68,12 @@ export default function TopBar(props: Props) {
       {isConnected && (
         <Flex gap={3} alignItems="center">
           {latency && <LatencyDiagnostic latency={latency} />}
+          <DisplaySettings
+            hiDpiEnabled={hiDpiEnabled}
+            onToggleHiDpi={onToggleHiDpi}
+            screenIsHiDpi={screenIsHiDpi}
+            hiDpiSupported={hiDpiSupported}
+          />
           <HoverTooltip
             tipContent={directorySharingToolTip(
               canShareDirectory,
@@ -112,6 +123,10 @@ type Props = {
   onCtrlAltDel: VoidFunction;
   alerts: ToastNotificationItem[];
   isConnected: boolean;
+  hiDpiEnabled: boolean;
+  onToggleHiDpi: VoidFunction;
+  screenIsHiDpi: boolean;
+  hiDpiSupported: boolean;
   onRemoveAlert(id: string): void;
   latency: {
     client: number;

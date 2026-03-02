@@ -163,6 +163,7 @@ export { Memory } from './Icons/Memory';
 export { Minus } from './Icons/Minus';
 export { MinusCircle } from './Icons/MinusCircle';
 export { ModelContextProtocol } from './Icons/ModelContextProtocol';
+export { Monitor } from './Icons/Monitor';
 export { Moon } from './Icons/Moon';
 export { MoreHoriz } from './Icons/MoreHoriz';
 export { MoreVert } from './Icons/MoreVert';

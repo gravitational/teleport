@@ -65,6 +65,10 @@ export interface ServerHello {
      * @generated from protobuf field: bool clipboard_enabled = 2;
      */
     clipboardEnabled: boolean;
+    /**
+     * @generated from protobuf field: bool hidpi_supported = 3;
+     */
+    hidpiSupported: boolean;
 }
 /**
  * Defines the boundaries that PNG frame will update.
@@ -236,6 +240,12 @@ export interface ClientScreenSpec {
      * @generated from protobuf field: uint32 height = 2;
      */
     height: number;
+    /**
+     * Display scale factor as a percentage (e.g. 100 for 1x, 200 for 2x).
+     *
+     * @generated from protobuf field: uint32 scale = 3;
+     */
+    scale: number;
 }
 /**
  * Represents an Alert to be displayed by the client.
@@ -1007,12 +1017,14 @@ class ServerHello$Type extends MessageType<ServerHello> {
     constructor() {
         super("teleport.desktop.v1.ServerHello", [
             { no: 1, name: "activation_spec", kind: "message", T: () => ConnectionActivated },
-            { no: 2, name: "clipboard_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 2, name: "clipboard_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 3, name: "hidpi_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ServerHello>): ServerHello {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.clipboardEnabled = false;
+        message.hidpiSupported = false;
         if (value !== undefined)
             reflectionMergePartial<ServerHello>(this, message, value);
         return message;
@@ -1027,6 +1039,9 @@ class ServerHello$Type extends MessageType<ServerHello> {
                     break;
                 case /* bool clipboard_enabled */ 2:
                     message.clipboardEnabled = reader.bool();
+                    break;
+                case /* bool hidpi_supported */ 3:
+                    message.hidpiSupported = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1046,6 +1061,9 @@ class ServerHello$Type extends MessageType<ServerHello> {
         /* bool clipboard_enabled = 2; */
         if (message.clipboardEnabled !== false)
             writer.tag(2, WireType.Varint).bool(message.clipboardEnabled);
+        /* bool hidpi_supported = 3; */
+        if (message.hidpiSupported !== false)
+            writer.tag(3, WireType.Varint).bool(message.hidpiSupported);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1587,13 +1605,15 @@ class ClientScreenSpec$Type extends MessageType<ClientScreenSpec> {
     constructor() {
         super("teleport.desktop.v1.ClientScreenSpec", [
             { no: 1, name: "width", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 2, name: "height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 2, name: "height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "scale", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<ClientScreenSpec>): ClientScreenSpec {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.width = 0;
         message.height = 0;
+        message.scale = 0;
         if (value !== undefined)
             reflectionMergePartial<ClientScreenSpec>(this, message, value);
         return message;
@@ -1608,6 +1628,9 @@ class ClientScreenSpec$Type extends MessageType<ClientScreenSpec> {
                     break;
                 case /* uint32 height */ 2:
                     message.height = reader.uint32();
+                    break;
+                case /* uint32 scale */ 3:
+                    message.scale = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1627,6 +1650,9 @@ class ClientScreenSpec$Type extends MessageType<ClientScreenSpec> {
         /* uint32 height = 2; */
         if (message.height !== 0)
             writer.tag(2, WireType.Varint).uint32(message.height);
+        /* uint32 scale = 3; */
+        if (message.scale !== 0)
+            writer.tag(3, WireType.Varint).uint32(message.scale);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

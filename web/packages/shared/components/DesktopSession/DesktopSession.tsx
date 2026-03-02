@@ -41,6 +41,7 @@ import {
   makeSuccessAttempt,
   useAsync,
 } from 'shared/hooks/useAsync';
+import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 import {
   ButtonState,
   ScrollAxis,
@@ -108,6 +109,19 @@ export function DesktopSession({
 
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
+  const [hiDpiSettings, setHiDpiSettings] = useLocalStorage<
+    Record<string, boolean>
+  >(
+    'grv_teleport_desktop_hidpi', // manually written here as we cannot import from teleport
+    {}
+  );
+  const isHiDpi = hiDpiSettings[desktop] ?? false;
+  const setIsHiDpi = useCallback(
+    (value: boolean) => {
+      setHiDpiSettings(prev => ({ ...prev, [desktop]: value }));
+    },
+    [desktop, setHiDpiSettings]
+  );
 
   const inputHandler = useRef(new InputHandler());
   useEffect(() => {
@@ -242,6 +256,22 @@ export function DesktopSession({
     };
   }, [client, shouldConnect, keyboardLayout]);
 
+  // When the HiDPI toggle changes, send the updated scale to the server.
+  const prevIsHiDpi = useRef(isHiDpi);
+  useEffect(() => {
+    if (prevIsHiDpi.current === isHiDpi) {
+      return;
+    }
+
+    prevIsHiDpi.current = isHiDpi;
+
+    const size = canvasRendererRef.current?.getSize();
+
+    if (size) {
+      client.resize(size);
+    }
+  }, [isHiDpi, client]);
+
   function handleKeyDown(e: React.KeyboardEvent) {
     inputHandler.current.handleInputEvent({
       cli: client,
@@ -274,9 +304,13 @@ export function DesktopSession({
   }
 
   function handleMouseMove(e: React.MouseEvent) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const canvas = e.currentTarget as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = Math.round((e.clientX - rect.left) * scaleX);
+    const y = Math.round((e.clientY - rect.top) * scaleY);
+
     client.sendMouseMove(x, y);
   }
 
@@ -367,6 +401,10 @@ export function DesktopSession({
         alerts={alerts}
         onRemoveAlert={onRemoveAlert}
         latency={latencyStats}
+        hiDpiEnabled={isHiDpi}
+        onToggleHiDpi={() => setIsHiDpi(!isHiDpi)}
+        screenIsHiDpi={window.devicePixelRatio > 1}
+        hiDpiSupported={client.hidpiSupported}
       />
 
       {/* The UI states below (except the loading indicator) take up space.*/}
@@ -402,6 +440,7 @@ export function DesktopSession({
         onMouseWheel={handleMouseWheel}
         onContextMenu={handleContextMenu}
         onResize={client.resize}
+        isHiDpi={isHiDpi}
       />
     </Flex>
   );
