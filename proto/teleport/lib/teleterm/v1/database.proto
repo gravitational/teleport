@@ -49,6 +49,12 @@ message Database {
   string gcp_project_id = 10;
   // auto_users_enabled indicates if the database supports automatic user provisioning and the user's role allows it.
   bool auto_users_enabled = 11;
+  // database_roles is a list of database roles that will be assigned to the auto-provisioned
+  // database user. Empty when auto user provisioning is disabled.
+  repeated string database_roles = 12;
+  // auto_user_db_username is the pre-computed database username to use when auto-user provisioning
+  // is enabled. For leaf clusters it includes the "remote-" prefix and root cluster name
+  string auto_user_db_username = 13;
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal

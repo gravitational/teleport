@@ -27,7 +27,6 @@ import (
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
-	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
 
 func Test_makeGatewayCLICommand(t *testing.T) {
@@ -53,77 +52,4 @@ func Test_makeGatewayCLICommand(t *testing.T) {
 		Env:     []string{"FOO=bar"},
 		Preview: "FOO=bar test-binary arg1 arg2",
 	}, gatewayCmd)
-}
-
-func Test_DatabaseGateway_PopulatesDatabaseRoles(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name          string
-		databaseRoles []string
-	}{
-		{
-			name:          "with multiple roles",
-			databaseRoles: []string{"reader", "writer", "admin"},
-		},
-		{
-			name:          "with single role",
-			databaseRoles: []string{"reader"},
-		},
-		{
-			name:          "with empty roles",
-			databaseRoles: []string{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			gw := mustCreateTestDatabaseGateway(t, tt.databaseRoles)
-
-			dbGateway, err := gateway.AsDatabase(gw)
-			require.NoError(t, err)
-			require.NotNil(t, dbGateway)
-
-			require.Equal(t, tt.databaseRoles, dbGateway.DatabaseRoles())
-		})
-	}
-}
-
-func Test_NonDatabaseGateway_AsDatabaseFails(t *testing.T) {
-	t.Parallel()
-
-	gw := mustCreateTestKubeGateway(t)
-
-	_, err := gateway.AsDatabase(gw)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "expecting database gateway")
-}
-
-func mustCreateTestDatabaseGateway(t *testing.T, databaseRoles []string) gateway.Gateway {
-	t.Helper()
-
-	return &fakeDatabaseGateway{
-		databaseRoles: databaseRoles,
-	}
-}
-
-func mustCreateTestKubeGateway(t *testing.T) gateway.Gateway {
-	t.Helper()
-
-	return &fakeKubeGateway{}
-}
-
-type fakeDatabaseGateway struct {
-	gateway.Database
-	databaseRoles []string
-}
-
-func (f *fakeDatabaseGateway) DatabaseRoles() []string {
-	return f.databaseRoles
-}
-
-type fakeKubeGateway struct {
-	gateway.Gateway
 }

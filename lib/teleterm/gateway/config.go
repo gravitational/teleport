@@ -53,9 +53,6 @@ type Config struct {
 	// name on a database server. It is used only for generating the CLI command.
 	TargetSubresourceName string
 
-	// DatabaseRoles is a list of database roles to assign to auto-provisioned database users.
-	DatabaseRoles []string
-
 	// Port is the gateway port
 	LocalPort string
 	// LocalAddress is the local address
@@ -181,7 +178,6 @@ func (c *Config) RouteToDatabase() tlsca.RouteToDatabase {
 		ServiceName: c.TargetName,
 		Protocol:    c.Protocol,
 		Username:    c.TargetUser,
-		Roles:       c.DatabaseRoles,
 	}
 }
 

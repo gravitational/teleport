@@ -58,17 +58,6 @@ message Gateway {
   // daemon. This means that the Database Access team can add support for a new protocol and
   // Connect will support it right away with no extra changes.
   GatewayCLICommand gateway_cli_command = 10;
-  // resource holds fields that are specific to a particular resource type.
-  oneof resource {
-    // database contains fields specific to database gateways.
-    DatabaseGateway database = 11;
-  }
-}
-
-// DatabaseGateway holds fields that are specific to database gateways.
-message DatabaseGateway {
-  // database_roles is a list of database roles that the auto-provisioned user will be assigned.
-  repeated string database_roles = 1;
 }
 
 // GatewayCLICommand represents a command that the user can execute to connect to a gateway

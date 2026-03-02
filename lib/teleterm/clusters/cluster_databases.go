@@ -49,6 +49,12 @@ type Database struct {
 	TargetHealth types.TargetHealth
 	// AutoUsersEnabled indicates if the database supports automatic user provisioning and the user's role allows it.
 	AutoUsersEnabled bool
+	// DatabaseRoles is the list of database roles that will be assigned to the auto-provisioned
+	// database user. Empty when auto user provisioning is disabled.
+	DatabaseRoles []string
+	// AutoUserDbUsername is the pre-computed database username for auto-user provisioning.
+	// For leaf clusters: "remote-<username>-<rootClusterName>". For root clusters: "<username>".
+	AutoUserDbUsername string
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal

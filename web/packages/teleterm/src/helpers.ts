@@ -18,10 +18,6 @@
 
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
-import {
-  DatabaseGateway,
-  Gateway,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
 import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
 import { PaginatedResource } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
@@ -50,12 +46,6 @@ import {
   ReloginRequest,
   SendNotificationRequest,
 } from 'teleterm/services/tshdEvents';
-
-export function gatewayOneOfIsDatabase(gateway: Gateway): gateway is Gateway & {
-  resource: { oneofKind: 'database'; database: DatabaseGateway };
-} {
-  return gateway.resource.oneofKind === 'database';
-}
 
 export function resourceOneOfIsServer(
   resource: PaginatedResource['resource']

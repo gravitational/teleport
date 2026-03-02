@@ -31,6 +31,7 @@ export async function connectToDatabase(
     dbUser: string;
     gcpProjectId?: string;
     autoUsersEnabled?: boolean;
+    databaseRoles?: string[];
   },
   telemetry: {
     origin: DocumentOrigin;
@@ -40,7 +41,7 @@ export async function connectToDatabase(
   const documentsService =
     ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
 
-  const targetUser = getTransformedTargetUser(ctx, target);
+  const targetUser = getTransformedTargetUser(target);
 
   const doc = documentsService.createGatewayDocument({
     // Not passing the `gatewayUri` field here, as at this point the gateway doesn't exist yet.
@@ -50,6 +51,7 @@ export async function connectToDatabase(
     targetUser: targetUser,
     origin: telemetry.origin,
     autoUsersEnabled: target.autoUsersEnabled,
+    databaseRoles: target.databaseRoles,
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);
@@ -67,39 +69,24 @@ export async function connectToDatabase(
 
 /**
  * Transforms the target username for database connections.
- * For auto-provisioning on leaf clusters, uses the raw Teleport username with remote- prefix.
+ * For auto-provisioning, the backend pre-computes the correct username (including the
+ * "remote-<user>-<rootCluster>" format for leaf clusters), so it is passed through as-is.
  * For non-auto-provisioning, applies protocol-specific transformations (Redis, GCP).
  */
-function getTransformedTargetUser(
-  ctx: IAppContext,
-  target: {
-    uri: DatabaseUri;
-    protocol: string;
-    dbUser: string;
-    gcpProjectId?: string;
-    autoUsersEnabled?: boolean;
+function getTransformedTargetUser(target: {
+  protocol: string;
+  dbUser: string;
+  gcpProjectId?: string;
+  autoUsersEnabled?: boolean;
+}): string {
+  if (target.autoUsersEnabled) {
+    return target.dbUser;
   }
-): string {
-  let targetUser = '';
-  const isLeafCluster = routing.isLeafCluster(target.uri);
-
-  if (isLeafCluster && target.autoUsersEnabled) {
-    const rootCluster = ctx.clustersService.findRootClusterByResource(
-      target.uri
-    );
-    if (!rootCluster) {
-      throw new Error('Root cluster not found');
-    }
-    targetUser = `remote-${target.dbUser}-${rootCluster.name}`;
-  } else {
-    // Get base username with protocol-specific transformations (Redis, GCP)
-    targetUser = getTargetUser(
-      target.protocol as GatewayProtocol,
-      target.dbUser,
-      target.gcpProjectId
-    );
-  }
-  return targetUser;
+  return getTargetUser(
+    target.protocol as GatewayProtocol,
+    target.dbUser,
+    target.gcpProjectId
+  );
 }
 
 function getTargetUser(

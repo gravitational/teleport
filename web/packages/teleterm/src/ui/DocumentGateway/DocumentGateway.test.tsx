@@ -119,12 +119,7 @@ test('displays database roles in collapsible advanced section', async () => {
 
   const appContext = new MockAppContext();
   const cluster = makeRootCluster();
-  const gateway = makeDatabaseGateway({
-    resource: {
-      oneofKind: 'database' as const,
-      database: { databaseRoles: ['reader', 'writer'] },
-    },
-  });
+  const gateway = makeDatabaseGateway();
   const doc: docs.DocumentGateway = {
     uri: '/docs/1',
     kind: 'doc.gateway',
@@ -136,6 +131,7 @@ test('displays database roles in collapsible advanced section', async () => {
     origin: 'resource_table',
     title: '',
     status: '',
+    databaseRoles: ['reader', 'writer'],
   };
   appContext.addRootClusterWithDoc(cluster, doc);
   appContext.clustersService.setState(draftState => {

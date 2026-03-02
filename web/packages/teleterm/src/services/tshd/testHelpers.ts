@@ -66,6 +66,8 @@ export const makeDatabase = (
   labels: [],
   gcpProjectId: '',
   autoUsersEnabled: false,
+  databaseRoles: [],
+  autoUserDbUsername: '',
   ...props,
 });
 
@@ -287,7 +289,6 @@ export const makeDatabaseGateway = (
     preview: 'psql localhost:1337',
   },
   targetSubresourceName: 'bar',
-  resource: { oneofKind: 'database' as const, database: { databaseRoles: [] } },
   ...props,
 });
 
@@ -308,7 +309,6 @@ export const makeKubeGateway = (
     preview: 'KUBECONFIG=/path/to/kubeconfig /bin/kubectl version',
   },
   targetSubresourceName: '',
-  resource: { oneofKind: undefined },
   ...props,
 });
 
@@ -329,7 +329,6 @@ export const makeAppGateway = (
   },
   targetUser: '',
   protocol: 'HTTP',
-  resource: { oneofKind: undefined },
   ...props,
 });
 

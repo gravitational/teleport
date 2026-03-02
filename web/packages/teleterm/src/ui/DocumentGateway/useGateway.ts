@@ -21,7 +21,6 @@ import { useCallback, useEffect } from 'react';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import { useAsync } from 'shared/hooks/useAsync';
 
-import { gatewayOneOfIsDatabase } from 'teleterm/helpers';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
@@ -70,11 +69,6 @@ export function useGateway(doc: DocumentGateway) {
           documentsService.update(doc.uri, { status: 'error' });
           throw error;
         }
-
-        const gwDatabaseRoles = gatewayOneOfIsDatabase(gw)
-          ? gw.resource.database.databaseRoles
-          : undefined;
-
         documentsService.update(doc.uri, draft => {
           const draftDoc = draft as DocumentGateway;
           draftDoc.gatewayUri = gw.uri;
@@ -92,8 +86,6 @@ export function useGateway(doc: DocumentGateway) {
           // called from OfflineGateway.
           draftDoc.targetSubresourceName = gw.targetSubresourceName;
           draftDoc.status = 'connected';
-          // Sync databaseRoles from the gateway returned by the backend
-          draftDoc.databaseRoles = gwDatabaseRoles;
           // The title might need to be changed if OfflineGateway changed gateway params.
           draftDoc.title = getDocumentGatewayTitle(draftDoc);
         });

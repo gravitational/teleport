@@ -38,7 +38,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo", Name: "foo"}
+	cluster := clusters.NewClusterForTest(uri.NewClusterURI("foo"), "foo", "foo", "testUser")
 
 	node, err := types.NewServer("testNode", types.KindNode, types.ServerSpecV2{})
 	require.NoError(t, err)
@@ -120,6 +120,29 @@ func TestUnifiedResourcesList(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	leafDatabase, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "leafDb",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "localhost",
+		HostID:   uuid.New().String(),
+		Database: &types.DatabaseV3{
+			Spec: types.DatabaseSpecV3{
+				Protocol:  defaults.ProtocolPostgres,
+				URI:       "localhost:5432",
+				AdminUser: &types.DatabaseAdminUser{Name: "teleport-admin"},
+			},
+			Metadata: types.Metadata{Name: "leafDb"},
+		},
+	})
+	require.NoError(t, err)
+
+	leafCluster := clusters.NewClusterForTest(
+		uri.NewClusterURI("foo").AppendLeafCluster("leaf"),
+		"foo",
+		"leaf",
+		"testUser",
+	)
+
 	mockedResources := []*proto.PaginatedResource{
 		{Resource: &proto.PaginatedResource_Node{Node: node.(*types.ServerV2)}, Logins: []string{"ec2-user"}},
 		{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}},
@@ -131,9 +154,12 @@ func TestUnifiedResourcesList(t *testing.T) {
 	}
 	mockedNextKey := "nextKey"
 
-	mockedClient := &mockClient{
-		paginatedResources: mockedResources,
-		nextKey:            mockedNextKey,
+	mockedClient := &mockProxyClient{
+		authClient: &mockClient{
+			paginatedResources: mockedResources,
+			nextKey:            mockedNextKey,
+		},
+		rootClusterName: cluster.Name,
 	}
 
 	response, err := List(ctx, cluster, mockedClient, &proto.ListUnifiedResourcesRequest{})
@@ -146,9 +172,10 @@ func TestUnifiedResourcesList(t *testing.T) {
 	}}, response.Resources[0])
 
 	require.Equal(t, UnifiedResource{Database: &clusters.Database{
-		URI:              uri.NewClusterURI(cluster.ProfileName).AppendDB(database.GetName()),
-		Database:         database.GetDatabase(),
-		AutoUsersEnabled: true,
+		URI:                uri.NewClusterURI(cluster.ProfileName).AppendDB(database.GetName()),
+		Database:           database.GetDatabase(),
+		AutoUsersEnabled:   true,
+		AutoUserDbUsername: "testUser",
 	}}, response.Resources[1])
 
 	require.Equal(t, UnifiedResource{Kube: &clusters.Kube{
@@ -182,7 +209,32 @@ func TestUnifiedResourcesList(t *testing.T) {
 	}}, response.Resources[6])
 
 	require.Equal(t, mockedNextKey, response.NextKey)
+
+	leafResponse, err := List(ctx, leafCluster, &mockProxyClient{
+		authClient: &mockClient{
+			paginatedResources: []*proto.PaginatedResource{
+				{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: leafDatabase}},
+			},
+		},
+		rootClusterName: cluster.Name, // "foo" — the root cluster's site name
+	}, &proto.ListUnifiedResourcesRequest{})
+	require.NoError(t, err)
+	require.Len(t, leafResponse.Resources, 1)
+	require.Equal(t, UnifiedResource{Database: &clusters.Database{
+		URI:                leafCluster.URI.AppendDB(leafDatabase.GetName()),
+		Database:           leafDatabase.GetDatabase(),
+		AutoUsersEnabled:   true,
+		AutoUserDbUsername: "remote-testUser-foo",
+	}}, leafResponse.Resources[0])
 }
+
+type mockProxyClient struct {
+	authClient      *mockClient
+	rootClusterName string
+}
+
+func (m *mockProxyClient) CurrentCluster() authclient.ClientI { return m.authClient }
+func (m *mockProxyClient) RootClusterName() string            { return m.rootClusterName }
 
 type mockClient struct {
 	authclient.ClientI

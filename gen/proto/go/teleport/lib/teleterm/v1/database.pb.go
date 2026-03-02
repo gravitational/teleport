@@ -63,8 +63,14 @@ type Database struct {
 	GcpProjectId string `protobuf:"bytes,10,opt,name=gcp_project_id,json=gcpProjectId,proto3" json:"gcp_project_id,omitempty"`
 	// auto_users_enabled indicates if the database supports automatic user provisioning and the user's role allows it.
 	AutoUsersEnabled bool `protobuf:"varint,11,opt,name=auto_users_enabled,json=autoUsersEnabled,proto3" json:"auto_users_enabled,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// database_roles is a list of database roles that will be assigned to the auto-provisioned
+	// database user. Empty when auto user provisioning is disabled.
+	DatabaseRoles []string `protobuf:"bytes,12,rep,name=database_roles,json=databaseRoles,proto3" json:"database_roles,omitempty"`
+	// auto_user_db_username is the pre-computed database username to use when auto-user provisioning
+	// is enabled. For leaf clusters it includes the "remote-" prefix and root cluster name
+	AutoUserDbUsername string `protobuf:"bytes,13,opt,name=auto_user_db_username,json=autoUserDbUsername,proto3" json:"auto_user_db_username,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *Database) Reset() {
@@ -174,6 +180,20 @@ func (x *Database) GetAutoUsersEnabled() bool {
 	return false
 }
 
+func (x *Database) GetDatabaseRoles() []string {
+	if x != nil {
+		return x.DatabaseRoles
+	}
+	return nil
+}
+
+func (x *Database) GetAutoUserDbUsername() string {
+	if x != nil {
+		return x.AutoUserDbUsername
+	}
+	return ""
+}
+
 // DatabaseServer (db_server) describes a database heartbeat signal
 // reported from an agent (db_service) that is proxying
 // the database.
@@ -249,7 +269,7 @@ var File_teleport_lib_teleterm_v1_database_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/lib/teleterm/v1/database.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\x1a,teleport/lib/teleterm/v1/target_health.proto\"\xfe\x02\n" +
+	"'teleport/lib/teleterm/v1/database.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\x1a,teleport/lib/teleterm/v1/target_health.proto\"\xd8\x03\n" +
 	"\bDatabase\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -262,7 +282,9 @@ const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
 	"\rtarget_health\x18\t \x01(\v2&.teleport.lib.teleterm.v1.TargetHealthR\ftargetHealth\x12$\n" +
 	"\x0egcp_project_id\x18\n" +
 	" \x01(\tR\fgcpProjectId\x12,\n" +
-	"\x12auto_users_enabled\x18\v \x01(\bR\x10autoUsersEnabled\"\xa4\x01\n" +
+	"\x12auto_users_enabled\x18\v \x01(\bR\x10autoUsersEnabled\x12%\n" +
+	"\x0edatabase_roles\x18\f \x03(\tR\rdatabaseRoles\x121\n" +
+	"\x15auto_user_db_username\x18\r \x01(\tR\x12autoUserDbUsername\"\xa4\x01\n" +
 	"\x0eDatabaseServer\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x17\n" +

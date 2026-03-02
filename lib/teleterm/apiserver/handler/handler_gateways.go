@@ -28,7 +28,7 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
-	gw "github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
 
 // CreateGateway creates a gateway
@@ -81,13 +81,13 @@ func (s *Handler) RemoveGateway(ctx context.Context, req *api.RemoveGatewayReque
 	return &api.EmptyResponse{}, nil
 }
 
-func (s *Handler) newAPIGateway(ctx context.Context, gateway gw.Gateway) (*api.Gateway, error) {
+func (s *Handler) newAPIGateway(ctx context.Context, gateway gateway.Gateway) (*api.Gateway, error) {
 	cmds, err := s.DaemonService.GetGatewayCLICommand(ctx, gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	apiGw := &api.Gateway{
+	return &api.Gateway{
 		Uri:                   gateway.URI().String(),
 		TargetUri:             gateway.TargetURI().String(),
 		TargetName:            gateway.TargetName(),
@@ -97,17 +97,7 @@ func (s *Handler) newAPIGateway(ctx context.Context, gateway gw.Gateway) (*api.G
 		LocalAddress:          gateway.LocalAddress(),
 		LocalPort:             gateway.LocalPort(),
 		GatewayCliCommand:     makeGatewayCLICommand(cmds),
-	}
-
-	if dbGateway, err := gw.AsDatabase(gateway); err == nil {
-		apiGw.Resource = &api.Gateway_Database{
-			Database: &api.DatabaseGateway{
-				DatabaseRoles: dbGateway.DatabaseRoles(),
-			},
-		}
-	}
-
-	return apiGw, nil
+	}, nil
 }
 
 func makeGatewayCLICommand(cmds cmd.Cmds) *api.GatewayCLICommand {

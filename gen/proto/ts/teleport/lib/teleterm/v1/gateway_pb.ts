@@ -104,33 +104,6 @@ export interface Gateway {
      * @generated from protobuf field: teleport.lib.teleterm.v1.GatewayCLICommand gateway_cli_command = 10;
      */
     gatewayCliCommand?: GatewayCLICommand;
-    /**
-     * @generated from protobuf oneof: resource
-     */
-    resource: {
-        oneofKind: "database";
-        /**
-         * database contains fields specific to database gateways.
-         *
-         * @generated from protobuf field: teleport.lib.teleterm.v1.DatabaseGateway database = 11;
-         */
-        database: DatabaseGateway;
-    } | {
-        oneofKind: undefined;
-    };
-}
-/**
- * DatabaseGateway holds fields that are specific to database gateways.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.DatabaseGateway
- */
-export interface DatabaseGateway {
-    /**
-     * database_roles is a list of database roles that the auto-provisioned user will be assigned.
-     *
-     * @generated from protobuf field: repeated string database_roles = 1;
-     */
-    databaseRoles: string[];
 }
 /**
  * GatewayCLICommand represents a command that the user can execute to connect to a gateway
@@ -190,8 +163,7 @@ class Gateway$Type extends MessageType<Gateway> {
             { no: 6, name: "local_port", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "protocol", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 9, name: "target_subresource_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 10, name: "gateway_cli_command", kind: "message", T: () => GatewayCLICommand },
-            { no: 11, name: "database", kind: "message", oneof: "resource", T: () => DatabaseGateway }
+            { no: 10, name: "gateway_cli_command", kind: "message", T: () => GatewayCLICommand }
         ]);
     }
     create(value?: PartialMessage<Gateway>): Gateway {
@@ -204,7 +176,6 @@ class Gateway$Type extends MessageType<Gateway> {
         message.localPort = "";
         message.protocol = "";
         message.targetSubresourceName = "";
-        message.resource = { oneofKind: undefined };
         if (value !== undefined)
             reflectionMergePartial<Gateway>(this, message, value);
         return message;
@@ -240,12 +211,6 @@ class Gateway$Type extends MessageType<Gateway> {
                     break;
                 case /* teleport.lib.teleterm.v1.GatewayCLICommand gateway_cli_command */ 10:
                     message.gatewayCliCommand = GatewayCLICommand.internalBinaryRead(reader, reader.uint32(), options, message.gatewayCliCommand);
-                    break;
-                case /* teleport.lib.teleterm.v1.DatabaseGateway database */ 11:
-                    message.resource = {
-                        oneofKind: "database",
-                        database: DatabaseGateway.internalBinaryRead(reader, reader.uint32(), options, (message.resource as any).database)
-                    };
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -286,9 +251,6 @@ class Gateway$Type extends MessageType<Gateway> {
         /* teleport.lib.teleterm.v1.GatewayCLICommand gateway_cli_command = 10; */
         if (message.gatewayCliCommand)
             GatewayCLICommand.internalBinaryWrite(message.gatewayCliCommand, writer.tag(10, WireType.LengthDelimited).fork(), options).join();
-        /* teleport.lib.teleterm.v1.DatabaseGateway database = 11; */
-        if (message.resource.oneofKind === "database")
-            DatabaseGateway.internalBinaryWrite(message.resource.database, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -299,53 +261,6 @@ class Gateway$Type extends MessageType<Gateway> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.Gateway
  */
 export const Gateway = new Gateway$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class DatabaseGateway$Type extends MessageType<DatabaseGateway> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.DatabaseGateway", [
-            { no: 1, name: "database_roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<DatabaseGateway>): DatabaseGateway {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.databaseRoles = [];
-        if (value !== undefined)
-            reflectionMergePartial<DatabaseGateway>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DatabaseGateway): DatabaseGateway {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* repeated string database_roles */ 1:
-                    message.databaseRoles.push(reader.string());
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: DatabaseGateway, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* repeated string database_roles = 1; */
-        for (let i = 0; i < message.databaseRoles.length; i++)
-            writer.tag(1, WireType.LengthDelimited).string(message.databaseRoles[i]);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.DatabaseGateway
- */
-export const DatabaseGateway = new DatabaseGateway$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GatewayCLICommand$Type extends MessageType<GatewayCLICommand> {
     constructor() {

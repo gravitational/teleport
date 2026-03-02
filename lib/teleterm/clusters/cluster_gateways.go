@@ -81,21 +81,10 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := c.NewAccessChecker(ctx, params.ClusterClient.AuthClient)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	dbRoles, err := accessChecker.CheckDatabaseRoles(db.Database, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	routeToDatabase := tlsca.RouteToDatabase{
 		ServiceName: db.GetName(),
 		Protocol:    db.GetProtocol(),
 		Username:    params.TargetUser,
-		Roles:       dbRoles,
 	}
 
 	var cert tls.Certificate
@@ -115,7 +104,6 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 		TargetSubresourceName:         params.TargetSubresourceName,
 		Protocol:                      db.GetProtocol(),
 		Cert:                          cert,
-		DatabaseRoles:                 dbRoles,
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
 		Logger:                        c.Logger,

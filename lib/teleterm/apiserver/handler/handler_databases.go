@@ -74,6 +74,7 @@ func (s *Handler) ListDatabaseServers(ctx context.Context, req *api.ListDatabase
 func newAPIDatabase(db clusters.Database) *api.Database {
 	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(db.GetAllLabels()))
 
+	// ignore potential (and unlikely) errors
 	gcpProjectID, _ := db.GetGCPProjectID()
 
 	return &api.Database{
@@ -88,8 +89,10 @@ func newAPIDatabase(db clusters.Database) *api.Database {
 			Error:   db.TargetHealth.TransitionError,
 			Message: db.TargetHealth.Message,
 		},
-		GcpProjectId:     gcpProjectID,
-		AutoUsersEnabled: db.AutoUsersEnabled,
+		GcpProjectId:       gcpProjectID,
+		AutoUsersEnabled:   db.AutoUsersEnabled,
+		DatabaseRoles:      db.DatabaseRoles,
+		AutoUserDbUsername: db.AutoUserDbUsername,
 	}
 }
 

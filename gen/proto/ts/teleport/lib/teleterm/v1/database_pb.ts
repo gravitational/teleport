@@ -104,6 +104,20 @@ export interface Database {
      * @generated from protobuf field: bool auto_users_enabled = 11;
      */
     autoUsersEnabled: boolean;
+    /**
+     * database_roles is a list of database roles that will be assigned to the auto-provisioned
+     * database user. Empty when auto user provisioning is disabled.
+     *
+     * @generated from protobuf field: repeated string database_roles = 12;
+     */
+    databaseRoles: string[];
+    /**
+     * auto_user_db_username is the pre-computed database username to use when auto-user provisioning
+     * is enabled. For leaf clusters it includes the "remote-" prefix and root cluster name
+     *
+     * @generated from protobuf field: string auto_user_db_username = 13;
+     */
+    autoUserDbUsername: string;
 }
 /**
  * DatabaseServer (db_server) describes a database heartbeat signal
@@ -144,7 +158,9 @@ class Database$Type extends MessageType<Database> {
             { no: 8, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
             { no: 9, name: "target_health", kind: "message", T: () => TargetHealth },
             { no: 10, name: "gcp_project_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 11, name: "auto_users_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 11, name: "auto_users_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 12, name: "database_roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 13, name: "auto_user_db_username", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Database>): Database {
@@ -159,6 +175,8 @@ class Database$Type extends MessageType<Database> {
         message.labels = [];
         message.gcpProjectId = "";
         message.autoUsersEnabled = false;
+        message.databaseRoles = [];
+        message.autoUserDbUsername = "";
         if (value !== undefined)
             reflectionMergePartial<Database>(this, message, value);
         return message;
@@ -200,6 +218,12 @@ class Database$Type extends MessageType<Database> {
                     break;
                 case /* bool auto_users_enabled */ 11:
                     message.autoUsersEnabled = reader.bool();
+                    break;
+                case /* repeated string database_roles */ 12:
+                    message.databaseRoles.push(reader.string());
+                    break;
+                case /* string auto_user_db_username */ 13:
+                    message.autoUserDbUsername = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -246,6 +270,12 @@ class Database$Type extends MessageType<Database> {
         /* bool auto_users_enabled = 11; */
         if (message.autoUsersEnabled !== false)
             writer.tag(11, WireType.Varint).bool(message.autoUsersEnabled);
+        /* repeated string database_roles = 12; */
+        for (let i = 0; i < message.databaseRoles.length; i++)
+            writer.tag(12, WireType.LengthDelimited).string(message.databaseRoles[i]);
+        /* string auto_user_db_username = 13; */
+        if (message.autoUserDbUsername !== "")
+            writer.tag(13, WireType.LengthDelimited).string(message.autoUserDbUsername);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -39,8 +39,6 @@ import Validation from 'shared/components/Validation';
 import { Attempt, RunFuncReturnValue } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
-import { gatewayOneOfIsDatabase } from 'teleterm/helpers';
-
 import { CliCommand } from '../components/CliCommand';
 import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
 
@@ -54,12 +52,10 @@ export function OnlineDocumentGateway(props: {
   gateway: Gateway;
   runCliCommand: () => void;
   autoUsersEnabled?: boolean;
+  databaseRoles?: string[];
 }) {
-  const { gateway, autoUsersEnabled } = props;
+  const { gateway, autoUsersEnabled, databaseRoles = [] } = props;
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
-  const databaseRoles = gatewayOneOfIsDatabase(gateway)
-    ? gateway.resource.database.databaseRoles
-    : [];
 
   const isPortOrDbNameProcessing =
     props.changeDbNameAttempt.status === 'processing' ||

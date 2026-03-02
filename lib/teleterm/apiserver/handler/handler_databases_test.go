@@ -44,9 +44,11 @@ func TestNewAPIDatabase_Fields(t *testing.T) {
 		require.NoError(t, err)
 
 		testDatabase := clusters.Database{
-			URI:              uri.NewClusterURI("test-cluster").AppendDB("test-db"),
-			Database:         db,
-			AutoUsersEnabled: true,
+			URI:                uri.NewClusterURI("test-cluster").AppendDB("test-db"),
+			Database:           db,
+			AutoUsersEnabled:   true,
+			DatabaseRoles:      []string{"reader", "writer"},
+			AutoUserDbUsername: "alice",
 		}
 
 		apiDB := newAPIDatabase(testDatabase)
@@ -56,6 +58,8 @@ func TestNewAPIDatabase_Fields(t *testing.T) {
 		require.Equal(t, "Test database", apiDB.Desc)
 		require.Equal(t, "postgres", apiDB.Protocol)
 		require.True(t, apiDB.AutoUsersEnabled)
+		require.Equal(t, []string{"reader", "writer"}, apiDB.DatabaseRoles)
+		require.Equal(t, "alice", apiDB.AutoUserDbUsername)
 		require.NotNil(t, apiDB.Labels)
 	})
 }

@@ -42,7 +42,13 @@ var supportedResourceKinds = []string{
 	types.KindMCP,
 }
 
-func List(ctx context.Context, cluster *clusters.Cluster, client authclient.ClientI, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
+type ProxyClusterClient interface {
+	CurrentCluster() authclient.ClientI
+	RootClusterName() string
+}
+
+func List(ctx context.Context, cluster *clusters.Cluster, proxyClient ProxyClusterClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
+	client := proxyClient.CurrentCluster()
 	kinds := req.GetKinds()
 	if len(kinds) == 0 {
 		kinds = supportedResourceKinds
@@ -91,12 +97,31 @@ func List(ctx context.Context, cluster *clusters.Cluster, client authclient.Clie
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			dbRoles, err := accessChecker.CheckDatabaseRoles(db, nil)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			var databaseRoles []string
+			if len(dbRoles) > 0 {
+				databaseRoles = dbRoles
+			}
+			var autoUserDbUsername string
+			if autoUsersEnabled {
+				username := cluster.GetLoggedInUser().Name
+				if cluster.URI.IsLeaf() {
+					autoUserDbUsername = "remote-" + username + "-" + proxyClient.RootClusterName()
+				} else {
+					autoUserDbUsername = username
+				}
+			}
 			response.Resources = append(response.Resources, UnifiedResource{
 				Database: &clusters.Database{
-					URI:              cluster.URI.AppendDB(db.GetName()),
-					Database:         db,
-					TargetHealth:     r.GetTargetHealth(),
-					AutoUsersEnabled: autoUsersEnabled,
+					URI:                cluster.URI.AppendDB(db.GetName()),
+					Database:           db,
+					TargetHealth:       r.GetTargetHealth(),
+					AutoUsersEnabled:   autoUsersEnabled,
+					DatabaseRoles:      databaseRoles,
+					AutoUserDbUsername: autoUserDbUsername,
 				},
 				RequiresRequest: requiresRequest,
 			})

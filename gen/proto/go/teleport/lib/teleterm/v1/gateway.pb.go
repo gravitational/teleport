@@ -73,14 +73,8 @@ type Gateway struct {
 	// daemon. This means that the Database Access team can add support for a new protocol and
 	// Connect will support it right away with no extra changes.
 	GatewayCliCommand *GatewayCLICommand `protobuf:"bytes,10,opt,name=gateway_cli_command,json=gatewayCliCommand,proto3" json:"gateway_cli_command,omitempty"`
-	// resource holds fields that are specific to a particular resource type.
-	//
-	// Types that are valid to be assigned to Resource:
-	//
-	//	*Gateway_Database
-	Resource      isGateway_Resource `protobuf_oneof:"resource"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *Gateway) Reset() {
@@ -176,79 +170,6 @@ func (x *Gateway) GetGatewayCliCommand() *GatewayCLICommand {
 	return nil
 }
 
-func (x *Gateway) GetResource() isGateway_Resource {
-	if x != nil {
-		return x.Resource
-	}
-	return nil
-}
-
-func (x *Gateway) GetDatabase() *DatabaseGateway {
-	if x != nil {
-		if x, ok := x.Resource.(*Gateway_Database); ok {
-			return x.Database
-		}
-	}
-	return nil
-}
-
-type isGateway_Resource interface {
-	isGateway_Resource()
-}
-
-type Gateway_Database struct {
-	// database contains fields specific to database gateways.
-	Database *DatabaseGateway `protobuf:"bytes,11,opt,name=database,proto3,oneof"`
-}
-
-func (*Gateway_Database) isGateway_Resource() {}
-
-// DatabaseGateway holds fields that are specific to database gateways.
-type DatabaseGateway struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// database_roles is a list of database roles that the auto-provisioned user will be assigned.
-	DatabaseRoles []string `protobuf:"bytes,1,rep,name=database_roles,json=databaseRoles,proto3" json:"database_roles,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DatabaseGateway) Reset() {
-	*x = DatabaseGateway{}
-	mi := &file_teleport_lib_teleterm_v1_gateway_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DatabaseGateway) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DatabaseGateway) ProtoMessage() {}
-
-func (x *DatabaseGateway) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_gateway_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DatabaseGateway.ProtoReflect.Descriptor instead.
-func (*DatabaseGateway) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_gateway_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *DatabaseGateway) GetDatabaseRoles() []string {
-	if x != nil {
-		return x.DatabaseRoles
-	}
-	return nil
-}
-
 // GatewayCLICommand represents a command that the user can execute to connect to a gateway
 // resource. It is a combination of two different os/exec.Cmd structs, where path, args and env are
 // directly taken from one Cmd and the preview field is constructed from another Cmd.
@@ -281,7 +202,7 @@ type GatewayCLICommand struct {
 
 func (x *GatewayCLICommand) Reset() {
 	*x = GatewayCLICommand{}
-	mi := &file_teleport_lib_teleterm_v1_gateway_proto_msgTypes[2]
+	mi := &file_teleport_lib_teleterm_v1_gateway_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -293,7 +214,7 @@ func (x *GatewayCLICommand) String() string {
 func (*GatewayCLICommand) ProtoMessage() {}
 
 func (x *GatewayCLICommand) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_gateway_proto_msgTypes[2]
+	mi := &file_teleport_lib_teleterm_v1_gateway_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -306,7 +227,7 @@ func (x *GatewayCLICommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GatewayCLICommand.ProtoReflect.Descriptor instead.
 func (*GatewayCLICommand) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_gateway_proto_rawDescGZIP(), []int{2}
+	return file_teleport_lib_teleterm_v1_gateway_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *GatewayCLICommand) GetPath() string {
@@ -341,7 +262,7 @@ var File_teleport_lib_teleterm_v1_gateway_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_gateway_proto_rawDesc = "" +
 	"\n" +
-	"&teleport/lib/teleterm/v1/gateway.proto\x12\x18teleport.lib.teleterm.v1\"\xd9\x03\n" +
+	"&teleport/lib/teleterm/v1/gateway.proto\x12\x18teleport.lib.teleterm.v1\"\x84\x03\n" +
 	"\aGateway\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x1f\n" +
 	"\vtarget_name\x18\x02 \x01(\tR\n" +
@@ -356,12 +277,7 @@ const file_teleport_lib_teleterm_v1_gateway_proto_rawDesc = "" +
 	"\bprotocol\x18\a \x01(\tR\bprotocol\x126\n" +
 	"\x17target_subresource_name\x18\t \x01(\tR\x15targetSubresourceName\x12[\n" +
 	"\x13gateway_cli_command\x18\n" +
-	" \x01(\v2+.teleport.lib.teleterm.v1.GatewayCLICommandR\x11gatewayCliCommand\x12G\n" +
-	"\bdatabase\x18\v \x01(\v2).teleport.lib.teleterm.v1.DatabaseGatewayH\x00R\bdatabaseB\n" +
-	"\n" +
-	"\bresourceJ\x04\b\b\x10\tR\vcli_command\"8\n" +
-	"\x0fDatabaseGateway\x12%\n" +
-	"\x0edatabase_roles\x18\x01 \x03(\tR\rdatabaseRoles\"g\n" +
+	" \x01(\v2+.teleport.lib.teleterm.v1.GatewayCLICommandR\x11gatewayCliCommandJ\x04\b\b\x10\tR\vcli_command\"g\n" +
 	"\x11GatewayCLICommand\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
 	"\x04args\x18\x02 \x03(\tR\x04args\x12\x10\n" +
@@ -380,20 +296,18 @@ func file_teleport_lib_teleterm_v1_gateway_proto_rawDescGZIP() []byte {
 	return file_teleport_lib_teleterm_v1_gateway_proto_rawDescData
 }
 
-var file_teleport_lib_teleterm_v1_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_teleport_lib_teleterm_v1_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_lib_teleterm_v1_gateway_proto_goTypes = []any{
 	(*Gateway)(nil),           // 0: teleport.lib.teleterm.v1.Gateway
-	(*DatabaseGateway)(nil),   // 1: teleport.lib.teleterm.v1.DatabaseGateway
-	(*GatewayCLICommand)(nil), // 2: teleport.lib.teleterm.v1.GatewayCLICommand
+	(*GatewayCLICommand)(nil), // 1: teleport.lib.teleterm.v1.GatewayCLICommand
 }
 var file_teleport_lib_teleterm_v1_gateway_proto_depIdxs = []int32{
-	2, // 0: teleport.lib.teleterm.v1.Gateway.gateway_cli_command:type_name -> teleport.lib.teleterm.v1.GatewayCLICommand
-	1, // 1: teleport.lib.teleterm.v1.Gateway.database:type_name -> teleport.lib.teleterm.v1.DatabaseGateway
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	1, // 0: teleport.lib.teleterm.v1.Gateway.gateway_cli_command:type_name -> teleport.lib.teleterm.v1.GatewayCLICommand
+	1, // [1:1] is the sub-list for method output_type
+	1, // [1:1] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_gateway_proto_init() }
@@ -401,16 +315,13 @@ func file_teleport_lib_teleterm_v1_gateway_proto_init() {
 	if File_teleport_lib_teleterm_v1_gateway_proto != nil {
 		return
 	}
-	file_teleport_lib_teleterm_v1_gateway_proto_msgTypes[0].OneofWrappers = []any{
-		(*Gateway_Database)(nil),
-	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_gateway_proto_rawDesc), len(file_teleport_lib_teleterm_v1_gateway_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
