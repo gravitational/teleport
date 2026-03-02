@@ -134,7 +134,7 @@ func ensureServiceRunning(ctx context.Context) error {
 		return nil
 	}
 
-	if err = service.Start(ServiceCommand); err != nil {
+	if err = service.Start(); err != nil {
 		return trace.Wrap(err, "starting Windows service %s", serviceName)
 	}
 

@@ -23,19 +23,19 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func newPlatformConnectUpdaterServiceRunCommand(app *kingpin.Application) privilegedUpdaterCLICommand {
+func newPlatformConnectUpdaterServiceRunCommand(parent *kingpin.CmdClause) privilegedUpdaterCLICommand {
 	return updateServiceCommandNotSupported{}
 }
 
-func newPlatformConnectUpdaterServiceInstallCommand(app *kingpin.Application) privilegedUpdaterCLICommand {
+func newPlatformConnectUpdaterServiceInstallCommand(parent *kingpin.CmdClause) privilegedUpdaterCLICommand {
 	return updateServiceCommandNotSupported{}
 }
 
-func newPlatformConnectUpdaterServiceUninstallCommand(app *kingpin.Application) privilegedUpdaterCLICommand {
+func newPlatformConnectUpdaterServiceUninstallCommand(parent *kingpin.CmdClause) privilegedUpdaterCLICommand {
 	return updateServiceCommandNotSupported{}
 }
 
-func newPlatformConnectUpdaterServiceInstallUpdateCommand(app *kingpin.Application) privilegedUpdaterCLICommand {
+func newPlatformConnectUpdaterServiceInstallUpdateCommand(parent *kingpin.CmdClause) privilegedUpdaterCLICommand {
 	return updateServiceCommandNotSupported{}
 }
 

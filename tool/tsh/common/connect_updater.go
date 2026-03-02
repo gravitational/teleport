@@ -23,18 +23,18 @@ type privilegedUpdaterCLICommand interface {
 	run(*CLIConf) error
 }
 
-func newConnectUpdaterServiceInstallCommand(app *kingpin.Application) privilegedUpdaterCLICommand {
-	return newPlatformConnectUpdaterServiceInstallCommand(app)
+func newConnectUpdaterServiceInstallCommand(parent *kingpin.CmdClause) privilegedUpdaterCLICommand {
+	return newPlatformConnectUpdaterServiceInstallCommand(parent)
 }
 
-func newConnectUpdaterServiceUninstallCommand(app *kingpin.Application) privilegedUpdaterCLICommand {
-	return newPlatformConnectUpdaterServiceUninstallCommand(app)
+func newConnectUpdaterServiceUninstallCommand(parent *kingpin.CmdClause) privilegedUpdaterCLICommand {
+	return newPlatformConnectUpdaterServiceUninstallCommand(parent)
 }
 
-func newConnectUpdaterServiceRunCommand(app *kingpin.Application) privilegedUpdaterCLICommand {
-	return newPlatformConnectUpdaterServiceRunCommand(app)
+func newConnectUpdaterServiceRunCommand(parent *kingpin.CmdClause) privilegedUpdaterCLICommand {
+	return newPlatformConnectUpdaterServiceRunCommand(parent)
 }
 
-func newConnectUpdaterServiceInstallUpdateCommand(app *kingpin.Application) privilegedUpdaterCLICommand {
-	return newPlatformConnectUpdaterServiceInstallUpdateCommand(app)
+func newConnectUpdaterServiceInstallUpdateCommand(parent *kingpin.CmdClause) privilegedUpdaterCLICommand {
+	return newPlatformConnectUpdaterServiceInstallUpdateCommand(parent)
 }
