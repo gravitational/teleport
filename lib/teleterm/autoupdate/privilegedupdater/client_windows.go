@@ -47,7 +47,7 @@ const (
 func RunServiceAndInstallUpdateFromClient(ctx context.Context, path string, forceRun bool, version string) error {
 	if err := ensureServiceRunning(ctx); err != nil {
 		// NsisDualModeUpdater relies on this exact phrase for fallback behavior.
-		return trace.Wrap(err, "failed to ensure service running")
+		return trace.Wrap(err, "failed to ensure service is running")
 	}
 	err := InstallUpdateFromClient(ctx, path, forceRun, version)
 	return trace.Wrap(err)
