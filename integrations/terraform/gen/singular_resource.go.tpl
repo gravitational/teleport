@@ -365,6 +365,10 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		return
 	}
 
+{{- if .ForceSetKind }}
+	{{.VarName}}.Kind = {{.ForceSetKind}}
+{{- end}}
+
 {{- if .HasCheckAndSetDefaults }}
 
 	err := {{.VarName}}.CheckAndSetDefaults()
@@ -378,6 +382,15 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		{{.VarName}}.SubKind = {{.DefaultSubKind}}
 	}
 {{- end}}
+
+	{{- if .DefaultName }}
+	if {{.VarName}}.GetMetadata() == nil {
+		{{.VarName}}.Metadata = &headerv1.Metadata{}
+	}
+	if {{ .VarName }}.GetMetadata().GetName() == "" {
+		{{ .VarName }}.Metadata.Name = {{ .DefaultName }}
+	}
+	{{- end}}
 
 {{- if .RequestWrapper}}
 

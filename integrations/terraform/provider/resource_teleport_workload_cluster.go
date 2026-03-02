@@ -242,6 +242,7 @@ func (r resourceTeleportWorkloadCluster) Update(ctx context.Context, req tfsdk.U
 	}
 	workloadclusterResource := workloadcluster
 
+	workloadclusterResource.Kind = apitypes.KindWorkloadCluster
 
 	
 	name := workloadclusterResource.Metadata.Name

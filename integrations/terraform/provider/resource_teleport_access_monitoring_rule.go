@@ -210,6 +210,7 @@ func (r resourceTeleportAccessMonitoringRule) Update(ctx context.Context, req tf
 	}
 	accessMonitoringRuleResource := accessMonitoringRule
 
+	accessMonitoringRuleResource.Kind = apitypes.KindAccessMonitoringRule
 
 	
 	name := accessMonitoringRuleResource.Metadata.Name

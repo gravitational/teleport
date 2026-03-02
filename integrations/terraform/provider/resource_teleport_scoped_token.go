@@ -210,6 +210,7 @@ func (r resourceTeleportScopedToken) Update(ctx context.Context, req tfsdk.Updat
 	}
 	scopedTokenResource := scopedToken
 
+	scopedTokenResource.Kind = apitypes.KindScopedToken
 
 	
 	name := scopedTokenResource.Metadata.Name
