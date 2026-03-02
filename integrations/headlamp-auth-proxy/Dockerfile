@@ -6,8 +6,6 @@ RUN go mod download
 COPY *.go ./
 RUN CGO_ENABLED=0 go build -o headlamp-auth-proxy .
 
-FROM alpine:3.21
-RUN apk add --no-cache ca-certificates
-COPY --from=builder /app/headlamp-auth-proxy /usr/local/bin/
-USER 65534:65534
-ENTRYPOINT ["headlamp-auth-proxy"]
+FROM gcr.io/distroless/static-debian12
+COPY --from=builder /app/headlamp-auth-proxy /
+ENTRYPOINT ["/headlamp-auth-proxy"]
