@@ -1,0 +1,50 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;padding:8px;background:transparent}
+.c{background:#fff;border-radius:8px;padding:12px 14px;color:#111}
+.h{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.logo{width:28px;height:28px;background:linear-gradient(135deg,#512FC9,#7B4FD9);border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;flex-shrink:0}
+.t{font-size:14px;font-weight:600;color:#111}.s{font-size:11px;color:#666;margin-top:1px}
+.r{margin-bottom:7px}.l{font-size:10px;text-transform:uppercase;color:#888;letter-spacing:.4px;margin-bottom:2px}
+.v{font-weight:500;color:#111;word-break:break-word}.b{background:#e8f4fd;color:#1a73e8;border-radius:3px;padding:1px 5px;font-size:11px;display:inline-block;margin:1px}
+</style></head><body>
+<div class="c"><div class="h"><div class="logo">T</div><div><div class="t">Teleport Demo</div><div class="s">Secure MCP access via Teleport</div></div></div>
+<div id="a">&#8230;</div></div>
+<script>(function(){
+var i=0,p={};
+window.addEventListener('message',function(e){
+  var m=e.data;if(!m||typeof m!='object')return;
+  if(m.id!=null&&p[m.id]){p[m.id](m.result);delete p[m.id];return}
+  if(m.method=='ui/notifications/tool-result')r(m.params);
+});
+function s(msg){window.parent.postMessage(msg,'*')}
+function q(method,params){return new Promise(function(res){var id=++i;p[id]=res;s({jsonrpc:'2.0',id:id,method:method,params:params||{}})})}
+function n(method,params){s({jsonrpc:'2.0',method:method,params:params||{}})}
+function x(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function resize(){n('ui/notifications/size-changed',{height:document.documentElement.scrollHeight})}
+function r(params){
+  var c=params&&params.content&&params.content[0];if(!c)return;
+  try{draw(JSON.parse(c.text))}catch(e){document.getElementById('a').textContent=c.text}
+}
+function draw(d){
+  var h='';
+  for(var k in d){
+    if(!Object.prototype.hasOwnProperty.call(d,k))continue;
+    var v=d[k];
+    if(Array.isArray(v)){
+      h+='<div class="r"><div class="l">'+x(k)+'</div><div>'+v.map(function(b){return'<span class="b">'+x(b)+'</span>'}).join('')+'</div></div>';
+    }else{
+      h+='<div class="r"><div class="l">'+x(k)+'</div><div class="v">'+x(v)+'</div></div>';
+    }
+  }
+  document.getElementById('a').innerHTML=h;
+  if(typeof ResizeObserver!='undefined'){
+    new ResizeObserver(resize).observe(document.body);
+  }else{
+    requestAnimationFrame(resize);
+  }
+}
+q('ui/initialize',{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']}})
+  .then(function(){n('ui/notifications/initialized')})
+  .catch(console.error);
+})();</script></body></html>
