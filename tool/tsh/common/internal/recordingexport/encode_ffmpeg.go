@@ -58,7 +58,7 @@ func NewFFMPEGEncoder(outputPrefix string, fps int) (*FFMPEGEncoder, error) {
 	}
 
 	if err := cmd.Start(); err != nil {
-		return nil, trace.BadParameter("ffmpeg is not available on this system. Install ffmpeg or use --encoder=avi to use the built-in AVI encoder")
+		return nil, trace.BadParameter("Could not start ffmpeg: confirm ffmpeg installation or use --encoder=avi to use the built-in AVI encoder")
 	}
 
 	return &FFMPEGEncoder{
@@ -87,12 +87,7 @@ func (f *FFMPEGEncoder) EmitFrames(img image.Image, count int) error {
 		// The bitmap encoding here just puts a header in front of the existing pixel data.
 		if err := bmp.Encode(f.stdin, img); err != nil {
 			// Close the input pipe. ffmpeg will finish any in-progress encoding and terminate.
-			f.stdin.Close()
-			f.cmd.Wait()
-
-			f.stdin = nil
-			f.cmd = nil
-
+			f.Close()
 			return trace.Wrap(err, "encoding bitmap frame")
 		}
 	}
