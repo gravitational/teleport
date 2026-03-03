@@ -124,6 +124,7 @@ func NewProcess(ctx context.Context, cmd *exec.Cmd, reexecErrorContext *reexec.E
 	}
 
 	if err := proc.waitReady(ctx); err != nil {
+		_ = proc.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -148,31 +149,31 @@ func (p *Process) start(ctx context.Context, reexecErrorContext *reexec.ErrorCon
 	defer remoteFD.Close()
 	p.cmd.ExtraFiles = append(p.cmd.ExtraFiles, remoteFD)
 
-	stderrr, stderrw, err := os.Pipe()
+	stderrReader, stderrWriter, err := os.Pipe()
 	if err != nil {
 		localConn.Close()
 		return trace.Wrap(err)
 	}
-	defer stderrw.Close()
-	p.cmd.Stderr = stderrw
+	defer stderrWriter.Close()
+	p.cmd.Stderr = stderrWriter
 
 	if err := p.cmd.Start(); err != nil {
 		localConn.Close()
-		stderrr.Close()
+		stderrReader.Close()
 		return trace.Wrap(err)
 	}
 
 	go func() {
 		defer close(p.done)
 		defer p.conn.Close()
-		defer stderrr.Close()
+		defer stderrReader.Close()
 
 		waitErr := p.cmd.Wait()
 		if waitErr == nil || p.killed.Load() {
 			return
 		}
 
-		childErr, err := reexec.ReadChildError(stderrr, reexecErrorContext)
+		childErr, err := reexec.ReadChildError(stderrReader, reexecErrorContext)
 		if err == nil && childErr != "" {
 			p.childErr = errors.New(childErr)
 			return
@@ -206,6 +207,9 @@ func (p *Process) waitReady(ctx context.Context) error {
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err(), "networking process failed to signal ready")
 	case <-p.done:
+		if p.childErr == nil {
+			return trace.BadParameter("networking process exited before signaling ready")
+		}
 		return p.childErr
 	}
 }
