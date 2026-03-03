@@ -111,9 +111,29 @@ func (a *AccessListMember) GetMetadata() types.Metadata {
 //
 // For the purposes of reconciliation, we only care that the user and target
 // AccessList match.
+// Right now this function is used in reconciliation flow where field
+// like eligibility status should be taken into account.
+//
+// Deprecated: Use IsEqualV2 or IsSameMember.
 func (a *AccessListMember) IsEqual(other *AccessListMember) bool {
 	return a.Spec.Name == other.Spec.Name &&
 		a.Spec.AccessList == other.Spec.AccessList
+}
+
+// IsEqualRef checks if two AccessListMembers refer to the same member identity.
+// It compares the identifying fields (Name and AccessList) to determine if both
+// members represent the same user in the same access list, regardless of other
+// attributes like expiration, reason, eligibility status, or membership kind.
+//
+// Use IsEqualV2 when you need to detect any differences between members,
+// including changes to expiration dates, reasons, or other metadata.
+func (a *AccessListMember) IsEqualRef(other *AccessListMember) bool {
+	return a.Spec.Name == other.Spec.Name && a.Spec.AccessList == other.Spec.AccessList
+}
+
+// IsEqualV2 performs full equality comparison between Member reference.
+func (a *AccessListMember) IsEqualV2(other *AccessListMember) bool {
+	return deriveTeleportEqualAccessListMember(a, other)
 }
 
 // MatchSearch goes through select field values of a resource

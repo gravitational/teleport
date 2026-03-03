@@ -15,6 +15,14 @@ func deriveTeleportEqualAccessList(this, that *AccessList) bool {
 			deriveTeleportEqual_(&this.Spec, &that.Spec)
 }
 
+// deriveTeleportEqualAccessListMember returns whether this and that are equal.
+func deriveTeleportEqualAccessListMember(this, that *AccessListMember) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			deriveTeleportEqual(&this.ResourceHeader, &that.ResourceHeader) &&
+			deriveTeleportEqual_1(&this.Spec, &that.Spec)
+}
+
 // deriveDeepCopyAccessList recursively copies the contents of src into dst.
 func deriveDeepCopyAccessList(dst, src *AccessList) {
 	func() {
@@ -69,7 +77,7 @@ func deriveTeleportEqual(this, that *header.ResourceHeader) bool {
 			this.Kind == that.Kind &&
 			this.SubKind == that.SubKind &&
 			this.Version == that.Version &&
-			deriveTeleportEqual_1(&this.Metadata, &that.Metadata)
+			deriveTeleportEqual_2(&this.Metadata, &that.Metadata)
 }
 
 // deriveTeleportEqual_ returns whether this and that are equal.
@@ -79,12 +87,27 @@ func deriveTeleportEqual_(this, that *Spec) bool {
 			this.Type == that.Type &&
 			this.Title == that.Title &&
 			this.Description == that.Description &&
-			deriveTeleportEqual_2(this.Owners, that.Owners) &&
-			deriveTeleportEqual_3(&this.Audit, &that.Audit) &&
-			deriveTeleportEqual_4(&this.MembershipRequires, &that.MembershipRequires) &&
-			deriveTeleportEqual_4(&this.OwnershipRequires, &that.OwnershipRequires) &&
-			deriveTeleportEqual_5(&this.Grants, &that.Grants) &&
-			deriveTeleportEqual_5(&this.OwnerGrants, &that.OwnerGrants)
+			deriveTeleportEqual_3(this.Owners, that.Owners) &&
+			deriveTeleportEqual_4(&this.Audit, &that.Audit) &&
+			deriveTeleportEqual_5(&this.MembershipRequires, &that.MembershipRequires) &&
+			deriveTeleportEqual_5(&this.OwnershipRequires, &that.OwnershipRequires) &&
+			deriveTeleportEqual_6(&this.Grants, &that.Grants) &&
+			deriveTeleportEqual_6(&this.OwnerGrants, &that.OwnerGrants)
+}
+
+// deriveTeleportEqual_1 returns whether this and that are equal.
+func deriveTeleportEqual_1(this, that *AccessListMemberSpec) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.AccessList == that.AccessList &&
+			this.Name == that.Name &&
+			this.Title == that.Title &&
+			this.Joined.Equal(that.Joined) &&
+			this.Expires.Equal(that.Expires) &&
+			this.Reason == that.Reason &&
+			this.AddedBy == that.AddedBy &&
+			this.IneligibleStatus == that.IneligibleStatus &&
+			this.MembershipKind == that.MembershipKind
 }
 
 // deriveDeepCopy recursively copies the contents of src into dst.
@@ -268,18 +291,18 @@ func deriveDeepCopy_3(dst, src *ReviewSpec) {
 	}()
 }
 
-// deriveTeleportEqual_1 returns whether this and that are equal.
-func deriveTeleportEqual_1(this, that *header.Metadata) bool {
+// deriveTeleportEqual_2 returns whether this and that are equal.
+func deriveTeleportEqual_2(this, that *header.Metadata) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.Name == that.Name &&
 			this.Description == that.Description &&
-			deriveTeleportEqual_6(this.Labels, that.Labels) &&
+			deriveTeleportEqual_7(this.Labels, that.Labels) &&
 			this.Expires.Equal(that.Expires)
 }
 
-// deriveTeleportEqual_2 returns whether this and that are equal.
-func deriveTeleportEqual_2(this, that []Owner) bool {
+// deriveTeleportEqual_3 returns whether this and that are equal.
+func deriveTeleportEqual_3(this, that []Owner) bool {
 	if this == nil || that == nil {
 		return this == nil && that == nil
 	}
@@ -294,8 +317,8 @@ func deriveTeleportEqual_2(this, that []Owner) bool {
 	return true
 }
 
-// deriveTeleportEqual_3 returns whether this and that are equal.
-func deriveTeleportEqual_3(this, that *Audit) bool {
+// deriveTeleportEqual_4 returns whether this and that are equal.
+func deriveTeleportEqual_4(this, that *Audit) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.NextAuditDate.Equal(that.NextAuditDate) &&
@@ -303,20 +326,20 @@ func deriveTeleportEqual_3(this, that *Audit) bool {
 			this.Notifications == that.Notifications
 }
 
-// deriveTeleportEqual_4 returns whether this and that are equal.
-func deriveTeleportEqual_4(this, that *Requires) bool {
+// deriveTeleportEqual_5 returns whether this and that are equal.
+func deriveTeleportEqual_5(this, that *Requires) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
-			deriveTeleportEqual_7(this.Roles, that.Roles) &&
-			deriveTeleportEqual_8(this.Traits, that.Traits)
+			deriveTeleportEqual_8(this.Roles, that.Roles) &&
+			deriveTeleportEqual_9(this.Traits, that.Traits)
 }
 
-// deriveTeleportEqual_5 returns whether this and that are equal.
-func deriveTeleportEqual_5(this, that *Grants) bool {
+// deriveTeleportEqual_6 returns whether this and that are equal.
+func deriveTeleportEqual_6(this, that *Grants) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
-			deriveTeleportEqual_7(this.Roles, that.Roles) &&
-			deriveTeleportEqual_8(this.Traits, that.Traits)
+			deriveTeleportEqual_8(this.Roles, that.Roles) &&
+			deriveTeleportEqual_9(this.Traits, that.Traits)
 }
 
 // deriveDeepCopy_4 recursively copies the contents of src into dst.
@@ -439,8 +462,8 @@ func deriveDeepCopy_9(dst, src *ReviewChanges) {
 	dst.ReviewDayOfMonthChanged = src.ReviewDayOfMonthChanged
 }
 
-// deriveTeleportEqual_6 returns whether this and that are equal.
-func deriveTeleportEqual_6(this, that map[string]string) bool {
+// deriveTeleportEqual_7 returns whether this and that are equal.
+func deriveTeleportEqual_7(this, that map[string]string) bool {
 	if this == nil || that == nil {
 		return this == nil && that == nil
 	}
@@ -459,8 +482,8 @@ func deriveTeleportEqual_6(this, that map[string]string) bool {
 	return true
 }
 
-// deriveTeleportEqual_7 returns whether this and that are equal.
-func deriveTeleportEqual_7(this, that []string) bool {
+// deriveTeleportEqual_8 returns whether this and that are equal.
+func deriveTeleportEqual_8(this, that []string) bool {
 	if this == nil || that == nil {
 		return this == nil && that == nil
 	}
@@ -475,8 +498,8 @@ func deriveTeleportEqual_7(this, that []string) bool {
 	return true
 }
 
-// deriveTeleportEqual_8 returns whether this and that are equal.
-func deriveTeleportEqual_8(this, that map[string][]string) bool {
+// deriveTeleportEqual_9 returns whether this and that are equal.
+func deriveTeleportEqual_9(this, that map[string][]string) bool {
 	if this == nil || that == nil {
 		return this == nil && that == nil
 	}
@@ -488,7 +511,7 @@ func deriveTeleportEqual_8(this, that map[string][]string) bool {
 		if !ok {
 			return false
 		}
-		if !(deriveTeleportEqual_7(v, thatv)) {
+		if !(deriveTeleportEqual_8(v, thatv)) {
 			return false
 		}
 	}
