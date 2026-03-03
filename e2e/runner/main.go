@@ -81,16 +81,8 @@ type e2eConfig struct {
 // run sets up the test environment (ports, certs, credentials, teleport instance)
 // and hands off to the Playwright runner in whatever mode was requested.
 func run() error {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		slog.Info("received signal, shutting down")
-		cancel()
-	}()
 
 	e2eDir, err := resolveE2EDir()
 	if err != nil {
