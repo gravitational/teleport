@@ -304,10 +304,22 @@ Use this method to install Teleport through your system's package manager.
 
      <TabItem label="dnf">
      ```code
-     $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
-     $ sudo yum install -y yum-utils
-     $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/${TELEPORT_CHANNEL?}/teleport.repo")"
-     $ sudo dnf install ${TELEPORT_PKG}
+     # Ensure config-manager exists
+     $ sudo dnf install -y dnf-plugins-core
+
+     $ Use RHEL repo path + major version
+     $ export TELEPORT_VERSION=v18
+     $ export TELEPORT_CHANNEL="stable/${TELEPORT_VERSION}"
+
+     $ REPO_ID="rhel"
+     $ REPO_VERSION_ID="$(echo "$VERSION_ID" | grep -Eo '^[0-9]+')"   # "8.10" -> "8"
+     $ ARCH="$(rpm --eval '%{_arch}')"
+
+     $ sudo dnf config-manager --add-repo \ 
+       "https://yum.releases.teleport.dev/${REPO_ID}/${REPO_VERSION_ID}/Teleport/${ARCH}/${TELEPORT_CHANNEL}/teleport.repo"
+
+     # Install
+     $ sudo dnf install -y "${TELEPORT_PKG?}"   # e.g., teleport / teleport-ent
      ```
      </TabItem>
 
@@ -315,21 +327,21 @@ Use this method to install Teleport through your system's package manager.
      Note: Teleport currently provides RPM packages for SLES 15.
      On newer SLES releases (for example, SLES 16), use the sles/15 repository path.
      ```code
-      export TELEPORT_VERSION=v18
-      export TELEPORT_CHANNEL="stable/${TELEPORT_VERSION}"
-      export TELEPORT_PKG=teleport   # or teleport-ent
+     $ export TELEPORT_VERSION=v18
+     $ export TELEPORT_CHANNEL="stable/${TELEPORT_VERSION}"
+     $ export TELEPORT_PKG=teleport   # or teleport-ent
 
-      ARCH="$(rpm --eval '%{_arch}')"
+     $ ARCH="$(rpm --eval '%{_arch}')"
 
-      sudo zypper ar -f -t rpm-md \
+     $ sudo zypper ar -f -t rpm-md \
         "https://zypper.releases.teleport.dev/sles/15/Teleport/${ARCH}/${TELEPORT_CHANNEL}/" \
-        teleport
+         teleport
 
-      # IMPORTANT: repo does not define `gpgkey=` URLs; import key explicitly
-      sudo rpm --import https://zypper.releases.teleport.dev/gpg
+     # IMPORTANT: repo does not define `gpgkey=` URLs; import key explicitly
+     $ sudo rpm --import https://zypper.releases.teleport.dev/gpg
 
-      sudo zypper refresh teleport
-      sudo zypper install -y "${TELEPORT_PKG?}"
+     $ sudo zypper refresh teleport
+     $ sudo zypper install -y "${TELEPORT_PKG?}"
      ```
      </TabItem>
    </Tabs>
