@@ -3503,6 +3503,11 @@
       "source": "/enroll-resources/database-access/guides/ha/",
       "destination": "/enroll-resources/agents/high-availability/",
       "permanent": true
+    },
+    {
+      "source": "/docs/reference/infrastructure-as-code/teleport-resources/saml-idpservice-provider-v1/",
+      "destination": "/docs/reference/infrastructure-as-code/teleport-resources/saml-idp-service-provider-v1/",
+      "permanent": true
     }
   ]
 }
