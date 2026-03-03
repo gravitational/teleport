@@ -63,6 +63,9 @@ type UploadHandler interface {
 	DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error
 }
 
+// TODO(tigrato): remove this type once `e` no longer references it.
+type RandomAccessWriter = io.Writer
+
 // MultipartHandler handles both multipart and standalone uploads and
 // downloads.
 type MultipartHandler interface {
