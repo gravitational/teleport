@@ -46,20 +46,6 @@ const GlobalStyle = createGlobalStyle`
     }
   }
 
-  // custom scrollbars with the ability to use the default scrollbar behavior via adding the attribute [data-scrollbar=default]
-  :not([data-scrollbar="default"])::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  :not([data-scrollbar="default"])::-webkit-scrollbar-thumb {
-    background: #757575;
-  }
-
-  :not([data-scrollbar="default"])::-webkit-scrollbar-corner {
-    background: rgba(0,0,0,0.5);
-  }
-
   :root {
     color-scheme: ${props =>
       props.theme
