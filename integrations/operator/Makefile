@@ -50,6 +50,8 @@ PLATFORM_BUILDBOX ?= $(BUILDBOX_ARM)
 endif
 endif
 
+TEST_LOG_DIR ?= ${abspath ./test-logs}
+
 .PHONY: all
 all: build
 
@@ -138,11 +140,14 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
+$(TEST_LOG_DIR):
+	mkdir $(TEST_LOG_DIR)
+
 .PHONY: test
-test: manifests generate fmt vet $(ENVTEST) crdgen-test ## Run tests.
+test: manifests generate fmt vet $(ENVTEST) crdgen-test |  $(TEST_LOG_DIR) ## Run tests.
 test: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
 test:
-	gotestsum --junitfile unit-tests-operator.xml --jsonfile unit-tests-operator.json
+	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-operator.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-operator.json
 
 .PHONY: echo-kubebuilder-assets
 echo-kubebuilder-assets:
