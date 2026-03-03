@@ -500,16 +500,59 @@ cluster resources using `tsh ssh`, `kubectl exec`, `tsh db connect`, or a web
 terminal. Start an interactive session and execute any command, quit the
 session, and go to **Audit -> Session Recordings**. You should see the
 corresponding recording tile with a summary button
-![summary button](../../img/identity-security/summary-button.png). Clicking the
+![summary button](https://website.goteleport.com/_uploads/session_summary_sparkle_dc77016a68.png). Clicking the
 summary button will show the summary.
 
-![Session recording list screen with a summary visible](../../img/identity-security/rec-list-with-summary.png)
+![Session recording list screen with a summary visible](https://website.goteleport.com/_uploads/session_summary_list_3fe0cae7ac.png)
+![Session Detail with High Alert](https://website.goteleport.com/_uploads/session_timeline_high_0755c66e78.png)
 
 <Admonition type="info">
 It can take a while to generate a summary, and the time depends on multiple
 factors, including session size, model, and its temperature. Usually it should
 appear up to a minute after the session is uploaded to the Auth service.
 </Admonition>
+
+## Audit Events for Session Summaries
+
+After a session is summarized, an audit event is generated. This allows you to
+forward events to a SIEM to alert the high severivity sessions. 
+
+```json
+// Example Session Summarization with a critical risk level.
+{
+  "cluster_name": "example.teleport.com",
+  "code": "INF010I",
+  "db_protocol": "",
+  "db_uri": "",
+  "ei": 1771606438680848100,
+  "event": "session.summarized",
+  "inference_finished_at": "2026-02-20T16:53:58.583618024Z",
+  "inference_started_at": "2026-02-20T16:53:15.970015278Z",
+  "model_name": "shell-summary-model",
+  "namespace": "default",
+  "risk_level": "CRITICAL",
+  "server_hostname": "wasabi-db-host",
+  "server_id": "46bdf6db-0b55-4e62-9dcc-32b0958df696",
+  "server_labels": {
+    "cloud": "aws",
+    "env": "prod",
+    "teleport.dev/account-id": "981262289404",
+    "teleport.dev/instance-id": "i-0e94eeb1ff1f46dd7",
+    "type": "teleport-postgres"
+  },
+  "server_sub_kind": "teleport",
+  "server_version": "18.7.0",
+  "session_type": "ssh",
+  "short_description": "Credential harvesting followed by data exfiltration to command-and-control infrastructure with evidence destruction",
+  "sid": "33610f89-096e-4708-9b43-c4b00e7c9c4f",
+  "success": true,
+  "time": "2026-02-20T16:53:58.671136904Z",
+  "uid": "1a3813e0-53a6-4dfa-807c-da6e76215937",
+  "username": "benarent"
+}
+```
+
+![Session Summary in Teleport Identity Security Investigate View](https://website.goteleport.com/_uploads/session_audit_event_fa6a9e68cc.png)
 
 ## Limitations
 
