@@ -151,11 +151,9 @@ func (u *UserMonitor) run(ctx context.Context) {
 	for {
 		err := backend.RunWhileLocked(ctx, runWhileLockedConfig, func(ctx context.Context) error {
 			var wg sync.WaitGroup
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				u.runWatcher(ctx)
-			}()
+			})
 			u.reconciler(ctx)
 			wg.Wait()
 			return nil

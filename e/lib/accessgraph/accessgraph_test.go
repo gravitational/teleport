@@ -125,10 +125,8 @@ func Test_tagEventWatcher_Send_Concurrent(t *testing.T) {
 	require.Empty(t, mock.events)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
 	// Send a bunch of events concurrently
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 
 		for i := 100; i < 200; i++ {
 			err := eventWatcher.Send(types.Event{Type: types.OpPut,
@@ -136,7 +134,7 @@ func Test_tagEventWatcher_Send_Concurrent(t *testing.T) {
 			})
 			assert.NoError(t, err)
 		}
-	}()
+	})
 
 	// Mark ready. This should flush the cache and send all events
 	err = eventWatcher.markReady()

@@ -65,9 +65,7 @@ func TestSingleProcessLocker(t *testing.T) {
 		var wg sync.WaitGroup
 
 		for i := 0; i < goroutineCount; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 
 				unlock, err := locker.Acquire(t.Context(), "key")
 				require.NoError(t, err)
@@ -80,7 +78,7 @@ func TestSingleProcessLocker(t *testing.T) {
 				concurrentCount--
 
 				require.NoError(t, unlock(t.Context()))
-			}()
+			})
 		}
 		wg.Wait()
 		require.Equal(t, 1, maxConcurrent)

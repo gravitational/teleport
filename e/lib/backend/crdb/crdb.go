@@ -174,11 +174,9 @@ func newFromConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		cancel:     cancel,
 	}
 
-	bk.wg.Add(1)
-	go func() {
-		defer bk.wg.Done()
+	bk.wg.Go(func() {
 		bk.backgroundChangeFeed(ctx)
-	}()
+	})
 
 	return bk, nil
 }

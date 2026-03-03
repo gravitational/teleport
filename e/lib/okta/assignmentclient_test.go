@@ -357,13 +357,11 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 		// for the same user and app.
 		var wg sync.WaitGroup
 		for range numOfParallelCalls {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				ok, err := assignmentClient.userAssignedToApp(ctx, "username1", "testApp")
 				assert.NoError(t, err)
 				assert.True(t, ok)
-			}()
+			})
 		}
 		wg.Wait()
 
