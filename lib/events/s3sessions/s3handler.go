@@ -266,14 +266,12 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	client := s3.NewFromConfig(awsConfig, s3Opts...)
 
 	uploader := manager.NewUploader(client)
-	downloader := manager.NewDownloader(client)
 
 	h := &Handler{
-		logger:     logger,
-		Config:     cfg,
-		uploader:   uploader,
-		downloader: downloader,
-		client:     client,
+		logger:   logger,
+		Config:   cfg,
+		uploader: uploader,
+		client:   client,
 	}
 
 	start := time.Now()
@@ -300,10 +298,9 @@ type Handler struct {
 	// Config is handler configuration
 	Config
 	// logger emits log messages
-	logger     *slog.Logger
-	uploader   *manager.Uploader
-	downloader *manager.Downloader
-	client     s3Client
+	logger   *slog.Logger
+	uploader *manager.Uploader
+	client   s3Client
 }
 
 // Close releases connection and resources associated with log if any
@@ -339,7 +336,7 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 
 // Download downloads recorded session from S3 bucket and writes the results
 // into writer return trace.NotFound error is object is not found.
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	// Get the oldest version of this object. This has to be done because S3
 	// allows overwriting objects in a bucket. To prevent corruption of recording
 	// data, get all versions and always return the first.
@@ -350,15 +347,99 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.
 
 	h.logger.DebugContext(ctx, "Downloading recording from S3", "bucket", h.Bucket, "path", h.path(sessionID), "version_id", versionID)
 
-	_, err = h.downloader.Download(ctx, writer, &s3.GetObjectInput{
-		Bucket:    aws.String(h.Bucket),
-		Key:       aws.String(h.path(sessionID)),
-		VersionId: aws.String(versionID),
-	})
+	err = h.downloadFile(ctx, h.path(sessionID), writer, aws.String(versionID))
 	if err != nil {
 		return awsutils.ConvertS3Error(err)
 	}
 	return nil
+}
+
+func (h *Handler) downloadFile(
+	ctx context.Context, path string, writer io.Writer, versionID *string,
+) error {
+	// maxDownloadRetries is the maximum number of retries for the body.
+	const maxDownloadRetries = 3
+
+	// get the file head to find out the size.
+	headInput := &s3.HeadObjectInput{
+		Bucket:    aws.String(h.Bucket),
+		Key:       aws.String(path),
+		VersionId: versionID,
+	}
+
+	headOutput, err := h.client.HeadObject(ctx, headInput)
+	if err != nil {
+		return awsutils.ConvertS3Error(err)
+	}
+
+	contentLength := aws.ToInt64(headOutput.ContentLength)
+	if contentLength == 0 {
+		return nil
+	}
+
+	// offset tracks how many bytes have been successfully copied to the writer so far
+	var offset int64
+	var lastErr error
+	for attempt := range maxDownloadRetries {
+		if err := ctx.Err(); err != nil {
+			return trace.Wrap(err)
+		}
+		if attempt > 0 {
+			h.logger.DebugContext(ctx, "Retrying download from last position",
+				"bucket", h.Bucket,
+				"path", path,
+				"offset", offset,
+				"attempt", attempt+1,
+			)
+		}
+
+		// send the range header to download only the remaining part of the file
+		rangeStr := fmt.Sprintf("bytes=%d-%d", offset, contentLength-1)
+
+		getInput := &s3.GetObjectInput{
+			Bucket:    aws.String(h.Bucket),
+			Key:       aws.String(path),
+			VersionId: versionID,
+			Range:     aws.String(rangeStr),
+		}
+
+		output, err := h.client.GetObject(ctx, getInput)
+		if err != nil {
+			return trace.Wrap(awsutils.ConvertS3Error(err))
+		}
+
+		// copy the body to the writer
+		n, err := io.Copy(writer, output.Body)
+		_ = output.Body.Close()
+
+		offset += n
+
+		if err != nil {
+			// If we haven't reached the end, continue
+			// the AWS manager.Downloader retries on every error when reading the error.
+			if offset < contentLength {
+				lastErr = err
+				continue
+			}
+			return trace.Wrap(err)
+		}
+
+		if offset < contentLength {
+			lastErr = fmt.Errorf("downloaded %d bytes, expected %d", offset, contentLength)
+			continue
+		}
+
+		// this case should never happen given that we force the version and the file
+		// shouldn't be changing under us, but if it does, we want to know about it
+		//  instead of silently truncating the recording
+		if offset != contentLength {
+			return trace.BadParameter("expected %d bytes, got %d when downloading file %q", contentLength, offset, path)
+		}
+
+		return nil
+	}
+
+	return trace.Wrap(lastErr, "failed to download file after %d attempts", maxDownloadRetries)
 }
 
 // versionID is used to store versions of a key to allow sorting by timestamp.

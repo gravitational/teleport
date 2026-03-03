@@ -68,7 +68,7 @@ type MemoryUpload struct {
 	parts map[int64]part
 	// sessionID is the session ID associated with the upload
 	sessionID session.ID
-	//completed specifies upload as completed
+	// completed specifies upload as completed
 	completed bool
 	// Initiated contains the timestamp of when the upload
 	// was initiated, not always initialized
@@ -269,7 +269,7 @@ func (m *MemoryUploader) Upload(ctx context.Context, sessionID session.ID, readC
 }
 
 // Download downloads session tarball and writes it to writer
-func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -277,7 +277,7 @@ func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, wri
 	if !ok {
 		return trace.NotFound("session %q is not found", sessionID)
 	}
-	_, err := io.Copy(writer.(io.Writer), bytes.NewReader(data))
+	_, err := io.Copy(writer, bytes.NewReader(data))
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
