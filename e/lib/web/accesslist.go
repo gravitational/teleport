@@ -489,7 +489,7 @@ func getAccessListNoMFACtx(ctx context.Context, clt services.AccessLists, name s
 }
 
 // listUserAccessLists is the handler for GET /enterprise/users/:username/accesslists.
-func (p *Plugin) listUserAccessLists(_ http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
+func (p *Plugin) listUserAccessLists(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *web.SessionContext) (any, error) {
 
 	username := params.ByName("username")
 	if username == "" {
@@ -505,12 +505,8 @@ func (p *Plugin) listUserAccessLists(_ http.ResponseWriter, r *http.Request, par
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := p.getAuthClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	aclClient := getAccessListServiceClient(sctx)
 
-	aclClient := accesslistv1.NewAccessListServiceClient(clt.GetConnection())
 	resp, err := aclClient.ListUserAccessLists(r.Context(), &accesslistv1.ListUserAccessListsRequest{
 		Username:  username,
 		PageSize:  limit,

@@ -799,3 +799,84 @@ func getAccessList(t *testing.T, webPack *authWebPack, s *webSuite, accessListNa
 
 	return accessListResp
 }
+
+func TestListUserAccessLists(t *testing.T) {
+	testModules := &modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	}
+	modulestest.SetTestModules(t, *testModules)
+
+	s := newWebSuite(t,
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+		withModules(testModules),
+	)
+
+	webPack := s.newAuthWebPack(t, "foo")
+	authClient := s.newAdminAuthClient(s.ctx, t)
+
+	ctx := context.Background()
+
+	_ = createUser(t, s, "alice")
+
+	accessListConfigs := []struct {
+		name   string
+		owners []accesslist.Owner
+		roles  []string
+	}{
+		{
+			name:   "apple",
+			owners: []accesslist.Owner{{Name: "alice", Description: "alice desc"}},
+			roles:  []string{"viewer"},
+		},
+		{
+			name:   "banana",
+			owners: []accesslist.Owner{{Name: "bob", Description: "bob desc"}},
+			roles:  []string{"editor"},
+		},
+		{
+			name:   "cherry",
+			owners: []accesslist.Owner{{Name: "alice", Description: "alice desc"}},
+			roles:  []string{"admin"},
+		},
+	}
+
+	for _, config := range accessListConfigs {
+		accessList, err := accesslist.NewAccessList(header.Metadata{Name: config.name}, accesslist.Spec{
+			Title:             config.name,
+			Audit:             accesslist.Audit{NextAuditDate: s.clock.Now()},
+			Owners:            config.owners,
+			OwnershipRequires: accesslist.Requires{},
+			Grants:            accesslist.Grants{Roles: config.roles},
+		})
+		require.NoError(t, err)
+		_, err = authClient.AccessListClient().UpsertAccessList(ctx, accessList)
+		require.NoError(t, err)
+	}
+
+	endpoint := webPack.clt.Endpoint("enterprise", "users", "alice", "accesslists")
+	resp, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	// returns alice's 'owned' ACLs for admin
+	var accessListResp ui.AccessListsResponse
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &accessListResp))
+	require.Len(t, accessListResp.AccessLists, 2)
+	for i, expectedName := range []string{"apple", "cherry"} {
+		require.Equal(t, expectedName, accessListResp.AccessLists[i].GetName())
+	}
+
+	// returns error for unauthorized user
+	bob := createUser(t, s, "bob")
+	bobWebClt := s.newAuthWebPack(t, bob.GetName(), skipUserCreation()).clt
+
+	endpoint = bobWebClt.Endpoint("enterprise", "users", "alice", "accesslists")
+	resp, err = bobWebClt.Get(s.ctx, endpoint, url.Values{})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+	require.Equal(t, http.StatusForbidden, resp.Code())
+}
