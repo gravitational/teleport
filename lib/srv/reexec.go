@@ -944,6 +944,7 @@ func getConnFile(conn net.Conn) (*os.File, error) {
 // runCheckHomeDir checks if the active user's $HOME dir exists and is accessible.
 func runCheckHomeDir() (code int, err error) {
 	code = teleport.RemoteCommandSuccess
+	fmt.Fprintln(os.Stderr, "runCheckHomeDir started")
 	if err := hasAccessibleHomeDir(); err != nil {
 		switch {
 		case trace.IsNotFound(err), trace.IsBadParameter(err):
@@ -954,6 +955,7 @@ func runCheckHomeDir() (code int, err error) {
 			code = teleport.RemoteCommandFailure
 		}
 	}
+	fmt.Fprintf(os.Stderr, "hasAccessibleHomeDir returned an error: %v\n", err)
 
 	return code, nil
 }
@@ -1192,19 +1194,15 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	// they don't have an existing home dir.
 	// TODO (atburke): Generalize this to support Windows.
 	hasAccess, err := CheckHomeDir(localUser)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if hasAccess {
-		cmd.Dir = localUser.HomeDir
-	} else {
+	if err != nil || !hasAccess {
 		// Write failure to find home dir to stdout, same as OpenSSH.
-		msg := fmt.Sprintf("Could not set shell's cwd to home directory %q, defaulting to %q\n", localUser.HomeDir, rootDirectory)
+		msg := fmt.Sprintf("Could not set shell's cwd to home directory %q, defaulting to %q\nERROR: %v", localUser.HomeDir, rootDirectory, err)
 		if _, err := cmd.Stdout.Write([]byte(msg)); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		cmd.Dir = rootDirectory
+	} else {
+		cmd.Dir = localUser.HomeDir
 	}
 
 	// Only set process credentials if the UID/GID of the requesting user are
