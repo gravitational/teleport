@@ -30,6 +30,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 
 	"github.com/gravitational/trace"
 	mcpclient "github.com/mark3labs/mcp-go/client"
@@ -42,7 +43,6 @@ import (
 	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
-	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 func TestMain(m *testing.M) {

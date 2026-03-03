@@ -19,6 +19,7 @@ package joining
 import (
 	"cmp"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"slices"
 	"time"
@@ -35,10 +36,6 @@ var rolesSupportingScopes = types.SystemRoles{
 	types.RoleNode,
 }
 
-var joinMethodsSupportingScopes = map[string]struct{}{
-	string(types.JoinMethodToken): {},
-}
-
 // TokenUsageMode represents the possible usage modes of a scoped token.
 type TokenUsageMode string
 
@@ -48,6 +45,46 @@ const (
 	// TokenUsageModeUnlimited denotes a token that can provision any number of resources.
 	TokenUsageModeUnlimited = "unlimited"
 )
+
+func validateJoinMethod(token *joiningv1.ScopedToken) error {
+
+	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
+	case types.JoinMethodToken:
+		if token.GetStatus().GetSecret() == "" {
+			return trace.BadParameter("secret value must be defined for a scoped token when using the token join method")
+		}
+	case types.JoinMethodEC2:
+		ttl := token.GetSpec().GetAws().GetIidTtl()
+		if _, err := types.ParseDuration(ttl); ttl != "" && err != nil {
+			return trace.BadParameter("invalid IID TTL value %q, must be empty or a valid duration string (e.g. 30m, 12h, 1mo)", ttl)
+		}
+		fallthrough
+	case types.JoinMethodIAM:
+		if len(token.GetSpec().GetAws().GetAllow()) == 0 {
+			return trace.BadParameter("aws configuration must be defined for a scoped token when using the ec2 or iam join methods")
+		}
+	case types.JoinMethodGCP:
+		if len(token.GetSpec().GetGcp().GetAllow()) == 0 {
+			return trace.BadParameter("gcp configuration must be defined for a scoped token when using the gcp join method")
+		}
+	case types.JoinMethodAzure:
+		if len(token.GetSpec().GetAzure().GetAllow()) == 0 {
+			return trace.BadParameter("azure configuration must be defined for a scoped token when using the azure join method")
+		}
+	case types.JoinMethodAzureDevops:
+		if len(token.GetSpec().GetAzureDevops().GetAllow()) == 0 {
+			return trace.BadParameter("azure_devops configuration must be defined for a scoped token when using the azure_devops join method")
+		}
+	case types.JoinMethodOracle:
+		if len(token.GetSpec().GetOracle().GetAllow()) == 0 {
+			return trace.BadParameter("oracle configuration must be defined for a scoped token when using the oracle join method")
+		}
+	default:
+		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
+	}
+
+	return nil
+}
 
 // StrongValidateToken checks if the scoped token is well-formed according to
 // all scoped token rules. This function *must* be used to validate any scoped
@@ -89,12 +126,8 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.BadParameter("scoped token assigned scope must be descendant of its resource scope")
 	}
 
-	if _, ok := joinMethodsSupportingScopes[spec.JoinMethod]; !ok {
-		return trace.BadParameter("join method %q does not support scoping", spec.JoinMethod)
-	}
-
-	if token.GetStatus().GetSecret() == "" && types.JoinMethod(spec.JoinMethod) == types.JoinMethodToken {
-		return trace.BadParameter("secret value must be defined for a scoped token when using the token join method")
+	if err := validateJoinMethod(token); err != nil {
+		return trace.Wrap(err)
 	}
 
 	switch TokenUsageMode(spec.GetUsageMode()) {
@@ -148,8 +181,8 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.BadParameter("scoped token must have at least one role")
 	}
 
-	if _, ok := joinMethodsSupportingScopes[token.GetSpec().GetJoinMethod()]; !ok {
-		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
+	if err := validateJoinMethod(token); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -179,6 +212,33 @@ func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 		if reusableUntil.AsTime().Before(now) {
 			return trace.Wrap(ErrTokenExhausted)
 		}
+	}
+
+	return nil
+}
+
+// ValidateTokenUpdate checks for invalid updates between two tokens.
+// If the scope, usage mode, or secret was changed between two token updates,
+// a trace.BadParameter error is returned.
+func ValidateTokenUpdate(oldToken *joiningv1.ScopedToken, newToken *joiningv1.ScopedToken) error {
+	if newToken == nil {
+		return trace.BadParameter("new token is invalid")
+	}
+	// no old token to compare to so we assume that the new token is valid and no need for additional checks
+	if oldToken == nil {
+		return nil
+	}
+	tokenName := newToken.GetMetadata().GetName()
+	if oldToken.GetScope() != newToken.GetScope() {
+		return trace.BadParameter("cannot modify scope of existing scoped token %s with scope %s to %s", tokenName, oldToken.GetScope(), newToken.GetScope())
+	}
+
+	if oldToken.GetSpec().GetUsageMode() != newToken.GetSpec().GetUsageMode() {
+		return trace.BadParameter("cannot modify usage mode of existing scoped token %s from usage mode %s to %s", tokenName, oldToken.GetSpec().GetUsageMode(), newToken.GetSpec().GetUsageMode())
+	}
+
+	if oldToken.GetStatus().GetSecret() != newToken.GetStatus().GetSecret() {
+		return trace.BadParameter("cannot modify secret of existing scoped token %s", tokenName)
 	}
 
 	return nil
@@ -268,25 +328,112 @@ func (t *Token) GetAssignedScope() string {
 	return t.scoped.GetSpec().GetAssignedScope()
 }
 
+// GetSecret returns the token's secret value.
+func (t *Token) GetSecret() (string, bool) {
+	return t.scoped.GetStatus().GetSecret(), t.GetJoinMethod() == types.JoinMethodToken
+}
+
 // GetAllowRules returns the list of allow rules.
-func (t *Token) GetAllowRules() []*types.TokenRule {
-	return nil
+func (t *Token) GetAWSAllowRules() []*types.TokenRule {
+	allow := make([]*types.TokenRule, len(t.scoped.GetSpec().GetAws().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetAws().GetAllow() {
+		allow[i] = &types.TokenRule{
+			AWSAccount:        rule.GetAwsAccount(),
+			AWSRegions:        rule.GetAwsRegions(),
+			AWSRole:           rule.GetAwsRole(),
+			AWSARN:            rule.GetAwsArn(),
+			AWSOrganizationID: rule.GetAwsOrganizationId(),
+		}
+	}
+
+	return allow
 }
 
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (t *Token) GetAWSIIDTTL() types.Duration {
-	return types.NewDuration(0)
+	ttl, err := types.ParseDuration(t.scoped.GetSpec().GetAws().GetIidTtl())
+	if err != nil {
+		// if parsing fails for any reason (including an empty value) we fallback to the 5 minute default
+		return types.Duration(5 * time.Minute)
+	}
+
+	return ttl
 }
 
 // GetIntegration returns the Integration field which is used to provide
 // credentials that will be used when validating the AWS Organization if required by an IAM Token.
 func (t *Token) GetIntegration() string {
-	return ""
+	return t.scoped.GetSpec().GetAws().GetIntegration()
 }
 
-// GetSecret returns the token's secret value.
-func (t *Token) GetSecret() (string, bool) {
-	return t.scoped.GetStatus().GetSecret(), t.GetJoinMethod() == types.JoinMethodToken
+// GetGCPRules returns the GCP-specific configuration for this token.
+func (t *Token) GetGCPRules() *types.ProvisionTokenSpecV2GCP {
+	allow := make([]*types.ProvisionTokenSpecV2GCP_Rule, len(t.scoped.GetSpec().GetGcp().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetGcp().GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2GCP_Rule{
+			ProjectIDs:      rule.GetProjectIds(),
+			Locations:       rule.GetLocations(),
+			ServiceAccounts: rule.GetServiceAccounts(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2GCP{
+		Allow: allow,
+	}
+}
+
+// GetAzure returns the Azure-specific configuration for this token.
+func (t *Token) GetAzure() *types.ProvisionTokenSpecV2Azure {
+	allow := make([]*types.ProvisionTokenSpecV2Azure_Rule, len(t.scoped.GetSpec().GetAzure().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetAzure().GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2Azure_Rule{
+			Subscription:   rule.GetSubscription(),
+			ResourceGroups: rule.GetResourceGroups(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2Azure{
+		Allow: allow,
+	}
+}
+
+// GetAzureDevops returns the AzureDevops-specific configuration for this token.
+func (t *Token) GetAzureDevops() *types.ProvisionTokenSpecV2AzureDevops {
+	allow := make([]*types.ProvisionTokenSpecV2AzureDevops_Rule, len(t.scoped.GetSpec().GetAzureDevops().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetAzureDevops().GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2AzureDevops_Rule{
+			Sub:               rule.GetSub(),
+			ProjectName:       rule.GetProjectName(),
+			PipelineName:      rule.GetPipelineName(),
+			ProjectID:         rule.GetProjectId(),
+			DefinitionID:      rule.GetDefinitionId(),
+			RepositoryURI:     rule.GetRepositoryUri(),
+			RepositoryVersion: rule.GetRepositoryVersion(),
+			RepositoryRef:     rule.GetRepositoryRef(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2AzureDevops{
+		Allow:          allow,
+		OrganizationID: t.scoped.GetSpec().GetAzureDevops().GetOrganizationId(),
+	}
+}
+
+// GetOracle returns the Oracle-specific configuration for this token.
+func (t *Token) GetOracle() *types.ProvisionTokenSpecV2Oracle {
+	allow := make([]*types.ProvisionTokenSpecV2Oracle_Rule, len(t.scoped.GetSpec().GetOracle().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetOracle().GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2Oracle_Rule{
+			Tenancy:            rule.GetTenancy(),
+			ParentCompartments: rule.GetParentCompartments(),
+			Regions:            rule.GetRegions(),
+			Instances:          rule.GetInstances(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2Oracle{
+		Allow: allow,
+	}
 }
 
 // GetScopedToken attempts to return the underlying [*joiningv1.ScopedToken] backing a
@@ -334,7 +481,13 @@ func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
 	}
 
 	hash := sha256.New()
-	if sshLabels := labels.GetSsh(); sshLabels != nil {
+	var bytesWrittenToHash int
+	writeHash := func(p []byte) {
+		n, _ := hash.Write(p)
+		bytesWrittenToHash += n
+	}
+
+	if sshLabels := labels.GetSsh(); len(sshLabels) > 0 {
 		sorted := make([]struct{ key, value string }, 0, len(sshLabels))
 		for k, v := range sshLabels {
 			sorted = append(sorted, struct{ key, value string }{k, v})
@@ -343,10 +496,33 @@ func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
 			return cmp.Compare(a.key, b.key)
 		})
 
+		// first we write the service type so that the following labels do not collide with identical labels
+		// from other services e.g. app labels or database labels
+		writeHash([]byte("ssh"))
+
+		// Each map entry is added to the hash as 4 components:
+		// 1. The length of the key
+		// 2. The value of the key
+		// 3. The length of the value
+		// 4. The value itself
+		// This combination prevents collisions between:
+		// - single labels (e.g. aaa=bbb and aaab=bb)
+		// - splitting labels (e.g. aaa=bbbcccddd and aaa=bbb,ccc=ddd)
+		// ...because in both cases the lengths of the keys/values must change to create different labels from
+		// the same set of characters.
 		for _, v := range sorted {
-			_, _ = hash.Write([]byte(v.key))
-			_, _ = hash.Write([]byte(v.value))
+			buf := [8]byte{}
+			binary.BigEndian.PutUint64(buf[:], uint64(len(v.key)))
+			writeHash(buf[:])
+			writeHash([]byte(v.key))
+			binary.BigEndian.PutUint64(buf[:], uint64(len(v.value)))
+			writeHash(buf[:])
+			writeHash([]byte(v.value))
 		}
+	}
+
+	if bytesWrittenToHash == 0 {
+		return ""
 	}
 
 	return hex.EncodeToString(hash.Sum(nil))

@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -26,6 +27,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -65,6 +67,78 @@ func (s *pingService) userAgentFromLastCall() string {
 		return userAgent
 	}
 	return ""
+}
+
+func TestDialTimeout(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		desc    string
+		timeout time.Duration
+	}{
+		{
+			desc:    "dial timeout set to valid value",
+			timeout: 500 * time.Millisecond,
+		},
+		{
+			desc:    "defaults prevent infinite timeout",
+			timeout: 0,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.desc, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				credentials := []Credentials{LoadTLS(&tls.Config{})}
+
+				// CheckAndSetDefaults may modify the DialTimeout. Create a throwaway config
+				// to get the actual timeout that will be used by the client.
+				timeout := func() time.Duration {
+					cfg := Config{
+						Credentials: credentials,
+						DialTimeout: tt.timeout,
+					}
+
+					require.NoError(t, cfg.CheckAndSetDefaults())
+					return cfg.DialTimeout
+				}()
+
+				// Create a client that will never connect to anything. All dial attempts will sleep
+				// indefinitely.
+				cfg := Config{
+					DialTimeout: tt.timeout,
+					Credentials: credentials,
+					Dialer: ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
+						select {
+						case <-time.After(24 * time.Hour):
+							return nil, trace.ConnectionProblem(nil, "dial timeout")
+						case <-ctx.Done():
+							return nil, ctx.Err()
+						}
+					}),
+				}
+
+				errChan := make(chan error, 1)
+				go func() {
+					// try to create a client - this will time out after the DialTimeout threshold is exceeded
+					_, err := New(t.Context(), cfg)
+					errChan <- err
+				}()
+
+				// wait for the client creation to be blocked
+				synctest.Wait()
+
+				// advance the clock so that the timeout kicks in
+				time.Sleep(timeout)
+				synctest.Wait()
+
+				// validate the client creation to fail due to the timeout being enforced.
+				err := <-errChan
+				require.Error(t, err)
+				require.ErrorContains(t, err, context.DeadlineExceeded.Error())
+			})
+		})
+	}
 }
 
 func TestNew(t *testing.T) {

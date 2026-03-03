@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log/slog"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -32,7 +33,6 @@ import (
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/utils/testutils/grpctest"
-	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 type eksAuditLogFetcherFixture struct {

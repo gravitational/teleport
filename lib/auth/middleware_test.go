@@ -696,6 +696,7 @@ func (f *fakeConn) RemoteAddr() net.Addr {
 }
 
 func TestValidateClientVersion(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name          string
 		middleware    *auth.Middleware
@@ -779,6 +780,7 @@ func TestValidateClientVersion(t *testing.T) {
 }
 
 func TestRejectedClientClusterAlertContents(t *testing.T) {
+	t.Parallel()
 	var alerts []types.ClusterAlert
 	mw := auth.Middleware{
 		OldestSupportedVersion: teleport.MinClientSemVer(),
@@ -861,6 +863,7 @@ func TestRejectedClientClusterAlertContents(t *testing.T) {
 }
 
 func TestRejectedClientClusterAlert(t *testing.T) {
+	t.Parallel()
 	var alerts []types.ClusterAlert
 	mw := auth.Middleware{
 		OldestSupportedVersion: teleport.MinClientSemVer(),

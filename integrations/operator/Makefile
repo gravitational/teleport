@@ -50,6 +50,8 @@ PLATFORM_BUILDBOX ?= $(BUILDBOX_ARM)
 endif
 endif
 
+TEST_LOG_DIR ?= ${abspath ./test-logs}
+
 .PHONY: all
 all: build
 
@@ -172,11 +174,14 @@ debug-dump-request:
 			"$${proto}"; \
 	done
 
+$(TEST_LOG_DIR):
+	mkdir $(TEST_LOG_DIR)
+
 .PHONY: test
-test: generate $(ENVTEST) ## Run tests.
+test: generate $(ENVTEST) | $(TEST_LOG_DIR) ## Run tests.
 test: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
 test:
-	gotestsum --junitfile unit-tests-operator.xml --jsonfile unit-tests-operator.json
+	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-operator.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-operator.json
 
 .PHONY: echo-kubebuilder-assets
 echo-kubebuilder-assets:

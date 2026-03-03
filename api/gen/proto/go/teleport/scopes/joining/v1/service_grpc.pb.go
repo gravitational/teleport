@@ -36,7 +36,7 @@ const (
 	ScopedJoiningService_GetScopedToken_FullMethodName    = "/teleport.scopes.joining.v1.ScopedJoiningService/GetScopedToken"
 	ScopedJoiningService_ListScopedTokens_FullMethodName  = "/teleport.scopes.joining.v1.ScopedJoiningService/ListScopedTokens"
 	ScopedJoiningService_CreateScopedToken_FullMethodName = "/teleport.scopes.joining.v1.ScopedJoiningService/CreateScopedToken"
-	ScopedJoiningService_UpdateScopedToken_FullMethodName = "/teleport.scopes.joining.v1.ScopedJoiningService/UpdateScopedToken"
+	ScopedJoiningService_UpsertScopedToken_FullMethodName = "/teleport.scopes.joining.v1.ScopedJoiningService/UpsertScopedToken"
 	ScopedJoiningService_DeleteScopedToken_FullMethodName = "/teleport.scopes.joining.v1.ScopedJoiningService/DeleteScopedToken"
 )
 
@@ -52,8 +52,8 @@ type ScopedJoiningServiceClient interface {
 	ListScopedTokens(ctx context.Context, in *ListScopedTokensRequest, opts ...grpc.CallOption) (*ListScopedTokensResponse, error)
 	// CreateScopedToken creates a new scoped token.
 	CreateScopedToken(ctx context.Context, in *CreateScopedTokenRequest, opts ...grpc.CallOption) (*CreateScopedTokenResponse, error)
-	// UpdateScopedToken updates a scoped token.
-	UpdateScopedToken(ctx context.Context, in *UpdateScopedTokenRequest, opts ...grpc.CallOption) (*UpdateScopedTokenResponse, error)
+	// UpsertScopedToken upserts a scoped token.
+	UpsertScopedToken(ctx context.Context, in *UpsertScopedTokenRequest, opts ...grpc.CallOption) (*UpsertScopedTokenResponse, error)
 	// DeleteScopedToken deletes a scoped token.
 	DeleteScopedToken(ctx context.Context, in *DeleteScopedTokenRequest, opts ...grpc.CallOption) (*DeleteScopedTokenResponse, error)
 }
@@ -96,10 +96,10 @@ func (c *scopedJoiningServiceClient) CreateScopedToken(ctx context.Context, in *
 	return out, nil
 }
 
-func (c *scopedJoiningServiceClient) UpdateScopedToken(ctx context.Context, in *UpdateScopedTokenRequest, opts ...grpc.CallOption) (*UpdateScopedTokenResponse, error) {
+func (c *scopedJoiningServiceClient) UpsertScopedToken(ctx context.Context, in *UpsertScopedTokenRequest, opts ...grpc.CallOption) (*UpsertScopedTokenResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UpdateScopedTokenResponse)
-	err := c.cc.Invoke(ctx, ScopedJoiningService_UpdateScopedToken_FullMethodName, in, out, cOpts...)
+	out := new(UpsertScopedTokenResponse)
+	err := c.cc.Invoke(ctx, ScopedJoiningService_UpsertScopedToken_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -128,8 +128,8 @@ type ScopedJoiningServiceServer interface {
 	ListScopedTokens(context.Context, *ListScopedTokensRequest) (*ListScopedTokensResponse, error)
 	// CreateScopedToken creates a new scoped token.
 	CreateScopedToken(context.Context, *CreateScopedTokenRequest) (*CreateScopedTokenResponse, error)
-	// UpdateScopedToken updates a scoped token.
-	UpdateScopedToken(context.Context, *UpdateScopedTokenRequest) (*UpdateScopedTokenResponse, error)
+	// UpsertScopedToken upserts a scoped token.
+	UpsertScopedToken(context.Context, *UpsertScopedTokenRequest) (*UpsertScopedTokenResponse, error)
 	// DeleteScopedToken deletes a scoped token.
 	DeleteScopedToken(context.Context, *DeleteScopedTokenRequest) (*DeleteScopedTokenResponse, error)
 	mustEmbedUnimplementedScopedJoiningServiceServer()
@@ -151,8 +151,8 @@ func (UnimplementedScopedJoiningServiceServer) ListScopedTokens(context.Context,
 func (UnimplementedScopedJoiningServiceServer) CreateScopedToken(context.Context, *CreateScopedTokenRequest) (*CreateScopedTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateScopedToken not implemented")
 }
-func (UnimplementedScopedJoiningServiceServer) UpdateScopedToken(context.Context, *UpdateScopedTokenRequest) (*UpdateScopedTokenResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateScopedToken not implemented")
+func (UnimplementedScopedJoiningServiceServer) UpsertScopedToken(context.Context, *UpsertScopedTokenRequest) (*UpsertScopedTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertScopedToken not implemented")
 }
 func (UnimplementedScopedJoiningServiceServer) DeleteScopedToken(context.Context, *DeleteScopedTokenRequest) (*DeleteScopedTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteScopedToken not implemented")
@@ -232,20 +232,20 @@ func _ScopedJoiningService_CreateScopedToken_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ScopedJoiningService_UpdateScopedToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateScopedTokenRequest)
+func _ScopedJoiningService_UpsertScopedToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertScopedTokenRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ScopedJoiningServiceServer).UpdateScopedToken(ctx, in)
+		return srv.(ScopedJoiningServiceServer).UpsertScopedToken(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ScopedJoiningService_UpdateScopedToken_FullMethodName,
+		FullMethod: ScopedJoiningService_UpsertScopedToken_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ScopedJoiningServiceServer).UpdateScopedToken(ctx, req.(*UpdateScopedTokenRequest))
+		return srv.(ScopedJoiningServiceServer).UpsertScopedToken(ctx, req.(*UpsertScopedTokenRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -288,8 +288,8 @@ var ScopedJoiningService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ScopedJoiningService_CreateScopedToken_Handler,
 		},
 		{
-			MethodName: "UpdateScopedToken",
-			Handler:    _ScopedJoiningService_UpdateScopedToken_Handler,
+			MethodName: "UpsertScopedToken",
+			Handler:    _ScopedJoiningService_UpsertScopedToken_Handler,
 		},
 		{
 			MethodName: "DeleteScopedToken",

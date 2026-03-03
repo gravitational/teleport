@@ -303,7 +303,7 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 
 	// Add database servers for above databases.
 	for _, db := range []*types.DatabaseV3{redshift, elasticache, selfHosted} {
-		_, err = env.server.Auth().UpsertDatabaseServer(context.TODO(), mustCreateDatabaseServer(t, db))
+		_, err = env.server.Auth().UpsertDatabaseServer(t.Context(), mustCreateDatabaseServer(t, db))
 		require.NoError(t, err)
 	}
 
@@ -345,7 +345,7 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.inputDatabaseName, func(t *testing.T) {
-			resp, err := pack.clt.Get(context.TODO(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases", test.inputDatabaseName, "iam", "policy"), nil)
+			resp, err := pack.clt.Get(t.Context(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases", test.inputDatabaseName, "iam", "policy"), nil)
 			test.verifyResponse(t, resp, err)
 		})
 	}

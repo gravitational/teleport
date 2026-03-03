@@ -23,12 +23,11 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 func TestRootCACache(t *testing.T) {
