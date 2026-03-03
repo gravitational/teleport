@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -1642,4 +1643,123 @@ func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.Health
 	)
 	require.NoError(t, err)
 	return c
+}
+
+func TestAppServerWatcher(t *testing.T) {
+	synctest.Test(t, syncTestAppServerWatcher)
+}
+
+func syncTestAppServerWatcher(t *testing.T) {
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{Context: ctx})
+	require.NoError(t, err)
+	defer bk.Close()
+	type client struct {
+		services.Presence
+		types.Events
+	}
+
+	presence := local.NewPresenceService(bk)
+	w, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client: &client{
+				Presence: presence,
+				Events:   local.NewEventsService(bk),
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	require.NoError(t, w.WaitInitialization())
+
+	newAppServer := func(t *testing.T, name, hostId, appName string) *types.AppServerV3 {
+		s, err := types.NewAppServerV3(types.Metadata{
+			Name:      name,
+			Namespace: apidefaults.Namespace,
+		}, types.AppServerSpecV3{
+			HostID: hostId,
+
+			App: newApp(t, appName),
+		})
+		require.NoError(t, err)
+		return s
+	}
+
+	diffAppServers := func(a, b []types.AppServer) string {
+		return cmp.Diff(a, b,
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.EquateEmpty(),
+			cmpopts.SortSlices(func(a, b types.AppServer) bool {
+				if c := strings.Compare(a.GetHostID(), b.GetHostID()); c != 0 {
+					return c < 0
+				}
+				return a.GetName() < b.GetName()
+			}),
+		)
+	}
+
+	appServers := make([]types.AppServer, 0, 10)
+	for i := range 10 {
+		appServer := newAppServer(t,
+			fmt.Sprintf("app-%d", i%5),
+			fmt.Sprintf("host-%d", i), // Multiple hosts per app
+			fmt.Sprintf("app-%d", i%5))
+		_, err = presence.UpsertApplicationServer(ctx, appServer)
+		require.NoError(t, err)
+		appServers = append(appServers, appServer)
+	}
+
+	// Check all registered app servers are returned by the watcher.
+	synctest.Wait()
+	current, err := w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, current, len(appServers))
+	require.Empty(t, diffAppServers(appServers, current))
+
+	// Delete the first app server, ensure watcher correctly removes the entry
+	err = presence.DeleteApplicationServer(ctx, "default", appServers[0].GetHostID(), appServers[0].GetName())
+	require.NoError(t, err)
+
+	synctest.Wait()
+
+	appServers = appServers[1:]
+	current, err = w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, current, len(appServers))
+	require.Empty(t, diffAppServers(appServers, current))
+
+	// Overwrite existing
+	_, err = presence.UpsertApplicationServer(ctx, newAppServer(t, "app-1", "host-1", "app-1"))
+	require.NoError(t, err)
+
+	synctest.Wait()
+
+	current, err = w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, current, len(appServers))
+	require.Empty(t, diffAppServers(appServers, current))
+
+	// New server with the same app name but different host is added to the list
+	appServer := newAppServer(t, "app-1", "host-20", "app-1")
+	_, err = presence.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+	appServers = append(appServers, appServer)
+
+	synctest.Wait()
+
+	current, err = w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, current, len(appServers))
+	require.Empty(t, diffAppServers(appServers, current))
+
+	// Ensure filtering works
+	filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(s readonly.AppServer) bool {
+		return s.GetName() == appServers[0].GetName()
+	})
+	require.NoError(t, err)
+	require.Len(t, filtered, 3)
 }
