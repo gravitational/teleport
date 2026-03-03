@@ -34,7 +34,7 @@ import (
 type SummaryDownloader interface {
 	// DownloadSummary downloads a final session summary and writes it to a
 	// writer.
-	DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error
+	DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error
 }
 
 // ServiceConfig holds configuration for the [Service].
