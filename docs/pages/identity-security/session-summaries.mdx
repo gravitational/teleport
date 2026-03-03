@@ -76,6 +76,9 @@ Teleport doesn't currently support any spend controls; controlling the LLM
 token budget is your responsibility.
 </Admonition>
 
+#### Session Recording Summary Player and Timeline
+![Session Detail with High Alert](https://website.goteleport.com/_uploads/session_timeline_high_0755c66e78.png)
+
 
 ## Prerequisites
 
@@ -499,12 +502,12 @@ That's it! We are ready to conduct a test session. Connect to any of your
 cluster resources using `tsh ssh`, `kubectl exec`, `tsh db connect`, or a web
 terminal. Start an interactive session and execute any command, quit the
 session, and go to **Audit -> Session Recordings**. You should see the
-corresponding recording tile with a summary button
-![summary button](https://website.goteleport.com/_uploads/session_summary_sparkle_dc77016a68.png). Clicking the
-summary button will show the summary.
+corresponding recording tile with a summary button. Clicking the summary button
+will show the summary.
 
+#### Session Recording Summary Dashboard 
 ![Session recording list screen with a summary visible](https://website.goteleport.com/_uploads/session_summary_list_3fe0cae7ac.png)
-![Session Detail with High Alert](https://website.goteleport.com/_uploads/session_timeline_high_0755c66e78.png)
+
 
 <Admonition type="info">
 It can take a while to generate a summary, and the time depends on multiple
@@ -551,8 +554,6 @@ forward events to a SIEM to alert the high severity sessions.
   "username": "benarent"
 }
 ```
-
-![Session Summary in Teleport Identity Security Investigate View](https://website.goteleport.com/_uploads/session_audit_event_fa6a9e68cc.png)
 
 ## Limitations
 
