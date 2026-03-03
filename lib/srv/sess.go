@@ -1370,6 +1370,7 @@ func (s *session) launch() {
 		// returns) io.Copy will return.
 		defer close(s.doneCh)
 
+		s.logger.DebugContext(s.serverCtx, "Started io.Copy from PTY to session io")
 		_, err := io.Copy(s.io, s.term.PTY())
 		s.logger.DebugContext(
 			s.serverCtx, "Copying from PTY to writer completed",
@@ -1381,6 +1382,7 @@ func (s *session) launch() {
 	go func() {
 		defer s.term.AddParty(-1)
 
+		s.logger.DebugContext(s.serverCtx, "Started io.Copy from session io to PTY")
 		_, err := io.Copy(s.term.PTY(), s.io)
 		s.logger.DebugContext(
 			s.serverCtx, "Copying from reader to PTY completed",
