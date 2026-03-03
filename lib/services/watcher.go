@@ -581,7 +581,14 @@ func NewDatabaseServerWatcher(ctx context.Context, cfg DatabaseServerWatcherConf
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.DatabaseServer, readonly.DatabaseServer]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindDatabaseServer,
-		ResourceKey:           func(r types.DatabaseServer) string { return r.GetHostID() + r.GetName() },
+		ResourceKey: func(r types.DatabaseServer) string {
+			// the host ID is guaranteed not to contain "/"
+			return r.GetHostID() + "/" + r.GetName()
+		},
+		DeleteKey: func(r types.Resource) string {
+			// database servers put the host ID in the description in delete events
+			return r.GetMetadata().Description + "/" + r.GetName()
+		},
 		ResourceGetter: func(ctx context.Context) ([]types.DatabaseServer, error) {
 			return cfg.DatabaseServersGetter.GetDatabaseServers(ctx, apidefaults.Namespace)
 		},
