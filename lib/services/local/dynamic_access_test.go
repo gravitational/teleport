@@ -15,6 +15,7 @@
 package local
 
 import (
+	"context"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -22,11 +23,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func Test_DynamicAccessService_ListExpiredAccessRequests(t *testing.T) {
@@ -85,6 +88,37 @@ func Test_DynamicAccessService_ListExpiredAccessRequests(t *testing.T) {
 	})
 }
 
+func Test_DynamicAccessService_range_boundary(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		service, _ := setupDynamicAccessService(t)
+
+		ongoingRequest := createAccessRequestWithExpiry(t, service, time.Now().Add(1))
+		expiredRequest := createAccessRequestWithExpiry(t, service, time.Now().Add(-1))
+		// Create some access requests outside the expected key range to validate they are
+		// not listed.
+		mustUpsertAccessRequestCustomKey(t, service, backend.NewKey("aaa", paramsPrefix), newAccessRequestWithExpiry(t, time.Now().Add(1)))
+		mustUpsertAccessRequestCustomKey(t, service, backend.NewKey("aaa", paramsPrefix), newAccessRequestWithExpiry(t, time.Now().Add(-1)))
+		mustUpsertAccessRequestCustomKey(t, service, backend.NewKey("zzz", paramsPrefix), newAccessRequestWithExpiry(t, time.Now().Add(1)))
+		mustUpsertAccessRequestCustomKey(t, service, backend.NewKey("zzz", paramsPrefix), newAccessRequestWithExpiry(t, time.Now().Add(-1)))
+
+		listAccessRequestsFn := func(ctx context.Context, limit int, pageToken string) ([]*types.AccessRequestV3, string, error) {
+			resp, err := service.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{Limit: int32(limit), StartKey: pageToken})
+			return resp.GetAccessRequests(), resp.GetNextKey(), err
+		}
+		allRequests, err := stream.Collect(clientutils.ResourcesWithPageSize(ctx, listAccessRequestsFn, 1))
+		require.NoError(t, err)
+		require.Len(t, allRequests, 2)
+		require.ElementsMatch(t, resourceNames(ongoingRequest, expiredRequest), resourceNames(allRequests...))
+
+		expiredRequests, err := stream.Collect(clientutils.ResourcesWithPageSize(ctx, service.ListExpiredAccessRequests, 1))
+		require.NoError(t, err)
+		require.Len(t, expiredRequests, 1)
+		require.Equal(t, expiredRequest.GetName(), expiredRequests[0].GetName())
+	})
+}
+
 func setupDynamicAccessService(t *testing.T) (*DynamicAccessService, *memory.Memory) {
 	t.Helper()
 	ctx := t.Context()
@@ -97,16 +131,48 @@ func setupDynamicAccessService(t *testing.T) (*DynamicAccessService, *memory.Mem
 	return NewDynamicAccessService(backend.NewSanitizer(mem)), mem
 }
 
-func createAccessRequestWithExpiry(t *testing.T, service *DynamicAccessService, expiry time.Time) types.AccessRequest {
+func newAccessRequestWithExpiry(t *testing.T, expiry time.Time) types.AccessRequest {
 	t.Helper()
-	ctx := t.Context()
 
 	req, err := types.NewAccessRequest(uuid.NewString(), "alice", "test_role_1")
 	require.NoError(t, err)
 	req.SetExpiry(expiry)
 
-	req, err = service.CreateAccessRequestV2(ctx, req)
+	return req
+}
+
+func createAccessRequestWithExpiry(t *testing.T, service *DynamicAccessService, expiry time.Time) types.AccessRequest {
+	t.Helper()
+	ctx := t.Context()
+
+	req, err := service.CreateAccessRequestV2(ctx, newAccessRequestWithExpiry(t, expiry))
 	require.NoError(t, err)
 
 	return req
+}
+
+func mustUpsertAccessRequestCustomKey(t *testing.T, service *DynamicAccessService, key backend.Key, req types.AccessRequest) types.AccessRequest {
+	t.Helper()
+	ctx := t.Context()
+
+	err := services.ValidateAccessRequest(req)
+	require.NoError(t, err)
+
+	item, err := itemFromAccessRequest(req)
+	require.NoError(t, err)
+	item.Key = key
+
+	lease, err := service.Put(ctx, item)
+	require.NoError(t, err)
+
+	req.SetRevision(lease.Revision)
+	return req
+}
+
+func resourceNames[T types.Resource](resources ...T) []string {
+	var names []string
+	for _, r := range resources {
+		names = append(names, r.GetName())
+	}
+	return names
 }

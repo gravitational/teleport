@@ -461,7 +461,6 @@ func (s *DynamicAccessService) GetAccessRequestAllowedPromotions(ctx context.Con
 }
 
 func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
-	rev := req.GetRevision()
 	value, err := services.MarshalAccessRequest(req)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
@@ -469,7 +468,7 @@ func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
 	return backend.Item{
 		Key:      accessRequestKey(req.GetName()),
 		Value:    value,
-		Revision: rev,
+		Revision: req.GetRevision(),
 	}, nil
 }
 
