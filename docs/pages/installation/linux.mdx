@@ -255,13 +255,13 @@ Use this method to install Teleport through your system's package manager.
 
    Community Edition:
 
-  ```code
+   ```code
    $ export TELEPORT_PKG=teleport        # Community Edition
    ```
    
    Or Enterprise:
 
-  ```code
+   ```code
    $ export TELEPORT_PKG=teleport-ent    # Enterprise
    ```   
 
@@ -272,7 +272,7 @@ Use this method to install Teleport through your system's package manager.
    $ export TELEPORT_CHANNEL=stable/${TELEPORT_VERSION?}
    ```
 
-   ### Install Teleport via package manager
+   ### Install using package repositories
 
 1. Follow the instructions for your package manager:
 
@@ -395,7 +395,7 @@ Use this method if you prefer to install from release archives or operate in res
    $ uname -m
    ```
 
-   Map it to a supported build:
+   Map the CPU architecture to a supported build:
 
    | `uname -m` output | `SYSTEM_ARCH` value |
    |-------------------|---------------------|
@@ -420,6 +420,12 @@ Use this method if you prefer to install from release archives or operate in res
 
    ### Download and install
 
+   <Admonition type="note" title="Checksum verification compatibility">
+   These steps use `sha256sum`, which is available by default on most modern Linux
+   distributions. On older systems where `sha256sum` is not available, use
+   `shasum --check --algorithm 256` instead.
+   </Admonition>
+
 1. Download and install using your preferred format:
 
    <Tabs>
@@ -427,7 +433,8 @@ Use this method if you prefer to install from release archives or operate in res
      ```code
      $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz.sha256
      $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
-     $ shasum --check --algorithm 256 < ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz.sha256
+     $ sha256sum --check < ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz.sha256
+     # teleport-ent-v18.7.1-linux-amd64-bin.tar.gz: OK
      $ tar -xvf ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
      $ cd ${TELEPORT_PKG?}
      $ sudo ./teleport-update enable --proxy example.teleport.sh # or sudo ./install for static installation
@@ -436,7 +443,10 @@ Use this method if you prefer to install from release archives or operate in res
 
      <TabItem label="DEB">
      ```code
+     $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb.sha256
      $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb
+     $ sha256sum --check ${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb.sha256
+     # teleport-ent_18.7.1_amd64.deb: OK
      $ sudo dpkg -i ${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb
      # Managed updates are recommended for agents
      $ sudo teleport-update enable --proxy example.teleport.sh
@@ -444,9 +454,12 @@ Use this method if you prefer to install from release archives or operate in res
      </TabItem>
 
      <TabItem label="RPM">
-      Note: Use `export SYSTEM_ARCH=x86_64"` for RPM installations.
+      **Note**: Use `export SYSTEM_ARCH=x86_64` for RPM installations.
      ```code
+     $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm.sha256
      $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm
+     $ sha256sum --check ${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm.sha256
+     # teleport-ent-18.7.1-1.x86_64.rpm: OK
      $ sudo rpm -i ${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm
      $ sudo teleport-update enable --proxy example.teleport.sh
      ```
