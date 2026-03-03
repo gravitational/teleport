@@ -252,7 +252,7 @@ metadata:
   name: staging-deployer-ssh-access
 scope: /staging
 spec:
-  user: staging-deployer # wip: do we add a new "bot" field here to avoid confusion?
+  bot: staging-deployer
   assignments:
     - role: staging-ssh-access 
       scope: /staging
