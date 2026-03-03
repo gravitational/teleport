@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,26 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { expect, test } from '@playwright/test';
+import { type Page } from '@playwright/test';
 
-import { signup } from '../utils/signup';
+import { expect } from './test';
+import { mockWebAuthn } from './webauthn';
 
-test('verify that a user can sign up with webauthn and login', async ({
-  page,
-}) => {
-  const { cleanup } = await signup(page);
+export async function login(
+  page: Page,
+  username = 'bob',
+  password = process.env.E2E_PASSWORD
+) {
+  await page.addInitScript(() =>
+    localStorage.setItem('grv_teleport_license_acknowledged', 'true')
+  );
 
-  await page.getByRole('button', { name: 'User Menu' }).click();
-  await page.getByText('Logout').click();
-  await page.getByRole('textbox', { name: 'Username' }).fill('testuser');
-  await page.getByRole('textbox', { name: 'Username' }).press('Tab');
-  await page.getByRole('textbox', { name: 'Password' }).fill('passwordtest123');
+  await mockWebAuthn(page);
+
+  await page.goto('/');
+
+  await page.getByPlaceholder('Username').fill(username);
+  await page.getByPlaceholder('Password').fill(password);
+
   await page
     .getByTestId('userpassword')
     .getByRole('button', { name: 'Sign In' })
     .click();
 
-  await expect(page.getByRole('heading', { name: 'Resources' })).toBeVisible();
+  await page.waitForLoadState('networkidle');
 
-  await cleanup();
-});
+  await expect(page.getByText(/^Resources$/).first()).toBeVisible();
+}

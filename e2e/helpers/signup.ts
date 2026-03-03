@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,17 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
-import { mockWebAuthn } from './mockWebAuthn';
+import { mockWebAuthn } from './webauthn';
 
-/**
- * signup completes the signup flow for a new user. This is typically run at the beginning of every test.
- */
 export async function signup(page: Page) {
-  const { cleanup } = await mockWebAuthn(page);
+  await mockWebAuthn(page);
 
-  await page.goto('');
+  await page.goto(process.env.E2E_INVITE_URL);
 
   await page.getByRole('button', { name: 'Get started' }).click();
   await page.getByRole('textbox', { name: 'Password', exact: true }).click();
@@ -43,8 +40,4 @@ export async function signup(page: Page) {
   await page.getByRole('button', { name: 'Create an MFA Method' }).click();
   await page.getByRole('button', { name: 'Submit' }).click();
   await page.getByRole('button', { name: 'Go to Cluster' }).click();
-
-  await page.getByRole('button', { name: "I'll do that later" }).click();
-
-  return { cleanup };
 }
