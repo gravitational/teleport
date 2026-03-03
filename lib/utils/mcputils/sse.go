@@ -191,7 +191,7 @@ func (r *SSEResponseReader) ReadMessage(ctx context.Context) (string, error) {
 	// Ref: https://html.spec.whatwg.org/multipage/server-sent-events.html#event-stream-interpretation
 	// Ref: https://modelcontextprotocol.io/community/seps/1699-support-sse-polling-via-server-side-disconnect
 	if len(evt.Data) == 0 {
-		return "", sseEventNoDataErr
+		return "", errSSEEventNoData
 	}
 	if evt.Name != sseEventMessage {
 		return "", newReaderParseError(trace.BadParameter("unexpected event type %q", evt.Name))
