@@ -6,6 +6,17 @@ without token prompts or Kubernetes API server changes.
 
 ## How It Works
 
+```mermaid
+flowchart LR
+    User["User"] -->|HTTPS| TP["Teleport Proxy"]
+    TP -->|JWT header| FP
+    subgraph Pod
+        FP["auth-proxy :4466"] -->|X-Auth-Token| HL["Headlamp :4467"]
+        HL -->|K8s API call| KP["k8s-proxy :6443"]
+    end
+    KP -->|Impersonate-User| K8s["K8s API"]
+```
+
 The auth-proxy runs as a sidecar alongside Headlamp with two proxy roles:
 
 1. **Front proxy (:4466)** — Verifies the Teleport JWT signature against JWKS
@@ -35,7 +46,7 @@ helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/
 helm install headlamp headlamp/headlamp \
   --namespace headlamp \
   --create-namespace \
-  --set teleportProxyAddr=https://example.cloud.gravitational.io \
+  --set teleportProxyAddr=https://example.teleport.sh \
   -f integrations/headlamp-auth-proxy/teleport-headlamp-values.yaml
 ```
 
