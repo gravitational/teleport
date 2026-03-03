@@ -301,10 +301,10 @@ func TestReplaceHTTPResponseSSESkipUnsupportedEvents(t *testing.T) {
 
 type noopProcessor struct{}
 
-func (p *noopProcessor) ProcessResponse(_ context.Context, resp *JSONRPCResponse) mcp.JSONRPCMessage {
+func (p noopProcessor) ProcessResponse(_ context.Context, resp *JSONRPCResponse) mcp.JSONRPCMessage {
 	return resp
 }
 
-func (p *noopProcessor) ProcessNotification(_ context.Context, notif *JSONRPCNotification) mcp.JSONRPCMessage {
+func (p noopProcessor) ProcessNotification(_ context.Context, notif *JSONRPCNotification) mcp.JSONRPCMessage {
 	return notif
 }
