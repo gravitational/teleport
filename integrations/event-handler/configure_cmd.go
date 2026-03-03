@@ -141,7 +141,7 @@ func RunConfigureCmd(cfg *ConfigureCmdConfig) error {
 
 // Run runs the generator
 func (c *ConfigureCmd) Run() error {
-	fmt.Printf("Teleport event handler %v %v\n\n", Version, Gitref)
+	fmt.Printf("%v %v %v\n\n", pluginName, Version, Gitref)
 
 	c.step = 1
 

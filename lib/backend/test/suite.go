@@ -40,6 +40,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 var (
@@ -123,7 +124,7 @@ func (r BlockingFakeClock) BlockUntil(int) {
 // Constructor describes a function for constructing new instances of a
 // backend, with various options as required by a given test. Note that
 // it's the caller's responsibility to close it when the test is finished.
-type Constructor func(options ...ConstructionOption) (backend.Backend, clockwork.FakeClock, error)
+type Constructor func(options ...ConstructionOption) (backend.Backend, clocki.FakeClock, error)
 
 // RunBackendComplianceSuite runs the entire backend compliance suite,
 // creating a collection of named subtests under the context provided
@@ -555,14 +556,14 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	require.Equal(t, bigValue[:], event.Item.Value)
 	require.WithinDuration(t, updatedAt, event.Item.Expires, 2*time.Second)
 
-	err = uut.Delete(context.TODO(), item.Key)
+	err = uut.Delete(t.Context(), item.Key)
 	require.NoError(t, err)
 
-	_, err = uut.Get(context.TODO(), item.Key)
+	_, err = uut.Get(t.Context(), item.Key)
 	require.True(t, trace.IsNotFound(err))
 
 	// keep alive on deleted or expired object should fail
-	err = uut.KeepAlive(context.TODO(), lease, updatedAt.Add(1*time.Second))
+	err = uut.KeepAlive(t.Context(), lease, updatedAt.Add(1*time.Second))
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -805,7 +806,7 @@ func testLocking(t *testing.T, newBackend Constructor) {
 	// has probably gone bad (e.g. db server has ceased to exist), so it's
 	// probably best to bail out with a sensible error (& call stack) rather
 	// than wait for the test to time out
-	ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Minute)
 	defer cancel()
 
 	// Manually drive the clock at ~10x speed to make sure anyone waiting on it
@@ -940,7 +941,7 @@ func testConcurrentOperations(t *testing.T, newBackend Constructor) {
 	defer func() { require.NoError(t, uutB.Close()) }()
 
 	prefix := MakePrefix()
-	ctx := context.TODO()
+	ctx := t.Context()
 	value1 := "this first value should not be corrupted by concurrent ops"
 	value2 := "this second value should not be corrupted too"
 	const attempts = 50

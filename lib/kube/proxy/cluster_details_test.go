@@ -41,7 +41,7 @@ func TestNewClusterDetails(t *testing.T) {
 	ctx := context.Background()
 	log := logrus.New().WithContext(ctx)
 
-	getClusterDetailsConfig := func(c clockwork.FakeClock) (clusterDetailsConfig, *clusterDetailsClientSet) {
+	getClusterDetailsConfig := func(c *clockwork.FakeClock) (clusterDetailsConfig, *clusterDetailsClientSet) {
 		client := &clusterDetailsClientSet{}
 		return clusterDetailsConfig{
 			kubeCreds: &staticKubeCreds{

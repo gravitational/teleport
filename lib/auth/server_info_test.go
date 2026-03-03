@@ -34,7 +34,7 @@ import (
 )
 
 type mockServerInfoAccessPoint struct {
-	clock         clockwork.FakeClock
+	clock         *clockwork.FakeClock
 	nodes         []types.Server
 	nodesErr      error
 	serverInfos   map[string]types.ServerInfo

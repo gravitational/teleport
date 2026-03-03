@@ -1459,23 +1459,44 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 		}
 		// Because this may break on non page boundaries an additional
 		// checkpoint is needed for sub-page breaks.
-		if l.totalSize+len(data) >= events.MaxEventBytesInResponse {
-			key, err := getSubPageCheckpoint(&e)
+		if l.totalSize+len(data) > events.MaxEventBytesInResponse {
+			// Encountered an event that would push the total page over the size limit.
+			// Return all processed events, and the next event will be picked up with the old iterator and saved sub-page checkpoint.
+			if len(out) > 0 {
+				if err := l.saveCheckpointAtEvent(e, oldIterator); err != nil {
+					return nil, false, trace.Wrap(err)
+				}
+				return out, true, nil
+			}
+
+			// A single event is larger than the max page size - the best we can
+			// do is try to trim it.
+			e.FieldsMap, err = trimToMaxSize(e.FieldsMap)
+			if err != nil {
+				return nil, false, trace.Wrap(err, "failed to trim event to max size")
+			}
+			trimmedData, err := json.Marshal(e.FieldsMap)
 			if err != nil {
 				return nil, false, trace.Wrap(err)
 			}
-			l.log.DebugContext(context.Background(), "breaking up sub-page due to event size", "key", key)
-			l.checkpoint.EventKey = key
 
-			// We need to reset the iterator so we get the previous page again.
-			l.checkpoint.Iterator = oldIterator
+			if l.totalSize+len(trimmedData) > events.MaxEventBytesInResponse {
+				// Failed to trim the event to size.
+				// Even if we fail to trim the event, we still try to return the oversized event.
+				l.log.WarnContext(context.Background(), "Failed to trim event exceeding maximum response size.",
+					"event_type", e.FieldsMap.GetType(),
+					"event_id", e.FieldsMap.GetID(),
+					"event_size", len(data),
+					"event_size_after_trim", len(trimmedData),
+				)
+			}
+			events.MetricQueriedTrimmedEvents.Inc()
 
-			// If we stopped because of the size limit, we know that at least one event has to be fetched from the
-			// current date and old iterator, so we must set it to true independently of the hasLeftFun or
-			// the new iterator being empty.
-			l.hasLeft = true
-
-			return out, true, nil
+			// We reached the response size limit.
+			// Either we reach the fetch limit (l.left == 0) or we have more items to process.
+			// For the latter, we must loop one more time to save the sub-page checkpoint at the next event,
+			// where we will resume future processing.
+			data = trimmedData
 		}
 		l.totalSize += len(data)
 		out = append(out, e)
@@ -1492,6 +1513,48 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 		}
 	}
 	return out, false, nil
+}
+
+// trimToMaxSize attempts to trim the event to fit into the maximum response size (MaxEventBytesInResponse).
+// If the event is larger than the maximum response size, it will be trimmed
+// to the maximum size, which may result in loss of data.
+// Trimming requires unmarshalling the event to apievents.AuditEvent and then
+// calling TrimToMaxSize on it.
+// This is not an efficient operation, but it is executed at most once per page,
+// and only when a single event exceeds the limit,
+// so it should not be a problem in practice.
+func trimToMaxSize(fields events.EventFields) (events.EventFields, error) {
+	event, err := events.FromEventFields(fields)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	event = event.TrimToMaxSize(events.MaxEventBytesInResponse)
+
+	fields, err = events.ToEventFields(event)
+	return fields, trace.Wrap(err)
+}
+
+// saveCheckpointAtEvent generates a sub-page checkpoint at the event causing a page break.
+// Subsequent processing will resume from this exact event.
+func (l *eventsFetcher) saveCheckpointAtEvent(e event, oldIterator string) error {
+	key, err := getSubPageCheckpoint(&e)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	l.checkpoint.EventKey = key
+
+	// We need to reset the iterator so we get the previous page again.
+	l.checkpoint.Iterator = oldIterator
+
+	// If we stopped because of the size limit, we know that at least one event has to be fetched from the
+	// current date and old iterator, so we must set it to true independently of the hasLeftFun or
+	// the new iterator being empty.
+	l.hasLeft = true
+
+	l.log.DebugContext(context.Background(), "breaking up sub-page due to event size", "key", key, "oldIterator", oldIterator)
+	return nil
 }
 
 func (l *eventsFetcher) QueryByDateIndex(ctx context.Context, filterExpr *string) (values []event, err error) {

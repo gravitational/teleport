@@ -19,6 +19,7 @@ linters:
     - testifylint
     - unconvert
     - unused
+    - usetesting
   settings:
     depguard:
       rules:
@@ -155,10 +156,6 @@ linters:
                 google.golang.org/protobuf/protoadapt instead, or, better yet,
                 see if you can move the code generation for that message to the
                 modern protoc-gen-go.
-        synctest:
-          deny:
-            - pkg: testing/synctest
-              desc: 'use "github.com/gravitational/teleport/lib/utils/testutils/synctest" instead'
         test_packages:
           files:
             - '!$test'
@@ -332,6 +329,15 @@ linters:
         - len
         - suite-extra-assert-call
         - suite-thelper
+    usetesting:
+        context-todo: true
+        # TODO: Enable the following after the issues are fixed.
+        context-background: false
+        os-chdir: false
+        os-create-temp: false
+        os-mkdir-temp: false
+        os-setenv: false
+        os-temp-dir: false
   exclusions:
     generated: lax
     presets:

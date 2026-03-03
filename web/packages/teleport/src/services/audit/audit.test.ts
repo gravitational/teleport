@@ -46,6 +46,7 @@ test('fetch events', async () => {
       code: 'T6000I',
       user: '90678c66-ffcc-4f02.im-a-cluster-name',
       time: new Date('2021-05-25T07:34:22.204Z'),
+      eventIndex: 0,
       raw: {
         cluster_name: 'im-a-cluster-name',
         code: 'T6000I',
@@ -67,6 +68,7 @@ test('fetch events', async () => {
       code: 'T1000I',
       user: 'root',
       time: new Date('2021-05-25T14:37:27.848Z'),
+      eventIndex: 0,
       raw: {
         cluster_name: 'im-a-cluster-name',
         code: 'T1000I',

@@ -374,6 +374,15 @@ type InitConfig struct {
 
 	// SkipVersionCheck skips version check during major version upgrade/downgrade.
 	SkipVersionCheck bool
+
+	// FakePasswordHash is the password hash given to all users without a password.
+	// This helps eliminate timing attacks by ensuring that all authentication attempts
+	// with a password do a bcrypt comparison.
+	FakePasswordHash []byte
+	// FakeRecoveryCodeHash is the recovery code hash given to all users without codes.
+	// This helps eliminate timing attacks by ensuring that all recovery attempts
+	// with codes do a bcrypt comparison.
+	FakeRecoveryCodeHash []byte
 }
 
 // Init instantiates and configures an instance of AuthServer

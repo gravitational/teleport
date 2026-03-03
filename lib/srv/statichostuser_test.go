@@ -163,7 +163,7 @@ func TestStaticHostUserHandler(t *testing.T) {
 		name             string
 		existingUsers    []*userprovisioningv2.StaticHostUser
 		events           []types.Event
-		onEventsFinished func(ctx context.Context, clock clockwork.FakeClock)
+		onEventsFinished func(ctx context.Context, clock *clockwork.FakeClock)
 		assert           assert.ErrorAssertionFunc
 		wantUsers        map[string]services.HostUsersInfo
 		wantSudoers      map[string][]string
@@ -305,7 +305,7 @@ func TestStaticHostUserHandler(t *testing.T) {
 		},
 		{
 			name: "error on watcher timeout failure",
-			onEventsFinished: func(ctx context.Context, clock clockwork.FakeClock) {
+			onEventsFinished: func(ctx context.Context, clock *clockwork.FakeClock) {
 				clock.BlockUntil(1)
 				clock.Advance(staticHostUserWatcherTimeout)
 				// Wait to close the watcher until the test is done.

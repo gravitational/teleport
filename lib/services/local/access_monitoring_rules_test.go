@@ -89,29 +89,29 @@ func TestAccessMonitoringRulesCRUD(t *testing.T) {
 
 	// Try to fetch a AccessMonitoringRule that doesn't exist.
 	_, err = service.GetAccessMonitoringRule(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Try to create a duplicate AccessMonitoringRule.
 	_, err = service.CreateAccessMonitoringRule(ctx, AccessMonitoringRule1)
-	require.IsType(t, trace.AlreadyExists(""), err)
+	require.ErrorAs(t, err, new(*trace.AlreadyExistsError))
 
 	// Delete a AccessMonitoringRule.
 	err = service.DeleteAccessMonitoringRule(ctx, AccessMonitoringRule1.Metadata.Name)
 	require.NoError(t, err)
 	_, err = service.GetAccessMonitoringRule(ctx, AccessMonitoringRule1.Metadata.Name)
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Try to delete a AccessMonitoringRule that doesn't exist.
 	err = service.DeleteAccessMonitoringRule(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Delete all AccessMonitoringRule.
 	err = service.DeleteAllAccessMonitoringRules(ctx)
 	require.NoError(t, err)
 	_, err = service.GetAccessMonitoringRule(ctx, AccessMonitoringRule1.Metadata.Name)
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 	_, err = service.GetAccessMonitoringRule(ctx, AccessMonitoringRule2.Metadata.Name)
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 }
 
 func TestListAccessMonitoringRules(t *testing.T) {

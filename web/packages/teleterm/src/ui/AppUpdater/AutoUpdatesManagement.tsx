@@ -359,7 +359,10 @@ function makeContentForDisabledAutoUpdates(updateSource: AutoUpdatesDisabled): {
         description: (
           <>
             The cluster needs to{' '}
-            <Link href="https://goteleport.com/docs/upgrading/automatic-updates">
+            <Link
+              href="https://goteleport.com/docs/upgrading/client-tools-managed-updates/"
+              target="_blank"
+            >
               enroll in automatic updates
             </Link>{' '}
             to keep Teleport Connect updated.

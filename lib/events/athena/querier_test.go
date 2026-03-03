@@ -36,7 +36,6 @@ import (
 	athenaTypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -766,10 +765,9 @@ func Test_querier_fetchResults(t *testing.T) {
 		// fakeResp defines responses which will be returned based on given
 		// input token to GetQueryResults. Note that due to limit of GetQueryResults
 		// we are doing multiple calls, first always with empty token.
-		fakeResp     map[string]eventsWithToken
-		wantEvents   []apievents.AuditEvent
-		wantKeyset   string
-		wantErrorMsg string
+		fakeResp   map[string]eventsWithToken
+		wantEvents []apievents.AuditEvent
+		wantKeyset string
 	}{
 		{
 			name:  "no data returned from query, return empty results",
@@ -802,9 +800,9 @@ func Test_querier_fetchResults(t *testing.T) {
 				"": {returnToken: "", events: []apievents.AuditEvent{bigUntrimmableEvent}},
 			},
 			limit: 10,
-			wantErrorMsg: fmt.Sprintf(
-				"app.create event %s is 5.0 MiB and cannot be returned because it exceeds the maximum response size of %s",
-				bigUntrimmableEvent.Metadata.ID, humanize.IBytes(events.MaxEventBytesInResponse)),
+			// we still want to receive the untrimmable event
+			wantEvents: []apievents.AuditEvent{bigUntrimmableEvent},
+			wantKeyset: mustEventToKey(t, bigUntrimmableEvent),
 		},
 		{
 			name: "events with trimmable event exceeding > MaxEventBytesInResponse",
@@ -861,10 +859,6 @@ func Test_querier_fetchResults(t *testing.T) {
 				},
 			}
 			gotEvents, gotKeyset, err := q.fetchResults(context.Background(), "queryid", tt.limit, tt.condition)
-			if tt.wantErrorMsg != "" {
-				require.ErrorContains(t, err, tt.wantErrorMsg)
-				return
-			}
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(tt.wantEvents, gotEvents, cmpopts.EquateEmpty(),
 				// Expect the database query to be trimmed

@@ -47,9 +47,9 @@ import (
 )
 
 func TestAuth_RegisterUsingToken(t *testing.T) {
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
+	t.Parallel()
+	ctx := t.Context()
+	p := newAuthSuite(t)
 
 	// create a static token
 	staticToken := types.ProvisionTokenV1{

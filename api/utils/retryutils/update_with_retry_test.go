@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupUpdateWithRetryTest[R any](t *testing.T) (clockwork.FakeClock, *refreshFnRecorder[R], *updateFnRecorder[R]) {
+func setupUpdateWithRetryTest[R any](t *testing.T) (*clockwork.FakeClock, *refreshFnRecorder[R], *updateFnRecorder[R]) {
 	t.Helper()
 	return clockwork.NewFakeClock(), new(refreshFnRecorder[R]), new(updateFnRecorder[R])
 

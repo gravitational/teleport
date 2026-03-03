@@ -1418,6 +1418,7 @@ func TestGetCurrentUser(t *testing.T) {
 }
 
 func TestGetCurrentUserRoles(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -3135,6 +3136,7 @@ func TestGenerateCerts(t *testing.T) {
 // TestGenerateAppToken checks the identity of the caller and makes sure only
 // certain roles can request JWT tokens.
 func TestGenerateAppToken(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
@@ -3212,6 +3214,7 @@ func TestGenerateAppToken(t *testing.T) {
 // TestCertificateFormat makes sure that certificates are generated with the
 // correct format.
 func TestCertificateFormat(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
 
@@ -3608,6 +3611,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 // TestCipherSuites makes sure that clients with invalid cipher suites can
 // not connect.
 func TestCipherSuites(t *testing.T) {
+	t.Parallel()
 	testSrv := newTestTLSServer(t)
 
 	otherServer, err := testSrv.AuthServer.NewTestTLSServer()

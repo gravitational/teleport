@@ -174,7 +174,7 @@ func StreamEmpty(t *testing.T, handler events.MultipartHandler) {
 
 	select {
 	case status := <-stream.Status():
-		require.Equal(t, status.LastEventIndex, int64(-1))
+		require.Equal(t, int64(-1), status.LastEventIndex)
 	case <-time.After(time.Second):
 		t.Fatalf("Timed out waiting for status update.")
 	}
@@ -190,7 +190,7 @@ func StreamEmpty(t *testing.T, handler events.MultipartHandler) {
 
 // StreamWithParameters tests stream upload and subsequent download and reads the results
 func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params StreamParams) {
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: params.PrintEvents})
 	sid := session.ID(inEvents[0].(events.SessionMetadataGetter).GetSessionID())
@@ -212,7 +212,7 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 
 	select {
 	case status := <-stream.Status():
-		require.Equal(t, status.LastEventIndex, int64(-1))
+		require.Equal(t, int64(-1), status.LastEventIndex)
 	case <-time.After(time.Second):
 		t.Fatalf("Timed out waiting for status update.")
 	}
@@ -265,7 +265,7 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 // StreamResumeWithParameters expects initial complete attempt to fail
 // but subsequent resume to succeed
 func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, params StreamParams) {
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: params.PrintEvents})
 	sid := session.ID(inEvents[0].(events.SessionMetadataGetter).GetSessionID())
@@ -298,7 +298,7 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 	// that resume has been started successfully
 	select {
 	case status := <-stream.Status():
-		require.Equal(t, status.LastEventIndex, int64(-1))
+		require.Equal(t, int64(-1), status.LastEventIndex)
 	case <-time.After(time.Second):
 		t.Fatalf("Timed out waiting for status update.")
 	}

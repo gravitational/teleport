@@ -171,7 +171,7 @@ type WebSuite struct {
 	mockU2F     *mocku2f.Key
 	server      *authtest.Server
 	proxyClient *authclient.Client
-	clock       clockwork.FakeClock
+	clock       *clockwork.FakeClock
 }
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
@@ -220,7 +220,7 @@ type webSuiteConfig struct {
 	presenceChecker PresenceChecker
 
 	// clock to use for all server components
-	clock clockwork.FakeClock
+	clock *clockwork.FakeClock
 
 	// databaseREPLGetter allows setting custom database REPLs.
 	databaseREPLGetter dbrepl.REPLRegistry
@@ -8476,7 +8476,7 @@ func withKubeProxy() proxyOption {
 }
 
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *authtest.TLSServer,
-	hostSigners []ssh.Signer, clock clockwork.FakeClock, opts ...proxyOption,
+	hostSigners []ssh.Signer, clock *clockwork.FakeClock, opts ...proxyOption,
 ) *testProxy {
 	cfg := proxyConfig{}
 	for _, opt := range opts {
@@ -8812,11 +8812,11 @@ type webPack struct {
 	proxies []*testProxy
 	server  *authtest.Server
 	node    *regular.Server
-	clock   clockwork.FakeClock
+	clock   *clockwork.FakeClock
 }
 
 type testProxy struct {
-	clock   clockwork.FakeClock
+	clock   *clockwork.FakeClock
 	client  authclient.ClientI
 	auth    *authtest.TLSServer
 	revTun  reversetunnelclient.Server
