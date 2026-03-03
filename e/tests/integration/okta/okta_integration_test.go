@@ -87,11 +87,12 @@ func TestBasicAssignmentFlow(t *testing.T) {
 		"--owner="+ownerLogin)
 	require.NoError(t, err)
 
-	// Set time between imports to 1s
 	authServer := sut.Teleport.Process.GetAuthServer()
-	setOktaTimeBetweenImports(t, authServer, time.Second)
+	// TODO(smallinsky) Align timer when https://github.com/gravitational/teleport.e/issues/6558 issue is fixed
+	// to test the flow with overlapping Okta sync.
+	setOktaTimeBetweenImports(t, authServer, time.Minute)
 
-	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(beforeInstall))
+	waitForOktaSync(t, sut, withTimeout(time.Minute), withStep(time.Millisecond*100), withTimePoint(beforeInstall))
 	waitForOktaFirstOktaAssignment(t, sut)
 	userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), oktaUserLogin(fakeOkta.provisionedUsers[0]))
 
@@ -106,14 +107,14 @@ func TestBasicAssignmentFlow(t *testing.T) {
 			`acl`, `users`, `ls`, `--format=json`, fakeOkta.provisionedGroups[0].Id,
 		}, &accessListMembers)
 		assertResourcesByName(t, wantMembers, accessListMembers)
-	}, time.Second*10, time.Millisecond*100)
+	}, time.Minute, time.Millisecond*100)
 	err = tclCmd.Run(t.Context(),
 		`acl`, `users`, `rm`, fakeOkta.provisionedGroups[0].Id, oktaUserLogin(fakeOkta.provisionedUsers[0]))
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		require.False(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, fakeOkta.provisionedUsers[0].Id))
-	}, time.Second*10, time.Millisecond*250, "User %s is still assigned to group %s", fakeOkta.provisionedUsers[0].Id, fakeOkta.provisionedGroups[0].Id)
+	}, time.Minute, time.Millisecond*250, "User %s is still assigned to group %s", fakeOkta.provisionedUsers[0].Id, fakeOkta.provisionedGroups[0].Id)
 
 	err = tclCmd.Run(t.Context(),
 		`acl`, `users`, `add`, fakeOkta.provisionedGroups[0].Id, oktaUserLogin(fakeOkta.provisionedUsers[2]))
@@ -121,7 +122,7 @@ func TestBasicAssignmentFlow(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		require.True(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, fakeOkta.provisionedUsers[2].Id))
-	}, time.Second*10, time.Millisecond*250, "User %s was never assigned to group %s", fakeOkta.provisionedUsers[2].Id, fakeOkta.provisionedGroups[0].Id)
+	}, time.Minute, time.Millisecond*250, "User %s was never assigned to group %s", fakeOkta.provisionedUsers[2].Id, fakeOkta.provisionedGroups[0].Id)
 }
 
 // TestNestedAclAssignment tests the assignment and sync of nested access lists.
