@@ -21,7 +21,9 @@ package mcptest
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -48,6 +50,17 @@ func NewServerWithVersion(version string) *mcpserver.MCPServer {
 	}, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{mcp.NewTextContent("hello client")},
+		}, nil
+	})
+	server.AddTool(mcp.Tool{
+		Name: "request-headers",
+	}, func(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		data, err := json.Marshal(request.Header)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{mcp.NewTextContent(string(data))},
 		}, nil
 	})
 	return server
@@ -118,4 +131,39 @@ func CallServerTool(ctx context.Context, client *mcpclient.Client) (*mcp.CallToo
 	callToolRequest.Params.Name = "hello-server"
 	callToolResult, err := client.CallTool(ctx, callToolRequest)
 	return callToolResult, trace.Wrap(err)
+}
+
+// CallRequestHeaders calls the "request-headers" tool and returns the HTTP
+// headers the server received.
+func CallRequestHeaders(ctx context.Context, client *mcpclient.Client) (http.Header, error) {
+	req := mcp.CallToolRequest{}
+	req.Params.Name = "request-headers"
+	result, err := client.CallTool(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(result.Content) == 0 {
+		return nil, trace.BadParameter("expected content in response")
+	}
+
+	textContent, ok := result.Content[0].(mcp.TextContent)
+	if !ok {
+		return nil, trace.BadParameter("expected text content, got %T", result.Content[0])
+	}
+
+	var headers http.Header
+	if err := json.Unmarshal([]byte(textContent.Text), &headers); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return headers, nil
+}
+
+// MustCallRequestHeaders calls the "request-headers" tool and asserts it
+// succeeds, returning the HTTP headers the server received.
+func MustCallRequestHeaders(t *testing.T, client *mcpclient.Client) http.Header {
+	t.Helper()
+	headers, err := CallRequestHeaders(t.Context(), client)
+	require.NoError(t, err)
+	return headers
 }

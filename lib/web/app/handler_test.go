@@ -32,6 +32,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -41,9 +42,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	mcpclient "github.com/mark3labs/mcp-go/client"
+	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
+	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/require"
 
+	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/appauthconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -54,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/mcptest"
 )
 
 type eventCheckFn func(t *testing.T, events []apievents.AuditEvent)
@@ -440,11 +449,12 @@ func TestHealthCheckAppServer(t *testing.T) {
 }
 
 type testServer struct {
+	handler   *Handler
 	serverURL *url.URL
 }
 
 func setup(t *testing.T, clock *clockwork.FakeClock, authClient authclient.ClientI, clusterGetter reversetunnelclient.ClusterGetter) *testServer {
-	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
+	appHandler, err := NewHandler(t.Context(), &HandlerConfig{
 		Clock:                 clock,
 		AuthClient:            authClient,
 		AccessPoint:           authClient,
@@ -461,6 +471,7 @@ func setup(t *testing.T, clock *clockwork.FakeClock, authClient authclient.Clien
 	require.NoError(t, err)
 
 	return &testServer{
+		handler:   appHandler,
 		serverURL: url,
 	}
 }
@@ -502,16 +513,40 @@ func (p *testServer) makeRequest(t *testing.T, method, endpoint string, reqBody 
 	return resp.StatusCode, string(content)
 }
 
+func makeMCPClient(t *testing.T, testServer *httptest.Server, endpoint string, headers map[string]string) *mcpclient.Client {
+	ctx := t.Context()
+
+	mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(
+		testServer.URL+endpoint,
+		mcpclienttransport.WithContinuousListening(),
+		mcpclienttransport.WithHTTPBasicClient(testServer.Client()),
+		mcpclienttransport.WithHTTPHeaders(headers),
+	)
+	require.NoError(t, err)
+
+	client := mcpclient.NewClient(mcpClientTransport)
+	require.NoError(t, client.Start(ctx))
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+
+	return client
+}
+
 type mockAuthClient struct {
 	authclient.ClientI
-	clusterName   string
-	appSession    types.WebSession
-	sessionError  error
-	appServers    []types.AppServer
-	caKey         []byte
-	caCert        []byte
-	emittedEvents []apievents.AuditEvent
-	mtx           sync.Mutex
+	clusterName         string
+	appSession          types.WebSession
+	sessionError        error
+	appServers          []types.AppServer
+	caKey               []byte
+	caCert              []byte
+	emittedEvents       []apievents.AuditEvent
+	mtx                 sync.Mutex
+	appAuthConfigs      []*appauthconfigv1.AppAuthConfig
+	appAuthConfigErr    error
+	createAppSession    types.WebSession
+	createAppSessionErr error
 }
 
 type mockClusterName struct {
@@ -546,6 +581,10 @@ func (c *mockAuthClient) GetAppSession(context.Context, types.GetAppSessionReque
 	return c.appSession, c.sessionError
 }
 
+func (c *mockAuthClient) CreateAppSessionWithJWT(context.Context, *appauthconfigv1.CreateAppSessionWithJWTRequest) (types.WebSession, error) {
+	return c.createAppSession, c.createAppSessionErr
+}
+
 func (c *mockAuthClient) GetApplicationServers(_ context.Context, _ string) ([]types.AppServer, error) {
 	return c.appServers, nil
 }
@@ -578,6 +617,10 @@ func (c *mockAuthClient) GetProxies() ([]types.Server, error) {
 
 func (c *mockAuthClient) ListProxyServers(context.Context, int, string) ([]types.Server, string, error) {
 	return []types.Server{}, "", nil
+}
+
+func (c *mockAuthClient) ListAppAuthConfigs(ctx context.Context, limit int, startKey string) ([]*appauthconfigv1.AppAuthConfig, string, error) {
+	return c.appAuthConfigs, "", c.appAuthConfigErr
 }
 
 // fakeClusterListener Implements a `net.Listener` that return `net.Conn` from
@@ -662,6 +705,25 @@ func createAppServer(t *testing.T, publicAddr string) types.AppServer {
 				Spec: types.AppSpecV3{
 					URI:        "localhost",
 					PublicAddr: publicAddr,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	return appServer
+}
+
+func createAppServerWithName(t *testing.T, appName string) types.AppServer {
+	t.Helper()
+	appServer, err := types.NewAppServerV3(
+		types.Metadata{Name: appName},
+		types.AppServerSpecV3{
+			HostID: uuid.New().String(),
+			App: &types.AppV3{
+				Metadata: types.Metadata{Name: appName},
+				Spec: types.AppSpecV3{
+					URI:        "localhost",
+					PublicAddr: uuid.New().String() + ".invalid",
 				},
 			},
 		},
@@ -881,6 +943,467 @@ func TestHandlerAuthenticate(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
 	})
+}
+
+// TestSelectAppAuthConfig given a list of app auth config and an app, ensures
+// that the function selects the correct config.
+func TestSelectAppAuthConfig(t *testing.T) {
+	expectAppConfigName := func(name string) require.ValueAssertionFunc {
+		return func(tt require.TestingT, i1 any, i2 ...any) {
+			require.NotNil(tt, i1, i2...)
+			require.IsType(tt, &appauthconfigv1.AppAuthConfig{}, i1, i2...)
+			config, _ := i1.(*appauthconfigv1.AppAuthConfig)
+			require.Equal(t, name, config.Metadata.GetName(), i2...)
+		}
+	}
+
+	for name, tc := range map[string]struct {
+		app          types.Application
+		configs      []*appauthconfigv1.AppAuthConfig
+		configsErr   error
+		assertError  require.ErrorAssertionFunc
+		assertConfig require.ValueAssertionFunc
+	}{
+		"single match": {
+			app: createMCPServer(t, "app", map[string]string{"env": "prod"}).GetApp(),
+			configs: []*appauthconfigv1.AppAuthConfig{
+				appauthconfig.NewAppAuthConfigJWT("config-1", []*labelv1.Label{{Name: "env", Values: []string{"prod"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{}),
+			},
+			assertError:  require.NoError,
+			assertConfig: expectAppConfigName("config-1"),
+		},
+		"multiple matches, picks the first": {
+			app: createMCPServer(t, "app", map[string]string{"env": "prod"}).GetApp(),
+			configs: []*appauthconfigv1.AppAuthConfig{
+				appauthconfig.NewAppAuthConfigJWT("config-1", []*labelv1.Label{{Name: "env", Values: []string{"prod"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{}),
+				appauthconfig.NewAppAuthConfigJWT("config-2", []*labelv1.Label{{Name: "env", Values: []string{"prod"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{}),
+			},
+			assertError:  require.NoError,
+			assertConfig: expectAppConfigName("config-1"),
+		},
+		"no match": {
+			app: createMCPServer(t, "app", map[string]string{"env": "dev"}).GetApp(),
+			configs: []*appauthconfigv1.AppAuthConfig{
+				appauthconfig.NewAppAuthConfigJWT("config-1", []*labelv1.Label{{Name: "env", Values: []string{"prod"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{}),
+				appauthconfig.NewAppAuthConfigJWT("config-2", []*labelv1.Label{{Name: "env", Values: []string{"prod"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{}),
+			},
+			assertError:  require.Error,
+			assertConfig: require.Nil,
+		},
+		"list error": {
+			app:          createMCPServer(t, "app", map[string]string{"env": "dev"}).GetApp(),
+			configsErr:   trace.AccessDenied("failure"),
+			assertError:  require.Error,
+			assertConfig: require.Nil,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			authClient := &mockAuthClient{
+				appAuthConfigs:   tc.configs,
+				appAuthConfigErr: tc.configsErr,
+			}
+			appHandler, err := NewHandler(t.Context(), &HandlerConfig{
+				AuthClient:            authClient,
+				AccessPoint:           authClient,
+				CipherSuites:          utils.DefaultCipherSuites(),
+				IntegrationAppHandler: &mockIntegrationAppHandler{},
+			})
+			require.NoError(t, err)
+
+			selectedConfig, err := appHandler.selectAppAuthConfig(t.Context(), tc.app)
+			tc.assertError(t, err)
+			tc.assertConfig(t, selectedConfig)
+		})
+	}
+}
+
+// TestMCPEndpoints given a list of proxied MCP servers, initialize an MCP
+// client with the endpoints, and verify that the handle succeeds when
+// authentication succeeds and returns an error otherwise.
+func TestMCPEndpoints(t *testing.T) {
+	const (
+		clusterName       = "test-cluster"
+		mcpServerName     = "mcp-test-server"
+		appName           = "regular-app"
+		authHeader        = "Authorization"
+		customHader       = "X-Custom-Test-Header"
+		customHeaderValue = "random-value"
+	)
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	fakeClock := clockwork.NewFakeClock()
+	authClient := &mockAuthClient{
+		clusterName:      clusterName,
+		sessionError:     trace.BadParameter("not found"),
+		createAppSession: createAppSession(t, fakeClock, key, cert, clusterName, ""),
+		appServers: []types.AppServer{
+			createMCPServer(t, mcpServerName, nil /* labels */),
+			createAppServerWithName(t, appName),
+		},
+		caKey:  key,
+		caCert: cert,
+		appAuthConfigs: []*appauthconfigv1.AppAuthConfig{
+			appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{{Name: "*", Values: []string{"*"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{
+				AuthorizationHeader: authHeader,
+			}),
+		},
+	}
+
+	fakeCluster := startFakeMCPServerOnCluster(t, clusterName, authClient, cert, key)
+	tunnel := &reversetunnelclient.FakeServer{
+		FakeClusters: []reversetunnelclient.Cluster{
+			fakeCluster,
+		},
+	}
+
+	p := setup(t, fakeClock, authClient, tunnel)
+	router := httprouter.New()
+	p.handler.BindMCPEndpoints(router, nil)
+	frontSrv := httptest.NewServer(router)
+	t.Cleanup(frontSrv.Close)
+
+	for _, endpoint := range []struct {
+		desc        string
+		unknownPath string
+		path        string
+	}{
+		{
+			desc:        "endpoint with site name and app name",
+			unknownPath: "/mcp/sites/random-site/apps/unknown-app",
+			path:        "/mcp/sites/" + clusterName + "/apps/" + mcpServerName,
+		},
+		{
+			desc:        "endpoint with only app name",
+			unknownPath: "/mcp/apps/unknown-app",
+			path:        "/mcp/apps/" + mcpServerName,
+		},
+	} {
+		t.Run(endpoint.desc, func(t *testing.T) {
+			t.Run("success", func(t *testing.T) {
+				// Ensure the authorization header is case insensitive.
+				for _, header := range []string{
+					authHeader,
+					strings.ToLower(authHeader),
+					strings.ToUpper(authHeader),
+				} {
+					t.Run(header, func(t *testing.T) {
+						clt := makeMCPClient(t, frontSrv, endpoint.path, map[string]string{
+							header:      "Bearer fake-token",
+							customHader: customHeaderValue,
+						})
+						mcptest.MustInitializeClient(t, clt)
+						mcptest.MustCallServerTool(t, clt)
+						headers := mcptest.MustCallRequestHeaders(t, clt)
+						require.Empty(t, headers.Get(header))
+						require.Equal(t, customHeaderValue, headers.Get(customHader))
+					})
+				}
+			})
+
+			t.Run("fails to resolve app", func(t *testing.T) {
+				clt := makeMCPClient(t, frontSrv, endpoint.unknownPath, nil)
+				_, err := mcptest.InitializeClient(t.Context(), clt)
+				require.Error(t, err)
+			})
+		})
+	}
+
+	t.Run("non-mcp app fails", func(t *testing.T) {
+		for _, endpoint := range []struct {
+			desc string
+			path string
+		}{
+			{
+				desc: "complete",
+				path: "/mcp/sites/" + clusterName + "/apps/" + appName,
+			},
+			{
+				desc: "short",
+				path: "/mcp/apps/" + appName,
+			},
+		} {
+			t.Run(endpoint.desc, func(t *testing.T) {
+				clt := makeMCPClient(t, frontSrv, endpoint.path, map[string]string{authHeader: "Bearer fake-token"})
+				_, err := mcptest.InitializeClient(t.Context(), clt)
+				require.Error(t, err)
+			})
+		}
+	})
+}
+
+func TestMCPSessionRenewOnConnectionProblem(t *testing.T) {
+	const (
+		clusterName   = "test-cluster"
+		mcpServerName = "mcp-test-server"
+		header        = "Authorization"
+	)
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	fakeClock := clockwork.NewFakeClock()
+	serverA := createMCPServer(t, mcpServerName, nil)
+	serverB := createMCPServer(t, mcpServerName, nil)
+
+	authClient := &mockAuthClient{
+		clusterName:      clusterName,
+		sessionError:     trace.BadParameter("not found"),
+		createAppSession: createAppSession(t, fakeClock, key, cert, clusterName, ""),
+		appServers:       []types.AppServer{serverA, serverB},
+		caKey:            key,
+		caCert:           cert,
+		appAuthConfigs: []*appauthconfigv1.AppAuthConfig{
+			appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{{Name: "*", Values: []string{"*"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{
+				AuthorizationHeader: header,
+			}),
+		},
+	}
+
+	fakeCluster := startFakeMCPServerOnCluster(t, clusterName, authClient, cert, key)
+	// Initially, server B is offline so only server A is included in the session.
+	fakeCluster.OfflineTunnels = map[string]struct{}{
+		fmt.Sprintf("%s.%s", serverB.GetHostID(), clusterName): {},
+	}
+
+	tunnel := &reversetunnelclient.FakeServer{
+		FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+	}
+
+	p := setup(t, fakeClock, authClient, tunnel)
+	router := httprouter.New()
+	p.handler.BindMCPEndpoints(router, nil)
+	frontSrv := httptest.NewServer(router)
+	t.Cleanup(frontSrv.Close)
+
+	clt := makeMCPClient(t, frontSrv, "/mcp/apps/"+mcpServerName, map[string]string{
+		header: "Bearer fake-token",
+	})
+
+	// First requests succeed normally. The session is created with server A
+	// (server B is filtered during health check).
+	mcptest.MustInitializeClient(t, clt)
+	mcptest.MustCallServerTool(t, clt)
+
+	// Swap availability: server A goes offline, server B comes online.
+	fakeCluster.OfflineTunnels = map[string]struct{}{
+		fmt.Sprintf("%s.%s", serverA.GetHostID(), clusterName): {},
+	}
+
+	// Next tool call triggers the renewal flow and must succeed.
+	mcptest.MustCallServerTool(t, clt)
+}
+
+func TestSessionRenewOnConnectionProblem(t *testing.T) {
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	fakeClock := clockwork.NewFakeClock()
+	serverA := createAppServer(t, publicAddr)
+	serverB := createAppServer(t, publicAddr)
+
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr),
+		appServers:  []types.AppServer{serverA, serverB},
+		caKey:       key,
+		caCert:      cert,
+	}
+
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+	// Initially, server B is offline so only server A is included in the session.
+	fakeCluster.OfflineTunnels = map[string]struct{}{
+		fmt.Sprintf("%s.%s", serverB.GetHostID(), clusterName): {},
+	}
+
+	tunnel := &reversetunnelclient.FakeServer{
+		FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+	}
+
+	p := setup(t, fakeClock, authClient, tunnel)
+	cookies := []http.Cookie{
+		{Name: CookieName, Value: "abc"},
+		{Name: SubjectCookieName, Value: authClient.appSession.GetBearerToken()},
+	}
+
+	// First request succeeds normally. The session is created with server A
+	// (server B is filtered during health check).
+	status, content := p.makeRequest(t, "GET", "/", []byte{}, cookies)
+	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, "Hello application", content)
+
+	// Swap availability: server A goes offline, server B comes online.
+	fakeCluster.OfflineTunnels = map[string]struct{}{
+		fmt.Sprintf("%s.%s", serverA.GetHostID(), clusterName): {},
+	}
+
+	// Second request triggers the renewal flow and must succeed.
+	status, content = p.makeRequest(t, "GET", "/", []byte{}, cookies)
+	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, "Hello application", content)
+}
+
+func TestGetAppSessionAuthConfig(t *testing.T) {
+	t.Run("JWT", func(t *testing.T) {
+		clusterName := "test-cluster"
+		header := "Authorization"
+
+		fakeClock := clockwork.NewFakeClock()
+		key, cert, err := tlsca.GenerateSelfSignedCA(
+			pkix.Name{CommonName: clusterName},
+			[]string{apiutils.EncodeClusterName(clusterName)},
+			defaults.CATTL,
+		)
+		require.NoError(t, err)
+		appServer := createMCPServer(t, "mcp-server", nil /* labels */)
+
+		for name, tc := range map[string]struct {
+			appServer           *withAppServer
+			appSession          types.WebSession
+			createdAppSession   types.WebSession
+			createAppSessionErr error
+			appSessionError     error
+			headers             map[string]string
+			assertError         require.ErrorAssertionFunc
+		}{
+			"start new session": {
+				appServer:         &withAppServer{appServer: appServer},
+				appSessionError:   trace.NotFound("session not found"),
+				createdAppSession: createAppSession(t, fakeClock, key, cert, clusterName, ""),
+				headers:           map[string]string{header: "Bearer fake-token"},
+				assertError:       require.NoError,
+			},
+			"use existent session": {
+				appServer:   &withAppServer{appServer: appServer},
+				appSession:  createAppSession(t, fakeClock, key, cert, clusterName, ""),
+				headers:     map[string]string{header: "Bearer fake-token"},
+				assertError: require.NoError,
+			},
+			"error creating session": {
+				appServer:           &withAppServer{appServer: appServer},
+				appSessionError:     trace.NotFound("session not found"),
+				createAppSessionErr: trace.AccessDenied("error"),
+				headers:             map[string]string{header: "Bearer fake-token"},
+				assertError:         require.Error,
+			},
+			"empty app server returns error": {
+				appServer:   nil,
+				assertError: require.Error,
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				req, err := http.NewRequest(http.MethodGet, "", nil)
+				require.NoError(t, err)
+				for headerName, headerVal := range tc.headers {
+					req.Header.Add(headerName, headerVal)
+				}
+
+				authClient := &mockAuthClient{
+					clusterName:         clusterName,
+					sessionError:        tc.appSessionError,
+					appSession:          tc.appSession,
+					createAppSession:    tc.createdAppSession,
+					createAppSessionErr: tc.createAppSessionErr,
+					appAuthConfigs: []*appauthconfigv1.AppAuthConfig{
+						appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{{Name: "*", Values: []string{"*"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{
+							AuthorizationHeader: header,
+						}),
+					},
+				}
+
+				handler, err := NewHandler(t.Context(), &HandlerConfig{
+					AuthClient:            authClient,
+					AccessPoint:           authClient,
+					CipherSuites:          utils.DefaultCipherSuites(),
+					IntegrationAppHandler: &mockIntegrationAppHandler{},
+				})
+				require.NoError(t, err)
+
+				_, _, err = handler.getAppSessionUsingAuthConfig(req, tc.appServer)
+				tc.assertError(t, err)
+			})
+		}
+	})
+}
+
+func startFakeMCPServerOnCluster(t *testing.T, clusterName string, accessPoint authclient.RemoteProxyAccessPoint, cert, key []byte) *reversetunnelclient.FakeCluster {
+	t.Helper()
+
+	tlsCert, err := tls.X509KeyPair(cert, key)
+	require.NoError(t, err)
+
+	httpServer := mcpserver.NewStreamableHTTPServer(mcptest.NewServer())
+	fakeCluster := reversetunnelclient.NewFakeCluster(clusterName, accessPoint)
+	streamableHTTPServer := &httptest.Server{
+		TLS: &tls.Config{
+			Certificates: []tls.Certificate{tlsCert},
+		},
+		Listener: &fakeClusterListener{
+			fakeCluster: fakeCluster,
+		},
+		Config: &http.Server{Handler: httpServer},
+	}
+	streamableHTTPServer.StartTLS()
+	t.Cleanup(func() {
+		fakeCluster.Close()
+		streamableHTTPServer.Close()
+	})
+	return fakeCluster
+}
+
+func createMCPServer(t *testing.T, name string, labels map[string]string) types.AppServer {
+	t.Helper()
+	appServer, err := types.NewAppServerV3(
+		// App server names must be unique so we don't deduplicate them.
+		types.Metadata{Name: uuid.New().String(), Labels: labels},
+		types.AppServerSpecV3{
+			HostID: uuid.New().String(),
+			App:    createMCPApp(t, name, labels),
+		},
+	)
+	require.NoError(t, err)
+	return appServer
+}
+
+func createAppServerWithApp(t *testing.T, app *types.AppV3) types.AppServer {
+	t.Helper()
+	appServer, err := types.NewAppServerV3(
+		types.Metadata{Name: app.GetName()},
+		types.AppServerSpecV3{
+			HostID: uuid.New().String(),
+			App:    app,
+		},
+	)
+	require.NoError(t, err)
+	return appServer
+}
+
+func createMCPApp(t *testing.T, name string, labels map[string]string) *types.AppV3 {
+	t.Helper()
+	app, err := types.NewAppV3(
+		types.Metadata{Name: name, Labels: labels},
+		types.AppSpecV3{
+			URI: "mcp+http://localhost",
+		},
+	)
+	require.NoError(t, err)
+	return app
 }
 
 func addValidSessionCookiesToRequest(appSession types.WebSession, r *http.Request) {

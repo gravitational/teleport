@@ -21,6 +21,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -31,6 +32,7 @@ import (
 	"net/url"
 	"path"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -38,12 +40,18 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport"
+	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/label"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -252,6 +260,41 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 	return nil
 }
 
+// BindMCPEndpoints binds MCP HTTP endpoints to a router.
+func (h *Handler) BindMCPEndpoints(router *httprouter.Router, limiter func(httplib.HandlerFunc) httprouter.Handle) {
+	limitedHandler := func(handler httprouter.Handle) httprouter.Handle {
+		if limiter == nil {
+			return handler
+		}
+
+		return limiter(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+			handler(w, r, p)
+			// Results and errors are sent by the handler.
+			return nil, nil
+		})
+	}
+
+	handler := limitedHandler(h.withAppAuthConfig(
+		h.handleStreamableMCP,
+		func(p httprouter.Params) requestedAppParams {
+			return requestedAppParams{
+				appName:     p.ByName("app"),
+				clusterName: p.ByName("site"),
+			}
+		},
+		func(app types.Application) bool {
+			return app.IsMCP() && types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP
+		},
+	))
+
+	router.POST("/mcp/sites/:site/apps/:app", handler)
+	router.DELETE("/mcp/sites/:site/apps/:app", handler)
+	router.GET("/mcp/sites/:site/apps/:app", handler)
+	router.POST("/mcp/apps/:app", handler)
+	router.DELETE("/mcp/apps/:app", handler)
+	router.GET("/mcp/apps/:app", handler)
+}
+
 // handleHttp forwards the request to the application service or redirects
 // to the application directly.
 func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *session) error {
@@ -294,45 +337,87 @@ func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *se
 	return nil
 }
 
-// handleForwardError when the forwarder has an error during the `ServeHTTP` it
-// will call this function. This handler will then renew the session in order
-// to get "fresh" app servers, and then will forwad the request to the newly
-// created session.
-func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, err error) {
-	// if it is not an agent connection problem, return without creating a new
-	// session.
-	if !trace.IsConnectionProblem(err) {
-		reverseproxy.DefaultHandler.ServeHTTP(w, req, err)
-		return
+// handleStreamableMCP handles streamable HTTP MCP requests using [handleHttp]
+// function.
+func (h *Handler) handleStreamableMCP(w http.ResponseWriter, r *http.Request, session *sessionWithAppAuth) error {
+	switch spec := session.appAuthConfig.Spec.SubKindSpec.(type) {
+	case *appauthconfigv1.AppAuthConfigSpec_Jwt:
+		headerName := cmp.Or(spec.Jwt.AuthorizationHeader, appAuthConfigAuthorizationHeader)
+		r.Header.Del(headerName)
+	default:
+		return trace.BadParameter("unsupported app auth config")
 	}
 
-	// If renewing the session fails, we should do the same for when the
-	// request authentication fails (defined in the "withAuth" middle). This is
-	// done to have a consistent UX to when launching an application.
-	session, err := h.renewSession(req)
-	if err != nil {
-		if redirectErr := h.redirectToLauncher(w, req, launcherURLParams{}); redirectErr == nil {
+	r.URL.Path = "/"
+	// We need to reset the `RequestURI` to indicate the reverse proxy to use
+	// the URL (which have the path reset).
+	r.RequestURI = ""
+	return h.handleHttp(w, r, session.session)
+}
+
+// makeHandleForwardError when the forwarder has an error during the `ServeHTTP`
+// it will call this function. This handler will then renew the session in order
+// to get "fresh" app servers, and then will forwad the request to the newly
+// created session.
+func (h *Handler) makeHandleForwardError(sess *session) reverseproxy.ErrorHandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request, err error) {
+		// if it is not an agent connection problem, return without creating a new
+		// session.
+		if !trace.IsConnectionProblem(err) {
+			reverseproxy.DefaultHandler.ServeHTTP(w, req, err)
 			return
 		}
 
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
-		return
+		// If renewing the fwd fails, we should do the same for when the
+		// request authentication fails (defined in the "withAuth" middle). This is
+		// done to have a consistent UX to when launching an application.
+		fwd, err := sess.renewFunc(req)
+		if err != nil {
+			if redirectErr := h.redirectToLauncher(w, req, launcherURLParams{}); redirectErr == nil {
+				return
+			}
+
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
+			return
+		}
+		// NOTE: This handler is called by the forwarder when it encounters an error
+		// during the `ServeHTTP` call. This means that the request forwarding was not successful.
+		// Since the request was not forwarded, and above we ignore all errors that are not
+		// connection problems, we can safely assume that the request body was not read.
+		// This happens because the connection problem is returned by the DialContext
+		// function, which is the HTTP transport requires before reading the request body.
+		// Although the request body is not read, the request body is closed by the
+		// HTTP Transport but we replace the request body in (*Handler).handleForward
+		// with a NopCloser so that the request body can be closed multiple times without
+		// impacting the request forwarding.
+		// If in the future we decide to retry requests that fail for other reasons,
+		// we need to support body rewinding with `req.GetBody` together with a
+		// `io.TeeReader` to read the request body and then rewind it.
+		fwd.ServeHTTP(w, req)
 	}
-	// NOTE: This handler is called by the forwarder when it encounters an error
-	// during the `ServeHTTP` call. This means that the request forwarding was not successful.
-	// Since the request was not forwarded, and above we ignore all errors that are not
-	// connection problems, we can safely assume that the request body was not read.
-	// This happens because the connection problem is returned by the DialContext
-	// function, which is the HTTP transport requires before reading the request body.
-	// Although the request body is not read, the request body is closed by the
-	// HTTP Transport but we replace the request body in (*Handler).handleForward
-	// with a NopCloser so that the request body can be closed multiple times without
-	// impacting the request forwarding.
-	// If in the future we decide to retry requests that fail for other reasons,
-	// we need to support body rewinding with `req.GetBody` together with a
-	// `io.TeeReader` to read the request body and then rewind it.
-	session.fwd.ServeHTTP(w, req)
+}
+
+// makeRenewAppAuthSession builds a renew function that attempts to renew app
+// auth session. The web session and app auth config are captured in the closure
+// so the renewer does not need to re-read them from the request (the request
+// headers may have been modified before forwarding, e.g. the JWT header is
+// stripped in handleStreamableMCP).
+func (h *Handler) makeRenewAppAuthSession(ws types.WebSession, reqAppServer *withAppServer, appAuthConfig *appauthconfigv1.AppAuthConfig) sessionRenewFunc {
+	return func(r *http.Request) (*reverseproxy.Forwarder, error) {
+		// Remove the session from the cache, this will force a new session to be
+		// generated and cached.
+		h.cache.Remove(ws.GetName())
+
+		// Fetches a new session reusing the existing web session.
+		session, err := h.getSessionWithAppAuth(r.Context(), ws, reqAppServer, appAuthConfig)
+		if err != nil {
+			h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
+			return nil, trace.AccessDenied("invalid session")
+		}
+
+		return session.fwd, nil
+	}
 }
 
 // authenticate will check if request carries a session cookie matching a
@@ -355,10 +440,28 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 	return session, nil
 }
 
+// authenticateWithAppAuth will check if the request carries matching app auth
+// config to authenticate the request.
+func (h *Handler) authenticateWithAppAuth(ctx context.Context, r *http.Request, reqAppServer *withAppServer) (*sessionWithAppAuth, error) {
+	ws, appAuthConfig, err := h.getAppSessionUsingAuthConfig(r, reqAppServer)
+	if err != nil {
+		h.logger.WarnContext(ctx, "Failed to fetch application session", "error", err)
+		return nil, trace.AccessDenied("invalid session")
+	}
+
+	session, err := h.getSessionWithAppAuth(ctx, ws, reqAppServer, appAuthConfig)
+	if err != nil {
+		h.logger.WarnContext(ctx, "Failed to get session", "error", err)
+		return nil, trace.AccessDenied("invalid session")
+	}
+
+	return session, nil
+}
+
 // renewSession based on the request removes the session from cache (if present)
 // and generates a new one using the `getSession` flow (same as in
 // `authenticate`).
-func (h *Handler) renewSession(r *http.Request) (*session, error) {
+func (h *Handler) renewSession(r *http.Request) (*reverseproxy.Forwarder, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
 		h.logger.DebugContext(r.Context(), "Failed to fetch application session: not found")
@@ -376,7 +479,13 @@ func (h *Handler) renewSession(r *http.Request) (*session, error) {
 		return nil, trace.AccessDenied("invalid session")
 	}
 
-	return session, nil
+	return session.fwd, nil
+}
+
+// withAppServer holds information of the requested application.
+type withAppServer struct {
+	clusterName string
+	appServer   types.AppServer
 }
 
 // getAppSession retrieves the `types.WebSession` using the provided
@@ -495,6 +604,70 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 	return ws, nil
 }
 
+// getAppSessionUsingAuthConfig retrieves the app session using app auth config.
+func (h *Handler) getAppSessionUsingAuthConfig(r *http.Request, reqAppServer *withAppServer) (types.WebSession, *appauthconfigv1.AppAuthConfig, error) {
+	if reqAppServer == nil {
+		return nil, nil, trace.BadParameter("missing requested app")
+	}
+
+	config, err := h.selectAppAuthConfig(r.Context(), reqAppServer.appServer.GetApp())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	switch spec := config.Spec.SubKindSpec.(type) {
+	case *appauthconfigv1.AppAuthConfigSpec_Jwt:
+		headerName := cmp.Or(spec.Jwt.AuthorizationHeader, appAuthConfigAuthorizationHeader)
+		jwtToken, found := strings.CutPrefix(r.Header.Get(headerName), "Bearer ")
+		if !found {
+			return nil, nil, trace.BadParameter("expected request to include %q header with JWT", headerName)
+		}
+
+		sid := services.GenerateAppSessionIDFromJWT(jwtToken)
+		if ws, err := h.getAppSessionFromAccessPoint(r.Context(), sid); err == nil {
+			h.logger.DebugContext(r.Context(), "session was present, returning...", "sid", ws.GetName())
+			return ws, config, nil
+		}
+
+		ws, err := h.startAppAuthConfigJWTSession(r.Context(), startAppAuthConfigSessionOptions{
+			sessionID:   sid,
+			token:       jwtToken,
+			config:      config,
+			app:         reqAppServer.appServer.GetApp(),
+			clientAddr:  r.RemoteAddr,
+			clusterName: reqAppServer.clusterName,
+		})
+		return ws, config, trace.Wrap(err)
+	default:
+		return nil, nil, trace.BadParameter("unsupported app auth config")
+	}
+}
+
+// selectAppAuthConfig returns an app auth config that matches the provided app.
+func (h *Handler) selectAppAuthConfig(ctx context.Context, app types.Application) (*appauthconfigv1.AppAuthConfig, error) {
+	for config, err := range clientutils.Resources(ctx, h.c.AccessPoint.ListAppAuthConfigs) {
+		if err != nil {
+			return nil, trace.Wrap(err, "unable to retrieve app auth configs")
+		}
+		convertedLabels := make(types.Labels)
+		for k, vs := range label.ToMap(config.Spec.AppLabels) {
+			convertedLabels[k] = apiutils.Strings(vs)
+		}
+
+		matched, message, err := services.MatchLabelGetter(convertedLabels, app)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if matched {
+			return config, nil
+		}
+
+		h.logger.DebugContext(ctx, "unmatched app auth config", "reason", message)
+	}
+
+	return nil, trace.NotFound("unable to find app auth config")
+}
+
 // getSession returns a request session used to proxy the request to the
 // application service. Always checks if the session is valid first and if so,
 // will return a cached session, otherwise will create one.
@@ -502,7 +675,19 @@ func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session
 	// Put the session in the cache so the next request can use it.
 	ttl := ws.Expiry().Sub(h.c.Clock.Now())
 	sess, err := utils.FnCacheGetWithTTL(ctx, h.cache, ws.GetName(), ttl, func(ctx context.Context) (*session, error) {
-		sess, err := h.newSession(ctx, ws)
+		sess, err := h.newSession(ctx, ws, h.renewSession)
+		return sess, trace.Wrap(err)
+	})
+	return sess, trace.Wrap(err)
+}
+
+// getSessionWithAppAuth returns a request session used to serve the request,
+// the session is authenticated with an app auth config.
+func (h *Handler) getSessionWithAppAuth(ctx context.Context, ws types.WebSession, reqAppServer *withAppServer, appAuthConfig *appauthconfigv1.AppAuthConfig) (*sessionWithAppAuth, error) {
+	// Put the session in the cache so the next request can use it.
+	ttl := ws.Expiry().Sub(h.c.Clock.Now())
+	sess, err := utils.FnCacheGetWithTTL(ctx, h.cache, ws.GetName(), ttl, func(ctx context.Context) (*sessionWithAppAuth, error) {
+		sess, err := h.newSessionWithAppAuth(ctx, ws, reqAppServer, appAuthConfig)
 		return sess, trace.Wrap(err)
 	})
 	return sess, trace.Wrap(err)

@@ -39,7 +39,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/appauthconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -74,12 +77,32 @@ func TestAppAccess(t *testing.T) {
 		{
 			Name: "test-http",
 			URI:  streamableHTTPServerURL,
+			StaticLabels: map[string]string{
+				"app_auth_config": "jwt",
+			},
 		},
 	}
+
+	jwks := newJwksIssuer(t)
 
 	// Reusing the pack as much as we can.
 	pack := SetupWithOptions(t, AppTestOptions{
 		ExtraRootApps: extraApps,
+		JWKS:          jwks,
+		RootAppAuthConfigs: []*appauthconfigv1.AppAuthConfig{
+			appauthconfig.NewAppAuthConfigJWT(
+				"jwt",
+				[]*labelv1.Label{{Name: "app_auth_config", Values: []string{"jwt"}}},
+				&appauthconfigv1.AppAuthConfigJWTSpec{
+					Issuer:        jwks.issuer,
+					Audience:      "teleport",
+					UsernameClaim: "email",
+					KeysSource: &appauthconfigv1.AppAuthConfigJWTSpec_StaticJwks{
+						StaticJwks: jwks.encodedJwks,
+					},
+				},
+			),
+		},
 	})
 
 	t.Run("Forward", bind(pack, testForward))

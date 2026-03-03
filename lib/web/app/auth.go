@@ -19,6 +19,7 @@
 package app
 
 import (
+	"context"
 	"crypto/subtle"
 	"fmt"
 	"net/http"
@@ -27,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -45,6 +47,10 @@ type fragmentRequest struct {
 // TeleportNextAppRedirectUrlHeader is used to tell the browser which URL to navigate to
 // next in the chain of required app authentication redirects
 const TeleportNextAppRedirectUrlHeader = "X-Teleport-NextAppRedirectUrl"
+
+// appAuthConfigAuthorizationHeader is the default header name that contains
+// token used by app auth configs.
+const appAuthConfigAuthorizationHeader = "Authorization"
 
 // startAppAuthExchange will do two actions depending on the following:
 //
@@ -248,6 +254,44 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	}
 
 	return nil
+}
+
+// startAppAuthConfigSessionOptions is the params used to start a new app
+// session using app auth config.
+type startAppAuthConfigSessionOptions struct {
+	sessionID   string
+	token       string
+	config      *appauthconfigv1.AppAuthConfig
+	clusterName string
+	app         types.Application
+	clientAddr  string
+}
+
+// startAppAuthConfigJWTSession starts a new app session using JWT app auth
+// config.
+func (h *Handler) startAppAuthConfigJWTSession(ctx context.Context, opts startAppAuthConfigSessionOptions) (types.WebSession, error) {
+	jwtConfig := opts.config.Spec.GetJwt()
+	if jwtConfig == nil {
+		return nil, trace.BadParameter("app auth config jwt session can only start with jwt configs")
+	}
+
+	ws, err := h.c.AuthClient.CreateAppSessionWithJWT(ctx, &appauthconfigv1.CreateAppSessionWithJWTRequest{
+		ConfigName: opts.config.Metadata.Name,
+		App: &appauthconfigv1.App{
+			ClusterName: opts.clusterName,
+			AppName:     opts.app.GetName(),
+			Uri:         opts.app.GetURI(),
+			PublicAddr:  opts.app.GetPublicAddr(),
+		},
+		Jwt:        opts.token,
+		RemoteAddr: opts.clientAddr,
+	})
+	if err != nil {
+		h.logger.WarnContext(ctx, "failed to create a app session from jwt token", "error", err)
+		return nil, trace.Wrap(err)
+	}
+
+	return ws, nil
 }
 
 func checkSubjectToken(subjectCookieValue string, ws types.WebSession) error {

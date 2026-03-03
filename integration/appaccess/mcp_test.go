@@ -19,6 +19,7 @@
 package appaccess
 
 import (
+	"crypto/tls"
 	"net"
 	"net/http"
 	"testing"
@@ -31,8 +32,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/client"
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
+	"github.com/gravitational/teleport/lib/services"
 	libmcp "github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
 )
@@ -55,6 +59,10 @@ func testMCP(pack *Pack, t *testing.T) {
 
 	t.Run("proxy streamable HTTP success", func(t *testing.T) {
 		testMCPProxyStreamableHTTP(t, pack, "test-http")
+	})
+
+	t.Run("endpoint streamable HTTP with JWT", func(t *testing.T) {
+		testMCPEndpointStreamableHTTPWithJWT(t, pack, "test-http")
 	})
 
 	t.Run("stdio to streamable HTTP success", func(t *testing.T) {
@@ -118,6 +126,66 @@ func testMCPProxyStreamableHTTP(t *testing.T, pack *Pack, appName string) {
 	// Initialize client and call a tool.
 	mcptest.MustInitializeClient(t, client)
 	mcptest.MustCallServerTool(t, client)
+}
+
+func testMCPEndpointStreamableHTTPWithJWT(t *testing.T, pack *Pack, appName string) {
+	userNoAccess, _ := pack.CreateUser(t)
+	denyRole := services.RoleForUser(userNoAccess)
+	denyRole.SetAppLabels(types.Deny, map[string]utils.Strings{types.AppSubKindLabel: {types.SubKindMCP}})
+
+	createdDenyRole, err := pack.rootCluster.Process.GetAuthServer().UpsertRole(t.Context(), denyRole)
+	require.NoError(t, err)
+
+	userNoAccess.AddRole(createdDenyRole.GetName())
+	_, err = pack.rootCluster.Process.GetAuthServer().UpsertUser(t.Context(), userNoAccess)
+	require.NoError(t, err)
+
+	for name, tc := range map[string]struct {
+		token       string
+		assertError require.ErrorAssertionFunc
+	}{
+		"with access": {
+			token:       pack.jwks.createJwt(t, "teleport", pack.username, time.Now(), time.Now().Add(time.Hour)),
+			assertError: require.NoError,
+		},
+		"access denied": {
+			token:       pack.jwks.createJwt(t, "teleport", userNoAccess.GetName(), time.Now(), time.Now().Add(time.Hour)),
+			assertError: require.Error,
+		},
+		"token issued too long ago": {
+			token:       pack.jwks.createJwt(t, "teleport", pack.username, time.Now().Add(12*time.Hour), time.Now().Add(24*time.Hour)),
+			assertError: require.Error,
+		},
+		"expired token": {
+			token:       pack.jwks.createJwt(t, "teleport", pack.username, time.Now().Add(-2*time.Hour), time.Now().Add(-1*time.Hour)),
+			assertError: require.Error,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := t.Context()
+			mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(
+				"https://"+pack.rootCluster.Web+"/mcp/apps/"+appName,
+				mcpclienttransport.WithHTTPHeaders(map[string]string{"Authorization": "Bearer " + tc.token}),
+				mcpclienttransport.WithHTTPBasicClient(&http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: &tls.Config{
+							InsecureSkipVerify: true,
+						},
+					},
+				}),
+			)
+			require.NoError(t, err)
+
+			client := mcpclient.NewClient(mcpClientTransport)
+			require.NoError(t, client.Start(ctx))
+			defer client.Close()
+
+			_, err = mcptest.InitializeClient(t.Context(), client)
+			tc.assertError(t, err)
+			_, err = mcptest.CallServerTool(t.Context(), client)
+			tc.assertError(t, err)
+		})
+	}
 }
 
 func testMCPStdioToStreamableHTTP(t *testing.T, pack *Pack, appName string) {

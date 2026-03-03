@@ -19,6 +19,7 @@
 package appaccess
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -28,6 +29,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
@@ -36,9 +39,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -51,6 +56,8 @@ type AppTestOptions struct {
 	LeafClusterListeners helpers.InstanceListenerSetupFunc
 	Clock                clockwork.Clock
 	MonitorCloseChannel  chan struct{}
+	RootAppAuthConfigs   []*appauthconfigv1.AppAuthConfig
+	JWKS                 *jwksIssuer
 
 	RootConfig func(config *servicecfg.Config)
 	LeafConfig func(config *servicecfg.Config)
@@ -136,6 +143,8 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 		flushAppName:        "app-05",
 		flushAppPublicAddr:  "app-05.example.com",
 		flushAppClusterName: "example.com",
+
+		jwks: opts.JWKS,
 	}
 
 	createHandler := func(handler func(conn *websocket.Conn)) http.HandlerFunc {
@@ -476,4 +485,50 @@ func splitHostPort(hostport string) (string, int, error) {
 	}
 
 	return host, int(port), nil
+}
+
+type jwksIssuer struct {
+	signer      jose.Signer
+	signatures  []jose.SignatureAlgorithm
+	encodedJwks string
+	issuer      string
+}
+
+func (j *jwksIssuer) createJwt(t *testing.T, audience, email string, issuedAt time.Time, expiredAt time.Time) string {
+	token, err := jwt.Signed(j.signer).Claims(jwt.Claims{
+		Issuer:   j.issuer,
+		Audience: jwt.Audience{audience},
+		IssuedAt: jwt.NewNumericDate(issuedAt),
+		Expiry:   jwt.NewNumericDate(expiredAt),
+	}).Claims(
+		struct {
+			Email string `json:"email"`
+		}{Email: email},
+	).Serialize()
+	require.NoError(t, err)
+	return token
+}
+
+func newJwksIssuer(t *testing.T) *jwksIssuer {
+	const kid = "kid-example"
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	signer, err := jose.NewSigner(
+		jose.SigningKey{Algorithm: jose.ES256, Key: privateKey},
+		(&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", kid),
+	)
+	require.NoError(t, err)
+
+	encodedJwks, err := json.Marshal(&jose.JSONWebKeySet{Keys: []jose.JSONWebKey{
+		{Algorithm: string(jose.ES256), KeyID: kid, Key: privateKey.Public()},
+	}})
+	require.NoError(t, err)
+
+	return &jwksIssuer{
+		signer:      signer,
+		signatures:  []jose.SignatureAlgorithm{jose.ES256},
+		encodedJwks: string(encodedJwks),
+		issuer:      "https://issuer-url/",
+	}
 }
