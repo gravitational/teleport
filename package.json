@@ -57,7 +57,7 @@
     "playwright": "^1.55.1",
     "prettier": "^3.7.3",
     "react-select-event": "^5.5.1",
-    "storybook": "^10.1.11",
+    "storybook": "^10.2.13",
     "svgo": "^4.0.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
