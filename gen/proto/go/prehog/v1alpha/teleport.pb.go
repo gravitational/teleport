@@ -1224,9 +1224,15 @@ const (
 	LicenseLimit_LICENSE_LIMIT_UNSPECIFIED LicenseLimit = 0
 	// LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF is emitted if license does not
 	// allow Jamf integration (e.g. Team Plan)
+	// DEPRECATED: Device trust and its MDM integrations are no longer limited for Enterprise/Cloud.
+	//
+	// Deprecated: Marked as deprecated in prehog/v1alpha/teleport.proto.
 	LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF LicenseLimit = 1
 	// LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE is emitted when allowed enrolled device
 	// limit is reached
+	// DEPRECATED: Device trust usage is no longer limited for Enterprise/Cloud.
+	//
+	// Deprecated: Marked as deprecated in prehog/v1alpha/teleport.proto.
 	LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE LicenseLimit = 2
 )
 
@@ -12953,11 +12959,11 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\x1bFeatureRecommendationStatus\x12-\n" +
 	")FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED\x10\x00\x12*\n" +
 	"&FEATURE_RECOMMENDATION_STATUS_NOTIFIED\x10\x01\x12&\n" +
-	"\"FEATURE_RECOMMENDATION_STATUS_DONE\x10\x02*\x82\x01\n" +
+	"\"FEATURE_RECOMMENDATION_STATUS_DONE\x10\x02*\x8a\x01\n" +
 	"\fLicenseLimit\x12\x1d\n" +
-	"\x19LICENSE_LIMIT_UNSPECIFIED\x10\x00\x12(\n" +
-	"$LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF\x10\x01\x12)\n" +
-	"%LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE\x10\x02*\xac\x01\n" +
+	"\x19LICENSE_LIMIT_UNSPECIFIED\x10\x00\x12,\n" +
+	"$LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF\x10\x01\x1a\x02\b\x01\x12-\n" +
+	"%LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE\x10\x02\x1a\x02\b\x01*\xac\x01\n" +
 	"\x15DiscoveryConfigAction\x12'\n" +
 	"#DISCOVERY_CONFIG_ACTION_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eDISCOVERY_CONFIG_ACTION_CREATE\x10\x01\x12\"\n" +
