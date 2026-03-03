@@ -203,7 +203,7 @@ importers:
         specifier: ^5.5.1
         version: 5.5.1
       storybook:
-        specifier: ^10.2.10
+        specifier: ^10.2.13
         version: 10.2.13(@testing-library/dom@10.1.0)(prettier@3.8.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       svgo:
         specifier: ^4.0.0
