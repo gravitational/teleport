@@ -691,7 +691,7 @@ class FeatureRecordings extends OSS.FeatureRecordings {
 }
 
 class FeatureSessionSummaries implements TeleportFeature {
-  parent = FeatureIntegrations;
+  parent = FeatureRecordings;
 
   route = {
     title: 'Session Summaries',
