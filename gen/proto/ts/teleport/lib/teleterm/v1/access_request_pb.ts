@@ -31,6 +31,8 @@ import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
 import { ResourceConstraints } from "../../../legacy/types/resources_pb";
+import { LongTermResourceGrouping } from "../../../legacy/types/access_requests_pb";
+import { AccessRequestKind } from "../../../legacy/types/access_requests_pb";
 import { Timestamp } from "../../../../google/protobuf/timestamp_pb";
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.AccessRequest
@@ -140,6 +142,19 @@ export interface AccessRequest {
      * @generated from protobuf field: repeated string reason_prompts = 20;
      */
     reasonPrompts: string[];
+    /**
+     * request_kind is the kind (long-term/short-term) of the request.
+     *
+     * @generated from protobuf field: types.AccessRequestKind request_kind = 21;
+     */
+    requestKind: AccessRequestKind;
+    /**
+     * long_term_resource_grouping contains information about how requested resources
+     * can be grouped for long-term access.
+     *
+     * @generated from protobuf field: types.LongTermResourceGrouping long_term_resource_grouping = 22;
+     */
+    longTermResourceGrouping?: LongTermResourceGrouping;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.AccessRequestReview
@@ -263,7 +278,9 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
             { no: 17, name: "request_ttl", kind: "message", T: () => Timestamp },
             { no: 18, name: "session_ttl", kind: "message", T: () => Timestamp },
             { no: 19, name: "reason_mode", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 20, name: "reason_prompts", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+            { no: 20, name: "reason_prompts", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 21, name: "request_kind", kind: "enum", T: () => ["types.AccessRequestKind", AccessRequestKind] },
+            { no: 22, name: "long_term_resource_grouping", kind: "message", T: () => LongTermResourceGrouping }
         ]);
     }
     create(value?: PartialMessage<AccessRequest>): AccessRequest {
@@ -281,6 +298,7 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
         message.promotedAccessListTitle = "";
         message.reasonMode = "";
         message.reasonPrompts = [];
+        message.requestKind = 0;
         if (value !== undefined)
             reflectionMergePartial<AccessRequest>(this, message, value);
         return message;
@@ -346,6 +364,12 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
                     break;
                 case /* repeated string reason_prompts */ 20:
                     message.reasonPrompts.push(reader.string());
+                    break;
+                case /* types.AccessRequestKind request_kind */ 21:
+                    message.requestKind = reader.int32();
+                    break;
+                case /* types.LongTermResourceGrouping long_term_resource_grouping */ 22:
+                    message.longTermResourceGrouping = LongTermResourceGrouping.internalBinaryRead(reader, reader.uint32(), options, message.longTermResourceGrouping);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -416,6 +440,12 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
         /* repeated string reason_prompts = 20; */
         for (let i = 0; i < message.reasonPrompts.length; i++)
             writer.tag(20, WireType.LengthDelimited).string(message.reasonPrompts[i]);
+        /* types.AccessRequestKind request_kind = 21; */
+        if (message.requestKind !== 0)
+            writer.tag(21, WireType.Varint).int32(message.requestKind);
+        /* types.LongTermResourceGrouping long_term_resource_grouping = 22; */
+        if (message.longTermResourceGrouping)
+            LongTermResourceGrouping.internalBinaryWrite(message.longTermResourceGrouping, writer.tag(22, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

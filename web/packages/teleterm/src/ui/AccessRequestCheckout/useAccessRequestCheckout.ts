@@ -19,6 +19,7 @@
 import { useEffect, useState } from 'react';
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { AccessRequestKind } from 'gen-proto-ts/teleport/legacy/types/access_requests_pb';
 import {
   getDryRunMaxDuration,
   isKubeClusterWithNamespaces,
@@ -297,7 +298,8 @@ export default function useAccessRequestCheckout() {
       assumeStartTime: req.start && Timestamp.fromDate(req.start),
       maxDuration: req.maxDuration && Timestamp.fromDate(req.maxDuration),
       requestTtl: req.requestTTL && Timestamp.fromDate(req.requestTTL),
-      resourceAccessIds: undefined,
+      requestKind: AccessRequestKind.SHORT_TERM,
+      resourceAccessIds: [],
     };
 
     // Don't attempt creating anything if there are no resources selected.
