@@ -859,3 +859,17 @@ need to be introduced:
 - By default, continue to constrain a scoped Bot's credentials to its scope of
   origin unless explicitly configured otherwise on a per-`tbot` basis. This 
   mitigates the confused deputy attack vector.
+
+### B.3 Namespacing of scoped Bot resources
+
+One item which has been discussed informally is the concept of namespacing of 
+resources by scope. This would allow two Bots, within different scopes, to hold
+the same user-facing name. 
+
+Introducing namespacing for scoped Bots feels like a natural extension of the 
+concept of scoping, alleviating the need for teams across large organizations
+to coordinate on the naming of Bots.
+
+At this time, there is no prior art for scope-based namespacing within Teleport.
+Due to the already large and complex nature of this build, it seems reasonable
+to defer the design and implementation of namespacing to a future iteration.
