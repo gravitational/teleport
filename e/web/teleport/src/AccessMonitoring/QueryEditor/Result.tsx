@@ -45,7 +45,9 @@ const DetailRow = styled.div`
   padding-left: ${p => p.theme.space[2]}px;
 `;
 
-const ResultsTable = styled(Table)`
+// Provide a generic Record for Table's data prop based on tableData in <Result>. The exact keys
+// returned by the backend  are unknown.
+const ResultsTable = styled(Table<Record<string, string | number>>)`
   width: 100%;
   position: relative;
   background: ${p => p.theme.colors.levels.elevated};
@@ -166,7 +168,6 @@ export function Result(props: ResultProps) {
       </DetailRow>
 
       <TableContainer>
-        {/* @ts-expect-error - Returned keys are unknown */}
         <ResultsTable
           data={tableData}
           columns={tableColumns}

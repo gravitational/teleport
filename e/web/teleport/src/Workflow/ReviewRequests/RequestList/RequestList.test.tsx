@@ -33,6 +33,7 @@ test('disabled assume button with assume start date', async () => {
       takeRecords: jest.fn(),
       root: null,
       rootMargin: null,
+      scrollMargin: null,
       thresholds: null,
     };
   });

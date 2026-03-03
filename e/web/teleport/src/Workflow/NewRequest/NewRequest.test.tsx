@@ -99,6 +99,7 @@ beforeEach(() => {
       takeRecords: jest.fn(),
       root: null,
       rootMargin: null,
+      scrollMargin: null,
       thresholds: null,
     };
   });
