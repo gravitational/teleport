@@ -7,6 +7,7 @@ const ServiceType = "unstable/vnet"
 type Config struct {
 	Name                string `yaml:"name,omitempty"`
 	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
+	BeamID              string `yaml:"beam_id,omitempty"`
 }
 
 func (cfg *Config) CheckAndSetDefaults() error { return nil }

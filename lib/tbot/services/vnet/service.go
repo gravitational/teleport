@@ -7,9 +7,13 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/trace"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
 
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -22,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/vnet"
 )
 
@@ -38,6 +43,7 @@ func ServiceBuilder(cfg *Config, alpnUpgradeCache *internal.ALPNUpgradeCache) bo
 			proxyPinger:        deps.ProxyPinger,
 			alpnUpgradeCache:   alpnUpgradeCache,
 			credentialLifetime: cfg.GetCredentialLifetime(),
+			allowedDomains:     &domainAllowlist{},
 		}, nil
 	}
 	return bot.NewServiceBuilder(ServiceType, cfg.Name, buildFn)
@@ -54,6 +60,7 @@ type Service struct {
 	proxyPinger        connection.ProxyPinger
 	alpnUpgradeCache   *internal.ALPNUpgradeCache
 	credentialLifetime bot.CredentialLifetime
+	allowedDomains     *domainAllowlist
 }
 
 func (s *Service) String() string { return s.cfg.Name }
@@ -149,6 +156,8 @@ func (s *Service) Run(ctx context.Context) error {
 			credentialLifetime:  s.credentialLifetime,
 			proxyPinger:         s.proxyPinger,
 			delegationSessionID: s.cfg.DelegationSessionID,
+			allowedDomains:      s.allowedDomains,
+			logger:              s.log,
 		},
 		ConfigureHost: func(ctx context.Context, cfg vnet.EmbeddedVNetHostConfig) error {
 			var err error
@@ -159,7 +168,98 @@ func (s *Service) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "creating embedded vnet")
 	}
-	return trace.Wrap(vn.Run(ctx), "running vnet")
+
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		return trace.Wrap(s.watchBeam(groupCtx, impersonatedClient.BeamsServiceClient()), "watching beam")
+	})
+	group.Go(func() error {
+		return trace.Wrap(vn.Run(groupCtx), "running vnet")
+	})
+	return trace.Wrap(group.Wait())
+}
+
+func (s *Service) watchBeam(ctx context.Context, client beamsv1.BeamsServiceClient) error {
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(1 * time.Second),
+		Max:    1 * time.Minute,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating retry")
+	}
+
+	for {
+		err := s.watchBeamStream(ctx, client)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if trace.IsNotFound(err) {
+			return err
+		}
+
+		s.log.WarnContext(ctx, "Watching beam failed", "error", err)
+		retry.Inc()
+
+		select {
+		case <-retry.After():
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (s *Service) watchBeamStream(ctx context.Context, client beamsv1.BeamsServiceClient) error {
+	stream, err := client.WatchBeam(ctx, &beamsv1.WatchBeamRequest{
+		Id: s.cfg.BeamID,
+	})
+	if err != nil {
+		return err
+	}
+
+	for {
+		beam, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+
+		allowedDomains := beam.GetSpec().GetAllowedDomains()
+		s.log.DebugContext(ctx, "Replacing allowed domains",
+			"allowed_domains", allowedDomains,
+			"beam_revision",
+			beam.GetMetadata().GetRevision(),
+		)
+		s.allowedDomains.replace(allowedDomains)
+	}
+}
+
+type domainAllowlist struct {
+	mu      sync.Mutex
+	domains set.Set[string]
+}
+
+func (a *domainAllowlist) replace(elems []string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.domains = set.New(elems...)
+}
+
+func (a *domainAllowlist) contains(domain string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.domains == nil {
+		return false
+	}
+	return a.domains.Contains(domain)
+}
+
+func (a *domainAllowlist) all() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return a.domains.Elements()
 }
 
 type applicationService struct {
@@ -170,10 +270,16 @@ type applicationService struct {
 	credentialLifetime  bot.CredentialLifetime
 	proxyPinger         connection.ProxyPinger
 	delegationSessionID string
+	allowedDomains      *domainAllowlist
+	logger              *slog.Logger
 }
 
 func (s *applicationService) ResolveFQDN(ctx context.Context, req *vnetv1.ResolveFQDNRequest) (*vnetv1.ResolveFQDNResponse, error) {
 	fqdn := req.GetFqdn()
+
+	if !s.allowedDomains.contains(fqdn) {
+		return nil, trace.NotFound("fqdn %q is not in beam allowlist")
+	}
 
 	// Handle resolving the proxy address.
 	proxyAddr, err := s.proxyAddr(ctx)
