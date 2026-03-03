@@ -51,6 +51,8 @@ message ScopedToken {
 // ScopedTokenSpec is the specification of a scoped token.
 message ScopedTokenSpec {
   // The scope to which this token is assigned.
+  //
+  // Must be a equivalent or descendent to the scope of the token itself.
   string assigned_scope = 1;
 
   // The list of roles associated with the token. They will be converted
