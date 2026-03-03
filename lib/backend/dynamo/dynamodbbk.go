@@ -527,6 +527,8 @@ func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease
 // Put puts value into backend (creates if it does not
 // exists, updates it otherwise)
 func (b *Backend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+	defer cancel()
 	rev, err := b.create(ctx, item, modePut)
 	if err != nil {
 		return nil, trace.Wrap(err)
