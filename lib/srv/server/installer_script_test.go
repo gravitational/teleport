@@ -48,14 +48,14 @@ func TestInstallerScript(t *testing.T) {
 			name:           "basic",
 			req:            basicParams,
 			errCheck:       require.NoError,
-			expectedScript: "curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token",
+			expectedScript: `bash -c "set -o pipefail; curl --silent --show-error --location https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token"`,
 		},
 		{
 			name:                   "with nonce to ensure script is unique",
 			req:                    basicParams,
 			withOptions:            []scriptOption{withNonceComment()},
 			errCheck:               require.NoError,
-			expectedScriptContains: "curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token # ",
+			expectedScriptContains: `bash -c "set -o pipefail; curl --silent --show-error --location https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token" #`,
 		},
 		{
 			name: "with azure clientid",
@@ -68,7 +68,7 @@ func TestInstallerScript(t *testing.T) {
 			},
 			withOptions:            []scriptOption{withNonceComment()},
 			errCheck:               require.NoError,
-			expectedScriptContains: "curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName?azure-client-id=my-id | bash -s my-token # ",
+			expectedScriptContains: `bash -c "set -o pipefail; curl --silent --show-error --location https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName?azure-client-id=my-id | bash -s my-token" #`,
 		},
 		{
 			name: "with suffix installation",
@@ -78,7 +78,7 @@ func TestInstallerScript(t *testing.T) {
 				return req
 			},
 			errCheck:       require.NoError,
-			expectedScript: "export TELEPORT_INSTALL_SUFFIX=suffix; curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token",
+			expectedScript: `export TELEPORT_INSTALL_SUFFIX=suffix; bash -c "set -o pipefail; curl --silent --show-error --location https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token"`,
 		},
 		{
 			name: "with update group",
@@ -88,7 +88,7 @@ func TestInstallerScript(t *testing.T) {
 				return req
 			},
 			errCheck:       require.NoError,
-			expectedScript: "export TELEPORT_UPDATE_GROUP=updateGroup; curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token",
+			expectedScript: `export TELEPORT_UPDATE_GROUP=updateGroup; bash -c "set -o pipefail; curl --silent --show-error --location https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token"`,
 		},
 		{
 			name: "with install suffix and update group",
@@ -99,7 +99,7 @@ func TestInstallerScript(t *testing.T) {
 				return req
 			},
 			errCheck:       require.NoError,
-			expectedScript: "export TELEPORT_INSTALL_SUFFIX=suffix TELEPORT_UPDATE_GROUP=updateGroup; curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token",
+			expectedScript: `export TELEPORT_INSTALL_SUFFIX=suffix TELEPORT_UPDATE_GROUP=updateGroup; bash -c "set -o pipefail; curl --silent --show-error --location https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token"`,
 		},
 		{
 			name: "missing public proxy address but getter was set up",
@@ -114,7 +114,7 @@ func TestInstallerScript(t *testing.T) {
 				}),
 			},
 			errCheck:       require.NoError,
-			expectedScript: "curl -s -L https://proxy2.example.com/v1/webapi/scripts/installer/scriptName | bash -s my-token",
+			expectedScript: `bash -c "set -o pipefail; curl --silent --show-error --location https://proxy2.example.com/v1/webapi/scripts/installer/scriptName | bash -s my-token"`,
 		},
 		{
 			name: "proxy addr is missing but getter returns an error",
@@ -147,7 +147,7 @@ func TestInstallerScript(t *testing.T) {
 				return req
 			},
 			errCheck:       require.NoError,
-			expectedScript: "curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s token\\$\\(sh\\)",
+			expectedScript: `bash -c "set -o pipefail; curl --silent --show-error --location https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s token\$\(sh\)"`,
 		},
 		{
 			name: "with script name that needs escaping",
@@ -157,7 +157,7 @@ func TestInstallerScript(t *testing.T) {
 				return req
 			},
 			errCheck:       require.NoError,
-			expectedScript: `curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName%5C$%5C%28sh%5C%29 | bash -s my-token`,
+			expectedScript: `bash -c "set -o pipefail; curl --silent --show-error --location https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName%5C$%5C%28sh%5C%29 | bash -s my-token"`,
 		},
 		{
 			name: "with HTTP Proxy settings set",
@@ -171,7 +171,7 @@ func TestInstallerScript(t *testing.T) {
 				return req
 			},
 			errCheck:       require.NoError,
-			expectedScript: "export HTTP_PROXY=http://local-squid:3128 HTTPS_PROXY=http://local-squid:3128 NO_PROXY=http://intranet.local; curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token",
+			expectedScript: `export HTTP_PROXY=http://local-squid:3128 HTTPS_PROXY=http://local-squid:3128 NO_PROXY=http://intranet.local; bash -c "set -o pipefail; curl --silent --show-error --location https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token"`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

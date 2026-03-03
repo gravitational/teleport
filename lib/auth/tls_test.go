@@ -1421,6 +1421,7 @@ func TestGetCurrentUser(t *testing.T) {
 }
 
 func TestGetCurrentUserRoles(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -3082,6 +3083,7 @@ func TestGenerateCerts(t *testing.T) {
 // TestGenerateAppToken checks the identity of the caller and makes sure only
 // certain roles can request JWT tokens.
 func TestGenerateAppToken(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
@@ -3193,6 +3195,7 @@ func TestGenerateAppToken(t *testing.T) {
 // TestCertificateFormat makes sure that certificates are generated with the
 // correct format.
 func TestCertificateFormat(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
 
@@ -3589,6 +3592,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 // TestCipherSuites makes sure that clients with invalid cipher suites can
 // not connect.
 func TestCipherSuites(t *testing.T) {
+	t.Parallel()
 	testSrv := newTestTLSServer(t)
 	ctx := context.Background()
 
@@ -5690,9 +5694,10 @@ func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.
 }
 
 type testTLSServerOptions struct {
-	cacheEnabled bool
-	accessGraph  *auth.AccessGraphConfig
-	clock        clockwork.Clock
+	cacheEnabled    bool
+	accessGraph     *auth.AccessGraphConfig
+	clock           clockwork.Clock
+	bufconnListener bool
 }
 
 type testTLSServerOption func(*testTLSServerOptions)
@@ -5712,6 +5717,11 @@ func withAccessGraphConfig(cfg auth.AccessGraphConfig) testTLSServerOption {
 func withClock(clock clockwork.Clock) testTLSServerOption {
 	return func(options *testTLSServerOptions) {
 		options.clock = clock
+	}
+}
+func withBufconnListener() testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.bufconnListener = true
 	}
 }
 
@@ -5739,6 +5749,9 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TLSSe
 	var tlsServerOpts []authtest.TestTLSServerOption
 	if options.accessGraph != nil {
 		tlsServerOpts = append(tlsServerOpts, authtest.WithAccessGraphConfig(*options.accessGraph))
+	}
+	if options.bufconnListener {
+		tlsServerOpts = append(tlsServerOpts, authtest.WithBufconnListener())
 	}
 	srv, err := as.NewTestTLSServer(tlsServerOpts...)
 	require.NoError(t, err)

@@ -245,8 +245,8 @@ func ValidServerHostname(hostname string) bool {
 	return validServerHostname(hostname)
 }
 
-func FormatAccountName(s proxyDomainGetter, username string, authHostname string) (string, error) {
-	return formatAccountName(context.TODO(), s, username, authHostname)
+func FormatAccountName(ctx context.Context, s proxyDomainGetter, username string, authHostname string) (string, error) {
+	return formatAccountName(ctx, s, username, authHostname)
 }
 
 func ConfigureCAsForTrustedCluster(tc types.TrustedCluster, cas []types.CertAuthority) {
@@ -258,7 +258,7 @@ func UpdateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.A
 }
 
 func EncodeProquint(x uint16) string {
-	return encodeProquint(x)
+	return string(encodeProquint(x))
 }
 
 func EmitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, method string, err error, testFlow bool) {

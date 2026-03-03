@@ -30,11 +30,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
 type ec2Instance struct {
@@ -481,6 +485,29 @@ func TestJoinEC2(t *testing.T) {
 			err = testServer.Auth().UpsertToken(context.Background(), token)
 			require.NoError(t, err)
 
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
+				Scope: "/test",
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/test/one",
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+				},
+			})
+			require.NoError(t, err)
+
+			_, err = testServer.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				Token: scopedToken,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, err := testServer.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
+				require.NoError(t, err)
+			})
+
 			testServer.Auth().SetEC2ClientForEC2JoinMethod(tc.ec2Client)
 
 			t.Run("new", func(t *testing.T) {
@@ -511,6 +538,26 @@ func TestJoinEC2(t *testing.T) {
 						Role:     types.RoleNode,
 						NodeName: "testnode",
 						HostUUID: tc.requestHostID,
+					},
+					AuthClient: nopClient,
+					GetInstanceIdentityDocumentFunc: func(_ context.Context) ([]byte, error) {
+						return tc.document, nil
+					},
+				})
+				tc.expectError(t, err)
+			})
+			t.Run("scoped", func(t *testing.T) {
+				if tc.requestHostID == badInstanceId {
+					// New join method does not allow the client to request a
+					// specific host ID, so the join would pass and fail the
+					// error assertion.
+					t.Skip()
+				}
+				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token: scopedToken.GetMetadata().GetName(),
+					ID: state.IdentityID{
+						Role:     types.RoleInstance,
+						NodeName: "testnode",
 					},
 					AuthClient: nopClient,
 					GetInstanceIdentityDocumentFunc: func(_ context.Context) ([]byte, error) {

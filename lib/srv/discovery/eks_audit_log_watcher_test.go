@@ -22,6 +22,7 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -29,7 +30,6 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 	"github.com/gravitational/teleport/lib/utils/testutils/grpctest"
-	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 type (
