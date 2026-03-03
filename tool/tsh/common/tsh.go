@@ -272,6 +272,10 @@ type CLIConf struct {
 
 	// AppName specifies proxied application name.
 	AppName string
+	// BeamID identifies a beam resource.
+	BeamID string
+	// BeamDomain is the domain passed to "tsh beams allow --domain".
+	BeamDomain string
 	// Interactive sessions will allocate a PTY and create interactive "shell"
 	// sessions.
 	Interactive bool
@@ -1043,6 +1047,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beams := app.Command("beams", "Create and connect to beam environments.")
 	beams.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	beamsAdd := beams.Command("add", "Create a beam and connect to it over SSH.")
+	beamsAllow := beams.Command("allow", "Allow a domain for an existing beam.")
+	beamsAllow.Arg("beam-id", "Beam ID to update.").Required().StringVar(&cf.BeamID)
+	beamsAllow.Flag("domain", "FQDN to allow for the beam (for example, api.example.com).").Required().StringVar(&cf.BeamDomain)
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
@@ -1802,6 +1809,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onApps(&cf)
 	case beamsAdd.FullCommand():
 		err = onBeamsAdd(&cf)
+	case beamsAllow.FullCommand():
+		err = onBeamsAllow(&cf)
 	case lsRecordings.FullCommand():
 		err = onRecordings(&cf)
 	case exportRecordings.FullCommand():

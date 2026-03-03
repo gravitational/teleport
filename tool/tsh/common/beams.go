@@ -92,6 +92,34 @@ func onBeamsAdd(cf *CLIConf) error {
 	return trace.Wrap(client.RetryWithRelogin(cf.Context, tc, sshFunc))
 }
 
+func onBeamsAllow(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc.AllowHeadless = true
+
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		_, err = clusterClient.AuthClient.BeamsServiceClient().AllowDomain(cf.Context, &beamsv1.AllowDomainRequest{
+			BeamId: cf.BeamID,
+			Fqdns:  []string{cf.BeamDomain},
+		})
+		return trace.Wrap(err)
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(cf.Stdout(), "Allowed domain %q for beam %q\n", cf.BeamDomain, cf.BeamID)
+	return nil
+}
+
 func waitForBeamNode(ctx context.Context, tc *client.TeleportClient, authClient authclient.ClientI) (*client.TargetNode, error) {
 	pollCtx, cancel := context.WithTimeout(ctx, beamAddPollTimeout)
 	defer cancel()
