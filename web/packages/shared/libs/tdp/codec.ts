@@ -98,12 +98,13 @@ export enum ScrollAxis {
   HORIZONTAL = 1,
 }
 
-// | message type (1) | width uint32 | height uint32 | scale uint32 |
+// | message type (1) | width uint32 | height uint32 | 
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#1---client-screen-spec
 export type ClientScreenSpec = {
-  width: number;
-  height: number;
-  scale: number;
+width: number;
+height: number;
+// scale is only supported for TDPB connections.
+ scale: number;
 };
 
 export type PointerData = {
