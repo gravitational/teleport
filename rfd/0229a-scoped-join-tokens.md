@@ -87,7 +87,7 @@ to facilitate existing provisioning semantics.
 -  // AssignedScope is the scope to which this token is assigned.
 +  // The scope to which this token is assigned.
 +  //
-*  // Must be a equivalent or descendent to the scope of the token itself.
+*  // Must be equivalent or descendent to the scope of the token itself.
    string assigned_scope = 1;
 
 -  // TODO(fspmarshall): port relevant token features to scoped tokens.

@@ -145,7 +145,7 @@ type ScopedTokenSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The scope to which this token is assigned.
 	//
-	// Must be a equivalent or descendent to the scope of the token itself.
+	// Must be equivalent or descendent to the scope of the token itself.
 	AssignedScope string `protobuf:"bytes,1,opt,name=assigned_scope,json=assignedScope,proto3" json:"assigned_scope,omitempty"`
 	// The list of roles associated with the token. They will be converted
 	// to metadata in the SSH and X509 certificates issued to the user of the
