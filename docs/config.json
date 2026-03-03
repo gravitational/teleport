@@ -3491,8 +3491,8 @@
       "permanent": true
     },
     {
-      "source": "/docs/reference/infrastructure-as-code/teleport-resources/saml-idpservice-provider-v1/",
-      "destination": "/docs/reference/infrastructure-as-code/teleport-resources/saml-idp-service-provider-v1/",
+      "source": "/reference/infrastructure-as-code/teleport-resources/saml-idpservice-provider-v1/",
+      "destination": "/reference/infrastructure-as-code/teleport-resources/saml-idp-service-provider-v1/",
       "permanent": true
     }
   ]
