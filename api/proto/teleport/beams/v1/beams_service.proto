@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.beams.v1;
 
+import "google/protobuf/empty.proto";
 import "teleport/beams/v1/beam.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
@@ -31,6 +32,10 @@ service BeamsService {
   //
   // buf:lint:ignore RPC_NO_SERVER_STREAMING
   rpc WatchBeam(WatchBeamRequest) returns (stream Beam);
+
+  // AllowDomain adds a domain to the beam's network allow-list, creating a
+  // application for it if one does not already exist.
+  rpc AllowDomain(AllowDomainRequest) returns (google.protobuf.Empty);
 }
 
 // CreateBeamRequest contains the parameters to CreateBeam.
@@ -40,4 +45,14 @@ message CreateBeamRequest {}
 message WatchBeamRequest {
   // ID of the beam that will be watched.
   string id = 1;
+}
+
+// AllowDomainRequest contains the parameters to AllowDomain.
+message AllowDomainRequest {
+  // BeamID identifies which beam's allow-list will be updated.
+  string beam_id = 1;
+
+  // FQDNs are the fully-qualified domain names that the beam will be allowed to
+  // access (in addition to any other domains previously allowed).
+  repeated string fqdns = 2;
 }

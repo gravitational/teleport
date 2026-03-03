@@ -23,6 +23,7 @@ package beamsv1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -118,18 +119,78 @@ func (x *WatchBeamRequest) GetId() string {
 	return ""
 }
 
+// AllowDomainRequest contains the parameters to AllowDomain.
+type AllowDomainRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// BeamID identifies which beam's allow-list will be updated.
+	BeamId string `protobuf:"bytes,1,opt,name=beam_id,json=beamId,proto3" json:"beam_id,omitempty"`
+	// FQDNs are the fully-qualified domain names that the beam will be allowed to
+	// access (in addition to any other domains previously allowed).
+	Fqdns         []string `protobuf:"bytes,2,rep,name=fqdns,proto3" json:"fqdns,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AllowDomainRequest) Reset() {
+	*x = AllowDomainRequest{}
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AllowDomainRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AllowDomainRequest) ProtoMessage() {}
+
+func (x *AllowDomainRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AllowDomainRequest.ProtoReflect.Descriptor instead.
+func (*AllowDomainRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *AllowDomainRequest) GetBeamId() string {
+	if x != nil {
+		return x.BeamId
+	}
+	return ""
+}
+
+func (x *AllowDomainRequest) GetFqdns() []string {
+	if x != nil {
+		return x.Fqdns
+	}
+	return nil
+}
+
 var File_teleport_beams_v1_beams_service_proto protoreflect.FileDescriptor
 
 const file_teleport_beams_v1_beams_service_proto_rawDesc = "" +
 	"\n" +
-	"%teleport/beams/v1/beams_service.proto\x12\x11teleport.beams.v1\x1a\x1cteleport/beams/v1/beam.proto\"\x13\n" +
+	"%teleport/beams/v1/beams_service.proto\x12\x11teleport.beams.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cteleport/beams/v1/beam.proto\"\x13\n" +
 	"\x11CreateBeamRequest\"\"\n" +
 	"\x10WatchBeamRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id2\xa8\x01\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"C\n" +
+	"\x12AllowDomainRequest\x12\x17\n" +
+	"\abeam_id\x18\x01 \x01(\tR\x06beamId\x12\x14\n" +
+	"\x05fqdns\x18\x02 \x03(\tR\x05fqdns2\xf6\x01\n" +
 	"\fBeamsService\x12K\n" +
 	"\n" +
 	"CreateBeam\x12$.teleport.beams.v1.CreateBeamRequest\x1a\x17.teleport.beams.v1.Beam\x12K\n" +
-	"\tWatchBeam\x12#.teleport.beams.v1.WatchBeamRequest\x1a\x17.teleport.beams.v1.Beam0\x01BNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
+	"\tWatchBeam\x12#.teleport.beams.v1.WatchBeamRequest\x1a\x17.teleport.beams.v1.Beam0\x01\x12L\n" +
+	"\vAllowDomain\x12%.teleport.beams.v1.AllowDomainRequest\x1a\x16.google.protobuf.EmptyBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
 
 var (
 	file_teleport_beams_v1_beams_service_proto_rawDescOnce sync.Once
@@ -143,19 +204,23 @@ func file_teleport_beams_v1_beams_service_proto_rawDescGZIP() []byte {
 	return file_teleport_beams_v1_beams_service_proto_rawDescData
 }
 
-var file_teleport_beams_v1_beams_service_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_teleport_beams_v1_beams_service_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_beams_v1_beams_service_proto_goTypes = []any{
-	(*CreateBeamRequest)(nil), // 0: teleport.beams.v1.CreateBeamRequest
-	(*WatchBeamRequest)(nil),  // 1: teleport.beams.v1.WatchBeamRequest
-	(*Beam)(nil),              // 2: teleport.beams.v1.Beam
+	(*CreateBeamRequest)(nil),  // 0: teleport.beams.v1.CreateBeamRequest
+	(*WatchBeamRequest)(nil),   // 1: teleport.beams.v1.WatchBeamRequest
+	(*AllowDomainRequest)(nil), // 2: teleport.beams.v1.AllowDomainRequest
+	(*Beam)(nil),               // 3: teleport.beams.v1.Beam
+	(*emptypb.Empty)(nil),      // 4: google.protobuf.Empty
 }
 var file_teleport_beams_v1_beams_service_proto_depIdxs = []int32{
 	0, // 0: teleport.beams.v1.BeamsService.CreateBeam:input_type -> teleport.beams.v1.CreateBeamRequest
 	1, // 1: teleport.beams.v1.BeamsService.WatchBeam:input_type -> teleport.beams.v1.WatchBeamRequest
-	2, // 2: teleport.beams.v1.BeamsService.CreateBeam:output_type -> teleport.beams.v1.Beam
-	2, // 3: teleport.beams.v1.BeamsService.WatchBeam:output_type -> teleport.beams.v1.Beam
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
+	2, // 2: teleport.beams.v1.BeamsService.AllowDomain:input_type -> teleport.beams.v1.AllowDomainRequest
+	3, // 3: teleport.beams.v1.BeamsService.CreateBeam:output_type -> teleport.beams.v1.Beam
+	3, // 4: teleport.beams.v1.BeamsService.WatchBeam:output_type -> teleport.beams.v1.Beam
+	4, // 5: teleport.beams.v1.BeamsService.AllowDomain:output_type -> google.protobuf.Empty
+	3, // [3:6] is the sub-list for method output_type
+	0, // [0:3] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -173,7 +238,7 @@ func file_teleport_beams_v1_beams_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beams_service_proto_rawDesc), len(file_teleport_beams_v1_beams_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -25,6 +25,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -33,8 +34,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BeamsService_CreateBeam_FullMethodName = "/teleport.beams.v1.BeamsService/CreateBeam"
-	BeamsService_WatchBeam_FullMethodName  = "/teleport.beams.v1.BeamsService/WatchBeam"
+	BeamsService_CreateBeam_FullMethodName  = "/teleport.beams.v1.BeamsService/CreateBeam"
+	BeamsService_WatchBeam_FullMethodName   = "/teleport.beams.v1.BeamsService/WatchBeam"
+	BeamsService_AllowDomain_FullMethodName = "/teleport.beams.v1.BeamsService/AllowDomain"
 )
 
 // BeamsServiceClient is the client API for BeamsService service.
@@ -51,6 +53,9 @@ type BeamsServiceClient interface {
 	//
 	// buf:lint:ignore RPC_NO_SERVER_STREAMING
 	WatchBeam(ctx context.Context, in *WatchBeamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Beam], error)
+	// AllowDomain adds a domain to the beam's network allow-list, creating a
+	// application for it if one does not already exist.
+	AllowDomain(ctx context.Context, in *AllowDomainRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type beamsServiceClient struct {
@@ -90,6 +95,16 @@ func (c *beamsServiceClient) WatchBeam(ctx context.Context, in *WatchBeamRequest
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type BeamsService_WatchBeamClient = grpc.ServerStreamingClient[Beam]
 
+func (c *beamsServiceClient) AllowDomain(ctx context.Context, in *AllowDomainRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, BeamsService_AllowDomain_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BeamsServiceServer is the server API for BeamsService service.
 // All implementations must embed UnimplementedBeamsServiceServer
 // for forward compatibility.
@@ -104,6 +119,9 @@ type BeamsServiceServer interface {
 	//
 	// buf:lint:ignore RPC_NO_SERVER_STREAMING
 	WatchBeam(*WatchBeamRequest, grpc.ServerStreamingServer[Beam]) error
+	// AllowDomain adds a domain to the beam's network allow-list, creating a
+	// application for it if one does not already exist.
+	AllowDomain(context.Context, *AllowDomainRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedBeamsServiceServer()
 }
 
@@ -119,6 +137,9 @@ func (UnimplementedBeamsServiceServer) CreateBeam(context.Context, *CreateBeamRe
 }
 func (UnimplementedBeamsServiceServer) WatchBeam(*WatchBeamRequest, grpc.ServerStreamingServer[Beam]) error {
 	return status.Errorf(codes.Unimplemented, "method WatchBeam not implemented")
+}
+func (UnimplementedBeamsServiceServer) AllowDomain(context.Context, *AllowDomainRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AllowDomain not implemented")
 }
 func (UnimplementedBeamsServiceServer) mustEmbedUnimplementedBeamsServiceServer() {}
 func (UnimplementedBeamsServiceServer) testEmbeddedByValue()                      {}
@@ -170,6 +191,24 @@ func _BeamsService_WatchBeam_Handler(srv interface{}, stream grpc.ServerStream) 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type BeamsService_WatchBeamServer = grpc.ServerStreamingServer[Beam]
 
+func _BeamsService_AllowDomain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AllowDomainRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BeamsServiceServer).AllowDomain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BeamsService_AllowDomain_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BeamsServiceServer).AllowDomain(ctx, req.(*AllowDomainRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BeamsService_ServiceDesc is the grpc.ServiceDesc for BeamsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -180,6 +219,10 @@ var BeamsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateBeam",
 			Handler:    _BeamsService_CreateBeam_Handler,
+		},
+		{
+			MethodName: "AllowDomain",
+			Handler:    _BeamsService_AllowDomain_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
