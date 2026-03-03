@@ -48,7 +48,6 @@ const (
 	DeviceTrustService_AuthenticateDevice_FullMethodName             = "/teleport.devicetrust.v1.DeviceTrustService/AuthenticateDevice"
 	DeviceTrustService_ConfirmDeviceWebAuthentication_FullMethodName = "/teleport.devicetrust.v1.DeviceTrustService/ConfirmDeviceWebAuthentication"
 	DeviceTrustService_SyncInventory_FullMethodName                  = "/teleport.devicetrust.v1.DeviceTrustService/SyncInventory"
-	DeviceTrustService_GetDevicesUsage_FullMethodName                = "/teleport.devicetrust.v1.DeviceTrustService/GetDevicesUsage"
 )
 
 // DeviceTrustServiceClient is the client API for DeviceTrustService service.
@@ -175,9 +174,6 @@ type DeviceTrustServiceClient interface {
 	// Authorized either by a valid MDM service certificate or the appropriate
 	// "device" permissions (create/update/delete).
 	SyncInventory(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SyncInventoryRequest, SyncInventoryResponse], error)
-	// Deprecated: Do not use.
-	// Superseded by ResourceUsageService.GetUsage.
-	GetDevicesUsage(ctx context.Context, in *GetDevicesUsageRequest, opts ...grpc.CallOption) (*DevicesUsage, error)
 }
 
 type deviceTrustServiceClient struct {
@@ -337,17 +333,6 @@ func (c *deviceTrustServiceClient) SyncInventory(ctx context.Context, opts ...gr
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DeviceTrustService_SyncInventoryClient = grpc.BidiStreamingClient[SyncInventoryRequest, SyncInventoryResponse]
 
-// Deprecated: Do not use.
-func (c *deviceTrustServiceClient) GetDevicesUsage(ctx context.Context, in *GetDevicesUsageRequest, opts ...grpc.CallOption) (*DevicesUsage, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DevicesUsage)
-	err := c.cc.Invoke(ctx, DeviceTrustService_GetDevicesUsage_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // DeviceTrustServiceServer is the server API for DeviceTrustService service.
 // All implementations must embed UnimplementedDeviceTrustServiceServer
 // for forward compatibility.
@@ -472,9 +457,6 @@ type DeviceTrustServiceServer interface {
 	// Authorized either by a valid MDM service certificate or the appropriate
 	// "device" permissions (create/update/delete).
 	SyncInventory(grpc.BidiStreamingServer[SyncInventoryRequest, SyncInventoryResponse]) error
-	// Deprecated: Do not use.
-	// Superseded by ResourceUsageService.GetUsage.
-	GetDevicesUsage(context.Context, *GetDevicesUsageRequest) (*DevicesUsage, error)
 	mustEmbedUnimplementedDeviceTrustServiceServer()
 }
 
@@ -526,9 +508,6 @@ func (UnimplementedDeviceTrustServiceServer) ConfirmDeviceWebAuthentication(cont
 }
 func (UnimplementedDeviceTrustServiceServer) SyncInventory(grpc.BidiStreamingServer[SyncInventoryRequest, SyncInventoryResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method SyncInventory not implemented")
-}
-func (UnimplementedDeviceTrustServiceServer) GetDevicesUsage(context.Context, *GetDevicesUsageRequest) (*DevicesUsage, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetDevicesUsage not implemented")
 }
 func (UnimplementedDeviceTrustServiceServer) mustEmbedUnimplementedDeviceTrustServiceServer() {}
 func (UnimplementedDeviceTrustServiceServer) testEmbeddedByValue()                            {}
@@ -770,24 +749,6 @@ func _DeviceTrustService_SyncInventory_Handler(srv interface{}, stream grpc.Serv
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DeviceTrustService_SyncInventoryServer = grpc.BidiStreamingServer[SyncInventoryRequest, SyncInventoryResponse]
 
-func _DeviceTrustService_GetDevicesUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetDevicesUsageRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DeviceTrustServiceServer).GetDevicesUsage(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: DeviceTrustService_GetDevicesUsage_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DeviceTrustServiceServer).GetDevicesUsage(ctx, req.(*GetDevicesUsageRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // DeviceTrustService_ServiceDesc is the grpc.ServiceDesc for DeviceTrustService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -838,10 +799,6 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ConfirmDeviceWebAuthentication",
 			Handler:    _DeviceTrustService_ConfirmDeviceWebAuthentication_Handler,
-		},
-		{
-			MethodName: "GetDevicesUsage",
-			Handler:    _DeviceTrustService_GetDevicesUsage_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
