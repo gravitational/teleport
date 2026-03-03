@@ -39,9 +39,10 @@ type credentials struct {
 	privateKeyPKCS8Base64 string
 }
 
-// generateCredentials creates a fresh password, bcrypt hash, and ECDSA key pair
+// generateUserCredentials creates a fresh password, bcrypt hash, and ECDSA key pair
 // to be used as the bootstrapped test user's credentials.
-func generateCredentials() (*credentials, error) {
+func generateUserCredentials() (*credentials, error) {
+	// generate password
 	password, err := randomAlphanumeric(24)
 	if err != nil {
 		return nil, fmt.Errorf("generating password: %w", err)
@@ -52,6 +53,7 @@ func generateCredentials() (*credentials, error) {
 		return nil, fmt.Errorf("hashing password: %w", err)
 	}
 
+	// generate webauthn
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("generating ECDSA key: %w", err)

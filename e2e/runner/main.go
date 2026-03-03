@@ -163,7 +163,7 @@ func run() error {
 			return fmt.Errorf("failed to clean data directory: %w", err)
 		}
 
-		creds, err := generateCredentials()
+		creds, err := generateUserCredentials()
 		if err != nil {
 			return fmt.Errorf("failed to generate credentials: %w", err)
 		}
