@@ -16,6 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {
+  AWSConsoleResourceConstraints,
+  ResourceConstraints,
+} from 'gen-proto-ts/teleport/legacy/types/resources_pb';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
@@ -216,4 +220,13 @@ export function statusOneOfIsWindowsServiceStatus(
   windowsServiceStatus: WindowsServiceStatus;
 } {
   return status.oneofKind === 'windowsServiceStatus';
+}
+
+export function constraintsOneOfIsAwsConsole(
+  details: ResourceConstraints['details']
+): details is {
+  oneofKind: 'awsConsole';
+  awsConsole: AWSConsoleResourceConstraints;
+} {
+  return details.oneofKind === 'awsConsole';
 }

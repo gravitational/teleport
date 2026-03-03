@@ -197,13 +197,11 @@ const AWSConsoleConstraintsList = <T extends PendingListItem>({
   createAttempt,
   clearAttempt,
   setResourceConstraints,
-  addedResourceConstraints,
 }: {
   item: WithResourceConstraints<'aws_console', DisplayRow<T>>;
   createAttempt: RequestCheckoutProps<T>['createAttempt'];
   clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
   setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
-  addedResourceConstraints: RequestCheckoutProps<T>['addedResourceConstraints'];
 }) => (
   <Flex flexDirection="column" gap={1} mt={1} width="100%">
     <Text bold>Role ARNs</Text>
@@ -222,17 +220,6 @@ const AWSConsoleConstraintsList = <T extends PendingListItem>({
             title="Remove Role ARN"
             onClick={() => {
               clearAttempt();
-              const ridStr = getResourceIDString({
-                cluster: item.clusterName,
-                kind: item.kind,
-                name: item.id,
-              });
-              console.log('toggling role arn', {
-                ridStr,
-                curConstraints: item.constraints,
-                addedResourceConstraints,
-                setResourceConstraints,
-              });
               toggleAWSConsoleConstraint(item, arn, setResourceConstraints);
             }}
             disabled={createAttempt.status === 'processing'}
@@ -442,7 +429,6 @@ export function RequestCheckout<T extends PendingListItem>({
                 setResourceConstraints={setResourceConstraints}
                 clearAttempt={clearAttempt}
                 createAttempt={createAttempt}
-                addedResourceConstraints={addedResourceConstraints}
               />
             </Flex>
           </td>

@@ -24,6 +24,7 @@ import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIconName } from 'design/ResourceIcon';
 import { TargetHealth } from 'gen-proto-ts/teleport/lib/teleterm/v1/target_health_pb';
 import { AppSubKind, NodeSubKind } from 'shared/services';
+import { AwsRole } from 'shared/services/apps';
 import { DbProtocol } from 'shared/services/databases';
 import type { ComponentFeatureID } from 'shared/utils/componentFeatures';
 
@@ -91,6 +92,7 @@ export type UnifiedResourceApp = {
   permissionSets?: PermissionSet[];
   mcp?: AppMCP;
   supportedFeatureIds?: ComponentFeatureID[];
+  awsRoles?: AwsRole[];
 };
 
 export interface UnifiedResourceDatabase {

@@ -20,9 +20,11 @@ package unifiedresources
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -130,7 +132,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 		nextKey:            mockedNextKey,
 	}
 
-	response, err := List(ctx, cluster, mockedClient, &proto.ListUnifiedResourcesRequest{})
+	response, err := List(ctx, cluster, mockedClient, &proto.ListUnifiedResourcesRequest{}, slog.New(slog.DiscardHandler))
 	require.NoError(t, err)
 
 	require.Equal(t, UnifiedResource{Server: &clusters.Server{
@@ -152,9 +154,10 @@ func TestUnifiedResourcesList(t *testing.T) {
 	require.Equal(t, UnifiedResource{App: &clusters.App{
 		URI: uri.NewClusterURI(cluster.ProfileName).AppendApp(app.GetApp().GetName()),
 		// FQDN looks weird because we cannot mock cluster.status.ProxyHost in tests.
-		FQDN:     "testApp.",
-		AWSRoles: aws.Roles{},
-		App:      app.GetApp(),
+		FQDN:                "testApp.",
+		AWSRoles:            aws.Roles{},
+		App:                 app.GetApp(),
+		SupportedFeatureIDs: []int{},
 	}}, response.Resources[3])
 
 	require.Equal(t, UnifiedResource{SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
@@ -168,10 +171,11 @@ func TestUnifiedResourcesList(t *testing.T) {
 	}}, response.Resources[5])
 
 	require.Equal(t, UnifiedResource{App: &clusters.App{
-		FQDN:     "test-mcp.",
-		URI:      uri.NewClusterURI(cluster.ProfileName).AppendApp(mcp.GetName()),
-		AWSRoles: aws.Roles{},
-		App:      mcp.GetApp(),
+		FQDN:                "test-mcp.",
+		URI:                 uri.NewClusterURI(cluster.ProfileName).AppendApp(mcp.GetName()),
+		AWSRoles:            aws.Roles{},
+		App:                 mcp.GetApp(),
+		SupportedFeatureIDs: []int{},
 	}}, response.Resources[6])
 
 	require.Equal(t, mockedNextKey, response.NextKey)
@@ -187,4 +191,22 @@ func (m *mockClient) ListUnifiedResources(ctx context.Context, req *proto.ListUn
 		Resources: m.paginatedResources,
 		NextKey:   m.nextKey,
 	}, nil
+}
+
+// TODO(kiosion): DELETE in 21.0.0
+func (m *mockClient) GetProxies() ([]types.Server, error) {
+	return nil, trace.NotImplemented("GetProxies not implemented in test")
+}
+
+func (m *mockClient) ListProxyServers(context.Context, int, string) ([]types.Server, string, error) {
+	return nil, "", trace.NotImplemented("ListProxyServers not implemented in test")
+}
+
+// TODO(kiosion): DELETE in 21.0.0
+func (m *mockClient) GetAuthServers() ([]types.Server, error) {
+	return nil, trace.NotImplemented("GetAuthServers not implemented in test")
+}
+
+func (m *mockClient) ListAuthServers(context.Context, int, string) ([]types.Server, string, error) {
+	return nil, "", trace.NotImplemented("ListAuthServers not implemented in test")
 }

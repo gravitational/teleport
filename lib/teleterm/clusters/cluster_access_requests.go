@@ -113,19 +113,33 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, rootAuthClient authcl
 		request types.AccessRequest
 	)
 
-	resourceIDs := make([]types.ResourceID, 0, len(req.ResourceIds))
-	for _, resource := range req.ResourceIds {
-		resourceIDs = append(resourceIDs, types.ResourceID{
-			ClusterName:     resource.ClusterName,
-			Name:            resource.Name,
-			Kind:            resource.Kind,
-			SubResourceName: resource.SubResourceName,
+	resourceAccessIDs := make([]types.ResourceAccessID, 0, len(req.ResourceIds)+len(req.ResourceAccessIds))
+	for _, rid := range req.ResourceIds {
+		resourceAccessIDs = append(resourceAccessIDs, types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName:     rid.ClusterName,
+				Name:            rid.Name,
+				Kind:            rid.Kind,
+				SubResourceName: rid.SubResourceName,
+			},
+		})
+	}
+	for _, raid := range req.ResourceAccessIds {
+		rid, constraints := raid.Id, raid.Constraints
+		resourceAccessIDs = append(resourceAccessIDs, types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName:     rid.ClusterName,
+				Name:            rid.Name,
+				Kind:            rid.Kind,
+				SubResourceName: rid.SubResourceName,
+			},
+			Constraints: constraints,
 		})
 	}
 
 	// Role-based and Resource-based AccessRequests are mutually exclusive.
-	if len(req.ResourceIds) > 0 {
-		request, err = services.NewAccessRequestWithResources(c.status.Username, req.Roles, types.ResourceIDsToResourceAccessIDs(resourceIDs))
+	if len(resourceAccessIDs) > 0 {
+		request, err = services.NewAccessRequestWithResources(c.status.Username, req.Roles, resourceAccessIDs)
 	} else {
 		request, err = services.NewAccessRequest(c.status.Username, req.Roles...)
 	}

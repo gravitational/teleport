@@ -43,7 +43,12 @@ type App struct {
 	// clusters.Cluster.
 	FQDN string
 	// AWSRoles is a list of AWS IAM roles for the application representing AWS console.
+	// Each role's RequiresRequest field indicates whether it needs an access request.
 	AWSRoles aws.Roles
+	// SupportedFeatureIDs contains component feature IDs supported by this app and all
+	// other involved components (Auth, Proxy). Used to determine if features like resource
+	// constraints are available.
+	SupportedFeatureIDs []int
 
 	App types.Application
 }

@@ -20,6 +20,7 @@ package unifiedresources
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -28,7 +29,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
 var supportedResourceKinds = []string{
@@ -41,7 +44,27 @@ var supportedResourceKinds = []string{
 	types.KindMCP,
 }
 
-func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
+type listUnifiedResourcesClient interface {
+	apiclient.ListUnifiedResourcesClient
+	// GetProxies returns a list of proxy servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
+	GetProxies() ([]types.Server, error)
+	// ListProxyServers returns a paginated list of proxy servers registered in the cluster
+	ListProxyServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
+	// GetAuthServers returns a list of auth servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListAuthServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
+	GetAuthServers() ([]types.Server, error)
+	// ListAuthServers returns a paginated list of auth servers registered in the cluster
+	ListAuthServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
+}
+
+func List(ctx context.Context, cluster *clusters.Cluster, client listUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest, logger *slog.Logger) (*ListResponse, error) {
 	kinds := req.GetKinds()
 	if len(kinds) == 0 {
 		kinds = supportedResourceKinds
@@ -63,6 +86,8 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 	response := &ListResponse{
 		NextKey: nextKey,
 	}
+
+	clusterAuthProxyServerFeatures := componentfeatures.GetClusterAuthProxyServerFeatures(ctx, client, logger)
 
 	for _, enrichedResource := range enrichedResources {
 		requiresRequest := enrichedResource.RequiresRequest
@@ -90,15 +115,30 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 				},
 				RequiresRequest: requiresRequest,
 			})
+		// TODO(kiosion): Much of this logic could be shared between apiserver's clusterUnifiedResourcesGet and here.
 		case types.AppServer:
 			app := r.GetApp()
 
+			// Compute AWS roles if present/applicable.
+			awsRoles := computeAWSRolesWithRequiresRequest(
+				enrichedResource.Logins,
+				cluster.GetAWSRoles(app),
+				app.GetAWSAccountID(),
+				req.IncludeRequestable,
+			)
+
+			// Compute end-to-end feature support for this app: only features that are supported by the AppServer *and*
+			// by all required cluster hops (Auth + Proxy), so clients can hide features that would fail somewhere
+			// along the request path.
+			appComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
+
 			response.Resources = append(response.Resources, UnifiedResource{
 				App: &clusters.App{
-					URI:      cluster.URI.AppendApp(app.GetName()),
-					FQDN:     cluster.AssembleAppFQDN(app),
-					AWSRoles: cluster.GetAWSRoles(app),
-					App:      app,
+					URI:                 cluster.URI.AppendApp(app.GetName()),
+					FQDN:                cluster.AssembleAppFQDN(app),
+					AWSRoles:            awsRoles,
+					SupportedFeatureIDs: componentfeatures.ToIntegers(appComponentFeatures),
+					App:                 app,
 				},
 				RequiresRequest: requiresRequest,
 			})
@@ -163,4 +203,33 @@ type UnifiedResource struct {
 	SAMLIdPServiceProvider *clusters.SAMLIdPServiceProvider
 	WindowsDesktop         *clusters.WindowsDesktop
 	RequiresRequest        bool
+}
+
+// computeAWSRolesWithRequiresRequest computes AWS roles with the RequiresRequest field set.
+func computeAWSRolesWithRequiresRequest(visibleRoleARNs []string, grantedRoles aws.Roles, accountID string, includeRequestable bool) aws.Roles {
+	// Filter visible roles by account ID and convert to aws.Roles.
+	visibleRoles := aws.FilterAWSRoles(visibleRoleARNs, accountID)
+	grantedSet := make(map[string]struct{}, len(grantedRoles))
+	for _, role := range grantedRoles {
+		grantedSet[role.ARN] = struct{}{}
+	}
+
+	// Mark each visible role as requiring request if not in granted set.
+	result := make(aws.Roles, 0, len(visibleRoles))
+	for _, role := range visibleRoles {
+		_, isGranted := grantedSet[role.ARN]
+		// If req does not include requestable resources, skip non-granted roles
+		if !isGranted && !includeRequestable {
+			continue
+		}
+		result = append(result, aws.Role{
+			Name:            role.Name,
+			Display:         role.Display,
+			ARN:             role.ARN,
+			AccountID:       role.AccountID,
+			RequiresRequest: !isGranted,
+		})
+	}
+
+	return result
 }

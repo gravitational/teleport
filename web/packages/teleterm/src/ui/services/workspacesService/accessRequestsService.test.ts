@@ -55,6 +55,7 @@ function getMockPendingResourceAccessRequest(): PendingAccessRequest {
       [database.uri, { kind: 'database', resource: database }],
       [samlApp.uri, { kind: 'app', resource: samlApp }],
     ]),
+    resourceConstraints: {},
   };
 }
 
@@ -247,6 +248,7 @@ test('resources from different clusters but with the same ID can be combined in 
   const { accessRequestsService: service } = getTestSetup({
     kind: 'resource',
     resources: new Map(),
+    resourceConstraints: {},
   });
 
   const server1 = makeServer({

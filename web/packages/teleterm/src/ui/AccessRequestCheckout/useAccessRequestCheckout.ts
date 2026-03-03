@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { ResourceConstraints as ProtoResourceConstraints } from 'gen-proto-ts/teleport/legacy/types/resources_pb';
 import {
   getDryRunMaxDuration,
   isKubeClusterWithNamespaces,
@@ -29,6 +30,11 @@ import {
 import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import {
+  getResourceIDString,
+  ResourceConstraints,
+  ResourceIDString,
+} from 'shared/services/accessRequests';
 
 import {
   CreateAccessRequestRequest,
@@ -106,6 +112,13 @@ export default function useAccessRequestCheckout() {
     pendingAccessRequests.filter(
       p => !isKubeClusterWithNamespaces(p, pendingAccessRequests)
     );
+
+  const resourceConstraints = workspaceAccessRequest?.getResourceConstraints();
+  const setResourceConstraints = useCallback(
+    (key: ResourceIDString, rc?: ResourceConstraints) =>
+      workspaceAccessRequest?.setResourceConstraints(key, rc),
+    [workspaceAccessRequest]
+  );
 
   useEffect(() => {
     // Do a new dry run per changes to pending access requests
@@ -276,37 +289,60 @@ export default function useAccessRequestCheckout() {
    * Shared logic used both during dry runs and regular access request creation.
    */
   function prepareAndCreateRequest(req: CreateRequest) {
+    const resourceItems = pendingAccessRequestsWithoutParentResource.filter(
+      d => d.kind !== 'role'
+    );
+    const roleItems = pendingAccessRequestsWithoutParentResource
+      .filter(d => d.kind === 'role')
+      .map(d => d.name);
+
+    // Build resourceAccessIds with constraints when any constraints are present.
+    const hasConstraints = Object.keys(resourceConstraints).length > 0;
+    const resourceAccessIds = resourceItems.map(d => {
+      const resourceId = {
+        name: d.id,
+        clusterName: d.clusterName,
+        kind: d.kind,
+        subResourceName: d.subResourceName || '',
+      };
+      const key = getResourceIDString({
+        cluster: d.clusterName,
+        kind: d.kind,
+        name: d.id,
+      });
+      const sharedConstraints = resourceConstraints[key];
+      return {
+        id: resourceId,
+        constraints: sharedConstraints
+          ? convertToProtoConstraints(sharedConstraints)
+          : undefined,
+      };
+    });
+
     const params: CreateAccessRequestRequest = {
       rootClusterUri,
       reason: req.reason,
       suggestedReviewers: req.suggestedReviewers || [],
       dryRun: req.dryRun,
-      resourceIds: pendingAccessRequestsWithoutParentResource
-        .filter(d => d.kind !== 'role')
-        .map(d => {
-          return {
-            name: d.id,
-            clusterName: d.clusterName,
-            kind: d.kind,
-            subResourceName: d.subResourceName || '',
-          };
-        }),
-      roles: pendingAccessRequestsWithoutParentResource
-        .filter(d => d.kind === 'role')
-        .map(d => d.name),
+      // For backwards-compat, if no constraints are present, use the prior 'resourceIds' field.
+      resourceIds: hasConstraints ? [] : resourceAccessIds.map(d => d.id),
+      resourceAccessIds: hasConstraints ? resourceAccessIds : [],
+      roles: roleItems,
       assumeStartTime: req.start && Timestamp.fromDate(req.start),
       maxDuration: req.maxDuration && Timestamp.fromDate(req.maxDuration),
       requestTtl: req.requestTTL && Timestamp.fromDate(req.requestTTL),
-      resourceAccessIds: undefined,
     };
 
     // Don't attempt creating anything if there are no resources selected.
-    if (!params.resourceIds.length && !params.roles.length) {
+    const resourceCount = hasConstraints
+      ? params.resourceAccessIds.length
+      : params.resourceIds.length;
+    if (!resourceCount && !params.roles.length) {
       return;
     }
 
     // if we have a resource access request, we pass along the selected roles from the checkout
-    if (params.resourceIds.length > 0) {
+    if (resourceCount > 0) {
       params.roles = selectedResourceRequestRoles;
     }
 
@@ -455,6 +491,8 @@ export default function useAccessRequestCheckout() {
     updateNamespacesForKubeCluster,
     reasonMode,
     reasonPrompts,
+    resourceConstraints,
+    setResourceConstraints,
   };
 }
 
@@ -490,3 +528,26 @@ export type PendingListKubeClusterWithOriginalItem = Omit<
   kind: Extract<ResourceKind, 'kube_cluster'>;
   originalItem: Extract<ResourceRequest, { kind: 'kube' }>;
 };
+
+/**
+ * Converts the shared ResourceConstraints type to the proto-ts ResourceConstraints type.
+ */
+function convertToProtoConstraints(
+  constraints: ResourceConstraints
+): ProtoResourceConstraints {
+  if (constraints.aws_console) {
+    return {
+      version: constraints.version || 'v1',
+      details: {
+        oneofKind: 'awsConsole',
+        awsConsole: {
+          roleArns: constraints.aws_console.role_arns,
+        },
+      },
+    };
+  }
+  return {
+    version: constraints.version || 'v1',
+    details: { oneofKind: undefined },
+  };
+}
