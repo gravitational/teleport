@@ -433,7 +433,6 @@ const baseProps: RequestCheckoutWithSliderProps = {
   ],
   clearAttempt: () => null,
   onClose: () => null,
-  toggleResource: () => null,
   toggleResources: () => null,
   reset: () => null,
   transitionState: 'entered',

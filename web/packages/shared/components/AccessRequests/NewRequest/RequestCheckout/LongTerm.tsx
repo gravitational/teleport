@@ -101,14 +101,7 @@ const LongTermUnavailableError = <T extends PendingListItem = PendingListItem>({
       kind="danger"
       primaryAction={{
         content: `Remove incompatible ${plural ? 'resources' : 'resource'}`,
-        onClick: () =>
-          toggleResources(
-            uncoveredResources.map(i => ({
-              resourceName: i.name,
-              resourceId: i.id,
-              kind: i.kind,
-            }))
-          ),
+        onClick: () => toggleResources(uncoveredResources),
       }}
       details={message}
       wrapContents
@@ -144,14 +137,7 @@ const GroupingResourcesError = <T extends PendingListItem = PendingListItem>({
       kind="warning"
       primaryAction={{
         content: `Remove incompatible ${plural ? 'resources' : 'resource'}`,
-        onClick: () =>
-          toggleResources(
-            incompatibleResources.map(i => ({
-              resourceName: i.name,
-              resourceId: i.id,
-              kind: i.kind,
-            }))
-          ),
+        onClick: () => toggleResources(incompatibleResources),
       }}
       details={message}
       wrapContents
