@@ -80,14 +80,14 @@ token budget is your responsibility.
 ## Prerequisites
 
 <Tabs>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-- A Teleport Enterprise Cloud tenant running v18.7.1 or later with Identity
-  Security enabled.
+<TabItem label="Teleport Enterprise Cloud">
+- A Teleport Enterprise Cloud tenant running v18.2.0 or later with Identity
+  Security enabled. v18.7.1 required to use Teleport managed profiles. 
 - Optionally, access to your own LLM API (OpenAI, Amazon Bedrock, or an
   OpenAI-compatible gateway). If you don't bring your own, you can use the
   Teleport-managed model included with your Cloud tenant.
 </TabItem>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+<TabItem label="Self-Hosted">
 - A running Teleport Enterprise cluster v18.2.0 or later with Identity
   Security enabled.
 - Access to an LLM API. This can be:
@@ -96,12 +96,13 @@ token budget is your responsibility.
 </TabItem>
 </Tabs>
 
-<Admonition type="tip" title="Teleport Enterprise Cloud Quick Start" scope={["cloud"]} scopeOnly>
+<Admonition type="tip" title="Teleport Enterprise Cloud Quick Start">
 Teleport Enterprise Cloud tenants include a pre-provisioned inference model
-(`teleport-cloud-default`) and the `editor` role already has the required
-permissions. You can skip directly to
+(`teleport-cloud-default`). You can skip directly to
 [Step 3: Set up an inference policy](#step-35-set-up-an-inference-policy) to
 start summarizing sessions.
+
+Note: Having the model pre-provisioned does not automatically enable session summarization.
 </Admonition>
 
 ## Step 1/5: Configure access to inference configuration
@@ -159,7 +160,7 @@ gateways by creating multiple Teleport inference models that reference the same
 underlying API-specific model name
 
 <Tabs>
-<TabItem label="Teleport-Managed Model" scope={["cloud"]}>
+<TabItem label="Teleport-Managed Model">
 
 Teleport Enterprise Cloud tenants come with a pre-provisioned inference model
 called `teleport-cloud-default`, powered by Amazon Bedrock. Teleport manages the
