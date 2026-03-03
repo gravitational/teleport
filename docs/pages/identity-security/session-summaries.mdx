@@ -31,13 +31,14 @@ When you choose to enable summarization, the following options are available:
 | Using OpenAI with your own OpenAI key | ✅ | ✅ |
 | Using OpenAI-compatible LLM gateways such as LiteLLM  | ✅ | ✅ (*) |
 | Using Amazon Bedrock models provided by your own AWS account | ✅ | ✅ |
-| Using an Amazon Bedrock model provided by Teleport | ❌ | ✅ (v18.7.1+) |
+| Using an Amazon Bedrock model provided by Teleport | ❌ | ✅ (**) |
 
 (*) In case of Teleport Cloud, the Teleport Auth Service must be able to reach
 the LLM gateway. It means the gateway needs to be publicly accessible and
 properly secured. Access to the gateway should be guarded by the equivalent of
 OpenAI API key (e.g. LiteLLM master key).
 
+(**) For Teleport Cloud tenants running v18.7.1 or later.
 
 Existing customers will never have AI features automatically enabled without explicit consent.
 Learn more about the features included in [Teleport Identity Security](https://goteleport.com/platform/identity-security/).
