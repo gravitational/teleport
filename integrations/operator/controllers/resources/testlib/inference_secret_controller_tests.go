@@ -163,6 +163,13 @@ func InferenceSecretCreationTest(t *testing.T, clt *client.Client) {
 	)
 }
 
+func InferenceSecretDeletionTest(t *testing.T, clt *client.Client) {
+	test := &inferenceSecretTestingPrimitives{}
+	ResourceDeletionSynchronousTest(
+		t, resources.NewInferenceSecretReconciler, test, WithTeleportClient(clt),
+	)
+}
+
 func InferenceSecretDeletionDriftTest(t *testing.T, clt *client.Client) {
 	test := &inferenceSecretTestingPrimitives{}
 	ResourceDeletionDriftSynchronousTest(

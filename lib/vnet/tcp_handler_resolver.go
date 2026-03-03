@@ -162,7 +162,7 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 	if err != nil {
 		return trace.Wrap(err, "resolving target in undecidedHandler")
 	}
-	log := log.With("fqdn", h.cfg.fqdn)
+	log := log.With("fqdn", h.cfg.fqdn, "local_port", localPort)
 	if matchedTCPApp := resp.GetMatchedTcpApp(); matchedTCPApp != nil {
 		// If matched a TCP app, build a tcpAppHandler that will be used for this
 		// and all subsequent connections to this address.
@@ -190,6 +190,7 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 		// Attempt a dial to the target SSH node to see if it exists.
 		target := computeDialTarget(matchedCluster, h.cfg.fqdn)
 		agent := newSSHAgent()
+		log.DebugContext(ctx, "Attempting TCP dial to target SSH node", "target", target)
 		targetConn, err := h.cfg.sshProvider.dial(ctx, target, agent)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
@@ -212,6 +213,7 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 		// SSH node that has already been established.
 		return sshHandler.handleTCPConnectorWithTargetConn(ctx, connector, targetConn, agent)
 	}
+	log.DebugContext(ctx, "Rejecting connection because no handler was found for FQDN", "resolve_fqdn_response", resp)
 	return trace.Errorf("rejecting connection to %s:%d", h.cfg.fqdn, localPort)
 }
 

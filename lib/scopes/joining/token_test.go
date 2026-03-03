@@ -18,6 +18,7 @@ package joining_test
 
 import (
 	"fmt"
+	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -233,6 +234,22 @@ func TestValidateScopedToken(t *testing.T) {
 			expectedWeakErr:   "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
 		},
 		{
+			name: "ec2 token with invalid IID TTL",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{
+						{
+							AwsAccount: "1234567890",
+						},
+					},
+					IidTtl: "123", // no unit specified
+				}
+			},
+			expectedStrongErr: "invalid IID TTL value",
+			expectedWeakErr:   "invalid IID TTL value",
+		},
+		{
 			name: "iam token without aws configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodIAM)
@@ -265,10 +282,32 @@ func TestValidateScopedToken(t *testing.T) {
 			expectedWeakErr:   "azure_devops configuration must be defined for a scoped token when using the azure_devops join method",
 		},
 		{
+			name: "oracle token without oracle configuration",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodOracle)
+			},
+			expectedStrongErr: "oracle configuration must be defined for a scoped token when using the oracle join method",
+			expectedWeakErr:   "oracle configuration must be defined for a scoped token when using the oracle join method",
+		},
+		{
 			name: "valid scoped token",
 		},
 		{
-			name: "valid ec2 scoped token",
+			name: "valid ec2 scoped token with TTL",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{
+						{
+							AwsAccount: "1234567890",
+						},
+					},
+					IidTtl: "6mo",
+				}
+			},
+		},
+		{
+			name: "valid ec2 scoped token without TTL",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
 				tok.Spec.Aws = &joiningv1.AWS{
@@ -332,6 +371,19 @@ func TestValidateScopedToken(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "valid oracle scoped token",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodOracle)
+				tok.Spec.Oracle = &joiningv1.Oracle{
+					Allow: []*joiningv1.Oracle_Rule{
+						{
+							Tenancy: "1234567890",
+						},
+					},
+				}
+			},
+		},
 	}
 
 	for _, c := range cases {
@@ -368,13 +420,224 @@ func TestImmutableLabelHashing(t *testing.T) {
 
 	// assert that the same labels match with their hash
 	initialHash := joining.HashImmutableLabels(labels)
-	require.True(t, joining.VerifyImmutableLabelsHash(labels, initialHash))
+	require.True(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labels), initialHash))
 
 	// assert that changing a label value fails the hash check
 	labels.Ssh["hello"] = "other"
-	require.False(t, joining.VerifyImmutableLabelsHash(labels, initialHash))
+	require.False(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labels), initialHash))
 
 	// assert that adding a label fails the hash check
 	labels.Ssh["three"] = "3"
-	require.False(t, joining.VerifyImmutableLabelsHash(labels, initialHash))
+	require.False(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labels), initialHash))
+}
+
+func TestImmutableLabelHashCollision(t *testing.T) {
+	// Assert labels that could feasibly result in the same set of strings in the same order do not collide
+	// unless they're the exact same keys and values. Represented as a slice of test cases to make it easier
+	// to extend once immutable labels are made up of more than SSH labels.
+	cases := []struct {
+		name    string
+		labelsA *joiningv1.ImmutableLabels
+		labelsB *joiningv1.ImmutableLabels
+	}{
+		{
+			// guards against map entries being naively concatenated as they're hashed. e.g.
+			// aaa=bbbcccddd should not collide with aaa=bbb,ccc=ddd
+			name: "split label concatenation",
+			labelsA: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaa": "bbbcccddd",
+				},
+			},
+
+			labelsB: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaa": "bbb",
+					"ccc": "ddd",
+				},
+			},
+		},
+		{
+			// guards against single entries being naively concatenated as they're hashed. e.g.
+			// aaa=bbb should not collide with aaab=bb
+			name: "single label concatenation",
+			labelsA: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaa": "bbb",
+				},
+			},
+
+			labelsB: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaab": "bb",
+				},
+			},
+		},
+		// TODO (eriktate): add test case for identical labels applied to different service types once immutable
+		// labels support more than SSH
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			hashA := joining.HashImmutableLabels(c.labelsA)
+			require.False(t, joining.VerifyImmutableLabelsHash(c.labelsB, hashA))
+		})
+	}
+}
+
+// TestImmutableLabelHashGolden tests the immutable labels hashing implementation against a set of known-good hashes
+// to help guard against regressions.
+func TestImmutableLabelHashGolden(t *testing.T) {
+	cases := []struct {
+		name   string
+		labels *joiningv1.ImmutableLabels
+		hash   string
+	}{
+		{
+			name: "single ssh label",
+			labels: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaa": "bbb",
+				},
+			},
+			hash: "5dd8fad69587f17535a4dea3ab41400914c3fbecd1972d4e194b1c18c0f4c4ff",
+		},
+		{
+			name: "multiple ssh labels",
+			labels: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaa": "bbb",
+					"ccc": "ddd",
+					"eee": "fff",
+				},
+			},
+			hash: "b4757712bb94a422f835ca983e9ab3a9ce9925617496e9eeea676fb65b28f2b9",
+		},
+		{
+			name: "empty labels",
+			labels: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			hash := joining.HashImmutableLabels(c.labels)
+			// assert both VerifyImmutableLabelsHash and a regular equality check just in case
+			// the VerifyImmutableLabelsHash implementation drifts
+			assert.True(t, joining.VerifyImmutableLabelsHash(c.labels, hash))
+			assert.Equal(t, c.hash, hash)
+		})
+	}
+}
+
+func FuzzImmutableLabelHash(f *testing.F) {
+	f.Add("hello", "world", "foo", "bar", "baz", "qux", true)   // base case
+	f.Add("aaa", "bbbcccddd", "aaa", "bbb", "ccc", "ddd", true) // split label concatenation
+	f.Add("aaa", "bbb", "aaab", "bb", "", "", false)            // single label concatenation
+
+	f.Fuzz(func(t *testing.T, key1, value1, key2, value2, key3, value3 string, multiLabel bool) {
+		labelsA := &joiningv1.ImmutableLabels{
+			Ssh: map[string]string{
+				key1: value1,
+			},
+		}
+		labelsB := &joiningv1.ImmutableLabels{
+			Ssh: map[string]string{
+				key2: value2,
+			},
+		}
+		// assign a second label only if multiLabel is true
+		if multiLabel {
+			labelsB.Ssh[key3] = value3
+		}
+
+		// assert we can generate hashes for both labels without panicking
+		hashA := joining.HashImmutableLabels(labelsA)
+		require.NotEmpty(t, hashA)
+		hashB := joining.HashImmutableLabels(labelsB)
+		require.NotEmpty(t, hashB)
+
+		// assert that hashes are verified against their own labels
+		assert.True(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labelsA), hashA))
+		assert.True(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labelsB), hashB))
+
+		// assert that the same labels always result in the same hash and different labels always result in different hashes
+		assertFn := assert.False
+		if maps.Equal(labelsA.Ssh, labelsB.Ssh) {
+			assertFn = assert.True
+		}
+
+		assertFn(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labelsA), hashB))
+		assertFn(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labelsB), hashA))
+	})
+}
+
+func TestValidateTokenUpdate(t *testing.T) {
+	baseToken := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "test-token",
+		},
+		Scope: "/test",
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/test/one",
+			JoinMethod:    string(types.JoinMethodToken),
+			Roles:         []string{types.RoleNode.String()},
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret-value",
+		},
+	}
+
+	for _, tc := range []struct {
+		name            string
+		modifyTokenFunc func(*joiningv1.ScopedToken)
+		wantErr         string
+	}{
+		{
+			name: "check scope change",
+			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
+				t.Scope = "/other"
+				t.Spec.AssignedScope = "/other/one"
+			},
+			wantErr: "cannot modify scope of existing scoped token test-token with scope /test to /other",
+		},
+		{
+			name: "check usage mode change",
+			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
+				t.Spec.UsageMode = string(joining.TokenUsageModeSingle)
+			},
+			wantErr: fmt.Sprintf("cannot modify usage mode of existing scoped token test-token from usage mode %s to %s", joining.TokenUsageModeUnlimited, joining.TokenUsageModeSingle),
+		},
+		{
+			name: "check secret change",
+			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
+				t.Status.Secret = "new-secret-value"
+			},
+			wantErr: "cannot modify secret of existing scoped token test-token",
+		},
+		{
+			name: "valid update",
+			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
+				t.Metadata.Labels = map[string]string{"env": "production"}
+				t.Spec.AssignedScope = "/test/one/two"
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			modified := proto.CloneOf(baseToken)
+			tc.modifyTokenFunc(modified)
+
+			err := joining.ValidateTokenUpdate(baseToken, modified)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tc.wantErr)
+			}
+		})
+	}
 }

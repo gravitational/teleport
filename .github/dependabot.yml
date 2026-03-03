@@ -226,6 +226,25 @@ updates:
       - 'backport/branch/v17'
       - 'backport/branch/v18'
 
+  - package-ecosystem: gomod
+    directory: '/build.assets/tools/benchstat'
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 2
+    open-pull-requests-limit: 3
+    groups:
+      go:
+        update-types:
+          - 'minor'
+          - 'patch'
+    labels:
+      - 'dependencies'
+      - 'go'
+      - 'no-changelog'
+      - 'backport/branch/v17'
+      - 'backport/branch/v18'
+
   - package-ecosystem: cargo
     directory: '/'
     schedule:

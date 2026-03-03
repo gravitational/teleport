@@ -18,15 +18,16 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory } from 'history';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter, Route, Router } from 'react-router';
 
 import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -66,21 +67,13 @@ jest.mock('teleport/services/bot/bot', () => {
   };
 });
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.useRealTimers();
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('BotInstances', () => {
   it('Shows an empty state', async () => {

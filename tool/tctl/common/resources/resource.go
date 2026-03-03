@@ -95,6 +95,7 @@ func Handlers() map[string]Handler {
 		scopedaccess.KindScopedRole:                  scopedRoleHandler(),
 		scopedaccess.KindScopedRoleAssignment:        scopedRoleAssignmentHandler(),
 		types.KindWorkloadCluster:                    workloadClusterHandler(),
+		scopedaccess.KindScopedToken:                 scopedTokenHandler(),
 	}
 }
 

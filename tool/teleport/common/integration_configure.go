@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
@@ -333,6 +334,10 @@ func onIntegrationConfSessionSummariesBedrock(ctx context.Context, params config
 		}
 		params.AccountID = aws.ToString(callerID.Account)
 	}
+
+	// shsprintf.EscapeDefaultContext incorrectly maps * to \*, which causes AWS API calls to fail.
+	// We need to unescape it before proceeding. \ is not a valid character in ARNs.
+	params.Resource = strings.ReplaceAll(params.Resource, "\\", "")
 
 	confReq := awsoidc.BedrockSessionSummariesIAMConfigureRequest{
 		IntegrationRole: params.Role,

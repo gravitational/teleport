@@ -133,7 +133,7 @@ func installerScript(ctx context.Context, params *types.InstallerParams, opts ..
 		RawQuery: scriptURLQuery.Encode(),
 	}
 
-	installationScript := fmt.Sprintf("curl -s -L %s | bash -s %s",
+	installationScript := fmt.Sprintf(`bash -c "set -o pipefail; curl --silent --show-error --location %s | bash -s %s"`,
 		scriptURL.String(),
 		shsprintf.EscapeDefaultContext(params.JoinToken),
 	)

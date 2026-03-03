@@ -485,6 +485,66 @@ func TestAuthenticationSection(t *testing.T) {
 					LastUID:  10,
 				},
 			},
+		}, {
+			desc: "Local auth with browser authentication enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type": "local",
+					"webauthn": cfgMap{
+						"rp_id": "example.com",
+					},
+					"allow_browser_authentication": "true",
+				}
+			},
+			expected: &AuthenticationConfig{
+				Type: "local",
+				Webauthn: &Webauthn{
+					RPID: "example.com",
+				},
+				AllowBrowserAuthentication: types.NewBoolOption(true),
+			},
+		}, {
+			desc: "Local auth with browser authentication disabled",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type": "local",
+					"webauthn": cfgMap{
+						"rp_id": "example.com",
+					},
+					"allow_browser_authentication": "false",
+				}
+			},
+			expected: &AuthenticationConfig{
+				Type: "local",
+				Webauthn: &Webauthn{
+					RPID: "example.com",
+				},
+				AllowBrowserAuthentication: types.NewBoolOption(false),
+			},
+		}, {
+			desc: "Local auth with browser authentication disabled without WebAuthn",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":                         "local",
+					"allow_browser_authentication": "false",
+				}
+			},
+			expected: &AuthenticationConfig{
+				Type:                       "local",
+				AllowBrowserAuthentication: types.NewBoolOption(false),
+			},
+		}, {
+			desc: "Local auth with browser authentication empty string",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":                         "local",
+					"allow_browser_authentication": "",
+				}
+			},
+			expected: &AuthenticationConfig{
+				Type:                       "local",
+				AllowBrowserAuthentication: &types.BoolOption{},
+			},
 		},
 	}
 	for _, tt := range tests {

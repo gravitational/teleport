@@ -525,7 +525,14 @@ func NewAppServersWatcher(ctx context.Context, cfg AppServersWatcherConfig) (*Ge
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.AppServer, readonly.AppServer]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindAppServer,
-		ResourceKey:           types.AppServer.GetName,
+		ResourceKey: func(resource types.AppServer) string {
+			// host IDs are guaranteed to not contain "/"
+			return resource.GetHostID() + "/" + resource.GetName()
+		},
+		DeleteKey: func(r types.Resource) string {
+			// the host ID is stored in metadata.description in app server delete events
+			return r.GetMetadata().Description + "/" + r.GetName()
+		},
 		ResourceGetter: func(ctx context.Context) ([]types.AppServer, error) {
 			return cfg.AppServersGetter.GetApplicationServers(ctx, apidefaults.Namespace)
 		},
@@ -1483,7 +1490,7 @@ func (c *caCollector) processEventsAndUpdateCurrent(ctx context.Context, events 
 			}
 
 			authority, ok := c.cas[ca.GetType()][ca.GetName()]
-			if ok && CertAuthoritiesEquivalent(authority, ca) {
+			if ok && authority.IsEqual(ca) {
 				continue
 			}
 

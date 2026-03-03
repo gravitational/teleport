@@ -33,6 +33,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
 
+// ProtocolName is the identifier for the TDPB protocol.
+const ProtocolName = "teleport-tdpb-1.0"
+
 // ErrUnknownMessage is returned when an unknown message is decoded.
 var ErrUnknownMessage = errors.New("decoded unknown TDPB message")
 

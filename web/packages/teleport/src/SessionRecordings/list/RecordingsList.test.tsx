@@ -17,12 +17,13 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { generatePath, MemoryRouter } from 'react-router';
 
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
@@ -43,9 +44,8 @@ import { RecordingsList } from './RecordingsList';
 import type { RecordingsListState } from './state';
 import { Density, ViewMode } from './ViewSwitcher';
 
-const server = setupServer();
+enableMswServer();
 
-beforeAll(() => server.listen());
 beforeEach(() => {
   server.use(
     getThumbnail(MOCK_THUMBNAIL),
@@ -63,12 +63,9 @@ beforeEach(() => {
     })
   );
 });
-afterEach(async () => {
-  server.resetHandlers();
-
+afterEach(() => {
   testQueryClient.clear();
 });
-afterAll(() => server.close());
 
 const defaultState: RecordingsListState = {
   filters: {

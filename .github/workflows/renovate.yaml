@@ -1,0 +1,29 @@
+# This workflow runs Renovate to keep the Go toolchain version up to date.
+# It is scheduled to run weekly and can also be triggered manually.
+name: Renovate
+on:
+  schedule:
+    - cron: '0 7 * * 3' # Every Wednesday at 7 AM UTC
+  workflow_dispatch: {}
+
+# Renovate needs the following permissions in order to write branches, pull requests and issues.
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  renovate:
+    name: Renovate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run Renovate
+        uses: renovatebot/github-action@d65ef9e20512193cc070238b49c3873a361cd50c # v46.1.1
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+        with:
+          configurationFile: .github/renovate.json
+          token: ${{ secrets.GITHUB_TOKEN }}

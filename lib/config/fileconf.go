@@ -1220,6 +1220,11 @@ type AuthenticationConfig struct {
 	// otherwise.
 	Headless *types.BoolOption `yaml:"headless"`
 
+	// AllowBrowserAuthentication enables/disables browser-based authentication.
+	// When set to false, authentication flows that require a browser will be disabled.
+	// Defaults to true.
+	AllowBrowserAuthentication *types.BoolOption `yaml:"allow_browser_authentication"`
+
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
 	DeviceTrust *DeviceTrust `yaml:"device_trust,omitempty"`
@@ -1302,22 +1307,23 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	}
 
 	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:                    a.Type,
-		SecondFactor:            a.SecondFactor,
-		SecondFactors:           a.SecondFactors,
-		ConnectorName:           a.ConnectorName,
-		U2F:                     u,
-		Webauthn:                w,
-		RequireMFAType:          a.RequireMFAType,
-		LockingMode:             a.LockingMode,
-		AllowLocalAuth:          a.LocalAuth,
-		AllowPasswordless:       a.Passwordless,
-		AllowHeadless:           a.Headless,
-		DeviceTrust:             dt,
-		DefaultSessionTTL:       a.DefaultSessionTTL,
-		HardwareKey:             h,
-		SignatureAlgorithmSuite: a.SignatureAlgorithmSuite,
-		StableUnixUserConfig:    stableUNIXUserConfig,
+		Type:                       a.Type,
+		SecondFactor:               a.SecondFactor,
+		SecondFactors:              a.SecondFactors,
+		ConnectorName:              a.ConnectorName,
+		U2F:                        u,
+		Webauthn:                   w,
+		RequireMFAType:             a.RequireMFAType,
+		LockingMode:                a.LockingMode,
+		AllowLocalAuth:             a.LocalAuth,
+		AllowPasswordless:          a.Passwordless,
+		AllowHeadless:              a.Headless,
+		AllowBrowserAuthentication: a.AllowBrowserAuthentication,
+		DeviceTrust:                dt,
+		DefaultSessionTTL:          a.DefaultSessionTTL,
+		HardwareKey:                h,
+		SignatureAlgorithmSuite:    a.SignatureAlgorithmSuite,
+		StableUnixUserConfig:       stableUNIXUserConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1866,11 +1872,14 @@ type BPF struct {
 	// NetworkBufferSize is the size of the perf buffer for network events.
 	NetworkBufferSize *int `yaml:"network_buffer_size,omitempty"`
 
-	// CgroupPath controls where cgroupv2 hierarchy is mounted.
+	// Deprecated: CgroupPath is not consumed and only exists for
+	// backwards compatibility with existing config files that may
+	// have it specified.
 	CgroupPath string `yaml:"cgroup_path"`
 
-	// RootPath root directory for the Teleport cgroups.
-	// Optional, defaults to /teleport
+	// Deprecated: RootPath is not consumed and only exists for
+	// backwards compatibility with existing config files that may
+	// have it specified.
 	RootPath string `yaml:"root_path"`
 }
 
@@ -1882,8 +1891,6 @@ func (b *BPF) Parse() *servicecfg.BPFConfig {
 		CommandBufferSize: b.CommandBufferSize,
 		DiskBufferSize:    b.DiskBufferSize,
 		NetworkBufferSize: b.NetworkBufferSize,
-		CgroupPath:        b.CgroupPath,
-		RootPath:          b.RootPath,
 	}
 }
 

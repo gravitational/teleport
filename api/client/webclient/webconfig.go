@@ -87,54 +87,13 @@ type WebConfig struct {
 	SessionSummarizerEnabled bool `json:"sessionSummarizerEnabled,omitempty"`
 	// entitlements define a customer’s access to a specific features
 	Entitlements map[string]EntitlementInfo `json:"entitlements,omitempty"`
-
-	// Deprecated Fields
-	// Deprecated: IsTeam is true if [Features.ProductType] = Team
-	// Prefer checking the cluster features over this flag, as this will be removed.
-	IsTeam bool `json:"isTeam"`
-	// HideInaccessibleFeatures is true when features should be undiscoverable to users without the necessary permissions.
-	// Usually, in order to encourage discoverability of features, we show UI elements even if the user doesn't have permission to access them,
-	// this flag disables that behavior.
-	// Deprecated, use entitlements
-	HideInaccessibleFeatures bool `json:"hideInaccessibleFeatures"`
-	// IsIGSEnabled is true if [Features.IdentityGovernance] = true
-	// Deprecated, use entitlements
-	IsIGSEnabled bool `json:"isIgsEnabled"`
-	// IsPolicyEnabled is true if [Features.Policy] = true
-	// Deprecated, use entitlements
-	IsPolicyEnabled bool `json:"isPolicyEnabled"`
 	// TODO (avatus) delete in v18
 	// IsPolicyRoleVisualizerEnabled is the graph visualizer for diffs made
 	// when editing roles in the Web UI. This defaults to true, but has an environment
 	// variable to turn off if needed TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER=true
 	IsPolicyRoleVisualizerEnabled bool `json:"isPolicyRoleVisualizerEnabled"`
-	// featureLimits define limits for features.
-	// Typically used with feature teasers if feature is not enabled for the
-	// product type eg: Team product contains teasers to upgrade to Enterprise.
-	// Deprecated, use entitlements
-	FeatureLimits FeatureLimits `json:"featureLimits"`
-	// ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
-	// Deprecated, use entitlements
-	ExternalAuditStorage bool `json:"externalAuditStorage"`
-	// JoinActiveSessions indicates whether joining active sessions via web UI is enabled
-	// Deprecated, use entitlements
-	JoinActiveSessions bool `json:"joinActiveSessions"`
-	// AccessRequests indicates whether access requests are enabled
-	// Deprecated, use entitlements
-	AccessRequests bool `json:"accessRequests"`
-	// TrustedDevices indicates whether trusted devices page is enabled
-	// Deprecated, use entitlements
-	TrustedDevices bool `json:"trustedDevices"`
-	// OIDC indicates whether the OIDC integration flow is enabled
-	// Deprecated, use entitlements
-	OIDC bool `json:"oidc"`
-	// SAML indicates whether the SAML integration flow is enabled
-	// Deprecated, use entitlements
-	SAML bool `json:"saml"`
-	// MobileDeviceManagement indicates whether adding Jamf plugin is enabled
-	// Deprecated, use entitlements
-	MobileDeviceManagement bool `json:"mobileDeviceManagement"`
 	// IdentitySecurity contains identity security features and settings.
+	// The individual identity security entitlements should be read from the Entitlements field.
 	IdentitySecurity IdentitySecurity `json:"identitySecurity"`
 }
 
@@ -159,21 +118,6 @@ type EntitlementInfo struct {
 	Enabled bool `json:"enabled"`
 	// Limit indicates the allotted amount of use when limited; if 0 use is unlimited
 	Limit int32 `json:"limit"`
-}
-
-// featureLimits define limits for features.
-// Typically used with feature teasers if feature is not enabled for the
-// product type eg: Team product contains teasers to upgrade to Enterprise.
-type FeatureLimits struct {
-	// Limit for the number of access list creatable when feature is
-	// not enabled.
-	AccessListCreateLimit int `json:"accessListCreateLimit"`
-	// Defines the max number of days to include in an access report if
-	// feature is not enabled.
-	AccessMonitoringMaxReportRangeLimit int `json:"accessMonitoringMaxReportRangeLimit"`
-	// AccessRequestMonthlyRequestLimit is the usage-based limit for the number of
-	// access requests created in a calendar month.
-	AccessRequestMonthlyRequestLimit int `json:"AccessRequestMonthlyRequestLimit"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.
