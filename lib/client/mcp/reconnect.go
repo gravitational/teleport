@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
@@ -53,6 +54,9 @@ type ProxyStdioConnConfig struct {
 	AutoReconnect bool
 	// HTTPHeaders defines extra custom headers for HTTP transports.
 	HTTPHeaders map[string]string
+
+	// OnSessionExpired is called when DialServer fails with a session-expired error.
+	OnSessionExpired func(ctx context.Context) error
 
 	// Logger is the slog logger.
 	Logger *slog.Logger
@@ -279,6 +283,11 @@ func (r *serverConnWithAutoReconnect) getServerRequestWriterLocked(ctx context.C
 	}
 
 	serverTransportReader, serverWriter, err := r.makeServerTransport(ctx)
+	if err != nil && r.OnSessionExpired != nil && client.IsErrorResolvableWithRelogin(err) {
+		if reloginErr := r.OnSessionExpired(ctx); reloginErr == nil {
+			serverTransportReader, serverWriter, err = r.makeServerTransport(ctx)
+		}
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

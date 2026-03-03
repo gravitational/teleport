@@ -350,6 +350,21 @@ func Test_mcpConfigCommand(t *testing.T) {
 	}
 }
 
+func Test_makeMCPBrowserRelogin(t *testing.T) {
+	tc := &client.TeleportClient{
+		Config: client.Config{
+			WebProxyAddr: "127.0.0.1:0",
+		},
+	}
+	tc.Tracer = tracing.NoopTracer(teleport.ComponentTSH)
+	tc.NonInteractive = true
+
+	reloginFn := makeMCPBrowserRelogin(tc)
+	err := reloginFn(context.Background())
+	require.Error(t, err, "expected Login to fail with no real server")
+	require.True(t, tc.NonInteractive, "NonInteractive must be restored to true after relogin attempt")
+}
+
 func Test_parseHTTPHeaders(t *testing.T) {
 	tests := []struct {
 		name       string

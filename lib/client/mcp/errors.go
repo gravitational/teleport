@@ -30,11 +30,12 @@ import (
 
 const (
 	// ReloginRequiredErrorMessage is the message returned to the MCP client
-	// when the tsh session expired.
-	ReloginRequiredErrorMessage = `It looks like your Teleport session expired,
-you must relogin (using "tsh login" on a terminal) before continue using this
-tool. After that, there is no need to update or relaunch the MCP client - just
-try using it again.`
+	// when the tsh session expired and browser login could not be triggered
+	// automatically (e.g. the login attempt itself failed).
+	ReloginRequiredErrorMessage = `Your Teleport session has expired.
+If a browser login window did not open automatically, run "tsh login" in a
+terminal and then try again. There is no need to update or relaunch the MCP client - 
+just try using it again.`
 )
 
 // IsLikelyTemporaryNetworkError returns true if the error is likely a temporary
