@@ -95,15 +95,16 @@ func TestTTYRecordingProcessor(t *testing.T) {
 			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
 				require.NotNil(t, metadata)
 
-				var hasInactivity bool
+				var inactivityCount int
 				for _, event := range metadata.Events {
 					if event.GetInactivity() != nil {
-						hasInactivity = true
-						require.NotNil(t, event.StartOffset)
-						require.NotNil(t, event.EndOffset)
+						inactivityCount++
+
+						require.Equal(t, 1*time.Second, event.StartOffset.AsDuration(), "inactivity should start at last activity time")
+						require.Equal(t, 21*time.Second, event.EndOffset.AsDuration(), "inactivity should end when activity resumes")
 					}
 				}
-				require.True(t, hasInactivity, "expected inactivity event")
+				require.Equal(t, 1, inactivityCount, "expected exactly one inactivity event")
 			},
 		},
 		{
