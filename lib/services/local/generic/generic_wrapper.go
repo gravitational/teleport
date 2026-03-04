@@ -77,7 +77,7 @@ func (s *ServiceWrapper[T]) WithPrefix(parts ...string) *ServiceWrapper[T] {
 }
 
 // WithNameKeyFunc creates a service copy with a distinct NameKeyFunc.
-func (s *ServiceWrapper[T]) WithNameKeyFunc(f func(name string) backend.Key) *ServiceWrapper[T] {
+func (s *ServiceWrapper[T]) WithNameKeyFunc(f func() backend.Key) *ServiceWrapper[T] {
 	return &ServiceWrapper[T]{
 		service: s.service.WithNameKeyFunc(f),
 	}

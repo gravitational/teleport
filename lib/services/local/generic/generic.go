@@ -71,7 +71,7 @@ type ServiceConfig[T any] struct {
 	// key names. The resulting resource name is still prefixed by the
 	// BackendPrefix.
 	// If unset the item name is created via `BackendPrefix.AppendKey(name)`.
-	NameKeyFunc func(name string) backend.Key
+	NameKeyFunc func() backend.Key
 }
 
 func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
@@ -119,7 +119,7 @@ type Service[T Resource] struct {
 	*serviceState[T]
 
 	backendPrefix backend.Key
-	nameKeyFunc   func(name string) backend.Key
+	nameKeyFunc   func() backend.Key
 }
 
 // NewService will return a new generic service with the given config. This will
@@ -155,7 +155,7 @@ func (s *Service[T]) WithPrefix(parts ...string) *Service[T] {
 }
 
 // WithNameKeyFunc creates a service copy with a distinct NameKeyFunc.
-func (s *Service[T]) WithNameKeyFunc(f func(name string) backend.Key) *Service[T] {
+func (s *Service[T]) WithNameKeyFunc(f func() backend.Key) *Service[T] {
 	s2 := s.clone()
 	s2.nameKeyFunc = f
 	return s2
@@ -172,7 +172,7 @@ func (s *Service[T]) clone() *Service[T] {
 func (s *Service[T]) resourceKey(name string) backend.Key {
 	var suffix backend.Key
 	if s.nameKeyFunc != nil {
-		suffix = s.nameKeyFunc(name)
+		suffix = s.nameKeyFunc()
 	} else {
 		suffix = backend.NewKey(name)
 	}
