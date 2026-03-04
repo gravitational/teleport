@@ -186,8 +186,8 @@ func (t *ttyRecordingProcessor) handleSessionEnd(evt *apievents.SessionEnd) erro
 }
 
 func (t *ttyRecordingProcessor) addInactivityEvent(start, end time.Time) {
-	inactivityStart := durationpb.New(start.Sub(start))
-	inactivityEnd := durationpb.New(end.Sub(start))
+	inactivityStart := durationpb.New(start.Sub(t.startTime))
+	inactivityEnd := durationpb.New(end.Sub(t.startTime))
 
 	t.metadata.Events = append(t.metadata.Events, &pb.SessionRecordingEvent{
 		StartOffset: inactivityStart,
