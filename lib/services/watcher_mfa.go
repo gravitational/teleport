@@ -99,9 +99,6 @@ func NewValidatedMFAChallengeWatcher(
 			RequireResourcesForInitialBroadcast: false,
 			ResourceGetter:                      pagerFn[*mfav1.ValidatedMFAChallenge](paginatedGetFunc).getAll,
 			ResourceKey: func(r *mfav1.ValidatedMFAChallenge) string {
-				// See lib/services/local/mfa.go#createValidatedMFAChallenge for how ValidatedMFAChallenge keys are
-				// constructed. We need to construct the same key here to ensure the watcher can properly match updates
-				// to existing resources.
 				return backend.NewKey(
 					r.GetSpec().GetTargetCluster(),
 					r.GetMetadata().GetName(),

@@ -1099,7 +1099,7 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 	ctx context.Context,
 	challenges []*mfav1.ValidatedMFAChallenge,
 ) (int, error) {
-	replicatedCount := 0
+	count := 0
 
 	for _, challenge := range challenges {
 		// If the target cluster specified in the challenge does not match this leaf cluster, skip it as it's not meant
@@ -1127,8 +1127,8 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 			return 0, trace.Wrap(err)
 		}
 
-		replicatedCount++
+		count++
 	}
 
-	return replicatedCount, nil
+	return count, nil
 }
