@@ -748,9 +748,6 @@ func botIdentityFromToken(
 		return nil, trace.BadParameter("unsupported address kind: %v", cfg.Connection.AddressKind)
 	}
 
-	// Only set during bound keypair joining, but used both before and after.
-	var boundKeypairState boundkeypair.ClientState
-
 	switch params.JoinMethod {
 	case types.JoinMethodAzure:
 		params.AzureParams = joinclient.AzureParams{
@@ -767,30 +764,17 @@ func botIdentityFromToken(
 		if err != nil {
 			return nil, trace.Wrap(err, "loading registration secret from disk")
 		}
+		params.BoundKeypairRegistrationSecret = joinSecret
 
-		boundKeypairState, err = initBoundKeypairClientState(ctx, log, cfg, joinSecret)
+		params.BoundKeypairState, err = initBoundKeypairClientState(ctx, log, cfg, joinSecret)
 		if err != nil {
 			return nil, trace.Wrap(err, "initializing bound keypair client state")
 		}
-
-		params.BoundKeypairParams = boundKeypairState.ToJoinParams(boundkeypair.ClientParams{
-			RegistrationSecret: joinSecret,
-		})
 	}
 
 	result, err := joinclient.Join(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if boundKeypairState != nil {
-		if err := boundKeypairState.UpdateFromRegisterResult(result); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := boundKeypairState.Store(ctx); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
