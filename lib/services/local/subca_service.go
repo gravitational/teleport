@@ -81,7 +81,6 @@ func CertAuthorityOverrideIDFromResource(r *subcav1.CertAuthorityOverride) CertA
 // SubCAServiceParams holds creation parameters for [SubCAService].
 type SubCAServiceParams struct {
 	Backend backend.Backend
-	Trust   services.AuthorityGetter
 }
 
 // SubCAService manages backend storage of CertAuthorityOverride resources.
@@ -89,15 +88,10 @@ type SubCAServiceParams struct {
 // Follows RFD 153 / generic.Service semantics.
 type SubCAService struct {
 	service *generic.ServiceWrapper[*subcav1.CertAuthorityOverride]
-	trust   services.AuthorityGetter
 }
 
 // NewSubCAService creates a new service using the provided params.
 func NewSubCAService(p SubCAServiceParams) (*SubCAService, error) {
-	if p.Trust == nil {
-		return nil, trace.BadParameter("trust service required")
-	}
-
 	service, err := generic.NewServiceWrapper(generic.ServiceConfig[*subcav1.CertAuthorityOverride]{
 		Backend:       p.Backend,
 		ResourceKind:  types.KindCertAuthorityOverride,
@@ -115,7 +109,6 @@ func NewSubCAService(p SubCAServiceParams) (*SubCAService, error) {
 
 	return &SubCAService{
 		service: service,
-		trust:   p.Trust,
 	}, nil
 }
 
@@ -124,7 +117,7 @@ func (s *SubCAService) CreateCertAuthorityOverride(
 	ctx context.Context,
 	resource *subcav1.CertAuthorityOverride,
 ) (*subcav1.CertAuthorityOverride, error) {
-	if err := s.validateCAOverrideForCreate(ctx, resource); err != nil {
+	if _, err := validateCAOverride(resource); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -140,40 +133,6 @@ func (s *SubCAService) CreateCertAuthorityOverride(
 	//  so they can always become "out of sync" with overrides.
 	created, err := service.CreateResource(ctx, resource)
 	return created, trace.Wrap(err)
-}
-
-func (s *SubCAService) validateCAOverrideForCreate(
-	ctx context.Context,
-	resource *subcav1.CertAuthorityOverride,
-) error {
-	parsed, err := validateCAOverride(resource)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Fetch corresponding CA.
-	const loadSigningKeys = false
-	ca, err := s.trust.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.CertAuthType(resource.SubKind),
-		DomainName: resource.Metadata.Name,
-	}, loadSigningKeys)
-	if err != nil {
-		return trace.Wrap(err, "read CA resource")
-	}
-	knownActiveKeys := hashCAPublicKeys(ca.GetActiveKeys().TLS, ca)
-	knownAdditionalKeys := hashCAPublicKeys(ca.GetAdditionalTrustedKeys().TLS, ca)
-
-	// Validate overrides against CA certificates.
-	for i, co := range parsed.certificateOverrides {
-		_, isActive := knownActiveKeys[co.publicKey]
-		_, isAdditional := knownAdditionalKeys[co.publicKey]
-		if !isActive && !isAdditional {
-			return trace.BadParameter(
-				"spec.certificate_overrides[%d]: override targets unknown CA certificate", i)
-		}
-	}
-
-	return nil
 }
 
 // GetCertAuthorityOverride reads a CA override from the backend.

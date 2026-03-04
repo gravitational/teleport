@@ -97,7 +97,6 @@ func New(t *testing.T, p EnvParams) *Env {
 		subCAParams = *p.SubCAParams
 	}
 	subCAParams.Backend = mem
-	subCAParams.Trust = trust
 	subCA, err := local.NewSubCAService(subCAParams)
 	require.NoError(t, err)
 

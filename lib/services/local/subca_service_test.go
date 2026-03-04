@@ -29,11 +29,9 @@ import (
 
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services/local"
 	subcaenv "github.com/gravitational/teleport/lib/subca/testenv"
-	"github.com/gravitational/teleport/lib/tlscatest"
 )
 
 func TestSubCAService_Create(t *testing.T) {
@@ -103,48 +101,6 @@ func TestSubCAService_Create(t *testing.T) {
 		)
 		_, err = be.Get(ctx, notWantKey)
 		assert.ErrorAs(t, err, new(*trace.NotFoundError), "Read resource by notWantKey")
-	})
-
-	t.Run("override additional key", func(t *testing.T) {
-		t.Parallel()
-
-		env := cloneEnv(t)
-		trust := env.Trust
-		ctx := t.Context()
-
-		// Generate an additional cert and update the CA.
-		keyPEM, certPEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{
-			ClusterName: env.ClusterName,
-		})
-		require.NoError(t, err)
-		ca, err := trust.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       caType,
-			DomainName: env.ClusterName,
-		}, true /* loadSigningKeys */)
-		require.NoError(t, err)
-		ca.SetAdditionalTrustedKeys(types.CAKeySet{
-			TLS: []*types.TLSKeyPair{
-				{
-					Cert:    certPEM,
-					Key:     keyPEM,
-					KeyType: types.PrivateKeyType_RAW,
-				},
-			},
-		})
-		_, err = trust.UpdateCertAuthority(ctx, ca)
-		require.NoError(t, err)
-		cert, err := tlsutils.ParseCertificatePEM(certPEM)
-		require.NoError(t, err)
-
-		// Override both keys.
-		caOverride := env.NewOverrideForCAType(t, caType)
-		caOverride.Spec.CertificateOverrides = append(
-			caOverride.Spec.CertificateOverrides,
-			env.NewDisabledCertificateOverride(t, cert, nil /* externalRoot */),
-		)
-		assert.Len(t, caOverride.Spec.CertificateOverrides, 2) // Sanity check.
-		_, err = env.SubCA.CreateCertAuthorityOverride(ctx, caOverride)
-		require.NoError(t, err, "CreateCertAuthorityOverride errored")
 	})
 
 	tests := []struct {
@@ -339,19 +295,6 @@ func TestSubCAService_Create(t *testing.T) {
 				)
 			},
 			wantErr: "duplicate override",
-		},
-		{
-			name: "certificate_override: unknown CA certificate",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				ca.Spec.CertificateOverrides = []*subcav1.CertificateOverride{
-					{
-						// Doesn't match any CA certificates.
-						PublicKey: unrelatedPublicKey,
-						Disabled:  true,
-					},
-				}
-			},
-			wantErr: "unknown CA certificate",
 		},
 
 		{
