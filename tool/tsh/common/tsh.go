@@ -142,6 +142,9 @@ const (
 	accessRequestModeRole = "role"
 )
 
+// scopeNone unscopes the user
+const scopeNone = "none"
+
 var accessRequestModes = []string{
 	accessRequestModeOff,
 	accessRequestModeResource,
@@ -154,8 +157,10 @@ type ClientInitFunc func(cf *CLIConf) (*client.TeleportClient, error)
 
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
-	// Scope constrains the current operation to a specific target scope
+	// Scope constrains the current operation to a specific target scope. A scope of "" or none descopes the user.
 	Scope string
+	// ScopeSetByUser specifies whether the flag was set by the user.
+	ScopeSetByUser bool
 	// UserHost contains "[login]@hostname" argument to SSH command
 	UserHost string
 	// Commands to execute on a remote host
@@ -1259,7 +1264,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	login.Flag("request-nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
 	login.Flag("request-id", "Login with the roles requested in the given request").StringVar(&cf.RequestID)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
-	login.Flag("scope", "Scope pins credentials to a given scope.").StringVar(&cf.Scope)
+	login.Flag("scope", `Scope pins credentials to a given scope. Use "none" or "" to explicitly remove scoping.`).
+		IsSetByUser(&cf.ScopeSetByUser).
+		StringVar(&cf.Scope)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to").StringVar(&cf.KubernetesCluster)
 	login.Flag("verbose", "Show extra status information").Short('v').BoolVar(&cf.Verbose)
@@ -2211,6 +2218,37 @@ func serializeVersion(format string, proxyVersion string, proxyPublicAddress str
 	return string(out), trace.Wrap(err)
 }
 
+// resolveScope determines the target scope based on the CLI flag state and the current
+// profile. It returns the desired scope string and whether the scope differs from the profile's
+// current scope. The 3 cases are:
+//  1. --scope not provided at all -> inherit profile.ScopePin.Scope, scopeChanged = false
+//  2. --scope="" or --scope=none -> explicitly descope, scopeChanged = (profile.ScopePin.Scope != "")
+//  3. --scope=/foo -> switch to /foo, scopeChanged = (profile.ScopePin.Scope != "/foo")
+func resolveScope(cf *CLIConf, profile *client.ProfileStatus) (string, bool) {
+	// --scope was explicitly set by the user
+	if cf.ScopeSetByUser {
+		// treat none as empty string so that both --scope="" and --scope=none descopes
+		targetScope := cf.Scope
+		if strings.EqualFold(targetScope, scopeNone) {
+			targetScope = ""
+		}
+		currentScope := ""
+		if profile != nil && profile.ScopePin != nil {
+			currentScope = profile.ScopePin.Scope
+		}
+
+		return targetScope, targetScope != currentScope
+	}
+
+	// --scope not provided, inherit from profile.
+	if profile != nil && profile.ScopePin != nil {
+		return profile.ScopePin.Scope, false
+	}
+
+	return "", false
+
+}
+
 // onLogin logs in with remote proxy and gets signed certificates
 func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	showAlerts := true
@@ -2248,6 +2286,10 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		}
 	}
 
+	// Resolve the desired scope based on CLI flags and current profile state.
+	targetScope, scopeChanged := resolveScope(cf, profile)
+	cf.Scope = targetScope
+
 	if cf.Scope != "" {
 		// auto-request behavior is incompatible with scopes
 		autoRequest = false
@@ -2260,10 +2302,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		if err := scopes.StrongValidate(cf.Scope); err != nil {
 			return trace.Wrap(err)
 		}
-
-		// TODO(fspmarshall/scopes): this is a clunky way to handle the forced reauth on scope change,
-		// look into doing something smarter.
-		profile, profiles = nil, nil
 	}
 
 	// make the teleport client and retrieve the certificate from the proxy:
@@ -2301,8 +2339,8 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		}
 	}
 
-	// client is already logged in and profile is not expired
-	if profile != nil && !profile.IsExpired(time.Now()) {
+	// client is already logged in and profile is not expired and scope hasn't changed
+	if profile != nil && !profile.IsExpired(time.Now()) && !scopeChanged {
 		switch {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
@@ -4956,8 +4994,9 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		c.RemoteForwardPorts = rPorts
 	}
 
-	// TODO(fspmarshall/scopes): decide if we want some kind of persistence for the CLI arg.
-	c.Scope = cf.Scope
+	if cf.ScopeSetByUser || cf.Scope != "" {
+		c.Scope = cf.Scope
+	}
 
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName

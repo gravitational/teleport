@@ -263,6 +263,7 @@ func TestClientStore(t *testing.T) {
 					WebProxyAddr: net.JoinHostPort(idx.ProxyHost, "3080"),
 					SiteName:     idx.ClusterName,
 					Username:     idx.Username,
+					Scope:        "/production",
 				}
 				err = clientStore.SaveProfile(profile, true)
 				require.NoError(t, err)
@@ -293,6 +294,7 @@ func TestClientStore(t *testing.T) {
 
 				otherProfile := profile.Copy()
 				otherProfile.WebProxyAddr = "other.example.com:3080"
+				otherProfile.Scope = "/staging"
 				err = clientStore.SaveProfile(otherProfile, false)
 				require.NoError(t, err)
 
@@ -320,6 +322,7 @@ func TestClientStore(t *testing.T) {
 				require.Equal(t, expectOtherStatus, currentStatus)
 				require.Len(t, otherStatuses, 1)
 				require.Equal(t, expectStatus, otherStatuses[0])
+				require.Equal(t, currentStatus.ScopePin, expectOtherStatus.ScopePin)
 			})
 		})
 	}
