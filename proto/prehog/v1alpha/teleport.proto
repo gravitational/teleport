@@ -49,7 +49,7 @@ message UserLoginEvent {
   // the required private key policy for this login.
   string required_private_key_policy = 4;
 
-  // UserOrigin specifies the origin of this user account.
+  // UserOrigin specifies the origin of the user specified in user_name.
   //
   // PostHog property: tp.user_origin
   UserOrigin user_origin = 5;
@@ -57,7 +57,7 @@ message UserLoginEvent {
 
 // UserOrigin is the origin of a user account.
 // Keep the values in sync with UserOrigin enum defined in
-// API events and prehogv1.
+// Teleport OSS repository.
 enum UserOrigin {
   // Indicates a legacy cluster emitting events without a defined user origin.
   USER_ORIGIN_UNSPECIFIED = 0;
@@ -882,6 +882,7 @@ enum CTA {
   CTA_OKTA_USER_SYNC = 11;
   CTA_ENTRA_ID = 12;
   CTA_OKTA_SCIM = 13;
+  CTA_USAGE_REPORT = 14;
 }
 
 // a request forwarded to a kube cluster's API server (other than exec and
@@ -1834,7 +1835,7 @@ message SessionSummaryCreateEvent {
   // PostHog property: tp.resource_name
   string resource_name = 6;
 
-  // is_cloud_default_model indicates wether the session summary was generated using
+  // is_cloud_default_model indicates whether the session summary was generated using
   // the cloud default model.
   //
   // PostHog property: tp.ai.default_model
