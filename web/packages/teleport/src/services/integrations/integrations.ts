@@ -40,6 +40,7 @@ import {
   AwsOidcPingResponse,
   AwsRdsDatabase,
   AwsRolesAnywherePingResponse,
+  AzureResource,
   CreateAwsAppAccessRequest,
   EnrollEksClustersRequest,
   EnrollEksClustersResponse,
@@ -473,7 +474,7 @@ export const integrationService = {
 
   fetchIntegrationRules(
     name: string,
-    resourceType: AwsResource,
+    resourceType: AwsResource | AzureResource,
     regions?: string[]
   ): Promise<IntegrationDiscoveryRules> {
     return api

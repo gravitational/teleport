@@ -929,6 +929,85 @@ export const awsRegionMap = {
 
 export type Regions = keyof typeof awsRegionMap;
 
+// azureRegionMap maps Azure regions to display names
+// https://azure.microsoft.com/en-us/explore/global-infrastructure/geographies/
+export const azureRegionMap = {
+  // North America
+  eastus: 'East US (Virginia)',
+  eastus2: 'East US 2 (Virginia)',
+  centralus: 'Central US (Iowa)',
+  northcentralus: 'North Central US (Illinois)',
+  southcentralus: 'South Central US (Texas)',
+  westcentralus: 'West Central US (Wyoming)',
+  westus: 'West US (California)',
+  westus2: 'West US 2 (Washington)',
+  westus3: 'West US 3 (Phoenix)',
+  canadacentral: 'Canada Central (Toronto)',
+  canadaeast: 'Canada East (Quebec)',
+  mexicocentral: 'Mexico Central (Querétaro State)',
+
+  // South America
+  brazilsouth: 'Brazil South (Sao Paulo State)',
+  brazilsoutheast: 'Brazil Southeast (Rio)',
+  chilecentral: 'Chile Central (Santiago)',
+
+  // Europe
+  northeurope: 'North Europe (Ireland)',
+  westeurope: 'West Europe (Netherlands)',
+  uksouth: 'UK South (London)',
+  ukwest: 'UK West (Cardiff)',
+  francecentral: 'France Central (Paris)',
+  francesouth: 'France South (Marseille)',
+  germanywestcentral: 'Germany West Central (Frankfurt)',
+  germanynorth: 'Germany North (Berlin)',
+  norwayeast: 'Norway East (Norway)',
+  norwaywest: 'Norway West (Norway)',
+  swedencentral: 'Sweden Central (Gävle)',
+  swedensouth: 'Sweden South',
+  switzerlandnorth: 'Switzerland North (Zurich)',
+  switzerlandwest: 'Switzerland West (Geneva)',
+  italynorth: 'Italy North (Milan)',
+  polandcentral: 'Poland Central (Warsaw)',
+  spaincentral: 'Spain Central (Madrid)',
+  austriaeast: 'Austria East (Vienna)',
+  belgiumcentral: 'Belgium Central (Brussels)',
+  denmarkeast: 'Denmark East (Copenhagen)',
+
+  // Asia Pacific
+  eastasia: 'East Asia (Hong Kong SAR)',
+  southeastasia: 'Southeast Asia (Singapore)',
+  australiaeast: 'Australia East (New South Wales)',
+  australiasoutheast: 'Australia Southeast (Victoria)',
+  australiacentral: 'Australia Central (Canberra)',
+  australiacentral2: 'Australia Central 2 (Canberra)',
+  centralindia: 'Central India (Pune)',
+  southindia: 'South India (Chennai)',
+  westindia: 'West India (Mumbai)',
+  japaneast: 'Japan East (Tokyo, Saitama)',
+  japanwest: 'Japan West (Osaka)',
+  koreacentral: 'Korea Central (Seoul)',
+  koreasouth: 'Korea South (Busan)',
+  indonesiacentral: 'Indonesia Central (Jakarta)',
+  malaysiawest: 'Malaysia West (Kuala Lumpur)',
+  newzealandnorth: 'New Zealand North (Auckland)',
+
+  // Middle East
+  uaenorth: 'UAE North (Dubai)',
+  uaecentral: 'UAE Central (Abu Dhabi)',
+  qatarcentral: 'Qatar Central (Doha)',
+  israelcentral: 'Israel Central (Israel)',
+
+  // Africa
+  southafricanorth: 'South Africa North (Johannesburg)',
+  southafricawest: 'South Africa West (Cape Town)',
+};
+
+export type AzureRegion = keyof typeof azureRegionMap;
+
+export enum AzureResource {
+  vm = 'vm',
+}
+
 // RdsEngine are the expected backend string values,
 // used when requesting lists of rds databases of the
 // specified engine.

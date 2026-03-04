@@ -69,9 +69,7 @@ export function IntegrationTileWithSpec({
     );
   }
 
-  const isComingSoon =
-    spec.kind === IntegrationKind.AzureCloud ||
-    spec.kind === IntegrationKind.GoogleCloud;
+  const isComingSoon = spec.kind === IntegrationKind.GoogleCloud;
   if (isComingSoon) {
     Badge = <BadgeGuided>Coming Soon</BadgeGuided>;
     hasAccess = false;

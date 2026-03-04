@@ -23,17 +23,17 @@ import { Box, ButtonSecondary, Flex, Subtitle1, Text } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import { InfoGuideContainer } from 'shared/components/SlidingSidePanel/InfoGuide';
 import Validation from 'shared/components/Validation';
-import { requiredIntegrationName } from 'shared/components/Validation/rules';
+import {
+  requiredField,
+  requiredIntegrationName,
+} from 'shared/components/Validation/rules';
 
 import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel/SlidingSidePanel';
 import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
 import { useNoMinWidth } from 'teleport/Main';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
-import {
-  Regions as AwsRegion,
-  IntegrationKind,
-} from 'teleport/services/integrations';
+import { AzureRegion, IntegrationKind } from 'teleport/services/integrations';
 import { IntegrationEnrollKind } from 'teleport/services/userEvent/types';
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
@@ -54,15 +54,16 @@ import {
   TerraformInfoGuide,
   useTerraformInfoGuide,
 } from '../Shared/InfoGuide';
+import { RegionSelect } from '../Shared/RegionSelect';
 import { DeploymentMethodSection } from './DeploymentMethodSection';
 import { InfoGuideContent } from './InfoGuide';
 import { Prerequisites } from './Prerequisites';
-import { awsRegionGroups } from './regions';
+import { azureRegionGroups } from './regions';
 import { ResourcesSection } from './ResourcesSection';
 import { buildTerraformConfig } from './tf_module';
-import { Ec2Config, WildcardRegion } from './types';
+import { AzureScope, VmConfig, WildcardRegion } from './types';
 
-export function EnrollAws() {
+export function EnrollAzure() {
   useNoMinWidth();
 
   const { clusterVersion } = useClusterVersion();
@@ -76,26 +77,32 @@ export function EnrollAws() {
     isError,
     checkIntegration,
     cancelCheckIntegration,
-  } = useCloudIntegration(IntegrationEnrollKind.AwsCloud);
+  } = useCloudIntegration(IntegrationEnrollKind.AzureCloud);
 
-  const [regions, setRegions] = useState<WildcardRegion | AwsRegion[]>([
+  const [regions, setRegions] = useState<WildcardRegion | AzureRegion[]>([
     '*',
   ] as WildcardRegion);
 
-  const [ec2Config, setEc2Config] = useState<Ec2Config>({
+  const [vmConfig, setVmConfig] = useState<VmConfig>({
     enabled: true,
     tags: [],
+  });
+
+  const [configScope, setConfigScope] = useState<AzureScope>({
+    resource_group: '',
+    managed_identity_region: 'eastus',
   });
 
   const terraformConfig = useMemo(
     () =>
       buildTerraformConfig({
         integrationName,
-        regions,
-        ec2Config,
         version: clusterVersion,
+        regions: regions,
+        vmConfig: vmConfig,
+        configScope: configScope,
       }),
-    [integrationName, regions, ec2Config, clusterVersion]
+    [integrationName, clusterVersion, vmConfig, regions, configScope]
   );
 
   const {
@@ -115,7 +122,7 @@ export function EnrollAws() {
             panelWidth={PANEL_WIDTH}
           >
             <Flex justifyContent="space-between" alignItems="start" mb={1}>
-              <Header>Connect Amazon Web Services</Header>
+              <Header>Connect Azure</Header>
               <InfoGuideSwitch
                 isPanelOpen={isPanelOpen}
                 activeTab={activeInfoGuideTab}
@@ -123,7 +130,7 @@ export function EnrollAws() {
               />
             </Flex>
             <Subtitle1 mb={3}>
-              Connect your AWS account to automatically discover and enroll
+              Connect your Azure account to automatically discover and enroll
               resources in your Teleport Cluster.
             </Subtitle1>
             <Container flexDirection="column" p={4} mb={4}>
@@ -136,12 +143,13 @@ export function EnrollAws() {
                 disabled={isFetching}
               />
               <Divider />
-              <ConfigurationScopeSection />
-              <Divider />
-              <ResourcesSection
-                ec2Config={ec2Config}
-                onEc2Change={setEc2Config}
+              <ConfigurationScopeSection
+                configScope={configScope}
+                onChange={setConfigScope}
+                disabled={isFetching}
               />
+              <Divider />
+              <ResourcesSection vmConfig={vmConfig} onVmChange={setVmConfig} />
               <Divider />
               <RegionsSection regions={regions} onChange={setRegions} />
               <Divider />
@@ -168,7 +176,7 @@ export function EnrollAws() {
               <CheckIntegrationButton
                 integrationExists={integrationExists}
                 integrationName={integrationName}
-                integrationKind={IntegrationKind.AwsOidc}
+                integrationKind={IntegrationKind.AzureOidc}
               />
               <ButtonSecondary
                 ml={3}
@@ -234,7 +242,7 @@ export function IntegrationSection({
         Integration Details
       </Flex>
       <Text ml={4} mb={3}>
-        Provide a name to identify this AWS integration in Teleport.
+        Provide a name to identify this Azure integration in Teleport.
       </Text>
       <FieldInput
         ml={4}
@@ -243,7 +251,7 @@ export function IntegrationSection({
         value={integrationName}
         required={true}
         label="Integration name"
-        placeholder="my-aws-integration"
+        placeholder="my-azure-integration"
         maxWidth={360}
         disabled={disabled}
         onChange={e => onChange(e.target.value.trim())}
@@ -252,16 +260,26 @@ export function IntegrationSection({
   );
 }
 
-export function ConfigurationScopeSection() {
+type ConfigurationScopeSectionProps = {
+  configScope: AzureScope;
+  onChange: (scope: AzureScope) => void;
+  disabled?: boolean;
+};
+
+export function ConfigurationScopeSection({
+  configScope,
+  onChange,
+  disabled = false,
+}: ConfigurationScopeSectionProps) {
   return (
     <>
       <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={3}>
         <CircleNumber>2</CircleNumber>
         Configuration Scope
       </Flex>
-      <Text ml={4}>Single AWS Account</Text>
+      <Text ml={4}>Single Azure Account</Text>
       <Text ml={4} mb={3} color="text.slightlyMuted">
-        Discover resources from one specific AWS account. Additional accounts
+        Discover resources from one specific Azure account. Additional accounts
         require separate integration setup. <br />
         Best for: Single-account environments or testing.
       </Text>
@@ -271,23 +289,58 @@ export function ConfigurationScopeSection() {
           borderLeft="2px solid"
           borderColor="interactive.tonal.neutral.0"
         >
-          <Text fontSize={2}>
+          <Text fontSize={2} mb={3}>
             IAM resources used for discovery in Teleport will be created using
-            the account configured for your AWS Terraform provider.
+            the account configured for your Azure Terraform provider.
           </Text>
         </Box>
+      </Box>
+      <FieldInput
+        ml={4}
+        mb={3}
+        rule={requiredField('Resource group name is required')}
+        value={configScope.resource_group}
+        required={true}
+        label="Azure Resource Group Name"
+        placeholder="my-resource-group"
+        maxWidth={400}
+        disabled={disabled}
+        onChange={e =>
+          onChange({
+            ...configScope,
+            resource_group: e.target.value,
+          })
+        }
+      />
+      <Box ml={4} mb={0}>
+        <RegionSelect
+          isMulti={false}
+          regionGroups={azureRegionGroups}
+          selectedRegions={configScope.managed_identity_region}
+          onChange={(region: string) =>
+            onChange({
+              ...configScope,
+              managed_identity_region: region as AzureRegion,
+            })
+          }
+          label="Azure Managed Identity Location"
+          placeholder="Select region..."
+          disabled={disabled}
+          required={true}
+          rule={requiredField('Managed identity location is required')}
+        />
       </Box>
     </>
   );
 }
 
 export function RegionsSection(
-  props: Omit<RegionsSectionProps<AwsRegion>, 'regionGroups'>
+  props: Omit<RegionsSectionProps<AzureRegion>, 'regionGroups'>
 ) {
   return (
     <BaseRegionsSection
       regions={props.regions}
-      regionGroups={awsRegionGroups}
+      regionGroups={azureRegionGroups}
       onChange={props.onChange}
     />
   );

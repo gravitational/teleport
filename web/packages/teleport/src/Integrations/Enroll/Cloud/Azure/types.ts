@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,16 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Regions as AwsRegion } from 'teleport/services/integrations';
+import { AzureRegion } from 'teleport/services/integrations';
 
-export type RegionId = AwsRegion; // | AzureRegion | GcpRegion, etc
+export type WildcardRegion = ['*'];
 
-export interface Region {
-  id: RegionId;
+export type BaseServiceConfig = {
+  enabled: boolean;
+  tags: AzureTag[];
+};
+
+export type VmConfig = BaseServiceConfig;
+
+export type AzureTag = {
   name: string;
-}
+  value: string;
+};
 
-export interface RegionGroup {
-  name: string;
-  regions: readonly Region[];
-}
+export type AzureScope = {
+  resource_group: string;
+  managed_identity_region: AzureRegion;
+};

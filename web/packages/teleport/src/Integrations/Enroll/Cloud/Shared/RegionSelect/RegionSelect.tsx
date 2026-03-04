@@ -27,9 +27,9 @@ import Select, { Option } from 'shared/components/Select';
 import { useRule } from 'shared/components/Validation';
 import { Rule } from 'shared/components/Validation/rules';
 
-import { RegionGroup, RegionId } from './types';
+import { RegionGroup } from './types';
 
-type RegionOption = Option<RegionId, React.ReactNode>;
+type RegionOption = Option<string, React.ReactNode>;
 type RegionOptionGroup = {
   label: string;
   options: RegionOption[];
@@ -55,6 +55,17 @@ function MultiRegionValueContainer(
   );
 }
 
+function SingleRegionValue(props: any) {
+  const option = props.data as RegionOption;
+  return (
+    <components.SingleValue {...props}>
+      <Text fontSize={2} fontWeight="light" color="muted">
+        {option.value}
+      </Text>
+    </components.SingleValue>
+  );
+}
+
 function OptionWithCheckbox(
   props: OptionProps<RegionOption, true, RegionOptionGroup>
 ) {
@@ -68,31 +79,49 @@ function OptionWithCheckbox(
   );
 }
 
-function defaultRule(): Rule<RegionId[]> {
+function defaultRule(): Rule<string[] | string> {
   return () => () => ({ valid: true });
 }
 
-export interface RegionMultiSelectorProps {
+interface BaseRegionSelectorProps {
   regionGroups: readonly RegionGroup[];
-  selectedRegions: RegionId[];
-  onChange(regions: RegionId[]): void;
   label?: string;
   placeholder?: string;
   disabled?: boolean;
   required?: boolean;
-  rule?: Rule<RegionId[]>;
 }
 
-export function RegionMultiSelector({
-  regionGroups,
-  selectedRegions,
-  onChange,
-  label = 'Select regions',
-  placeholder = 'Select regions...',
-  disabled = false,
-  required = false,
-  rule = defaultRule(),
-}: RegionMultiSelectorProps) {
+interface RegionSelectPropsMulti extends BaseRegionSelectorProps {
+  isMulti?: true;
+  selectedRegions: string[];
+  onChange(regions: string[]): void;
+  rule?: Rule<string[]>;
+}
+
+interface RegionSelectPropsSingle extends BaseRegionSelectorProps {
+  isMulti: false;
+  selectedRegions: string;
+  onChange(region: string): void;
+  rule?: Rule<string>;
+}
+
+export type RegionSelectProps =
+  | RegionSelectPropsMulti
+  | RegionSelectPropsSingle;
+
+export function RegionSelect(props: RegionSelectProps) {
+  const {
+    regionGroups,
+    selectedRegions,
+    onChange,
+    label = 'Select regions',
+    placeholder = 'Select regions...',
+    disabled = false,
+    required = false,
+    rule = defaultRule(),
+    isMulti = true,
+  } = props;
+
   const { valid, message } = useRule(rule(selectedRegions));
 
   const groups: RegionOptionGroup[] = regionGroups.map(regionGroup => ({
@@ -108,16 +137,37 @@ export function RegionMultiSelector({
     })),
   }));
 
-  const selectedOptions: RegionOption[] = groups
-    .flatMap(group => group.options)
-    .filter(option => selectedRegions.includes(option.value));
+  const allOptions = groups.flatMap(group => group.options);
 
-  const handleChange = (options: RegionOption[]) => {
-    const regions = options ? options.map(option => option.value) : [];
-    onChange(regions);
+  const selectedOptions = isMulti
+    ? allOptions.filter(option =>
+        (selectedRegions as string[]).includes(option.value)
+      )
+    : allOptions.find(option => option.value === selectedRegions) || null;
+
+  const handleChange = (options: RegionOption[] | RegionOption) => {
+    if (isMulti) {
+      const regions = options
+        ? (options as RegionOption[]).map(option => option.value)
+        : [];
+      (onChange as (regions: string[]) => void)(regions);
+    } else {
+      const region = (options as RegionOption)?.value || '';
+      (onChange as (region: string) => void)(region);
+    }
   };
 
   const hasError = !valid;
+
+  const selectComponents = isMulti
+    ? {
+        Option: OptionWithCheckbox,
+        ValueContainer: MultiRegionValueContainer,
+        MultiValue: () => null,
+      }
+    : {
+        SingleValue: SingleRegionValue,
+      };
 
   return (
     <Container>
@@ -126,22 +176,18 @@ export function RegionMultiSelector({
           {label}
         </LabelContent>
         <StyledSelect
-          isMulti
+          isMulti={isMulti}
           options={groups}
           value={selectedOptions}
           onChange={handleChange}
           placeholder={placeholder}
           isDisabled={disabled}
           isSearchable={false}
-          closeMenuOnSelect={false}
+          closeMenuOnSelect={!isMulti}
           hideSelectedOptions={false}
           size="large"
           hasError={hasError}
-          components={{
-            Option: OptionWithCheckbox,
-            ValueContainer: MultiRegionValueContainer,
-            MultiValue: () => null,
-          }}
+          components={selectComponents}
         />
       </LabelInput>
       <HelperTextLine
