@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -284,6 +285,7 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		ValidUntil:              time.Now(),
 		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
 		SSOHost:                 profile.SSOHost,
+		ScopePin:                &scopesv1.Pin{Scope: profile.Scope},
 	}
 
 	keyRing, err := s.GetKeyRing(idx, WithAllCerts...)
