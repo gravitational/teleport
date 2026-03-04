@@ -18,7 +18,7 @@ other .proto files used to generate the CRDs have changed).
 1. Add the type name to the `resources` list in `crdgen/handlerequest.go`.
 2. Add the proto file to the `PROTOS` list in `Makefile` if it is not
    already present.
-4. Run `make crd-manifest-diff`. This will should output the new CRD file or the diff, and fail.
+4. Run `make crd-manifests-diff`. This will should output the new CRD file or the diff, and fail.
 3. Run `make crd` to generate the CRD and its documentation.
 
 #### Create a "scheme" defining Go types to match the CRD
@@ -29,6 +29,9 @@ If there is no existing directory for the current version of your resource,
 create one, and don't forget to in include a `groupversion_info.go` file copied
 from one of the existing version directories (with the correct version).
 Do not forget to include the //+kubebuilder comments in these files.
+
+After adding the resource, run `make generate` to generate its `DeepCopy*`
+methods.
 
 #### Create a reconciler for the new resource type
 
@@ -57,7 +60,7 @@ your resource version is added to the root `scheme` with a call like
 
 #### Add RBAC permissions for the new resource type
 
-- Grant the operator access to the Kubernetes resource in: `../../examples/chart/teleport-cluster/charts/templates/role.yaml`.
+- Grant the operator access to the Kubernetes resource in: `../../examples/chart/teleport-cluster/charts/teleport-operator/templates/role.yaml`.
 - Grant the operator access to the Teleport resource in: `../../examples/chart/teleport-cluster/templates/auth/config.yaml`.
 - Update the RBAC permissions in `hack/fixture-operator-role.yaml` to update operator the role used for debugging.
 
