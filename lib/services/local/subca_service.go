@@ -22,7 +22,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"log/slog"
 	"regexp"
 	"slices"
 	"strings"
@@ -31,7 +30,6 @@ import (
 
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -98,10 +96,7 @@ func NewSubCAService(p SubCAServiceParams) (*SubCAService, error) {
 		BackendPrefix: newCAOverridesPrefix(),
 		MarshalFunc:   services.MarshalCertAuthorityOverride,
 		UnmarshalFunc: services.UnmarshalCertAuthorityOverride,
-		ValidateFunc: func(*subcav1.CertAuthorityOverride) error {
-			// Validation applied manually at each write method.
-			return nil
-		},
+		ValidateFunc:  validateCAOverride,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -117,10 +112,6 @@ func (s *SubCAService) CreateCertAuthorityOverride(
 	ctx context.Context,
 	resource *subcav1.CertAuthorityOverride,
 ) (*subcav1.CertAuthorityOverride, error) {
-	if _, err := validateCAOverride(resource); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	service, err := s.serviceForResource(resource)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -174,59 +165,25 @@ func (s *SubCAService) serviceForClusterAndType(
 	}), nil
 }
 
-func hashCAPublicKeys(
-	keys []*types.TLSKeyPair,
-	caForLogging types.CertAuthority,
-) map[string]struct{} {
-	publicKeys := make(map[string]struct{})
-	for i, key := range keys {
-		cert, err := tlsutils.ParseCertificatePEM(key.Cert)
-		if err != nil {
-			slog.WarnContext(context.Background(),
-				"Failed to parse CA TLS certificate",
-				"cluster_name", caForLogging.GetClusterName(),
-				"ca_type", caForLogging.GetType(),
-				"index", i,
-			)
-			continue
-		}
-		pub := subca.HashCertificatePublicKey(cert)
-		publicKeys[pub] = struct{}{}
-	}
-	return publicKeys
-}
-
-type parsedResource struct {
-	caOverride           *subcav1.CertAuthorityOverride
-	certificateOverrides []*parsedCertificateOverride
-}
-
-type parsedCertificateOverride struct {
-	certificateOverride *subcav1.CertificateOverride
-	publicKey           string
-	certificate         *x509.Certificate
-}
-
-func validateCAOverride(resource *subcav1.CertAuthorityOverride) (*parsedResource, error) {
+func validateCAOverride(resource *subcav1.CertAuthorityOverride) error {
 	switch {
 	case resource == nil:
-		return nil, trace.BadParameter("resource required")
+		return trace.BadParameter("resource required")
 	case resource.Kind != types.KindCertAuthorityOverride:
-		return nil, trace.BadParameter("invalid kind: %q", resource.Kind)
+		return trace.BadParameter("invalid kind: %q", resource.Kind)
 	case !slices.Contains(allowedCAOverrideSubKinds, resource.SubKind):
-		return nil, trace.BadParameter("invalid or unsupported sub_kind/caType: %q", resource.SubKind)
+		return trace.BadParameter("invalid or unsupported sub_kind/caType: %q", resource.SubKind)
 	case resource.Version != types.V1:
-		return nil, trace.BadParameter("invalid or unsupported version: %q", resource.Version)
+		return trace.BadParameter("invalid or unsupported version: %q", resource.Version)
 	case resource.Metadata == nil:
-		return nil, trace.BadParameter("metadata required")
+		return trace.BadParameter("metadata required")
 	case resource.Metadata.Name == "":
-		return nil, trace.BadParameter("metadata.name/clusterName required")
+		return trace.BadParameter("metadata.name/clusterName required")
 	case resource.Spec == nil:
-		return nil, trace.BadParameter("spec required")
+		return trace.BadParameter("spec required")
 	}
 
 	overrides := resource.Spec.CertificateOverrides
-	parsedOverrides := make([]*parsedCertificateOverride, len(overrides))
 	seenPublicKeys := make(map[string]struct{})
 	for i, co := range overrides {
 		parsedCO, fieldName, err := validateCertificateOverride(co)
@@ -234,24 +191,23 @@ func validateCAOverride(resource *subcav1.CertAuthorityOverride) (*parsedResourc
 			if fieldName != "" {
 				fieldName = "." + fieldName
 			}
-			return nil, trace.BadParameter("spec.certificate_overrides[%d]%s: %v", i, fieldName, err)
+			return trace.BadParameter("spec.certificate_overrides[%d]%s: %v", i, fieldName, err)
 		}
 
 		if _, ok := seenPublicKeys[parsedCO.publicKey]; ok {
-			return nil, trace.BadParameter(
+			return trace.BadParameter(
 				"spec.certificate_overrides[%d]: found duplicate override for public key %q",
 				i, parsedCO.publicKey,
 			)
 		}
 		seenPublicKeys[parsedCO.publicKey] = struct{}{}
-
-		parsedOverrides[i] = parsedCO
 	}
+	return nil
+}
 
-	return &parsedResource{
-		caOverride:           resource,
-		certificateOverrides: parsedOverrides,
-	}, nil
+type parsedCertificateOverride struct {
+	certificateOverride *subcav1.CertificateOverride
+	publicKey           string
 }
 
 func validateCertificateOverride(
@@ -343,6 +299,5 @@ func validateCertificateOverride(
 	return &parsedCertificateOverride{
 		certificateOverride: co,
 		publicKey:           publicKey,
-		certificate:         cert,
 	}, "", nil
 }

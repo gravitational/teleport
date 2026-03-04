@@ -171,7 +171,7 @@ func TestSubCAService_Create(t *testing.T) {
 			modify: func(ca *subcav1.CertAuthorityOverride) {
 				ca.Metadata = nil
 			},
-			wantErr: "metadata required",
+			wantErr: "name/clusterName required",
 		},
 		{
 			name: "empty name",
