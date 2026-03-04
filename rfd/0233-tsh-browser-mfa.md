@@ -274,14 +274,13 @@ automatic fallback behavior will skip browser MFA on Windows platforms.
 
 #### `rpc CompleteBrowserMFAChallenge`
 
-The RPC endpoint is restricted to the proxy service only via builtin role
-authorization, verifying the caller has the `RoleProxy` builtin role before
-processing requests. When completing the MFA response, the implementation uses
-the username stored in the `SSOMFASession` (created during `tsh`'s initial login
-request to `POST /webapi/mfa/login/begin`) rather than the caller's identity,
-ensuring the MFA challenge is completed for the correct user and preventing
-session confusion attacks. `/web/mfa/browser/:request_id` will verify that the
-intended user is the one completing MFA request.
+The RPC endpoint is restricted to users, verified by checking if the caller's
+identity is that of local or remote user. When completing the MFA response, the
+implementation uses the username stored in the `SSOMFASession` (created during
+`tsh`'s initial login request to `POST /webapi/mfa/login/begin`) rather than the
+caller's identity, ensuring the MFA challenge is completed for the correct user
+and preventing session confusion attacks. `/web/mfa/browser/:request_id` will
+verify that the intended user is the one completing MFA request.
 
 After successful completion, the WebAuthn response is encrypted with the secret
 key from the client redirect URL and returned to be sent to `tsh`. If reuse is
