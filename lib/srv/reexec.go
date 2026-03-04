@@ -104,12 +104,8 @@ const (
 
 // FileFDs for terminal based exec sessions.
 const (
-	// Deprecated: PTYFileDeprecated is a placeholder for the unused PTY file that
-	// was passed to the child process. The PTY should only be used in the
-	// the parent process but was left here for compatibility purposes.
-	PTYFileDeprecated = FirstExtraFile + iota
 	// TTYFile is a TTY the parent process passes to the child process.
-	TTYFile
+	TTYFile = FirstExtraFile + iota
 )
 
 // FileFDs for non-terminal based exec sessions.
