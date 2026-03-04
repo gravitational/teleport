@@ -116,7 +116,7 @@ export interface DocumentGateway extends DocumentBase {
    * autoUserProvisioning contains auto-user provisioning information for this database gateway.
    * Its presence indicates that auto-user provisioning is enabled.
    */
-  autoUserProvisioning?: AutoUserProvisioning;
+  autoUserProvisioning: AutoUserProvisioning | undefined;
 }
 
 /**

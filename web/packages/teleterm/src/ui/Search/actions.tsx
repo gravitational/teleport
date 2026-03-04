@@ -216,6 +216,29 @@ export function mapToAction(
         };
       }
 
+      const { uri, name, protocol, gcpProjectId, autoUserProvisioning } =
+        result.resource;
+
+      if (autoUserProvisioning) {
+        return {
+          type: 'simple-action',
+          searchResult: result,
+          perform: () =>
+            connectToDatabase(
+              ctx,
+              {
+                uri,
+                name,
+                protocol,
+                gcpProjectId,
+                dbUser: autoUserProvisioning.username,
+                autoUserProvisioning,
+              },
+              { origin: 'search_bar' }
+            ),
+        };
+      }
+
       return {
         type: 'parametrized-action',
         searchResult: result,
@@ -232,9 +255,8 @@ export function mapToAction(
             }),
           placeholder: 'Provide db username',
         },
-        perform: dbUser => {
-          const { uri, name, protocol, gcpProjectId } = result.resource;
-          return connectToDatabase(
+        perform: dbUser =>
+          connectToDatabase(
             ctx,
             {
               uri,
@@ -243,11 +265,8 @@ export function mapToAction(
               gcpProjectId,
               dbUser: dbUser.value,
             },
-            {
-              origin: 'search_bar',
-            }
-          );
-        },
+            { origin: 'search_bar' }
+          ),
       };
     }
     case 'windows_desktop': {

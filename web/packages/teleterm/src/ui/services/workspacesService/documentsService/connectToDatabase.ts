@@ -42,7 +42,16 @@ export async function connectToDatabase(
   const documentsService =
     ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
 
-  const targetUser = getTransformedTargetUser(target);
+  let targetUser: string;
+  if (target.autoUserProvisioning) {
+    targetUser = target.autoUserProvisioning.username;
+  } else {
+    targetUser = getTargetUser(
+      target.protocol as GatewayProtocol,
+      target.dbUser,
+      target.gcpProjectId
+    );
+  }
 
   const doc = documentsService.createGatewayDocument({
     // Not passing the `gatewayUri` field here, as at this point the gateway doesn't exist yet.
@@ -65,28 +74,6 @@ export async function connectToDatabase(
     documentsService.add(doc);
     documentsService.open(doc.uri);
   }
-}
-
-/**
- * Transforms the target username for database connections.
- * For auto-provisioning, the backend pre-computes the correct username (including the
- * "remote-<user>-<rootCluster>" format for leaf clusters), so it is passed through as-is.
- * For non-auto-provisioning, applies protocol-specific transformations (Redis, GCP).
- */
-function getTransformedTargetUser(target: {
-  protocol: string;
-  dbUser: string;
-  gcpProjectId?: string;
-  autoUserProvisioning?: AutoUserProvisioning;
-}): string {
-  if (target.autoUserProvisioning) {
-    return target.dbUser;
-  }
-  return getTargetUser(
-    target.protocol as GatewayProtocol,
-    target.dbUser,
-    target.gcpProjectId
-  );
 }
 
 function getTargetUser(

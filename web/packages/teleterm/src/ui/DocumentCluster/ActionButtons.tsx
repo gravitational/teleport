@@ -238,7 +238,7 @@ export function ConnectDatabaseActionButton(props: {
       <ButtonBorder
         size="small"
         onClick={() => {
-          connect(props.database.autoUserProvisioning.username);
+          connect('');
         }}
         textTransform="none"
         width={buttonWidth}
