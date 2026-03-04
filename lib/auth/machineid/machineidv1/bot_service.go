@@ -122,6 +122,7 @@ type BotServiceConfig struct {
 }
 
 // NewBotService returns a new instance of the BotService.
+// TODO: Scoped RBAC all this stuff.
 func NewBotService(cfg BotServiceConfig) (*BotService, error) {
 	switch {
 	case cfg.Cache == nil:
@@ -712,6 +713,7 @@ func validateBot(b *pb.Bot) error {
 var nonPropagatedLabels = map[string]struct{}{
 	types.BotLabel:           {},
 	types.BotGenerationLabel: {},
+	types.BotScopeLabel:      {},
 }
 
 // botFromUserAndRole
@@ -745,6 +747,9 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 			MaxSessionTtl: durationpb.New(role.GetOptions().MaxSessionTTL.Duration()),
 		},
 	}
+
+	botScope, ok := user.GetLabel(types.BotScopeLabel)
+	b.Scope = botScope
 
 	// Copy in labels from the user
 	b.Metadata.Labels = map[string]string{}
@@ -826,6 +831,10 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	// We always set this to zero here - but in Upsert, we copy from the
 	// previous user before writing if necessary
 	userMeta.Labels[types.BotGenerationLabel] = "0"
+	// Persist Bot's scope as a user label.
+	if bot.Scope != "" {
+		userMeta.Labels[types.BotScopeLabel] = bot.Scope
+	}
 	userMeta.Expires = userAndRoleExpiryFromBot(bot)
 	// We track the Bot description within the User description field because
 	// the Role description already has a message.
