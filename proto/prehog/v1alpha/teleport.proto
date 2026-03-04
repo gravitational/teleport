@@ -1842,6 +1842,31 @@ message SessionSummaryCreateEvent {
   bool is_cloud_default_model = 7;
 }
 
+// IdentitySecurityGraphSizeEvent is emitted by Access Graph whenever the access graph
+// for a provider is updaed.
+message IdentitySecurityGraphSizeEvent {
+  // provider is the system containing the identities and resources being counted.
+  // It is one of teleport, aws, azure, entra, gitlab, github, netiq or okta.
+  string provider = 1;
+
+  // total_identities is the number of identities in the graph.
+  uint64 total_identities = 2;
+
+  // total_resources is the number of resources in the graph.
+  uint64 total_resources = 3;
+}
+
+// IdentitySecurityAuditLogsIngestedEvent tracks the count of log entries ingested by
+// identity activity center.
+message IdentitySecurityAuditLogsIngestedEvent {
+  // provider is the system emitting audit logs. It is one of
+  // teleport, cloudtrail, kubernetes, github or okta.
+  string provider = 1;
+
+  // logs_ingested is a count of log entries ingested into Identity Security.
+  uint64 logs_ingested = 2;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -2020,6 +2045,8 @@ message SubmitEventRequest {
 
     SessionSummaryCreateEvent session_summary_create_event = 105;
     SessionSummaryAccessEvent session_summary_access_event = 106;
+    IdentitySecurityGraphSizeEvent identity_security_graph_size_event = 107;
+    IdentitySecurityAuditLogsIngestedEvent identity_security_audit_logs_ingested_event = 108;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

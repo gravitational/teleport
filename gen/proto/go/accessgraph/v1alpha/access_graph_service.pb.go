@@ -25,6 +25,7 @@ package accessgraphv1alpha
 
 import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	v1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -93,7 +94,7 @@ func (x KubeAuditLogCursor_KubeAuditLogSource) Number() protoreflect.EnumNumber 
 
 // Deprecated: Use KubeAuditLogCursor_KubeAuditLogSource.Descriptor instead.
 func (KubeAuditLogCursor_KubeAuditLogSource) EnumDescriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{46, 0}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{47, 0}
 }
 
 // QueryRequest is a request to query the access graph.
@@ -666,6 +667,7 @@ type EventsStreamV2Response struct {
 	// Types that are valid to be assigned to Action:
 	//
 	//	*EventsStreamV2Response_Event
+	//	*EventsStreamV2Response_UsageEvent
 	Action        isEventsStreamV2Response_Action `protobuf_oneof:"action"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -717,6 +719,15 @@ func (x *EventsStreamV2Response) GetEvent() *AuditEvent {
 	return nil
 }
 
+func (x *EventsStreamV2Response) GetUsageEvent() *UsageEvent {
+	if x != nil {
+		if x, ok := x.Action.(*EventsStreamV2Response_UsageEvent); ok {
+			return x.UsageEvent
+		}
+	}
+	return nil
+}
+
 type isEventsStreamV2Response_Action interface {
 	isEventsStreamV2Response_Action()
 }
@@ -726,7 +737,15 @@ type EventsStreamV2Response_Event struct {
 	Event *AuditEvent `protobuf:"bytes,1,opt,name=event,proto3,oneof"`
 }
 
+type EventsStreamV2Response_UsageEvent struct {
+	// usage_event is a usage event to be submitted to the auth server, as an analog of
+	// AuthService.SubmitUsageEvent.
+	UsageEvent *UsageEvent `protobuf:"bytes,2,opt,name=usage_event,json=usageEvent,proto3,oneof"`
+}
+
 func (*EventsStreamV2Response_Event) isEventsStreamV2Response_Action() {}
+
+func (*EventsStreamV2Response_UsageEvent) isEventsStreamV2Response_Action() {}
 
 // AuditEvent is an event that should be logged by Teleport.
 type AuditEvent struct {
@@ -796,6 +815,91 @@ type AuditEvent_AccessPathChanged struct {
 
 func (*AuditEvent_AccessPathChanged) isAuditEvent_Event() {}
 
+// UsageEvent is a usage event that access graph can submit to teleport
+type UsageEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Event:
+	//
+	//	*UsageEvent_GraphSize
+	//	*UsageEvent_AuditLogsIngested
+	Event         isUsageEvent_Event `protobuf_oneof:"event"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UsageEvent) Reset() {
+	*x = UsageEvent{}
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UsageEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UsageEvent) ProtoMessage() {}
+
+func (x *UsageEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UsageEvent.ProtoReflect.Descriptor instead.
+func (*UsageEvent) Descriptor() ([]byte, []int) {
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *UsageEvent) GetEvent() isUsageEvent_Event {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
+func (x *UsageEvent) GetGraphSize() *v1alpha.IdentitySecurityGraphSizeEvent {
+	if x != nil {
+		if x, ok := x.Event.(*UsageEvent_GraphSize); ok {
+			return x.GraphSize
+		}
+	}
+	return nil
+}
+
+func (x *UsageEvent) GetAuditLogsIngested() *v1alpha.IdentitySecurityAuditLogsIngestedEvent {
+	if x != nil {
+		if x, ok := x.Event.(*UsageEvent_AuditLogsIngested); ok {
+			return x.AuditLogsIngested
+		}
+	}
+	return nil
+}
+
+type isUsageEvent_Event interface {
+	isUsageEvent_Event()
+}
+
+type UsageEvent_GraphSize struct {
+	// graph_size provides the size of a provider's graph
+	GraphSize *v1alpha.IdentitySecurityGraphSizeEvent `protobuf:"bytes,1,opt,name=graph_size,json=graphSize,proto3,oneof"`
+}
+
+type UsageEvent_AuditLogsIngested struct {
+	// audit_logs_ingested provides a count of new audit logs ingested by a provider.
+	AuditLogsIngested *v1alpha.IdentitySecurityAuditLogsIngestedEvent `protobuf:"bytes,2,opt,name=audit_logs_ingested,json=auditLogsIngested,proto3,oneof"`
+}
+
+func (*UsageEvent_GraphSize) isUsageEvent_Event() {}
+
+func (*UsageEvent_AuditLogsIngested) isUsageEvent_Event() {}
+
 // AuditLogStreamRequest is sent from the client to the server over the
 // bi-directional AuditLogStream. It encapsulates distinct client actions for
 // configuring the export stream, sending batches of audit log events, and
@@ -844,7 +948,7 @@ type AuditLogStreamRequest struct {
 
 func (x *AuditLogStreamRequest) Reset() {
 	*x = AuditLogStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[10]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -856,7 +960,7 @@ func (x *AuditLogStreamRequest) String() string {
 func (*AuditLogStreamRequest) ProtoMessage() {}
 
 func (x *AuditLogStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[10]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -869,7 +973,7 @@ func (x *AuditLogStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuditLogStreamRequest.ProtoReflect.Descriptor instead.
 func (*AuditLogStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{10}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *AuditLogStreamRequest) GetAction() isAuditLogStreamRequest_Action {
@@ -940,7 +1044,7 @@ type AuditLogConfig struct {
 
 func (x *AuditLogConfig) Reset() {
 	*x = AuditLogConfig{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[11]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -952,7 +1056,7 @@ func (x *AuditLogConfig) String() string {
 func (*AuditLogConfig) ProtoMessage() {}
 
 func (x *AuditLogConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[11]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -965,7 +1069,7 @@ func (x *AuditLogConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuditLogConfig.ProtoReflect.Descriptor instead.
 func (*AuditLogConfig) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{11}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *AuditLogConfig) GetStartDate() *timestamppb.Timestamp {
@@ -1000,7 +1104,7 @@ type AuditLogEvents struct {
 
 func (x *AuditLogEvents) Reset() {
 	*x = AuditLogEvents{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[12]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1012,7 +1116,7 @@ func (x *AuditLogEvents) String() string {
 func (*AuditLogEvents) ProtoMessage() {}
 
 func (x *AuditLogEvents) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[12]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1025,7 +1129,7 @@ func (x *AuditLogEvents) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuditLogEvents.ProtoReflect.Descriptor instead.
 func (*AuditLogEvents) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{12}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *AuditLogEvents) GetEvents() []*v1.EventUnstructured {
@@ -1105,7 +1209,7 @@ type SearchResumeState struct {
 
 func (x *SearchResumeState) Reset() {
 	*x = SearchResumeState{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[13]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1117,7 +1221,7 @@ func (x *SearchResumeState) String() string {
 func (*SearchResumeState) ProtoMessage() {}
 
 func (x *SearchResumeState) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[13]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1130,7 +1234,7 @@ func (x *SearchResumeState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchResumeState.ProtoReflect.Descriptor instead.
 func (*SearchResumeState) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{13}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *SearchResumeState) GetStartKey() string {
@@ -1170,7 +1274,7 @@ type BulkResumeStateUpdate struct {
 
 func (x *BulkResumeStateUpdate) Reset() {
 	*x = BulkResumeStateUpdate{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[14]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1182,7 +1286,7 @@ func (x *BulkResumeStateUpdate) String() string {
 func (*BulkResumeStateUpdate) ProtoMessage() {}
 
 func (x *BulkResumeStateUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[14]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1195,7 +1299,7 @@ func (x *BulkResumeStateUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BulkResumeStateUpdate.ProtoReflect.Descriptor instead.
 func (*BulkResumeStateUpdate) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{14}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *BulkResumeStateUpdate) GetDate() *timestamppb.Timestamp {
@@ -1241,7 +1345,7 @@ type BulkResumeStateSync struct {
 
 func (x *BulkResumeStateSync) Reset() {
 	*x = BulkResumeStateSync{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[15]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1253,7 +1357,7 @@ func (x *BulkResumeStateSync) String() string {
 func (*BulkResumeStateSync) ProtoMessage() {}
 
 func (x *BulkResumeStateSync) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[15]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1266,7 +1370,7 @@ func (x *BulkResumeStateSync) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BulkResumeStateSync.ProtoReflect.Descriptor instead.
 func (*BulkResumeStateSync) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{15}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *BulkResumeStateSync) GetActiveDates() []*timestamppb.Timestamp {
@@ -1296,7 +1400,7 @@ type AuditLogStreamResponse struct {
 
 func (x *AuditLogStreamResponse) Reset() {
 	*x = AuditLogStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[16]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1308,7 +1412,7 @@ func (x *AuditLogStreamResponse) String() string {
 func (*AuditLogStreamResponse) ProtoMessage() {}
 
 func (x *AuditLogStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[16]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1321,7 +1425,7 @@ func (x *AuditLogStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuditLogStreamResponse.ProtoReflect.Descriptor instead.
 func (*AuditLogStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{16}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *AuditLogStreamResponse) GetState() isAuditLogStreamResponse_State {
@@ -1408,7 +1512,7 @@ type BulkResumeState struct {
 
 func (x *BulkResumeState) Reset() {
 	*x = BulkResumeState{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[17]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1420,7 +1524,7 @@ func (x *BulkResumeState) String() string {
 func (*BulkResumeState) ProtoMessage() {}
 
 func (x *BulkResumeState) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[17]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1433,7 +1537,7 @@ func (x *BulkResumeState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BulkResumeState.ProtoReflect.Descriptor instead.
 func (*BulkResumeState) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{17}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *BulkResumeState) GetDates() []*BulkResumeDate {
@@ -1456,7 +1560,7 @@ type BulkResumeDate struct {
 
 func (x *BulkResumeDate) Reset() {
 	*x = BulkResumeDate{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[18]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1468,7 +1572,7 @@ func (x *BulkResumeDate) String() string {
 func (*BulkResumeDate) ProtoMessage() {}
 
 func (x *BulkResumeDate) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[18]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1481,7 +1585,7 @@ func (x *BulkResumeDate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BulkResumeDate.ProtoReflect.Descriptor instead.
 func (*BulkResumeDate) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{18}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *BulkResumeDate) GetDate() *timestamppb.Timestamp {
@@ -1528,7 +1632,7 @@ type RegisterRequest struct {
 
 func (x *RegisterRequest) Reset() {
 	*x = RegisterRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[19]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1540,7 +1644,7 @@ func (x *RegisterRequest) String() string {
 func (*RegisterRequest) ProtoMessage() {}
 
 func (x *RegisterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[19]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1553,7 +1657,7 @@ func (x *RegisterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterRequest.ProtoReflect.Descriptor instead.
 func (*RegisterRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{19}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{20}
 }
 
 // Deprecated: Marked as deprecated in accessgraph/v1alpha/access_graph_service.proto.
@@ -1587,7 +1691,7 @@ type RegisterResponse struct {
 
 func (x *RegisterResponse) Reset() {
 	*x = RegisterResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[20]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1599,7 +1703,7 @@ func (x *RegisterResponse) String() string {
 func (*RegisterResponse) ProtoMessage() {}
 
 func (x *RegisterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[20]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1612,7 +1716,7 @@ func (x *RegisterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterResponse.ProtoReflect.Descriptor instead.
 func (*RegisterResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{20}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{21}
 }
 
 // ReplaceCAsRequest is the request for ReplaceCAs.
@@ -1625,7 +1729,7 @@ type ReplaceCAsRequest struct {
 
 func (x *ReplaceCAsRequest) Reset() {
 	*x = ReplaceCAsRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[21]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1637,7 +1741,7 @@ func (x *ReplaceCAsRequest) String() string {
 func (*ReplaceCAsRequest) ProtoMessage() {}
 
 func (x *ReplaceCAsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[21]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1650,7 +1754,7 @@ func (x *ReplaceCAsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplaceCAsRequest.ProtoReflect.Descriptor instead.
 func (*ReplaceCAsRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{21}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ReplaceCAsRequest) GetHostCaPem() [][]byte {
@@ -1669,7 +1773,7 @@ type ReplaceCAsResponse struct {
 
 func (x *ReplaceCAsResponse) Reset() {
 	*x = ReplaceCAsResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[22]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1681,7 +1785,7 @@ func (x *ReplaceCAsResponse) String() string {
 func (*ReplaceCAsResponse) ProtoMessage() {}
 
 func (x *ReplaceCAsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[22]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1694,7 +1798,7 @@ func (x *ReplaceCAsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplaceCAsResponse.ProtoReflect.Descriptor instead.
 func (*ReplaceCAsResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{22}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{23}
 }
 
 // AWSEventsStreamRequest is a request to send commands to the AWS importer.
@@ -1715,7 +1819,7 @@ type AWSEventsStreamRequest struct {
 
 func (x *AWSEventsStreamRequest) Reset() {
 	*x = AWSEventsStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[23]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1727,7 +1831,7 @@ func (x *AWSEventsStreamRequest) String() string {
 func (*AWSEventsStreamRequest) ProtoMessage() {}
 
 func (x *AWSEventsStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[23]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1740,7 +1844,7 @@ func (x *AWSEventsStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AWSEventsStreamRequest.ProtoReflect.Descriptor instead.
 func (*AWSEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{23}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *AWSEventsStreamRequest) GetOperation() isAWSEventsStreamRequest_Operation {
@@ -1813,7 +1917,7 @@ type AWSSyncOperation struct {
 
 func (x *AWSSyncOperation) Reset() {
 	*x = AWSSyncOperation{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[24]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1825,7 +1929,7 @@ func (x *AWSSyncOperation) String() string {
 func (*AWSSyncOperation) ProtoMessage() {}
 
 func (x *AWSSyncOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[24]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1838,7 +1942,7 @@ func (x *AWSSyncOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AWSSyncOperation.ProtoReflect.Descriptor instead.
 func (*AWSSyncOperation) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{24}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{25}
 }
 
 // AWSEventsStreamResponse is the response from AWSEventsStream.
@@ -1850,7 +1954,7 @@ type AWSEventsStreamResponse struct {
 
 func (x *AWSEventsStreamResponse) Reset() {
 	*x = AWSEventsStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[25]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1862,7 +1966,7 @@ func (x *AWSEventsStreamResponse) String() string {
 func (*AWSEventsStreamResponse) ProtoMessage() {}
 
 func (x *AWSEventsStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[25]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1875,7 +1979,7 @@ func (x *AWSEventsStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AWSEventsStreamResponse.ProtoReflect.Descriptor instead.
 func (*AWSEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{25}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{26}
 }
 
 // GitlabEventsStreamRequest is a request to send commands to the Gitlab importer.
@@ -1895,7 +1999,7 @@ type GitlabEventsStreamRequest struct {
 
 func (x *GitlabEventsStreamRequest) Reset() {
 	*x = GitlabEventsStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[26]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1907,7 +2011,7 @@ func (x *GitlabEventsStreamRequest) String() string {
 func (*GitlabEventsStreamRequest) ProtoMessage() {}
 
 func (x *GitlabEventsStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[26]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1920,7 +2024,7 @@ func (x *GitlabEventsStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitlabEventsStreamRequest.ProtoReflect.Descriptor instead.
 func (*GitlabEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{26}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *GitlabEventsStreamRequest) GetOperation() isGitlabEventsStreamRequest_Operation {
@@ -1992,7 +2096,7 @@ type GitlabEventsStreamResponse struct {
 
 func (x *GitlabEventsStreamResponse) Reset() {
 	*x = GitlabEventsStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[27]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2004,7 +2108,7 @@ func (x *GitlabEventsStreamResponse) String() string {
 func (*GitlabEventsStreamResponse) ProtoMessage() {}
 
 func (x *GitlabEventsStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[27]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2017,7 +2121,7 @@ func (x *GitlabEventsStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitlabEventsStreamResponse.ProtoReflect.Descriptor instead.
 func (*GitlabEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{27}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{28}
 }
 
 // EntraEventsStreamRequest is a request to send commands to the Gitlab importer.
@@ -2037,7 +2141,7 @@ type EntraEventsStreamRequest struct {
 
 func (x *EntraEventsStreamRequest) Reset() {
 	*x = EntraEventsStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[28]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2049,7 +2153,7 @@ func (x *EntraEventsStreamRequest) String() string {
 func (*EntraEventsStreamRequest) ProtoMessage() {}
 
 func (x *EntraEventsStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[28]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2062,7 +2166,7 @@ func (x *EntraEventsStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntraEventsStreamRequest.ProtoReflect.Descriptor instead.
 func (*EntraEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{28}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *EntraEventsStreamRequest) GetOperation() isEntraEventsStreamRequest_Operation {
@@ -2134,7 +2238,7 @@ type EntraEventsStreamResponse struct {
 
 func (x *EntraEventsStreamResponse) Reset() {
 	*x = EntraEventsStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[29]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2146,7 +2250,7 @@ func (x *EntraEventsStreamResponse) String() string {
 func (*EntraEventsStreamResponse) ProtoMessage() {}
 
 func (x *EntraEventsStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[29]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2159,7 +2263,7 @@ func (x *EntraEventsStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntraEventsStreamResponse.ProtoReflect.Descriptor instead.
 func (*EntraEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{29}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{30}
 }
 
 // AzureEventsStreamRequest is a request to send commands to the Azure importer
@@ -2177,7 +2281,7 @@ type AzureEventsStreamRequest struct {
 
 func (x *AzureEventsStreamRequest) Reset() {
 	*x = AzureEventsStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[30]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2189,7 +2293,7 @@ func (x *AzureEventsStreamRequest) String() string {
 func (*AzureEventsStreamRequest) ProtoMessage() {}
 
 func (x *AzureEventsStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[30]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2202,7 +2306,7 @@ func (x *AzureEventsStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AzureEventsStreamRequest.ProtoReflect.Descriptor instead.
 func (*AzureEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{30}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *AzureEventsStreamRequest) GetOperation() isAzureEventsStreamRequest_Operation {
@@ -2275,7 +2379,7 @@ type AzureSyncOperation struct {
 
 func (x *AzureSyncOperation) Reset() {
 	*x = AzureSyncOperation{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[31]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2287,7 +2391,7 @@ func (x *AzureSyncOperation) String() string {
 func (*AzureSyncOperation) ProtoMessage() {}
 
 func (x *AzureSyncOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[31]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2300,7 +2404,7 @@ func (x *AzureSyncOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AzureSyncOperation.ProtoReflect.Descriptor instead.
 func (*AzureSyncOperation) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{31}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{32}
 }
 
 // AzureEventsStreamResponse is a response from AzureEventsStream
@@ -2312,7 +2416,7 @@ type AzureEventsStreamResponse struct {
 
 func (x *AzureEventsStreamResponse) Reset() {
 	*x = AzureEventsStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[32]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2324,7 +2428,7 @@ func (x *AzureEventsStreamResponse) String() string {
 func (*AzureEventsStreamResponse) ProtoMessage() {}
 
 func (x *AzureEventsStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[32]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2337,7 +2441,7 @@ func (x *AzureEventsStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AzureEventsStreamResponse.ProtoReflect.Descriptor instead.
 func (*AzureEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{32}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{33}
 }
 
 // NetIQEventsStreamRequest is a request to send commands to the NetIQ importer
@@ -2355,7 +2459,7 @@ type NetIQEventsStreamRequest struct {
 
 func (x *NetIQEventsStreamRequest) Reset() {
 	*x = NetIQEventsStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[33]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2367,7 +2471,7 @@ func (x *NetIQEventsStreamRequest) String() string {
 func (*NetIQEventsStreamRequest) ProtoMessage() {}
 
 func (x *NetIQEventsStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[33]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2380,7 +2484,7 @@ func (x *NetIQEventsStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetIQEventsStreamRequest.ProtoReflect.Descriptor instead.
 func (*NetIQEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{33}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *NetIQEventsStreamRequest) GetOperation() isNetIQEventsStreamRequest_Operation {
@@ -2452,7 +2556,7 @@ type NetIQSyncOperation struct {
 
 func (x *NetIQSyncOperation) Reset() {
 	*x = NetIQSyncOperation{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[34]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2464,7 +2568,7 @@ func (x *NetIQSyncOperation) String() string {
 func (*NetIQSyncOperation) ProtoMessage() {}
 
 func (x *NetIQSyncOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[34]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2477,7 +2581,7 @@ func (x *NetIQSyncOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetIQSyncOperation.ProtoReflect.Descriptor instead.
 func (*NetIQSyncOperation) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{34}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{35}
 }
 
 // NetIQEventsStreamResponse is a response from NetIQEventsStream
@@ -2489,7 +2593,7 @@ type NetIQEventsStreamResponse struct {
 
 func (x *NetIQEventsStreamResponse) Reset() {
 	*x = NetIQEventsStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[35]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2501,7 +2605,7 @@ func (x *NetIQEventsStreamResponse) String() string {
 func (*NetIQEventsStreamResponse) ProtoMessage() {}
 
 func (x *NetIQEventsStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[35]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2514,7 +2618,7 @@ func (x *NetIQEventsStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetIQEventsStreamResponse.ProtoReflect.Descriptor instead.
 func (*NetIQEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{35}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{36}
 }
 
 // AWSCloudTrailStreamRequest is sent from the client to the server over the
@@ -2545,7 +2649,7 @@ type AWSCloudTrailStreamRequest struct {
 
 func (x *AWSCloudTrailStreamRequest) Reset() {
 	*x = AWSCloudTrailStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[36]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2557,7 +2661,7 @@ func (x *AWSCloudTrailStreamRequest) String() string {
 func (*AWSCloudTrailStreamRequest) ProtoMessage() {}
 
 func (x *AWSCloudTrailStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[36]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2570,7 +2674,7 @@ func (x *AWSCloudTrailStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AWSCloudTrailStreamRequest.ProtoReflect.Descriptor instead.
 func (*AWSCloudTrailStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{36}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *AWSCloudTrailStreamRequest) GetAction() isAWSCloudTrailStreamRequest_Action {
@@ -2627,7 +2731,7 @@ type AWSCloudTrailEventsFile struct {
 
 func (x *AWSCloudTrailEventsFile) Reset() {
 	*x = AWSCloudTrailEventsFile{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[37]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2639,7 +2743,7 @@ func (x *AWSCloudTrailEventsFile) String() string {
 func (*AWSCloudTrailEventsFile) ProtoMessage() {}
 
 func (x *AWSCloudTrailEventsFile) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[37]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2652,7 +2756,7 @@ func (x *AWSCloudTrailEventsFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AWSCloudTrailEventsFile.ProtoReflect.Descriptor instead.
 func (*AWSCloudTrailEventsFile) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{37}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *AWSCloudTrailEventsFile) GetPayload() []byte {
@@ -2678,7 +2782,7 @@ type AWSCloudTrailConfig struct {
 
 func (x *AWSCloudTrailConfig) Reset() {
 	*x = AWSCloudTrailConfig{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[38]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2690,7 +2794,7 @@ func (x *AWSCloudTrailConfig) String() string {
 func (*AWSCloudTrailConfig) ProtoMessage() {}
 
 func (x *AWSCloudTrailConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[38]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2703,7 +2807,7 @@ func (x *AWSCloudTrailConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AWSCloudTrailConfig.ProtoReflect.Descriptor instead.
 func (*AWSCloudTrailConfig) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{38}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{39}
 }
 
 // AWSCloudTrailStreamResponse is sent from the server to the client over the
@@ -2724,7 +2828,7 @@ type AWSCloudTrailStreamResponse struct {
 
 func (x *AWSCloudTrailStreamResponse) Reset() {
 	*x = AWSCloudTrailStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[39]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2736,7 +2840,7 @@ func (x *AWSCloudTrailStreamResponse) String() string {
 func (*AWSCloudTrailStreamResponse) ProtoMessage() {}
 
 func (x *AWSCloudTrailStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[39]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2749,7 +2853,7 @@ func (x *AWSCloudTrailStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AWSCloudTrailStreamResponse.ProtoReflect.Descriptor instead.
 func (*AWSCloudTrailStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{39}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *AWSCloudTrailStreamResponse) GetState() isAWSCloudTrailStreamResponse_State {
@@ -2803,7 +2907,7 @@ type AWSCloudTrailResumeState struct {
 
 func (x *AWSCloudTrailResumeState) Reset() {
 	*x = AWSCloudTrailResumeState{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[40]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2815,7 +2919,7 @@ func (x *AWSCloudTrailResumeState) String() string {
 func (*AWSCloudTrailResumeState) ProtoMessage() {}
 
 func (x *AWSCloudTrailResumeState) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[40]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2828,7 +2932,7 @@ func (x *AWSCloudTrailResumeState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AWSCloudTrailResumeState.ProtoReflect.Descriptor instead.
 func (*AWSCloudTrailResumeState) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{40}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{41}
 }
 
 // AWSCloudTrailEventResource identifies the AWS resource by name and type.
@@ -2852,7 +2956,7 @@ type AWSCloudTrailEventResource struct {
 
 func (x *AWSCloudTrailEventResource) Reset() {
 	*x = AWSCloudTrailEventResource{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[41]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2864,7 +2968,7 @@ func (x *AWSCloudTrailEventResource) String() string {
 func (*AWSCloudTrailEventResource) ProtoMessage() {}
 
 func (x *AWSCloudTrailEventResource) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[41]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2877,7 +2981,7 @@ func (x *AWSCloudTrailEventResource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AWSCloudTrailEventResource.ProtoReflect.Descriptor instead.
 func (*AWSCloudTrailEventResource) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{41}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *AWSCloudTrailEventResource) GetName() string {
@@ -2913,7 +3017,7 @@ type KubeAuditLogStreamRequest struct {
 
 func (x *KubeAuditLogStreamRequest) Reset() {
 	*x = KubeAuditLogStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[42]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2925,7 +3029,7 @@ func (x *KubeAuditLogStreamRequest) String() string {
 func (*KubeAuditLogStreamRequest) ProtoMessage() {}
 
 func (x *KubeAuditLogStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[42]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2938,7 +3042,7 @@ func (x *KubeAuditLogStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KubeAuditLogStreamRequest.ProtoReflect.Descriptor instead.
 func (*KubeAuditLogStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{42}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *KubeAuditLogStreamRequest) GetAction() isKubeAuditLogStreamRequest_Action {
@@ -3012,7 +3116,7 @@ type KubeAuditLogConfig struct {
 
 func (x *KubeAuditLogConfig) Reset() {
 	*x = KubeAuditLogConfig{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[43]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3024,7 +3128,7 @@ func (x *KubeAuditLogConfig) String() string {
 func (*KubeAuditLogConfig) ProtoMessage() {}
 
 func (x *KubeAuditLogConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[43]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3037,7 +3141,7 @@ func (x *KubeAuditLogConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KubeAuditLogConfig.ProtoReflect.Descriptor instead.
 func (*KubeAuditLogConfig) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{43}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{44}
 }
 
 // KubeAuditLogNewStream identifies a log source and cluster that the client
@@ -3053,7 +3157,7 @@ type KubeAuditLogNewStream struct {
 
 func (x *KubeAuditLogNewStream) Reset() {
 	*x = KubeAuditLogNewStream{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[44]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3065,7 +3169,7 @@ func (x *KubeAuditLogNewStream) String() string {
 func (*KubeAuditLogNewStream) ProtoMessage() {}
 
 func (x *KubeAuditLogNewStream) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[44]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3078,7 +3182,7 @@ func (x *KubeAuditLogNewStream) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KubeAuditLogNewStream.ProtoReflect.Descriptor instead.
 func (*KubeAuditLogNewStream) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{44}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *KubeAuditLogNewStream) GetInitial() *KubeAuditLogCursor {
@@ -3107,7 +3211,7 @@ type KubeAuditLogEvents struct {
 
 func (x *KubeAuditLogEvents) Reset() {
 	*x = KubeAuditLogEvents{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[45]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3119,7 +3223,7 @@ func (x *KubeAuditLogEvents) String() string {
 func (*KubeAuditLogEvents) ProtoMessage() {}
 
 func (x *KubeAuditLogEvents) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[45]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3132,7 +3236,7 @@ func (x *KubeAuditLogEvents) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KubeAuditLogEvents.ProtoReflect.Descriptor instead.
 func (*KubeAuditLogEvents) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{45}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *KubeAuditLogEvents) GetEvents() []*structpb.Struct {
@@ -3181,7 +3285,7 @@ type KubeAuditLogCursor struct {
 
 func (x *KubeAuditLogCursor) Reset() {
 	*x = KubeAuditLogCursor{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[46]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3193,7 +3297,7 @@ func (x *KubeAuditLogCursor) String() string {
 func (*KubeAuditLogCursor) ProtoMessage() {}
 
 func (x *KubeAuditLogCursor) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[46]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3206,7 +3310,7 @@ func (x *KubeAuditLogCursor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KubeAuditLogCursor.ProtoReflect.Descriptor instead.
 func (*KubeAuditLogCursor) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{46}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *KubeAuditLogCursor) GetLogSource() KubeAuditLogCursor_KubeAuditLogSource {
@@ -3254,7 +3358,7 @@ type KubeAuditLogStreamResponse struct {
 
 func (x *KubeAuditLogStreamResponse) Reset() {
 	*x = KubeAuditLogStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[47]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3266,7 +3370,7 @@ func (x *KubeAuditLogStreamResponse) String() string {
 func (*KubeAuditLogStreamResponse) ProtoMessage() {}
 
 func (x *KubeAuditLogStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[47]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3279,7 +3383,7 @@ func (x *KubeAuditLogStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KubeAuditLogStreamResponse.ProtoReflect.Descriptor instead.
 func (*KubeAuditLogStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{47}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *KubeAuditLogStreamResponse) GetState() isKubeAuditLogStreamResponse_State {
@@ -3342,7 +3446,7 @@ type KubeAuditLogResumeState struct {
 
 func (x *KubeAuditLogResumeState) Reset() {
 	*x = KubeAuditLogResumeState{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[48]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3354,7 +3458,7 @@ func (x *KubeAuditLogResumeState) String() string {
 func (*KubeAuditLogResumeState) ProtoMessage() {}
 
 func (x *KubeAuditLogResumeState) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[48]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3367,7 +3471,7 @@ func (x *KubeAuditLogResumeState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KubeAuditLogResumeState.ProtoReflect.Descriptor instead.
 func (*KubeAuditLogResumeState) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{48}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *KubeAuditLogResumeState) GetCursor() *KubeAuditLogCursor {
@@ -3392,7 +3496,7 @@ type GitHubAuditLogStreamRequest struct {
 
 func (x *GitHubAuditLogStreamRequest) Reset() {
 	*x = GitHubAuditLogStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[49]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3404,7 +3508,7 @@ func (x *GitHubAuditLogStreamRequest) String() string {
 func (*GitHubAuditLogStreamRequest) ProtoMessage() {}
 
 func (x *GitHubAuditLogStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[49]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3417,7 +3521,7 @@ func (x *GitHubAuditLogStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubAuditLogStreamRequest.ProtoReflect.Descriptor instead.
 func (*GitHubAuditLogStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{49}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *GitHubAuditLogStreamRequest) GetOperation() isGitHubAuditLogStreamRequest_Operation {
@@ -3479,7 +3583,7 @@ type GitHubAuditLogStreamResponse struct {
 
 func (x *GitHubAuditLogStreamResponse) Reset() {
 	*x = GitHubAuditLogStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[50]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3491,7 +3595,7 @@ func (x *GitHubAuditLogStreamResponse) String() string {
 func (*GitHubAuditLogStreamResponse) ProtoMessage() {}
 
 func (x *GitHubAuditLogStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[50]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3504,7 +3608,7 @@ func (x *GitHubAuditLogStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubAuditLogStreamResponse.ProtoReflect.Descriptor instead.
 func (*GitHubAuditLogStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{50}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *GitHubAuditLogStreamResponse) GetState() isGitHubAuditLogStreamResponse_State {
@@ -3567,7 +3671,7 @@ type GitHubEventsStreamRequest struct {
 
 func (x *GitHubEventsStreamRequest) Reset() {
 	*x = GitHubEventsStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[51]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3579,7 +3683,7 @@ func (x *GitHubEventsStreamRequest) String() string {
 func (*GitHubEventsStreamRequest) ProtoMessage() {}
 
 func (x *GitHubEventsStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[51]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3592,7 +3696,7 @@ func (x *GitHubEventsStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubEventsStreamRequest.ProtoReflect.Descriptor instead.
 func (*GitHubEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{51}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *GitHubEventsStreamRequest) GetOperation() isGitHubEventsStreamRequest_Operation {
@@ -3661,7 +3765,7 @@ type GitHubEventsStreamResponse struct {
 
 func (x *GitHubEventsStreamResponse) Reset() {
 	*x = GitHubEventsStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[52]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3673,7 +3777,7 @@ func (x *GitHubEventsStreamResponse) String() string {
 func (*GitHubEventsStreamResponse) ProtoMessage() {}
 
 func (x *GitHubEventsStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[52]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3686,7 +3790,7 @@ func (x *GitHubEventsStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubEventsStreamResponse.ProtoReflect.Descriptor instead.
 func (*GitHubEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{52}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{53}
 }
 
 // OktaAuditLogStreamRequest represents a client message in the OktaAuditLogStream,
@@ -3704,7 +3808,7 @@ type OktaAuditLogStreamRequest struct {
 
 func (x *OktaAuditLogStreamRequest) Reset() {
 	*x = OktaAuditLogStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[53]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3716,7 +3820,7 @@ func (x *OktaAuditLogStreamRequest) String() string {
 func (*OktaAuditLogStreamRequest) ProtoMessage() {}
 
 func (x *OktaAuditLogStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[53]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3729,7 +3833,7 @@ func (x *OktaAuditLogStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OktaAuditLogStreamRequest.ProtoReflect.Descriptor instead.
 func (*OktaAuditLogStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{53}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *OktaAuditLogStreamRequest) GetOperation() isOktaAuditLogStreamRequest_Operation {
@@ -3788,7 +3892,7 @@ type OktaAuditLogStreamResponse struct {
 
 func (x *OktaAuditLogStreamResponse) Reset() {
 	*x = OktaAuditLogStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[54]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3800,7 +3904,7 @@ func (x *OktaAuditLogStreamResponse) String() string {
 func (*OktaAuditLogStreamResponse) ProtoMessage() {}
 
 func (x *OktaAuditLogStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[54]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3813,7 +3917,7 @@ func (x *OktaAuditLogStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OktaAuditLogStreamResponse.ProtoReflect.Descriptor instead.
 func (*OktaAuditLogStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{54}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *OktaAuditLogStreamResponse) GetState() isOktaAuditLogStreamResponse_State {
@@ -3873,7 +3977,7 @@ type OktaEventsStreamRequest struct {
 
 func (x *OktaEventsStreamRequest) Reset() {
 	*x = OktaEventsStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[55]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3885,7 +3989,7 @@ func (x *OktaEventsStreamRequest) String() string {
 func (*OktaEventsStreamRequest) ProtoMessage() {}
 
 func (x *OktaEventsStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[55]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3898,7 +4002,7 @@ func (x *OktaEventsStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OktaEventsStreamRequest.ProtoReflect.Descriptor instead.
 func (*OktaEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{55}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *OktaEventsStreamRequest) GetOperation() isOktaEventsStreamRequest_Operation {
@@ -3967,7 +4071,7 @@ type OktaEventsStreamResponse struct {
 
 func (x *OktaEventsStreamResponse) Reset() {
 	*x = OktaEventsStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[56]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3979,7 +4083,7 @@ func (x *OktaEventsStreamResponse) String() string {
 func (*OktaEventsStreamResponse) ProtoMessage() {}
 
 func (x *OktaEventsStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[56]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3992,14 +4096,14 @@ func (x *OktaEventsStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OktaEventsStreamResponse.ProtoReflect.Descriptor instead.
 func (*OktaEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{56}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{57}
 }
 
 var File_accessgraph_v1alpha_access_graph_service_proto protoreflect.FileDescriptor
 
 const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\n" +
-	".accessgraph/v1alpha/access_graph_service.proto\x12\x13accessgraph.v1alpha\x1a\x1daccessgraph/v1alpha/aws.proto\x1a\x1faccessgraph/v1alpha/azure.proto\x1a\x1faccessgraph/v1alpha/entra.proto\x1a accessgraph/v1alpha/events.proto\x1a accessgraph/v1alpha/github.proto\x1a accessgraph/v1alpha/gitlab.proto\x1a\x1faccessgraph/v1alpha/graph.proto\x1a\x1faccessgraph/v1alpha/netiq.proto\x1a\x1eaccessgraph/v1alpha/okta.proto\x1a#accessgraph/v1alpha/resources.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a#teleport/auditlog/v1/auditlog.proto\"$\n" +
+	".accessgraph/v1alpha/access_graph_service.proto\x12\x13accessgraph.v1alpha\x1a\x1daccessgraph/v1alpha/aws.proto\x1a\x1faccessgraph/v1alpha/azure.proto\x1a\x1faccessgraph/v1alpha/entra.proto\x1a accessgraph/v1alpha/events.proto\x1a accessgraph/v1alpha/github.proto\x1a accessgraph/v1alpha/gitlab.proto\x1a\x1faccessgraph/v1alpha/graph.proto\x1a\x1faccessgraph/v1alpha/netiq.proto\x1a\x1eaccessgraph/v1alpha/okta.proto\x1a#accessgraph/v1alpha/resources.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dprehog/v1alpha/teleport.proto\x1a#teleport/auditlog/v1/auditlog.proto\"$\n" +
 	"\fQueryRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\"q\n" +
 	"\rQueryResponse\x12/\n" +
@@ -4024,13 +4128,21 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\x1bexclude_access_list_members\x18\x05 \x01(\v2..accessgraph.v1alpha.ExcludeAccessListsMembersH\x00R\x18excludeAccessListMembersB\v\n" +
 	"\toperation\"\x0f\n" +
 	"\rSyncOperation\"\x16\n" +
-	"\x14EventsStreamResponse\"[\n" +
+	"\x14EventsStreamResponse\"\x9f\x01\n" +
 	"\x16EventsStreamV2Response\x127\n" +
-	"\x05event\x18\x01 \x01(\v2\x1f.accessgraph.v1alpha.AuditEventH\x00R\x05eventB\b\n" +
+	"\x05event\x18\x01 \x01(\v2\x1f.accessgraph.v1alpha.AuditEventH\x00R\x05event\x12B\n" +
+	"\vusage_event\x18\x02 \x01(\v2\x1f.accessgraph.v1alpha.UsageEventH\x00R\n" +
+	"usageEventB\b\n" +
 	"\x06action\"o\n" +
 	"\n" +
 	"AuditEvent\x12X\n" +
 	"\x13access_path_changed\x18\x01 \x01(\v2&.accessgraph.v1alpha.AccessPathChangedH\x00R\x11accessPathChangedB\a\n" +
+	"\x05event\"\xd0\x01\n" +
+	"\n" +
+	"UsageEvent\x12O\n" +
+	"\n" +
+	"graph_size\x18\x01 \x01(\v2..prehog.v1alpha.IdentitySecurityGraphSizeEventH\x00R\tgraphSize\x12h\n" +
+	"\x13audit_logs_ingested\x18\x02 \x01(\v26.prehog.v1alpha.IdentitySecurityAuditLogsIngestedEventH\x00R\x11auditLogsIngestedB\a\n" +
 	"\x05event\"\xe8\x01\n" +
 	"\x15AuditLogStreamRequest\x12=\n" +
 	"\x06config\x18\x01 \x01(\v2#.accessgraph.v1alpha.AuditLogConfigH\x00R\x06config\x12=\n" +
@@ -4221,213 +4333,219 @@ func file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP() []byte {
 }
 
 var file_accessgraph_v1alpha_access_graph_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_accessgraph_v1alpha_access_graph_service_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
+var file_accessgraph_v1alpha_access_graph_service_proto_msgTypes = make([]protoimpl.MessageInfo, 59)
 var file_accessgraph_v1alpha_access_graph_service_proto_goTypes = []any{
-	(KubeAuditLogCursor_KubeAuditLogSource)(0), // 0: accessgraph.v1alpha.KubeAuditLogCursor.KubeAuditLogSource
-	(*QueryRequest)(nil),                       // 1: accessgraph.v1alpha.QueryRequest
-	(*QueryResponse)(nil),                      // 2: accessgraph.v1alpha.QueryResponse
-	(*GetFileRequest)(nil),                     // 3: accessgraph.v1alpha.GetFileRequest
-	(*GetFileResponse)(nil),                    // 4: accessgraph.v1alpha.GetFileResponse
-	(*EventsStreamRequest)(nil),                // 5: accessgraph.v1alpha.EventsStreamRequest
-	(*EventsStreamV2Request)(nil),              // 6: accessgraph.v1alpha.EventsStreamV2Request
-	(*SyncOperation)(nil),                      // 7: accessgraph.v1alpha.SyncOperation
-	(*EventsStreamResponse)(nil),               // 8: accessgraph.v1alpha.EventsStreamResponse
-	(*EventsStreamV2Response)(nil),             // 9: accessgraph.v1alpha.EventsStreamV2Response
-	(*AuditEvent)(nil),                         // 10: accessgraph.v1alpha.AuditEvent
-	(*AuditLogStreamRequest)(nil),              // 11: accessgraph.v1alpha.AuditLogStreamRequest
-	(*AuditLogConfig)(nil),                     // 12: accessgraph.v1alpha.AuditLogConfig
-	(*AuditLogEvents)(nil),                     // 13: accessgraph.v1alpha.AuditLogEvents
-	(*SearchResumeState)(nil),                  // 14: accessgraph.v1alpha.SearchResumeState
-	(*BulkResumeStateUpdate)(nil),              // 15: accessgraph.v1alpha.BulkResumeStateUpdate
-	(*BulkResumeStateSync)(nil),                // 16: accessgraph.v1alpha.BulkResumeStateSync
-	(*AuditLogStreamResponse)(nil),             // 17: accessgraph.v1alpha.AuditLogStreamResponse
-	(*BulkResumeState)(nil),                    // 18: accessgraph.v1alpha.BulkResumeState
-	(*BulkResumeDate)(nil),                     // 19: accessgraph.v1alpha.BulkResumeDate
-	(*RegisterRequest)(nil),                    // 20: accessgraph.v1alpha.RegisterRequest
-	(*RegisterResponse)(nil),                   // 21: accessgraph.v1alpha.RegisterResponse
-	(*ReplaceCAsRequest)(nil),                  // 22: accessgraph.v1alpha.ReplaceCAsRequest
-	(*ReplaceCAsResponse)(nil),                 // 23: accessgraph.v1alpha.ReplaceCAsResponse
-	(*AWSEventsStreamRequest)(nil),             // 24: accessgraph.v1alpha.AWSEventsStreamRequest
-	(*AWSSyncOperation)(nil),                   // 25: accessgraph.v1alpha.AWSSyncOperation
-	(*AWSEventsStreamResponse)(nil),            // 26: accessgraph.v1alpha.AWSEventsStreamResponse
-	(*GitlabEventsStreamRequest)(nil),          // 27: accessgraph.v1alpha.GitlabEventsStreamRequest
-	(*GitlabEventsStreamResponse)(nil),         // 28: accessgraph.v1alpha.GitlabEventsStreamResponse
-	(*EntraEventsStreamRequest)(nil),           // 29: accessgraph.v1alpha.EntraEventsStreamRequest
-	(*EntraEventsStreamResponse)(nil),          // 30: accessgraph.v1alpha.EntraEventsStreamResponse
-	(*AzureEventsStreamRequest)(nil),           // 31: accessgraph.v1alpha.AzureEventsStreamRequest
-	(*AzureSyncOperation)(nil),                 // 32: accessgraph.v1alpha.AzureSyncOperation
-	(*AzureEventsStreamResponse)(nil),          // 33: accessgraph.v1alpha.AzureEventsStreamResponse
-	(*NetIQEventsStreamRequest)(nil),           // 34: accessgraph.v1alpha.NetIQEventsStreamRequest
-	(*NetIQSyncOperation)(nil),                 // 35: accessgraph.v1alpha.NetIQSyncOperation
-	(*NetIQEventsStreamResponse)(nil),          // 36: accessgraph.v1alpha.NetIQEventsStreamResponse
-	(*AWSCloudTrailStreamRequest)(nil),         // 37: accessgraph.v1alpha.AWSCloudTrailStreamRequest
-	(*AWSCloudTrailEventsFile)(nil),            // 38: accessgraph.v1alpha.AWSCloudTrailEventsFile
-	(*AWSCloudTrailConfig)(nil),                // 39: accessgraph.v1alpha.AWSCloudTrailConfig
-	(*AWSCloudTrailStreamResponse)(nil),        // 40: accessgraph.v1alpha.AWSCloudTrailStreamResponse
-	(*AWSCloudTrailResumeState)(nil),           // 41: accessgraph.v1alpha.AWSCloudTrailResumeState
-	(*AWSCloudTrailEventResource)(nil),         // 42: accessgraph.v1alpha.AWSCloudTrailEventResource
-	(*KubeAuditLogStreamRequest)(nil),          // 43: accessgraph.v1alpha.KubeAuditLogStreamRequest
-	(*KubeAuditLogConfig)(nil),                 // 44: accessgraph.v1alpha.KubeAuditLogConfig
-	(*KubeAuditLogNewStream)(nil),              // 45: accessgraph.v1alpha.KubeAuditLogNewStream
-	(*KubeAuditLogEvents)(nil),                 // 46: accessgraph.v1alpha.KubeAuditLogEvents
-	(*KubeAuditLogCursor)(nil),                 // 47: accessgraph.v1alpha.KubeAuditLogCursor
-	(*KubeAuditLogStreamResponse)(nil),         // 48: accessgraph.v1alpha.KubeAuditLogStreamResponse
-	(*KubeAuditLogResumeState)(nil),            // 49: accessgraph.v1alpha.KubeAuditLogResumeState
-	(*GitHubAuditLogStreamRequest)(nil),        // 50: accessgraph.v1alpha.GitHubAuditLogStreamRequest
-	(*GitHubAuditLogStreamResponse)(nil),       // 51: accessgraph.v1alpha.GitHubAuditLogStreamResponse
-	(*GitHubEventsStreamRequest)(nil),          // 52: accessgraph.v1alpha.GitHubEventsStreamRequest
-	(*GitHubEventsStreamResponse)(nil),         // 53: accessgraph.v1alpha.GitHubEventsStreamResponse
-	(*OktaAuditLogStreamRequest)(nil),          // 54: accessgraph.v1alpha.OktaAuditLogStreamRequest
-	(*OktaAuditLogStreamResponse)(nil),         // 55: accessgraph.v1alpha.OktaAuditLogStreamResponse
-	(*OktaEventsStreamRequest)(nil),            // 56: accessgraph.v1alpha.OktaEventsStreamRequest
-	(*OktaEventsStreamResponse)(nil),           // 57: accessgraph.v1alpha.OktaEventsStreamResponse
-	nil,                                        // 58: accessgraph.v1alpha.BulkResumeDate.ChunkCursorsEntry
-	(*Node)(nil),                               // 59: accessgraph.v1alpha.Node
-	(*Edge)(nil),                               // 60: accessgraph.v1alpha.Edge
-	(*ResourceList)(nil),                       // 61: accessgraph.v1alpha.ResourceList
-	(*ResourceHeaderList)(nil),                 // 62: accessgraph.v1alpha.ResourceHeaderList
-	(*AccessListsMembers)(nil),                 // 63: accessgraph.v1alpha.AccessListsMembers
-	(*ExcludeAccessListsMembers)(nil),          // 64: accessgraph.v1alpha.ExcludeAccessListsMembers
-	(*AccessPathChanged)(nil),                  // 65: accessgraph.v1alpha.AccessPathChanged
-	(*timestamppb.Timestamp)(nil),              // 66: google.protobuf.Timestamp
-	(*v1.EventUnstructured)(nil),               // 67: teleport.auditlog.v1.EventUnstructured
-	(*emptypb.Empty)(nil),                      // 68: google.protobuf.Empty
-	(*AWSResourceList)(nil),                    // 69: accessgraph.v1alpha.AWSResourceList
-	(*GitlabSyncOperation)(nil),                // 70: accessgraph.v1alpha.GitlabSyncOperation
-	(*GitlabResourceList)(nil),                 // 71: accessgraph.v1alpha.GitlabResourceList
-	(*EntraSyncOperation)(nil),                 // 72: accessgraph.v1alpha.EntraSyncOperation
-	(*EntraResourceList)(nil),                  // 73: accessgraph.v1alpha.EntraResourceList
-	(*AzureResourceList)(nil),                  // 74: accessgraph.v1alpha.AzureResourceList
-	(*NetIQResourceList)(nil),                  // 75: accessgraph.v1alpha.NetIQResourceList
-	(*structpb.Struct)(nil),                    // 76: google.protobuf.Struct
-	(*GitHubConfigV1)(nil),                     // 77: accessgraph.v1alpha.GitHubConfigV1
-	(*GitHubAuditLogV1)(nil),                   // 78: accessgraph.v1alpha.GitHubAuditLogV1
-	(*GitHubAuditLogV1Cursor)(nil),             // 79: accessgraph.v1alpha.GitHubAuditLogV1Cursor
-	(*GithubResourceList)(nil),                 // 80: accessgraph.v1alpha.GithubResourceList
-	(*GithubSync)(nil),                         // 81: accessgraph.v1alpha.GithubSync
-	(*OktaConfigV1)(nil),                       // 82: accessgraph.v1alpha.OktaConfigV1
-	(*OktaAuditLogV1)(nil),                     // 83: accessgraph.v1alpha.OktaAuditLogV1
-	(*OktaAuditLogV1Cursor)(nil),               // 84: accessgraph.v1alpha.OktaAuditLogV1Cursor
-	(*OktaResourceList)(nil),                   // 85: accessgraph.v1alpha.OktaResourceList
-	(*OktaSync)(nil),                           // 86: accessgraph.v1alpha.OktaSync
+	(KubeAuditLogCursor_KubeAuditLogSource)(0),             // 0: accessgraph.v1alpha.KubeAuditLogCursor.KubeAuditLogSource
+	(*QueryRequest)(nil),                                   // 1: accessgraph.v1alpha.QueryRequest
+	(*QueryResponse)(nil),                                  // 2: accessgraph.v1alpha.QueryResponse
+	(*GetFileRequest)(nil),                                 // 3: accessgraph.v1alpha.GetFileRequest
+	(*GetFileResponse)(nil),                                // 4: accessgraph.v1alpha.GetFileResponse
+	(*EventsStreamRequest)(nil),                            // 5: accessgraph.v1alpha.EventsStreamRequest
+	(*EventsStreamV2Request)(nil),                          // 6: accessgraph.v1alpha.EventsStreamV2Request
+	(*SyncOperation)(nil),                                  // 7: accessgraph.v1alpha.SyncOperation
+	(*EventsStreamResponse)(nil),                           // 8: accessgraph.v1alpha.EventsStreamResponse
+	(*EventsStreamV2Response)(nil),                         // 9: accessgraph.v1alpha.EventsStreamV2Response
+	(*AuditEvent)(nil),                                     // 10: accessgraph.v1alpha.AuditEvent
+	(*UsageEvent)(nil),                                     // 11: accessgraph.v1alpha.UsageEvent
+	(*AuditLogStreamRequest)(nil),                          // 12: accessgraph.v1alpha.AuditLogStreamRequest
+	(*AuditLogConfig)(nil),                                 // 13: accessgraph.v1alpha.AuditLogConfig
+	(*AuditLogEvents)(nil),                                 // 14: accessgraph.v1alpha.AuditLogEvents
+	(*SearchResumeState)(nil),                              // 15: accessgraph.v1alpha.SearchResumeState
+	(*BulkResumeStateUpdate)(nil),                          // 16: accessgraph.v1alpha.BulkResumeStateUpdate
+	(*BulkResumeStateSync)(nil),                            // 17: accessgraph.v1alpha.BulkResumeStateSync
+	(*AuditLogStreamResponse)(nil),                         // 18: accessgraph.v1alpha.AuditLogStreamResponse
+	(*BulkResumeState)(nil),                                // 19: accessgraph.v1alpha.BulkResumeState
+	(*BulkResumeDate)(nil),                                 // 20: accessgraph.v1alpha.BulkResumeDate
+	(*RegisterRequest)(nil),                                // 21: accessgraph.v1alpha.RegisterRequest
+	(*RegisterResponse)(nil),                               // 22: accessgraph.v1alpha.RegisterResponse
+	(*ReplaceCAsRequest)(nil),                              // 23: accessgraph.v1alpha.ReplaceCAsRequest
+	(*ReplaceCAsResponse)(nil),                             // 24: accessgraph.v1alpha.ReplaceCAsResponse
+	(*AWSEventsStreamRequest)(nil),                         // 25: accessgraph.v1alpha.AWSEventsStreamRequest
+	(*AWSSyncOperation)(nil),                               // 26: accessgraph.v1alpha.AWSSyncOperation
+	(*AWSEventsStreamResponse)(nil),                        // 27: accessgraph.v1alpha.AWSEventsStreamResponse
+	(*GitlabEventsStreamRequest)(nil),                      // 28: accessgraph.v1alpha.GitlabEventsStreamRequest
+	(*GitlabEventsStreamResponse)(nil),                     // 29: accessgraph.v1alpha.GitlabEventsStreamResponse
+	(*EntraEventsStreamRequest)(nil),                       // 30: accessgraph.v1alpha.EntraEventsStreamRequest
+	(*EntraEventsStreamResponse)(nil),                      // 31: accessgraph.v1alpha.EntraEventsStreamResponse
+	(*AzureEventsStreamRequest)(nil),                       // 32: accessgraph.v1alpha.AzureEventsStreamRequest
+	(*AzureSyncOperation)(nil),                             // 33: accessgraph.v1alpha.AzureSyncOperation
+	(*AzureEventsStreamResponse)(nil),                      // 34: accessgraph.v1alpha.AzureEventsStreamResponse
+	(*NetIQEventsStreamRequest)(nil),                       // 35: accessgraph.v1alpha.NetIQEventsStreamRequest
+	(*NetIQSyncOperation)(nil),                             // 36: accessgraph.v1alpha.NetIQSyncOperation
+	(*NetIQEventsStreamResponse)(nil),                      // 37: accessgraph.v1alpha.NetIQEventsStreamResponse
+	(*AWSCloudTrailStreamRequest)(nil),                     // 38: accessgraph.v1alpha.AWSCloudTrailStreamRequest
+	(*AWSCloudTrailEventsFile)(nil),                        // 39: accessgraph.v1alpha.AWSCloudTrailEventsFile
+	(*AWSCloudTrailConfig)(nil),                            // 40: accessgraph.v1alpha.AWSCloudTrailConfig
+	(*AWSCloudTrailStreamResponse)(nil),                    // 41: accessgraph.v1alpha.AWSCloudTrailStreamResponse
+	(*AWSCloudTrailResumeState)(nil),                       // 42: accessgraph.v1alpha.AWSCloudTrailResumeState
+	(*AWSCloudTrailEventResource)(nil),                     // 43: accessgraph.v1alpha.AWSCloudTrailEventResource
+	(*KubeAuditLogStreamRequest)(nil),                      // 44: accessgraph.v1alpha.KubeAuditLogStreamRequest
+	(*KubeAuditLogConfig)(nil),                             // 45: accessgraph.v1alpha.KubeAuditLogConfig
+	(*KubeAuditLogNewStream)(nil),                          // 46: accessgraph.v1alpha.KubeAuditLogNewStream
+	(*KubeAuditLogEvents)(nil),                             // 47: accessgraph.v1alpha.KubeAuditLogEvents
+	(*KubeAuditLogCursor)(nil),                             // 48: accessgraph.v1alpha.KubeAuditLogCursor
+	(*KubeAuditLogStreamResponse)(nil),                     // 49: accessgraph.v1alpha.KubeAuditLogStreamResponse
+	(*KubeAuditLogResumeState)(nil),                        // 50: accessgraph.v1alpha.KubeAuditLogResumeState
+	(*GitHubAuditLogStreamRequest)(nil),                    // 51: accessgraph.v1alpha.GitHubAuditLogStreamRequest
+	(*GitHubAuditLogStreamResponse)(nil),                   // 52: accessgraph.v1alpha.GitHubAuditLogStreamResponse
+	(*GitHubEventsStreamRequest)(nil),                      // 53: accessgraph.v1alpha.GitHubEventsStreamRequest
+	(*GitHubEventsStreamResponse)(nil),                     // 54: accessgraph.v1alpha.GitHubEventsStreamResponse
+	(*OktaAuditLogStreamRequest)(nil),                      // 55: accessgraph.v1alpha.OktaAuditLogStreamRequest
+	(*OktaAuditLogStreamResponse)(nil),                     // 56: accessgraph.v1alpha.OktaAuditLogStreamResponse
+	(*OktaEventsStreamRequest)(nil),                        // 57: accessgraph.v1alpha.OktaEventsStreamRequest
+	(*OktaEventsStreamResponse)(nil),                       // 58: accessgraph.v1alpha.OktaEventsStreamResponse
+	nil,                                                    // 59: accessgraph.v1alpha.BulkResumeDate.ChunkCursorsEntry
+	(*Node)(nil),                                           // 60: accessgraph.v1alpha.Node
+	(*Edge)(nil),                                           // 61: accessgraph.v1alpha.Edge
+	(*ResourceList)(nil),                                   // 62: accessgraph.v1alpha.ResourceList
+	(*ResourceHeaderList)(nil),                             // 63: accessgraph.v1alpha.ResourceHeaderList
+	(*AccessListsMembers)(nil),                             // 64: accessgraph.v1alpha.AccessListsMembers
+	(*ExcludeAccessListsMembers)(nil),                      // 65: accessgraph.v1alpha.ExcludeAccessListsMembers
+	(*AccessPathChanged)(nil),                              // 66: accessgraph.v1alpha.AccessPathChanged
+	(*v1alpha.IdentitySecurityGraphSizeEvent)(nil),         // 67: prehog.v1alpha.IdentitySecurityGraphSizeEvent
+	(*v1alpha.IdentitySecurityAuditLogsIngestedEvent)(nil), // 68: prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent
+	(*timestamppb.Timestamp)(nil),                          // 69: google.protobuf.Timestamp
+	(*v1.EventUnstructured)(nil),                           // 70: teleport.auditlog.v1.EventUnstructured
+	(*emptypb.Empty)(nil),                                  // 71: google.protobuf.Empty
+	(*AWSResourceList)(nil),                                // 72: accessgraph.v1alpha.AWSResourceList
+	(*GitlabSyncOperation)(nil),                            // 73: accessgraph.v1alpha.GitlabSyncOperation
+	(*GitlabResourceList)(nil),                             // 74: accessgraph.v1alpha.GitlabResourceList
+	(*EntraSyncOperation)(nil),                             // 75: accessgraph.v1alpha.EntraSyncOperation
+	(*EntraResourceList)(nil),                              // 76: accessgraph.v1alpha.EntraResourceList
+	(*AzureResourceList)(nil),                              // 77: accessgraph.v1alpha.AzureResourceList
+	(*NetIQResourceList)(nil),                              // 78: accessgraph.v1alpha.NetIQResourceList
+	(*structpb.Struct)(nil),                                // 79: google.protobuf.Struct
+	(*GitHubConfigV1)(nil),                                 // 80: accessgraph.v1alpha.GitHubConfigV1
+	(*GitHubAuditLogV1)(nil),                               // 81: accessgraph.v1alpha.GitHubAuditLogV1
+	(*GitHubAuditLogV1Cursor)(nil),                         // 82: accessgraph.v1alpha.GitHubAuditLogV1Cursor
+	(*GithubResourceList)(nil),                             // 83: accessgraph.v1alpha.GithubResourceList
+	(*GithubSync)(nil),                                     // 84: accessgraph.v1alpha.GithubSync
+	(*OktaConfigV1)(nil),                                   // 85: accessgraph.v1alpha.OktaConfigV1
+	(*OktaAuditLogV1)(nil),                                 // 86: accessgraph.v1alpha.OktaAuditLogV1
+	(*OktaAuditLogV1Cursor)(nil),                           // 87: accessgraph.v1alpha.OktaAuditLogV1Cursor
+	(*OktaResourceList)(nil),                               // 88: accessgraph.v1alpha.OktaResourceList
+	(*OktaSync)(nil),                                       // 89: accessgraph.v1alpha.OktaSync
 }
 var file_accessgraph_v1alpha_access_graph_service_proto_depIdxs = []int32{
-	59, // 0: accessgraph.v1alpha.QueryResponse.nodes:type_name -> accessgraph.v1alpha.Node
-	60, // 1: accessgraph.v1alpha.QueryResponse.edges:type_name -> accessgraph.v1alpha.Edge
+	60, // 0: accessgraph.v1alpha.QueryResponse.nodes:type_name -> accessgraph.v1alpha.Node
+	61, // 1: accessgraph.v1alpha.QueryResponse.edges:type_name -> accessgraph.v1alpha.Edge
 	7,  // 2: accessgraph.v1alpha.EventsStreamRequest.sync:type_name -> accessgraph.v1alpha.SyncOperation
-	61, // 3: accessgraph.v1alpha.EventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.ResourceList
-	62, // 4: accessgraph.v1alpha.EventsStreamRequest.delete:type_name -> accessgraph.v1alpha.ResourceHeaderList
-	63, // 5: accessgraph.v1alpha.EventsStreamRequest.access_lists_members:type_name -> accessgraph.v1alpha.AccessListsMembers
-	64, // 6: accessgraph.v1alpha.EventsStreamRequest.exclude_access_list_members:type_name -> accessgraph.v1alpha.ExcludeAccessListsMembers
+	62, // 3: accessgraph.v1alpha.EventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.ResourceList
+	63, // 4: accessgraph.v1alpha.EventsStreamRequest.delete:type_name -> accessgraph.v1alpha.ResourceHeaderList
+	64, // 5: accessgraph.v1alpha.EventsStreamRequest.access_lists_members:type_name -> accessgraph.v1alpha.AccessListsMembers
+	65, // 6: accessgraph.v1alpha.EventsStreamRequest.exclude_access_list_members:type_name -> accessgraph.v1alpha.ExcludeAccessListsMembers
 	7,  // 7: accessgraph.v1alpha.EventsStreamV2Request.sync:type_name -> accessgraph.v1alpha.SyncOperation
-	61, // 8: accessgraph.v1alpha.EventsStreamV2Request.upsert:type_name -> accessgraph.v1alpha.ResourceList
-	62, // 9: accessgraph.v1alpha.EventsStreamV2Request.delete:type_name -> accessgraph.v1alpha.ResourceHeaderList
-	63, // 10: accessgraph.v1alpha.EventsStreamV2Request.access_lists_members:type_name -> accessgraph.v1alpha.AccessListsMembers
-	64, // 11: accessgraph.v1alpha.EventsStreamV2Request.exclude_access_list_members:type_name -> accessgraph.v1alpha.ExcludeAccessListsMembers
+	62, // 8: accessgraph.v1alpha.EventsStreamV2Request.upsert:type_name -> accessgraph.v1alpha.ResourceList
+	63, // 9: accessgraph.v1alpha.EventsStreamV2Request.delete:type_name -> accessgraph.v1alpha.ResourceHeaderList
+	64, // 10: accessgraph.v1alpha.EventsStreamV2Request.access_lists_members:type_name -> accessgraph.v1alpha.AccessListsMembers
+	65, // 11: accessgraph.v1alpha.EventsStreamV2Request.exclude_access_list_members:type_name -> accessgraph.v1alpha.ExcludeAccessListsMembers
 	10, // 12: accessgraph.v1alpha.EventsStreamV2Response.event:type_name -> accessgraph.v1alpha.AuditEvent
-	65, // 13: accessgraph.v1alpha.AuditEvent.access_path_changed:type_name -> accessgraph.v1alpha.AccessPathChanged
-	12, // 14: accessgraph.v1alpha.AuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.AuditLogConfig
-	13, // 15: accessgraph.v1alpha.AuditLogStreamRequest.events:type_name -> accessgraph.v1alpha.AuditLogEvents
-	16, // 16: accessgraph.v1alpha.AuditLogStreamRequest.bulk_sync:type_name -> accessgraph.v1alpha.BulkResumeStateSync
-	66, // 17: accessgraph.v1alpha.AuditLogConfig.start_date:type_name -> google.protobuf.Timestamp
-	67, // 18: accessgraph.v1alpha.AuditLogEvents.events:type_name -> teleport.auditlog.v1.EventUnstructured
-	14, // 19: accessgraph.v1alpha.AuditLogEvents.search_resume_state:type_name -> accessgraph.v1alpha.SearchResumeState
-	15, // 20: accessgraph.v1alpha.AuditLogEvents.bulk_resume_state_update:type_name -> accessgraph.v1alpha.BulkResumeStateUpdate
-	66, // 21: accessgraph.v1alpha.SearchResumeState.last_event_time:type_name -> google.protobuf.Timestamp
-	66, // 22: accessgraph.v1alpha.BulkResumeStateUpdate.date:type_name -> google.protobuf.Timestamp
-	66, // 23: accessgraph.v1alpha.BulkResumeStateSync.active_dates:type_name -> google.protobuf.Timestamp
-	12, // 24: accessgraph.v1alpha.AuditLogStreamResponse.audit_log_config:type_name -> accessgraph.v1alpha.AuditLogConfig
-	68, // 25: accessgraph.v1alpha.AuditLogStreamResponse.no_resume_state:type_name -> google.protobuf.Empty
-	14, // 26: accessgraph.v1alpha.AuditLogStreamResponse.search_resume_state:type_name -> accessgraph.v1alpha.SearchResumeState
-	18, // 27: accessgraph.v1alpha.AuditLogStreamResponse.bulk_resume_state:type_name -> accessgraph.v1alpha.BulkResumeState
-	19, // 28: accessgraph.v1alpha.BulkResumeState.dates:type_name -> accessgraph.v1alpha.BulkResumeDate
-	66, // 29: accessgraph.v1alpha.BulkResumeDate.date:type_name -> google.protobuf.Timestamp
-	58, // 30: accessgraph.v1alpha.BulkResumeDate.chunk_cursors:type_name -> accessgraph.v1alpha.BulkResumeDate.ChunkCursorsEntry
-	25, // 31: accessgraph.v1alpha.AWSEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.AWSSyncOperation
-	69, // 32: accessgraph.v1alpha.AWSEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.AWSResourceList
-	69, // 33: accessgraph.v1alpha.AWSEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.AWSResourceList
-	70, // 34: accessgraph.v1alpha.GitlabEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.GitlabSyncOperation
-	71, // 35: accessgraph.v1alpha.GitlabEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.GitlabResourceList
-	71, // 36: accessgraph.v1alpha.GitlabEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.GitlabResourceList
-	72, // 37: accessgraph.v1alpha.EntraEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.EntraSyncOperation
-	73, // 38: accessgraph.v1alpha.EntraEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.EntraResourceList
-	73, // 39: accessgraph.v1alpha.EntraEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.EntraResourceList
-	32, // 40: accessgraph.v1alpha.AzureEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.AzureSyncOperation
-	74, // 41: accessgraph.v1alpha.AzureEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.AzureResourceList
-	74, // 42: accessgraph.v1alpha.AzureEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.AzureResourceList
-	35, // 43: accessgraph.v1alpha.NetIQEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.NetIQSyncOperation
-	75, // 44: accessgraph.v1alpha.NetIQEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.NetIQResourceList
-	75, // 45: accessgraph.v1alpha.NetIQEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.NetIQResourceList
-	39, // 46: accessgraph.v1alpha.AWSCloudTrailStreamRequest.config:type_name -> accessgraph.v1alpha.AWSCloudTrailConfig
-	38, // 47: accessgraph.v1alpha.AWSCloudTrailStreamRequest.events_file:type_name -> accessgraph.v1alpha.AWSCloudTrailEventsFile
-	39, // 48: accessgraph.v1alpha.AWSCloudTrailStreamResponse.cloud_trail_config:type_name -> accessgraph.v1alpha.AWSCloudTrailConfig
-	41, // 49: accessgraph.v1alpha.AWSCloudTrailStreamResponse.resume_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState
-	44, // 50: accessgraph.v1alpha.KubeAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.KubeAuditLogConfig
-	45, // 51: accessgraph.v1alpha.KubeAuditLogStreamRequest.new_stream:type_name -> accessgraph.v1alpha.KubeAuditLogNewStream
-	46, // 52: accessgraph.v1alpha.KubeAuditLogStreamRequest.events:type_name -> accessgraph.v1alpha.KubeAuditLogEvents
-	47, // 53: accessgraph.v1alpha.KubeAuditLogNewStream.initial:type_name -> accessgraph.v1alpha.KubeAuditLogCursor
-	76, // 54: accessgraph.v1alpha.KubeAuditLogEvents.events:type_name -> google.protobuf.Struct
-	47, // 55: accessgraph.v1alpha.KubeAuditLogEvents.cursor:type_name -> accessgraph.v1alpha.KubeAuditLogCursor
-	0,  // 56: accessgraph.v1alpha.KubeAuditLogCursor.log_source:type_name -> accessgraph.v1alpha.KubeAuditLogCursor.KubeAuditLogSource
-	66, // 57: accessgraph.v1alpha.KubeAuditLogCursor.last_event_time:type_name -> google.protobuf.Timestamp
-	44, // 58: accessgraph.v1alpha.KubeAuditLogStreamResponse.config:type_name -> accessgraph.v1alpha.KubeAuditLogConfig
-	49, // 59: accessgraph.v1alpha.KubeAuditLogStreamResponse.resume_state:type_name -> accessgraph.v1alpha.KubeAuditLogResumeState
-	47, // 60: accessgraph.v1alpha.KubeAuditLogResumeState.cursor:type_name -> accessgraph.v1alpha.KubeAuditLogCursor
-	77, // 61: accessgraph.v1alpha.GitHubAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.GitHubConfigV1
-	78, // 62: accessgraph.v1alpha.GitHubAuditLogStreamRequest.audit_log:type_name -> accessgraph.v1alpha.GitHubAuditLogV1
-	77, // 63: accessgraph.v1alpha.GitHubAuditLogStreamResponse.github_config:type_name -> accessgraph.v1alpha.GitHubConfigV1
-	79, // 64: accessgraph.v1alpha.GitHubAuditLogStreamResponse.audit_log_resume_state:type_name -> accessgraph.v1alpha.GitHubAuditLogV1Cursor
-	80, // 65: accessgraph.v1alpha.GitHubEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.GithubResourceList
-	80, // 66: accessgraph.v1alpha.GitHubEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.GithubResourceList
-	81, // 67: accessgraph.v1alpha.GitHubEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.GithubSync
-	82, // 68: accessgraph.v1alpha.OktaAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.OktaConfigV1
-	83, // 69: accessgraph.v1alpha.OktaAuditLogStreamRequest.audit_log:type_name -> accessgraph.v1alpha.OktaAuditLogV1
-	82, // 70: accessgraph.v1alpha.OktaAuditLogStreamResponse.config:type_name -> accessgraph.v1alpha.OktaConfigV1
-	84, // 71: accessgraph.v1alpha.OktaAuditLogStreamResponse.audit_log_resume_state:type_name -> accessgraph.v1alpha.OktaAuditLogV1Cursor
-	85, // 72: accessgraph.v1alpha.OktaEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.OktaResourceList
-	85, // 73: accessgraph.v1alpha.OktaEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.OktaResourceList
-	86, // 74: accessgraph.v1alpha.OktaEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.OktaSync
-	1,  // 75: accessgraph.v1alpha.AccessGraphService.Query:input_type -> accessgraph.v1alpha.QueryRequest
-	3,  // 76: accessgraph.v1alpha.AccessGraphService.GetFile:input_type -> accessgraph.v1alpha.GetFileRequest
-	5,  // 77: accessgraph.v1alpha.AccessGraphService.EventsStream:input_type -> accessgraph.v1alpha.EventsStreamRequest
-	6,  // 78: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:input_type -> accessgraph.v1alpha.EventsStreamV2Request
-	11, // 79: accessgraph.v1alpha.AccessGraphService.AuditLogStream:input_type -> accessgraph.v1alpha.AuditLogStreamRequest
-	37, // 80: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:input_type -> accessgraph.v1alpha.AWSCloudTrailStreamRequest
-	43, // 81: accessgraph.v1alpha.AccessGraphService.KubeAuditLogStream:input_type -> accessgraph.v1alpha.KubeAuditLogStreamRequest
-	20, // 82: accessgraph.v1alpha.AccessGraphService.Register:input_type -> accessgraph.v1alpha.RegisterRequest
-	22, // 83: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:input_type -> accessgraph.v1alpha.ReplaceCAsRequest
-	24, // 84: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:input_type -> accessgraph.v1alpha.AWSEventsStreamRequest
-	27, // 85: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:input_type -> accessgraph.v1alpha.GitlabEventsStreamRequest
-	29, // 86: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:input_type -> accessgraph.v1alpha.EntraEventsStreamRequest
-	31, // 87: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:input_type -> accessgraph.v1alpha.AzureEventsStreamRequest
-	34, // 88: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:input_type -> accessgraph.v1alpha.NetIQEventsStreamRequest
-	50, // 89: accessgraph.v1alpha.AccessGraphService.GitHubAuditLogStream:input_type -> accessgraph.v1alpha.GitHubAuditLogStreamRequest
-	52, // 90: accessgraph.v1alpha.AccessGraphService.GitHubEventsStream:input_type -> accessgraph.v1alpha.GitHubEventsStreamRequest
-	54, // 91: accessgraph.v1alpha.AccessGraphService.OktaAuditLogStream:input_type -> accessgraph.v1alpha.OktaAuditLogStreamRequest
-	56, // 92: accessgraph.v1alpha.AccessGraphService.OktaEventsStream:input_type -> accessgraph.v1alpha.OktaEventsStreamRequest
-	2,  // 93: accessgraph.v1alpha.AccessGraphService.Query:output_type -> accessgraph.v1alpha.QueryResponse
-	4,  // 94: accessgraph.v1alpha.AccessGraphService.GetFile:output_type -> accessgraph.v1alpha.GetFileResponse
-	8,  // 95: accessgraph.v1alpha.AccessGraphService.EventsStream:output_type -> accessgraph.v1alpha.EventsStreamResponse
-	9,  // 96: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:output_type -> accessgraph.v1alpha.EventsStreamV2Response
-	17, // 97: accessgraph.v1alpha.AccessGraphService.AuditLogStream:output_type -> accessgraph.v1alpha.AuditLogStreamResponse
-	40, // 98: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:output_type -> accessgraph.v1alpha.AWSCloudTrailStreamResponse
-	48, // 99: accessgraph.v1alpha.AccessGraphService.KubeAuditLogStream:output_type -> accessgraph.v1alpha.KubeAuditLogStreamResponse
-	21, // 100: accessgraph.v1alpha.AccessGraphService.Register:output_type -> accessgraph.v1alpha.RegisterResponse
-	23, // 101: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:output_type -> accessgraph.v1alpha.ReplaceCAsResponse
-	26, // 102: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:output_type -> accessgraph.v1alpha.AWSEventsStreamResponse
-	28, // 103: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:output_type -> accessgraph.v1alpha.GitlabEventsStreamResponse
-	30, // 104: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:output_type -> accessgraph.v1alpha.EntraEventsStreamResponse
-	33, // 105: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:output_type -> accessgraph.v1alpha.AzureEventsStreamResponse
-	36, // 106: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:output_type -> accessgraph.v1alpha.NetIQEventsStreamResponse
-	51, // 107: accessgraph.v1alpha.AccessGraphService.GitHubAuditLogStream:output_type -> accessgraph.v1alpha.GitHubAuditLogStreamResponse
-	53, // 108: accessgraph.v1alpha.AccessGraphService.GitHubEventsStream:output_type -> accessgraph.v1alpha.GitHubEventsStreamResponse
-	55, // 109: accessgraph.v1alpha.AccessGraphService.OktaAuditLogStream:output_type -> accessgraph.v1alpha.OktaAuditLogStreamResponse
-	57, // 110: accessgraph.v1alpha.AccessGraphService.OktaEventsStream:output_type -> accessgraph.v1alpha.OktaEventsStreamResponse
-	93, // [93:111] is the sub-list for method output_type
-	75, // [75:93] is the sub-list for method input_type
-	75, // [75:75] is the sub-list for extension type_name
-	75, // [75:75] is the sub-list for extension extendee
-	0,  // [0:75] is the sub-list for field type_name
+	11, // 13: accessgraph.v1alpha.EventsStreamV2Response.usage_event:type_name -> accessgraph.v1alpha.UsageEvent
+	66, // 14: accessgraph.v1alpha.AuditEvent.access_path_changed:type_name -> accessgraph.v1alpha.AccessPathChanged
+	67, // 15: accessgraph.v1alpha.UsageEvent.graph_size:type_name -> prehog.v1alpha.IdentitySecurityGraphSizeEvent
+	68, // 16: accessgraph.v1alpha.UsageEvent.audit_logs_ingested:type_name -> prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent
+	13, // 17: accessgraph.v1alpha.AuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.AuditLogConfig
+	14, // 18: accessgraph.v1alpha.AuditLogStreamRequest.events:type_name -> accessgraph.v1alpha.AuditLogEvents
+	17, // 19: accessgraph.v1alpha.AuditLogStreamRequest.bulk_sync:type_name -> accessgraph.v1alpha.BulkResumeStateSync
+	69, // 20: accessgraph.v1alpha.AuditLogConfig.start_date:type_name -> google.protobuf.Timestamp
+	70, // 21: accessgraph.v1alpha.AuditLogEvents.events:type_name -> teleport.auditlog.v1.EventUnstructured
+	15, // 22: accessgraph.v1alpha.AuditLogEvents.search_resume_state:type_name -> accessgraph.v1alpha.SearchResumeState
+	16, // 23: accessgraph.v1alpha.AuditLogEvents.bulk_resume_state_update:type_name -> accessgraph.v1alpha.BulkResumeStateUpdate
+	69, // 24: accessgraph.v1alpha.SearchResumeState.last_event_time:type_name -> google.protobuf.Timestamp
+	69, // 25: accessgraph.v1alpha.BulkResumeStateUpdate.date:type_name -> google.protobuf.Timestamp
+	69, // 26: accessgraph.v1alpha.BulkResumeStateSync.active_dates:type_name -> google.protobuf.Timestamp
+	13, // 27: accessgraph.v1alpha.AuditLogStreamResponse.audit_log_config:type_name -> accessgraph.v1alpha.AuditLogConfig
+	71, // 28: accessgraph.v1alpha.AuditLogStreamResponse.no_resume_state:type_name -> google.protobuf.Empty
+	15, // 29: accessgraph.v1alpha.AuditLogStreamResponse.search_resume_state:type_name -> accessgraph.v1alpha.SearchResumeState
+	19, // 30: accessgraph.v1alpha.AuditLogStreamResponse.bulk_resume_state:type_name -> accessgraph.v1alpha.BulkResumeState
+	20, // 31: accessgraph.v1alpha.BulkResumeState.dates:type_name -> accessgraph.v1alpha.BulkResumeDate
+	69, // 32: accessgraph.v1alpha.BulkResumeDate.date:type_name -> google.protobuf.Timestamp
+	59, // 33: accessgraph.v1alpha.BulkResumeDate.chunk_cursors:type_name -> accessgraph.v1alpha.BulkResumeDate.ChunkCursorsEntry
+	26, // 34: accessgraph.v1alpha.AWSEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.AWSSyncOperation
+	72, // 35: accessgraph.v1alpha.AWSEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.AWSResourceList
+	72, // 36: accessgraph.v1alpha.AWSEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.AWSResourceList
+	73, // 37: accessgraph.v1alpha.GitlabEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.GitlabSyncOperation
+	74, // 38: accessgraph.v1alpha.GitlabEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.GitlabResourceList
+	74, // 39: accessgraph.v1alpha.GitlabEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.GitlabResourceList
+	75, // 40: accessgraph.v1alpha.EntraEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.EntraSyncOperation
+	76, // 41: accessgraph.v1alpha.EntraEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.EntraResourceList
+	76, // 42: accessgraph.v1alpha.EntraEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.EntraResourceList
+	33, // 43: accessgraph.v1alpha.AzureEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.AzureSyncOperation
+	77, // 44: accessgraph.v1alpha.AzureEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.AzureResourceList
+	77, // 45: accessgraph.v1alpha.AzureEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.AzureResourceList
+	36, // 46: accessgraph.v1alpha.NetIQEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.NetIQSyncOperation
+	78, // 47: accessgraph.v1alpha.NetIQEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.NetIQResourceList
+	78, // 48: accessgraph.v1alpha.NetIQEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.NetIQResourceList
+	40, // 49: accessgraph.v1alpha.AWSCloudTrailStreamRequest.config:type_name -> accessgraph.v1alpha.AWSCloudTrailConfig
+	39, // 50: accessgraph.v1alpha.AWSCloudTrailStreamRequest.events_file:type_name -> accessgraph.v1alpha.AWSCloudTrailEventsFile
+	40, // 51: accessgraph.v1alpha.AWSCloudTrailStreamResponse.cloud_trail_config:type_name -> accessgraph.v1alpha.AWSCloudTrailConfig
+	42, // 52: accessgraph.v1alpha.AWSCloudTrailStreamResponse.resume_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState
+	45, // 53: accessgraph.v1alpha.KubeAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.KubeAuditLogConfig
+	46, // 54: accessgraph.v1alpha.KubeAuditLogStreamRequest.new_stream:type_name -> accessgraph.v1alpha.KubeAuditLogNewStream
+	47, // 55: accessgraph.v1alpha.KubeAuditLogStreamRequest.events:type_name -> accessgraph.v1alpha.KubeAuditLogEvents
+	48, // 56: accessgraph.v1alpha.KubeAuditLogNewStream.initial:type_name -> accessgraph.v1alpha.KubeAuditLogCursor
+	79, // 57: accessgraph.v1alpha.KubeAuditLogEvents.events:type_name -> google.protobuf.Struct
+	48, // 58: accessgraph.v1alpha.KubeAuditLogEvents.cursor:type_name -> accessgraph.v1alpha.KubeAuditLogCursor
+	0,  // 59: accessgraph.v1alpha.KubeAuditLogCursor.log_source:type_name -> accessgraph.v1alpha.KubeAuditLogCursor.KubeAuditLogSource
+	69, // 60: accessgraph.v1alpha.KubeAuditLogCursor.last_event_time:type_name -> google.protobuf.Timestamp
+	45, // 61: accessgraph.v1alpha.KubeAuditLogStreamResponse.config:type_name -> accessgraph.v1alpha.KubeAuditLogConfig
+	50, // 62: accessgraph.v1alpha.KubeAuditLogStreamResponse.resume_state:type_name -> accessgraph.v1alpha.KubeAuditLogResumeState
+	48, // 63: accessgraph.v1alpha.KubeAuditLogResumeState.cursor:type_name -> accessgraph.v1alpha.KubeAuditLogCursor
+	80, // 64: accessgraph.v1alpha.GitHubAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.GitHubConfigV1
+	81, // 65: accessgraph.v1alpha.GitHubAuditLogStreamRequest.audit_log:type_name -> accessgraph.v1alpha.GitHubAuditLogV1
+	80, // 66: accessgraph.v1alpha.GitHubAuditLogStreamResponse.github_config:type_name -> accessgraph.v1alpha.GitHubConfigV1
+	82, // 67: accessgraph.v1alpha.GitHubAuditLogStreamResponse.audit_log_resume_state:type_name -> accessgraph.v1alpha.GitHubAuditLogV1Cursor
+	83, // 68: accessgraph.v1alpha.GitHubEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.GithubResourceList
+	83, // 69: accessgraph.v1alpha.GitHubEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.GithubResourceList
+	84, // 70: accessgraph.v1alpha.GitHubEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.GithubSync
+	85, // 71: accessgraph.v1alpha.OktaAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.OktaConfigV1
+	86, // 72: accessgraph.v1alpha.OktaAuditLogStreamRequest.audit_log:type_name -> accessgraph.v1alpha.OktaAuditLogV1
+	85, // 73: accessgraph.v1alpha.OktaAuditLogStreamResponse.config:type_name -> accessgraph.v1alpha.OktaConfigV1
+	87, // 74: accessgraph.v1alpha.OktaAuditLogStreamResponse.audit_log_resume_state:type_name -> accessgraph.v1alpha.OktaAuditLogV1Cursor
+	88, // 75: accessgraph.v1alpha.OktaEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.OktaResourceList
+	88, // 76: accessgraph.v1alpha.OktaEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.OktaResourceList
+	89, // 77: accessgraph.v1alpha.OktaEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.OktaSync
+	1,  // 78: accessgraph.v1alpha.AccessGraphService.Query:input_type -> accessgraph.v1alpha.QueryRequest
+	3,  // 79: accessgraph.v1alpha.AccessGraphService.GetFile:input_type -> accessgraph.v1alpha.GetFileRequest
+	5,  // 80: accessgraph.v1alpha.AccessGraphService.EventsStream:input_type -> accessgraph.v1alpha.EventsStreamRequest
+	6,  // 81: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:input_type -> accessgraph.v1alpha.EventsStreamV2Request
+	12, // 82: accessgraph.v1alpha.AccessGraphService.AuditLogStream:input_type -> accessgraph.v1alpha.AuditLogStreamRequest
+	38, // 83: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:input_type -> accessgraph.v1alpha.AWSCloudTrailStreamRequest
+	44, // 84: accessgraph.v1alpha.AccessGraphService.KubeAuditLogStream:input_type -> accessgraph.v1alpha.KubeAuditLogStreamRequest
+	21, // 85: accessgraph.v1alpha.AccessGraphService.Register:input_type -> accessgraph.v1alpha.RegisterRequest
+	23, // 86: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:input_type -> accessgraph.v1alpha.ReplaceCAsRequest
+	25, // 87: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:input_type -> accessgraph.v1alpha.AWSEventsStreamRequest
+	28, // 88: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:input_type -> accessgraph.v1alpha.GitlabEventsStreamRequest
+	30, // 89: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:input_type -> accessgraph.v1alpha.EntraEventsStreamRequest
+	32, // 90: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:input_type -> accessgraph.v1alpha.AzureEventsStreamRequest
+	35, // 91: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:input_type -> accessgraph.v1alpha.NetIQEventsStreamRequest
+	51, // 92: accessgraph.v1alpha.AccessGraphService.GitHubAuditLogStream:input_type -> accessgraph.v1alpha.GitHubAuditLogStreamRequest
+	53, // 93: accessgraph.v1alpha.AccessGraphService.GitHubEventsStream:input_type -> accessgraph.v1alpha.GitHubEventsStreamRequest
+	55, // 94: accessgraph.v1alpha.AccessGraphService.OktaAuditLogStream:input_type -> accessgraph.v1alpha.OktaAuditLogStreamRequest
+	57, // 95: accessgraph.v1alpha.AccessGraphService.OktaEventsStream:input_type -> accessgraph.v1alpha.OktaEventsStreamRequest
+	2,  // 96: accessgraph.v1alpha.AccessGraphService.Query:output_type -> accessgraph.v1alpha.QueryResponse
+	4,  // 97: accessgraph.v1alpha.AccessGraphService.GetFile:output_type -> accessgraph.v1alpha.GetFileResponse
+	8,  // 98: accessgraph.v1alpha.AccessGraphService.EventsStream:output_type -> accessgraph.v1alpha.EventsStreamResponse
+	9,  // 99: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:output_type -> accessgraph.v1alpha.EventsStreamV2Response
+	18, // 100: accessgraph.v1alpha.AccessGraphService.AuditLogStream:output_type -> accessgraph.v1alpha.AuditLogStreamResponse
+	41, // 101: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:output_type -> accessgraph.v1alpha.AWSCloudTrailStreamResponse
+	49, // 102: accessgraph.v1alpha.AccessGraphService.KubeAuditLogStream:output_type -> accessgraph.v1alpha.KubeAuditLogStreamResponse
+	22, // 103: accessgraph.v1alpha.AccessGraphService.Register:output_type -> accessgraph.v1alpha.RegisterResponse
+	24, // 104: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:output_type -> accessgraph.v1alpha.ReplaceCAsResponse
+	27, // 105: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:output_type -> accessgraph.v1alpha.AWSEventsStreamResponse
+	29, // 106: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:output_type -> accessgraph.v1alpha.GitlabEventsStreamResponse
+	31, // 107: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:output_type -> accessgraph.v1alpha.EntraEventsStreamResponse
+	34, // 108: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:output_type -> accessgraph.v1alpha.AzureEventsStreamResponse
+	37, // 109: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:output_type -> accessgraph.v1alpha.NetIQEventsStreamResponse
+	52, // 110: accessgraph.v1alpha.AccessGraphService.GitHubAuditLogStream:output_type -> accessgraph.v1alpha.GitHubAuditLogStreamResponse
+	54, // 111: accessgraph.v1alpha.AccessGraphService.GitHubEventsStream:output_type -> accessgraph.v1alpha.GitHubEventsStreamResponse
+	56, // 112: accessgraph.v1alpha.AccessGraphService.OktaAuditLogStream:output_type -> accessgraph.v1alpha.OktaAuditLogStreamResponse
+	58, // 113: accessgraph.v1alpha.AccessGraphService.OktaEventsStream:output_type -> accessgraph.v1alpha.OktaEventsStreamResponse
+	96, // [96:114] is the sub-list for method output_type
+	78, // [78:96] is the sub-list for method input_type
+	78, // [78:78] is the sub-list for extension type_name
+	78, // [78:78] is the sub-list for extension extendee
+	0,  // [0:78] is the sub-list for field type_name
 }
 
 func init() { file_accessgraph_v1alpha_access_graph_service_proto_init() }
@@ -4461,89 +4579,94 @@ func file_accessgraph_v1alpha_access_graph_service_proto_init() {
 	}
 	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[8].OneofWrappers = []any{
 		(*EventsStreamV2Response_Event)(nil),
+		(*EventsStreamV2Response_UsageEvent)(nil),
 	}
 	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[9].OneofWrappers = []any{
 		(*AuditEvent_AccessPathChanged)(nil),
 	}
 	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[10].OneofWrappers = []any{
+		(*UsageEvent_GraphSize)(nil),
+		(*UsageEvent_AuditLogsIngested)(nil),
+	}
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[11].OneofWrappers = []any{
 		(*AuditLogStreamRequest_Config)(nil),
 		(*AuditLogStreamRequest_Events)(nil),
 		(*AuditLogStreamRequest_BulkSync)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[12].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[13].OneofWrappers = []any{
 		(*AuditLogEvents_SearchResumeState)(nil),
 		(*AuditLogEvents_BulkResumeStateUpdate)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[16].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[17].OneofWrappers = []any{
 		(*AuditLogStreamResponse_AuditLogConfig)(nil),
 		(*AuditLogStreamResponse_NoResumeState)(nil),
 		(*AuditLogStreamResponse_SearchResumeState)(nil),
 		(*AuditLogStreamResponse_BulkResumeState)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[23].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[24].OneofWrappers = []any{
 		(*AWSEventsStreamRequest_Sync)(nil),
 		(*AWSEventsStreamRequest_Upsert)(nil),
 		(*AWSEventsStreamRequest_Delete)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[26].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[27].OneofWrappers = []any{
 		(*GitlabEventsStreamRequest_Sync)(nil),
 		(*GitlabEventsStreamRequest_Upsert)(nil),
 		(*GitlabEventsStreamRequest_Delete)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[28].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[29].OneofWrappers = []any{
 		(*EntraEventsStreamRequest_Sync)(nil),
 		(*EntraEventsStreamRequest_Upsert)(nil),
 		(*EntraEventsStreamRequest_Delete)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[30].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[31].OneofWrappers = []any{
 		(*AzureEventsStreamRequest_Sync)(nil),
 		(*AzureEventsStreamRequest_Upsert)(nil),
 		(*AzureEventsStreamRequest_Delete)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[33].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[34].OneofWrappers = []any{
 		(*NetIQEventsStreamRequest_Sync)(nil),
 		(*NetIQEventsStreamRequest_Upsert)(nil),
 		(*NetIQEventsStreamRequest_Delete)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[36].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[37].OneofWrappers = []any{
 		(*AWSCloudTrailStreamRequest_Config)(nil),
 		(*AWSCloudTrailStreamRequest_EventsFile)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[39].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[40].OneofWrappers = []any{
 		(*AWSCloudTrailStreamResponse_CloudTrailConfig)(nil),
 		(*AWSCloudTrailStreamResponse_ResumeState)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[42].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[43].OneofWrappers = []any{
 		(*KubeAuditLogStreamRequest_Config)(nil),
 		(*KubeAuditLogStreamRequest_NewStream)(nil),
 		(*KubeAuditLogStreamRequest_Events)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[47].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[48].OneofWrappers = []any{
 		(*KubeAuditLogStreamResponse_Config)(nil),
 		(*KubeAuditLogStreamResponse_ResumeState)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[49].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[50].OneofWrappers = []any{
 		(*GitHubAuditLogStreamRequest_Config)(nil),
 		(*GitHubAuditLogStreamRequest_AuditLog)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[50].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[51].OneofWrappers = []any{
 		(*GitHubAuditLogStreamResponse_GithubConfig)(nil),
 		(*GitHubAuditLogStreamResponse_AuditLogResumeState)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[51].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[52].OneofWrappers = []any{
 		(*GitHubEventsStreamRequest_Upsert)(nil),
 		(*GitHubEventsStreamRequest_Delete)(nil),
 		(*GitHubEventsStreamRequest_Sync)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[53].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[54].OneofWrappers = []any{
 		(*OktaAuditLogStreamRequest_Config)(nil),
 		(*OktaAuditLogStreamRequest_AuditLog)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[54].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[55].OneofWrappers = []any{
 		(*OktaAuditLogStreamResponse_Config)(nil),
 		(*OktaAuditLogStreamResponse_AuditLogResumeState)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[55].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[56].OneofWrappers = []any{
 		(*OktaEventsStreamRequest_Upsert)(nil),
 		(*OktaEventsStreamRequest_Delete)(nil),
 		(*OktaEventsStreamRequest_Sync)(nil),
@@ -4554,7 +4677,7 @@ func file_accessgraph_v1alpha_access_graph_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_access_graph_service_proto_rawDesc), len(file_accessgraph_v1alpha_access_graph_service_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   58,
+			NumMessages:   59,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

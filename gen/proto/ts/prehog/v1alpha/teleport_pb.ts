@@ -3162,6 +3162,54 @@ export interface SessionSummaryCreateEvent {
     isCloudDefaultModel: boolean;
 }
 /**
+ * IdentitySecurityGraphSizeEvent is emitted by Access Graph whenever the access graph
+ * for a provider is updaed.
+ *
+ * @generated from protobuf message prehog.v1alpha.IdentitySecurityGraphSizeEvent
+ */
+export interface IdentitySecurityGraphSizeEvent {
+    /**
+     * provider is the system containing the identities and resources being counted.
+     * It is one of teleport, aws, azure, entra, gitlab, github, netiq or okta.
+     *
+     * @generated from protobuf field: string provider = 1;
+     */
+    provider: string;
+    /**
+     * total_identities is the number of identities in the graph.
+     *
+     * @generated from protobuf field: uint64 total_identities = 2;
+     */
+    totalIdentities: bigint;
+    /**
+     * total_resources is the number of resources in the graph.
+     *
+     * @generated from protobuf field: uint64 total_resources = 3;
+     */
+    totalResources: bigint;
+}
+/**
+ * IdentitySecurityAuditLogsIngestedEvent tracks the count of log entries ingested by
+ * identity activity center.
+ *
+ * @generated from protobuf message prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent
+ */
+export interface IdentitySecurityAuditLogsIngestedEvent {
+    /**
+     * provider is the system emitting audit logs. It is one of
+     * teleport, cloudtrail, kubernetes, github or okta.
+     *
+     * @generated from protobuf field: string provider = 1;
+     */
+    provider: string;
+    /**
+     * logs_ingested is a count of log entries ingested into Identity Security.
+     *
+     * @generated from protobuf field: uint64 logs_ingested = 2;
+     */
+    logsIngested: bigint;
+}
+/**
  * @generated from protobuf message prehog.v1alpha.SubmitEventRequest
  */
 export interface SubmitEventRequest {
@@ -3803,6 +3851,18 @@ export interface SubmitEventRequest {
          * @generated from protobuf field: prehog.v1alpha.SessionSummaryAccessEvent session_summary_access_event = 106;
          */
         sessionSummaryAccessEvent: SessionSummaryAccessEvent;
+    } | {
+        oneofKind: "identitySecurityGraphSizeEvent";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.IdentitySecurityGraphSizeEvent identity_security_graph_size_event = 107;
+         */
+        identitySecurityGraphSizeEvent: IdentitySecurityGraphSizeEvent;
+    } | {
+        oneofKind: "identitySecurityAuditLogsIngestedEvent";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent identity_security_audit_logs_ingested_event = 108;
+         */
+        identitySecurityAuditLogsIngestedEvent: IdentitySecurityAuditLogsIngestedEvent;
     } | {
         oneofKind: undefined;
     };
@@ -11757,6 +11817,124 @@ class SessionSummaryCreateEvent$Type extends MessageType<SessionSummaryCreateEve
  */
 export const SessionSummaryCreateEvent = new SessionSummaryCreateEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class IdentitySecurityGraphSizeEvent$Type extends MessageType<IdentitySecurityGraphSizeEvent> {
+    constructor() {
+        super("prehog.v1alpha.IdentitySecurityGraphSizeEvent", [
+            { no: 1, name: "provider", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "total_identities", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 3, name: "total_resources", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<IdentitySecurityGraphSizeEvent>): IdentitySecurityGraphSizeEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.provider = "";
+        message.totalIdentities = 0n;
+        message.totalResources = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<IdentitySecurityGraphSizeEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: IdentitySecurityGraphSizeEvent): IdentitySecurityGraphSizeEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string provider */ 1:
+                    message.provider = reader.string();
+                    break;
+                case /* uint64 total_identities */ 2:
+                    message.totalIdentities = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_resources */ 3:
+                    message.totalResources = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: IdentitySecurityGraphSizeEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string provider = 1; */
+        if (message.provider !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.provider);
+        /* uint64 total_identities = 2; */
+        if (message.totalIdentities !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.totalIdentities);
+        /* uint64 total_resources = 3; */
+        if (message.totalResources !== 0n)
+            writer.tag(3, WireType.Varint).uint64(message.totalResources);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.IdentitySecurityGraphSizeEvent
+ */
+export const IdentitySecurityGraphSizeEvent = new IdentitySecurityGraphSizeEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class IdentitySecurityAuditLogsIngestedEvent$Type extends MessageType<IdentitySecurityAuditLogsIngestedEvent> {
+    constructor() {
+        super("prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent", [
+            { no: 1, name: "provider", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "logs_ingested", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<IdentitySecurityAuditLogsIngestedEvent>): IdentitySecurityAuditLogsIngestedEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.provider = "";
+        message.logsIngested = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<IdentitySecurityAuditLogsIngestedEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: IdentitySecurityAuditLogsIngestedEvent): IdentitySecurityAuditLogsIngestedEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string provider */ 1:
+                    message.provider = reader.string();
+                    break;
+                case /* uint64 logs_ingested */ 2:
+                    message.logsIngested = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: IdentitySecurityAuditLogsIngestedEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string provider = 1; */
+        if (message.provider !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.provider);
+        /* uint64 logs_ingested = 2; */
+        if (message.logsIngested !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.logsIngested);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent
+ */
+export const IdentitySecurityAuditLogsIngestedEvent = new IdentitySecurityAuditLogsIngestedEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
     constructor() {
         super("prehog.v1alpha.SubmitEventRequest", [
@@ -11862,7 +12040,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 103, name: "ui_integration_enroll_code_copy_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollCodeCopyEvent },
             { no: 104, name: "ui_integration_enroll_link_click_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollLinkClickEvent },
             { no: 105, name: "session_summary_create_event", kind: "message", oneof: "event", T: () => SessionSummaryCreateEvent },
-            { no: 106, name: "session_summary_access_event", kind: "message", oneof: "event", T: () => SessionSummaryAccessEvent }
+            { no: 106, name: "session_summary_access_event", kind: "message", oneof: "event", T: () => SessionSummaryAccessEvent },
+            { no: 107, name: "identity_security_graph_size_event", kind: "message", oneof: "event", T: () => IdentitySecurityGraphSizeEvent },
+            { no: 108, name: "identity_security_audit_logs_ingested_event", kind: "message", oneof: "event", T: () => IdentitySecurityAuditLogsIngestedEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -12488,6 +12668,18 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         sessionSummaryAccessEvent: SessionSummaryAccessEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).sessionSummaryAccessEvent)
                     };
                     break;
+                case /* prehog.v1alpha.IdentitySecurityGraphSizeEvent identity_security_graph_size_event */ 107:
+                    message.event = {
+                        oneofKind: "identitySecurityGraphSizeEvent",
+                        identitySecurityGraphSizeEvent: IdentitySecurityGraphSizeEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).identitySecurityGraphSizeEvent)
+                    };
+                    break;
+                case /* prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent identity_security_audit_logs_ingested_event */ 108:
+                    message.event = {
+                        oneofKind: "identitySecurityAuditLogsIngestedEvent",
+                        identitySecurityAuditLogsIngestedEvent: IdentitySecurityAuditLogsIngestedEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).identitySecurityAuditLogsIngestedEvent)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -12809,6 +13001,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.SessionSummaryAccessEvent session_summary_access_event = 106; */
         if (message.event.oneofKind === "sessionSummaryAccessEvent")
             SessionSummaryAccessEvent.internalBinaryWrite(message.event.sessionSummaryAccessEvent, writer.tag(106, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.IdentitySecurityGraphSizeEvent identity_security_graph_size_event = 107; */
+        if (message.event.oneofKind === "identitySecurityGraphSizeEvent")
+            IdentitySecurityGraphSizeEvent.internalBinaryWrite(message.event.identitySecurityGraphSizeEvent, writer.tag(107, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent identity_security_audit_logs_ingested_event = 108; */
+        if (message.event.oneofKind === "identitySecurityAuditLogsIngestedEvent")
+            IdentitySecurityAuditLogsIngestedEvent.internalBinaryWrite(message.event.identitySecurityAuditLogsIngestedEvent, writer.tag(108, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

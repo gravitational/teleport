@@ -249,6 +249,12 @@ export interface UserActivityRecord {
      * @generated from protobuf field: repeated prehog.v1.SessionSummariesAccessedRecord session_summaries_accessed = 25;
      */
     sessionSummariesAccessed: SessionSummariesAccessedRecord[];
+    /**
+     * counter of access graph queries by this user.
+     *
+     * @generated from protobuf field: uint64 access_graph_queries = 26;
+     */
+    accessGraphQueries: bigint;
 }
 /**
  * @generated from protobuf message prehog.v1.ResourcePresenceReport
@@ -526,6 +532,109 @@ export interface SessionSummariesGeneratedRecord {
     totalOutputTokens: bigint;
 }
 /**
+ * IdentitySecurityReport is a report of Identity Security non-user usage. It currently
+ * includes the size of the access graph by provider and count of audit logs ingested
+ * by provider.
+ *
+ * @generated from protobuf message prehog.v1.IdentitySecurityReport
+ */
+export interface IdentitySecurityReport {
+    /**
+     * randomly generated UUID for this specific report, 16 bytes (in string order)
+     *
+     * PostHog property: tp.report_uuid (in 8-4-4-4-12 string form)
+     *
+     * @generated from protobuf field: bytes report_uuid = 1;
+     */
+    reportUuid: Uint8Array;
+    /**
+     * cluster name, anonymized, 32 bytes (HMAC-SHA-256)
+     *
+     * PostHog property: tp.cluster_name (in base64)
+     *
+     * @generated from protobuf field: bytes cluster_name = 2;
+     */
+    clusterName: Uint8Array;
+    /**
+     * hostid of the auth that collected this report, anonymized, 32 bytes (HMAC-SHA-256)
+     *
+     * PostHog property: tp.reporter_hostid (in base64)
+     *
+     * @generated from protobuf field: bytes reporter_hostid = 3;
+     */
+    reporterHostid: Uint8Array;
+    /**
+     * beginning of the time window for this data; ending is not specified but is
+     * intended to be at most 60 minutes
+     *
+     * PostHog timestamp (not a property, the ingest time is tp.report_time instead)
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp start_time = 4;
+     */
+    startTime?: Timestamp;
+    /**
+     * graph_size contains the size of each provider's graph: count of identities and
+     * count of resources.
+     *
+     * @generated from protobuf field: repeated prehog.v1.IdentitySecurityGraphSize graph_size_records = 5;
+     */
+    graphSizeRecords: IdentitySecurityGraphSize[];
+    /**
+     * audit_logs contains the counts of audit logs ingested from each provider.
+     *
+     * @generated from protobuf field: repeated prehog.v1.IdentitySecurityAuditLogsIngested audit_log_records = 6;
+     */
+    auditLogRecords: IdentitySecurityAuditLogsIngested[];
+}
+/**
+ * IdentitySecurityGraphSize is submitted by Access Graph for each provider
+ * for which it has a graph.
+ *
+ * @generated from protobuf message prehog.v1.IdentitySecurityGraphSize
+ */
+export interface IdentitySecurityGraphSize {
+    /**
+     * provider is the system containing the identities and resources being counted.
+     * It is one of teleport, aws, azure, entra, gitlab, github, netiq or okta.
+     *
+     * @generated from protobuf field: string provider = 1;
+     */
+    provider: string;
+    /**
+     * total_identities is the number of identities in the graph.
+     *
+     * @generated from protobuf field: uint64 total_identities = 2;
+     */
+    totalIdentities: bigint;
+    /**
+     * total_resources is the number of resources in the graph.
+     *
+     * @generated from protobuf field: uint64 total_resources = 3;
+     */
+    totalResources: bigint;
+}
+/**
+ * IdentitySecurityAuditLogsIngested tracks the count of log entries ingested by
+ * identity activity center.
+ *
+ * @generated from protobuf message prehog.v1.IdentitySecurityAuditLogsIngested
+ */
+export interface IdentitySecurityAuditLogsIngested {
+    /**
+     * provider is the system emitting audit logs. It is one of
+     * teleport, cloudtrail, kubernetes, github or okta.
+     *
+     * @generated from protobuf field: string provider = 1;
+     */
+    provider: string;
+    /**
+     * logs_ingested is a count of log entries ingested into Identity Security.
+     *
+     * @generated from protobuf field: uint64 logs_ingested = 2;
+     */
+    logsIngested: bigint;
+}
+/**
  * @generated from protobuf message prehog.v1.SubmitUsageReportsRequest
  */
 export interface SubmitUsageReportsRequest {
@@ -555,6 +664,12 @@ export interface SubmitUsageReportsRequest {
      * @generated from protobuf field: repeated prehog.v1.IdentitySecuritySummariesGeneratedReport identity_security_summaries_report = 4;
      */
     identitySecuritySummariesReport: IdentitySecuritySummariesGeneratedReport[];
+    /**
+     * encoded as a separate tp.identity_security.usage PostHog event
+     *
+     * @generated from protobuf field: repeated prehog.v1.IdentitySecurityReport identity_security_report = 5;
+     */
+    identitySecurityReport: IdentitySecurityReport[];
 }
 /**
  * @generated from protobuf message prehog.v1.SubmitUsageReportsResponse
@@ -826,7 +941,8 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 22, name: "access_lists_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 23, name: "access_lists_grants", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 24, name: "saml_idp_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 25, name: "session_summaries_accessed", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionSummariesAccessedRecord }
+            { no: 25, name: "session_summaries_accessed", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionSummariesAccessedRecord },
+            { no: 26, name: "access_graph_queries", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -856,6 +972,7 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.accessListsGrants = 0n;
         message.samlIdpSessions = 0n;
         message.sessionSummariesAccessed = [];
+        message.accessGraphQueries = 0n;
         if (value !== undefined)
             reflectionMergePartial<UserActivityRecord>(this, message, value);
         return message;
@@ -939,6 +1056,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                     break;
                 case /* repeated prehog.v1.SessionSummariesAccessedRecord session_summaries_accessed */ 25:
                     message.sessionSummariesAccessed.push(SessionSummariesAccessedRecord.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* uint64 access_graph_queries */ 26:
+                    message.accessGraphQueries = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1027,6 +1147,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* repeated prehog.v1.SessionSummariesAccessedRecord session_summaries_accessed = 25; */
         for (let i = 0; i < message.sessionSummariesAccessed.length; i++)
             SessionSummariesAccessedRecord.internalBinaryWrite(message.sessionSummariesAccessed[i], writer.tag(25, WireType.LengthDelimited).fork(), options).join();
+        /* uint64 access_graph_queries = 26; */
+        if (message.accessGraphQueries !== 0n)
+            writer.tag(26, WireType.Varint).uint64(message.accessGraphQueries);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1603,13 +1726,218 @@ class SessionSummariesGeneratedRecord$Type extends MessageType<SessionSummariesG
  */
 export const SessionSummariesGeneratedRecord = new SessionSummariesGeneratedRecord$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class IdentitySecurityReport$Type extends MessageType<IdentitySecurityReport> {
+    constructor() {
+        super("prehog.v1.IdentitySecurityReport", [
+            { no: 1, name: "report_uuid", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 2, name: "cluster_name", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 3, name: "reporter_hostid", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 4, name: "start_time", kind: "message", T: () => Timestamp },
+            { no: 5, name: "graph_size_records", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => IdentitySecurityGraphSize },
+            { no: 6, name: "audit_log_records", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => IdentitySecurityAuditLogsIngested }
+        ]);
+    }
+    create(value?: PartialMessage<IdentitySecurityReport>): IdentitySecurityReport {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.reportUuid = new Uint8Array(0);
+        message.clusterName = new Uint8Array(0);
+        message.reporterHostid = new Uint8Array(0);
+        message.graphSizeRecords = [];
+        message.auditLogRecords = [];
+        if (value !== undefined)
+            reflectionMergePartial<IdentitySecurityReport>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: IdentitySecurityReport): IdentitySecurityReport {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bytes report_uuid */ 1:
+                    message.reportUuid = reader.bytes();
+                    break;
+                case /* bytes cluster_name */ 2:
+                    message.clusterName = reader.bytes();
+                    break;
+                case /* bytes reporter_hostid */ 3:
+                    message.reporterHostid = reader.bytes();
+                    break;
+                case /* google.protobuf.Timestamp start_time */ 4:
+                    message.startTime = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.startTime);
+                    break;
+                case /* repeated prehog.v1.IdentitySecurityGraphSize graph_size_records */ 5:
+                    message.graphSizeRecords.push(IdentitySecurityGraphSize.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* repeated prehog.v1.IdentitySecurityAuditLogsIngested audit_log_records */ 6:
+                    message.auditLogRecords.push(IdentitySecurityAuditLogsIngested.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: IdentitySecurityReport, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bytes report_uuid = 1; */
+        if (message.reportUuid.length)
+            writer.tag(1, WireType.LengthDelimited).bytes(message.reportUuid);
+        /* bytes cluster_name = 2; */
+        if (message.clusterName.length)
+            writer.tag(2, WireType.LengthDelimited).bytes(message.clusterName);
+        /* bytes reporter_hostid = 3; */
+        if (message.reporterHostid.length)
+            writer.tag(3, WireType.LengthDelimited).bytes(message.reporterHostid);
+        /* google.protobuf.Timestamp start_time = 4; */
+        if (message.startTime)
+            Timestamp.internalBinaryWrite(message.startTime, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* repeated prehog.v1.IdentitySecurityGraphSize graph_size_records = 5; */
+        for (let i = 0; i < message.graphSizeRecords.length; i++)
+            IdentitySecurityGraphSize.internalBinaryWrite(message.graphSizeRecords[i], writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        /* repeated prehog.v1.IdentitySecurityAuditLogsIngested audit_log_records = 6; */
+        for (let i = 0; i < message.auditLogRecords.length; i++)
+            IdentitySecurityAuditLogsIngested.internalBinaryWrite(message.auditLogRecords[i], writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1.IdentitySecurityReport
+ */
+export const IdentitySecurityReport = new IdentitySecurityReport$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class IdentitySecurityGraphSize$Type extends MessageType<IdentitySecurityGraphSize> {
+    constructor() {
+        super("prehog.v1.IdentitySecurityGraphSize", [
+            { no: 1, name: "provider", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "total_identities", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 3, name: "total_resources", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<IdentitySecurityGraphSize>): IdentitySecurityGraphSize {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.provider = "";
+        message.totalIdentities = 0n;
+        message.totalResources = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<IdentitySecurityGraphSize>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: IdentitySecurityGraphSize): IdentitySecurityGraphSize {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string provider */ 1:
+                    message.provider = reader.string();
+                    break;
+                case /* uint64 total_identities */ 2:
+                    message.totalIdentities = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_resources */ 3:
+                    message.totalResources = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: IdentitySecurityGraphSize, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string provider = 1; */
+        if (message.provider !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.provider);
+        /* uint64 total_identities = 2; */
+        if (message.totalIdentities !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.totalIdentities);
+        /* uint64 total_resources = 3; */
+        if (message.totalResources !== 0n)
+            writer.tag(3, WireType.Varint).uint64(message.totalResources);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1.IdentitySecurityGraphSize
+ */
+export const IdentitySecurityGraphSize = new IdentitySecurityGraphSize$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class IdentitySecurityAuditLogsIngested$Type extends MessageType<IdentitySecurityAuditLogsIngested> {
+    constructor() {
+        super("prehog.v1.IdentitySecurityAuditLogsIngested", [
+            { no: 1, name: "provider", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "logs_ingested", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<IdentitySecurityAuditLogsIngested>): IdentitySecurityAuditLogsIngested {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.provider = "";
+        message.logsIngested = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<IdentitySecurityAuditLogsIngested>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: IdentitySecurityAuditLogsIngested): IdentitySecurityAuditLogsIngested {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string provider */ 1:
+                    message.provider = reader.string();
+                    break;
+                case /* uint64 logs_ingested */ 2:
+                    message.logsIngested = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: IdentitySecurityAuditLogsIngested, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string provider = 1; */
+        if (message.provider !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.provider);
+        /* uint64 logs_ingested = 2; */
+        if (message.logsIngested !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.logsIngested);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1.IdentitySecurityAuditLogsIngested
+ */
+export const IdentitySecurityAuditLogsIngested = new IdentitySecurityAuditLogsIngested$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class SubmitUsageReportsRequest$Type extends MessageType<SubmitUsageReportsRequest> {
     constructor() {
         super("prehog.v1.SubmitUsageReportsRequest", [
             { no: 1, name: "user_activity", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => UserActivityReport },
             { no: 2, name: "resource_presence", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourcePresenceReport },
             { no: 3, name: "bot_instance_activity", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => BotInstanceActivityReport },
-            { no: 4, name: "identity_security_summaries_report", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => IdentitySecuritySummariesGeneratedReport }
+            { no: 4, name: "identity_security_summaries_report", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => IdentitySecuritySummariesGeneratedReport },
+            { no: 5, name: "identity_security_report", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => IdentitySecurityReport }
         ]);
     }
     create(value?: PartialMessage<SubmitUsageReportsRequest>): SubmitUsageReportsRequest {
@@ -1618,6 +1946,7 @@ class SubmitUsageReportsRequest$Type extends MessageType<SubmitUsageReportsReque
         message.resourcePresence = [];
         message.botInstanceActivity = [];
         message.identitySecuritySummariesReport = [];
+        message.identitySecurityReport = [];
         if (value !== undefined)
             reflectionMergePartial<SubmitUsageReportsRequest>(this, message, value);
         return message;
@@ -1638,6 +1967,9 @@ class SubmitUsageReportsRequest$Type extends MessageType<SubmitUsageReportsReque
                     break;
                 case /* repeated prehog.v1.IdentitySecuritySummariesGeneratedReport identity_security_summaries_report */ 4:
                     message.identitySecuritySummariesReport.push(IdentitySecuritySummariesGeneratedReport.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* repeated prehog.v1.IdentitySecurityReport identity_security_report */ 5:
+                    message.identitySecurityReport.push(IdentitySecurityReport.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1663,6 +1995,9 @@ class SubmitUsageReportsRequest$Type extends MessageType<SubmitUsageReportsReque
         /* repeated prehog.v1.IdentitySecuritySummariesGeneratedReport identity_security_summaries_report = 4; */
         for (let i = 0; i < message.identitySecuritySummariesReport.length; i++)
             IdentitySecuritySummariesGeneratedReport.internalBinaryWrite(message.identitySecuritySummariesReport[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* repeated prehog.v1.IdentitySecurityReport identity_security_report = 5; */
+        for (let i = 0; i < message.identitySecurityReport.length; i++)
+            IdentitySecurityReport.internalBinaryWrite(message.identitySecurityReport[i], writer.tag(5, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
