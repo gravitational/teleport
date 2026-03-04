@@ -107,8 +107,9 @@ func validateJWTAppAuthConfig(s *appauthconfigv1.AppAuthConfigJWTSpec) error {
 	return nil
 }
 
-// GenerateAppSessionIDFromJWT generates a app session id based on JWT token.
-func GenerateAppSessionIDFromJWT(jwtToken string) string {
-	jwtHash := sha256.Sum256([]byte(jwtToken))
+// GenerateAppSessionIDFromAuthHeader generates a app session id based on auth
+// header contents.
+func GenerateAppSessionIDFromAuthHeader(authHeader string) string {
+	jwtHash := sha256.Sum256([]byte(authHeader))
 	return hex.EncodeToString(jwtHash[:])
 }

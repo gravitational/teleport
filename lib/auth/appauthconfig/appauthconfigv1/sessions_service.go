@@ -159,7 +159,7 @@ func (s *SessionsService) CreateAppSessionWithJWT(ctx context.Context, req *appa
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 
-	sid := services.GenerateAppSessionIDFromJWT(req.Jwt)
+	sid := services.GenerateAppSessionIDFromAuthHeader(req.Jwt)
 	if err := validateCreateAppSessionWithJWTRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -1025,7 +1025,6 @@ func TestMCPEndpoints(t *testing.T) {
 		clusterName       = "test-cluster"
 		mcpServerName     = "mcp-test-server"
 		appName           = "regular-app"
-		authHeader        = "Authorization"
 		customHader       = "X-Custom-Test-Header"
 		customHeaderValue = "random-value"
 	)
@@ -1049,9 +1048,7 @@ func TestMCPEndpoints(t *testing.T) {
 		caKey:  key,
 		caCert: cert,
 		appAuthConfigs: []*appauthconfigv1.AppAuthConfig{
-			appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{{Name: "*", Values: []string{"*"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{
-				AuthorizationHeader: authHeader,
-			}),
+			appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{{Name: "*", Values: []string{"*"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{}),
 		},
 	}
 
@@ -1088,9 +1085,9 @@ func TestMCPEndpoints(t *testing.T) {
 			t.Run("success", func(t *testing.T) {
 				// Ensure the authorization header is case insensitive.
 				for _, header := range []string{
-					authHeader,
-					strings.ToLower(authHeader),
-					strings.ToUpper(authHeader),
+					appAuthConfigAuthorizationHeader,
+					strings.ToLower(appAuthConfigAuthorizationHeader),
+					strings.ToUpper(appAuthConfigAuthorizationHeader),
 				} {
 					t.Run(header, func(t *testing.T) {
 						clt := makeMCPClient(t, frontSrv, endpoint.path, map[string]string{
@@ -1129,7 +1126,7 @@ func TestMCPEndpoints(t *testing.T) {
 			},
 		} {
 			t.Run(endpoint.desc, func(t *testing.T) {
-				clt := makeMCPClient(t, frontSrv, endpoint.path, map[string]string{authHeader: "Bearer fake-token"})
+				clt := makeMCPClient(t, frontSrv, endpoint.path, map[string]string{appAuthConfigAuthorizationHeader: "Bearer fake-token"})
 				_, err := mcptest.InitializeClient(t.Context(), clt)
 				require.Error(t, err)
 			})
@@ -1141,7 +1138,6 @@ func TestMCPSessionRenewOnConnectionProblem(t *testing.T) {
 	const (
 		clusterName   = "test-cluster"
 		mcpServerName = "mcp-test-server"
-		header        = "Authorization"
 	)
 
 	key, cert, err := tlsca.GenerateSelfSignedCA(
@@ -1163,9 +1159,7 @@ func TestMCPSessionRenewOnConnectionProblem(t *testing.T) {
 		caKey:            key,
 		caCert:           cert,
 		appAuthConfigs: []*appauthconfigv1.AppAuthConfig{
-			appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{{Name: "*", Values: []string{"*"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{
-				AuthorizationHeader: header,
-			}),
+			appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{{Name: "*", Values: []string{"*"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{}),
 		},
 	}
 
@@ -1186,7 +1180,7 @@ func TestMCPSessionRenewOnConnectionProblem(t *testing.T) {
 	t.Cleanup(frontSrv.Close)
 
 	clt := makeMCPClient(t, frontSrv, "/mcp/apps/"+mcpServerName, map[string]string{
-		header: "Bearer fake-token",
+		appAuthConfigAuthorizationHeader: "Bearer fake-token",
 	})
 
 	// First requests succeed normally. The session is created with server A
@@ -1262,7 +1256,6 @@ func TestSessionRenewOnConnectionProblem(t *testing.T) {
 func TestGetAppSessionAuthConfig(t *testing.T) {
 	t.Run("JWT", func(t *testing.T) {
 		clusterName := "test-cluster"
-		header := "Authorization"
 
 		fakeClock := clockwork.NewFakeClock()
 		key, cert, err := tlsca.GenerateSelfSignedCA(
@@ -1286,21 +1279,28 @@ func TestGetAppSessionAuthConfig(t *testing.T) {
 				appServer:         &withAppServer{appServer: appServer},
 				appSessionError:   trace.NotFound("session not found"),
 				createdAppSession: createAppSession(t, fakeClock, key, cert, clusterName, ""),
-				headers:           map[string]string{header: "Bearer fake-token"},
+				headers:           map[string]string{appAuthConfigAuthorizationHeader: "Bearer fake-token"},
 				assertError:       require.NoError,
 			},
 			"use existent session": {
 				appServer:   &withAppServer{appServer: appServer},
 				appSession:  createAppSession(t, fakeClock, key, cert, clusterName, ""),
-				headers:     map[string]string{header: "Bearer fake-token"},
+				headers:     map[string]string{appAuthConfigAuthorizationHeader: "Bearer fake-token"},
 				assertError: require.NoError,
 			},
 			"error creating session": {
 				appServer:           &withAppServer{appServer: appServer},
 				appSessionError:     trace.NotFound("session not found"),
 				createAppSessionErr: trace.AccessDenied("error"),
-				headers:             map[string]string{header: "Bearer fake-token"},
+				headers:             map[string]string{appAuthConfigAuthorizationHeader: "Bearer fake-token"},
 				assertError:         require.Error,
+			},
+			"wrong header": {
+				appServer:         &withAppServer{appServer: appServer},
+				appSessionError:   trace.NotFound("session not found"),
+				createdAppSession: createAppSession(t, fakeClock, key, cert, clusterName, ""),
+				headers:           map[string]string{"Random-Authorization": "Bearer fake-token"},
+				assertError:       require.Error,
 			},
 			"empty app server returns error": {
 				appServer:   nil,
@@ -1321,9 +1321,7 @@ func TestGetAppSessionAuthConfig(t *testing.T) {
 					createAppSession:    tc.createdAppSession,
 					createAppSessionErr: tc.createAppSessionErr,
 					appAuthConfigs: []*appauthconfigv1.AppAuthConfig{
-						appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{{Name: "*", Values: []string{"*"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{
-							AuthorizationHeader: header,
-						}),
+						appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{{Name: "*", Values: []string{"*"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{}),
 					},
 				}
 
@@ -1335,7 +1333,7 @@ func TestGetAppSessionAuthConfig(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				_, _, err = handler.getAppSessionUsingAuthConfig(req, tc.appServer)
+				_, err = handler.getAppSessionUsingAuthConfig(req, tc.appServer)
 				tc.assertError(t, err)
 			})
 		}

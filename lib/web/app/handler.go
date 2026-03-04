@@ -21,7 +21,6 @@
 package app
 
 import (
-	"cmp"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -339,20 +338,13 @@ func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *se
 
 // handleStreamableMCP handles streamable HTTP MCP requests using [handleHttp]
 // function.
-func (h *Handler) handleStreamableMCP(w http.ResponseWriter, r *http.Request, session *sessionWithAppAuth) error {
-	switch spec := session.appAuthConfig.Spec.SubKindSpec.(type) {
-	case *appauthconfigv1.AppAuthConfigSpec_Jwt:
-		headerName := cmp.Or(spec.Jwt.AuthorizationHeader, appAuthConfigAuthorizationHeader)
-		r.Header.Del(headerName)
-	default:
-		return trace.BadParameter("unsupported app auth config")
-	}
-
+func (h *Handler) handleStreamableMCP(w http.ResponseWriter, r *http.Request, session *session) error {
+	r.Header.Del(appAuthConfigAuthorizationHeader)
 	r.URL.Path = "/"
 	// We need to reset the `RequestURI` to indicate the reverse proxy to use
 	// the URL (which have the path reset).
 	r.RequestURI = ""
-	return h.handleHttp(w, r, session.session)
+	return h.handleHttp(w, r, session)
 }
 
 // makeHandleForwardError when the forwarder has an error during the `ServeHTTP`
@@ -403,14 +395,14 @@ func (h *Handler) makeHandleForwardError(sess *session) reverseproxy.ErrorHandle
 // so the renewer does not need to re-read them from the request (the request
 // headers may have been modified before forwarding, e.g. the JWT header is
 // stripped in handleStreamableMCP).
-func (h *Handler) makeRenewAppAuthSession(ws types.WebSession, reqAppServer *withAppServer, appAuthConfig *appauthconfigv1.AppAuthConfig) sessionRenewFunc {
+func (h *Handler) makeRenewAppAuthSession(ws types.WebSession, reqAppServer *withAppServer) sessionRenewFunc {
 	return func(r *http.Request) (*reverseproxy.Forwarder, error) {
 		// Remove the session from the cache, this will force a new session to be
 		// generated and cached.
 		h.cache.Remove(ws.GetName())
 
 		// Fetches a new session reusing the existing web session.
-		session, err := h.getSessionWithAppAuth(r.Context(), ws, reqAppServer, appAuthConfig)
+		session, err := h.getSessionWithAppAuth(r.Context(), ws, reqAppServer)
 		if err != nil {
 			h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
 			return nil, trace.AccessDenied("invalid session")
@@ -442,14 +434,14 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 
 // authenticateWithAppAuth will check if the request carries matching app auth
 // config to authenticate the request.
-func (h *Handler) authenticateWithAppAuth(ctx context.Context, r *http.Request, reqAppServer *withAppServer) (*sessionWithAppAuth, error) {
-	ws, appAuthConfig, err := h.getAppSessionUsingAuthConfig(r, reqAppServer)
+func (h *Handler) authenticateWithAppAuth(ctx context.Context, r *http.Request, reqAppServer *withAppServer) (*session, error) {
+	ws, err := h.getAppSessionUsingAuthConfig(r, reqAppServer)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to fetch application session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
-	session, err := h.getSessionWithAppAuth(ctx, ws, reqAppServer, appAuthConfig)
+	session, err := h.getSessionWithAppAuth(ctx, ws, reqAppServer)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
@@ -605,41 +597,40 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 }
 
 // getAppSessionUsingAuthConfig retrieves the app session using app auth config.
-func (h *Handler) getAppSessionUsingAuthConfig(r *http.Request, reqAppServer *withAppServer) (types.WebSession, *appauthconfigv1.AppAuthConfig, error) {
+func (h *Handler) getAppSessionUsingAuthConfig(r *http.Request, reqAppServer *withAppServer) (types.WebSession, error) {
 	if reqAppServer == nil {
-		return nil, nil, trace.BadParameter("missing requested app")
+		return nil, trace.BadParameter("missing requested app")
+	}
+
+	authHeader, found := strings.CutPrefix(r.Header.Get(appAuthConfigAuthorizationHeader), "Bearer ")
+	if !found {
+		return nil, trace.BadParameter("expected request to include %q header", appAuthConfigAuthorizationHeader)
+	}
+
+	sid := services.GenerateAppSessionIDFromAuthHeader(authHeader)
+	if ws, err := h.getAppSessionFromAccessPoint(r.Context(), sid); err == nil {
+		h.logger.DebugContext(r.Context(), "session was present, returning...", "sid", ws.GetName())
+		return ws, nil
 	}
 
 	config, err := h.selectAppAuthConfig(r.Context(), reqAppServer.appServer.GetApp())
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	switch spec := config.Spec.SubKindSpec.(type) {
+	switch config.Spec.SubKindSpec.(type) {
 	case *appauthconfigv1.AppAuthConfigSpec_Jwt:
-		headerName := cmp.Or(spec.Jwt.AuthorizationHeader, appAuthConfigAuthorizationHeader)
-		jwtToken, found := strings.CutPrefix(r.Header.Get(headerName), "Bearer ")
-		if !found {
-			return nil, nil, trace.BadParameter("expected request to include %q header with JWT", headerName)
-		}
-
-		sid := services.GenerateAppSessionIDFromJWT(jwtToken)
-		if ws, err := h.getAppSessionFromAccessPoint(r.Context(), sid); err == nil {
-			h.logger.DebugContext(r.Context(), "session was present, returning...", "sid", ws.GetName())
-			return ws, config, nil
-		}
-
 		ws, err := h.startAppAuthConfigJWTSession(r.Context(), startAppAuthConfigSessionOptions{
 			sessionID:   sid,
-			token:       jwtToken,
+			token:       authHeader,
 			config:      config,
 			app:         reqAppServer.appServer.GetApp(),
 			clientAddr:  r.RemoteAddr,
 			clusterName: reqAppServer.clusterName,
 		})
-		return ws, config, trace.Wrap(err)
+		return ws, trace.Wrap(err)
 	default:
-		return nil, nil, trace.BadParameter("unsupported app auth config")
+		return nil, trace.BadParameter("unsupported app auth config")
 	}
 }
 
@@ -683,11 +674,11 @@ func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session
 
 // getSessionWithAppAuth returns a request session used to serve the request,
 // the session is authenticated with an app auth config.
-func (h *Handler) getSessionWithAppAuth(ctx context.Context, ws types.WebSession, reqAppServer *withAppServer, appAuthConfig *appauthconfigv1.AppAuthConfig) (*sessionWithAppAuth, error) {
+func (h *Handler) getSessionWithAppAuth(ctx context.Context, ws types.WebSession, reqAppServer *withAppServer) (*session, error) {
 	// Put the session in the cache so the next request can use it.
 	ttl := ws.Expiry().Sub(h.c.Clock.Now())
-	sess, err := utils.FnCacheGetWithTTL(ctx, h.cache, ws.GetName(), ttl, func(ctx context.Context) (*sessionWithAppAuth, error) {
-		sess, err := h.newSessionWithAppAuth(ctx, ws, reqAppServer, appAuthConfig)
+	sess, err := utils.FnCacheGetWithTTL(ctx, h.cache, ws.GetName(), ttl, func(ctx context.Context) (*session, error) {
+		sess, err := h.newSession(ctx, ws, h.makeRenewAppAuthSession(ws, reqAppServer))
 		return sess, trace.Wrap(err)
 	})
 	return sess, trace.Wrap(err)

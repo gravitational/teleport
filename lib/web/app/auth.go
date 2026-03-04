@@ -48,8 +48,8 @@ type fragmentRequest struct {
 // next in the chain of required app authentication redirects
 const TeleportNextAppRedirectUrlHeader = "X-Teleport-NextAppRedirectUrl"
 
-// appAuthConfigAuthorizationHeader is the default header name that contains
-// token used by app auth configs.
+// appAuthConfigAuthorizationHeader is the required header name that contains
+// authorization info used by app auth configs.
 const appAuthConfigAuthorizationHeader = "Authorization"
 
 // startAppAuthExchange will do two actions depending on the following:

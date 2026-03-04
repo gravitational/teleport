@@ -80,7 +80,7 @@ type appQualifierFunc func(app types.Application) bool
 
 // withAppAuthConfig resolves app based on request then authenticate the
 // request before handling to a http.HandlerFunc.
-func (h *Handler) withAppAuthConfig(handler handlerWithAppAuthFunc, extractFunc extractAppParamsFunc, appFunc appQualifierFunc) httprouter.Handle {
+func (h *Handler) withAppAuthConfig(handler handlerWithSessionFunc, extractFunc extractAppParamsFunc, appFunc appQualifierFunc) httprouter.Handle {
 	return makeRouterHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
 		params := extractFunc(p)
 		appName := params.appName
@@ -209,7 +209,7 @@ type routerAuthFunc func(http.ResponseWriter, *http.Request, httprouter.Params, 
 
 type handlerAuthFunc func(http.ResponseWriter, *http.Request, *session) error
 
-type handlerWithAppAuthFunc func(http.ResponseWriter, *http.Request, *sessionWithAppAuth) error
+type handlerWithSessionFunc func(http.ResponseWriter, *http.Request, *session) error
 
 type handlerFunc func(http.ResponseWriter, *http.Request) error
 
