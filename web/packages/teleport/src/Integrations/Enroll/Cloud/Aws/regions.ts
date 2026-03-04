@@ -16,11 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { awsRegionMap } from 'teleport/services/integrations';
+import {
+  awsRegionMap,
+  Regions as AwsRegion,
+} from 'teleport/services/integrations';
 
-import { Region, RegionGroup, RegionId } from '../RegionMultiSelector/types';
+import { RegionGroup } from '../Shared/RegionMultiSelector/types';
 
-const regions: { name: string; regions: RegionId[] }[] = [
+const regions: { name: string; regions: AwsRegion[] }[] = [
   {
     name: 'North America',
     regions: [
@@ -81,7 +84,7 @@ function createAwsRegionGroups(): readonly RegionGroup[] {
       .map(id => ({
         id,
         name: awsRegionMap[id],
-      })) as Region[],
+      })),
   }));
 }
 

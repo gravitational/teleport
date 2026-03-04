@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,16 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Regions as AwsRegion } from 'teleport/services/integrations';
-
-export type RegionId = AwsRegion; // | AzureRegion | GcpRegion, etc
-
-export interface Region {
-  id: RegionId;
-  name: string;
-}
-
-export interface RegionGroup {
-  name: string;
-  regions: readonly Region[];
-}
+export * from './common';
+export * from './hooks';
+export { default as LiveTextEditor } from './LiveTextEditor';
+export * from './RegionsSection';
+export * from './RegionMultiSelector';

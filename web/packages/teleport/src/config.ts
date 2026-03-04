@@ -32,6 +32,7 @@ import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import type { SortType } from 'teleport/services/agents';
 import {
+  AzureResource,
   AwsOidcPolicyPreset,
   IntegrationDeleteRequest,
   IntegrationKind,
@@ -1539,7 +1540,7 @@ const cfg = {
 
   getIntegrationRulesUrl(
     name: string,
-    resourceType: AwsResource,
+    resourceType: AwsResource | AzureResource,
     regions?: string[]
   ) {
     const clusterId = cfg.proxyCluster;
