@@ -745,15 +745,28 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	require.Contains(t, err.Error(), "cross-cluster git forwarding is not supported")
 }
 
-func TestCheckAgentForwardProxyingPermit(t *testing.T) {
+func TestCheckAgentForward(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name           string
 		component      string
+		accessPermit   *decisionpb.SSHAccessPermit
 		proxyingPermit *proxyingPermit
 		expectAllowed  bool
 	}{
+		{
+			name:          "access permit allows agent forwarding",
+			component:     teleport.ComponentNode,
+			accessPermit:  &decisionpb.SSHAccessPermit{ForwardAgent: true},
+			expectAllowed: true,
+		},
+		{
+			name:           "proxy allows proxying permit",
+			component:      teleport.ComponentProxy,
+			proxyingPermit: &proxyingPermit{},
+			expectAllowed:  true,
+		},
 		{
 			name:           "forwarding node allows proxying permit",
 			component:      teleport.ComponentForwardingNode,
@@ -761,10 +774,15 @@ func TestCheckAgentForwardProxyingPermit(t *testing.T) {
 			expectAllowed:  true,
 		},
 		{
-			name:           "non-forwarding node denies proxying permit",
+			name:           "non-proxy component denies proxying permit",
 			component:      teleport.ComponentNode,
 			proxyingPermit: &proxyingPermit{},
 			expectAllowed:  false,
+		},
+		{
+			name:          "proxy denies without permit",
+			component:     teleport.ComponentProxy,
+			expectAllowed: false,
 		},
 		{
 			name:           "forwarding node denies without proxying permit",
@@ -781,6 +799,7 @@ func TestCheckAgentForwardProxyingPermit(t *testing.T) {
 			}}
 			ctx := &ServerContext{
 				Identity: IdentityContext{
+					AccessPermit:   tt.accessPermit,
 					ProxyingPermit: tt.proxyingPermit,
 				},
 			}

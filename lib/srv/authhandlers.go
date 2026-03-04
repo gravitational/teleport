@@ -302,9 +302,10 @@ func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
 		return nil
 	}
 
-	if ctx.Identity.ProxyingPermit != nil && h.c.Component == teleport.ComponentForwardingNode {
-		// we are a proxy and not the access-controlling boundary. Allow Agent forwarding requests to pass through
-		// the recording layer and down to the enforcing node.
+	if ctx.Identity.ProxyingPermit != nil &&
+		(h.c.Component == teleport.ComponentProxy || h.c.Component == teleport.ComponentForwardingNode) {
+		// We are in the proxying path and not the access-controlling boundary.
+		// Allow agent forwarding requests to pass through to the enforcing node.
 		return nil
 	}
 
