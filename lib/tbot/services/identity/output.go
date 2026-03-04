@@ -166,12 +166,45 @@ func (s *OutputService) generateScoped(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	// todo: usually at this point, we'd go off and generate a new identity
+	// with role impersonation and a custom lifetime. However, currently,
+	// GenerateUserCerts cannot be invoked by scoped identities. Plus, our bot's
+	// core identity is now a "real" identity with our SR and SRS, so we don't
+	// actually /need/ to do this except for now we are tied to the lifetime of
+	// the bot's internal certs, and, we're outputting the bot's internal
+	// identity which may have "special" privileges. i.e, we can't keep doing
+	// this hack forever :")
+
 	// todo: iirc there's some horrible weirdness going on with the bots core
 	// identity and the host certificates we hold within. be cautious if this
 	// code progresses to prod. I remember it's something like the host/user
 	// certs being conjoined into one set of CAs.
-	if err := s.render(ctx, s.getBotIdentity(), hostCAs, userCAs, databaseCAs); err != nil {
+	id := s.getBotIdentity()
+	if err := s.render(ctx, id, hostCAs, userCAs, databaseCAs); err != nil {
 		return trace.Wrap(err)
+	}
+
+	proxyPing, err := s.proxyPinger.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err, "pinging proxy")
+	}
+	// todo: usually we'd actually fetch all the clusters you can access here,
+	// but! scoped identities don't support trusted clusters yet so we can
+	// just use our cluster name from our ident.
+	clusterNames := []string{s.getBotIdentity().ClusterName}
+	if err := renderSSHConfig(
+		ctx,
+		s.log,
+		proxyPing,
+		clusterNames,
+		s.cfg.Destination,
+		s.botAuthClient,
+		s.executablePath,
+		s.alpnUpgradeCache,
+		s.insecure,
+		s.fips,
+	); err != nil {
+		return trace.Wrap(err, "rendering OpenSSH configuration files")
 	}
 
 	return nil
@@ -304,6 +337,9 @@ func (s *OutputService) render(
 }
 
 type certAuthGetter interface {
+	// todo(noah): does one really need to call GetCertAuthority, if one has
+	// already invoked GetCertAuthorities??? we could totally skip a another
+	// call here :')
 	GetCertAuthority(
 		ctx context.Context,
 		id types.CertAuthID,
