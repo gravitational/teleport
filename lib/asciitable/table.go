@@ -93,10 +93,8 @@ func MakeTable(headers []string, rows ...[]string) Table {
 //  3. Zero when stdout is not a terminal (pipe/file redirect),
 //     signaling that no truncation should be applied.
 func terminalWidth() int {
-	if s := os.Getenv("COLUMNS"); s != "" {
-		if n, err := strconv.Atoi(s); err == nil && n > 0 {
-			return n
-		}
+	if n, err := strconv.Atoi(os.Getenv("COLUMNS")); err == nil && n > 0 {
+		return n
 	}
 	if term.IsTerminal(int(os.Stdout.Fd())) {
 		if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
