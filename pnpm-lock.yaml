@@ -6466,8 +6466,8 @@ packages:
     resolution: {integrity: sha512-kXuRi1mtaKMrsLUxz3sQYvVl37B0Ns6MzfrtV5DvJceE9bPyspOqk9xxv7XbZWcfLWbFmm997vl83qUWVJA64w==}
     engines: {node: '>=16'}
 
-  tr46@5.1.1:
-    resolution: {integrity: sha512-hdF5ZgjTqgAntKkklYw0R03MG2x/bSzTtkxmIRw/sTNV8YXsCJ1tfLAX23lhxhHJlEf3CRCOCGGWw3vI3GaSPw==}
+  tr46@5.1.0:
+    resolution: {integrity: sha512-IUWnUK7ADYR5Sl1fZlO1INDUhVhatWl7BtJWsIhwJ0UAK7ilzzIa8uIqOO/aYVWHZPJkKbEL+362wrzoeRF7bw==}
     engines: {node: '>=18'}
 
   tr46@6.0.0:
@@ -11784,9 +11784,9 @@ snapshots:
 
   html-encoding-sniffer@6.0.0:
     dependencies:
-      '@exodus/bytes': 1.14.1
+      '@exodus/bytes': 1.7.0
     transitivePeerDependencies:
-      - '@noble/hashes'
+      - '@exodus/crypto'
 
   html-escaper@2.0.2: {}
 
@@ -12501,7 +12501,6 @@ snapshots:
       xml-name-validator: 5.0.0
     transitivePeerDependencies:
       - '@exodus/crypto'
-      - '@noble/hashes'
       - bufferutil
       - supports-color
       - utf-8-validate
@@ -13899,7 +13898,7 @@ snapshots:
     dependencies:
       tldts: 7.0.19
 
-  tr46@5.1.1:
+  tr46@5.1.0:
     dependencies:
       punycode: 2.3.1
 
@@ -14187,13 +14186,13 @@ snapshots:
 
   whatwg-url@14.2.0:
     dependencies:
-      tr46: 5.1.1
+      tr46: 5.1.0
       webidl-conversions: 7.0.0
 
   whatwg-url@15.1.0:
     dependencies:
       tr46: 6.0.0
-      webidl-conversions: 8.0.1
+      webidl-conversions: 8.0.0
 
   whatwg-url@16.0.1:
     dependencies:
