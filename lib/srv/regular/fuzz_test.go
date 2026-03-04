@@ -19,7 +19,6 @@
 package regular
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 
@@ -48,7 +47,7 @@ func FuzzParseProxySubsys(f *testing.F) {
 		ctx := &srv.ServerContext{}
 
 		require.NotPanics(t, func() {
-			server.parseProxySubsys(context.Background(), request, ctx)
+			server.parseProxySubsys(t.Context(), request, ctx)
 		})
 	})
 }

@@ -66,14 +66,14 @@ func TestOktaCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	oktaCtx := authz.ContextWithUser(
-		context.Background(),
+		t.Context(),
 		authz.BuiltinRole{
 			Role:     types.RoleOkta,
 			Username: string(types.RoleOkta),
 		})
 
 	adminCtx := authz.ContextWithUser(
-		context.Background(),
+		t.Context(),
 		authz.BuiltinRole{
 			Role:     types.RoleAdmin,
 			Username: string(types.RoleAdmin),
@@ -109,7 +109,7 @@ func TestOktaCRUD(t *testing.T) {
 		t.Run("okta service updating okta user is allowed", func(t *testing.T) {
 			// Given an existing okta user
 			user := newOktaUser(t)
-			user, err = env.backend.CreateUser(context.Background(), user)
+			user, err = env.backend.CreateUser(t.Context(), user)
 			require.NoError(t, err)
 
 			// When I modify the local copy of the user record and attempt to
@@ -126,7 +126,7 @@ func TestOktaCRUD(t *testing.T) {
 			// Given an existing non-okta user
 			user, err := types.NewUser(uuid.NewString())
 			require.NoError(t, err)
-			user, err = env.backend.CreateUser(context.Background(), user)
+			user, err = env.backend.CreateUser(t.Context(), user)
 			require.NoError(t, err)
 
 			// When I modify the local copy of the user record and attempt to
@@ -144,7 +144,7 @@ func TestOktaCRUD(t *testing.T) {
 		t.Run("okta service removing Okta origin is an error", func(t *testing.T) {
 			// Given an existing okta user
 			user := newOktaUser(t)
-			user, err = env.backend.CreateUser(context.Background(), user)
+			user, err = env.backend.CreateUser(t.Context(), user)
 			require.NoError(t, err)
 
 			// When I modify the local copy of the user record to remove the
@@ -174,7 +174,7 @@ func TestOktaCRUD(t *testing.T) {
 		t.Run("non-okta service removing okta origin is an error", func(t *testing.T) {
 			// Given an existing okta user
 			user := newOktaUser(t)
-			user, err = env.backend.CreateUser(context.Background(), user)
+			user, err = env.backend.CreateUser(t.Context(), user)
 			require.NoError(t, err)
 
 			// When I modify the local copy of the user record to remove the
@@ -192,7 +192,7 @@ func TestOktaCRUD(t *testing.T) {
 		t.Run("non-okta service updating an okta user is an error", func(t *testing.T) {
 			// Given an existing okta user
 			user := newOktaUser(t)
-			user, err = env.backend.CreateUser(context.Background(), user)
+			user, err = env.backend.CreateUser(t.Context(), user)
 			require.NoError(t, err)
 
 			// When I modify the local copy of the user record and try - as a
@@ -239,7 +239,7 @@ func TestOktaCRUD(t *testing.T) {
 		t.Run("okta service updating okta user is allowed", func(t *testing.T) {
 			// Given an existing okta user already in the Teleport user DB...
 			user := newOktaUser(t)
-			user, err = env.backend.CreateUser(context.Background(), user)
+			user, err = env.backend.CreateUser(t.Context(), user)
 			require.NoError(t, err)
 
 			// When I modify the local copy of the user record and try, as the
@@ -257,7 +257,7 @@ func TestOktaCRUD(t *testing.T) {
 			// Given an existing non-okta user already in the Teleport user DB...
 			user, err := types.NewUser(uuid.NewString())
 			require.NoError(t, err)
-			user, err = env.backend.CreateUser(context.Background(), user)
+			user, err = env.backend.CreateUser(t.Context(), user)
 			require.NoError(t, err)
 
 			// When I modify the local copy of the user record and try, as the
@@ -275,7 +275,7 @@ func TestOktaCRUD(t *testing.T) {
 		t.Run("okta service removing Okta origin is an error", func(t *testing.T) {
 			// Given an existing okta user already in the Teleport user DB...
 			user := newOktaUser(t)
-			user, err = env.backend.CreateUser(context.Background(), user)
+			user, err = env.backend.CreateUser(t.Context(), user)
 			require.NoError(t, err)
 
 			// When remove the Okta origin label from the local copy of the user
@@ -306,7 +306,7 @@ func TestOktaCRUD(t *testing.T) {
 		t.Run("non-okta service removing okta origin is an error", func(t *testing.T) {
 			// Given an existing okta user
 			user := newOktaUser(t)
-			user, err = env.backend.CreateUser(context.Background(), user)
+			user, err = env.backend.CreateUser(t.Context(), user)
 			require.NoError(t, err)
 
 			// When I modify the local copy of the user record to remove the
@@ -324,7 +324,7 @@ func TestOktaCRUD(t *testing.T) {
 		t.Run("non-okta service updating an okta user is an error", func(t *testing.T) {
 			// Given an existing okta user
 			user := newOktaUser(t)
-			user, err = env.backend.CreateUser(context.Background(), user)
+			user, err = env.backend.CreateUser(t.Context(), user)
 			require.NoError(t, err)
 
 			// When I modify the local copy of the user record and try - as a
@@ -346,7 +346,7 @@ func TestOktaCRUD(t *testing.T) {
 		t.Run("okta service deleting Okta user is allowed", func(t *testing.T) {
 			// Given an existing okta user already in the Teleport user DB...
 			user := newOktaUser(t)
-			user, err = env.backend.CreateUser(context.Background(), user)
+			user, err = env.backend.CreateUser(t.Context(), user)
 			require.NoError(t, err)
 
 			// When I (as the Okta service) try to delete the user...
@@ -372,7 +372,7 @@ func TestOktaCRUD(t *testing.T) {
 			// Given an existing non-okta user already in the Teleport user DB...
 			user, err := types.NewUser(uuid.NewString())
 			require.NoError(t, err)
-			user, err = env.backend.CreateUser(context.Background(), user)
+			user, err = env.backend.CreateUser(t.Context(), user)
 			require.NoError(t, err)
 
 			// When I (as the Okta service) try to delete the user...
@@ -398,7 +398,7 @@ func TestOktaCRUD(t *testing.T) {
 		t.Run("non-okta service deleting okta user is allowed", func(t *testing.T) {
 			// Given an existing okta user already in the Teleport user DB...
 			user := newOktaUser(t)
-			user, err = env.backend.CreateUser(context.Background(), user)
+			user, err = env.backend.CreateUser(t.Context(), user)
 			require.NoError(t, err)
 
 			// When I (as the Okta service) try to delete the user...

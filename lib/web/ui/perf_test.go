@@ -41,7 +41,7 @@ import (
 const clusterName = "bench.example.com"
 
 func BenchmarkGetClusterDetails(b *testing.B) {
-	ctx := context.Background()
+	ctx := b.Context()
 
 	const authCount = 6
 	const proxyCount = 6

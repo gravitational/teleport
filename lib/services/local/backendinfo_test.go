@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -45,7 +44,7 @@ func TestAutoInfoServiceCRUD(t *testing.T) {
 	service, err := NewBackendInfoService(bk)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	info := &backendinfo1pb.BackendInfo{
 		Kind:     types.KindBackendInfo,
 		Version:  types.V1,

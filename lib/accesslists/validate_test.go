@@ -19,7 +19,6 @@
 package accesslists
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -33,7 +32,7 @@ import (
 
 func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	acl1 := newAccessList(t, "1", clock)
 	acl2 := newAccessList(t, "2", clock)
@@ -107,7 +106,7 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 
 func TestAccessListHierarchyDepthCheck(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	numAcls := accesslist.MaxAllowedDepth + 2 // Extra 2 to test exceeding the max depth
 
@@ -156,7 +155,7 @@ func TestAccessListHierarchyDepthCheck(t *testing.T) {
 func TestAccessListValidateWithMembers_basic(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	t.Run("type is validated", func(t *testing.T) {
@@ -270,7 +269,7 @@ func TestAccessListValidateWithMembers_basic(t *testing.T) {
 }
 
 func TestAccessListValidateWithMembers_members(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	// We're creating a hierarchy with a depth of 10, and then trying to add it as a Member of a 'root' Access List. This should fail.
@@ -372,7 +371,7 @@ func TestAccessListValidateWithMembers_members(t *testing.T) {
 }
 
 func Test_ValidateAccessListWithMembers_audit(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	accessListName := "test_list"
 	var accessList *accesslist.AccessList

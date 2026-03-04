@@ -46,7 +46,7 @@ import (
 )
 
 func TestMigrateProcessDataObjects(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	// testDataObjects represents how dynamo export data using JSON lines format.
@@ -121,7 +121,7 @@ func TestMigrateProcessDataObjects(t *testing.T) {
 }
 
 func TestLargeEventsParse(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	emitter := &mockEmitter{}
@@ -213,7 +213,7 @@ func requireEventsEqualInAnyOrder(t *testing.T, want, got []apievents.AuditEvent
 }
 
 func TestMigrationCheckpoint(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	// There is confirmation prompt in migration when reusing checkpoint, that's why
@@ -587,7 +587,7 @@ func TestMigrationDryRunValidation(t *testing.T) {
 				c <- e
 			}
 			close(c)
-			err := tr.emitEvents(context.Background(), c, "" /* exportARN not used in dryRun */)
+			err := tr.emitEvents(t.Context(), c, "" /* exportARN not used in dryRun */)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 			} else {

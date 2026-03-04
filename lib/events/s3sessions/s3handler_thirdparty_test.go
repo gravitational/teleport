@@ -61,12 +61,12 @@ func TestThirdpartyStreams(t *testing.T) {
 	})
 
 	// Create the bucket.
-	_, err := s3Client.CreateBucket(context.Background(), &s3.CreateBucketInput{
+	_, err := s3Client.CreateBucket(t.Context(), &s3.CreateBucketInput{
 		Bucket: aws.String(bucketName),
 	})
 	require.NoError(t, err)
 
-	handler, err := NewHandler(context.Background(), Config{
+	handler, err := NewHandler(t.Context(), Config{
 		Region:                      "us-west-1",
 		Path:                        "/test/",
 		Bucket:                      bucketName,
@@ -79,7 +79,7 @@ func TestThirdpartyStreams(t *testing.T) {
 	require.NoError(t, err)
 
 	defer func() {
-		if err := handler.deleteBucket(context.Background()); err != nil {
+		if err := handler.deleteBucket(t.Context()); err != nil {
 			t.Fatalf("Failed to delete bucket: %#v", trace.DebugReport(err))
 		}
 	}()

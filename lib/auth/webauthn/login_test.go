@@ -62,7 +62,7 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 
 	const u2fOrigin = "https://example.com:3080"
 	const webOrigin = "https://example.com"
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Register a Webauthn device.
 	// Last registration step creates the user webID and adds the new device to
@@ -209,7 +209,7 @@ func TestLoginFlow_Begin_errors(t *testing.T) {
 		Identity: newFakeIdentity(user),
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tests := []struct {
 		name          string
 		user          string
@@ -243,7 +243,7 @@ func TestLoginFlow_Begin_errors(t *testing.T) {
 }
 
 func TestLoginFlow_Finish_errors(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	const user = "llama"
 	const webOrigin = "https://localhost"
 
@@ -397,7 +397,7 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 	webConfig := &types.Webauthn{RPID: "example.com"}
 
 	const webOrigin = "https://example.com"
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Register a Webauthn device.
 	// Last registration step adds the created device to identity.
@@ -496,7 +496,7 @@ func TestPasswordlessFlow_Finish_errors(t *testing.T) {
 	webKey.IgnoreAllowedCredentials = true // Allowed credentials will be empty
 	webKey.SetUV = true                    // Required for passwordless
 
-	ctx := context.Background()
+	ctx := t.Context()
 	webLogin := &wanlib.PasswordlessFlow{
 		Webauthn: webConfig,
 		Identity: identity,
@@ -553,7 +553,7 @@ func TestCredentialRPID(t *testing.T) {
 	const rpID = "example.com"
 	const user = "llama"
 
-	ctx := context.Background()
+	ctx := t.Context()
 	identity := newFakeIdentity(user)
 	webConfig := &types.Webauthn{RPID: rpID}
 	webOtherRP := &types.Webauthn{RPID: "notexample.com"}
@@ -690,7 +690,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 	webConfig := &types.Webauthn{RPID: "example.com"}
 
 	const webOrigin = "https://example.com"
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Register a Webauthn device.
 	// Last registration step creates the user webID and adds the new device to
@@ -933,7 +933,7 @@ func TestLoginFlow_userVerification(t *testing.T) {
 	webIdentity := newFakeIdentity(user)
 	webConfig := &types.Webauthn{RPID: "example.com"}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	register := func(t *testing.T, dev *mocku2f.Key, rr wanlib.RegisterResponse) {
 		webRegistration := &wanlib.RegistrationFlow{
 			Webauthn: webConfig,
@@ -1083,7 +1083,7 @@ func TestCredentialBackupFlags(t *testing.T) {
 	const origin = "https://example.com"
 	webIdentity := newFakeIdentity(user)
 	webConfig := &types.Webauthn{RPID: "example.com"}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	assertBackupFlags := func(t *testing.T, mfaDev *types.MFADevice, wantBE, wantBS bool) {
 		t.Helper()
@@ -1182,7 +1182,7 @@ func TestPasswordlessFlow_backfillResidentKey(t *testing.T) {
 	const origin = "https://example.com"
 	webIdentity := newFakeIdentity(user)
 	webConfig := &types.Webauthn{RPID: "example.com"}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Register passwordless device as MFA.
 	// (Providers might make it passwordless regardless.)

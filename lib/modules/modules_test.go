@@ -19,7 +19,6 @@
 package modules_test
 
 import (
-	"context"
 	"math"
 	"os"
 	"testing"
@@ -47,7 +46,7 @@ func TestOSSModules(t *testing.T) {
 }
 
 func TestValidateAuthPreferenceOnCloud(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
@@ -97,7 +96,7 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 }
 
 func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	testServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),

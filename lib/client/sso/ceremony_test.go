@@ -39,7 +39,7 @@ import (
 )
 
 func TestCLICeremony(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mockProxy := newMockProxy(t)
 	username := "alice"
@@ -101,7 +101,7 @@ func TestCLICeremony(t *testing.T) {
 }
 
 func TestCLISAMLCeremony(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	const username = "alice"
 
 	mockProxy := newMockProxy(t)
@@ -233,7 +233,7 @@ func TestCLICeremony_MFA(t *testing.T) {
 	const token = "sso-mfa-token"
 	const requestID = "soo-mfa-request-id"
 
-	ctx := context.Background()
+	ctx := t.Context()
 	mockProxy := newMockProxy(t)
 
 	// Capture stderr.

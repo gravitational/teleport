@@ -19,7 +19,6 @@
 package servicenow
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -51,7 +50,7 @@ func TestCreateIncident(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = c.CreateIncident(context.Background(), "someRequestID", RequestData{
+	_, err = c.CreateIncident(t.Context(), "someRequestID", RequestData{
 		User:          "someUser",
 		Roles:         []string{"role1", "role2"},
 		RequestReason: "someReason",
@@ -88,7 +87,7 @@ func TestPostReviewNote(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = c.PostReviewNote(context.Background(), "someIncidentID", types.AccessReview{
+	err = c.PostReviewNote(t.Context(), "someIncidentID", types.AccessReview{
 		ProposedState: types.RequestState_APPROVED,
 		Author:        "someUser",
 		Reason:        "someReason",
@@ -124,7 +123,7 @@ func TestResolveIncident(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = c.ResolveIncident(context.Background(), "someIncidentID", Resolution{
+	err = c.ResolveIncident(t.Context(), "someIncidentID", Resolution{
 		Reason: "someReason",
 		State:  "6",
 	})
@@ -154,6 +153,6 @@ func TestCreateIncidentError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = c.CreateIncident(context.Background(), "someRequestID", RequestData{})
+	_, err = c.CreateIncident(t.Context(), "someRequestID", RequestData{})
 	assert.True(t, trace.IsAccessDenied(err))
 }

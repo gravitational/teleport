@@ -52,7 +52,7 @@ func TestAuthorizedKeys(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC))
 	client := &fakeClient{}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	watcher, err := NewWatcher(ctx, WatcherConfig{
 		Client: client,

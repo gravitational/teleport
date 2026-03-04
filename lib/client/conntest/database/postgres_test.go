@@ -165,7 +165,7 @@ func TestPostgresPing(t *testing.T) {
 	require.NoError(t, err)
 
 	p := PostgresPinger{}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	defer cancel()
 	err = p.Ping(ctx, PingParams{
 		Host:         "localhost",

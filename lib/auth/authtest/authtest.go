@@ -1665,7 +1665,7 @@ type Flusher interface {
 // write events for different keys show up in the order in which the writes were performed, which
 // is not necessarily true for all backends.
 func FlushCache(t *testing.T, clt Flusher) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// the pattern of writing a resource and then waiting for it to appear
 	// works for any resource type (when using memory backend).

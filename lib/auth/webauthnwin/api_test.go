@@ -151,7 +151,7 @@ func TestRegister(t *testing.T) {
 			mock := &mockNative{}
 			*Native = mock
 
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+			ctx, cancel := context.WithTimeout(t.Context(), 1*time.Millisecond)
 			defer cancel()
 
 			resp, err := Register(ctx, test.origin, test.createCC())
@@ -248,7 +248,7 @@ func TestLogin(t *testing.T) {
 			mock := &mockNative{}
 			*Native = mock
 
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+			ctx, cancel := context.WithTimeout(t.Context(), 1*time.Millisecond)
 			defer cancel()
 
 			resp, _, err := Login(ctx, test.origin, test.assertionIn(), &test.opts)

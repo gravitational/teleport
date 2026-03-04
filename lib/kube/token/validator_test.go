@@ -19,7 +19,6 @@
 package token
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -381,7 +380,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				client:           client,
 				clusterAudiences: tt.clusterAudiences,
 			}
-			result, err := v.Validate(context.Background(), tt.token, testClusterName)
+			result, err := v.Validate(t.Context(), tt.token, testClusterName)
 			if tt.expectedError != nil {
 				require.ErrorIs(t, err, tt.expectedError)
 				return
@@ -845,7 +844,7 @@ func TestValidateTokenWithOIDC(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 
 			validator, err := NewKubernetesOIDCTokenValidator()
 			require.NoError(t, err)

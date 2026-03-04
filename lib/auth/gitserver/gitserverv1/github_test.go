@@ -18,7 +18,6 @@
 package gitserverv1
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -35,7 +34,7 @@ import (
 // CreateGitHubAuthRequest API. Note that RBAC of this API is tested in
 // TestServiceAccess.
 func TestCreateGitHubAuthRequest(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	org1 := newServer(t, "org1")
 
 	checker := &fakeAccessChecker{

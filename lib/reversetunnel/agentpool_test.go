@@ -74,7 +74,7 @@ func (c *mockClient) GetClusterNetworkingConfig(ctx context.Context) (types.Clus
 func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 	client := &mockClient{}
 
-	pool, err := NewAgentPool(context.Background(), AgentPoolConfig{
+	pool, err := NewAgentPool(t.Context(), AgentPoolConfig{
 		Client:       client,
 		AccessPoint:  client,
 		AuthMethods:  []ssh.AuthMethod{client},

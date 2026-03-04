@@ -55,7 +55,7 @@ import (
 func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityService {
 	t.Helper()
 	backend, err := memory.New(memory.Config{
-		Context: context.Background(),
+		Context: t.Context(),
 		Clock:   clock,
 	})
 	require.NoError(t, err)
@@ -66,7 +66,7 @@ func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityServ
 
 func TestIdentityService_CreateUser(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	tests := []struct {
@@ -114,7 +114,7 @@ func TestIdentityService_CreateUser(t *testing.T) {
 
 func TestRecoveryCodesCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	identity := newIdentityService(t, clock)
 
@@ -269,11 +269,11 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 // when the user is deleted.
 func TestNotificationCleanupOnUserDelete(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	backend, err := memory.New(memory.Config{
-		Context: context.Background(),
+		Context: t.Context(),
 		Clock:   clock,
 	})
 	require.NoError(t, err)
@@ -378,7 +378,7 @@ func TestIdentityService_UpsertMFADevice(t *testing.T) {
 			},
 		},
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := identity.UpsertMFADevice(ctx, test.user, test.dev)
@@ -446,7 +446,7 @@ func TestIdentityService_UpsertMFADevice_errors(t *testing.T) {
 			},
 		},
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	const user = "llama"
 	for _, dev := range []*types.MFADevice{totpDev, u2fDev, webauthnDev} {
 		err := identity.UpsertMFADevice(ctx, user, dev)
@@ -534,7 +534,7 @@ func TestIdentityService_UpsertMFADevice_errors(t *testing.T) {
 
 func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	clock := clockwork.NewFakeClock()
 	identity := newIdentityService(t, clock)
@@ -661,7 +661,7 @@ func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 
 func TestIdentityService_UpsertMFADevice_SSO(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	clock := clockwork.NewFakeClock()
 	identity := newIdentityService(t, clock)
@@ -714,7 +714,7 @@ func TestIdentityService_UpsertMFADevice_SSO(t *testing.T) {
 
 func TestIdentityService_DeleteMFADevice_SSO(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	clock := clockwork.NewFakeClock()
 	identity := newIdentityService(t, clock)
@@ -785,7 +785,7 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 	}
 
 	// Create a user to begin with.
-	ctx := context.Background()
+	ctx := t.Context()
 	const name = "llama"
 	user, err := types.NewUser(name)
 	require.NoError(t, err)
@@ -883,7 +883,7 @@ func TestIdentityService_GetTeleportUserByWebauthnID(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := identity.GetTeleportUserByWebauthnID(ctx, test.webID)
@@ -928,7 +928,7 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	}
 
 	// Verify upsert/create.
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, p := range params {
 		err := identity.UpsertWebauthnSessionData(ctx, p.user, p.session, p.sd)
 		require.NoError(t, err)
@@ -1010,7 +1010,7 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 	}
 
 	// Verify create.
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, p := range params {
 		require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, p.scope, p.id, p.sd))
 	}
@@ -1077,7 +1077,7 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 	}
 
 	identity := newIdentityService(t, clockwork.NewFakeClock())
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// OK: below limit.
 	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id1, sd))
@@ -1108,7 +1108,7 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 
 func TestIdentityService_SSODiagnosticInfoCrud(t *testing.T) {
 	identity := newIdentityService(t, clockwork.NewFakeClock())
-	ctx := context.Background()
+	ctx := t.Context()
 
 	nilInfo, err := identity.GetSSODiagnosticInfo(ctx, types.KindSAML, "BAD_ID")
 	require.Nil(t, nilInfo)
@@ -1147,7 +1147,7 @@ func TestIdentityService_SSODiagnosticInfoCrud(t *testing.T) {
 func TestIdentityService_UpsertKeyAttestationData(t *testing.T) {
 	t.Parallel()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tc := range []struct {
 		name             string
@@ -1195,7 +1195,7 @@ Tirv9LjajEBxUnuV+wIDAQAB
 func TestIdentityService_UpdateAndSwapUser(t *testing.T) {
 	t.Parallel()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
-	ctx := context.Background()
+	ctx := t.Context()
 
 	type updateParams struct {
 		user        string
@@ -1342,7 +1342,7 @@ func TestIdentityService_UpdateAndSwapUser(t *testing.T) {
 
 func TestIdentityService_ListUsers(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	identity := newIdentityService(t, clock)
 
@@ -1521,7 +1521,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 func TestIdentityService_UpsertAndDeletePassword(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	// Create a user.
@@ -1570,7 +1570,7 @@ func TestIdentityService_UpsertAndDeletePassword(t *testing.T) {
 func TestCompareAndSwapUser(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 
@@ -1624,7 +1624,7 @@ func TestCompareAndSwapUser(t *testing.T) {
 func TestWeakestMFADeviceKind(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	identity := newIdentityService(t, clock)
 
@@ -1749,7 +1749,7 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 
 func TestIdentityService_SSOMFASessionDataCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	// Verify create.

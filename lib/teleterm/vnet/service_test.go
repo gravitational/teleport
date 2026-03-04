@@ -85,7 +85,7 @@ func TestDaemonUsageReporter(t *testing.T) {
 }
 
 func TestDaemonUsageReporter_Stop(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	t.Cleanup(cancel)
 	eventConsumer := fakeEventConsumer{}
 	clientCache := fakeClientCache{blockingOnCtxC: make(chan struct{}, 1)}

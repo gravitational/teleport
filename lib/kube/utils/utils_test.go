@@ -34,7 +34,7 @@ import (
 func TestGetAgentVersion(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	testCases := []struct {
 		desc            string

@@ -68,7 +68,7 @@ func TestStartStop(t *testing.T) {
 	// Wait for SSH server to successfully shutdown, fail if it does not within
 	// the timeout period.
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 		defer cancel()
 		srv.Wait(ctx)
 		require.NoError(t, ctx.Err())

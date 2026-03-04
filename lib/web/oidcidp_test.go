@@ -19,7 +19,6 @@
 package web
 
 import (
-	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
@@ -35,7 +34,7 @@ import (
 // It also validates that the JWKS_URI points to a correct path.
 func TestOIDCIdPPublicEndpoints(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 
@@ -85,7 +84,7 @@ func TestOIDCIdPPublicEndpoints(t *testing.T) {
 }
 
 func TestThumbprint(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Proxy starts with self-signed certificates.
 	lib.SetInsecureDevMode(true)

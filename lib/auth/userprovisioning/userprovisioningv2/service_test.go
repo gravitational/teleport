@@ -88,7 +88,7 @@ func assertTraceErr(f func(error) bool) require.ErrorAssertionFunc {
 func TestStaticHostUserAuditEvents(t *testing.T) {
 	env := initSvc(t, authorizeWithVerbs([]string{types.VerbDelete, types.VerbCreate, types.VerbUpdate}, true))
 
-	ctx := context.Background()
+	ctx := t.Context()
 	user, err := env.resourceService.CreateStaticHostUser(
 		ctx,
 		&userprovisioningpb.CreateStaticHostUserRequest{
@@ -421,7 +421,7 @@ func testStaticHostUserAccess(
 	assert require.ErrorAssertionFunc,
 ) {
 	env := initSvc(t, authorizer)
-	err := request(context.Background(), env.resourceService, env.localService)
+	err := request(t.Context(), env.resourceService, env.localService)
 	assert(t, err)
 }
 
@@ -483,7 +483,7 @@ type testEnv struct {
 }
 
 func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) authz.Authorizer) testEnv {
-	ctx := context.Background()
+	ctx := t.Context()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 

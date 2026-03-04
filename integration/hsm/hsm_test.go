@@ -98,7 +98,7 @@ func liteBackendConfig(t *testing.T) *backend.Config {
 
 // Tests a single CA rotation with a single HSM auth server
 func TestHSMRotation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	log := logtest.With(teleport.ComponentKey, "TestHSMRotation")
 

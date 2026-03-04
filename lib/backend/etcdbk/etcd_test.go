@@ -78,7 +78,7 @@ func TestEtcd(t *testing.T) {
 		// No need to check target backend - all Etcd backends create by this test
 		// point to the same datastore.
 
-		bk, err := New(context.Background(), commonEtcdParams, commonEtcdOptions...)
+		bk, err := New(t.Context(), commonEtcdParams, commonEtcdOptions...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -99,10 +99,10 @@ func TestPrefix(t *testing.T) {
 		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Given an etcd backend with a minimal configuration...
-	unprefixedUut, err := New(context.Background(), commonEtcdParams, commonEtcdOptions...)
+	unprefixedUut, err := New(t.Context(), commonEtcdParams, commonEtcdOptions...)
 	require.NoError(t, err)
 	defer unprefixedUut.Close()
 
@@ -111,7 +111,7 @@ func TestPrefix(t *testing.T) {
 	maps.Copy(cfg, commonEtcdParams)
 	cfg["prefix"] = customPrefix
 
-	prefixedUut, err := New(context.Background(), cfg, commonEtcdOptions...)
+	prefixedUut, err := New(t.Context(), cfg, commonEtcdOptions...)
 	require.NoError(t, err)
 	defer prefixedUut.Close()
 
@@ -175,7 +175,7 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 	}
 	// setup
 	const maxClientMsgSize = 128
-	bk, err := New(context.Background(), backend.Params{
+	bk, err := New(t.Context(), backend.Params{
 		"peers":                          []string{etcdTestEndpoint()},
 		"prefix":                         "/teleport",
 		"tls_key_file":                   "../../../fixtures/etcdcerts/client-key.pem",
@@ -191,7 +191,7 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 	value := make([]byte, maxClientMsgSize+1)
 
 	// verify
-	_, err = bk.CompareAndSwap(context.Background(),
+	_, err = bk.CompareAndSwap(t.Context(),
 		backend.Item{Key: prefix("one"), Value: []byte("1")},
 		backend.Item{Key: prefix("one"), Value: value},
 	)

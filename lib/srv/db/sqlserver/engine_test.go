@@ -351,7 +351,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 					Audit:   audit,
 					Log:     slog.Default(),
 					Auth:    &mockDBAuth{},
-					Context: context.Background(),
+					Context: t.Context(),
 				},
 				Connector: &mockConnector{
 					conn: &mockConn{
@@ -363,7 +363,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				},
 			}
 
-			err = e.HandleConnection(context.Background(), &common.Session{
+			err = e.HandleConnection(t.Context(), &common.Session{
 				Checker:  &mockChecker{},
 				Database: db,
 			})

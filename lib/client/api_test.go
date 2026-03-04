@@ -1059,7 +1059,7 @@ func TestCommandLimit(t *testing.T) {
 }
 
 func TestRootClusterName(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ca := newTestAuthority(t)
 
 	rootCluster := ca.trustedCerts.ClusterName
@@ -1197,7 +1197,7 @@ func TestConnectToProxyCancelledContext(t *testing.T) {
 	clt, err := NewClient(cfg)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	clusterClient, err := clt.ConnectToCluster(ctx)
@@ -1328,7 +1328,7 @@ func TestGetTargetNodes(t *testing.T) {
 				},
 			}
 
-			match, err := clt.GetTargetNodes(context.Background(), test.clt, test.options)
+			match, err := clt.GetTargetNodes(t.Context(), test.clt, test.options)
 			require.NoError(t, err)
 			require.EqualValues(t, test.expected, match)
 		})
@@ -1511,7 +1511,7 @@ func TestGetTargetNode(t *testing.T) {
 				},
 			}
 
-			match, err := clt.GetTargetNode(context.Background(), test.clt, test.options)
+			match, err := clt.GetTargetNode(t.Context(), test.clt, test.options)
 			test.errAssertion(t, err)
 			if match == nil {
 				match = &TargetNode{}

@@ -115,7 +115,7 @@ func TestClientCredentials(t *testing.T) {
 
 			creds := newClientCredentials(test.expectedPeerID, test.peerAddr, logtest.NewLogger(), newTestCredentials(cert))
 
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 			defer cancel()
 
 			conn := &fakeConn{}

@@ -19,7 +19,6 @@
 package db
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -34,7 +33,7 @@ import (
 
 // TestHA tests scenario with multiple database services proxying the same database.
 func TestHA(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t)
 	go testCtx.startProxy()
 

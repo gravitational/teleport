@@ -21,7 +21,6 @@ package main
 import (
 	"bytes"
 	"cmp"
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,7 +34,7 @@ import (
 )
 
 func TestInstallSystemdCmd(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 
 	// Create pre-existing file to test --force

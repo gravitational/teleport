@@ -19,7 +19,6 @@
 package web
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -145,7 +144,7 @@ func TestYAMLParse_Valid(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			endpoint := pack.clt.Endpoint("webapi", "yaml", "parse", tc.kind)
-			re, err := pack.clt.PostJSON(context.Background(), endpoint, yamlParseRequest{
+			re, err := pack.clt.PostJSON(t.Context(), endpoint, yamlParseRequest{
 				YAML: tc.yaml,
 			})
 			require.NoError(t, err)
@@ -203,7 +202,7 @@ func TestYAMLParse_Errors(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			endpoint := pack.clt.Endpoint("webapi", "yaml", "parse", tc.kind)
-			_, err := pack.clt.PostJSON(context.Background(), endpoint, yamlParseRequest{
+			_, err := pack.clt.PostJSON(t.Context(), endpoint, yamlParseRequest{
 				YAML: tc.yaml,
 			})
 
@@ -226,7 +225,7 @@ func TestYAMLStringify_Valid(t *testing.T) {
 	}
 
 	endpoint := pack.clt.Endpoint("webapi", "yaml", "stringify", types.KindAccessMonitoringRule)
-	re, err := pack.clt.PostJSON(context.Background(), endpoint, req)
+	re, err := pack.clt.PostJSON(t.Context(), endpoint, req)
 	require.NoError(t, err)
 
 	var resp yamlStringifyResponse
@@ -258,7 +257,7 @@ func TestYAMLStringify_Errors(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			endpoint := pack.clt.Endpoint("webapi", "yaml", "stringify", tc.kind)
-			_, err := pack.clt.PostJSON(context.Background(), endpoint, struct {
+			_, err := pack.clt.PostJSON(t.Context(), endpoint, struct {
 				Resource *accessmonitoringrulesv1.AccessMonitoringRule `json:"resource"`
 			}{
 				Resource: getAccessMonitoringRuleResource(),

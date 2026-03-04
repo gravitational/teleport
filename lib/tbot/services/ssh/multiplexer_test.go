@@ -110,7 +110,7 @@ func (m *mockHostDialerTracker) count() (open int, closed int) {
 
 func TestCyclingHostDialClient(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	tracker := &mockHostDialerTracker{}
 	cycler := &cyclingHostDialClient{
 		max:          5,

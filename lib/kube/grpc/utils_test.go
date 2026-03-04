@@ -559,7 +559,7 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 	require.NoError(t, err)
 
 	// Fetch user info to get roles and max session TTL.
-	user, err := authServer.GetUser(context.Background(), userName, false)
+	user, err := authServer.GetUser(t.Context(), userName, false)
 	require.NoError(t, err)
 
 	roles, err := services.FetchRoles(user.GetRoles(), authServer, user.GetTraits())
@@ -579,7 +579,7 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
 	require.NoError(t, err)
 
-	priv, err := cryptosuites.GenerateKey(context.Background(),
+	priv, err := cryptosuites.GenerateKey(t.Context(),
 		cryptosuites.GetCurrentSuiteFromAuthPreference(authServer),
 		cryptosuites.UserTLS)
 	require.NoError(t, err)

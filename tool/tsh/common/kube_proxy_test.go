@@ -56,7 +56,7 @@ func (p *kubeTestPack) testProxyKube(t *testing.T) {
 
 	// Test "tsh proxy kube root-cluster1".
 	t.Run("with kube cluster arg", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		t.Cleanup(cancel)
 
@@ -75,7 +75,7 @@ func (p *kubeTestPack) testProxyKube(t *testing.T) {
 
 	// Test "tsh proxy kube" after "tsh login"s.
 	t.Run("without kube cluster arg", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		t.Cleanup(cancel)
 
@@ -213,7 +213,7 @@ func sendRequestToKubeLocalProxy(t *testing.T, config *clientcmdapi.Config, tele
 	client, err := kubernetes.NewForConfig(restConfig)
 	require.NoError(t, err)
 
-	resp, err := client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
+	resp, err := client.CoreV1().Pods("default").List(t.Context(), metav1.ListOptions{})
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.Items)
 
@@ -260,7 +260,7 @@ func runKubectlExec(t *testing.T, config *rest.Config) {
 	exec, err := remotecommand.NewSPDYExecutor(config, http.MethodPost, req.URL())
 	require.NoError(t, err)
 
-	err = exec.StreamWithContext(context.Background(), streamOpts)
+	err = exec.StreamWithContext(t.Context(), streamOpts)
 	require.NoError(t, err)
 	require.Equal(t, fmt.Sprintf("%s\n%s", podContainerName, string(stdinContent)), stdout.String())
 }

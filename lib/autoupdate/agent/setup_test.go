@@ -20,7 +20,6 @@ package agent
 
 import (
 	"bytes"
-	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -140,7 +139,7 @@ func TestNewNamespace(t *testing.T) {
 	} {
 		t.Run(p.name, func(t *testing.T) {
 			log := slog.Default()
-			ctx := context.Background()
+			ctx := t.Context()
 			ns, err := NewNamespace(ctx, log, p.namespace, p.installDir)
 			if p.errMatch != "" {
 				require.Error(t, err)
@@ -182,7 +181,7 @@ func TestWriteConfigFiles(t *testing.T) {
 		t.Run(p.name, func(t *testing.T) {
 			log := slog.Default()
 			linkDir := t.TempDir()
-			ctx := context.Background()
+			ctx := t.Context()
 			ns, err := NewNamespace(ctx, log, p.namespace, "")
 			require.NoError(t, err)
 			ns.updaterServiceFile = rebasePath(filepath.Join(linkDir, serviceDir), ns.updaterServiceFile)
@@ -260,7 +259,7 @@ func TestHasCustomTbot(t *testing.T) {
 				err = os.WriteFile(ns.tbotServiceFile, []byte(header), os.ModePerm)
 				require.NoError(t, err)
 			}
-			ctx := context.Background()
+			ctx := t.Context()
 			res, err := ns.HasCustomTbot(ctx)
 			require.NoError(t, err)
 			require.Equal(t, tt.result, res)
@@ -477,7 +476,7 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 				err = os.WriteFile(ns.tbotConfigFile, out, os.ModePerm)
 				require.NoError(t, err)
 			}
-			ctx := context.Background()
+			ctx := t.Context()
 			ns.overrideFromConfig(ctx)
 			ns.teleportConfigFile = ""
 			ns.tbotConfigFile = ""
@@ -528,7 +527,7 @@ func TestWriteTeleportService(t *testing.T) {
 				teleportServiceFile: serviceFile,
 				teleportPIDFile:     tt.pidFile,
 			}
-			err := ns.WriteTeleportService(context.Background(), tt.pathDir, NewRevision("version", tt.flags))
+			err := ns.WriteTeleportService(t.Context(), tt.pathDir, NewRevision("version", tt.flags))
 			require.NoError(t, err)
 			data, err := os.ReadFile(serviceFile)
 			require.NoError(t, err)
@@ -595,7 +594,7 @@ func TestWriteTbotService(t *testing.T) {
 				tbotPIDFile:     tt.pidFile,
 				dataDir:         tt.dataDir,
 			}
-			err := ns.WriteTbotService(context.Background(), tt.pathDir, NewRevision("version", 0))
+			err := ns.WriteTbotService(t.Context(), tt.pathDir, NewRevision("version", 0))
 			if tt.err {
 				require.Error(t, err)
 				return

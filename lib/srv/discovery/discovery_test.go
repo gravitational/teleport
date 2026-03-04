@@ -791,7 +791,7 @@ func TestDiscoveryServer(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 
 			ec2Client := &mockEC2Client{
 				output: &ec2.DescribeInstancesOutput{
@@ -871,7 +871,7 @@ func TestDiscoveryServer(t *testing.T) {
 			fakeConfigProvider := mocks.AWSConfigProvider{
 				OIDCIntegrationClient: tlsServer.Auth(),
 			}
-			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
+			server, err := New(authz.ContextWithUser(t.Context(), identity.I), &Config{
 				GetEC2Client: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 					return ec2Client, nil
 				},
@@ -950,13 +950,14 @@ func TestDiscoveryServer(t *testing.T) {
 
 func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTasks, minUserTaskResources int) []*usertasksv1.UserTask {
 	var existingTasks []*usertasksv1.UserTask
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		var allTasks []*usertasksv1.UserTask
 		var nextToken string
 		for {
 			var userTasks []*usertasksv1.UserTask
-			userTasks, nextTokenResp, err := userTasksClt.ListUserTasks(context.Background(), 0, nextToken, &usertasksv1.ListUserTasksFilters{})
-			require.NoError(t, err)
+			userTasks, nextTokenResp, err := userTasksClt.ListUserTasks(ctx, 0, nextToken, &usertasksv1.ListUserTasksFilters{})
+			require.NoError(ct, err)
 			allTasks = append(allTasks, userTasks...)
 			if nextTokenResp == "" {
 				break
@@ -965,7 +966,7 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 		}
 		existingTasks = allTasks
 
-		require.GreaterOrEqual(t, len(allTasks), minUserTasks)
+		require.GreaterOrEqual(ct, len(allTasks), minUserTasks)
 
 		gotResources := 0
 		for _, task := range allTasks {
@@ -973,7 +974,7 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 			gotResources += len(task.GetSpec().GetDiscoverEks().GetClusters())
 			gotResources += len(task.GetSpec().GetDiscoverRds().GetDatabases())
 		}
-		require.GreaterOrEqual(t, gotResources, minUserTaskResources)
+		require.GreaterOrEqual(ct, gotResources, minUserTaskResources)
 	}, 10*time.Second, 50*time.Millisecond)
 
 	return existingTasks
@@ -1126,7 +1127,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	//
 	// After removing the EICE feature, this test must be removed as well.
 	t.Setenv(constants.UnstableEnableEICEEnvVar, "true")
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logtest.NewLogger()
 
 	defaultDiscoveryGroup := "dg01"
@@ -1384,7 +1385,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 				objects = append(objects, s)
 			}
 
-			ctx := context.Background()
+			ctx := t.Context()
 			// Create and start test auth server.
 			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
@@ -1758,7 +1759,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				GCPProjects: newPopulatedGCPProjectsMock(),
 			}
 
-			ctx := context.Background()
+			ctx := t.Context()
 			// Create and start test auth server.
 			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
@@ -2670,12 +2671,13 @@ func TestDiscoveryDatabase(t *testing.T) {
 			wantEvents:      1,
 			userTasksCheck: func(t *testing.T, lister UserTaskLister) {
 				var gotUserTask *usertasksv1.UserTask
-				require.EventuallyWithT(t, func(t *assert.CollectT) {
-					uts, err := libstream.Collect(clientutils.Resources(context.Background(), func(ctx context.Context, i int, s string) ([]*usertasksv1.UserTask, string, error) {
+				ctx := t.Context()
+				require.EventuallyWithT(t, func(ct *assert.CollectT) {
+					uts, err := libstream.Collect(clientutils.Resources(ctx, func(ctx context.Context, i int, s string) ([]*usertasksv1.UserTask, string, error) {
 						return lister.ListUserTasks(ctx, int64(i), s, nil)
 					}))
-					require.NoError(t, err)
-					require.Len(t, uts, 1)
+					require.NoError(ct, err)
+					require.Len(ct, uts, 1)
 
 					gotUserTask = uts[0]
 				}, 10*time.Second, 100*time.Millisecond)
@@ -2706,7 +2708,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			t.Parallel()
 			fakeClock := clockwork.NewFakeClock()
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
 
 			// Create and start test auth server.
@@ -2901,7 +2903,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	// Create and start test auth server.
@@ -3429,7 +3431,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
 			tlsServer.Auth().SetUsageReporter(reporter)
-			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
+			server, err := New(authz.ContextWithUser(t.Context(), identity.I), &Config{
 				initAzureClients: initAzureClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewClientset(),
@@ -3724,7 +3726,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				GCPProjects: newPopulatedGCPProjectsMock(),
 			}
 
-			ctx := context.Background()
+			ctx := t.Context()
 			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
@@ -3753,7 +3755,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				installedInstances: make(map[string]struct{}),
 			}
 			tlsServer.Auth().SetUsageReporter(reporter)
-			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
+			server, err := New(authz.ContextWithUser(t.Context(), identity.I), &Config{
 				gcpClients:       gcpClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewClientset(),
@@ -3818,7 +3820,7 @@ func TestServer_onCreate(t *testing.T) {
 	t.Run("onCreate update kube", func(t *testing.T) {
 		// With cloud origin and an empty discovery group, it should update.
 		accessPoint.kube = mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{})
-		err := s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: "test-cluster"}))
+		err := s.onKubeCreate(t.Context(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: "test-cluster"}))
 		require.NoError(t, err)
 		require.True(t, accessPoint.updatedKube)
 
@@ -3826,7 +3828,7 @@ func TestServer_onCreate(t *testing.T) {
 		// non-cloud origin. It should not update.
 		accessPoint.updatedKube = false
 		accessPoint.kube.SetOrigin(types.OriginDynamic)
-		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: "test-cluster"}))
+		err = s.onKubeCreate(t.Context(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: "test-cluster"}))
 		require.Error(t, err)
 		require.False(t, accessPoint.updatedKube)
 
@@ -3834,7 +3836,7 @@ func TestServer_onCreate(t *testing.T) {
 		// an empty origin. It should not update.
 		accessPoint.updatedKube = false
 		accessPoint.kube.SetOrigin("")
-		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: "test-cluster"}))
+		err = s.onKubeCreate(t.Context(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: "test-cluster"}))
 		require.Error(t, err)
 		require.False(t, accessPoint.updatedKube)
 
@@ -3842,7 +3844,7 @@ func TestServer_onCreate(t *testing.T) {
 		// a non-empty discovery group. It should not update.
 		accessPoint.updatedKube = false
 		accessPoint.kube = mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: "non-empty"})
-		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: "test-cluster"}))
+		err = s.onKubeCreate(t.Context(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: "test-cluster"}))
 		require.Error(t, err)
 		require.False(t, accessPoint.updatedKube)
 	})
@@ -3853,7 +3855,7 @@ func TestServer_onCreate(t *testing.T) {
 
 		// With cloud origin and an empty discovery group, it should update.
 		accessPoint.database = awsRedshiftDBEmptyDiscoveryGroup
-		err := s.onDatabaseCreate(context.Background(), awsRedshiftDB)
+		err := s.onDatabaseCreate(t.Context(), awsRedshiftDB)
 		require.NoError(t, err)
 		require.True(t, accessPoint.updatedDatabase)
 
@@ -3861,7 +3863,7 @@ func TestServer_onCreate(t *testing.T) {
 		// but non-cloud origin. It should not update.
 		accessPoint.updatedDatabase = false
 		accessPoint.database.SetOrigin(types.OriginDynamic)
-		err = s.onDatabaseCreate(context.Background(), awsRedshiftDB)
+		err = s.onDatabaseCreate(t.Context(), awsRedshiftDB)
 		require.Error(t, err)
 		require.False(t, accessPoint.updatedDatabase)
 
@@ -3869,7 +3871,7 @@ func TestServer_onCreate(t *testing.T) {
 		// but empty origin. It should not update.
 		accessPoint.updatedDatabase = false
 		accessPoint.database.SetOrigin("")
-		err = s.onDatabaseCreate(context.Background(), awsRedshiftDB)
+		err = s.onDatabaseCreate(t.Context(), awsRedshiftDB)
 		require.Error(t, err)
 		require.False(t, accessPoint.updatedDatabase)
 
@@ -3877,7 +3879,7 @@ func TestServer_onCreate(t *testing.T) {
 		// discovery group. It should not update.
 		accessPoint.updatedDatabase = false
 		accessPoint.database = awsRedshiftDB
-		err = s.onDatabaseCreate(context.Background(), awsRedshiftDB)
+		err = s.onDatabaseCreate(t.Context(), awsRedshiftDB)
 		require.Error(t, err)
 		require.False(t, accessPoint.updatedDatabase)
 	})
@@ -3889,7 +3891,7 @@ func TestServer_onCreate(t *testing.T) {
 
 		// With kube origin and empty discovery group, it should update.
 		accessPoint.app = mustConvertKubeServiceToApp(t, "" /*empty discovery group*/, "http", kubeSvc, kubeSvc.Spec.Ports[0])
-		err := s.onAppCreate(context.Background(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
+		err := s.onAppCreate(t.Context(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
 		require.NoError(t, err)
 		require.True(t, accessPoint.updatedApp)
 
@@ -3897,7 +3899,7 @@ func TestServer_onCreate(t *testing.T) {
 		// but non-cloud origin. It should not update.
 		accessPoint.updatedApp = false
 		accessPoint.app.SetOrigin(types.OriginDynamic)
-		err = s.onAppCreate(context.Background(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
+		err = s.onAppCreate(t.Context(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
 		require.Error(t, err)
 		require.False(t, accessPoint.updatedApp)
 
@@ -3905,7 +3907,7 @@ func TestServer_onCreate(t *testing.T) {
 		// but non-cloud origin. It should not update.
 		accessPoint.updatedApp = false
 		accessPoint.app.SetOrigin("")
-		err = s.onAppCreate(context.Background(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
+		err = s.onAppCreate(t.Context(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
 		require.Error(t, err)
 		require.False(t, accessPoint.updatedApp)
 
@@ -3913,7 +3915,7 @@ func TestServer_onCreate(t *testing.T) {
 		// It should not update.
 		accessPoint.updatedApp = false
 		accessPoint.app = mustConvertKubeServiceToApp(t, "nonEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0])
-		err = s.onAppCreate(context.Background(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
+		err = s.onAppCreate(t.Context(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
 		require.Error(t, err)
 		require.False(t, accessPoint.updatedApp)
 	})
@@ -3983,7 +3985,7 @@ func TestEmitUsageEvents(t *testing.T) {
 	reporter := &mockUsageReporter{}
 	tlsServer.Auth().SetUsageReporter(reporter)
 
-	server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
+	server, err := New(authz.ContextWithUser(t.Context(), identity.I), &Config{
 		ClusterFeatures: func() proto.Features { return proto.Features{} },
 		AccessPoint:     getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 		Matchers: Matchers{

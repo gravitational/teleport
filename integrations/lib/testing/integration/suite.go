@@ -91,7 +91,7 @@ func (s *Suite) initContexts(oldT *testing.T, newT *testing.T) {
 		// We are running a subtest so lets inherit the context too.
 		baseCtx = s.contexts[oldT].testCtx
 	} else {
-		baseCtx = context.Background()
+		baseCtx = oldT.Context()
 	}
 	baseCtx, _ = logger.With(baseCtx, "test", newT.Name())
 	baseCtx, cancel := context.WithCancel(baseCtx)

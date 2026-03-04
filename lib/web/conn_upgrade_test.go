@@ -236,7 +236,7 @@ func mustWriteNestedWebSocketConnString(t *testing.T, clientConn net.Conn, paylo
 			return clientConn, nil
 		},
 	}
-	nestedConn, response, err := dialer.DialContext(context.Background(), "ws://does-not-matter", nil)
+	nestedConn, response, err := dialer.DialContext(t.Context(), "ws://does-not-matter", nil)
 	if response != nil && response.Body != nil {
 		defer response.Body.Close()
 	}

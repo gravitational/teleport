@@ -20,7 +20,6 @@ package common
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -251,7 +250,7 @@ func TestDatabaseServerResource(t *testing.T) {
 func TestDatabaseServiceResource(t *testing.T) {
 	dynAddr := helpers.NewDynamicServiceAddr(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -665,7 +664,7 @@ spec:
 func TestIntegrationResource(t *testing.T) {
 	dynAddr := helpers.NewDynamicServiceAddr(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -780,7 +779,7 @@ func TestIntegrationResource(t *testing.T) {
 func TestDiscoveryConfigResource(t *testing.T) {
 	dynAddr := helpers.NewDynamicServiceAddr(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),

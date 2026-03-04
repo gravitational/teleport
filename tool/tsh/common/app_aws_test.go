@@ -78,7 +78,7 @@ func TestAWS(t *testing.T) {
 	require.NoError(t, err)
 
 	// Log into Teleport cluster.
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
 	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, user, connector.GetName()))
 	require.NoError(t, err)
@@ -119,13 +119,13 @@ func TestAWS(t *testing.T) {
 
 	// Log into the "aws-app" app.
 	err = Run(
-		context.Background(),
+		t.Context(),
 		[]string{"app", "login", "--insecure", "--aws-role", "some-aws-role", "aws-app"},
 		setHomePath(tmpHomePath),
 	)
 	require.NoError(t, err)
 	err = Run(
-		context.Background(),
+		t.Context(),
 		[]string{"aws", "--app", "aws-app", "--endpoint-url", "s3", "ls", "--page-size", "100"},
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
@@ -134,13 +134,13 @@ func TestAWS(t *testing.T) {
 
 	// Log out from "aws-app" app. The app should be logged-in automatically as needed.
 	err = Run(
-		context.Background(),
+		t.Context(),
 		[]string{"app", "logout", "aws-app"},
 		setHomePath(tmpHomePath),
 	)
 	require.NoError(t, err)
 	err = Run(
-		context.Background(),
+		t.Context(),
 		[]string{"aws", "--insecure", "--aws-role", "some-aws-role", "--app", "aws-app", "--endpoint-url", "s3", "ls", "--page-size", "100"},
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
@@ -155,7 +155,7 @@ func TestAWS(t *testing.T) {
 		return nil
 	}
 	err = Run(
-		context.Background(),
+		t.Context(),
 		[]string{"aws", "--insecure", "--aws-role", "some-aws-role", "--app", "aws-app", "--exec", "terraform", "plan"},
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
@@ -164,7 +164,7 @@ func TestAWS(t *testing.T) {
 }
 
 func TestAWSRolesAnywhereBasedAccess(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tmpHomePath := t.TempDir()
 
@@ -425,7 +425,7 @@ export AWS_SESSION_TOKEN=st
 // is correct.
 func TestAWSConsoleLogins(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tmpHomePath := t.TempDir()
 	connector := mockConnector(t)
@@ -501,7 +501,7 @@ func TestAWSConsoleLogins(t *testing.T) {
 	require.NoError(t, err)
 
 	// Log into Teleport cluster.
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
 	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, user, connector.GetName()))
 	require.NoError(t, err)
@@ -515,7 +515,7 @@ func TestAWSConsoleLogins(t *testing.T) {
 			// Don't provide the `--aws-role`. We expect a failure since there
 			// are multiple ARN roles.
 			err := Run(
-				context.Background(),
+				t.Context(),
 				[]string{"app", "login", "--insecure", "--cluster", cluster, "awsconsole"},
 				setCopyStdout(commandOutput), setHomePath(tmpHomePath),
 				// TODO(gabrielcorado): Given the `RetryWithRerlLogin` is going

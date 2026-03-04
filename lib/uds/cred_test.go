@@ -130,7 +130,7 @@ func TestTransportCredentials(t *testing.T) {
 	})
 
 	client := machineidv1.NewBotServiceClient(grpcConn)
-	_, err = client.GetBot(context.Background(), &machineidv1.GetBotRequest{})
+	_, err = client.GetBot(t.Context(), &machineidv1.GetBotRequest{})
 	require.NoError(t, err)
 
 	assert.NotNil(t, svc.lastCalledCreds)

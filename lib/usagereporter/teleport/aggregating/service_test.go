@@ -19,7 +19,6 @@
 package aggregating
 
 import (
-	"context"
 	"math"
 	"testing"
 	"time"
@@ -45,7 +44,7 @@ func newReport(startTime time.Time) *prehogv1.UserActivityReport {
 }
 
 func TestCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clk := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{
 		Clock:     clk,
@@ -114,7 +113,7 @@ func TestUserActivityReportSplitting(t *testing.T) {
 }
 
 func TestLock(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clk := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{
 		Clock:     clk,
@@ -151,7 +150,7 @@ func newIdentitySecuritySummariesGeneratedReport(startTime time.Time) *prehogv1.
 }
 
 func TestResourcePresenceReporting(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clk := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{
 		Clock:     clk,

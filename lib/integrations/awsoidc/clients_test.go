@@ -19,7 +19,6 @@
 package awsoidc
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -80,7 +79,7 @@ func TestCheckAccountID(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			err := CheckAccountID(ctx, test.clt, test.accountID)

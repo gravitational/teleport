@@ -40,7 +40,7 @@ func setDefaultDNSResolver(t *testing.T, resolver *dns.Resolver) {
 	dns.DefaultResolver = resolver
 }
 func TestNewEndpointsResolver(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	tests := []struct {

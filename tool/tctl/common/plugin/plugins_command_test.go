@@ -537,7 +537,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 						ProxyPublicAddr: "example.com",
 					}, nil)
 			}
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
 
 			testCase.cmd.config = &servicecfg.Config{

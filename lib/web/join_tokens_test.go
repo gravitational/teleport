@@ -109,7 +109,7 @@ type tokenData struct {
 func TestGetTokens(t *testing.T) {
 	t.Parallel()
 	username := "test-user@example.com"
-	ctx := context.Background()
+	ctx := t.Context()
 	expiry := time.Now().UTC().Add(30 * time.Minute)
 
 	staticUIToken := ui.JoinToken{
@@ -370,7 +370,7 @@ func TestGetTokens(t *testing.T) {
 
 func TestListProvisionTokens(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	expiry := time.Now().UTC().Add(30 * time.Minute)
 
 	env := newWebPack(t, 1)
@@ -493,7 +493,7 @@ func TestListProvisionTokens(t *testing.T) {
 }
 
 func TestDeleteToken(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	username := "test-user@example.com"
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
@@ -562,7 +562,7 @@ func TestDeleteToken(t *testing.T) {
 
 func TestEditToken(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	username := "test-user@example.com"
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
@@ -797,7 +797,7 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 }
 
 func TestCreateTokenForDiscovery(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	username := "test-user@example.com"
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
@@ -1333,7 +1333,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 				port:     port,
 				token:    test.token,
 			})
-			script, err := h.getJoinScript(context.Background(), test.settings)
+			script, err := h.getJoinScript(t.Context(), test.settings)
 			test.errAssert(t, err)
 			if err != nil {
 				require.Empty(t, script)
@@ -1473,11 +1473,11 @@ func TestGetAppJoinScript(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test invalid app data.
-	script, err := h.getJoinScript(context.Background(), badAppName)
+	script, err := h.getJoinScript(t.Context(), badAppName)
 	require.Empty(t, script)
 	require.True(t, trace.IsBadParameter(err))
 
-	script, err = h.getJoinScript(context.Background(), badAppURI)
+	script, err = h.getJoinScript(t.Context(), badAppURI)
 	require.Empty(t, script)
 	require.True(t, trace.IsBadParameter(err))
 
@@ -1605,7 +1605,7 @@ func TestGetAppJoinScript(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
-			script, err = h.getJoinScript(context.Background(), tc.settings)
+			script, err = h.getJoinScript(t.Context(), tc.settings)
 			if tc.shouldError {
 				require.Error(t, err)
 				require.Empty(t, script)
@@ -1802,7 +1802,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 				token:    test.token,
 			})
 
-			script, err := h.getJoinScript(context.Background(), test.settings)
+			script, err := h.getJoinScript(t.Context(), test.settings)
 			test.errAssert(t, err)
 			if err != nil {
 				require.Empty(t, script)
@@ -1867,7 +1867,7 @@ discovery_service:
 				port:     port,
 				token:    token,
 			})
-			script, err := h.getJoinScript(context.Background(), test.settings)
+			script, err := h.getJoinScript(t.Context(), test.settings)
 			test.errAssert(t, err)
 			if err != nil {
 				require.Empty(t, script)
@@ -2000,7 +2000,7 @@ func TestJoinScript(t *testing.T) {
 				token: token,
 			})
 			// Using the OSS Version, all the links must contain only teleport as package name.
-			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken})
+			script, err := h.getJoinScript(t.Context(), scriptSettings{token: validToken})
 			require.NoError(t, err)
 
 			matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
@@ -2019,7 +2019,7 @@ func TestJoinScript(t *testing.T) {
 				testModules: &modulestest.Modules{TestBuildType: modules.BuildEnterprise},
 				token:       token,
 			})
-			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken})
+			script, err := h.getJoinScript(t.Context(), scriptSettings{token: validToken})
 			require.NoError(t, err)
 
 			matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
@@ -2044,7 +2044,7 @@ func TestJoinScript(t *testing.T) {
 				},
 			})
 
-			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken})
+			script, err := h.getJoinScript(t.Context(), scriptSettings{token: validToken})
 			require.NoError(t, err)
 
 			require.Contains(t, script, "UPDATER_STYLE='package'")
@@ -2057,7 +2057,7 @@ func TestJoinScript(t *testing.T) {
 			h := newAutoupdateTestHandler(t, autoupdateTestHandlerConfig{
 				token: token,
 			})
-			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken})
+			script, err := h.getJoinScript(t.Context(), scriptSettings{token: validToken})
 			require.NoError(t, err)
 			require.Contains(t, script, "UPDATER_STYLE='none'")
 			// Default based on current version is used instead
@@ -2087,7 +2087,7 @@ func TestJoinScript(t *testing.T) {
 			}
 			h := newAutoupdateTestHandler(t, config)
 
-			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken})
+			script, err := h.getJoinScript(t.Context(), scriptSettings{token: validToken})
 			require.NoError(t, err)
 
 			// list of packages must include the updater
@@ -2099,7 +2099,7 @@ func TestJoinScript(t *testing.T) {
 				rollout: testRollout,
 				token:   token,
 			})
-			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken})
+			script, err := h.getJoinScript(t.Context(), scriptSettings{token: validToken})
 			require.NoError(t, err)
 			require.Contains(t, script, "UPDATER_STYLE='binary'")
 			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", testRollout.Spec.TargetVersion))

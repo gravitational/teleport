@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -35,7 +34,7 @@ import (
 
 // TestSessionTrackerStorage tests backend operations with tracker resources.
 func TestSessionTrackerStorage(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
@@ -122,7 +121,7 @@ func TestSessionTrackerStorage(t *testing.T) {
 }
 
 func TestSessionTrackerImplicitExpiry(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{
 		Clock: clock,
@@ -191,7 +190,7 @@ func TestSessionTrackerImplicitExpiry(t *testing.T) {
 // have their TTL lowered to terminatedTTL instead of lingering around for an entire hour
 // after the session is completed.
 func TestSessionTrackerTermination(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	// Setup the backend and service

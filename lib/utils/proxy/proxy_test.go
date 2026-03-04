@@ -19,7 +19,6 @@
 package proxy
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -39,7 +38,7 @@ import (
 
 // TestDialProxy tests the dialing mechanism of HTTP and SOCKS proxies.
 func TestDialProxy(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	dest := "remote-ip:3080"
 
 	tlsConfig, err := fixtures.LocalTLSConfig()

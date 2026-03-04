@@ -679,7 +679,7 @@ func TestGetServers(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			srv, err := getServer(ctx, nil /*scopePin*/, tt.host, tt.port, tt.site)
@@ -967,7 +967,7 @@ func TestRouter_DialHost(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1060,7 +1060,7 @@ func TestRouter_DialSite(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1131,7 +1131,7 @@ func TestRouter_DialWindowsDesktop(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {

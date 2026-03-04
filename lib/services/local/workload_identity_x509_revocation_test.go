@@ -42,7 +42,7 @@ func setupWorkloadIdentityX509RevocationServiceTest(
 	t *testing.T,
 ) (context.Context, clockwork.Clock, *WorkloadIdentityX509RevocationService) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	mem, err := memory.New(memory.Config{
 		Context: ctx,

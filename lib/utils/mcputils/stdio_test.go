@@ -69,7 +69,7 @@ func (c *countingMessageWriter) WriteMessage(ctx context.Context, msg mcp.JSONRP
 // request: MCP client --> client message reader --> server message writer --> MCP server
 // response: MCP client <-- client message writer <-- server message reader <-- MCP server
 func TestStdioHelpers(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	// Pipes for hooking things up.

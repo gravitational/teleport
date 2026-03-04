@@ -102,7 +102,7 @@ func (m *mockClientI) GetDomainName(ctx context.Context) (string, error) {
 
 func TestGetUserClient(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var openCount atomic.Int32
 	sctx := SessionContext{

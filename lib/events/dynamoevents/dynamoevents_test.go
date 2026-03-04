@@ -76,7 +76,7 @@ func setupDynamoContext(t *testing.T) *dynamoContext {
 	}
 	fakeClock := clockwork.NewFakeClockAt(time.Now().UTC())
 
-	log, err := New(context.Background(), Config{
+	log, err := New(t.Context(), Config{
 		Tablename:          fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 		Clock:              fakeClock,
 		UIDGenerator:       utils.NewFakeUID(),
@@ -86,7 +86,7 @@ func setupDynamoContext(t *testing.T) *dynamoContext {
 	require.NoError(t, err)
 
 	// Clear all items in table.
-	err = log.deleteAllItems(context.Background())
+	err = log.deleteAllItems(t.Context())
 	require.NoError(t, err)
 
 	tt := &dynamoContext{
@@ -107,7 +107,7 @@ func setupDynamoContext(t *testing.T) *dynamoContext {
 
 func (tt *dynamoContext) Close(t *testing.T) {
 	if tt.log != nil {
-		err := tt.log.deleteTable(context.Background(), tt.log.Tablename, true)
+		err := tt.log.deleteTable(t.Context(), tt.log.Tablename, true)
 		require.NoError(t, err)
 	}
 }
@@ -144,7 +144,7 @@ func TestCheckpointOutsideOfWindow(t *testing.T) {
 	require.NoError(t, err)
 
 	results, nextKey, err := tt.SearchEvents(
-		context.Background(),
+		t.Context(),
 		events.SearchEventsRequest{
 			From:     time.Date(2021, 10, 10, 0, 0, 0, 0, time.UTC),
 			To:       time.Date(2021, 11, 10, 0, 0, 0, 0, time.UTC),
@@ -166,7 +166,7 @@ func TestSizeBreak(t *testing.T) {
 
 	const eventCount int = 10
 	for i := range eventCount {
-		err := tt.suite.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+		err := tt.suite.Log.EmitAuditEvent(t.Context(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: "bob"},
@@ -181,7 +181,7 @@ func TestSizeBreak(t *testing.T) {
 
 	var checkpoint string
 	gotEvents := make([]apievents.AuditEvent, 0)
-	ctx := context.Background()
+	ctx := t.Context()
 	for {
 		fetched, lCheckpoint, err := tt.log.SearchEvents(ctx, events.SearchEventsRequest{
 			From:     tt.suite.Clock.Now().UTC().Add(-time.Hour),
@@ -211,7 +211,7 @@ func TestSizeBreak(t *testing.T) {
 func TestIndexExists(t *testing.T) {
 	tt := setupDynamoContext(t)
 
-	hasIndex, err := tt.log.indexExists(context.Background(), tt.log.Tablename, indexTimeSearchV2)
+	hasIndex, err := tt.log.indexExists(t.Context(), tt.log.Tablename, indexTimeSearchV2)
 	require.NoError(t, err)
 	require.True(t, hasIndex)
 }
@@ -240,7 +240,7 @@ func TestLargeTableRetrieve(t *testing.T) {
 
 	const eventCount = 4000
 	for range eventCount {
-		err := tt.suite.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+		err := tt.suite.Log.EmitAuditEvent(t.Context(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: "bob"},
@@ -256,7 +256,7 @@ func TestLargeTableRetrieve(t *testing.T) {
 		history []apievents.AuditEvent
 		err     error
 	)
-	ctx := context.Background()
+	ctx := t.Context()
 	for range dynamoDBLargeQueryRetries {
 		time.Sleep(tt.suite.QueryDelay)
 
@@ -434,7 +434,7 @@ func TestFromWhereExpr(t *testing.T) {
 func TestEmitAuditEventForLargeEvents(t *testing.T) {
 	tt := setupDynamoContext(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	now := tt.suite.Clock.Now().UTC()
 	dbQueryEvent := &apievents.DatabaseSessionQuery{
 		Metadata: apievents.Metadata{
@@ -626,7 +626,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 // TestEmitSessionEventsSameIndex given events that share the same session ID
 // and index, the emit should succeed.
 func TestEmitSessionEventsSameIndex(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	tt := setupDynamoContext(t)
 	sessionID := session.NewID()
 
@@ -641,7 +641,7 @@ func TestEmitSessionEventsSameIndex(t *testing.T) {
 // This only works if tests run against a real DynamoDB instance.
 func TestSearchEventsLimitEndOfDay(t *testing.T) {
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tt := setupDynamoContext(t)
 	blob := "data"
 	const eventCount int = 10
@@ -779,7 +779,7 @@ func TestSearchEventsMultipleDays(t *testing.T) {
 // errors (large event size and already exists), the emit should handle them
 // and succeed on emitting the event when it does support trimming.
 func TestValidationErrorsHandling(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	tt := setupDynamoContext(t)
 	sessionID := session.NewID()
 	largeQuery := strings.Repeat("A", maxItemSize)
@@ -859,7 +859,7 @@ func TestEndpoints(t *testing.T) {
 			server := httptest.NewServer(mux)
 			t.Cleanup(server.Close)
 
-			b, err := New(context.Background(), Config{
+			b, err := New(t.Context(), Config{
 				Region:       "us-west-1",
 				Tablename:    "teleport-test",
 				UIDGenerator: utils.NewFakeUID(),
@@ -935,7 +935,7 @@ func TestCursorIteratorPrecision(t *testing.T) {
 		// For the first event, EventIndex will be zero, for the next ones it
 		// will be the unix nanosecond timestamp.
 		clock.Advance(time.Nanosecond)
-		err := tt.log.EmitAuditEvent(context.Background(), &apievents.Exec{
+		err := tt.log.EmitAuditEvent(t.Context(), &apievents.Exec{
 			UserMetadata: apievents.UserMetadata{User: "test-user"},
 			Metadata: apievents.Metadata{
 				ID:   id,

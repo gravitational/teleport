@@ -19,7 +19,6 @@
 package pgbk
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -65,7 +64,7 @@ func TestPostgresBackend(t *testing.T) {
 		var params backend.Params
 		require.NoError(t, json.Unmarshal([]byte(paramString), &params))
 
-		uut, err := NewFromParams(context.Background(), params)
+		uut, err := NewFromParams(t.Context(), params)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

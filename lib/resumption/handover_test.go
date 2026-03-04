@@ -83,7 +83,7 @@ func TestHandover(t *testing.T) {
 	redialConns := make(chan net.Conn)
 	defer close(redialConns)
 
-	wrappedNC, err := WrapSSHClientConn(context.Background(), originalNC, func(ctx context.Context, receivedHostID string) (net.Conn, error) {
+	wrappedNC, err := WrapSSHClientConn(t.Context(), originalNC, func(ctx context.Context, receivedHostID string) (net.Conn, error) {
 		if receivedHostID != hostID {
 			return nil, trace.BadParameter("expected hostID %q, got %q", hostID, receivedHostID)
 		}
@@ -180,7 +180,7 @@ func TestHandoverCleanup(t *testing.T) {
 	require.NoError(err)
 	require.NotEmpty(d)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const cleanupDelayZero time.Duration = 0
 	require.NoError(s.handoverCleanup(ctx, cleanupDelayZero))

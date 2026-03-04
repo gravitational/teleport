@@ -377,9 +377,9 @@ func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
 }
 
 func mustCreateAuthClientFormUserProfile(t *testing.T, tshHomePath, addr string) {
-	ctx := context.Background()
+	ctx := t.Context()
 	credentials := apiclient.LoadProfile(tshHomePath, "")
-	c, err := apiclient.New(context.Background(), apiclient.Config{
+	c, err := apiclient.New(t.Context(), apiclient.Config{
 		Addrs:                    []string{addr},
 		Credentials:              []apiclient.Credentials{credentials},
 		InsecureAddressDiscovery: true,
@@ -520,7 +520,7 @@ func setupWebAuthnChallengeSolver(device *mocku2f.Key, success bool) CliOption {
 }
 
 func registerDeviceForUser(t *testing.T, authServer *auth.Server, device *mocku2f.Key, username string, origin string) {
-	ctx := context.Background()
+	ctx := t.Context()
 	token, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})

@@ -19,7 +19,6 @@
 package local_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -41,7 +40,7 @@ import (
 func TestCreateCrownJewel(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getService(t)
 
 	obj, err := crownjewel.NewCrownJewel("obj", &crownjewelv1.CrownJewelSpec{
@@ -67,7 +66,7 @@ func TestCreateCrownJewel(t *testing.T) {
 func TestUpsertCrownJewel(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getService(t)
 
 	obj, err := crownjewel.NewCrownJewel("obj", &crownjewelv1.CrownJewelSpec{
@@ -94,7 +93,7 @@ func TestUpsertCrownJewel(t *testing.T) {
 func TestGetCrownJewel(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getService(t)
 	prepopulate(t, service, 1)
 
@@ -140,7 +139,7 @@ func TestGetCrownJewel(t *testing.T) {
 func TestUpdateCrownJewel(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getService(t)
 	prepopulate(t, service, 1)
 
@@ -164,7 +163,7 @@ func TestUpdateCrownJewel(t *testing.T) {
 func TestUpdateCrownJewelMissingRevision(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getService(t)
 	prepopulate(t, service, 1)
 
@@ -181,7 +180,7 @@ func TestUpdateCrownJewelMissingRevision(t *testing.T) {
 func TestDeleteCrownJewel(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getService(t)
 	prepopulate(t, service, 1)
 
@@ -218,7 +217,7 @@ func TestDeleteCrownJewel(t *testing.T) {
 func TestListCrownJewel(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	counts := []int{0, 1, 5, 10}
 	for _, count := range counts {
@@ -271,7 +270,7 @@ func TestListCrownJewel(t *testing.T) {
 
 func getService(t *testing.T) services.CrownJewels {
 	backend, err := memory.New(memory.Config{
-		Context: context.Background(),
+		Context: t.Context(),
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
@@ -298,7 +297,7 @@ func getObject(t *testing.T, index int) *crownjewelv1.CrownJewel {
 
 func prepopulate(t *testing.T, service services.CrownJewels, count int) {
 	for i := range count {
-		_, err := service.CreateCrownJewel(context.Background(), getObject(t, i))
+		_, err := service.CreateCrownJewel(t.Context(), getObject(t, i))
 		require.NoError(t, err)
 	}
 }

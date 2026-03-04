@@ -19,7 +19,6 @@
 package authz_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -129,7 +128,7 @@ func testIsDeviceVerified(t *testing.T, name string, fn func(ext *tlsca.DeviceEx
 
 func TestVerifyTLSUser(t *testing.T) {
 	runVerifyUserTest(t, "VerifyTLSUser", func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions, botName string) error {
-		return authz.VerifyTLSUser(context.Background(), dt, tlsca.Identity{
+		return authz.VerifyTLSUser(t.Context(), dt, tlsca.Identity{
 			Username:         "llama",
 			DeviceExtensions: *ext,
 			BotName:          botName,
@@ -139,7 +138,7 @@ func TestVerifyTLSUser(t *testing.T) {
 
 func TestVerifySSHUser(t *testing.T) {
 	runVerifyUserTest(t, "VerifySSHUser", func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions, botName string) error {
-		return authz.VerifySSHUser(context.Background(), dt, &sshca.Identity{
+		return authz.VerifySSHUser(t.Context(), dt, &sshca.Identity{
 			DeviceID:           ext.DeviceID,
 			DeviceAssetTag:     ext.AssetTag,
 			DeviceCredentialID: ext.CredentialID,

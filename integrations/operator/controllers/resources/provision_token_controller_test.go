@@ -179,7 +179,7 @@ func TestProvisionTokenUpdate(t *testing.T) {
 // tooling and required its own dedicated test.
 func TestProvisionTokenCreation_GitHubBot(t *testing.T) {
 	// Test setup
-	ctx := context.Background()
+	ctx := t.Context()
 	setup := testlib.SetupFakeKubeTestEnv(t)
 	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.TeleportClient))
 

@@ -80,7 +80,7 @@ func TestAccessListMembers(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	al, err := p.accessLists.UpsertAccessList(context.Background(), newAccessList(t, "access-list", clock))
+	al, err := p.accessLists.UpsertAccessList(t.Context(), newAccessList(t, "access-list", clock))
 	require.NoError(t, err)
 
 	testResources(t, p, testFuncs[*accesslist.AccessListMember]{
@@ -107,7 +107,7 @@ func TestAccessListMembers(t *testing.T) {
 	})
 
 	// Verify counting.
-	ctx := context.Background()
+	ctx := t.Context()
 	for i := range numMembers {
 		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, al.GetName(), strconv.Itoa(i)))
 		require.NoError(t, err)
@@ -224,7 +224,7 @@ func TestAccessListReviews(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	al, _, err := p.accessLists.UpsertAccessListWithMembers(context.Background(), newAccessList(t, "access-list", clock),
+	al, _, err := p.accessLists.UpsertAccessListWithMembers(t.Context(), newAccessList(t, "access-list", clock),
 		[]*accesslist.AccessListMember{
 			newAccessListMember(t, "access-list", "member1"),
 			newAccessListMember(t, "access-list", "member2"),
@@ -284,25 +284,26 @@ func TestAccessListReviews(t *testing.T) {
 	review2, _, err = p.accessLists.CreateAccessListReview(t.Context(), review2)
 	require.NoError(t, err)
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		out, next, err := p.cache.ListAccessListReviews(context.Background(), "fake-al-1", 100, "")
-		require.NoError(t, err)
-		require.Empty(t, next)
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		out, next, err := p.cache.ListAccessListReviews(ctx, "fake-al-1", 100, "")
+		require.NoError(ct, err)
+		require.Empty(ct, next)
 
-		require.Len(t, out, 1)
-		require.Empty(t, cmp.Diff([]*accesslist.Review{review1}, out,
+		require.Len(ct, out, 1)
+		require.Empty(ct, cmp.Diff([]*accesslist.Review{review1}, out,
 			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 			protocmp.Transform()),
 		)
 	}, 15*time.Second, 100*time.Millisecond)
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		out, next, err := p.cache.ListAccessListReviews(context.Background(), "fake-al-2", 100, "")
-		require.NoError(t, err)
-		require.Empty(t, next)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		out, next, err := p.cache.ListAccessListReviews(ctx, "fake-al-2", 100, "")
+		require.NoError(ct, err)
+		require.Empty(ct, next)
 
-		require.Len(t, out, 1)
-		require.Empty(t, cmp.Diff([]*accesslist.Review{review2}, out,
+		require.Len(ct, out, 1)
+		require.Empty(ct, cmp.Diff([]*accesslist.Review{review2}, out,
 			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 			protocmp.Transform()),
 		)
@@ -322,15 +323,15 @@ func TestAccessListReviews(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		count := p.cache.collections.accessListReviews.store.len()
 		_ = count
 
 		var start string
 		var out []*accesslist.Review
 		for range 10 {
-			page, next, err := p.cache.ListAccessListReviews(context.Background(), "access-list-test", 3, start)
-			require.NoError(t, err)
+			page, next, err := p.cache.ListAccessListReviews(ctx, "access-list-test", 3, start)
+			require.NoError(ct, err)
 
 			out = append(out, page...)
 			if next == "" {
@@ -338,12 +339,12 @@ func TestAccessListReviews(t *testing.T) {
 			}
 			start = next
 		}
-		require.Len(t, out, 10)
+		require.Len(ct, out, 10)
 	}, 15*time.Second, 100*time.Millisecond)
 
 	// access-list is a prefix of access-list-test, make sure no reviews are
 	// returned from the wrong list.
-	out, _, err := p.cache.ListAccessListReviews(context.Background(), "access-list", 100, "")
+	out, _, err := p.cache.ListAccessListReviews(t.Context(), "access-list", 100, "")
 	require.NoError(t, err)
 	assert.Empty(t, out)
 }
@@ -354,7 +355,7 @@ func TestListAccessListsV2(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	baseTime := time.Date(1984, 4, 4, 0, 0, 0, 0, time.UTC)
 	clock := clockwork.NewFakeClockAt(baseTime)
 
@@ -469,7 +470,7 @@ func TestCountAccessListMembersScoping(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	listA, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, "list-a", clock))
@@ -534,14 +535,14 @@ func TestCountAccessListMembersScoping(t *testing.T) {
 
 func TestGetAllAccessListMembers(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
 	clock := clockwork.NewFakeClock()
 
-	_, members, err := p.accessLists.UpsertAccessListWithMembers(context.Background(), newAccessList(t, "access-list", clock),
+	_, members, err := p.accessLists.UpsertAccessListWithMembers(t.Context(), newAccessList(t, "access-list", clock),
 		makeMembers(t, "access-list", 10),
 	)
 	require.NoError(t, err)

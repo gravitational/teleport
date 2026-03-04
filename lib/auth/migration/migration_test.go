@@ -157,7 +157,7 @@ func TestApply(t *testing.T) {
 			b, err := memory.New(memory.Config{EventsOff: true})
 			require.NoError(t, err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			if test.initialStatus != nil {
 				require.NoError(t, setCurrentMigration(ctx, b, *test.initialStatus))

@@ -66,7 +66,7 @@ func Test_gcpGKEClient_ListClusters(t *testing.T) {
 				},
 			},
 			args: args{
-				ctx:       context.Background(),
+				ctx:       t.Context(),
 				projectID: "p1",
 				location:  types.Wildcard,
 			},
@@ -109,7 +109,7 @@ func Test_gcpGKEClient_ListClusters(t *testing.T) {
 				},
 			},
 			args: args{
-				ctx:       context.Background(),
+				ctx:       t.Context(),
 				projectID: "p1",
 				location:  "region1",
 			},
@@ -144,7 +144,7 @@ func Test_gcpGKEClient_ListClusters(t *testing.T) {
 				},
 			},
 			args: args{
-				ctx:       context.Background(),
+				ctx:       t.Context(),
 				projectID: "p1",
 				location:  "region99",
 			},
@@ -301,7 +301,7 @@ func Test_gcpGKEClient_GetClusterRestConfig(t *testing.T) {
 				},
 			},
 			args: args{
-				ctx: context.Background(),
+				ctx: t.Context(),
 				cfg: ClusterDetails{
 					ProjectID: "p1",
 					Location:  "region1",
@@ -322,7 +322,7 @@ func Test_gcpGKEClient_GetClusterRestConfig(t *testing.T) {
 				},
 			},
 			args: args{
-				ctx: context.Background(),
+				ctx: t.Context(),
 				cfg: ClusterDetails{
 					ProjectID: "p1",
 					Location:  "region1",
@@ -348,7 +348,7 @@ func Test_gcpGKEClient_GetClusterRestConfig(t *testing.T) {
 				},
 			},
 			args: args{
-				ctx: context.Background(),
+				ctx: t.Context(),
 				cfg: ClusterDetails{
 					ProjectID: "p1",
 					Location:  "region1",
@@ -377,7 +377,7 @@ func Test_gcpGKEClient_GetClusterRestConfig(t *testing.T) {
 				},
 			},
 			args: args{
-				ctx: context.Background(),
+				ctx: t.Context(),
 				cfg: ClusterDetails{
 					ProjectID: "p1",
 					Location:  "region3",

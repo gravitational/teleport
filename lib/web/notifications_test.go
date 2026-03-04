@@ -36,7 +36,7 @@ import (
 )
 
 func TestNotifications(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	env := newWebPack(t, 1)

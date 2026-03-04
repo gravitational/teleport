@@ -69,7 +69,7 @@ func TestPluginStaticCredentials(t *testing.T) {
 	for _, cacheGet := range cacheGets {
 		t.Run(cacheGet.name, func(t *testing.T) {
 			// Empty backend before the test.
-			err := p.pluginStaticCredentials.DeleteAllPluginStaticCredentials(context.Background())
+			err := p.pluginStaticCredentials.DeleteAllPluginStaticCredentials(t.Context())
 			require.NoError(t, err)
 
 			testResources(t, p, testFuncs[types.PluginStaticCredentials]{

@@ -19,7 +19,6 @@
 package opsgenie
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -54,7 +53,7 @@ func TestCreateAlert(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	_, err = c.CreateAlert(context.Background(), "someRequestID", RequestData{
+	_, err = c.CreateAlert(t.Context(), "someRequestID", RequestData{
 		User:          "someUser",
 		Roles:         []string{"role1", "role2"},
 		RequestReason: "someReason",
@@ -102,7 +101,7 @@ func TestPostReviewNote(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = c.PostReviewNote(context.Background(), "someAlertID", types.AccessReview{
+	err = c.PostReviewNote(t.Context(), "someAlertID", types.AccessReview{
 		ProposedState: types.RequestState_APPROVED,
 		Author:        "someUser",
 		Reason:        "someReason",
@@ -137,7 +136,7 @@ func TestResolveAlert(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = c.ResolveAlert(context.Background(), "someAlertID", Resolution{
+	err = c.ResolveAlert(t.Context(), "someAlertID", Resolution{
 		Tag:    ResolvedApproved,
 		Reason: "someReason",
 	})
@@ -165,6 +164,6 @@ func TestCreateAlertError(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	_, err = c.CreateAlert(context.Background(), "someRequestID", RequestData{})
+	_, err = c.CreateAlert(t.Context(), "someRequestID", RequestData{})
 	assert.True(t, trace.IsAccessDenied(err))
 }

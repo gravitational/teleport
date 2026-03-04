@@ -19,7 +19,6 @@
 package enroll_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,7 +35,7 @@ func TestCeremony_RunAdmin(t *testing.T) {
 
 	devices := env.DevicesClient
 	fakeService := env.Service
-	ctx := context.Background()
+	ctx := t.Context()
 
 	nonExistingDev, err := testenv.NewFakeMacOSDevice()
 	require.NoError(t, err, "NewFakeMacOSDevice failed")
@@ -116,7 +115,7 @@ func TestCeremony_Run(t *testing.T) {
 	defer env.Close()
 
 	devices := env.DevicesClient
-	ctx := context.Background()
+	ctx := t.Context()
 
 	macOSDev1, err := testenv.NewFakeMacOSDevice()
 	require.NoError(t, err, "NewFakeMacOSDevice failed")

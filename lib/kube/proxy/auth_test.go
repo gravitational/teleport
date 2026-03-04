@@ -79,7 +79,7 @@ func TestCheckImpersonationPermissions(t *testing.T) {
 			allowedVerbs:     tt.allowedVerbs,
 			allowedResources: tt.allowedResources,
 		}
-		err := checkImpersonationPermissions(context.Background(), "test", mock)
+		err := checkImpersonationPermissions(t.Context(), "test", mock)
 		tt.errAssertion(t, err)
 	}
 }

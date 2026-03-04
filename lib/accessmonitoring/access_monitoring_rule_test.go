@@ -33,7 +33,7 @@ import (
 
 // TestEvaluateRules verifies proper rules validation.
 func TestEvaluateRules(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(cancel)
 
 	tests := []struct {

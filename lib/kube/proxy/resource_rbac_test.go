@@ -76,7 +76,7 @@ func TestListPodRBAC(t *testing.T) {
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
-		context.Background(),
+		t.Context(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -904,7 +904,7 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
-		context.Background(),
+		t.Context(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -1095,7 +1095,7 @@ func TestDeleteCRDCollectionRBAC(t *testing.T) {
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
-		context.Background(),
+		t.Context(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -1293,7 +1293,7 @@ func TestListClusterRoleRBAC(t *testing.T) {
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
-		context.Background(),
+		t.Context(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -1750,7 +1750,7 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 
 				list := tkm.NewTeleportRoleCRD()
 
-				if err := client.List(context.Background(), list); tt.want.wantListErr {
+				if err := client.List(t.Context(), list); tt.want.wantListErr {
 					require.Error(t, err)
 					return
 				} else {
@@ -1779,7 +1779,7 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 
 				get := tkm.NewTeleportRoleCRD()
 
-				if err := client.Get(context.Background(),
+				if err := client.Get(t.Context(),
 					kubetypes.NamespacedName{
 						Name:      testTeleportRoleName,
 						Namespace: testTeleportRoleNamespace,
@@ -1800,7 +1800,7 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 
 				dl := tkm.NewTeleportRoleCRD()
 
-				if err := client.DeleteAllOf(context.Background(),
+				if err := client.DeleteAllOf(t.Context(),
 					dl,
 				); tt.want.deleteAllTestResult != nil {
 					require.Error(t, err)
@@ -3394,7 +3394,7 @@ func newTestKubeCRDMock(t *testing.T, opts ...tkm.Option) (*runtime.Scheme, *Tes
 
 	// Creates a Kubernetes service with a configured cluster pointing to mock api server.
 	testCtx := SetupTestContext(
-		context.Background(),
+		t.Context(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -3788,7 +3788,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 
 			for i, list := range tt.args.crds {
 				list := list.Copy()
-				if err := client.List(context.Background(), list); tt.want.wantListErr[i] {
+				if err := client.List(t.Context(), list); tt.want.wantListErr[i] {
 					require.Error(t, err)
 					continue
 				} else {

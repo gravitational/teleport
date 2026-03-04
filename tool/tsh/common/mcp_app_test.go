@@ -112,7 +112,7 @@ func Test_fetchMCPServers(t *testing.T) {
 			}
 			tc.Tracer = tracing.NoopTracer(teleport.ComponentTSH)
 
-			mcpServers, err := fetchMCPServers(context.Background(), tc, fakeClient)
+			mcpServers, err := fetchMCPServers(t.Context(), tc, fakeClient)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantNames, slices.Collect(types.ResourceNames(mcpServers)))
 		})
@@ -177,7 +177,7 @@ func Test_mcpListCommand(t *testing.T) {
 			var buf bytes.Buffer
 			cf := tt.cf
 			cf.OverrideStdout = &buf
-			cf.Context = context.Background()
+			cf.Context = t.Context()
 
 			cmd := &mcpListCommand{
 				cf:            tt.cf,
@@ -320,7 +320,7 @@ func Test_mcpConfigCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			configPath := setupMockMCPConfig(t)
 			var buf bytes.Buffer
-			tt.cf.Context = context.Background()
+			tt.cf.Context = t.Context()
 			tt.cf.Proxy = "proxy:3080"
 			tt.cf.HomePath = t.TempDir()
 			tt.cf.OverrideStdout = &buf

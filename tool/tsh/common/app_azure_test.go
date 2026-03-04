@@ -19,7 +19,6 @@
 package common
 
 import (
-	"context"
 	"crypto/tls"
 	"encoding/hex"
 	"fmt"
@@ -80,7 +79,7 @@ func TestAzure(t *testing.T) {
 	run := func(args []string, opts ...CliOption) {
 		opts = append(opts, setHomePath(tmpHomePath))
 		opts = append(opts, setMockSSOLogin(authServer, user, connector.GetName()))
-		err := Run(context.Background(), args, opts...)
+		err := Run(t.Context(), args, opts...)
 		require.NoError(t, err)
 	}
 

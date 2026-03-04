@@ -63,7 +63,7 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	user := "fake@fake.com"
 	rc, err := as.AuthServer.GenerateAndUpsertRecoveryCodes(ctx, user)
@@ -116,7 +116,7 @@ func TestRecoveryCodeEventsEmitted(t *testing.T) {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
-	ctx := context.Background()
+	ctx := t.Context()
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	as.AuthServer.SetEmitter(mockEmitter)
 
@@ -146,7 +146,7 @@ func TestRecoveryCodeEventsEmitted(t *testing.T) {
 
 func TestStartAccountRecovery(t *testing.T) {
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	fakeClock := srv.Clock().(*clockwork.FakeClock)
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().SetEmitter(mockEmitter)
@@ -217,7 +217,7 @@ func TestStartAccountRecovery(t *testing.T) {
 
 func TestStartAccountRecovery_WithLock(t *testing.T) {
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
@@ -242,7 +242,7 @@ func TestStartAccountRecovery_WithLock(t *testing.T) {
 
 func TestStartAccountRecovery_UserErrors(t *testing.T) {
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
@@ -301,7 +301,7 @@ func TestStartAccountRecovery_UserErrors(t *testing.T) {
 
 func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	fakeClock := srv.Clock().(*clockwork.FakeClock)
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().SetEmitter(mockEmitter)
@@ -425,7 +425,7 @@ func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 
 func TestVerifyAccountRecovery_WithLock(t *testing.T) {
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().SetEmitter(mockEmitter)
 
@@ -456,7 +456,7 @@ func TestVerifyAccountRecovery_WithLock(t *testing.T) {
 
 func TestVerifyAccountRecovery_WithErrors(t *testing.T) {
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().SetEmitter(mockEmitter)
 
@@ -555,7 +555,7 @@ func TestVerifyAccountRecovery_WithErrors(t *testing.T) {
 
 func TestCompleteAccountRecovery(t *testing.T) {
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().SetEmitter(mockEmitter)
 
@@ -676,7 +676,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 
 func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().SetEmitter(mockEmitter)
 
@@ -855,7 +855,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 // TestAccountRecoveryFlow tests the recovery flow from start to finish.
 func TestAccountRecoveryFlow(t *testing.T) {
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
@@ -1029,7 +1029,7 @@ func TestGetAccountRecoveryToken(t *testing.T) {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cases := []struct {
 		name       string
@@ -1118,7 +1118,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
-	ctx := context.Background()
+	ctx := t.Context()
 
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
@@ -1216,7 +1216,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 
 func TestGetAccountRecoveryCodes(t *testing.T) {
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
@@ -1250,7 +1250,7 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 func triggerLoginLock(t *testing.T, srv *auth.Server, username string) {
 	for i := 1; i <= defaults.MaxLoginAttempts; i++ {
 		_, _, _, err := srv.AuthenticateUser(
-			context.Background(),
+			t.Context(),
 			authclient.AuthenticateUserRequest{
 				Username: username,
 				OTP:      &authclient.OTPCreds{},

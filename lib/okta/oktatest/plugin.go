@@ -19,7 +19,6 @@
 package oktatest
 
 import (
-	"context"
 	"testing" //nolint:depguard // this a shared test package
 
 	"github.com/google/uuid"
@@ -89,7 +88,7 @@ func NewPlugin(t *testing.T, opts ...pluginOption) *types.PluginV1 {
 // UpsertPlugin upserts Okta plugin ignoring the revision.
 func UpsertPlugin(t *testing.T, plugins services.Plugins, plugin *types.PluginV1) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	require.Equal(t, types.PluginTypeOkta, plugin.GetName())
 

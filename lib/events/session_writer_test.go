@@ -279,7 +279,7 @@ func TestSessionWriter(t *testing.T) {
 				},
 			})
 		})
-		defer test.Close(context.Background())
+		defer test.Close(t.Context())
 		inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
 			SessionID: string(test.sid),
 			// ClusterName explicitly empty in parameters
@@ -290,7 +290,7 @@ func TestSessionWriter(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, test.writer.RecordEvent(test.ctx, event))
 		}
-		test.Close(context.Background())
+		test.Close(t.Context())
 		require.Len(t, inEvents, len(emittedEvents))
 		for _, event := range emittedEvents {
 			require.Equal(t, "cluster", event.GetClusterName())

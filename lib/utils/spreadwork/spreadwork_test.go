@@ -31,7 +31,7 @@ import (
 
 func TestApplyOverTime(t *testing.T) {
 	t.Run("all items at once", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		fakeClock := clockwork.NewFakeClock()
 		items := []string{"1", "2", "3", "4", "5", "6"}
 		conf := ApplyOverTimeConfig{
@@ -54,7 +54,7 @@ func TestApplyOverTime(t *testing.T) {
 	})
 
 	t.Run("items processed in one chunks with some time left", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		fakeClock := clockwork.NewFakeClock()
 		items := []string{"1", "2", "3", "4", "5", "6"}
 		conf := ApplyOverTimeConfig{
@@ -79,7 +79,7 @@ func TestApplyOverTime(t *testing.T) {
 	})
 
 	t.Run("items processed in two chunks", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		fakeClock := clockwork.NewFakeClock()
 		items := []string{"1", "2", "3", "4", "5", "6"}
 		conf := ApplyOverTimeConfig{
@@ -105,7 +105,7 @@ func TestApplyOverTime(t *testing.T) {
 	})
 
 	t.Run("items processed in 3 chunks with uneven items", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		fakeClock := clockwork.NewFakeClock()
 		items := []string{"1", "2", "3", "4", "5", "6", "7", "8"}
 		conf := ApplyOverTimeConfig{
@@ -131,7 +131,7 @@ func TestApplyOverTime(t *testing.T) {
 	})
 
 	t.Run("cancel processing after three items", func(t *testing.T) {
-		ctx, cancelFn := context.WithCancel(context.Background())
+		ctx, cancelFn := context.WithCancel(t.Context())
 		fakeClock := clockwork.NewFakeClock()
 		items := []string{"1", "2", "3", "4", "5", "6", "7", "8"}
 		conf := ApplyOverTimeConfig{

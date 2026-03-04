@@ -84,7 +84,7 @@ func TestGetAuthPreference(t *testing.T) {
 			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultAuthPreference(types.DefaultAuthPreference()))
 			require.NoError(t, err, "creating test service")
 
-			got, err := env.GetAuthPreference(context.Background(), &clusterconfigpb.GetAuthPreferenceRequest{})
+			got, err := env.GetAuthPreference(t.Context(), &clusterconfigpb.GetAuthPreferenceRequest{})
 			test.assertion(t, err)
 			if err == nil {
 				require.Empty(t, cmp.Diff(types.DefaultAuthPreference(), got, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -195,7 +195,7 @@ func TestUpdateAuthPreference(t *testing.T) {
 				test.preference(pref)
 			}
 
-			updated, err := env.UpdateAuthPreference(context.Background(), &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: pref.(*types.AuthPreferenceV2)})
+			updated, err := env.UpdateAuthPreference(t.Context(), &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: pref.(*types.AuthPreferenceV2)})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -318,7 +318,7 @@ func TestUpsertAuthPreference(t *testing.T) {
 				test.preference(pref)
 			}
 
-			updated, err := env.UpsertAuthPreference(context.Background(), &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: pref.(*types.AuthPreferenceV2)})
+			updated, err := env.UpsertAuthPreference(t.Context(), &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: pref.(*types.AuthPreferenceV2)})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -408,7 +408,7 @@ func TestResetAuthPreference(t *testing.T) {
 			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultAuthPreference(p))
 			require.NoError(t, err, "creating test service")
 
-			reset, err := env.ResetAuthPreference(context.Background(), &clusterconfigpb.ResetAuthPreferenceRequest{})
+			reset, err := env.ResetAuthPreference(t.Context(), &clusterconfigpb.ResetAuthPreferenceRequest{})
 			test.assertion(t, reset, err)
 		})
 	}
@@ -507,7 +507,7 @@ func TestCreateClusterNetworkingConfig(t *testing.T) {
 				test.config(cfg)
 			}
 
-			created, err := env.CreateClusterNetworkingConfig(context.Background(), cfg)
+			created, err := env.CreateClusterNetworkingConfig(t.Context(), cfg)
 			test.assertion(t, created, err)
 		})
 	}
@@ -549,7 +549,7 @@ func TestGetClusterNetworkingConfig(t *testing.T) {
 			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultClusterNetworkingConfig(types.DefaultClusterNetworkingConfig()))
 			require.NoError(t, err, "creating test service")
 
-			got, err := env.GetClusterNetworkingConfig(context.Background(), &clusterconfigpb.GetClusterNetworkingConfigRequest{})
+			got, err := env.GetClusterNetworkingConfig(t.Context(), &clusterconfigpb.GetClusterNetworkingConfigRequest{})
 			test.assertion(t, err)
 			if err == nil {
 				require.Empty(t, cmp.Diff(types.DefaultClusterNetworkingConfig(), got, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -752,7 +752,7 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				test.config(cfg)
 			}
 
-			updated, err := env.UpdateClusterNetworkingConfig(context.Background(), &clusterconfigpb.UpdateClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg.(*types.ClusterNetworkingConfigV2)})
+			updated, err := env.UpdateClusterNetworkingConfig(t.Context(), &clusterconfigpb.UpdateClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg.(*types.ClusterNetworkingConfigV2)})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -862,7 +862,7 @@ func TestUpsertClusterNetworkingConfig(t *testing.T) {
 				test.config(cfg)
 			}
 
-			updated, err := env.UpsertClusterNetworkingConfig(context.Background(), &clusterconfigpb.UpsertClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg.(*types.ClusterNetworkingConfigV2)})
+			updated, err := env.UpsertClusterNetworkingConfig(t.Context(), &clusterconfigpb.UpsertClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg.(*types.ClusterNetworkingConfigV2)})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -952,7 +952,7 @@ func TestResetClusterNetworkingConfig(t *testing.T) {
 			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultClusterNetworkingConfig(cfg))
 			require.NoError(t, err, "creating test service")
 
-			reset, err := env.ResetClusterNetworkingConfig(context.Background(), &clusterconfigpb.ResetClusterNetworkingConfigRequest{})
+			reset, err := env.ResetClusterNetworkingConfig(t.Context(), &clusterconfigpb.ResetClusterNetworkingConfigRequest{})
 			test.assertion(t, reset, err)
 		})
 	}
@@ -1010,7 +1010,7 @@ func TestCreateSessionRecordingConfig(t *testing.T) {
 			env, err := newTestEnv(opts...)
 			require.NoError(t, err, "creating test service")
 
-			created, err := env.CreateSessionRecordingConfig(context.Background(), types.DefaultSessionRecordingConfig())
+			created, err := env.CreateSessionRecordingConfig(t.Context(), types.DefaultSessionRecordingConfig())
 			test.assertion(t, created, err)
 		})
 	}
@@ -1052,7 +1052,7 @@ func TestGetSessionRecordingConfig(t *testing.T) {
 			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultRecordingConfig(types.DefaultSessionRecordingConfig()))
 			require.NoError(t, err, "creating test service")
 
-			got, err := env.GetSessionRecordingConfig(context.Background(), &clusterconfigpb.GetSessionRecordingConfigRequest{})
+			got, err := env.GetSessionRecordingConfig(t.Context(), &clusterconfigpb.GetSessionRecordingConfigRequest{})
 			test.assertion(t, err)
 			if err == nil {
 				require.Empty(t, cmp.Diff(types.DefaultSessionRecordingConfig(), got, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -1129,7 +1129,7 @@ func TestUpdateSessionRecordingConfig(t *testing.T) {
 				test.config(cfg)
 			}
 
-			updated, err := env.UpdateSessionRecordingConfig(context.Background(), &clusterconfigpb.UpdateSessionRecordingConfigRequest{SessionRecordingConfig: cfg.(*types.SessionRecordingConfigV2)})
+			updated, err := env.UpdateSessionRecordingConfig(t.Context(), &clusterconfigpb.UpdateSessionRecordingConfigRequest{SessionRecordingConfig: cfg.(*types.SessionRecordingConfigV2)})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -1218,7 +1218,7 @@ func TestUpsertSessionRecordingConfig(t *testing.T) {
 				test.config(cfg)
 			}
 
-			updated, err := env.UpsertSessionRecordingConfig(context.Background(), &clusterconfigpb.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: cfg.(*types.SessionRecordingConfigV2)})
+			updated, err := env.UpsertSessionRecordingConfig(t.Context(), &clusterconfigpb.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: cfg.(*types.SessionRecordingConfigV2)})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -1308,7 +1308,7 @@ func TestResetSessionRecordingConfig(t *testing.T) {
 			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultRecordingConfig(cfg))
 			require.NoError(t, err, "creating test service")
 
-			reset, err := env.ResetSessionRecordingConfig(context.Background(), &clusterconfigpb.ResetSessionRecordingConfigRequest{})
+			reset, err := env.ResetSessionRecordingConfig(t.Context(), &clusterconfigpb.ResetSessionRecordingConfigRequest{})
 			test.assertion(t, reset, err)
 		})
 	}
@@ -1358,7 +1358,7 @@ func (failingConfigService) UpsertSessionRecordingConfig(ctx context.Context, pr
 }
 
 func TestAuditEventsEmitted(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("successful events", func(t *testing.T) {
 		env, err := newTestEnv(
@@ -1962,7 +1962,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			env, err := newTestEnv(withAuthorizer(authorizer), withAccessGraphConfig(test.accessGraphConfig), withAccessGraphSettings(test.accessGraphSettings))
 			require.NoError(t, err, "creating test service")
 
-			got, err := env.GetClusterAccessGraphConfig(context.Background(), &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
+			got, err := env.GetClusterAccessGraphConfig(t.Context(), &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
 			test.errorAssertion(t, err)
 
 			require.Empty(t, cmp.Diff(test.responseAssertion, got, protocmp.Transform()))
@@ -2012,7 +2012,7 @@ func TestGetAccessGraphSettings(t *testing.T) {
 			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphSettings(settings))
 			require.NoError(t, err, "creating test service")
 
-			got, err := env.GetAccessGraphSettings(context.Background(), &clusterconfigpb.GetAccessGraphSettingsRequest{})
+			got, err := env.GetAccessGraphSettings(t.Context(), &clusterconfigpb.GetAccessGraphSettingsRequest{})
 			test.assertion(t, err)
 			if err == nil {
 				require.Empty(t, cmp.Diff(settings, got, cmpopts.IgnoreFields(types.Metadata{}, "Revision"), protocmp.Transform()))
@@ -2129,7 +2129,7 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 				test.mutator(pref)
 			}
 
-			updated, err := env.UpdateAccessGraphSettings(context.Background(), &clusterconfigpb.UpdateAccessGraphSettingsRequest{AccessGraphSettings: pref})
+			updated, err := env.UpdateAccessGraphSettings(t.Context(), &clusterconfigpb.UpdateAccessGraphSettingsRequest{AccessGraphSettings: pref})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -2255,7 +2255,7 @@ func TestUpsertAccessGraphSettings(t *testing.T) {
 				test.mutator(pref)
 			}
 
-			updated, err := env.UpsertAccessGraphSettings(context.Background(), &clusterconfigpb.UpsertAccessGraphSettingsRequest{AccessGraphSettings: pref})
+			updated, err := env.UpsertAccessGraphSettings(t.Context(), &clusterconfigpb.UpsertAccessGraphSettingsRequest{AccessGraphSettings: pref})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -2340,7 +2340,7 @@ func TestResetAccessGraphSettings(t *testing.T) {
 			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphSettings(settings))
 			require.NoError(t, err, "creating test service")
 
-			reset, err := env.ResetAccessGraphSettings(context.Background(), &clusterconfigpb.ResetAccessGraphSettingsRequest{})
+			reset, err := env.ResetAccessGraphSettings(t.Context(), &clusterconfigpb.ResetAccessGraphSettingsRequest{})
 			test.assertion(t, reset, err)
 		})
 	}
@@ -2396,7 +2396,7 @@ func TestGetClusterName(t *testing.T) {
 			env, err := newTestEnv(withAuthorizer(test.authorizer), withClusterName(defaultCn))
 			require.NoError(t, err, "creating test service")
 
-			cn, err := env.GetClusterName(context.Background(), &clusterconfigpb.GetClusterNameRequest{})
+			cn, err := env.GetClusterName(t.Context(), &clusterconfigpb.GetClusterNameRequest{})
 			test.assertion(t, cn, err)
 		})
 	}

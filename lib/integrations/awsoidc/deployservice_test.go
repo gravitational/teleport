@@ -19,7 +19,6 @@
 package awsoidc
 
 import (
-	"context"
 	"regexp"
 	"testing"
 
@@ -217,7 +216,7 @@ func TestNormalizeECSResourceName(t *testing.T) {
 }
 
 func TestUpsertTask(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mockClient := &mockDeployServiceClient{
 		clusters:        map[string]*ecstypes.Cluster{},

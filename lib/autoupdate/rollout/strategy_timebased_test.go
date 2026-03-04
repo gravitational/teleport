@@ -19,7 +19,6 @@
 package rollout
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -42,7 +41,7 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 	canStartToday := everyWeekday
 	cannotStartToday := everyWeekdayButSunday
 	lastUpdate := timestamppb.New(clock.Now().Add(-5 * time.Minute))
-	ctx := context.Background()
+	ctx := t.Context()
 
 	startVersion := "1.2.3"
 	targetVersion := "1.2.4"

@@ -165,7 +165,7 @@ func TestDNSErrors(t *testing.T) {
 	}
 
 	start := time.Now()
-	_, err := s.lookupDesktop(context.Background(), "$invalid hostname")
+	_, err := s.lookupDesktop(t.Context(), "$invalid hostname")
 	require.Less(t, time.Since(start), dnsQueryTimeout-1*time.Second)
 	require.Error(t, err)
 }
@@ -195,7 +195,7 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 
 	dynamicWindowsClient := client.DynamicDesktopClient()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	for _, testCase := range []struct {
@@ -331,7 +331,7 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 
 	dynamicWindowsClient := client.DynamicDesktopClient()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	clock := clockwork.NewFakeClock()

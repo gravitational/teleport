@@ -19,7 +19,6 @@
 package embeddedtbot
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -41,7 +40,7 @@ import (
 func TestBotJoinAuth(t *testing.T) {
 	// Configure and start Teleport server
 	clusterName := "root.example.com"
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logtest.NewLogger()
 	teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: clusterName,

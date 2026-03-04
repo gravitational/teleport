@@ -47,7 +47,7 @@ import (
 // TestAuthTokens verifies that proper IAM auth tokens are used when connecting
 // to cloud databases such as RDS, Redshift, Cloud SQL.
 func TestAuthTokens(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t)
 	withDBs := []withDatabaseOption{
 		withRDSPostgres("postgres-rds-correct-token", rdsAuthToken),
@@ -463,7 +463,7 @@ func (a *testAuth) WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) 
 func TestMongoDBAtlas(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t,
 		withAtlasMongo("iam-auth", atlasAuthUser, atlasAuthSessionToken),
 		withAtlasMongo("certs-auth", "", ""),

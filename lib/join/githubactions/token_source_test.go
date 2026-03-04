@@ -19,7 +19,6 @@
 package githubactions
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -54,7 +53,7 @@ func TestIDTokenSource_GetIDToken(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	got, err := source.GetIDToken(ctx)
 	require.NoError(t, err)
 	require.Equal(t, idToken, got)

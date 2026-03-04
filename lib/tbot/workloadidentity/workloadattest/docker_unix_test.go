@@ -21,7 +21,6 @@
 package workloadattest
 
 import (
-	"context"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -94,7 +93,7 @@ func TestDockerAttestor(t *testing.T) {
 		),
 	)
 
-	attrs, err := attestor.Attest(context.Background(), 1234)
+	attrs, err := attestor.Attest(t.Context(), 1234)
 	require.NoError(t, err)
 
 	expected := &workloadidentityv1.WorkloadAttrsDocker{

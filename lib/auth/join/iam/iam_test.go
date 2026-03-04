@@ -32,7 +32,7 @@ import (
 )
 
 func TestCreateSignedSTSIdentityRequest(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Setenv("AWS_ACCESS_KEY_ID", "FAKE_KEY_ID")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "FAKE_KEY")

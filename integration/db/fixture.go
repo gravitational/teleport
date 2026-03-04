@@ -246,7 +246,7 @@ func WithLeafConfig(fn func(*servicecfg.Config)) TestOptionFunc {
 }
 
 func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
-	ctx := context.Background()
+	ctx := t.Context()
 	var opts testOptions
 	for _, opt := range options {
 		opt(&opts)
@@ -379,7 +379,7 @@ func (p *DatabasePack) setupUsersAndRoles(t *testing.T) {
 
 	p.Root.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
 	p.Root.role.SetDatabaseNames(types.Allow, []string{types.Wildcard})
-	p.Root.role, err = p.Root.Cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.Root.role)
+	p.Root.role, err = p.Root.Cluster.Process.GetAuthServer().UpsertRole(t.Context(), p.Root.role)
 	require.NoError(t, err)
 
 	p.Leaf.User, p.Leaf.role, err = authtest.CreateUserAndRole(p.Root.Cluster.Process.GetAuthServer(), "leaf-user", nil, nil)
@@ -387,7 +387,7 @@ func (p *DatabasePack) setupUsersAndRoles(t *testing.T) {
 
 	p.Leaf.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
 	p.Leaf.role.SetDatabaseNames(types.Allow, []string{types.Wildcard})
-	p.Leaf.role, err = p.Leaf.Cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.Leaf.role)
+	p.Leaf.role, err = p.Leaf.Cluster.Process.GetAuthServer().UpsertRole(t.Context(), p.Leaf.role)
 	require.NoError(t, err)
 }
 
@@ -399,7 +399,7 @@ func (p *DatabasePack) WaitForLeaf(t *testing.T) {
 	accessPoint, err := cluster.CachingAccessPoint()
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	ticker := time.NewTicker(500 * time.Millisecond)

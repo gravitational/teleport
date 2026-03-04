@@ -183,7 +183,7 @@ func otherAdminStates(states []authz.AdminActionAuthState) []authz.AdminActionAu
 func callMethod(t *testing.T, service *Service, method string) error {
 	for _, desc := range crownjewelv1.CrownJewelService_ServiceDesc.Methods {
 		if desc.MethodName == method {
-			_, err := desc.Handler(service, context.Background(), func(_ any) error { return nil }, nil)
+			_, err := desc.Handler(service, t.Context(), func(_ any) error { return nil }, nil)
 			return err
 		}
 	}

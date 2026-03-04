@@ -149,7 +149,7 @@ func TestFirestoreDB(t *testing.T) {
 		// in a FakeClock interface that sleeps instead of instantly advancing.
 		sleepingClock := test.BlockingFakeClock{Clock: clock}
 
-		uut, err := New(context.Background(), cfg, Options{Clock: sleepingClock})
+		uut, err := New(t.Context(), cfg, Options{Clock: sleepingClock})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -164,7 +164,7 @@ func TestFirestoreDB(t *testing.T) {
 func newBackend(t *testing.T, cfg map[string]any) *Backend {
 	clock := clockwork.NewFakeClock()
 
-	uut, err := New(context.Background(), cfg, Options{Clock: clock})
+	uut, err := New(t.Context(), cfg, Options{Clock: clock})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, uut.Close()) })
 
@@ -186,7 +186,7 @@ func TestReadLegacyRecord(t *testing.T) {
 
 	// Write using legacy record format, emulating data written by an older
 	// version of this backend.
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := legacyRecord{
 		Key:       item.Key.String(),
 		Value:     string(item.Value),
@@ -221,7 +221,7 @@ func TestReadBrokenRecord(t *testing.T) {
 
 	uut := newBackend(t, cfg)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	prefix := test.MakePrefix()
 
@@ -411,7 +411,7 @@ func TestDeleteDocuments(t *testing.T) {
 				require.NoError(t, <-errCh)
 			})
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
 
 			conn, err := grpc.Dial(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -465,11 +465,11 @@ func TestFirestoreMigration(t *testing.T) {
 
 	clock := clockwork.NewRealClock()
 
-	uut, err := New(context.Background(), cfg, Options{Clock: clock})
+	uut, err := New(t.Context(), cfg, Options{Clock: clock})
 	require.NoError(t, err)
 
 	// Empty the collection to make sure previous tests don't interfere
-	snapshot, err := uut.svc.Collection(uut.CollectionName).Documents(context.Background()).GetAll()
+	snapshot, err := uut.svc.Collection(uut.CollectionName).Documents(t.Context()).GetAll()
 	require.NoError(t, err)
 	require.NoError(t, uut.deleteDocuments(snapshot))
 
@@ -487,7 +487,7 @@ func TestFirestoreMigration(t *testing.T) {
 		key := fmt.Appendf(nil, "test-%d", i)
 		_, err = uut.svc.Collection(uut.CollectionName).
 			Doc(base64.URLEncoding.EncodeToString(key)).
-			Set(context.Background(), &badRecord{
+			Set(t.Context(), &badRecord{
 				Key:        key,
 				Timestamp:  clock.Now().UTC().Unix(),
 				Expires:    clock.Now().Add(time.Minute).UTC().Unix(),
@@ -504,7 +504,7 @@ func TestFirestoreMigration(t *testing.T) {
 	docs, err := uut.svc.Collection(uut.CollectionName).
 		Where(keyDocProperty, ">", byteAlias("/")).
 		Limit(100).
-		Documents(context.Background()).GetAll()
+		Documents(t.Context()).GetAll()
 	require.NoError(t, err)
 
 	require.Empty(t, docs, "expected all incorrect key types to be migrated")
@@ -512,7 +512,7 @@ func TestFirestoreMigration(t *testing.T) {
 	// Ensure that all incorrect key types have been migrated to the correct key type []byte
 	docs, err = uut.svc.Collection(uut.CollectionName).
 		Where(keyDocProperty, ">", []byte("/")).
-		Documents(context.Background()).GetAll()
+		Documents(t.Context()).GetAll()
 	require.NoError(t, err)
 	require.Len(t, docs, 301)
 }

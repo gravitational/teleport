@@ -19,7 +19,6 @@
 package auth_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -33,7 +32,7 @@ import (
 
 func TestServerAuthenticateUserUserAgentTrim(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	emitter := &eventstest.MockRecorderEmitter{}
 	r := authclient.AuthenticateUserRequest{
 		ClientMetadata: &authclient.ForwardedClientMetadata{

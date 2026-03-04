@@ -17,7 +17,6 @@
 package service
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 
@@ -83,7 +82,7 @@ func TestPyroscopeConfig(t *testing.T) {
 			for k, v := range tt.envVars {
 				t.Setenv(k, v)
 			}
-			got, err := createPyroscopeConfig(context.Background(), slog.Default(), tt.address)
+			got, err := createPyroscopeConfig(t.Context(), slog.Default(), tt.address)
 			tt.errorAssertion(t, err)
 
 			require.Equal(t, tt.want.ProfileTypes, got.ProfileTypes)

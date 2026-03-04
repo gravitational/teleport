@@ -127,7 +127,7 @@ func TestAccessListReminders_Single(t *testing.T) {
 	}
 	app := common.NewApp(&mockPluginConfig{client: authServer, bot: bot}, "test-plugin")
 	app.Clock = clock
-	ctx := context.Background()
+	ctx := t.Context()
 	go func() {
 		app.Run(ctx)
 	}()
@@ -218,7 +218,7 @@ func TestAccessListReminders_NoneForNonReviewable(t *testing.T) {
 	}
 	app := common.NewApp(&mockPluginConfig{client: authServer, bot: bot}, "test-plugin")
 	app.Clock = clock
-	ctx := context.Background()
+	ctx := t.Context()
 	go func() {
 		app.Run(ctx)
 	}()
@@ -285,7 +285,7 @@ func TestAccessListReminders_Batched(t *testing.T) {
 	}
 	app := common.NewApp(&mockPluginConfig{client: authServer, bot: bot}, "test-plugin")
 	app.Clock = clock
-	ctx := context.Background()
+	ctx := t.Context()
 	go func() {
 		app.Run(ctx)
 	}()
@@ -380,7 +380,7 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 	}
 	app := common.NewApp(&mockPluginConfig{client: client, bot: bot}, "test-plugin")
 	app.Clock = clock
-	ctx := context.Background()
+	ctx := t.Context()
 	go func() {
 		app.Run(ctx)
 	}()
@@ -426,7 +426,7 @@ func TestAccessListReminders_NotImplemented(t *testing.T) {
 	}
 	app := common.NewApp(&mockPluginConfig{client: client, bot: bot}, "test-plugin")
 	app.Clock = clock
-	ctx := context.Background()
+	ctx := t.Context()
 
 	go func() {
 		app.Run(ctx)
@@ -456,7 +456,7 @@ func advanceAndLookForRecipients(t *testing.T,
 	accessLists []*accesslist.AccessList,
 	recipients ...string) {
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, accessList := range accessLists {
 		_, err := alSvc.UpsertAccessList(ctx, accessList)

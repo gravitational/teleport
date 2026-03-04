@@ -127,7 +127,7 @@ func TestUseOrCreateCredentials(t *testing.T) {
 			provider.certGetter = tt.certGetter
 			provider.runner = tt.commandRunner
 
-			clt, err := provider.CreateClient(context.Background(), "alice")
+			clt, err := provider.CreateClient(t.Context(), "alice")
 			if tt.wantErrMessage == "" {
 				require.NoError(t, err)
 				require.NotNil(t, clt)
@@ -195,6 +195,6 @@ func TestGetCertificate(t *testing.T) {
 		ldapConnector: &mockConnector{},
 	}
 
-	_, err := getter.getCertificate(context.Background(), "alice")
+	_, err := getter.getCertificate(t.Context(), "alice")
 	require.NoError(t, err)
 }

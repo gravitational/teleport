@@ -158,7 +158,7 @@ func StreamWithPermutedParameters(t *testing.T, handler events.MultipartHandler,
 // necessary in order to prevent a bug where agents might think they have failed to create a multipart
 // upload and create a new one, resulting in duplicate recordings overwriiting each other.
 func StreamEmpty(t *testing.T, handler events.MultipartHandler) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	sid := session.NewID()

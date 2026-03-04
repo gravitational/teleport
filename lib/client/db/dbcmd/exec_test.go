@@ -19,7 +19,6 @@
 package dbcmd
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -114,7 +113,7 @@ func TestCLICommandBuilderGetExecCommand(t *testing.T) {
 			c, err := NewCmdBuilder(tc, profile, database, "root", getDatabaseFunc, opts...)
 			require.NoError(t, err)
 			c.uid = utils.NewFakeUID()
-			got, err := c.GetExecCommand(context.Background(), "select 1")
+			got, err := c.GetExecCommand(t.Context(), "select 1")
 			if tt.wantErr {
 				require.Error(t, err)
 				return

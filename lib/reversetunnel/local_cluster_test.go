@@ -54,7 +54,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 	const clockBlockers = 3 //periodic ticker + heart beat timer + resync ticker
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	clock := clockwork.NewFakeClock()
@@ -150,7 +150,7 @@ func TestLocalClusterOverlap(t *testing.T) {
 
 	srv := &server{
 		Config:          Config{Clock: clockwork.NewFakeClock()},
-		ctx:             context.Background(),
+		ctx:             t.Context(),
 		localAuthClient: &mockLocalClusterClient{},
 	}
 

@@ -75,7 +75,7 @@ func TestJoinOpenSSH(t *testing.T) {
 	require.NoError(t, err)
 	defer rc.StopAll()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	opensshConfigPath := filepath.Join(testDir, "sshd_config")
 	f, err := os.Create(opensshConfigPath)

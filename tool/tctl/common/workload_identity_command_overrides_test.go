@@ -382,7 +382,7 @@ func runFakeAPIServer(t *testing.T, register func(*grpc.Server)) *authclient.Cli
 
 	go srv.Serve(l)
 
-	clt, err := apiclient.New(context.Background(), apiclient.Config{
+	clt, err := apiclient.New(t.Context(), apiclient.Config{
 		Addrs: []string{l.Addr().String()},
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(&tls.Config{

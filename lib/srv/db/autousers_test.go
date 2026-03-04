@@ -19,7 +19,6 @@
 package db
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -40,7 +39,7 @@ import (
 
 // TestAutoUsersPostgres verifies automatic database user creation for Postgres.
 func TestAutoUsersPostgres(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	for name, tc := range map[string]struct {
 		mode          types.CreateDatabaseUserMode
 		databaseRoles []string
@@ -238,7 +237,7 @@ func requirePostgresConnection(t *testing.T, parametersCh chan map[string]string
 }
 
 func TestAutoUsersMySQL(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	for name, tc := range map[string]struct {
 		mode                types.CreateDatabaseUserMode
 		databaseRoles       []string
@@ -385,7 +384,7 @@ func TestAutoUsersMySQL(t *testing.T) {
 
 func TestAutoUsersMongoDB(t *testing.T) {
 	t.Setenv("TELEPORT_DISABLE_MONGODB_ADMIN_CLIENT_CACHE", "true")
-	ctx := context.Background()
+	ctx := t.Context()
 	username := "alice"
 
 	tests := []struct {

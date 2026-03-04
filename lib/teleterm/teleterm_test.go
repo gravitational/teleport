@@ -123,7 +123,7 @@ func TestStart(t *testing.T) {
 				InstallationID: "foo",
 			}
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
 			serveErr := make(chan error)
@@ -202,7 +202,7 @@ func dialTCP(t *testing.T, addr utils.NetAddr, certsDir string, createClientTLSC
 		Config: createClientTLSConfigFunc(t, certsDir),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(t.Context(), timeout)
 	t.Cleanup(func() { cancel() })
 
 	conn, err := dialer.DialContext(ctx, addr.AddrNetwork, addr.Addr)

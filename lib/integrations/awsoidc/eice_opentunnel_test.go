@@ -140,7 +140,7 @@ func TestOpenTunnelRequest(t *testing.T) {
 }
 
 func TestOpenTunnelEC2(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// ec2Listener emulates the TCP server on the EC2 instance
 	// This listener will receive a connection from the EC2 Instance Connect Endpoint service

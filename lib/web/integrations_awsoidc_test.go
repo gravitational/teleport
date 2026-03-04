@@ -54,7 +54,7 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 
 	// Unauthenticated client for script downloading.
@@ -184,7 +184,7 @@ func TestBuildEC2SSMIAMScript(t *testing.T) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 
 	proxyPublicURL := env.proxies[0].webURL.String()
@@ -549,7 +549,7 @@ func TestBuildEKSConfigureIAMScript(t *testing.T) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 
 	// Unauthenticated client for script downloading.
@@ -652,7 +652,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxyPublicURL := env.proxies[0].webURL
 
@@ -783,7 +783,7 @@ func TestBuildListDatabasesConfigureIAMScript(t *testing.T) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 
 	// Unauthenticated client for script downloading.
@@ -882,7 +882,7 @@ func TestBuildListDatabasesConfigureIAMScript(t *testing.T) {
 
 func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	matchRegion := "us-east-1"
 	matchAccountId := "123456789012"
@@ -998,7 +998,7 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 
 func TestAWSOIDCRequiredVPCSHelper_CombinedSubnetsForAVpcID(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rdsVPC1 := mustCreateRDS(t, types.RDS{
 		VPCID:   "vpc-1",
@@ -1089,7 +1089,7 @@ func TestAWSOIDCSecurityGroupsRulesConverter(t *testing.T) {
 
 func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 	env := newWebPack(t, 1)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	roleTokenCRD, err := types.NewRole(services.RoleNameForUser("my-user"), types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -1224,7 +1224,7 @@ func enableCloudFeatureProxy(t *testing.T, proxy *testProxy) {
 
 func TestAWSOIDCAppAccessAppServerCreationWithUserProvidedLabels(t *testing.T) {
 	env := newWebPack(t, 1)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	roleTokenCRD, err := types.NewRole(services.RoleNameForUser("my-user"), types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -1307,7 +1307,7 @@ func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.
 }
 
 func TestAWSOIDCListDeployedDatabaseServices(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logtest.NewLogger()
 
 	for _, tt := range []struct {
@@ -1513,7 +1513,7 @@ func dummyDeployedDatabaseServices(count int, command []string) []*integrationv1
 }
 
 func TestRegionsForListingDeployedDatabaseService(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("regions query param, returns nil if no internal resources match", func(t *testing.T) {
 		clt := &mockRelevantAWSRegionsClient{
@@ -1583,7 +1583,7 @@ func TestRegionsForListingDeployedDatabaseService(t *testing.T) {
 }
 
 func TestFetchRelevantAWSRegions(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("resources do not provide any region", func(t *testing.T) {
 		clt := &mockRelevantAWSRegionsClient{

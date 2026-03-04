@@ -36,7 +36,7 @@ import (
 )
 
 func TestHandler_DeviceWebConfirm(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fakeDevices := &fakeDevicesClient{}
 	wPack := newWebPack(
 		t,

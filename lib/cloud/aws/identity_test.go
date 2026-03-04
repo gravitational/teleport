@@ -77,7 +77,7 @@ func TestGetIdentity(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
-			identity, err := GetIdentityWithClient(context.Background(), &STSClient{ARN: test.inARN})
+			identity, err := GetIdentityWithClient(t.Context(), &STSClient{ARN: test.inARN})
 			require.NoError(t, err)
 			require.IsType(t, test.outIdentity, identity)
 			require.Equal(t, test.outName, identity.GetName())

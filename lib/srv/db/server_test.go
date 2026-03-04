@@ -74,7 +74,7 @@ func registerTestEndpointResolver(t *testing.T, builder healthchecks.HealthCheck
 // TestDatabaseServerStart validates that started database server updates its
 // dynamic labels and heartbeats its presence to the auth server.
 func TestDatabaseServerStart(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t,
 		withSelfHostedPostgres("postgres"),
 		withSelfHostedMySQL("mysql"),
@@ -123,7 +123,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 		connLimit = int64(5) // Arbitrary number
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	allowDbUsers := []string{types.Wildcard}
 	allowDbNames := []string{types.Wildcard}
 
@@ -235,7 +235,7 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 		dbUser = user
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	allowDbUsers := []string{types.Wildcard}
 	allowDbNames := []string{types.Wildcard}
 
@@ -297,7 +297,7 @@ func advanceInSteps(clock *clockwork.FakeClock, total time.Duration) {
 }
 
 func TestHeartbeatEvents(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	dbOne, err := types.NewDatabaseV3(types.Metadata{
 		Name: "dbOne",
@@ -366,7 +366,7 @@ func TestHeartbeatEvents(t *testing.T) {
 
 func TestDatabaseServiceHeartbeatEvents(t *testing.T) {
 	t.Run("no label when running on-prem", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		var heartbeatEvents int64
 		heartbeatRecorder := func(err error) {
 			require.NoError(t, err)
@@ -399,7 +399,7 @@ func TestDatabaseServiceHeartbeatEvents(t *testing.T) {
 		require.Equal(t, "teleport.cluster.local", dbServices[0].GetHostname())
 	})
 	t.Run("when running as AWS OIDC ECS/Fargate Agent, it has a label indicating that", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		var heartbeatEvents int64
 		heartbeatRecorder := func(err error) {
 			require.NoError(t, err)
@@ -456,7 +456,7 @@ func TestShutdown(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
+			ctx := t.Context()
 			testCtx := setupTestContext(ctx, t)
 
 			db0, err := makeStaticDatabase("db0", nil)
@@ -506,7 +506,7 @@ func TestShutdown(t *testing.T) {
 func TestTrackActiveConnections(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
 	go testCtx.startHandlingConnections()
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"*"}, []string{"*"})
@@ -551,7 +551,7 @@ func TestTrackActiveConnections(t *testing.T) {
 func TestShutdownWithActiveConnections(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	server, connErrCh, cancelConn := databaseServerWithActiveConnection(t, ctx)
 
 	shutdownCtx, cancelShutdown := context.WithTimeout(ctx, time.Second*5)
@@ -590,7 +590,7 @@ func TestShutdownWithActiveConnections(t *testing.T) {
 func TestCloseWithActiveConnections(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	server, connErrCh, _ := databaseServerWithActiveConnection(t, ctx)
 
 	require.NoError(t, server.Close())
@@ -655,7 +655,7 @@ func databaseServerWithActiveConnection(t *testing.T, ctx context.Context) (*Ser
 }
 
 func TestHealthCheck(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	user := "alice"

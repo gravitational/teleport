@@ -155,7 +155,7 @@ func TestConfigureRolesAnywhereIAMReqDefaults(t *testing.T) {
 }
 
 func TestConfigureRolesAnywhereTrustAnchor(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	baseRolesAnywhereConfigReq := func() TrustAnchorConfigureRequest {
 		return TrustAnchorConfigureRequest{

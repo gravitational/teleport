@@ -59,7 +59,7 @@ func TestFanoutV2Init(t *testing.T) {
 }
 
 func TestFanoutV2StreamFiltering(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	defer cancel()
 
 	f := NewFanoutV2(FanoutV2Config{})
@@ -95,7 +95,7 @@ func TestFanoutV2StreamFiltering(t *testing.T) {
 func TestFanoutV2StreamOrdering(t *testing.T) {
 	const streams = 100
 	const events = 400
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	defer cancel()
 
 	f := NewFanoutV2(FanoutV2Config{})

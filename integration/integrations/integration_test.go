@@ -19,7 +19,6 @@
 package integrations
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -46,7 +45,7 @@ func TestMain(m *testing.M) {
 // TestIntegrationCRUD starts a Teleport cluster and using its Proxy Web server,
 // tests the CRUD operations over the Integration resource.
 func TestIntegrationCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Start Teleport Auth and Proxy services
 	authProcess, proxyProcess, _ := helpers.MakeTestServers(t)

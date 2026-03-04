@@ -208,7 +208,7 @@ func TestFetchOraclePrincipalClaims(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := httptest.NewServer(tc.handler)
 			t.Cleanup(srv.Close)
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
 			req, err := http.NewRequest("", srv.URL, nil)
 			require.NoError(t, err)

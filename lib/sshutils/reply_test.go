@@ -19,7 +19,6 @@
 package sshutils
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"testing"
@@ -34,31 +33,31 @@ func TestReply(t *testing.T) {
 
 	t.Run("RejectChannel", func(t *testing.T) {
 		m := newMockSSHNewChannel("session")
-		r.RejectChannel(context.Background(), m, ssh.ResourceShortage, "test error")
+		r.RejectChannel(t.Context(), m, ssh.ResourceShortage, "test error")
 		m.AssertCalled(t, "Reject", ssh.ResourceShortage, "test error")
 	})
 
 	t.Run("RejectUnknownChannel", func(t *testing.T) {
 		m := newMockSSHNewChannel("unknown_channel")
-		r.RejectUnknownChannel(context.Background(), m)
+		r.RejectUnknownChannel(t.Context(), m)
 		m.AssertCalled(t, "Reject", ssh.UnknownChannelType, "unknown channel type: unknown_channel")
 	})
 
 	t.Run("RejectWithAcceptError", func(t *testing.T) {
 		m := newMockSSHNewChannel("session")
-		r.RejectWithAcceptError(context.Background(), m, errors.New("test error"))
+		r.RejectWithAcceptError(t.Context(), m, errors.New("test error"))
 		m.AssertCalled(t, "Reject", ssh.ConnectionFailed, "unable to accept channel: test error")
 	})
 
 	t.Run("RejectWithNewRemoteSessionError", func(t *testing.T) {
 		t.Run("internal error", func(t *testing.T) {
 			m := newMockSSHNewChannel("session")
-			r.RejectWithNewRemoteSessionError(context.Background(), m, errors.New("test error"))
+			r.RejectWithNewRemoteSessionError(t.Context(), m, errors.New("test error"))
 			m.AssertCalled(t, "Reject", ssh.ConnectionFailed, "remote session open failed: test error")
 		})
 		t.Run("remote error", func(t *testing.T) {
 			m := newMockSSHNewChannel("session")
-			r.RejectWithNewRemoteSessionError(context.Background(), m, &ssh.OpenChannelError{
+			r.RejectWithNewRemoteSessionError(t.Context(), m, &ssh.OpenChannelError{
 				Reason:  ssh.ResourceShortage,
 				Message: "test error",
 			})
@@ -68,26 +67,26 @@ func TestReply(t *testing.T) {
 
 	t.Run("ReplyError", func(t *testing.T) {
 		m := newMockSSHRequest()
-		r.ReplyError(context.Background(), m, errors.New("test error"))
+		r.ReplyError(t.Context(), m, errors.New("test error"))
 		m.AssertCalled(t, "Reply", false, []byte("test error"))
 	})
 
 	t.Run("ReplyRequest", func(t *testing.T) {
 		t.Run("ok true", func(t *testing.T) {
 			m := newMockSSHRequest()
-			r.ReplyRequest(context.Background(), m, true, []byte("ok true"))
+			r.ReplyRequest(t.Context(), m, true, []byte("ok true"))
 			m.AssertCalled(t, "Reply", true, []byte("ok true"))
 		})
 		t.Run("ok false", func(t *testing.T) {
 			m := newMockSSHRequest()
-			r.ReplyRequest(context.Background(), m, false, []byte("ok false"))
+			r.ReplyRequest(t.Context(), m, false, []byte("ok false"))
 			m.AssertCalled(t, "Reply", false, []byte("ok false"))
 		})
 	})
 
 	t.Run("SendExitStatus", func(t *testing.T) {
 		m := newMockSSHChannel()
-		r.SendExitStatus(context.Background(), m, 1)
+		r.SendExitStatus(t.Context(), m, 1)
 		m.AssertCalled(t, "SendRequest", "exit-status", false, []byte{0, 0, 0, 1})
 	})
 }

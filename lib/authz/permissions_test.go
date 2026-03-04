@@ -229,7 +229,7 @@ func TestContextLockTargets(t *testing.T) {
 
 func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	client, watcher, authorizer := newTestResources(t)
 
@@ -292,7 +292,7 @@ func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 
 func TestAuthorizeWithLocksForBuiltinRole(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	client, watcher, authorizer := newTestResources(t)
 	for _, role := range types.LocalServiceMappings() {
@@ -344,7 +344,7 @@ func upsertLockWithPutEvent(ctx context.Context, t *testing.T, client *testClien
 }
 
 func TestGetClientUserIsSSO(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	u := authz.LocalUser{
 		Username: "someuser",
@@ -372,7 +372,7 @@ func TestGetClientUserIsSSO(t *testing.T) {
 func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 	client, watcher, _ := newTestResources(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	user, role, err := authtest.CreateUserAndRole(client, "llama", []string{"llama"}, nil)
 	require.NoError(t, err, "CreateUserAndRole")
@@ -551,7 +551,7 @@ func (a *fakeMFAAuthenticator) ValidateMFAAuthResponse(ctx context.Context, resp
 }
 
 func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	client, watcher, _ := newTestResources(t)
 
 	// Enable Webauthn.
@@ -781,7 +781,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			if tt.withMFA != nil {
 				encodedMFAResp, err := mfa.EncodeMFAChallengeResponseCredentials(tt.withMFA)
 				require.NoError(t, err)
@@ -998,7 +998,7 @@ func TestCheckIPPinning(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		ctx := context.Background()
+		ctx := t.Context()
 		if tt.clientAddr != "" {
 			ctx = authz.ContextWithClientSrcAddr(ctx, utils.MustParseAddr(tt.clientAddr))
 		}
@@ -1139,11 +1139,11 @@ func TestConnectionMetadata(t *testing.T) {
 		expectedConnectionMetadata apievents.ConnectionMetadata
 	}{
 		"with client address": {
-			ctx:                        authz.ContextWithClientSrcAddr(context.Background(), &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0), Port: 1234}),
+			ctx:                        authz.ContextWithClientSrcAddr(t.Context(), &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0), Port: 1234}),
 			expectedConnectionMetadata: apievents.ConnectionMetadata{RemoteAddr: "10.255.0.0:1234"},
 		},
 		"empty client address": {
-			ctx:                        context.Background(),
+			ctx:                        t.Context(),
 			expectedConnectionMetadata: apievents.ConnectionMetadata{},
 		},
 	} {
@@ -1205,7 +1205,7 @@ func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, authz.A
 	}
 
 	// Set default singletons
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err = client.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)
 	err = client.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())

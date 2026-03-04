@@ -32,7 +32,7 @@ import (
 // it to become ready.
 // This is used to start plugins.
 func RunAndWaitReady(t *testing.T, app AppI) {
-	appCtx, cancel := context.WithCancel(context.Background())
+	appCtx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	go func() {

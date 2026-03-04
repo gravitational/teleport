@@ -19,7 +19,6 @@
 package db
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -46,7 +45,7 @@ func BenchmarkPostgresReadLargeTable(b *testing.B) {
 	if testing.Short() {
 		b.Skip("skipping heavy benchmark")
 	}
-	ctx := context.Background()
+	ctx := b.Context()
 	testCtx := setupTestContext(ctx, b, withSelfHostedPostgres("postgres", func(db *types.DatabaseV3) {
 		db.SetStaticLabels(map[string]string{"foo": "bar"})
 	}))

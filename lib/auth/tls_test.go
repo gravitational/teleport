@@ -121,7 +121,7 @@ func TestRejectedClients(t *testing.T) {
 	t.Run("reject old version", func(t *testing.T) {
 		version := teleport.MinClientSemVer()
 		version.Major--
-		ctx := context.WithValue(context.Background(), metadata.DisableInterceptors{}, struct{}{})
+		ctx := context.WithValue(t.Context(), metadata.DisableInterceptors{}, struct{}{})
 		ctx = metadata.AddMetadataToContext(ctx, map[string]string{
 			metadata.VersionKey: version.String(),
 		})
@@ -136,7 +136,7 @@ func TestRejectedClients(t *testing.T) {
 		for range 5 {
 			version.Major++
 
-			ctx := context.WithValue(context.Background(), metadata.DisableInterceptors{}, struct{}{})
+			ctx := context.WithValue(t.Context(), metadata.DisableInterceptors{}, struct{}{})
 			ctx = metadata.AddMetadataToContext(ctx, map[string]string{
 				metadata.VersionKey: version.String(),
 			})
@@ -152,7 +152,7 @@ func TestRejectedClients(t *testing.T) {
 func TestRemoteBuiltinRole(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	remoteServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
@@ -218,7 +218,7 @@ func TestRemoteBuiltinRole(t *testing.T) {
 func TestAcceptedUsage(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	server, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:           t.TempDir(),
@@ -280,7 +280,7 @@ func TestAcceptedUsage(t *testing.T) {
 func TestRemoteRotation(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	var ok bool
@@ -406,7 +406,7 @@ func TestRemoteRotation(t *testing.T) {
 func TestLocalProxyPermissions(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	remoteServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
@@ -450,7 +450,7 @@ func TestLocalProxyPermissions(t *testing.T) {
 func TestAutoRotation(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	testSrv := newTestTLSServer(t, withClock(clock))
 
@@ -553,7 +553,7 @@ func TestAutoRotation(t *testing.T) {
 func TestAutoFallback(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	testSrv := newTestTLSServer(t, withClock(clock))
 
@@ -616,7 +616,7 @@ func TestAutoFallback(t *testing.T) {
 func TestManualRotation(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	var ok bool
@@ -729,7 +729,7 @@ func TestManualRotation(t *testing.T) {
 func TestRollback(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	var ok bool
@@ -835,7 +835,7 @@ func TestRollback(t *testing.T) {
 func TestAppTokenRotation(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
@@ -844,7 +844,7 @@ func TestAppTokenRotation(t *testing.T) {
 
 	// Create a JWT using the current CA, this will become the "old" CA during
 	// rotation.
-	oldJWT, err := client.GenerateAppToken(context.Background(),
+	oldJWT, err := client.GenerateAppToken(t.Context(),
 		types.GenerateAppTokenRequest{
 			Username: "foo",
 			Roles:    []string{"bar", "baz"},
@@ -988,7 +988,7 @@ func TestAppTokenRotation(t *testing.T) {
 func TestOIDCIdPTokenRotation(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
@@ -1147,7 +1147,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 func TestListUsers(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
@@ -1277,7 +1277,7 @@ func TestListUsers(t *testing.T) {
 func TestRemoteUser(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
@@ -1357,7 +1357,7 @@ func TestRemoteUser(t *testing.T) {
 func TestNopUser(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	client, err := testSrv.NewClient(authtest.TestNop())
@@ -1379,7 +1379,7 @@ func TestNopUser(t *testing.T) {
 func TestReadOwnRole(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
@@ -1409,7 +1409,7 @@ func TestReadOwnRole(t *testing.T) {
 func TestGetCurrentUser(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	user1, _, err := authtest.CreateUserAndRole(srv.Auth(), "user1", []string{"user1"}, nil)
@@ -1439,7 +1439,7 @@ func TestGetCurrentUser(t *testing.T) {
 
 func TestGetCurrentUserRoles(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	user1, user1Role, err := authtest.CreateUserAndRole(srv.Auth(), "user1", []string{"user-role"}, nil)
@@ -1461,7 +1461,7 @@ func TestAuthPreferenceSettings(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:                  "local",
 		SecondFactor:          "otp",
@@ -1575,7 +1575,7 @@ func TestServersCRUD(t *testing.T) {
 		}
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// SSH service.
 	out, err := clt.GetNodes(ctx, apidefaults.Namespace)
@@ -1653,7 +1653,7 @@ func TestAppServerCRUD(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleApp))
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Expect not to be returned any applications and trace.NotFound.
 	out, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
@@ -1697,7 +1697,7 @@ func TestAppServerCRUD(t *testing.T) {
 func TestUsersCRUD(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
@@ -1723,7 +1723,7 @@ func TestUsersCRUD(t *testing.T) {
 func TestPasswordGarbage(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	garbage := [][]byte{
@@ -1740,7 +1740,7 @@ func TestPasswordGarbage(t *testing.T) {
 func TestPasswordCRUD(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
@@ -1778,7 +1778,7 @@ func TestPasswordCRUD(t *testing.T) {
 func TestOTPCRUD(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
@@ -1838,7 +1838,7 @@ func TestOTPCRUD(t *testing.T) {
 func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
@@ -1905,7 +1905,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	// Can not use t.Parallel() when changing modules
 	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	testSrv := newTestTLSServer(t)
@@ -2119,7 +2119,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
@@ -2233,7 +2233,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
@@ -2299,7 +2299,7 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 func TestExtendWebSessionWithMaxDuration(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
@@ -2401,7 +2401,7 @@ func TestExtendWebSessionWithMaxDuration(t *testing.T) {
 func TestGetCertAuthority(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	// generate server keys for node
@@ -2505,7 +2505,7 @@ func TestGetCertAuthority(t *testing.T) {
 func TestPluginData(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	priv, pub, err := testauthority.GenerateKeyPair()
@@ -2621,7 +2621,7 @@ func newSSHAndTLSKeyPairs(t *testing.T) (sshPrivKey, sshPubKey, tlsPrivKey, tlsP
 func TestGenerateCerts(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	srv := newTestTLSServer(t)
 	sshPrivKey, sshPubKey, tlsPrivKey, tlsPubKey := newSSHAndTLSKeyPairs(t)
@@ -2639,7 +2639,7 @@ func TestGenerateCerts(t *testing.T) {
 	hostClient, err := srv.NewClient(authtest.TestIdentity{I: authz.BuiltinRole{Username: hostID, Role: types.RoleNode}})
 	require.NoError(t, err)
 
-	certs, err := hostClient.GenerateHostCerts(context.Background(),
+	certs, err := hostClient.GenerateHostCerts(t.Context(),
 		&proto.HostCertsRequest{
 			HostID:               hostID,
 			NodeName:             srv.AuthServer.ClusterName,
@@ -2659,7 +2659,7 @@ func TestGenerateCerts(t *testing.T) {
 	hostClient, err = srv.NewClient(authtest.TestIdentity{I: authz.BuiltinRole{Username: hostID, Role: types.RoleNode}})
 	require.NoError(t, err)
 
-	certs, err = hostClient.GenerateHostCerts(context.Background(),
+	certs, err = hostClient.GenerateHostCerts(t.Context(),
 		&proto.HostCertsRequest{
 			HostID:               hostID,
 			NodeName:             srv.AuthServer.ClusterName,
@@ -2676,7 +2676,7 @@ func TestGenerateCerts(t *testing.T) {
 
 	t.Run("HostClients", func(t *testing.T) {
 		// attempt to elevate privileges by getting admin role in the certificate
-		_, err = hostClient.GenerateHostCerts(context.Background(),
+		_, err = hostClient.GenerateHostCerts(t.Context(),
 			&proto.HostCertsRequest{
 				HostID:       hostID,
 				NodeName:     srv.AuthServer.ClusterName,
@@ -2687,7 +2687,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(err))
 
 		// attempt to get certificate for different host id
-		_, err = hostClient.GenerateHostCerts(context.Background(),
+		_, err = hostClient.GenerateHostCerts(t.Context(),
 			&proto.HostCertsRequest{
 				HostID:       "some-other-host-id",
 				NodeName:     srv.AuthServer.ClusterName,
@@ -3104,7 +3104,7 @@ func TestGenerateCerts(t *testing.T) {
 // certain roles can request JWT tokens.
 func TestGenerateAppToken(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
@@ -3112,7 +3112,7 @@ func TestGenerateAppToken(t *testing.T) {
 	require.NoError(t, err)
 
 	getJWTKey := func(caType types.CertAuthType) *jwt.Key {
-		ca, err := authClient.GetCertAuthority(context.Background(), types.CertAuthID{
+		ca, err := authClient.GetCertAuthority(t.Context(), types.CertAuthID{
 			Type:       caType,
 			DomainName: testSrv.ClusterName(),
 		}, true)
@@ -3180,7 +3180,7 @@ func TestGenerateAppToken(t *testing.T) {
 		require.NoError(t, err, ts.inComment)
 
 		token, err := client.GenerateAppToken(
-			context.Background(),
+			t.Context(),
 			types.GenerateAppTokenRequest{
 				Username: "foo@example.com",
 				Roles:    []string{"bar", "baz"},
@@ -3216,7 +3216,7 @@ func TestGenerateAppToken(t *testing.T) {
 // correct format.
 func TestCertificateFormat(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	// use admin client to create user and role
@@ -3284,7 +3284,7 @@ func TestCertificateFormat(t *testing.T) {
 func TestClusterConfigContext(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	proxy, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleProxy))
@@ -3333,7 +3333,7 @@ func TestClusterConfigContext(t *testing.T) {
 func TestAuthenticateWebUserOTP(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
@@ -3419,7 +3419,7 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 func TestLoginAttempts(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
@@ -3466,7 +3466,7 @@ func TestLoginAttempts(t *testing.T) {
 func TestChangeUserAuthenticationSettings(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -3564,7 +3564,7 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 func TestLoginNoLocalAuth(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	user := "foo"
@@ -3614,7 +3614,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 func TestCipherSuites(t *testing.T) {
 	t.Parallel()
 	testSrv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	otherServer, err := testSrv.AuthServer.NewTestTLSServer()
 	require.NoError(t, err)
@@ -3650,7 +3650,7 @@ func TestCipherSuites(t *testing.T) {
 func TestTLSFailover(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	otherServer, err := testSrv.AuthServer.NewTestTLSServer()
@@ -3694,7 +3694,7 @@ func TestTLSFailover(t *testing.T) {
 func TestJoinCAPin(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
@@ -3811,7 +3811,7 @@ func TestJoinCAPin(t *testing.T) {
 func TestJoinCAPath(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
 	dataDir := testSrv.AuthServer.Dir
@@ -4097,7 +4097,7 @@ func TestClusterAlertAccessControls(t *testing.T) {
 func TestEventsNodePresence(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	node := &types.ServerV2{
@@ -4223,7 +4223,7 @@ waitLoop:
 func TestEventsPermissions(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	clt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleNode))
@@ -4383,7 +4383,7 @@ func TestEventsPermissionsPartialSuccess(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 	testUser, testRole, err := authtest.CreateUserAndRole(testSrv.Auth(), "test", nil, []types.Rule{
 		types.NewRule(types.KindStaticTokens, services.RO()),
@@ -4434,7 +4434,7 @@ func TestEvents(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testCases := []eventTest{
 		{
 			name: "Cert authority with secrets",
@@ -4751,7 +4751,7 @@ func TestEvents(t *testing.T) {
 }
 
 func runEventsTests(t *testing.T, testCases []eventTest, events types.Events, watch types.Watch) {
-	ctx := context.Background()
+	ctx := t.Context()
 	w, err := events.NewWatcher(ctx, watch)
 	require.NoError(t, err)
 	defer w.Close()
@@ -4804,7 +4804,7 @@ skiploop:
 }
 
 func runUnknownEventsTest(t *testing.T, events types.Events, watch types.Watch) {
-	ctx := context.Background()
+	ctx := t.Context()
 	w, err := events.NewWatcher(ctx, watch)
 	if err != nil {
 		// depending on the implementation of EventsS, it might fail here immediately
@@ -4841,7 +4841,7 @@ func eventsTestKinds(tests []eventTest) []types.WatchKind {
 func TestEventsClusterConfig(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	clt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleAdmin))
@@ -4975,7 +4975,7 @@ func TestNetworkRestrictions(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// blank slate, should be get/delete should fail
 	_, err = clt.GetNetworkRestrictions(ctx)
@@ -5063,7 +5063,7 @@ func requireNotFound(t require.TestingT, err error, i ...any) {
 
 func TestGRPCServer_CreateTokenV2(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	// Inject mockEmitter to capture audit event for trusted cluster
@@ -5226,7 +5226,7 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 
 func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	// Inject mockEmitter to capture audit event for trusted cluster
@@ -5414,7 +5414,7 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 
 func TestGRPCServer_GetTokens(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	// Create a user with the least privilege access to call this RPC.
@@ -5506,7 +5506,7 @@ func TestGRPCServer_GetTokens(t *testing.T) {
 
 func TestGRPCServer_GetToken(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	// Create a user with the least privilege access to call this RPC.
@@ -5576,7 +5576,7 @@ func TestGRPCServer_GetToken(t *testing.T) {
 
 func TestGRPCServer_DeleteToken(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	// Create a user with the least privilege access to call this RPC.

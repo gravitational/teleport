@@ -386,7 +386,7 @@ func TestMCPDBConfigCommand(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			configPath := setupMockDBMCPConfig(t, tc.cf, tc.initialDatabases, tc.initialEnv)
 			var buf bytes.Buffer
-			tc.cf.Context = context.Background()
+			tc.cf.Context = t.Context()
 			tc.cf.Proxy = "proxy:3080"
 			tc.cf.HomePath = t.TempDir()
 			tc.cf.OverrideStdout = &buf

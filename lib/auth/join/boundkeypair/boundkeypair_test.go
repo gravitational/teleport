@@ -56,7 +56,7 @@ func (f *memoryFS) Write(ctx context.Context, name string, data []byte) error {
 }
 
 func TestClientState(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fs := &memoryFS{
 		files: map[string][]byte{},
 	}

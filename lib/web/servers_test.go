@@ -19,7 +19,6 @@
 package web
 
 import (
-	"context"
 	"net/http"
 	"testing"
 
@@ -36,7 +35,7 @@ import (
 func TestCreateNode(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	env := newWebPack(t, 1)
 	clusterName := env.server.ClusterName()

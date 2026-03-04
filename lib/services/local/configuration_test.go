@@ -61,7 +61,7 @@ func (tt *configContext) Close() error {
 }
 
 func TestAuthPreference(t *testing.T) {
-	tt := setupConfigContext(context.Background(), t)
+	tt := setupConfigContext(t.Context(), t)
 
 	clusterConfig, err := NewClusterConfigurationService(tt.bk)
 	require.NoError(t, err)
@@ -73,7 +73,7 @@ func TestAuthPreference(t *testing.T) {
 }
 
 func TestAccessGraphSettings(t *testing.T) {
-	tt := setupConfigContext(context.Background(), t)
+	tt := setupConfigContext(t.Context(), t)
 
 	clusterConfig, err := NewClusterConfigurationService(tt.bk)
 	require.NoError(t, err)
@@ -85,7 +85,7 @@ func TestAccessGraphSettings(t *testing.T) {
 }
 
 func TestClusterName(t *testing.T) {
-	tt := setupConfigContext(context.Background(), t)
+	tt := setupConfigContext(t.Context(), t)
 
 	clusterConfig, err := NewClusterConfigurationService(tt.bk)
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestClusterName(t *testing.T) {
 }
 
 func TestClusterNetworkingConfig(t *testing.T) {
-	tt := setupConfigContext(context.Background(), t)
+	tt := setupConfigContext(t.Context(), t)
 
 	clusterConfig, err := NewClusterConfigurationService(tt.bk)
 	require.NoError(t, err)
@@ -110,7 +110,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 }
 
 func TestClusterAuditConfig(t *testing.T) {
-	tt := setupConfigContext(context.Background(), t)
+	tt := setupConfigContext(t.Context(), t)
 
 	clusterConfig, err := NewClusterConfigurationService(tt.bk)
 	require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestClusterAuditConfig(t *testing.T) {
 }
 
 func TestSessionRecordingConfig(t *testing.T) {
-	tt := setupConfigContext(context.Background(), t)
+	tt := setupConfigContext(t.Context(), t)
 
 	clusterConfig, err := NewClusterConfigurationService(tt.bk)
 	require.NoError(t, err)
@@ -134,7 +134,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 }
 
 func TestStaticTokens(t *testing.T) {
-	tt := setupConfigContext(context.Background(), t)
+	tt := setupConfigContext(t.Context(), t)
 
 	clusterConfig, err := NewClusterConfigurationService(tt.bk)
 	require.NoError(t, err)
@@ -263,7 +263,7 @@ func TestAuditConfigMarshal(t *testing.T) {
 func TestInstallerPagination(t *testing.T) {
 	ctx := t.Context()
 
-	tt := setupConfigContext(context.Background(), t)
+	tt := setupConfigContext(t.Context(), t)
 	s, err := NewClusterConfigurationService(tt.bk)
 	require.NoError(t, err)
 

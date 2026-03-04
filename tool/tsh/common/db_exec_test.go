@@ -264,7 +264,7 @@ func TestDatabaseExec(t *testing.T) {
 			writer := utils.NewSyncWriter(&capture)
 			cf := &CLIConf{
 				Proxy:           "proxy:3080",
-				Context:         context.Background(),
+				Context:         t.Context(),
 				HomePath:        dir,
 				ParallelJobs:    1,
 				DatabaseUser:    "db-user",

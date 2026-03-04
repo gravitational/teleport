@@ -52,7 +52,7 @@ func TestDefaultPrompt_PromptCredential(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name       string

@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -44,7 +43,7 @@ func TestDeleteUserAppSessions(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	backend, err := memory.New(memory.Config{
-		Context: context.Background(),
+		Context: t.Context(),
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
@@ -52,7 +51,7 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	identity, err := NewTestIdentityService(backend)
 	require.NoError(t, err)
 	users := []string{"alice", "bob"}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create app sessions for different users.
 	for _, user := range users {
@@ -97,7 +96,7 @@ func TestListAppSessions(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	backend, err := memory.New(memory.Config{
-		Context: context.Background(),
+		Context: t.Context(),
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
@@ -106,7 +105,7 @@ func TestListAppSessions(t *testing.T) {
 	require.NoError(t, err)
 
 	users := []string{"alice", "bob"}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// the default page size is used if the pageSize
 	// provide to ListAppSessions is 0 || > maxSessionPageSize
@@ -185,7 +184,7 @@ func TestListSnowflakeSessions(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	backend, err := memory.New(memory.Config{
-		Context: context.Background(),
+		Context: t.Context(),
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
@@ -194,7 +193,7 @@ func TestListSnowflakeSessions(t *testing.T) {
 	require.NoError(t, err)
 
 	users := []string{"alice", "bob"}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// the default page size is used if the pageSize
 	// provide to ListSnowflakeSessions is 0 || > maxSessionPageSize

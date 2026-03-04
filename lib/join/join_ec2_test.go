@@ -605,7 +605,7 @@ func TestHostUniqueCheck(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	err = a.UpsertToken(context.Background(), token)
+	err = a.UpsertToken(t.Context(), token)
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -624,7 +624,7 @@ func TestHostUniqueCheck(t *testing.T) {
 						Namespace: defaults.Namespace,
 					},
 				}
-				_, err := a.UpsertNode(context.Background(), node)
+				_, err := a.UpsertNode(t.Context(), node)
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
@@ -642,7 +642,7 @@ func TestHostUniqueCheck(t *testing.T) {
 						Namespace: defaults.Namespace,
 					},
 				}
-				err := a.UpsertProxy(context.Background(), proxy)
+				err := a.UpsertProxy(t.Context(), proxy)
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
@@ -668,7 +668,7 @@ func TestHostUniqueCheck(t *testing.T) {
 						},
 					})
 				require.NoError(t, err)
-				_, err = a.UpsertKubernetesServer(context.Background(), kube)
+				_, err = a.UpsertKubernetesServer(t.Context(), kube)
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
@@ -685,7 +685,7 @@ func TestHostUniqueCheck(t *testing.T) {
 					types.DatabaseServiceSpecV1{},
 				)
 				require.NoError(t, err)
-				_, err = a.UpsertDatabaseService(context.Background(), db)
+				_, err = a.UpsertDatabaseService(t.Context(), db)
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
@@ -714,7 +714,7 @@ func TestHostUniqueCheck(t *testing.T) {
 						App:    app,
 					})
 				require.NoError(t, err)
-				_, err = a.UpsertApplicationServer(context.Background(), appServer)
+				_, err = a.UpsertApplicationServer(t.Context(), appServer)
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
@@ -731,7 +731,7 @@ func TestHostUniqueCheck(t *testing.T) {
 					})
 				require.NoError(t, err)
 
-				_, err = a.UpsertWindowsDesktopService(context.Background(), wds)
+				_, err = a.UpsertWindowsDesktopService(t.Context(), wds)
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
@@ -761,7 +761,7 @@ func TestHostUniqueCheck(t *testing.T) {
 					})
 				require.NoError(t, err)
 				appServer.SetOrigin(types.OriginOkta)
-				_, err = a.UpsertApplicationServer(context.Background(), appServer)
+				_, err = a.UpsertApplicationServer(t.Context(), appServer)
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {

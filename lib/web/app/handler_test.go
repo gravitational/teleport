@@ -356,7 +356,7 @@ func TestMatchApplicationServers(t *testing.T) {
 }
 
 func TestHealthCheckAppServer(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clusterName := "test-cluster"
 	publicAddr := "valid.example.com"
 
@@ -445,7 +445,7 @@ type testServer struct {
 }
 
 func setup(t *testing.T, clock *clockwork.FakeClock, authClient authclient.ClientI, clusterGetter reversetunnelclient.ClusterGetter) *testServer {
-	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
+	appHandler, err := NewHandler(t.Context(), &HandlerConfig{
 		Clock:                 clock,
 		AuthClient:            authClient,
 		AccessPoint:           authClient,
@@ -807,7 +807,7 @@ func startFakeAppServerOnCluster(t *testing.T, clusterName string, accessPoint a
 }
 
 func TestHandlerAuthenticate(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	clusterName := "test-cluster"
@@ -885,7 +885,7 @@ func TestHandlerAuthenticate(t *testing.T) {
 }
 
 func TestRedirectToLauncherClusterFallback(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	clusterName := "tp.test"

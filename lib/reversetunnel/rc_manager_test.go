@@ -151,7 +151,7 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			w.cfg.AccessPoint = mockAuthClient{
@@ -169,8 +169,8 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 				// Tweaks to get comparison working with our complex types.
 				cmp.AllowUnexported(remoteClusterKey{}),
 				cmp.Comparer(func(a, b *AgentPool) bool {
-					aAddr, aMode, aErr := a.AgentPoolConfig.Resolver(context.Background())
-					bAddr, bMode, bErr := b.AgentPoolConfig.Resolver(context.Background())
+					aAddr, aMode, aErr := a.AgentPoolConfig.Resolver(t.Context())
+					bAddr, bMode, bErr := b.AgentPoolConfig.Resolver(t.Context())
 					if aAddr != bAddr && aMode != bMode && !errors.Is(bErr, aErr) {
 						return false
 					}

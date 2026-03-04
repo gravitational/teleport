@@ -53,7 +53,7 @@ func TestIntegrationsCreateWithAudience(t *testing.T) {
 	wPack := newWebPack(t, 1 /* proxies */)
 	proxy := wPack.proxies[0]
 	authPack := proxy.authPack(t, "user", []types.Role{services.NewPresetEditorRole()})
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const integrationName = "test-integration"
 	cases := []struct {
@@ -112,7 +112,7 @@ func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
 	wPack := newWebPack(t, 1 /* proxies */)
 	proxy := wPack.proxies[0]
 	authPack := proxy.authPack(t, "user", []types.Role{services.NewPresetEditorRole()})
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create Integration
 	const integrationName = "test-integration"
@@ -251,7 +251,7 @@ func (m *mockUserTasksLister) ListUserTasks(ctx context.Context, pageSize int64,
 }
 
 func TestCollectIntegrationStats(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logtest.NewLogger()
 
 	integrationName := "my-integration"
@@ -668,7 +668,7 @@ func TestCollectIntegrationStats(t *testing.T) {
 }
 
 func TestCollectAutoDiscoveryRules(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	integrationName := "my-integration"
 
 	t.Run("without discovery configs, returns no rules", func(t *testing.T) {
@@ -962,7 +962,7 @@ func TestGitHubIntegration(t *testing.T) {
 	wPack := newWebPack(t, 1 /* proxies */)
 	proxy := wPack.proxies[0]
 	authPack := proxy.authPack(t, "user", []types.Role{services.NewPresetEditorRole()})
-	ctx := context.Background()
+	ctx := t.Context()
 	orgName := "my-org"
 	integrationName := "github-" + orgName
 
@@ -1222,7 +1222,7 @@ func TestBuildBriefSummaries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual, err := buildBriefSummaries(context.Background(), tt.integrations, tt.utLister, tt.dcLister)
+			actual, err := buildBriefSummaries(t.Context(), tt.integrations, tt.utLister, tt.dcLister)
 			require.Equal(t, tt.expected, actual)
 			require.Equal(t, tt.error, trace.Unwrap(err))
 		})

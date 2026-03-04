@@ -47,7 +47,7 @@ import (
 // The test asserts that connecting directly to the target server or to the
 // proxy appears identical to the client.
 func TestProxySSHConnection(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	proxyListener := bufconn.Listen(100)
 	serverListener := bufconn.Listen(100)

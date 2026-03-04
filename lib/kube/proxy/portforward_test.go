@@ -19,7 +19,6 @@
 package proxy
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -110,7 +109,7 @@ func TestPortForwardKubeService(t *testing.T) {
 
 			// creates a Kubernetes service with a configured cluster pointing to mock api server
 			testCtx := SetupTestContext(
-				context.Background(),
+				t.Context(),
 				t,
 				TestConfig{
 					Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -397,7 +396,7 @@ func TestPortForwardProxy_run_connsClosed(t *testing.T) {
 	targetConn := newfakeSPDYConnection()
 	h := &portForwardProxy{
 		portForwardRequest: portForwardRequest{
-			context:       context.Background(),
+			context:       t.Context(),
 			onPortForward: func(addr string, success bool) {},
 		},
 		logger:                logtest.NewLogger(),
@@ -609,7 +608,7 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 
 			// creates a Kubernetes service with a configured cluster pointing to mock api server
 			testCtx := SetupTestContext(
-				context.Background(),
+				t.Context(),
 				t,
 				TestConfig{
 					Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},

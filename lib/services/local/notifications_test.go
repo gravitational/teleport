@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -39,7 +38,7 @@ import (
 
 // TestUserNotificationCRUD tests backend operations for user-specific notification resources.
 func TestUserNotificationCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -101,7 +100,7 @@ func TestUserNotificationCRUD(t *testing.T) {
 
 // TestGlobalNotificationCRUD tests backend operations for global notification resources.
 func TestGlobalNotificationCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -173,7 +172,7 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 
 // TestUserNotificationStateCRUD tests backend operations for user-specific notification resources.
 func TestUserNotificationStateCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -351,7 +350,7 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 
 // TestUserLastSeenNotificationCRUD tests backend operations for user last seen notification resources.
 func TestUserLastSeenNotificationCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -405,7 +404,7 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 
 // TestUniqueNotificationIdentifierCRUD tests backend operations for unique notification identifier resources.
 func TestUniqueNotificationIdentifierCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{

@@ -51,7 +51,7 @@ func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Even
 
 func newTestContext(t *testing.T) context.Context {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	return ctx
 }

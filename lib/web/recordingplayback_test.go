@@ -484,7 +484,7 @@ func TestUnsupportedRequest(t *testing.T) {
 		ws, _ := upgrader.Upgrade(w, r, nil)
 		defer ws.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		logger := slog.Default()
 
 		playback := newRecordingPlayback(ctx, ws, mockClient, "test-session", logger)
@@ -530,7 +530,7 @@ func TestNonBinaryMessageClosesWebSocket(t *testing.T) {
 		ws, _ := upgrader.Upgrade(w, r, nil)
 		defer ws.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		logger := slog.Default()
 
 		playback := newRecordingPlayback(ctx, ws, mockClient, "test-session", logger)
@@ -634,7 +634,7 @@ func createWebSocket(t *testing.T, setupEvents func(mockClient *mockStreamClient
 		ws, _ := upgrader.Upgrade(w, r, nil)
 		defer ws.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		logger := slog.Default()
 
 		playback := newRecordingPlayback(ctx, ws, mockClient, "test-session", logger)

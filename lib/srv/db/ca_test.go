@@ -50,7 +50,7 @@ import (
 
 // TestInitCACert verifies automatic download of root certs for cloud databases.
 func TestInitCACert(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t)
 
 	selfHosted, err := types.NewDatabaseV3(types.Metadata{
@@ -275,7 +275,7 @@ func TestInitCACert(t *testing.T) {
 // TestInitCACertCaching verifies root certificate is not re-downloaded if
 // it was already downloaded before.
 func TestInitCACertCaching(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t)
 
 	rds, err := types.NewDatabaseV3(types.Metadata{
@@ -305,7 +305,7 @@ func TestInitCACertCaching(t *testing.T) {
 // TestUpdateCACerts given a cloud-hosted database, update the cached CA files
 // when the CA version changes.
 func TestUpdateCACerts(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t)
 
 	rds, err := types.NewDatabaseV3(types.Metadata{
@@ -351,7 +351,7 @@ func TestUpdateCACerts(t *testing.T) {
 // TestCARenewer given a list of started databases, renew their CA every 24 hour
 // ensuring only the CA that have changed contents are updated.
 func TestCARenewer(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t)
 
 	rds, err := types.NewDatabaseV3(types.Metadata{
@@ -421,7 +421,7 @@ func TestCARenewer(t *testing.T) {
 // TestInitAzureCAs given Azure hosted databases, init their CAs ensuring the
 // download and get version calls have the correct CA hint.
 func TestInitAzureCAs(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t)
 
 	azureDB, err := types.NewDatabaseV3(types.Metadata{
@@ -725,7 +725,7 @@ func TestTLSConfiguration(t *testing.T) {
 				defaults.ProtocolMongoDB,
 			} {
 				t.Run(dbType, func(t *testing.T) {
-					ctx := context.Background()
+					ctx := t.Context()
 					cfg := &setupTLSTestCfg{
 						commonName: tt.commonName,
 						serverName: tt.serverName,
@@ -846,7 +846,7 @@ func TestRedshiftCAURLForDatabase(t *testing.T) {
 }
 
 func TestCADownloaderGetVersion(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Given databases that have CA certs downloaded from a public CDN, the
 	// downloader should return the CA version or a not implemented error.
@@ -944,7 +944,7 @@ func TestCADownloaderGetVersion(t *testing.T) {
 	})
 }
 func TestCADownloaderDownload(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Given databases that have CA certs downloaded from a public CDN, the
 	// downloader should return the CA contents and version.

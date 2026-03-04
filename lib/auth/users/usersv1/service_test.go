@@ -207,7 +207,7 @@ func TestCreateUser(t *testing.T) {
 	env, err := newTestEnv()
 	require.NoError(t, err, "creating test service")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	llama, err := types.NewUser("llama")
 	require.NoError(t, err, "creating new user llama")
@@ -262,7 +262,7 @@ func TestDeleteUser(t *testing.T) {
 	env, err := newTestEnv()
 	require.NoError(t, err, "creating test service")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	llama, err := types.NewUser("llama")
 	require.NoError(t, err, "creating new user llama")
@@ -303,7 +303,7 @@ func TestGetUser(t *testing.T) {
 	env, err := newTestEnv(withAuthorizer(fakeAuthorizer{authzContext: authzContext}))
 	require.NoError(t, err, "creating test service")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	llama, err := types.NewUser("llama")
 	require.NoError(t, err, "creating new user llama")
@@ -363,7 +363,7 @@ func TestUpdateUser(t *testing.T) {
 	env, err := newTestEnv()
 	require.NoError(t, err, "creating test service")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	llama, err := types.NewUser("llama")
 	require.NoError(t, err, "creating new user llama")
@@ -411,7 +411,7 @@ func TestUpsertUser(t *testing.T) {
 	env, err := newTestEnv()
 	require.NoError(t, err, "creating test service")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	llama, err := types.NewUser("llama")
 	require.NoError(t, err, "creating new user llama")
@@ -470,7 +470,7 @@ func TestListUsers(t *testing.T) {
 	)
 	require.NoError(t, err, "creating test service")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create a role to assign to users for search testing.
 	accessSvc := env.backend.(interface {
@@ -592,7 +592,7 @@ func generateUserSecrets(u types.User) error {
 func TestRBAC(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	llama, err := types.NewUser("llama")
 	require.NoError(t, err, "creating new user llama")

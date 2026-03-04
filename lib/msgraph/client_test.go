@@ -467,7 +467,7 @@ func TestRetry(t *testing.T) {
 
 		ret := make(chan error, 1)
 		go func() {
-			out, err := client.CreateFederatedIdentityCredential(context.Background(), appID, fic)
+			out, err := client.CreateFederatedIdentityCredential(t.Context(), appID, fic)
 			assert.Equal(t, fic, out)
 			ret <- err
 		}()

@@ -17,7 +17,6 @@
 package local
 
 import (
-	"context"
 	"crypto/x509"
 	"testing"
 
@@ -37,7 +36,7 @@ func TestRecordingEncryption(t *testing.T) {
 	service, err := NewRecordingEncryptionService(backend.NewSanitizer(bk))
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	initialEncryption := pb.RecordingEncryption{
 		Spec: &pb.RecordingEncryptionSpec{
@@ -90,7 +89,7 @@ func TestRotatedKeys(t *testing.T) {
 	service, err := NewRecordingEncryptionService(backend.NewSanitizer(bk))
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	privateKey, err := keys.ParsePrivateKey(testRSA4096PrivateKeyPEM)
 	require.NoError(t, err)

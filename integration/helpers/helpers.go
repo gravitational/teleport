@@ -189,7 +189,7 @@ func CloseAgent(agent *sshagent.Server, socketDirPath string) error {
 }
 
 func MustCreateUserKeyRing(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) *client.KeyRing {
-	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(context.Background(), func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(t.Context(), func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	})
 	require.NoError(t, err)
@@ -219,14 +219,14 @@ func mustCreateUserKeyRingWithKeys(t *testing.T, tc *TeleInstance, username stri
 	keyRing.Cert = sshCert
 	keyRing.TLSCert = tlsCert
 
-	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
+	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(t.Context(), types.HostCA, false)
 	require.NoError(t, err)
 	keyRing.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 	return keyRing
 }
 
 func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
-	key, err := cryptosuites.GenerateKey(context.Background(), func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
+	key, err := cryptosuites.GenerateKey(t.Context(), func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	}, cryptosuites.UserTLS)
 	require.NoError(t, err)
@@ -235,7 +235,7 @@ func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string,
 	keyRing := mustCreateUserKeyRingWithKeys(t, tc, username, ttl, sshKey, tlsKey)
 
 	idPath := filepath.Join(t.TempDir(), "user_identity")
-	_, err = identityfile.Write(context.Background(), identityfile.WriteConfig{
+	_, err = identityfile.Write(t.Context(), identityfile.WriteConfig{
 		OutputPath: idPath,
 		KeyRing:    keyRing,
 		Format:     identityfile.FormatFile,
@@ -271,7 +271,7 @@ func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime 
 	if err != nil {
 		t.Fatalf("failed to create linear backoff: %v", err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	for {
 		events, _, err := cli.SearchEvents(ctx, events.SearchEventsRequest{
 			From:       startTime,
@@ -304,7 +304,7 @@ func MustGetCurrentUser(t *testing.T) *user.User {
 func WaitForDatabaseServers(t *testing.T, authServer *auth.Server, dbs []servicecfg.Database) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	for {

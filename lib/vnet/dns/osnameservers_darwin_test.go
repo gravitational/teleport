@@ -35,7 +35,7 @@ import (
 func TestOSUpstreamNameservers(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	resolver := &stubResolver{}

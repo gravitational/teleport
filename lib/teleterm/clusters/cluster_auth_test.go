@@ -19,7 +19,6 @@
 package clusters
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 
@@ -46,7 +45,7 @@ func TestPwdlessLoginPrompt_PromptPIN(t *testing.T) {
 		}}, nil
 	}
 
-	prompt := newPwdlessLoginPrompt(context.Background(), slog.Default(), stream)
+	prompt := newPwdlessLoginPrompt(t.Context(), slog.Default(), stream)
 	pin, err := prompt.PromptPIN()
 	require.NoError(t, err)
 	require.Equal(t, "1234", pin)
@@ -71,7 +70,7 @@ func TestPwdlessLoginPrompt_PromptTouch(t *testing.T) {
 		return nil
 	}
 
-	prompt := newPwdlessLoginPrompt(context.Background(), slog.Default(), stream)
+	prompt := newPwdlessLoginPrompt(t.Context(), slog.Default(), stream)
 	ackTouch, err := prompt.PromptTouch()
 	require.NoError(t, err)
 	require.NoError(t, ackTouch())
@@ -107,7 +106,7 @@ func TestPwdlessLoginPrompt_PromptCredential(t *testing.T) {
 		}}, nil
 	}
 
-	prompt := newPwdlessLoginPrompt(context.Background(), slog.Default(), stream)
+	prompt := newPwdlessLoginPrompt(t.Context(), slog.Default(), stream)
 	cred, err := prompt.PromptCredential(unsortedCreds)
 	require.NoError(t, err)
 	require.Equal(t, "foo", cred.User.Name)

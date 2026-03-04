@@ -100,7 +100,7 @@ func TestEKSIAMConfigReqDefaults(t *testing.T) {
 }
 
 func TestEKSIAMConfig(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tt := range []struct {
 		name              string
@@ -171,7 +171,7 @@ func TestEKSIAMConfigOutput(t *testing.T) {
 		existingRoles:        []string{req.IntegrationRole},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	require.NoError(t, ConfigureEKSIAM(ctx, clt, req))
 	if golden.ShouldSet() {
 		golden.Set(t, buf.Bytes())

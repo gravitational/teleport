@@ -19,7 +19,6 @@
 package azure
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -31,7 +30,7 @@ import (
 )
 
 func TestGetVirtualMachine(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	validResourceID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm"
 
 	for _, tc := range []struct {
@@ -147,7 +146,7 @@ func TestGetVirtualMachine(t *testing.T) {
 }
 
 func TestGetScaleSetVirtualMachine(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	validResourceID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/vmss/virtualMachines/0"
 
 	for _, tc := range []struct {
@@ -295,7 +294,7 @@ func TestListVirtualMachines(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := NewVirtualMachinesClientByAPI(mockAPI, nil /* scaleSetAPI */)
 
-			vms, err := client.ListVirtualMachines(context.Background(), tc.resourceGroup)
+			vms, err := client.ListVirtualMachines(t.Context(), tc.resourceGroup)
 			require.NoError(t, err)
 			var vmIDs []string
 			for _, vm := range vms {

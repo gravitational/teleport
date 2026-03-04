@@ -19,7 +19,6 @@
 package aws_sync
 
 import (
-	"context"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -160,7 +159,7 @@ func TestPollAWSRDS(t *testing.T) {
 			collectErr := func(err error) {
 				tt.checkError(t, err)
 			}
-			execFunc := a.pollAWSRDSDatabases(context.Background(), result, collectErr)
+			execFunc := a.pollAWSRDSDatabases(t.Context(), result, collectErr)
 			require.NoError(t, execFunc())
 			require.Empty(t, cmp.Diff(
 				tt.want,

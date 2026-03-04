@@ -346,7 +346,7 @@ type testClient struct {
 }
 
 func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *Service) {
-	ctx := context.Background()
+	ctx := t.Context()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 

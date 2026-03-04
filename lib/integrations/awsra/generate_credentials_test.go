@@ -39,7 +39,7 @@ import (
 )
 
 func TestGenerateCredentials(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mockCreateSessionAPI := func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {

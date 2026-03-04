@@ -626,7 +626,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 func TestWatchers(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
@@ -805,7 +805,7 @@ func expectNextEvent(t *testing.T, eventsC <-chan Event, expectedEvent string, s
 func TestCompletenessInit(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	const caCount = 100
 	const inits = 20
 	p := NewTestPackWithoutCache(t)
@@ -901,7 +901,7 @@ func TestCompletenessInit(t *testing.T) {
 func TestCompletenessReset(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	const caCount = 100
 	const resets = 20
 	p := NewTestPackWithoutCache(t)
@@ -1020,7 +1020,7 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 	require.NoError(b, err)
 	defer p.Close()
 
-	ctx := context.Background()
+	ctx := b.Context()
 
 	count := 100000
 	for i := range count {
@@ -1075,7 +1075,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 	const pageSize = 10
 	var err error
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	p, err := newPackWithoutCache(t.TempDir())
 	require.NoError(t, err)
@@ -1178,7 +1178,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 }
 
 func initStrategy(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	p := NewTestPackWithoutCache(t)
 	t.Cleanup(p.Close)
 
@@ -1300,7 +1300,7 @@ func initStrategy(t *testing.T) {
 // TestRecovery tests error recovery scenario
 func TestRecovery(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -1337,7 +1337,7 @@ func TestRecovery(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetCertAuthority(context.Background(), ca2.GetID(), false)
+	out, err := p.cache.GetCertAuthority(t.Context(), ca2.GetID(), false)
 	require.NoError(t, err)
 	types.RemoveCASecrets(ca2)
 	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -1541,7 +1541,7 @@ func TestRelativeExpiry(t *testing.T) {
 	// so that we can batch create nodes without waiting on each event
 	require.Less(t, int(nodeCount*3), eventBufferSize)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
 	p := newTestPack(t, func(c Config) Config {
@@ -1618,7 +1618,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 	// so that we can batch create nodes without waiting on each event
 	require.Less(t, int(nodeCount*3), eventBufferSize)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
 	p := newTestPack(t, func(c Config) Config {
@@ -1761,7 +1761,7 @@ func TestCache_Backoff(t *testing.T) {
 // TestSetupConfigFns ensures that all WatchKinds used in setup config functions are present in ForAuth() as well.
 func TestSetupConfigFns(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	bk, err := memory.New(memory.Config{
 		Context: ctx,
 		Mirror:  true,
@@ -2071,7 +2071,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 // lets everything else pass through.
 func TestPartialHealth(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// setup cache such that role resources wouldn't be recognized by the event source and wouldn't be cached.
 	p, err := newPack(t, ForApps, ignoreKinds([]types.WatchKind{{Kind: types.KindRole}}))
@@ -2153,7 +2153,7 @@ func TestPartialHealth(t *testing.T) {
 // can have new rules, causing the existing database to fail on validation.
 func TestInvalidDatabases(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	generateInvalidDB := func(t *testing.T, name string) types.Database {
 		db := &types.DatabaseV3{Metadata: types.Metadata{

@@ -19,7 +19,6 @@
 package img
 
 import (
-	"context"
 	"testing"
 
 	"github.com/distribution/reference"
@@ -29,7 +28,7 @@ import (
 func TestNewNopValidator(t *testing.T) {
 	// Test setup
 	v := NewNopValidator("test")
-	ctx := context.Background()
+	ctx := t.Context()
 	baseImageName := "registry.example.com/teleport-distroless"
 	baseImage, err := reference.ParseNamed(baseImageName)
 	require.NoError(t, err)

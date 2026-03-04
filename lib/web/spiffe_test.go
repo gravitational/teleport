@@ -19,7 +19,6 @@
 package web
 
 import (
-	"context"
 	"crypto"
 	"crypto/x509"
 	"encoding/json"
@@ -39,7 +38,7 @@ import (
 )
 
 func TestGetSPIFFEBundle(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	authServer := env.server.Auth()
 	cn, err := authServer.GetClusterName(ctx)
@@ -89,7 +88,7 @@ func TestGetSPIFFEBundle(t *testing.T) {
 // OIDC support function correctly.
 func TestSPIFFEJWTPublicEndpoints(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 

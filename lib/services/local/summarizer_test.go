@@ -65,7 +65,7 @@ func setupSummarizerTest(
 	t *testing.T,
 ) (context.Context, *SummarizerService) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	mem, err := memory.New(memory.Config{
 		Context: ctx,
@@ -144,7 +144,7 @@ func TestSummarizerService_CreateInferenceModel(t *testing.T) {
 func TestSummarizerService_CreateInferenceModel_BedrockAllowed(t *testing.T) {
 	// Perform a similar setup procedure, but enable Bedrock.
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	mem, err := memory.New(memory.Config{
 		Context: ctx,

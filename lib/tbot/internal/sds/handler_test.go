@@ -60,7 +60,7 @@ func (m *mockTrustBundleCache) GetBundleSet(ctx context.Context) (*workloadident
 // is enforced.
 func TestSDS_FetchSecrets(t *testing.T) {
 	log := logtest.NewLogger()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	td, err := spiffeid.TrustDomainFromString("example.com")
 	require.NoError(t, err)

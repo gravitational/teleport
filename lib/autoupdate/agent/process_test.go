@@ -201,7 +201,7 @@ func TestWaitForStablePID(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 			ch := make(chan int)
@@ -280,7 +280,7 @@ func TestTickFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			filePath := filepath.Join(t.TempDir(), "file")
 
-			ctx := context.Background()
+			ctx := t.Context()
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 			tickC := make(chan time.Time)

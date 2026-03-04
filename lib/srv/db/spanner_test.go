@@ -39,7 +39,7 @@ import (
 )
 
 func TestAccessSpanner(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	const dbServiceName = "my-spanner"
 	testCtx := setupTestContext(ctx, t, withSpanner(dbServiceName, cloudSpannerAuthToken, func(db *types.DatabaseV3) {
 		db.SetStaticLabels(map[string]string{"foo": "bar"})

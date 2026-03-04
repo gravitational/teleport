@@ -19,7 +19,6 @@
 package scanner
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"sort"
@@ -92,7 +91,7 @@ func TestNewScanner(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			keys := s.ScanPrivateKeys(context.Background(), deviceID)
+			keys := s.ScanPrivateKeys(t.Context(), deviceID)
 			var got []*accessgraphsecretsv1pb.PrivateKey
 			for _, key := range keys {
 				got = append(got, key.Key)

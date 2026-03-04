@@ -152,7 +152,7 @@ func TestGithubConnectorSecretLookup(t *testing.T) {
 	test := &githubTestingPrimitives{}
 	setup := testlib.SetupFakeKubeTestEnv(t)
 	test.Init(setup)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	crName := validRandomResourceName("github")
 	secretName := validRandomResourceName("github-secret")

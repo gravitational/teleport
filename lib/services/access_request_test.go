@@ -167,7 +167,7 @@ func (m *mockGetter) GetClusterName(_ context.Context) (types.ClusterName, error
 
 // TestReviewThresholds tests various review threshold scenarios
 func TestReviewThresholds(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// describes a collection of roles with various approval/review
 	// permissions.
@@ -1291,10 +1291,10 @@ func TestRolesForResourceRequest(t *testing.T) {
 				Expires: clock.Now().UTC().Add(8 * time.Hour),
 			}
 
-			validator, err := NewRequestValidator(context.Background(), clock, g, uls.GetName(), WithExpandVars(true))
+			validator, err := NewRequestValidator(t.Context(), clock, g, uls.GetName(), WithExpandVars(true))
 			require.NoError(t, err)
 
-			err = validator.validate(context.Background(), req, identity)
+			err = validator.validate(t.Context(), req, identity)
 			require.ErrorIs(t, err, tc.expectError)
 			if err != nil {
 				return
@@ -1490,7 +1490,7 @@ func newFixture(t *testing.T) (*mockGetter, string) {
 }
 
 func TestPruneMappedSearchAs(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g, user := newFixture(t)
 
 	testCases := []struct {
@@ -1733,7 +1733,7 @@ func undefinedRoles(require.TestingT, []string, ...any) {
 }
 
 func TestPruneMappedRoles(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g, username := newFixture(t)
 
 	// GIVEN a user state with no standing roles, implying that the search-as roles *must*
@@ -1957,7 +1957,7 @@ func TestPruneMappedRoles(t *testing.T) {
 
 func TestGetRequestableRoles(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	clusterName := "my-cluster"
 
@@ -2206,7 +2206,7 @@ func TestCalculatePendingRequestTTL(t *testing.T) {
 				roles:      map[string]types.Role{"bar": role},
 			}
 
-			validator, err := NewRequestValidator(context.Background(), clock, getter, "foo", WithExpandVars(true))
+			validator, err := NewRequestValidator(t.Context(), clock, getter, "foo", WithExpandVars(true))
 			require.NoError(t, err)
 
 			request, err := types.NewAccessRequest("some-id", "foo", "bar")
@@ -2281,14 +2281,14 @@ func TestSessionTTL(t *testing.T) {
 				roles: map[string]types.Role{"bar": role},
 			}
 
-			validator, err := NewRequestValidator(context.Background(), clock, getter, "foo", WithExpandVars(true))
+			validator, err := NewRequestValidator(t.Context(), clock, getter, "foo", WithExpandVars(true))
 			require.NoError(t, err)
 
 			request, err := types.NewAccessRequest("some-id", "foo", "bar")
 			request.SetAccessExpiry(tt.accessExpiry)
 			require.NoError(t, err)
 
-			ttl, err := validator.sessionTTL(context.Background(), tt.identity, request, now)
+			ttl, err := validator.sessionTTL(t.Context(), tt.identity, request, now)
 			tt.assertion(t, err)
 			if err == nil {
 				require.Equal(t, tt.expectedTTL, ttl)
@@ -2407,7 +2407,7 @@ func TestAutoRequest(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		uls, err := userloginstate.New(header.Metadata{
 			Name: "foo",
@@ -2443,7 +2443,7 @@ func TestAutoRequest(t *testing.T) {
 func TestReasonRequired(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	clusterName := "my-test-cluster"
 
@@ -2811,7 +2811,7 @@ func TestValidateResourceRequestSizeLimits(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	err = ValidateAccessRequestForUser(context.Background(), clock, g, req, identity, WithExpandVars(true))
+	err = ValidateAccessRequestForUser(t.Context(), clock, g, req, identity, WithExpandVars(true))
 	require.NoError(t, err)
 	require.Len(t, req.GetRequestedResourceIDs(), 2)
 	expectedRidStr0 := types.ResourceIDToString(req.GetRequestedResourceIDs()[0])
@@ -2828,7 +2828,7 @@ func TestValidateResourceRequestSizeLimits(t *testing.T) {
 		})
 	}
 	req.SetRequestedResourceIDs(requestedResourceIDs)
-	err = ValidateAccessRequestForUser(context.Background(), clock, g, req, identity, WithExpandVars(true))
+	err = ValidateAccessRequestForUser(t.Context(), clock, g, req, identity, WithExpandVars(true))
 	require.ErrorContains(t, err, "access request exceeds maximum length")
 }
 
@@ -3119,7 +3119,7 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 				Expires: now.Add(defaultSessionTTL),
 			}
 
-			validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, WithExpandVars(true))
+			validator, err := NewRequestValidator(t.Context(), clock, g, tt.requestor, WithExpandVars(true))
 			require.NoError(t, err)
 
 			req.SetCreationTime(now)
@@ -3128,7 +3128,7 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 			}
 			req.SetDryRun(tt.dryRun)
 
-			err = validator.validate(context.Background(), req, identity)
+			err = validator.validate(t.Context(), req, identity)
 			require.NoError(t, err)
 			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetAccessExpiry())
 			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetMaxDuration())
@@ -3169,7 +3169,7 @@ func TestValidate_RequestedPendingTTLAndMaxDuration(t *testing.T) {
 		Expires: now.Add(defaultSessionTTL),
 	}
 
-	validator, err := NewRequestValidator(context.Background(), clock, g, "alice", WithExpandVars(true))
+	validator, err := NewRequestValidator(t.Context(), clock, g, "alice", WithExpandVars(true))
 	require.NoError(t, err)
 
 	requestedMaxDuration := 4 * day
@@ -3179,7 +3179,7 @@ func TestValidate_RequestedPendingTTLAndMaxDuration(t *testing.T) {
 	req.SetMaxDuration(now.Add(requestedMaxDuration))
 	req.SetExpiry(now.Add(requestedPendingTTL))
 
-	err = validator.validate(context.Background(), req, identity)
+	err = validator.validate(t.Context(), req, identity)
 	require.NoError(t, err)
 	require.Equal(t, now.Add(requestedMaxDuration), req.GetAccessExpiry())
 	require.Equal(t, now.Add(requestedMaxDuration), req.GetMaxDuration())
@@ -4870,7 +4870,7 @@ func TestReasonPrompts(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			clock := clockwork.NewFakeClock()
 
 			uls, err := userloginstate.New(header.Metadata{

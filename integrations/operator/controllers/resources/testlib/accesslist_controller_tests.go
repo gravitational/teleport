@@ -206,7 +206,7 @@ func AccessListUpdateTest(t *testing.T, clt *client.Client) {
 // AccessListMutateExistingTest checks that the operator propagates the expiry
 // from the existing access list to the new one it will upsert.
 func AccessListMutateExistingTest(t *testing.T, clt *client.Client) {
-	ctx := context.Background()
+	ctx := t.Context()
 	setup := SetupFakeKubeTestEnv(t, WithTeleportClient(clt))
 
 	// Test setup: create a new AccessList in Teleport with an existing expiry

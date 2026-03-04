@@ -396,7 +396,7 @@ func (m *mockDeployServiceClient) UpsertToken(ctx context.Context, token types.P
 }
 
 func TestDeployDatabaseService(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	t.Run("fails to get account id", func(t *testing.T) {
 		_, err := DeployDatabaseService(ctx, &mockDeployServiceClient{}, DeployDatabaseServiceRequest{
 			Region:              "us-east-1",

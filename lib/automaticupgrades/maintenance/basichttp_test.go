@@ -19,7 +19,6 @@
 package maintenance
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -75,7 +74,7 @@ func Test_basicHTTPMaintenanceClient_Get(t *testing.T) {
 	serverURL, err := url.Parse(mock.Srv.URL)
 	serverURL.Path = basicHTTPTestPath
 	require.NoError(t, err)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name       string

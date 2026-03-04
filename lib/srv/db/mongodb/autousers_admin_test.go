@@ -65,7 +65,7 @@ func Test_ensure_adminClientFnCache(t *testing.T) {
 }
 
 func Test_getShareableAdminClient(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fakeClock := clockwork.NewFakeClock()
 	require.NotNil(t, fakeClock)
 
@@ -132,7 +132,7 @@ func mustGetShareableAdminClient(t *testing.T, cache *utils.FnCache, clock clock
 	t.Helper()
 
 	client, err := getShareableAdminClient(
-		context.Background(),
+		t.Context(),
 		cache,
 		&common.Session{
 			Database: db,

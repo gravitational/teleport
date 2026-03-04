@@ -17,7 +17,6 @@
 package decisionv1_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -32,7 +31,7 @@ func TestDecisionServiceRequiresLocalAdmin(t *testing.T) {
 	t.Parallel()
 
 	env := NewTestenv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_, _, err := authtest.CreateUserAndRoleWithoutRoles(env.AuthAdminClient, "alice", []string{"alice"})
 	require.NoError(t, err, "Creating use alice failed")

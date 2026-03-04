@@ -95,7 +95,7 @@ func TestRootUTMPEntryExists(t *testing.T) {
 	require.NoError(t, err)
 	teleportTestUser := user.Name
 
-	ctx := context.Background()
+	ctx := t.Context()
 	s := newSrvCtx(ctx, t)
 	up, err := newUpack(ctx, s, teleportTestUser, []string{teleportTestUser, teleportFakeUser}, wildcardAllow)
 	require.NoError(t, err)

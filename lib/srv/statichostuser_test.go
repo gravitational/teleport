@@ -322,7 +322,7 @@ func TestStaticHostUserHandler(t *testing.T) {
 			users := &mockHostUsers{}
 			sudoers := &mockHostSudoers{}
 			clock := clockwork.NewFakeClock()
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
 
 			testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{

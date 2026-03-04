@@ -34,7 +34,7 @@ import (
 )
 
 func TestAccessMonitoringRule(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(cancel)
 
 	events := newMockEventsClient()
@@ -122,7 +122,7 @@ func TestAccessMonitoringRule(t *testing.T) {
 }
 
 func TestAccessRequest(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(cancel)
 
 	events := newMockEventsClient()

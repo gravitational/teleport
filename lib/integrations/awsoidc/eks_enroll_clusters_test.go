@@ -81,7 +81,7 @@ func TestGetChartUrl(t *testing.T) {
 func TestEnrollEKSClusters(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	proxyAddr := "https://example.com"
 	awsAccountID := "880713328506"
 	awsUserID := "AIDAJQABLZS4A3QDU576Q"
@@ -540,7 +540,7 @@ func TestGetAccessEntryPrincipalArn(t *testing.T) {
 			return &tc.identity, nil
 		}
 
-		result, err := getAccessEntryPrincipalArn(context.Background(), i)
+		result, err := getAccessEntryPrincipalArn(t.Context(), i)
 		require.NoError(t, err)
 		require.Equal(t, tc.expected, result)
 	}

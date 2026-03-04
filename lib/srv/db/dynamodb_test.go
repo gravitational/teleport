@@ -38,7 +38,7 @@ import (
 func TestAccessDynamoDB(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	mockTables := []string{"table-one", "table-two"}
 	testCtx := setupTestContext(ctx, t)
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
@@ -123,7 +123,7 @@ func TestAccessDynamoDB(t *testing.T) {
 }
 
 func TestAuditDynamoDB(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t)
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
 		AWSConfigProvider: &mocks.AWSConfigProvider{},

@@ -20,7 +20,6 @@ package events
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -37,7 +36,7 @@ import (
 
 func TestFileLogPagination(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	log, err := NewFileLog(FileLogConfig{
 		Dir:            t.TempDir(),
@@ -277,7 +276,7 @@ func TestFileLogCheckpoint(t *testing.T) {
 func TestSearchSessionEvents(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	start := clock.Now()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	log, err := NewFileLog(FileLogConfig{
 		Dir:            t.TempDir(),
@@ -410,7 +409,7 @@ func TestLargeEvent(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			clock := clockwork.NewFakeClockAt(time.Now())
 
 			log, err := NewFileLog(FileLogConfig{

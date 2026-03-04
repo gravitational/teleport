@@ -96,7 +96,7 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 	// KubernetesCluster resource.
 	// Discovery service will scan the AWS account each minutes.
 	require.Eventually(t, func() bool {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		clusters, err := authC.GetKubernetesClusters(ctx)
@@ -114,7 +114,7 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 	// This will happen after the discovery service creates the KubernetesCluster
 	// resource and the kubernetes service receives the event.
 	require.Eventually(t, func() bool {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		for ks := range authC.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
@@ -141,7 +141,7 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 	// the user can access the cluster and the kubernetes service can
 	// impersonate the user's kubernetes_groups and kubernetes_users.
 	require.Eventually(t, func() bool {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 		list, err := kubeClient.CoreV1().Services(metav1.NamespaceDefault).List(ctx, metav1.ListOptions{})
 		return err == nil && len(list.Items) > 0
@@ -172,7 +172,7 @@ func awsEKSDiscoveryUnmatchedCluster(t *testing.T) {
 	// Wait for the discovery service to not create a KubernetesCluster resource
 	// because the cluster does not match the selectors.
 	require.Never(t, func() bool {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		clusters, err := authC.GetKubernetesClusters(ctx)

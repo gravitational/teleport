@@ -46,7 +46,7 @@ import (
 func TestBotWorkloadIdentityX509(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 
 	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))

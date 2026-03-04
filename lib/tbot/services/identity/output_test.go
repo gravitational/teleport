@@ -164,7 +164,7 @@ func Test_renderSSHConfig(t *testing.T) {
 			}
 
 			err := renderSSHConfig(
-				context.Background(),
+				t.Context(),
 				logtest.NewLogger(),
 				&connection.ProxyPong{
 					PingResponse: &webclient.PingResponse{

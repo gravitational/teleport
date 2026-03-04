@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -67,7 +66,7 @@ func TestLockCRUD(t *testing.T) {
 		return filter
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	backend, err := memory.New(memory.Config{
 		Context: ctx,

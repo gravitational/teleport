@@ -17,7 +17,6 @@
 package objects
 
 import (
-	"context"
 	"log/slog"
 	"maps"
 	"slices"
@@ -77,7 +76,7 @@ func TestCalculateDeleted(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := calculateDeleted(context.Background(), Config{Log: slog.Default()}, tt.objects, tt.objsNew)
+			result := calculateDeleted(t.Context(), Config{Log: slog.Default()}, tt.objects, tt.objsNew)
 			require.ElementsMatch(t, tt.expected, result)
 		})
 	}
@@ -183,7 +182,7 @@ func TestCalculateUpdates(t *testing.T) {
 				return object.obj.GetMetadata().Name
 			})
 
-			result := calculateUpdates(context.Background(), cfg, initialState, freshObjects)
+			result := calculateUpdates(t.Context(), cfg, initialState, freshObjects)
 
 			require.ElementsMatch(t, slices.Collect(maps.Keys(expectedState)), slices.Collect(maps.Keys(result)))
 			for key, elem := range expectedState {

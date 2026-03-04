@@ -47,7 +47,7 @@ func TestDBAuthorityDown(t *testing.T) {
 
 	migration := createDBAuthority{}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// create a CA for all types except DB
 	for _, caType := range types.CertAuthTypes {

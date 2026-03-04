@@ -19,7 +19,6 @@
 package controller
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -72,7 +71,7 @@ func mustNewStaticGetter(t *testing.T, versionMock string, errMock error) versio
 }
 
 func Test_VersionUpdater_GetVersion(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name                string

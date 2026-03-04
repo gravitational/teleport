@@ -150,7 +150,7 @@ func TestAutoDiscoverNode_CheckAndSetDefaults(t *testing.T) {
 }
 
 func TestAutoDiscoverNode(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mockRepoKeys := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

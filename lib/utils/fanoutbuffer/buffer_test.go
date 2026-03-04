@@ -66,7 +66,7 @@ func BenchmarkBuffer(b *testing.B) {
 	for _, bb := range bbs {
 		b.Run(fmt.Sprintf("%d-events-%d-cursors", bb.events, bb.cursors), func(b *testing.B) {
 			for b.Loop() {
-				ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+				ctx, cancel := context.WithTimeout(b.Context(), time.Minute)
 				concurrentFanout(ctx, b, bb.events, bb.cursors)
 				cancel()
 			}
@@ -77,7 +77,7 @@ func BenchmarkBuffer(b *testing.B) {
 // TestConcurrentFanout verifies that order and completeness are preserved when under
 // high load/concurrency.
 func TestConcurrentFanout(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 
 	concurrentFanout(ctx, t, 20_000, 400)
@@ -145,7 +145,7 @@ func TestBasics(t *testing.T) {
 
 	// this test should be very fast. we scope all reads to a shared context
 	// timeout to ensure that deadlocks become visible quickly.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	defer cancel()
 
 	clock := clockwork.NewFakeClock()

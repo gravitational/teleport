@@ -121,7 +121,7 @@ func TestAKSFetcher(t *testing.T) {
 			}
 			fetcher, err := NewAKSFetcher(cfg)
 			require.NoError(t, err)
-			resources, err := fetcher.Get(context.Background())
+			resources, err := fetcher.Get(t.Context())
 			require.NoError(t, err)
 
 			require.Equal(t, tt.want.ToMap(), resources.ToMap())

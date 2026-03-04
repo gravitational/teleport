@@ -19,7 +19,6 @@
 package tools
 
 import (
-	"context"
 	"fmt"
 	"runtime"
 	"strings"
@@ -39,7 +38,7 @@ func TestTeleportPackageURLs(t *testing.T) {
 	t.Cleanup(func() { modules.SetModules(currentModules) })
 	modules.SetModules(&modulestest.Modules{TestBuildType: modules.BuildCommunity})
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	type expected struct {
 		archivePrefix string

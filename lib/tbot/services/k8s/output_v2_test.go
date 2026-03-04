@@ -216,7 +216,7 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			matches, err := fetchAllMatchingKubeClusters(context.Background(), client, tt.selectors)
+			matches, err := fetchAllMatchingKubeClusters(t.Context(), client, tt.selectors)
 			if tt.expectError != nil {
 				tt.expectError(t, err)
 			} else {
@@ -316,7 +316,7 @@ func TestKubernetesV2OutputService_render(t *testing.T) {
 			}
 
 			err = svc.render(
-				context.Background(),
+				t.Context(),
 				status,
 				id,
 				[]types.CertAuthority{fakeCA(t, types.HostCA, mockClusterName)},

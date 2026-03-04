@@ -19,7 +19,6 @@
 package machineidv1_test
 
 import (
-	"context"
 	"crypto/x509"
 	"testing"
 	"time"
@@ -41,7 +40,7 @@ import (
 func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -237,7 +236,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
 	require.NoError(t, err)

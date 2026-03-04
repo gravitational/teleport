@@ -19,7 +19,6 @@
 package slack
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -143,7 +142,7 @@ func TestOAuth(t *testing.T) {
 
 		authorizer := newAuthorizer(makeSlackClient(s.url()), clientID, clientSecret, log)
 
-		creds, err := authorizer.Exchange(context.Background(), s.authorizationCode, s.redirectURI)
+		creds, err := authorizer.Exchange(t.Context(), s.authorizationCode, s.redirectURI)
 		require.NoError(t, err)
 		require.Equal(t, s.exchangeResponse.AccessToken, creds.AccessToken)
 		require.Equal(t, s.exchangeResponse.RefreshToken, creds.RefreshToken)
@@ -157,7 +156,7 @@ func TestOAuth(t *testing.T) {
 
 		authorizer := newAuthorizer(makeSlackClient(s.url()), clientID, clientSecret, log)
 
-		_, err := authorizer.Exchange(context.Background(), s.authorizationCode, s.redirectURI)
+		_, err := authorizer.Exchange(t.Context(), s.authorizationCode, s.redirectURI)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "invalid_code")
 
@@ -170,7 +169,7 @@ func TestOAuth(t *testing.T) {
 
 		authorizer := newAuthorizer(makeSlackClient(s.url()), clientID, clientSecret, log)
 
-		creds, err := authorizer.Refresh(context.Background(), refreshToken)
+		creds, err := authorizer.Refresh(t.Context(), refreshToken)
 		require.NoError(t, err)
 		require.Equal(t, s.refreshResponse.AccessToken, creds.AccessToken)
 		require.Equal(t, s.refreshResponse.RefreshToken, creds.RefreshToken)
@@ -185,7 +184,7 @@ func TestOAuth(t *testing.T) {
 
 		authorizer := newAuthorizer(makeSlackClient(s.url()), clientID, clientSecret, log)
 
-		_, err := authorizer.Refresh(context.Background(), refreshToken)
+		_, err := authorizer.Refresh(t.Context(), refreshToken)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "expired_token")
 	})

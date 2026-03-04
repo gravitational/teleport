@@ -202,7 +202,7 @@ func MustStartMockALBProxy(t *testing.T, proxyAddr string) *MockAWSALBProxy {
 	cert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	m := &MockAWSALBProxy{

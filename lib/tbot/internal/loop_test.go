@@ -41,7 +41,7 @@ func TestMain(m *testing.M) {
 func Test_RunOnInterval(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	taskCh := make(chan struct{}, 3)
@@ -80,7 +80,7 @@ func Test_RunOnInterval(t *testing.T) {
 func Test_RunOnInterval_failureExit(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	callCount := atomic.Int64{}

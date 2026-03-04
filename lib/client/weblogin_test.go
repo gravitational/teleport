@@ -87,7 +87,7 @@ func TestHostCredentialsHttpFallback(t *testing.T) {
 		defer httpSvr.Close()
 
 		// Send the HostCredentials request.
-		ctx := context.Background()
+		ctx := t.Context()
 		_, err = client.HostCredentials(ctx, httpSvr.Listener.Addr().String(), tc.insecure, types.RegisterUsingTokenRequest{})
 
 		// If it should fallback, then no error should occur
@@ -127,7 +127,7 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 	webID := sa.WebAuthnID
 	device := sa.Device
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Prepare client config, it won't change throughout the test.
 	cfg := &client.Config{}

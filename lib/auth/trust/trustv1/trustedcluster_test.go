@@ -19,7 +19,6 @@
 package trustv1
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -37,7 +36,7 @@ import (
 // in a Cloud hosted environment.
 // Tests cannot be run in parallel because it relies on environment variables.
 func TestCloudProhibited(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newTestPack(t)
 
 	trust := local.NewCAService(p.mem)
@@ -90,7 +89,7 @@ func TestCloudProhibited(t *testing.T) {
 
 func TestTrustedClusterRBAC(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newTestPack(t)
 
 	tc, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{

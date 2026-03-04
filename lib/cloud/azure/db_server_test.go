@@ -19,7 +19,6 @@
 package azure
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -77,7 +76,7 @@ func TestListServers(t *testing.T) {
 			want:   []*DBServer{pgDBServer2},
 		},
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -136,7 +135,7 @@ func TestGetServer(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s, err := tt.client.Get(ctx, tt.group, tt.dbName)

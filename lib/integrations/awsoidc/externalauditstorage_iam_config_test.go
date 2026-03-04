@@ -39,7 +39,7 @@ import (
 // creates a well-formatted IAM policy and attaches it to the correct role, and
 // behaves well in error cases.
 func TestConfigureExternalAuditStorage(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tc := range []struct {
 		desc                 string

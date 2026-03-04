@@ -19,7 +19,6 @@
 package azuredevops
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -30,7 +29,7 @@ import (
 
 func TestIDTokenSource(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/oidctoken", func(w http.ResponseWriter, req *http.Request) {

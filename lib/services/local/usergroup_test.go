@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -34,7 +33,7 @@ import (
 
 // TestUserGroupCRUD tests backend operations with user group resources.
 func TestUserGroupCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,

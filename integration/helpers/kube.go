@@ -19,7 +19,6 @@
 package helpers
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -87,7 +86,7 @@ func genKubeConfig(t *testing.T, kubeconfigPath, clusterName string) {
 
 // GetKubeClusters gets all kubernetes clusters accessible from a given auth server.
 func GetKubeClusters(t *testing.T, as *auth.Server) []types.KubeCluster {
-	ctx := context.Background()
+	ctx := t.Context()
 	resources, err := apiclient.GetResourcesWithFilters(ctx, as, proto.ListResourcesRequest{
 		ResourceType: types.KindKubeServer,
 	})

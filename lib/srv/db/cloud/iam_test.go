@@ -41,7 +41,7 @@ import (
 
 // TestAWSIAM tests RDS, Aurora and Redshift IAM auto-configuration.
 func TestAWSIAM(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	// Setup AWS database objects.
@@ -305,7 +305,7 @@ func TestAWSIAM(t *testing.T) {
 // TestAWSIAMNoPermissions tests that lack of AWS permissions does not produce
 // errors during IAM auto-configuration.
 func TestAWSIAMNoPermissions(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	// Create unauthorized mocks for AWS services.

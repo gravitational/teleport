@@ -270,7 +270,7 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 
 	client.MockPrincipals = []string{claimedProxy}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	err := agent.Start(ctx)
@@ -346,7 +346,7 @@ func TestAgentStart(t *testing.T) {
 		return false, nil, nil
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	err := agent.Start(ctx)

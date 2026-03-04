@@ -307,7 +307,7 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 		Protocols:          []common.Protocol{common.ProtocolPostgres},
 		Listener:           localProxyListener,
 		SNI:                "localhost",
-		ParentContext:      context.Background(),
+		ParentContext:      t.Context(),
 		InsecureSkipVerify: true,
 	}
 
@@ -392,7 +392,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	defer serverConn.Close()
 
 	// Let alpnConnHandler serve the connection in a separate go routine.
-	handlerCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	handlerCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	go func() {
 		defer cancel()
 		alpnConnHandler(handlerCtx, serverConn)
@@ -413,7 +413,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	})
 	defer clientTLSConn.Close()
 
-	require.NoError(t, clientTLSConn.HandshakeContext(context.Background()))
+	require.NoError(t, clientTLSConn.HandshakeContext(t.Context()))
 	checkGaugeValue(t, 1, proxyActiveConnections.WithLabelValues(string(common.ProtocolHTTP), t.Name()))
 	require.Equal(t, string(common.ProtocolHTTP), clientTLSConn.ConnectionState().NegotiatedProtocol)
 	require.NoError(t, req.Write(clientTLSConn))
@@ -462,7 +462,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 		}
 		defer trackServerConn.Close()
 
-		handlerCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		handlerCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		handlerErr := make(chan error, 1)
 		go func() {
 			defer cancel()
@@ -470,7 +470,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 		}()
 
 		// Now do the TLS handshake for server to handle.
-		require.Error(t, clientTLSConn.HandshakeContext(context.Background()))
+		require.Error(t, clientTLSConn.HandshakeContext(t.Context()))
 		select {
 		case err := <-handlerErr:
 			require.Error(t, err)
@@ -698,7 +698,7 @@ func TestMatchMySQLConn(t *testing.T) {
 				return nil
 			})
 
-			ctx := context.Background()
+			ctx := t.Context()
 			connectionInfo := ConnectionInfo{
 				ALPN: tt.protos,
 			}
@@ -749,7 +749,7 @@ func TestProxyPingConnections(t *testing.T) {
 				Protocols:          []common.Protocol{common.ProtocolWithPing(protocol)},
 				Listener:           localProxyListener,
 				SNI:                "localhost",
-				ParentContext:      context.Background(),
+				ParentContext:      t.Context(),
 				InsecureSkipVerify: true,
 				verifyUpstreamConnection: func(state tls.ConnectionState) error {
 					if state.NegotiatedProtocol != string(common.ProtocolWithPing(protocol)) {

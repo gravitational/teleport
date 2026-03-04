@@ -105,7 +105,7 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 	// Without it, sh quits immediately as stdin is not set.
 	scx.termAllocated = true
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Run sh
 	err = term.Run(ctx)

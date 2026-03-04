@@ -92,7 +92,7 @@ func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 
 	// Test setup: obtaining and authclient connected via the proxy
 	clt := getAuthClientForProxy(t, rc, testUsername, time.Hour)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	_, err = clt.Ping(ctx)
 	require.NoError(t, err)
@@ -166,7 +166,7 @@ func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
 
 	// Test setup: obtaining and authclient connected via the proxy
 	clt := getAuthClientForAuth(t, rc, testUsername, time.Hour)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	_, err = clt.Ping(ctx)
 	require.NoError(t, err)
@@ -224,7 +224,7 @@ func createTCTLTerraformUserAndRole(t *testing.T, username string, instance *hel
 func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username string, ttl time.Duration) *authclient.Client {
 	// Get TLS and SSH material
 	keyRing := helpers.MustCreateUserKeyRing(t, tc, username, ttl)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	tlsConfig, err := keyRing.TeleportClientTLSConfig(nil, []string{tc.Config.Auth.ClusterName.GetClusterName()})
 	require.NoError(t, err)
@@ -283,7 +283,7 @@ func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username stri
 func getAuthClientForAuth(t *testing.T, tc *helpers.TeleInstance, username string, ttl time.Duration) *authclient.Client {
 	// Get TLS and SSH material
 	keyRing := helpers.MustCreateUserKeyRing(t, tc, username, ttl)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	tlsConfig, err := keyRing.TeleportClientTLSConfig(nil, []string{tc.Config.Auth.ClusterName.GetClusterName()})
 	require.NoError(t, err)
@@ -336,7 +336,7 @@ func parseExportedEnvVars(t *testing.T, stdout *bytes.Buffer) map[string]string 
 // connectWithCredentialsFromVars takes the environment variables exported by the `tctl terraform env` command,
 // builds a Teleport client from them, and validates it can ping the cluster.
 func connectWithCredentialsFromVars(t *testing.T, vars map[string]string, clt *authclient.Client) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	identity, err := base64.StdEncoding.DecodeString(vars[constants.EnvVarTerraformIdentityFileBase64])

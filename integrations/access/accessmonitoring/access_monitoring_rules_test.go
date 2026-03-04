@@ -110,13 +110,13 @@ func TestRecipients(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+	amrh.HandleAccessMonitoringRule(t.Context(), types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToLegacy(rule1),
 	})
 	require.Len(t, amrh.getAccessMonitoringRules(), 1)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Expect recipient from matching rule.
 	req := &types.AccessRequestV3{
@@ -190,14 +190,14 @@ func TestRecipientsWithResources(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+	err = amrh.HandleAccessMonitoringRule(t.Context(), types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToLegacy(rule1),
 	})
 	require.NoError(t, err)
 	require.Len(t, amrh.getAccessMonitoringRules(), 1)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	req := &types.AccessRequestV3{
 		Spec: types.AccessRequestSpecV3{
@@ -260,14 +260,14 @@ func TestRecipientsWithSchedules(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+	err = amrh.HandleAccessMonitoringRule(t.Context(), types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToLegacy(rule1),
 	})
 	require.NoError(t, err)
 	require.Len(t, amrh.getAccessMonitoringRules(), 1)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Expect recipient from matching rule.
 	req := &types.AccessRequestV3{
@@ -320,7 +320,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+	amrh.HandleAccessMonitoringRule(t.Context(), types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToLegacy(rule1),
 	})
@@ -335,13 +335,13 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+	amrh.HandleAccessMonitoringRule(t.Context(), types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToLegacy(rule2),
 	})
 	require.Len(t, amrh.getAccessMonitoringRules(), 1)
 
-	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+	amrh.HandleAccessMonitoringRule(t.Context(), types.Event{
 		Type:     types.OpDelete,
 		Resource: types.Resource153ToLegacy(rule1),
 	})
@@ -363,7 +363,7 @@ func TestHandleAccessMonitoringRulePluginNameMisMatch(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+	amrh.HandleAccessMonitoringRule(t.Context(), types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToLegacy(rule1),
 	})
@@ -378,13 +378,13 @@ func TestHandleAccessMonitoringRulePluginNameMisMatch(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+	amrh.HandleAccessMonitoringRule(t.Context(), types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToLegacy(rule2),
 	})
 	require.Len(t, amrh.getAccessMonitoringRules(), 1)
 
-	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+	amrh.HandleAccessMonitoringRule(t.Context(), types.Event{
 		Type:     types.OpDelete,
 		Resource: types.Resource153ToLegacy(rule2),
 	})

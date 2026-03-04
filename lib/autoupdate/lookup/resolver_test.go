@@ -74,7 +74,7 @@ func (c *fakeCMCAuthClient) GetClusterMaintenanceConfig(_ context.Context) (type
 func TestAutoUpdateAgentVersion(t *testing.T) {
 	t.Parallel()
 	groupName := "test-group"
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// brokenChannelUpstream is a buggy upstream version server.
 	// This allows us to craft version channels returning errors.
@@ -161,7 +161,7 @@ func TestAutoUpdateAgentShouldUpdate(t *testing.T) {
 	t.Parallel()
 
 	groupName := "test-group"
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// brokenChannelUpstream is a buggy upstream version server.
 	// This allows us to craft version channels returning errors.

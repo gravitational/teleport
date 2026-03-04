@@ -20,7 +20,6 @@
 package regular
 
 import (
-	"context"
 	"io"
 	"log/slog"
 	"os/user"
@@ -112,7 +111,7 @@ func executeCommand(tb testing.TB, clt *tracessh.Client, command string, executi
 		go func() {
 			defer wg.Done()
 
-			ctx := context.Background()
+			ctx := tb.Context()
 
 			se, err := clt.NewSession(ctx)
 			assert.NoError(tb, err)

@@ -39,7 +39,7 @@ func TestRangeScopedRoles(t *testing.T) {
 
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	upstream := roles.NewRoleCache()
@@ -80,7 +80,7 @@ func TestRangeScopedRoleAssignments(t *testing.T) {
 
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	upstream := assignments.NewAssignmentCache()

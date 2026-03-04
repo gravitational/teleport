@@ -70,7 +70,7 @@ func TestAlloyDBGetEndpointAddress(t *testing.T) {
 
 	for endpointType, wantAddr := range addrInfo {
 		t.Run(string(endpointType), func(t *testing.T) {
-			resp, err := client.GetEndpointAddress(context.Background(), instance, string(endpointType))
+			resp, err := client.GetEndpointAddress(t.Context(), instance, string(endpointType))
 			require.NoError(t, err)
 			require.Equal(t, wantAddr, resp)
 		})

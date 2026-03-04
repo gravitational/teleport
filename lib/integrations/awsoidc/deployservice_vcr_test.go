@@ -19,7 +19,6 @@
 package awsoidc
 
 import (
-	"context"
 	"net/http"
 	"regexp"
 	"testing"
@@ -32,7 +31,7 @@ import (
 )
 
 func TestDeployDBService(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// To record new fixtures ensure the following:
 	// - change recordingMode to recorder.ModeRecordOnce

@@ -105,7 +105,7 @@ func TestModifyFailed(t *testing.T) {
 	}
 	cas := NewCAS(c, resourceKind, types.KindAccessRequest, mockEncode, mockDecode)
 
-	r, err := cas.Update(context.Background(), "foo", func(data mockData) (mockData, error) {
+	r, err := cas.Update(t.Context(), "foo", func(data mockData) (mockData, error) {
 		return mockData{}, trace.Errorf("fail")
 	})
 
@@ -123,7 +123,7 @@ func TestModifyCompareFailed(t *testing.T) {
 	}
 	cas := NewCAS(c, resourceKind, types.KindAccessRequest, mockEncode, mockDecode)
 
-	r, err := cas.Update(context.Background(), "foo", func(data mockData) (mockData, error) {
+	r, err := cas.Update(t.Context(), "foo", func(data mockData) (mockData, error) {
 		// If this is the first time we're called we fail
 		if data.Foo == "0" {
 			return mockData{}, &trace.CompareFailedError{Message: "does not exist yet"}
@@ -143,7 +143,7 @@ func TestModifySuccess(t *testing.T) {
 	}
 	cas := NewCAS(c, resourceKind, types.KindAccessRequest, mockEncode, mockDecode)
 
-	r, err := cas.Update(context.Background(), "foo", func(i mockData) (mockData, error) {
+	r, err := cas.Update(t.Context(), "foo", func(i mockData) (mockData, error) {
 		i.Foo = "other value"
 		return i, nil
 	})
@@ -160,7 +160,7 @@ func TestBackoff(t *testing.T) {
 	}
 	cas := NewCAS(c, resourceKind, types.KindAccessRequest, mockEncode, mockDecode)
 
-	r, err := cas.Update(context.Background(), "foo", func(_ mockData) (mockData, error) {
+	r, err := cas.Update(t.Context(), "foo", func(_ mockData) (mockData, error) {
 		return mockData{Foo: "yes"}, nil
 	})
 
@@ -175,7 +175,7 @@ func TestWrongData(t *testing.T) {
 	}
 	cas := NewCAS(c, resourceKind, types.KindAccessRequest, mockEncode, mockDecodeFail)
 
-	_, err := cas.Update(context.Background(), "foo", func(i mockData) (mockData, error) {
+	_, err := cas.Update(t.Context(), "foo", func(i mockData) (mockData, error) {
 		i.Foo = "other value"
 		return i, nil
 	})

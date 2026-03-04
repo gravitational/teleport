@@ -153,7 +153,7 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 )
 
 func TestBackends(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	message := []byte("Lorem ipsum dolor sit amet...")
@@ -294,7 +294,7 @@ func TestBackends(t *testing.T) {
 }
 
 func TestManager(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	sshSubjectKey, _, err := ed25519.GenerateKey(rand.Reader)
@@ -311,7 +311,7 @@ func TestManager(t *testing.T) {
 
 			// Delete all keys to clean up the test.
 			t.Cleanup(func() {
-				require.NoError(t, manager.DeleteUnusedKeys(context.Background(), nil /*activeKeys*/))
+				require.NoError(t, manager.DeleteUnusedKeys(t.Context(), nil /*activeKeys*/))
 			})
 
 			sshKeyPair, err := manager.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
@@ -485,7 +485,7 @@ func TestManager(t *testing.T) {
 // TestAlgorithmSuites asserts that the keystore generates keys with the
 // expected signature algorithm for all valid signature algorithm suites.
 func TestAlgorithmSuites(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	pack := newTestPack(ctx, t)
@@ -511,7 +511,7 @@ func testAlgorithmSuite(t *testing.T, ctx context.Context, pack *testPack, suite
 
 			// Delete all keys to clean up the test.
 			t.Cleanup(func() {
-				assert.NoError(t, manager.DeleteUnusedKeys(context.Background(), nil /*activeKeys*/))
+				assert.NoError(t, manager.DeleteUnusedKeys(t.Context(), nil /*activeKeys*/))
 			})
 
 			sshKeyPair, err := manager.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)

@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -38,7 +37,7 @@ import (
 
 // TestUserLoginStateCRUD tests backend operations with user login state resources.
 func TestUserLoginStateCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	backend, err := memory.New(memory.Config{
@@ -121,7 +120,7 @@ func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState
 }
 
 func TestListUserLoginStates(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
 	})

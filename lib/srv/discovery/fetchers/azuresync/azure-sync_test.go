@@ -234,7 +234,7 @@ func TestPoll(t *testing.T) {
 		roleAssignClient: &roleAssignClient,
 		vmClient:         &vmClient,
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	allFeats := Features{
 		RoleDefinitions: true,
 		RoleAssignments: true,

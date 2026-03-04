@@ -122,7 +122,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	fakeClock := srv.Clock().(*clockwork.FakeClock)
 
 	_, err := authtest.CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
@@ -235,7 +235,7 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	role, err := authtest.CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -375,7 +375,7 @@ func TestRegisterBotInstance(t *testing.T) {
 	// Inject mockEmitter to capture audit events
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().SetEmitter(mockEmitter)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_, err := authtest.CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -522,7 +522,7 @@ func TestRegisterBotInstance(t *testing.T) {
 func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err := authtest.CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
 	require.NoError(t, err)
 
@@ -597,7 +597,7 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 func TestRegisterBotCertificateExtensions(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_, err := authtest.CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -711,7 +711,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, a.UpsertToken(ctx, awsToken))
 
-		certs, err := a.RegisterUsingIAMMethod(context.Background(), func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
+		certs, err := a.RegisterUsingIAMMethod(t.Context(), func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 			templateInput := defaultIdentityRequestTemplateInput(challenge)
 			var identityRequest bytes.Buffer
 			require.NoError(t, identityRequestTemplate.Execute(&identityRequest, templateInput))
@@ -888,7 +888,7 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 	// Note: we can't enable parallel testing for this due to use of t.Setenv()
 	// for AWS client configuration.
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	srv := newTestTLSServer(t)
@@ -1047,7 +1047,7 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	srv := newTestTLSServer(t)
@@ -1153,7 +1153,7 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 func TestRegisterBotMultipleTokens(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	srv := newTestTLSServer(t)

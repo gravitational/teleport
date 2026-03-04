@@ -19,7 +19,6 @@
 package regular
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 
@@ -102,7 +101,7 @@ func TestParseProxyRequest(t *testing.T) {
 				// never actually be empty.
 				tt.expected.namespace = apidefaults.Namespace
 			}
-			req, err := server.parseProxySubsysRequest(context.Background(), tt.req)
+			req, err := server.parseProxySubsysRequest(t.Context(), tt.req)
 			require.NoError(t, err, "Test case %d: req=%s, expected=%+v", i, tt.req, tt.expected)
 			require.Equal(t, tt.expected, req, "Test case %d: req=%s, expected=%+v", i, tt.req, tt.expected)
 		})
@@ -131,7 +130,7 @@ func TestParseBadRequests(t *testing.T) {
 	}
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
-			subsystem, err := server.parseProxySubsys(context.Background(), tt.input, ctx)
+			subsystem, err := server.parseProxySubsys(t.Context(), tt.input, ctx)
 			require.Error(t, err, "test case: %q", tt.input)
 			require.Nil(t, subsystem, "test case: %q", tt.input)
 		})

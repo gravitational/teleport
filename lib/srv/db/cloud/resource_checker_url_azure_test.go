@@ -19,7 +19,6 @@
 package cloud
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -32,7 +31,7 @@ import (
 func TestURLChecker_Azure(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	testCases := types.Databases{
 		mustMakeAzureDatabase(t, "mysql", defaults.ProtocolMySQL, "mysql.mysql.database.azure.com:3306", types.Azure{}),

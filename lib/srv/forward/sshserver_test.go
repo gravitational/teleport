@@ -193,7 +193,7 @@ func (n *newChannelMock) ExtraData() []byte {
 // instead of internals.
 func TestDirectTCPIP(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cases := []struct {
 		name           string
@@ -265,7 +265,7 @@ func TestCheckTCPIPForward(t *testing.T) {
 				identityContext: srv.IdentityContext{Login: tt.login},
 				targetServer:    &types.ServerV2{},
 			}
-			err := s.checkTCPIPForwardRequest(context.Background(),
+			err := s.checkTCPIPForwardRequest(t.Context(),
 				&ssh.Request{
 					Type:      teleport.TCPIPForwardRequest,
 					WantReply: false,

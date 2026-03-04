@@ -87,7 +87,7 @@ func (m mockListEKSClustersClient) DescribeCluster(ctx context.Context, params *
 }
 
 func TestListEKSClusters(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	region := "us-east-1"
 	baseArn := "arn:aws:eks:us-east-1:880713328506:cluster/EKS"
 

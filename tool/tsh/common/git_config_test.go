@@ -20,7 +20,6 @@ package common
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"os/exec"
 	"slices"
@@ -171,7 +170,7 @@ func TestGitConfigCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			cf := &CLIConf{
-				Context:          context.Background(),
+				Context:          t.Context(),
 				OverrideStdout:   &buf,
 				executablePath:   "tsh",
 				cmdRunner:        tt.fakeRunner.run,

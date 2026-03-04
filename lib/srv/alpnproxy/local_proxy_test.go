@@ -133,7 +133,7 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 				HTTPClient:       &http.Client{Timeout: 5 * time.Second},
 				RetryMaxAttempts: 0,
 			})
-			_, err := clt.GetCallerIdentity(context.Background(), nil)
+			_, err := clt.GetCallerIdentity(t.Context(), nil)
 			if tc.wantStatus == http.StatusOK {
 				require.NoError(t, err)
 				return
@@ -167,7 +167,7 @@ func TestHandleAWSAccessS3Signing(t *testing.T) {
 
 	// Use a bucket name with special charaters. AWS SDK actually signs the
 	// request with the unescaped bucket name.
-	_, err := s3client.ListObjects(context.Background(), &s3.ListObjectsInput{
+	_, err := s3client.ListObjects(t.Context(), &s3.ListObjectsInput{
 		Bucket: aws.String("=bucket=name="),
 	})
 
@@ -247,7 +247,7 @@ func TestMiddleware(t *testing.T) {
 		Listener:           mustCreateLocalListener(t),
 		RemoteProxyAddr:    hs.Listener.Addr().String(),
 		Protocols:          []common.Protocol{common.ProtocolHTTP},
-		ParentContext:      context.Background(),
+		ParentContext:      t.Context(),
 		InsecureSkipVerify: true,
 		Middleware:         m,
 	})
@@ -260,7 +260,7 @@ func TestMiddleware(t *testing.T) {
 
 	m.waitForCounts(t, 0, 0)
 	go func() {
-		err := lp.Start(context.Background())
+		err := lp.Start(t.Context())
 		require.NoError(t, err)
 	}()
 
@@ -309,7 +309,7 @@ func TestLocalProxyConcurrentCertRenewal(t *testing.T) {
 		Listener:           mustCreateLocalListener(t),
 		RemoteProxyAddr:    hs.Listener.Addr().String(),
 		Protocols:          []common.Protocol{common.ProtocolHTTP},
-		ParentContext:      context.Background(),
+		ParentContext:      t.Context(),
 		InsecureSkipVerify: true,
 		Middleware:         &mockCertRenewer{tls.Certificate{}},
 	})
@@ -318,7 +318,7 @@ func TestLocalProxyConcurrentCertRenewal(t *testing.T) {
 		lp.Close()
 	})
 	go func() {
-		assert.NoError(t, lp.Start(context.Background()))
+		assert.NoError(t, lp.Start(t.Context()))
 	}()
 
 	var wg sync.WaitGroup
@@ -350,7 +350,7 @@ func TestCheckDBCerts(t *testing.T) {
 	lp, err := NewLocalProxy(LocalProxyConfig{
 		RemoteProxyAddr:    "localhost",
 		Protocols:          []common.Protocol{common.ProtocolPostgres},
-		ParentContext:      context.Background(),
+		ParentContext:      t.Context(),
 		InsecureSkipVerify: true,
 		// freeze the local proxy in time, we'll be manipulating fakeClock for cert generation.
 		Clock: clockwork.NewFakeClockAt(clockValid.Now()),
@@ -416,7 +416,7 @@ func TestCheckDBCerts(t *testing.T) {
 				withClock(tt.clock),
 			)
 			lp.SetCert(tlsCert)
-			tt.errAssertFn(t, lp.CheckDBCert(context.Background(), tt.dbRoute))
+			tt.errAssertFn(t, lp.CheckDBCert(t.Context(), tt.dbRoute))
 		})
 	}
 }
@@ -440,7 +440,7 @@ func TestLocalProxyClosesConnOnError(t *testing.T) {
 		Listener:           mustCreateLocalListener(t),
 		RemoteProxyAddr:    hs.Listener.Addr().String(),
 		Protocols:          []common.Protocol{common.ProtocolHTTP},
-		ParentContext:      context.Background(),
+		ParentContext:      t.Context(),
 		InsecureSkipVerify: true,
 		Middleware:         &mockMiddlewareConnUnauth{},
 	})
@@ -451,7 +451,7 @@ func TestLocalProxyClosesConnOnError(t *testing.T) {
 		hs.Close()
 	})
 	go func() {
-		assert.NoError(t, lp.Start(context.Background()))
+		assert.NoError(t, lp.Start(t.Context()))
 	}()
 
 	conn, err := net.Dial("tcp", lp.GetAddr())
@@ -516,7 +516,7 @@ func TestKubeMiddleware(t *testing.T) {
 		}
 		// we set request context to a context that is already canceled, so handler function will start reissuing
 		// certificate goroutine and then will exit immediately.
-		reqCtx, cancel := context.WithCancel(context.Background())
+		reqCtx, cancel := context.WithCancel(t.Context())
 		cancel()
 		req = req.WithContext(reqCtx)
 
@@ -526,7 +526,7 @@ func TestKubeMiddleware(t *testing.T) {
 			Certs:        startCerts,
 			CertReissuer: certReissuer,
 			Clock:        clockwork.NewFakeClockAt(now.Add(time.Hour * 2)),
-			CloseContext: context.Background(),
+			CloseContext: t.Context(),
 		})
 		err := km.CheckAndSetDefaults()
 		require.NoError(t, err)
@@ -613,7 +613,7 @@ func TestKubeMiddleware(t *testing.T) {
 				CertReissuer: certReissuer,
 				Logger:       logtest.NewLogger(),
 				Clock:        tt.clock,
-				CloseContext: context.Background(),
+				CloseContext: t.Context(),
 			})
 
 			// HandleRequest will reissue certificate if needed
@@ -640,7 +640,7 @@ func createAWSAccessProxySuite(t *testing.T, provider aws.CredentialsProvider) *
 		Listener:           mustCreateLocalListener(t),
 		RemoteProxyAddr:    hs.Listener.Addr().String(),
 		Protocols:          []common.Protocol{common.ProtocolHTTP},
-		ParentContext:      context.Background(),
+		ParentContext:      t.Context(),
 		InsecureSkipVerify: true,
 		HTTPMiddleware:     &AWSAccessMiddleware{AWSCredentialsProvider: provider},
 	})
@@ -651,7 +651,7 @@ func createAWSAccessProxySuite(t *testing.T, provider aws.CredentialsProvider) *
 		hs.Close()
 	})
 	go func() {
-		err := lp.Start(context.Background())
+		err := lp.Start(t.Context())
 		assert.NoError(t, err)
 	}()
 	return lp
@@ -755,7 +755,7 @@ func TestGetCertsForConn(t *testing.T) {
 			lp, err := NewLocalProxy(LocalProxyConfig{
 				RemoteProxyAddr: "localhost",
 				Protocols:       append([]common.Protocol{"foo-bar-proto"}, tt.addProtocols...),
-				ParentContext:   context.Background(),
+				ParentContext:   t.Context(),
 				CheckCertNeeded: tt.checkCertsNeeded,
 				Cert:            tlsCert,
 			})

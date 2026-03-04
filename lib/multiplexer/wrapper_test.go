@@ -19,7 +19,6 @@
 package multiplexer
 
 import (
-	"context"
 	"net"
 	"testing"
 	"time"
@@ -128,7 +127,7 @@ func TestPROXYEnabledListener_Accept(t *testing.T) {
 
 			proxyListener, err := NewPROXYEnabledListener(Config{
 				Listener:            listener,
-				Context:             context.Background(),
+				Context:             t.Context(),
 				ID:                  "test",
 				PROXYProtocolMode:   tt.proxyMode,
 				PROXYAllowDowngrade: tt.allowDowngrade,

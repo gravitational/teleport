@@ -56,7 +56,7 @@ func (m mockCreateEC2ICEClient) CreateInstanceConnectEndpoint(ctx context.Contex
 }
 
 func TestCreateEC2ICE_success(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mockCreateClient := &mockCreateEC2ICEClient{
 		subnetToName: map[string]string{
 			"subnet-id123": "eice-123",
@@ -74,7 +74,7 @@ func TestCreateEC2ICE_success(t *testing.T) {
 }
 
 func TestCreateEC2ICE_success_multiple(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mockCreateClient := &mockCreateEC2ICEClient{
 		subnetToName: map[string]string{
 			"subnet-id123": "eice-123",
@@ -97,7 +97,7 @@ func TestCreateEC2ICE_success_multiple(t *testing.T) {
 }
 
 func TestCreateEC2ICE_error_quota_reached(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mockCreateClient := &mockCreateEC2ICEClient{
 		err: fmt.Errorf("api error ResourceLimitExceeded: You've reached the quota for the maximum number of Instance Connect Endpoints for this subnet. Delete unused Instance Connect Endpoints, or request a quota increase."),
 	}

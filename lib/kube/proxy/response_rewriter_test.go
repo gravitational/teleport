@@ -19,7 +19,6 @@
 package proxy
 
 import (
-	"context"
 	"net/http"
 	"testing"
 
@@ -72,7 +71,7 @@ func TestErrorRewriter(t *testing.T) {
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
-		context.Background(),
+		t.Context(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{

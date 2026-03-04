@@ -19,7 +19,6 @@
 package maintenance
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -143,7 +142,7 @@ func TestUnhealthyWorkloadTrigger_CanStart(t *testing.T) {
 	clientBuilder := fake.NewClientBuilder()
 	clientBuilder.WithLists(fixtures)
 	client := clientBuilder.Build()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Doing the real tests
 	trigger := NewUnhealthyWorkloadTrigger("test-unhealthy", client)

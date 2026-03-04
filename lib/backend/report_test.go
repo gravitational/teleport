@@ -19,7 +19,6 @@
 package backend
 
 import (
-	"context"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -62,7 +61,7 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 
 	// Run through 1000 unique keys.
 	for i := range 1000 {
-		r.trackRequest(context.Background(), types.OpGet, NewKey(strconv.Itoa(i)), Key{})
+		r.trackRequest(t.Context(), types.OpGet, NewKey(strconv.Itoa(i)), Key{})
 	}
 
 	// Now the metric should have only 10 of the keys above.

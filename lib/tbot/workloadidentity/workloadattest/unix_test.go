@@ -40,7 +40,7 @@ import (
 
 func TestUnixAttestor_Attest(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	pid := os.Getpid()
 	uid := os.Getuid()
@@ -79,7 +79,7 @@ func TestUnixAttestor_Attest(t *testing.T) {
 
 func TestUnixAttestor_BinaryTooLarge(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	attestor := NewUnixAttestor(
 		UnixAttestorConfig{BinaryHashMaxSizeBytes: 1024},

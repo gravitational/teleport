@@ -145,7 +145,7 @@ func Test_userLockedError_IsUserLocked(t *testing.T) {
 
 func TestAccessListHierarchyIsOwner(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	acl1 := newAccessList(t, "1", clock)
 	acl2 := newAccessList(t, "2", clock)
@@ -233,7 +233,7 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 
 func TestAccessListIsMember(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	acl1 := newAccessList(t, "1", clock)
 	acl1m1 := newAccessListMember(t, acl1.GetName(), member1, accesslist.MembershipKindUser, clock)
@@ -279,7 +279,7 @@ func TestAccessListIsMember(t *testing.T) {
 
 func TestAccessListIsMember_RequirementsAndExpiry(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
+	ctx := t.Context()
 	acl := newAccessList(t, "acl", clock)
 
 	// single user member
@@ -516,7 +516,7 @@ func TestAccessListIsMember_NestedRequirements(t *testing.T) {
 }
 
 func TestGetOwners(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	// Create Access Lists
@@ -617,7 +617,7 @@ func TestGetOwners(t *testing.T) {
 }
 
 func TestGetInheritedGrants(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	aclroot := newAccessList(t, "root", clock)
@@ -881,7 +881,7 @@ func TestGetInheritedRequires(t *testing.T) {
 
 func TestGetMembersFor_FlattensAndStopsOnCycles(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// A -> B -> C -> B (cycle)
 	a := newAccessList(t, "A", clock)

@@ -19,7 +19,6 @@
 package scripts
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -31,7 +30,7 @@ import (
 )
 
 func TestGetInstallScript(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testVersion, err := version.EnsureSemver("1.2.3")
 	require.NoError(t, err)
 	testProxyAddr := "proxy.example.com:443"

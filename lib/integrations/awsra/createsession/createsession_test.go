@@ -20,7 +20,6 @@ package createsession
 
 import (
 	"bytes"
-	"context"
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/base64"
@@ -145,7 +144,7 @@ func TestCreateSession(t *testing.T) {
 	})
 
 	t.Run("golden request", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		clock := clockwork.NewFakeClockAt(time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC))
 
 		privateKey, x509Cert := newHardcodedPrivateKeyAndCert(t)

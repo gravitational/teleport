@@ -139,7 +139,7 @@ func TestHandler_getToken(t *testing.T) {
 				state = tt.initState()
 			}
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			fwd, err := newGCPHandler(ctx, tt.config(state))
 			require.NoError(t, err)
@@ -156,7 +156,7 @@ func TestHandler_getToken(t *testing.T) {
 }
 
 func TestHandler_getToken_cache(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	clock := clockwork.NewFakeClock()
 

@@ -402,7 +402,7 @@ func Test_ParseDialReq(t *testing.T) {
 // teleport-transport channel prevents dialing arbitrary addresses and only
 // allows dialing the auth server.
 func TestOnlyAuthDial(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	goodListenerAddr := acceptAndCloseListener(t, false)

@@ -408,7 +408,7 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 	// gracefully exit it
 	fakeSubmitClock.Advance(testSubmitDelay)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	require.NoError(t, reporter.GracefulStop(ctx))
 
@@ -434,7 +434,7 @@ func TestUsageReporterGracefulStop(t *testing.T) {
 	reporter.AddEventsToQueue(events...)
 	<-rx
 
-	timeoutCtx, cancelTimeout := context.WithTimeout(context.Background(), 2*time.Second)
+	timeoutCtx, cancelTimeout := context.WithTimeout(t.Context(), 2*time.Second)
 
 	// Run GracefulStop in a goroutine, so it doesn't block events receiving.
 	go func() {

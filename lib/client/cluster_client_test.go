@@ -549,7 +549,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				root:    "test",
 			}
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			result, err := clt.IssueUserCertsWithMFA(ctx, test.params)
 			test.assertion(t, result, err)

@@ -49,11 +49,11 @@ func Test_ssoDiagContext_writeToBackend(t *testing.T) {
 
 	// with TestFlow: false, no call is made.
 	diag.Info.TestFlow = false
-	diag.WriteToBackend(context.Background())
+	diag.WriteToBackend(t.Context())
 	require.Equal(t, 0, callCount)
 
 	// with TestFlow: true, a call is made.
 	diag.Info.TestFlow = true
-	diag.WriteToBackend(context.Background())
+	diag.WriteToBackend(t.Context())
 	require.Equal(t, 1, callCount)
 }

@@ -21,7 +21,6 @@
 package workloadattest
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -83,7 +82,7 @@ func TestPodmanAttestor(t *testing.T) {
 		),
 	)
 
-	attrs, err := attestor.Attest(context.Background(), 1234)
+	attrs, err := attestor.Attest(t.Context(), 1234)
 	require.NoError(t, err)
 
 	expected := &workloadidentityv1.WorkloadAttrsPodman{

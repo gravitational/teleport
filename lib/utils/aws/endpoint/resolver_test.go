@@ -73,7 +73,7 @@ func (h *fakeHandler) Resolved() []string {
 }
 
 func TestResolution(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	handler := &fakeHandler{}
 

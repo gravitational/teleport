@@ -19,7 +19,6 @@
 package presencev1_test
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -76,7 +75,7 @@ func TestMain(m *testing.M) {
 func TestGetRemoteCluster(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	user, role, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -228,7 +227,7 @@ func TestGetRemoteCluster(t *testing.T) {
 func TestListRemoteClusters(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	user, role, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -344,7 +343,7 @@ func TestListRemoteClusters(t *testing.T) {
 func TestDeleteRemoteCluster(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	user, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -427,7 +426,7 @@ func TestDeleteRemoteCluster(t *testing.T) {
 func TestUpdateRemoteCluster(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	user, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -676,7 +675,7 @@ func TestUpdateRemoteCluster(t *testing.T) {
 func TestListReverseTunnels(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	user, role, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -800,7 +799,7 @@ func TestListReverseTunnels(t *testing.T) {
 func TestDeleteReverseTunnel(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	user, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -881,7 +880,7 @@ func TestDeleteReverseTunnel(t *testing.T) {
 func TestUpsertReverseTunnel(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	user, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),

@@ -19,7 +19,6 @@
 package enroll_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,7 +35,7 @@ func TestAutoEnrollCeremony_Run(t *testing.T) {
 	defer env.Close()
 
 	devices := env.DevicesClient
-	ctx := context.Background()
+	ctx := t.Context()
 
 	macOSDev1, err := testenv.NewFakeMacOSDevice()
 	require.NoError(t, err, "NewFakeMacOSDevice failed")
@@ -71,6 +70,6 @@ func TestAutoEnrollCeremony_Run(t *testing.T) {
 func TestAutoEnroll_disabledByEnv(t *testing.T) {
 	t.Setenv("TELEPORT_DEVICE_AUTO_ENROLL_DISABLED", "1")
 
-	_, err := enroll.AutoEnroll(context.Background(), nil /* devicesClient */)
+	_, err := enroll.AutoEnroll(t.Context(), nil /* devicesClient */)
 	assert.ErrorIs(t, err, enroll.ErrAutoEnrollDisabled, "AutoEnroll() error mismatch")
 }

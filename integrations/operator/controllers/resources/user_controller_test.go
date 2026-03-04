@@ -164,7 +164,7 @@ func TestTeleportUserUpdate(t *testing.T) {
 }
 
 func TestUserCreationFromYAML(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	setup := testlib.SetupFakeKubeTestEnv(t)
 	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.TeleportClient))
 	tests := []struct {
@@ -299,7 +299,7 @@ func compareUserSpecs(t *testing.T, expectedUser, actualUser types.User) {
 }
 
 func TestUserUpdate(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	setup := testlib.SetupFakeKubeTestEnv(t)
 	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.TeleportClient))
 	require.NoError(t, teleportCreateDummyRole(ctx, "b", setup.TeleportClient))

@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -41,7 +40,7 @@ import (
 
 // TestDatabaseObjectImportRuleCRUD tests backend operations with DatabaseObject import rule resources.
 func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	backend, err := memory.New(memory.Config{

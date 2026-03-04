@@ -156,7 +156,7 @@ func TestGenerateTaskDefinitionWithImage(t *testing.T) {
 }
 
 func TestUpdateDeployServices(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	clusterName := "my-cluster"
 	integrationName := "my-integration"

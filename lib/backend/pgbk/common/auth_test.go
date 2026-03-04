@@ -19,7 +19,6 @@
 package pgcommon
 
 import (
-	"context"
 	"log/slog"
 	"os"
 	"testing"
@@ -139,7 +138,7 @@ func TestAuthConfig(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := slog.Default()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

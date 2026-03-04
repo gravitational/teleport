@@ -17,7 +17,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -32,7 +31,7 @@ import (
 )
 
 func TestProvisioningUpdate(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{
 		Clock: clockwork.NewFakeClock(),

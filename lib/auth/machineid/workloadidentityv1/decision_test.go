@@ -75,7 +75,7 @@ func Test_decide(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := decide(context.Background(), tt.wid, tt.attrs, OSSSigstorePolicyEvaluator{})
+			d := decide(t.Context(), tt.wid, tt.attrs, OSSSigstorePolicyEvaluator{})
 			require.Equal(t, tt.wantIssue, d.shouldIssue)
 			tt.assertReason(t, d.reason)
 		})
@@ -402,7 +402,7 @@ func Test_evaluateRules(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := evaluateRules(context.Background(), tt.wid, tt.attrs,
+			err := evaluateRules(t.Context(), tt.wid, tt.attrs,
 				OSSSigstorePolicyEvaluator{}, make(map[string]error))
 			tt.requireErr(t, err)
 		})
@@ -434,7 +434,7 @@ func Test_decision_sigstore(t *testing.T) {
 		}
 
 		decision := decide(
-			context.Background(),
+			t.Context(),
 			identity,
 			attrs,
 			evaluator,
@@ -456,7 +456,7 @@ func Test_decision_sigstore(t *testing.T) {
 		}
 
 		decision := decide(
-			context.Background(),
+			t.Context(),
 			identity,
 			attrs,
 			evaluator,

@@ -92,7 +92,7 @@ func TestDynamoDB(t *testing.T) {
 			return nil, nil, test.ErrConcurrentAccessNotSupported
 		}
 
-		uut, err := New(context.Background(), dynamoCfg)
+		uut, err := New(t.Context(), dynamoCfg)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -214,7 +214,7 @@ func TestCreateTable(t *testing.T) {
 		},
 	} {
 
-		ctx := context.Background()
+		ctx := t.Context()
 		t.Run(tc.name, func(t *testing.T) {
 			mock := dynamoDBAPIMock{
 				expectedBillingMode:           tc.expectedBillingMode,
@@ -260,7 +260,7 @@ func TestContinuousBackups(t *testing.T) {
 		require.NoError(t, err)
 
 		for {
-			err := deleteTable(context.Background(), b.svc, b.Config.TableName)
+			err := deleteTable(t.Context(), b.svc, b.Config.TableName)
 			if err == nil {
 				return
 			}
@@ -274,7 +274,7 @@ func TestContinuousBackups(t *testing.T) {
 	})
 
 	// Check status of continuous backups.
-	ok, err := getContinuousBackups(context.Background(), b.svc, b.Config.TableName)
+	ok, err := getContinuousBackups(t.Context(), b.svc, b.Config.TableName)
 	require.NoError(t, err)
 	require.True(t, ok)
 }
@@ -284,7 +284,7 @@ func TestAutoScaling(t *testing.T) {
 	ensureTestsEnabled(t)
 
 	// Create new backend with auto scaling enabled.
-	b, err := New(context.Background(), map[string]any{
+	b, err := New(t.Context(), map[string]any{
 		"table_name":         uuid.NewString() + "-test",
 		"auto_scaling":       true,
 		"read_min_capacity":  10,
@@ -301,10 +301,10 @@ func TestAutoScaling(t *testing.T) {
 
 	// Remove table after tests are done.
 	t.Cleanup(func() {
-		require.NoError(t, deleteTable(context.Background(), b.svc, b.Config.TableName))
+		require.NoError(t, deleteTable(t.Context(), b.svc, b.Config.TableName))
 	})
 
-	awsConfig, err := config.LoadDefaultConfig(context.Background())
+	awsConfig, err := config.LoadDefaultConfig(t.Context())
 	require.NoError(t, err)
 
 	expected := &AutoScalingParams{
@@ -317,10 +317,11 @@ func TestAutoScaling(t *testing.T) {
 	}
 
 	// Check auto scaling values match.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		resp, err := getAutoScaling(context.Background(), applicationautoscaling.NewFromConfig(awsConfig), b.Config.TableName)
-		require.NoError(t, err)
-		require.Equal(t, expected, resp)
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		resp, err := getAutoScaling(ctx, applicationautoscaling.NewFromConfig(awsConfig), b.Config.TableName)
+		require.NoError(ct, err)
+		require.Equal(ct, expected, resp)
 	}, 10*time.Second, 500*time.Millisecond)
 }
 

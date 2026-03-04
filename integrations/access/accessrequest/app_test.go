@@ -75,7 +75,7 @@ func (m *mockMessagingBot) FetchOncallUsers(ctx context.Context, req types.Acces
 }
 
 func TestGetLoginsByRoleWithUserLoginState(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(cancel)
 
 	teleportClient := &mockTeleportClient{}
@@ -156,7 +156,7 @@ func TestGetLoginsByRole(t *testing.T) {
 	app := App{
 		apiClient: teleportClient,
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	loginsByRole, err := app.getLoginsByRole(ctx, &types.AccessRequestV3{
 		Spec: types.AccessRequestSpecV3{
 			User:  "admin",
@@ -226,7 +226,7 @@ func TestTryApproveRequest(t *testing.T) {
 		},
 	}).Return((types.AccessRequest)(nil), (error)(nil))
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Test user is on-call
 	require.NoError(t, app.tryApproveRequest(ctx, requestID, &types.AccessRequestV3{

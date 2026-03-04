@@ -104,7 +104,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 				t:    t,
 				want: tt.want,
 			}
-			_, _ = tt.dialerCreator("")(context.Background(), "tcp", "")
+			_, _ = tt.dialerCreator("")(t.Context(), "tcp", "")
 		})
 	}
 }
@@ -160,7 +160,7 @@ func TestDirectTransportNotCached(t *testing.T) {
 	require.NoError(t, err)
 
 	forwarder := &Forwarder{
-		ctx:             context.Background(),
+		ctx:             t.Context(),
 		cachedTransport: transportClients,
 	}
 

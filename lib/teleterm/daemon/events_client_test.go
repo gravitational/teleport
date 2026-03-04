@@ -33,7 +33,7 @@ import (
 func TestTshdEventsClient(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	_, addr := newMockTSHDEventsServiceServer(t)
 
 	c := NewTshdEventsClient(func() (grpc.DialOption, error) {

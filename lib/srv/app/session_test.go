@@ -19,7 +19,6 @@
 package app
 
 import (
-	"context"
 	"sync"
 	"testing"
 	"time"
@@ -50,7 +49,7 @@ func TestSessionChunkCloseNormal(t *testing.T) {
 	err := sess.acquire()
 	require.NoError(t, err)
 
-	go sess.close(context.Background())
+	go sess.close(t.Context())
 	sess.release()
 
 	select {
@@ -69,7 +68,7 @@ func TestSessionChunkCloseTimeout(t *testing.T) {
 	err := sess.acquire() // this is never released
 	require.NoError(t, err)
 
-	go sess.close(context.Background())
+	go sess.close(t.Context())
 
 	select {
 	case <-time.After(timeout * 2):
@@ -84,6 +83,6 @@ func TestSessionChunkCloseTimeout(t *testing.T) {
 func TestSessionChunkCannotAcquireAfterClosing(t *testing.T) {
 	const timeout = 1 * time.Second
 	sess := newSessionChunk(timeout)
-	sess.close(context.Background())
+	sess.close(t.Context())
 	require.Error(t, sess.acquire())
 }

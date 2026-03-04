@@ -19,7 +19,6 @@
 package proxy
 
 import (
-	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -43,7 +42,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
-		context.Background(),
+		t.Context(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},

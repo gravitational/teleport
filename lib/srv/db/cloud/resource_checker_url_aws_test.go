@@ -19,7 +19,6 @@
 package cloud
 
 import (
-	"context"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -42,7 +41,7 @@ import (
 func TestURLChecker_AWS(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	region := "us-west-2"
 	var testCases types.Databases
 

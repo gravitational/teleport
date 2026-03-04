@@ -19,7 +19,6 @@
 package aws_sync
 
 import (
-	"context"
 	"slices"
 	"strings"
 	"sync"
@@ -107,7 +106,7 @@ func TestAWSIAMPollSAMLProviders(t *testing.T) {
 		},
 	}
 	result := &Resources{}
-	execFunc := a.pollAWSSAMLProviders(context.Background(), result, collectErr)
+	execFunc := a.pollAWSSAMLProviders(t.Context(), result, collectErr)
 	require.NoError(t, execFunc())
 	require.Empty(t, errs)
 	sortByARN(result.SAMLProviders)
@@ -257,7 +256,7 @@ func TestAWSIAMPollOIDCProviders(t *testing.T) {
 		},
 	}
 	result := &Resources{}
-	execFunc := a.pollAWSOIDCProviders(context.Background(), result, collectErr)
+	execFunc := a.pollAWSOIDCProviders(t.Context(), result, collectErr)
 	require.NoError(t, execFunc())
 	require.Empty(t, errs)
 	sortByARN(result.OIDCProviders)

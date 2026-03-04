@@ -20,7 +20,6 @@ package proxy
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -67,7 +66,7 @@ func TestExecKubeService(t *testing.T) {
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
-		context.Background(),
+		t.Context(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -372,7 +371,7 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 
 			// creates a Kubernetes service with a configured cluster pointing to mock api server
 			testCtx := SetupTestContext(
-				context.Background(),
+				t.Context(),
 				t,
 				TestConfig{
 					Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -496,7 +495,7 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
-		context.Background(),
+		t.Context(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -578,7 +577,7 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 
 			exec, err := remotecommand.NewSPDYExecutor(userRestConfig, http.MethodPost, req.URL())
 			require.NoError(t, err)
-			err = exec.StreamWithContext(context.Background(), streamOpts)
+			err = exec.StreamWithContext(t.Context(), streamOpts)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), kubernetes130BreakingChangeHint)
 

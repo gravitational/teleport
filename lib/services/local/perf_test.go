@@ -39,7 +39,7 @@ func BenchmarkGetNodes(b *testing.B) {
 	if testing.Short() {
 		b.Skip("skipping heavy benchmark")
 	}
-	ctx := context.Background()
+	ctx := b.Context()
 
 	type testCase struct {
 		memory bool

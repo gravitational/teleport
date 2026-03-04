@@ -140,7 +140,7 @@ func createSystemProxy(t *testing.T, listener net.Listener) *ForwardProxy {
 
 // createForwardProxyWithConfig creates a ForwardProxy with provided config.
 func createForwardProxyWithConfig(t *testing.T, config ForwardProxyConfig) *ForwardProxy {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	config.CloseContext = ctx

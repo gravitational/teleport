@@ -749,7 +749,7 @@ func TestAuthenticate(t *testing.T) {
 					},
 				},
 			}
-			ctx := authz.ContextWithUser(context.Background(), tt.user)
+			ctx := authz.ContextWithUser(t.Context(), tt.user)
 			req = req.WithContext(ctx)
 
 			if tt.haveKubeCreds {
@@ -765,7 +765,7 @@ func TestAuthenticate(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			err = f.authorize(context.Background(), gotCtx)
+			err = f.authorize(t.Context(), gotCtx)
 			require.NoError(t, err)
 
 			require.Empty(t, cmp.Diff(gotCtx, tt.wantCtx,
@@ -1029,7 +1029,7 @@ func mockAuthCtx(t *testing.T, kubeCluster string, isRemote bool) authContext {
 // env variables when dialing directly to the EKS cluster and doesn't respect
 // them when dialing via reverse tunnel to other Teleport services.
 func TestKubeFwdHTTPProxyEnv(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	f := newMockForwarder(ctx, t)
 
@@ -1523,7 +1523,7 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 			t.Parallel()
 			// creates a Kubernetes service with a configured cluster pointing to mock api server
 			testCtx := SetupTestContext(
-				context.Background(),
+				t.Context(),
 				t,
 				TestConfig{
 					Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -1552,7 +1552,7 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 				kubeCluster,
 			)
 
-			_, err := client.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
+			_, err := client.CoreV1().Pods(metav1.NamespaceDefault).List(t.Context(), metav1.ListOptions{})
 			tt.assertErrFunc(t, err)
 		})
 	}
@@ -1690,7 +1690,7 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 			},
 		},
 		log: logtest.NewLogger(),
-		ctx: context.Background(),
+		ctx: t.Context(),
 	}
 
 	// generate tlsConfig for the leaf cluster

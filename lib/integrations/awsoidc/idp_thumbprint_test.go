@@ -19,7 +19,6 @@
 package awsoidc
 
 import (
-	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"net/http/httptest"
@@ -31,7 +30,7 @@ import (
 )
 
 func TestThumbprint(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tlsServer := httptest.NewTLSServer(nil)
 

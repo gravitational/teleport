@@ -19,7 +19,6 @@
 package rollout
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -148,7 +147,7 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 	yesterday := testSaturday
 	canStartToday := everyWeekday
 	cannotStartToday := everyWeekdayButSunday
-	ctx := context.Background()
+	ctx := t.Context()
 
 	startVersion := "1.2.3"
 	targetVersion := "1.2.4"

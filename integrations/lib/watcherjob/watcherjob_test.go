@@ -35,7 +35,7 @@ import (
 // TestSequential checks that events with the different resource names are being processed in parallel.
 func TestConcurrent(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	t.Cleanup(cancel)
 
 	config := Config{MaxConcurrency: 4}
@@ -61,7 +61,7 @@ func TestConcurrent(t *testing.T) {
 // TestSequential checks that events with the same resource name are being processed one by one (no races).
 func TestSequential(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	t.Cleanup(cancel)
 
 	config := Config{MaxConcurrency: 4}
@@ -87,7 +87,7 @@ func TestSequential(t *testing.T) {
 // TestConcurrencyLimit checks the case when the queue is full and there're incoming requests
 func TestConcurrencyLimit(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	t.Cleanup(cancel)
 
 	config := Config{MaxConcurrency: 4}
@@ -116,7 +116,7 @@ func TestConcurrencyLimit(t *testing.T) {
 // TestNewJobWithConfirmedWatchKinds checks that the watch kinds are passed back after init.
 func TestNewJobWithConfirmedWatchKinds(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	t.Cleanup(cancel)
 
 	watchKinds := []types.WatchKind{

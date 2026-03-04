@@ -137,7 +137,7 @@ func TestGetMode(t *testing.T) {
 func TestTryReconcile(t *testing.T) {
 	t.Parallel()
 	log := logtest.NewLogger()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	// Test setup: creating fixtures
@@ -331,7 +331,7 @@ func TestTryReconcile(t *testing.T) {
 
 func TestReconciler_Reconcile(t *testing.T) {
 	log := logtest.NewLogger()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	// Test setup: creating fixtures
 	config, err := update.NewAutoUpdateConfig(&autoupdate.AutoUpdateConfigSpec{
@@ -594,7 +594,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 func Test_makeGroupsStatus(t *testing.T) {
 	now := time.Now()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name      string
@@ -729,7 +729,7 @@ func (f *fakeRolloutStrategy) progressRollout(ctx context.Context, spec *autoupd
 func Test_reconciler_computeStatus(t *testing.T) {
 	log := logtest.NewLogger()
 	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	oldStatus := &autoupdate.AutoUpdateAgentRolloutStatus{
 		Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
@@ -892,7 +892,7 @@ func Test_reconciler_computeStatus(t *testing.T) {
 }
 
 func TestDefaultConfigGroup(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testStartHour := 16
 
 	tests := []struct {

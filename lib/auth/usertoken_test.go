@@ -59,7 +59,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	username := mfa.User
 	pass := mfa.Password
 
-	ctx := context.Background()
+	ctx := t.Context()
 	req := authclient.CreateUserTokenRequest{
 		Name: username,
 		TTL:  time.Hour,
@@ -100,7 +100,7 @@ func TestCreateResetPasswordTokenErrors(t *testing.T) {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
-	ctx := context.Background()
+	ctx := t.Context()
 
 	username := "joe@example.com"
 	_, _, err = authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
@@ -240,7 +240,7 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 	_, _, err = authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	req := authclient.CreateUserTokenRequest{
 		Name: username,
@@ -298,7 +298,7 @@ func TestCreatePrivilegeToken(t *testing.T) {
 	fakeClock := srv.Clock().(*clockwork.FakeClock)
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().SetEmitter(mockEmitter)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create a user and client with identity.
 	username := "joe@example.com"
@@ -372,7 +372,7 @@ func TestCreatePrivilegeToken(t *testing.T) {
 
 			// Test token expires after designated time.
 			fakeClock.Advance(defaults.PrivilegeTokenTTL)
-			_, err = srv.Auth().GetUserToken(context.Background(), token.GetName())
+			_, err = srv.Auth().GetUserToken(t.Context(), token.GetName())
 			require.True(t, trace.IsNotFound(err))
 		})
 	}
@@ -381,7 +381,7 @@ func TestCreatePrivilegeToken(t *testing.T) {
 func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Enable second factor.
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{

@@ -136,7 +136,7 @@ func TestLocateServerBySRV(t *testing.T) {
 				srvErrors:  test.mockSRVErrors,
 			}
 
-			result, err := LocateServerBySRV(context.Background(), test.domain, test.site, resolver, test.service, test.port)
+			result, err := LocateServerBySRV(t.Context(), test.domain, test.site, resolver, test.service, test.port)
 
 			if test.expectedError != "" {
 				require.Error(t, err)

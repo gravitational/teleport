@@ -756,7 +756,7 @@ func (s *KeyAgentTestSuite) makeKeyRing(t *testing.T, username, proxyHost string
 		Username: username,
 	}
 
-	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(context.Background(), func(context.Context) (types.SignatureAlgorithmSuite, error) {
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(t.Context(), func(context.Context) (types.SignatureAlgorithmSuite, error) {
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	})
 	require.NoError(t, err)
@@ -842,7 +842,7 @@ func startDebugAgent(t *testing.T) error {
 			conn, err := listener.Accept()
 			if err != nil {
 				if !utils.IsUseOfClosedNetworkError(err) {
-					log.WarnContext(context.Background(), "Unexpected response from listener.Accept", "error", err)
+					log.WarnContext(t.Context(), "Unexpected response from listener.Accept", "error", err)
 				}
 				return
 			}

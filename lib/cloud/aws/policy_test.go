@@ -600,7 +600,7 @@ func TestPolicyEnsureStatements(t *testing.T) {
 }
 
 func TestGetPolicyVersions(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := map[string]struct {
 		tags        map[string]string
@@ -654,7 +654,7 @@ func TestGetPolicyVersions(t *testing.T) {
 }
 
 func TestUpsertPolicy(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	now := time.Now()
 	accountID := "123456789012"
 	partitionID := "aws"
@@ -741,7 +741,7 @@ func TestUpsertPolicy(t *testing.T) {
 }
 
 func TestAttachPolicy(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := map[string]struct {
 		returnError bool

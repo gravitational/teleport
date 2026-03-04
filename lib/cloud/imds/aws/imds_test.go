@@ -111,7 +111,7 @@ func TestEC2IsInstanceMetadataAvailable(t *testing.T) {
 			server := httptest.NewServer(tt.handler)
 			t.Cleanup(server.Close)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			clt := tt.client(t, ctx, server)
 			tt.assertion(t, clt.IsAvailable(ctx))
 		})
@@ -119,7 +119,7 @@ func TestEC2IsInstanceMetadataAvailable(t *testing.T) {
 }
 
 func TestGetInstanceID(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tc := range []struct {
 		name         string
@@ -162,7 +162,7 @@ func TestGetInstanceID(t *testing.T) {
 
 			client, err := NewInstanceMetadataClient(ctx, WithIMDSClient(imds.New(imds.Options{Endpoint: server.URL})))
 			require.NoError(t, err)
-			id, err := client.GetID(context.Background())
+			id, err := client.GetID(t.Context())
 			tc.errAssertion(t, err)
 			require.Equal(t, tc.expectedID, id)
 		})

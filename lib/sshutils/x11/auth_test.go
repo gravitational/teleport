@@ -20,7 +20,6 @@ package x11
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"os"
@@ -36,7 +35,7 @@ func TestXAuthCommands(t *testing.T) {
 		t.Skip("Skipping test as xauth is not enabled")
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tmpDir := t.TempDir()
 	xauthFile := filepath.Join(tmpDir, ".Xauthority")

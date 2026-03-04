@@ -19,7 +19,6 @@
 package carotation
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -133,7 +132,7 @@ func Test_filterCAEvent(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

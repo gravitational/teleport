@@ -217,7 +217,7 @@ func TestConnectorKInitClient(t *testing.T) {
 			}
 			provider.skipLogin = true
 
-			clt, err := provider.GetKerberosClient(context.Background(), database.GetAD(), databaseUser)
+			clt, err := provider.GetKerberosClient(t.Context(), database.GetAD(), databaseUser)
 			if tt.errorMessage != "" {
 				require.ErrorContains(t, err, tt.errorMessage)
 				require.Nil(t, clt)

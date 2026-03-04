@@ -180,7 +180,7 @@ func TestStartNewParker(t *testing.T) {
 			t.Parallel()
 			osPack, assertExpected := tt.newOsPack(t)
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel) // cancel to stop the park process.
 
 			err := osPack.startNewParker(ctx, tt.args.credential, tt.args.loginAsUser, tt.args.localUser)
@@ -229,7 +229,7 @@ func TestRootNetworkingCommand(t *testing.T) {
 }
 
 func testNetworkingCommand(t *testing.T, login string) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	srv := newMockServer(t)

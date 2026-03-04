@@ -88,7 +88,7 @@ func TestCreateWebSession(t *testing.T) {
 			})
 
 			authServer := testAuthServer.AuthServer
-			ctx := context.Background()
+			ctx := t.Context()
 
 			_, _, err = authtest.CreateUserAndRole(authServer, userLlama, []string{userLlama} /* logins */, nil /* allowRules */)
 			require.NoError(t, err, "CreateUserAndRole failed")

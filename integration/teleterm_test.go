@@ -165,7 +165,7 @@ func TestTeleterm(t *testing.T) {
 		require.NoError(t, err)
 
 		// Enforce MFA
-		helpers.UpsertAuthPrefAndWaitForCache(t, context.Background(), authServer, &types.AuthPreferenceV2{
+		helpers.UpsertAuthPrefAndWaitForCache(t, t.Context(), authServer, &types.AuthPreferenceV2{
 			Spec: types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorWebauthn,
@@ -177,7 +177,7 @@ func TestTeleterm(t *testing.T) {
 
 		// Remove MFA enforcement on cleanup.
 		t.Cleanup(func() {
-			helpers.UpsertAuthPrefAndWaitForCache(t, context.Background(), authServer, &types.AuthPreferenceV2{
+			helpers.UpsertAuthPrefAndWaitForCache(t, t.Context(), authServer, &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOff,
@@ -193,13 +193,13 @@ func TestTeleterm(t *testing.T) {
 			require.NoError(t, err)
 			device.SetPasswordless()
 
-			token, err := authServer.CreateResetPasswordToken(context.Background(), authclient.CreateUserTokenRequest{
+			token, err := authServer.CreateResetPasswordToken(t.Context(), authclient.CreateUserTokenRequest{
 				Name: userName,
 			})
 			require.NoError(t, err)
 
 			tokenID := token.GetName()
-			res, err := authServer.CreateRegisterChallenge(context.Background(), &proto.CreateRegisterChallengeRequest{
+			res, err := authServer.CreateRegisterChallenge(t.Context(), &proto.CreateRegisterChallengeRequest{
 				TokenID:     tokenID,
 				DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
@@ -209,7 +209,7 @@ func TestTeleterm(t *testing.T) {
 
 			ccr, err := device.SignCredentialCreation(origin, cc)
 			require.NoError(t, err)
-			_, err = authServer.ChangeUserAuthentication(context.Background(), &proto.ChangeUserAuthenticationRequest{
+			_, err = authServer.ChangeUserAuthentication(t.Context(), &proto.ChangeUserAuthenticationRequest{
 				TokenID: tokenID,
 				NewMFARegisterResponse: &proto.MFARegisterResponse{
 					Response: &proto.MFARegisterResponse_Webauthn{
@@ -287,10 +287,10 @@ func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 		daemonService.Stop()
 	})
 
-	addedCluster, err := daemonService.AddCluster(context.Background(), pack.Root.Cluster.Web)
+	addedCluster, err := daemonService.AddCluster(t.Context(), pack.Root.Cluster.Web)
 	require.NoError(t, err)
 
-	clusters, err := daemonService.ListRootClusters(context.Background())
+	clusters, err := daemonService.ListRootClusters(t.Context())
 	require.NoError(t, err)
 
 	clusterURIs := make([]uri.ResourceURI, 0, len(clusters))
@@ -326,7 +326,7 @@ func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.Datab
 	)
 	require.NoError(t, err)
 
-	response, err := handler.ListRootClusters(context.Background(), &api.ListClustersRequest{})
+	response, err := handler.ListRootClusters(t.Context(), &api.ListClustersRequest{})
 	require.NoError(t, err)
 
 	require.Len(t, response.Clusters, 1)
@@ -363,18 +363,18 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	require.NoError(t, err)
 
 	// add role that user can request
-	_, err = authServer.UpsertRole(context.Background(), requestableRole)
+	_, err = authServer.UpsertRole(t.Context(), requestableRole)
 	require.NoError(t, err)
 
 	// add role that allows to request "requestableRole"
-	_, err = authServer.UpsertRole(context.Background(), userRole)
+	_, err = authServer.UpsertRole(t.Context(), userRole)
 	require.NoError(t, err)
 
 	user, err := types.NewUser(userName)
 	user.AddRole(userRole.GetName())
 	require.NoError(t, err)
 
-	_, err = authServer.UpsertUser(context.Background(), user)
+	_, err = authServer.UpsertUser(t.Context(), user)
 	require.NoError(t, err)
 
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
@@ -415,7 +415,7 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	require.NoError(t, err)
 	clusterURI := uri.NewClusterURI(rootClusterName)
 
-	response, err := handler.GetCluster(context.Background(), &api.GetClusterRequest{
+	response, err := handler.GetCluster(t.Context(), &api.GetClusterRequest{
 		ClusterUri: clusterURI.String(),
 	})
 	require.NoError(t, err)
@@ -433,7 +433,7 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 
 func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
 
@@ -500,7 +500,7 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 }
 
 func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
 
@@ -566,7 +566,7 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 }
 
 func testClearingStaleCachedClients(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
 
@@ -622,7 +622,7 @@ func testClearingStaleCachedClients(t *testing.T, pack *dbhelpers.DatabasePack, 
 }
 
 func testLogout(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
 
@@ -679,7 +679,7 @@ func testLogout(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserC
 }
 
 func testSettingSiteName(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tc, err := pack.Root.Cluster.NewClient(helpers.ClientConfig{
 		TeleportUser: pack.Root.User.GetName(),
@@ -882,7 +882,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
 
 			authServer := pack.Root.Cluster.Process.GetAuthServer()
@@ -1008,7 +1008,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 }
 
 func testCreateConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack, setupUserMFA setupUserMFAFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	authServer := pack.Root.Cluster.Process.GetAuthServer()
@@ -1106,7 +1106,7 @@ func testCreateConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack
 }
 
 func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Minute)
 	t.Cleanup(cancel)
 
 	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
@@ -1165,7 +1165,7 @@ func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.Database
 }
 
 func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Minute)
 	t.Cleanup(cancel)
 
 	authServer := pack.Root.Cluster.Process.GetAuthServer()
@@ -1262,7 +1262,7 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 // given to a user by [dbhelpers.DatabasePack] and then checks if that string is returned when
 // calling [handler.Handler.ListDatabaseUsers].
 func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mustAddDBUserToUserRole := func(ctx context.Context, t *testing.T, cluster *helpers.TeleInstance, user, dbUser string) {
 		t.Helper()

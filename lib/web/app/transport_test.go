@@ -245,7 +245,7 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	type dialRes struct {
 		conn net.Conn
 		err  error

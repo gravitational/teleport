@@ -19,7 +19,6 @@
 package auth_test
 
 import (
-	"context"
 	"net"
 	"slices"
 	"testing"
@@ -299,7 +298,7 @@ func TestCreateRole(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 			srv := newTestTLSServer(t)
 			as := srv.AuthServer.AuthServer
 
@@ -450,7 +449,7 @@ func TestUpdateRole(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 			srv := newTestTLSServer(t)
 			as := srv.AuthServer.AuthServer
 
@@ -593,7 +592,7 @@ func TestUpsertRole(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 			srv := newTestTLSServer(t)
 			as := srv.AuthServer.AuthServer
 
@@ -712,7 +711,7 @@ func TestGetRole(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 			srv := newTestTLSServer(t)
 			as := srv.AuthServer.AuthServer
 
@@ -823,7 +822,7 @@ func TestGetRoles(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 			srv := newTestTLSServer(t)
 			as := srv.AuthServer.AuthServer
 
@@ -890,7 +889,7 @@ func TestGetRoles(t *testing.T) {
 
 func TestListRolesFiltering(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	testRoles := func(t *testing.T) []types.Role {
 		return []types.Role{
@@ -1089,7 +1088,7 @@ func TestDeleteRole(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 			srv := newTestTLSServer(t)
 			as := srv.AuthServer.AuthServer
 

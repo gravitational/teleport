@@ -19,7 +19,6 @@
 package version
 
 import (
-	"context"
 	"testing"
 
 	"github.com/coreos/go-semver/semver"
@@ -40,7 +39,7 @@ func (m *mockWebClient) Find() (*webclient.PingResponse, error) {
 }
 
 func TestProxyVersionClient(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	tests := []struct {
 		name            string
 		pong            *webclient.PingResponse

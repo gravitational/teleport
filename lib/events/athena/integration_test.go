@@ -71,7 +71,7 @@ func TestIntegrationAthenaSearchSessionEventsBySessionID(t *testing.T) {
 }
 
 func testIntegrationAthenaSearchSessionEventsBySessionID(t *testing.T, bypassSNS bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	ac := SetupAthenaContext(t, ctx, AthenaContextConfig{BypassSNS: bypassSNS})
 	auditLogger := &EventuallyConsistentAuditLogger{
@@ -100,7 +100,7 @@ func TestIntegrationAthenaSessionEventsCRUD(t *testing.T) {
 }
 
 func testIntegrationAthenaSessionEventsCRUD(t *testing.T, bypassSNS bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	ac := SetupAthenaContext(t, ctx, AthenaContextConfig{BypassSNS: bypassSNS})
 	auditLogger := &EventuallyConsistentAuditLogger{
@@ -128,7 +128,7 @@ func TestIntegrationAthenaEventExport(t *testing.T) {
 }
 
 func testIntegrationAthenaEventExport(t *testing.T, bypassSNS bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	ac := SetupAthenaContext(t, ctx, AthenaContextConfig{BypassSNS: bypassSNS})
 	auditLogger := &EventuallyConsistentAuditLogger{
@@ -156,7 +156,7 @@ func TestIntegrationAthenaEventPagination(t *testing.T) {
 }
 
 func testIntegrationAthenaEventPagination(t *testing.T, bypassSNS bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	ac := SetupAthenaContext(t, ctx, AthenaContextConfig{BypassSNS: bypassSNS})
 	auditLogger := &EventuallyConsistentAuditLogger{
@@ -184,7 +184,7 @@ func TestIntegrationAthenaLargeEvents(t *testing.T) {
 }
 
 func testIntegrationAthenaLargeEvents(t *testing.T, bypassSNS bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 
 	ac := SetupAthenaContext(t, ctx, AthenaContextConfig{
@@ -450,7 +450,7 @@ func (ac *AthenaContext) setupInfraWithCleanup(t *testing.T, ctx context.Context
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), timeoutDurationOnCleanup)
+		cleanupCtx, cancel := context.WithTimeout(t.Context(), timeoutDurationOnCleanup)
 		defer cancel()
 		_, err = snsClient.DeleteTopic(cleanupCtx, &sns.DeleteTopicInput{
 			TopicArn: topicCreated.TopicArn,
@@ -465,7 +465,7 @@ func (ac *AthenaContext) setupInfraWithCleanup(t *testing.T, ctx context.Context
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), timeoutDurationOnCleanup)
+		cleanupCtx, cancel := context.WithTimeout(t.Context(), timeoutDurationOnCleanup)
 		defer cancel()
 		_, err := sqsClient.DeleteQueue(cleanupCtx, &sqs.DeleteQueueInput{
 			QueueUrl: queueCreated.QueueUrl,
@@ -643,7 +643,7 @@ func (ac *AthenaContext) setupInfraWithCleanup(t *testing.T, ctx context.Context
 	err = q.waitForSuccess(ctx, aws.ToString(startQueryExecResp.QueryExecutionId))
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), timeoutDurationOnCleanup)
+		cleanupCtx, cancel := context.WithTimeout(t.Context(), timeoutDurationOnCleanup)
 		defer cancel()
 		_, err = athenaClient.StartQueryExecution(cleanupCtx, &athena.StartQueryExecutionInput{
 			QueryString: aws.String(fmt.Sprintf("drop table %s;", ac.TableName)),

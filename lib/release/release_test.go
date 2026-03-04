@@ -19,7 +19,6 @@
 package release
 
 import (
-	"context"
 	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
@@ -55,7 +54,7 @@ func TestListReleases(t *testing.T) {
 	mockClient := Client{}
 
 	// ListReleases should err if client is not initialized
-	_, err := mockClient.ListReleases(context.Background())
+	_, err := mockClient.ListReleases(t.Context())
 	assert.Error(t, err)
 
 	tt := []struct {
@@ -228,7 +227,7 @@ func TestListReleases(t *testing.T) {
 			mockClient.client, err = roundtrip.NewClient(server.URL, "")
 			assert.NoError(t, err)
 
-			releases, err := mockClient.ListReleases(context.Background())
+			releases, err := mockClient.ListReleases(t.Context())
 			if tc.shouldErr {
 				assert.Error(t, err)
 			} else {

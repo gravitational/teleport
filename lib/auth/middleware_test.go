@@ -134,7 +134,7 @@ func TestValidateClientVersion(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			if tt.clientVersion != "" {
 				ctx = metadata.NewIncomingContext(ctx, metadata.New(map[string]string{"version": tt.clientVersion}))
 			}
@@ -204,7 +204,7 @@ func TestRejectedClientClusterAlertContents(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 
-			ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{
+			ctx := metadata.NewIncomingContext(t.Context(), metadata.New(map[string]string{
 				"version":    version,
 				"user-agent": test.userAgent,
 			}))
@@ -239,7 +239,7 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 	}
 
 	// Validate an unsupported client, which should trigger an alert
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{
+	ctx := metadata.NewIncomingContext(t.Context(), metadata.New(map[string]string{
 		"version": semver.Version{Major: api.VersionMajor - 20}.String(),
 	}))
 	err := mw.ValidateClientVersion(ctx, auth.IdentityInfo{Conn: &fakeConn{}, IdentityGetter: authtest.TestBuiltin(types.RoleNode).I})
@@ -247,7 +247,7 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 
 	// Validate a client with an unknown version, which should trigger an alert, however,
 	// due to rate limiting of 1 alert per 24h no alert should be created.
-	ctx = metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{
+	ctx = metadata.NewIncomingContext(t.Context(), metadata.New(map[string]string{
 		"version": "abcd",
 	}))
 	err = mw.ValidateClientVersion(ctx, auth.IdentityInfo{Conn: &fakeConn{}, IdentityGetter: authtest.TestBuiltin(types.RoleNode).I})
@@ -270,7 +270,7 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 
 			// Create a new context with the user-agent set to a client tool. This should alter the
 			// text in the alert to indicate the connection was from a client tool and not an agent.
-			ctx = metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{
+			ctx = metadata.NewIncomingContext(t.Context(), metadata.New(map[string]string{
 				"version":    semver.Version{Major: api.VersionMajor - 20}.String(),
 				"user-agent": tool + "/" + teleport.Version,
 			}))

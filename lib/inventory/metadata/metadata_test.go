@@ -19,7 +19,6 @@
 package metadata
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -279,7 +278,7 @@ func TestFetchContainerOrchestrator(t *testing.T) {
 				getenv: tc.getenv,
 				httpDo: tc.httpDo,
 			}
-			require.Equal(t, tc.expected, c.fetchContainerOrchestrator(context.Background()))
+			require.Equal(t, tc.expected, c.fetchContainerOrchestrator(t.Context()))
 		})
 	}
 }
@@ -401,7 +400,7 @@ func TestFetchCloudEnvironment(t *testing.T) {
 			c := &fetchConfig{
 				httpDo: tc.httpDo,
 			}
-			require.Equal(t, tc.expected, c.fetchCloudEnvironment(context.Background()))
+			require.Equal(t, tc.expected, c.fetchCloudEnvironment(t.Context()))
 		})
 	}
 }

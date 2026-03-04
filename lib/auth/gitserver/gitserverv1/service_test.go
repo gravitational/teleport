@@ -52,7 +52,7 @@ func newServer(t *testing.T, org string) *types.ServerV2 {
 func TestServiceAccess(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	org1 := newServer(t, "org1")
 	org2 := newServer(t, "org2")
 	org3 := newServer(t, "org3")
@@ -321,7 +321,7 @@ func newService(t *testing.T, checker services.AccessChecker, existing ...*types
 	require.NoError(t, err)
 
 	for _, server := range existing {
-		_, err := gitServersService.CreateGitServer(context.Background(), server)
+		_, err := gitServersService.CreateGitServer(t.Context(), server)
 		require.NoError(t, err)
 	}
 

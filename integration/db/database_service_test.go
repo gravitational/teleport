@@ -19,7 +19,6 @@
 package db
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -41,7 +40,7 @@ type listDatabaseServicesResp struct {
 }
 
 func TestDatabaseServiceHeartbeat(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Start Teleport Auth and Proxy services
 	authProcess, proxyProcess, provisionToken := helpers.MakeTestServers(t)

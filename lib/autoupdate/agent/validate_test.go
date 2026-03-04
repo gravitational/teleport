@@ -20,7 +20,6 @@ package agent
 
 import (
 	"bytes"
-	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -80,7 +79,7 @@ func TestValidator_IsBinary(t *testing.T) {
 			opts := &slog.HandlerOptions{AddSource: true}
 			log := slog.New(slog.NewTextHandler(&buf, opts))
 			v := Validator{Log: log}
-			ctx := context.Background()
+			ctx := t.Context()
 			path := filepath.Join(t.TempDir(), "file")
 			if tt.contents != "" {
 				os.WriteFile(path, []byte(tt.contents), tt.mode)

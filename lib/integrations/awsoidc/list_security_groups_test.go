@@ -68,7 +68,7 @@ func (m mockListSecurityGroupsClient) DescribeSecurityGroups(ctx context.Context
 }
 
 func TestListSecurityGroups(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	noErrorFunc := func(err error) bool {
 		return err == nil

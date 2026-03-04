@@ -97,7 +97,7 @@ func TestNewClient(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		shutdownCtx, shutdownCancel := context.WithTimeout(t.Context(), 3*time.Second)
 		defer shutdownCancel()
 		require.NoError(t, c.Shutdown(shutdownCtx))
 	})
@@ -111,18 +111,18 @@ func TestNewClient(t *testing.T) {
 	require.NotNil(t, clt)
 
 	// Starting the client should be successful when the Collector is up
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	require.NoError(t, clt.Start(ctx))
 
 	// NewStartedClient will dial the collector, if everything is OK
 	// then it should return a valid client
-	clt, err = NewStartedClient(context.Background(), cfg)
+	clt, err = NewStartedClient(t.Context(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, clt)
 
 	// Stop the Collector
-	require.NoError(t, c.Shutdown(context.Background()))
+	require.NoError(t, c.Shutdown(t.Context()))
 
 	// NewClient shouldn't fail - it won't attempt to connect to the Collector
 	clt, err = NewClient(cfg)
@@ -131,17 +131,17 @@ func TestNewClient(t *testing.T) {
 
 	// Starting clients when the Collector is offline is allowed since no IO occurs
 	// until issuing an RPC.
-	ctx2, cancel2 := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx2, cancel2 := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel2()
-	require.NoError(t, clt.Start(context.Background()))
+	require.NoError(t, clt.Start(t.Context()))
 	require.Error(t, clt.UploadTraces(ctx2, nil))
 
 	// NewStartedClient won't dial the collector, if the Collector is offline
 	// then it shouldn't be detected until an RPC is issued.
-	clt, err = NewStartedClient(context.Background(), cfg)
+	clt, err = NewStartedClient(t.Context(), cfg)
 	require.NoError(t, err, "NewStartedClient was successful dialing an offline Collector")
 	require.NotNil(t, clt)
-	ctx3, cancel3 := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx3, cancel3 := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel3()
 	require.Error(t, clt.UploadTraces(ctx3, nil))
 }
@@ -152,7 +152,7 @@ func TestNewExporter(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		shutdownCtx, shutdownCancel := context.WithTimeout(t.Context(), 3*time.Second)
 		defer shutdownCancel()
 		require.NoError(t, c.Shutdown(shutdownCtx))
 	})
@@ -258,9 +258,9 @@ func TestNewExporter(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			exporter, bufClient, err := newExporter(context.Background(), tt.config)
+			exporter, bufClient, err := newExporter(t.Context(), tt.config)
 			if exporter != nil {
-				t.Cleanup(func() { require.NoError(t, exporter.Shutdown(context.Background())) })
+				t.Cleanup(func() { require.NoError(t, exporter.Shutdown(t.Context())) })
 			}
 			tt.errAssertion(t, err)
 			tt.exporterAssertion(t, exporter)
@@ -373,7 +373,7 @@ func TestTraceProvider(t *testing.T) {
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)
+				shutdownCtx, shutdownCancel := context.WithTimeout(t.Context(), 3*time.Second)
 				defer shutdownCancel()
 				require.NoError(t, collector.Shutdown(shutdownCtx))
 			})
@@ -381,7 +381,7 @@ func TestTraceProvider(t *testing.T) {
 				collector.Start()
 			}()
 
-			ctx := context.Background()
+			ctx := t.Context()
 			cfg := tt.config(collector)
 			provider, err := NewTraceProvider(ctx, cfg)
 			tt.errAssertion(t, err)
@@ -396,7 +396,7 @@ func TestTraceProvider(t *testing.T) {
 				span.End()
 			}
 
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+			shutdownCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 			defer cancel()
 			require.NoError(t, provider.Shutdown(shutdownCtx))
 			spans := collector.Spans()
@@ -453,7 +453,7 @@ func TestDelayed(t *testing.T) {
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)
+				shutdownCtx, shutdownCancel := context.WithTimeout(t.Context(), 3*time.Second)
 				defer shutdownCancel()
 				require.NoError(t, collector.Shutdown(shutdownCtx))
 			})
@@ -479,7 +479,7 @@ func TestDelayed(t *testing.T) {
 				cfg.ExporterURL = ""
 			}
 
-			ctx := context.Background()
+			ctx := t.Context()
 			provider, err := NewTraceProvider(ctx, cfg)
 			require.NoError(t, err)
 

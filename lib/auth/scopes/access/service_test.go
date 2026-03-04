@@ -165,7 +165,7 @@ func newBackendPack(t *testing.T) *backendPack {
 func TestRoleBasics(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	bk := newBackendPack(t)
@@ -427,7 +427,7 @@ func TestRoleBasics(t *testing.T) {
 func TestAssignmentBasics(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	bk := newBackendPack(t)
@@ -631,7 +631,7 @@ func newScopedRoleAssignmentAtScope(roleName string, scope string) *scopedaccess
 func TestUnscopedBasics(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	bk := newBackendPack(t)

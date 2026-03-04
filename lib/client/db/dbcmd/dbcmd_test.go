@@ -805,7 +805,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			c, err := NewCmdBuilder(tc, profile, database, "root", getDatabaseFunc, opts...)
 			require.NoError(t, err)
 			c.uid = utils.NewFakeUID()
-			got, err := c.GetConnectCommand(context.Background())
+			got, err := c.GetConnectCommand(t.Context())
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -975,7 +975,7 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 			require.NoError(t, err)
 			c.uid = utils.NewFakeUID()
 
-			commandOptions, err := c.GetConnectCommandAlternatives(context.Background())
+			commandOptions, err := c.GetConnectCommandAlternatives(t.Context())
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -1068,7 +1068,7 @@ func TestConvertCommandError(t *testing.T) {
 			require.NoError(t, err)
 			c.uid = utils.NewFakeUID()
 
-			cmd, err := c.GetConnectCommand(context.Background())
+			cmd, err := c.GetConnectCommand(t.Context())
 			require.NoError(t, err)
 
 			// make sure the expected test bin is the command bin we got

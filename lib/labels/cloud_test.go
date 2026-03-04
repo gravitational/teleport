@@ -63,7 +63,7 @@ func (m *mockIMDSClient) GetID(ctx context.Context) (string, error) {
 }
 
 func TestCloudLabelsSync(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	tags := map[string]string{"a": "1", "b": "2"}
 	expectedTags := map[string]string{"aws/a": "1", "aws/b": "2"}
 	imdsClient := &mockIMDSClient{
@@ -79,7 +79,7 @@ func TestCloudLabelsSync(t *testing.T) {
 }
 
 func TestCloudLabelsAsync(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	imdsClient := &mockIMDSClient{}
 	clock := clockwork.NewFakeClock()
 	ec2Labels, err := NewCloudImporter(ctx, &CloudConfig{
@@ -124,7 +124,7 @@ func TestCloudLabelsAsync(t *testing.T) {
 }
 
 func TestCloudLabelsValidKey(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	tags := map[string]string{"good-label": "1", "bad-l@bel": "2"}
 	expectedTags := map[string]string{"aws/good-label": "1"}
 	imdsClient := &mockIMDSClient{
@@ -140,7 +140,7 @@ func TestCloudLabelsValidKey(t *testing.T) {
 }
 
 func TestCloudLabelsDisabled(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	imdsClient := &mockIMDSClient{
 		tagsDisabled: true,
 	}

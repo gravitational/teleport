@@ -20,7 +20,6 @@ package sftp
 
 import (
 	"bytes"
-	"context"
 	cryptorand "crypto/rand"
 	"fmt"
 	"io"
@@ -450,7 +449,7 @@ func TestTransferFiles(t *testing.T) {
 			}
 			tt.req.Destination.Path = filepath.Join(tempDir, tt.req.Destination.Path)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			err := TransferFiles(ctx, tt.req)
 			if tt.errCheck == nil {
 				require.NoError(t, err)

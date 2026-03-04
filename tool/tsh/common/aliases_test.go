@@ -368,13 +368,13 @@ func Test_runAliasCommand(t *testing.T) {
 	}
 
 	// Run() call
-	err = ar.runAliasCommand(context.Background(), selfExe, selfExe, []string{"--debug", "login"})
+	err = ar.runAliasCommand(t.Context(), selfExe, selfExe, []string{"--debug", "login"})
 	require.NoError(t, err)
 	require.Equal(t, 1, mainCalls)
 	require.Equal(t, 0, externalCalls)
 
 	// external command
-	err = ar.runAliasCommand(context.Background(), selfExe, "sh", []string{"echo", "hello world"})
+	err = ar.runAliasCommand(t.Context(), selfExe, "sh", []string{"echo", "hello world"})
 	require.NoError(t, err)
 	require.Equal(t, 1, mainCalls)
 	require.Equal(t, 1, externalCalls)

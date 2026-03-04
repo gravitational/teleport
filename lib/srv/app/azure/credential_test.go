@@ -65,7 +65,7 @@ func (f *fakeCredentialProvider) MapScope(scope string) string {
 func Test_getAccessTokenFromCredentialProvider(t *testing.T) {
 	fakeCredProvider := &fakeCredentialProvider{}
 	userRequestedIdentity := "/subscriptions/my-sub/resourcegroups/my-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/my-name"
-	ctx := context.Background()
+	ctx := t.Context()
 
 	token, err := getAccessTokenFromCredentialProvider(fakeCredProvider)(ctx, userRequestedIdentity, "test-scope")
 	require.NoError(t, err)
@@ -75,7 +75,7 @@ func Test_getAccessTokenFromCredentialProvider(t *testing.T) {
 }
 
 func Test_workloadIdentityCredentialProvider(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fakeAgentIdentity := &fakeTokenCredential{}
 	credProvider, err := newWorloadIdentityCredentialProvider(ctx, fakeAgentIdentity)
 	require.NoError(t, err)

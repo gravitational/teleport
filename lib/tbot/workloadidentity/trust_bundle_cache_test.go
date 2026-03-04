@@ -166,7 +166,7 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	t.Parallel()
 
 	logger := logtest.NewLogger()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	mockWatcher := newMockWatcher([]types.WatchKind{

@@ -41,7 +41,7 @@ import (
 func TestScopedAccessCacheReplication(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	backend, err := memory.New(memory.Config{
@@ -265,7 +265,7 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 func TestScopedAccessCacheFallback(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	backend, err := memory.New(memory.Config{

@@ -49,7 +49,7 @@ func TestAWSSecretsManager(t *testing.T) {
 	t.Run("bad key", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 
 		secrets, err := createFunc(ctx)
@@ -67,7 +67,7 @@ func TestAWSSecretsManager(t *testing.T) {
 	t.Run("KMS change", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 
 		// Create secret for the first time with default KMS.

@@ -363,7 +363,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := newDynamicKubeCreds(
-				context.Background(),
+				t.Context(),
 				dynamicCredsConfig{
 					clock: fakeClock,
 					checker: func(_ context.Context, _ string,

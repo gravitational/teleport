@@ -76,7 +76,7 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: conn, Logger: logtest.NewLogger()})
 

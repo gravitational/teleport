@@ -192,7 +192,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 
 func TestAccessRequest(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	testPack := newAccessRequestTestPack(ctx, t)
@@ -617,7 +617,7 @@ func TestListAccessRequests(t *testing.T) {
 func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	userName := "denied"
@@ -788,7 +788,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	testCases := []struct {
@@ -1035,7 +1035,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	// Create the bot
@@ -1105,7 +1105,7 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	username := "requester"
@@ -1326,7 +1326,7 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 func testRoleRefreshWithBogusRequestID(t *testing.T, testPack *accessRequestTestPack) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	username := "user-for-role-refresh"
@@ -1427,11 +1427,11 @@ func TestCreateSuggestions(t *testing.T) {
 	require.NoError(t, err)
 
 	authSrvClient := testAuthServer.AuthServer
-	err = authSrvClient.UpsertAccessRequest(context.Background(), adminRequest)
+	err = authSrvClient.UpsertAccessRequest(t.Context(), adminRequest)
 	require.NoError(t, err)
 
 	// Create the promotions.
-	err = authSrvClient.CreateAccessRequestAllowedPromotions(context.Background(), adminRequest, &types.AccessRequestAllowedPromotions{
+	err = authSrvClient.CreateAccessRequestAllowedPromotions(t.Context(), adminRequest, &types.AccessRequestAllowedPromotions{
 		Promotions: []*types.AccessRequestAllowedPromotion{
 			{AccessListName: "a"},
 			{AccessListName: "b"},
@@ -1440,7 +1440,7 @@ func TestCreateSuggestions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get the promotions and verify them.
-	promotions, err := authSrvClient.GetAccessRequestAllowedPromotions(context.Background(), adminRequest)
+	promotions, err := authSrvClient.GetAccessRequestAllowedPromotions(t.Context(), adminRequest)
 	require.NoError(t, err)
 	require.Len(t, promotions.Promotions, 3)
 	require.Equal(t, []string{"a", "b", "c"},
@@ -1453,7 +1453,7 @@ func TestCreateSuggestions(t *testing.T) {
 
 func TestPromotedRequest(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	testPack := newAccessRequestTestPack(ctx, t)
@@ -1747,7 +1747,7 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			for _, accessList := range test.accessLists {
 				_, err = accessLists.UpsertAccessList(ctx, accessList)
 				require.NoError(t, err)
@@ -1769,7 +1769,7 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 }
 
 func TestAssumeStartTime_CreateAccessRequestV2(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s := createAccessRequestWithStartTime(t)
 
 	testCases := []struct {
@@ -1808,7 +1808,7 @@ func TestAssumeStartTime_CreateAccessRequestV2(t *testing.T) {
 }
 
 func TestAssumeStartTime_SubmitAccessReview(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s := createAccessRequestWithStartTime(t)
 
 	testCases := []struct {
@@ -1858,7 +1858,7 @@ func TestAssumeStartTime_SubmitAccessReview(t *testing.T) {
 }
 
 func TestAssumeStartTime_SetAccessRequestState(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s := createAccessRequestWithStartTime(t)
 
 	testCases := []struct {
@@ -1922,7 +1922,7 @@ func createAccessRequestWithStartTime(t *testing.T) accessRequestWithStartTime {
 	t.Helper()
 
 	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	testPack := newAccessRequestTestPack(ctx, t)

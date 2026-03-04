@@ -75,7 +75,7 @@ func TestStaticTokens(t *testing.T) {
 func TestDynamicTokens(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
@@ -159,7 +159,7 @@ func TestTokensCache(t *testing.T) {
 func TestTokensCacheFilters(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)

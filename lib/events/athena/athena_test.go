@@ -311,7 +311,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := tt.input()
-			err := cfg.CheckAndSetDefaults(context.Background())
+			err := cfg.CheckAndSetDefaults(t.Context())
 			if tt.wantErr == "" {
 				require.NoError(t, err, "CheckAndSetDefaults return unexpected err")
 				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "Logger", "Tracer", "metrics", "ObserveWriteEventsError"), cmp.AllowUnexported(Config{})))
@@ -435,7 +435,7 @@ func TestPublisherConsumer(t *testing.T) {
 
 			eventsChan := c.getEventsChan()
 
-			ctx := context.Background()
+			ctx := t.Context()
 			readSQSCtx, readCancel := context.WithCancel(ctx)
 			defer readCancel()
 

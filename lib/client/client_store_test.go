@@ -78,7 +78,7 @@ func newTestAuthority(t *testing.T) testAuthority {
 
 // makeSignedKeyRing helper returns a new user key ring signed by CAPriv key.
 func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeExpired bool) *KeyRing {
-	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(context.Background(), func(context.Context) (types.SignatureAlgorithmSuite, error) {
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(t.Context(), func(context.Context) (types.SignatureAlgorithmSuite, error) {
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	})
 	require.NoError(t, err)
@@ -189,7 +189,7 @@ func testEachClientStore(t *testing.T, testFunc func(t *testing.T, clientStore *
 func TestClientStore(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	a := newTestAuthority(t)
 	hwks := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
 

@@ -196,7 +196,7 @@ func dummyServiceTask(idx int) (ecstypes.Service, *ecstypes.TaskDefinition) {
 }
 
 func TestListDeployedDatabaseServices(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const pageSize = 100
 	t.Run("pagination", func(t *testing.T) {

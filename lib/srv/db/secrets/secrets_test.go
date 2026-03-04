@@ -29,7 +29,7 @@ import (
 func secretsTestSuite(t *testing.T, createFunc func(context.Context) (Secrets, error)) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	secrets, err := createFunc(ctx)

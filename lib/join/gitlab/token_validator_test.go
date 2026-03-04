@@ -258,7 +258,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			v, err := NewIDTokenValidator(IDTokenValidatorConfig{
 				Clock:             clockwork.NewRealClock(),
 				insecure:          true,
@@ -364,7 +364,7 @@ func TestIDTokenValidator_ValidateWithJWKS(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			v, err := NewIDTokenValidator(IDTokenValidatorConfig{
 				Clock:             clockwork.NewRealClock(),
 				insecure:          true,

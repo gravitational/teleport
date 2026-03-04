@@ -33,7 +33,7 @@ import (
 
 func TestClusterName(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -62,7 +62,7 @@ func TestClusterName(t *testing.T) {
 func TestClusterAuditConfig(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
@@ -90,7 +90,7 @@ func TestClusterAuditConfig(t *testing.T) {
 func TestClusterNetworkingConfig(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
@@ -119,7 +119,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 func TestSessionRecordingConfig(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
@@ -148,7 +148,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 func TestAuthPreference(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 

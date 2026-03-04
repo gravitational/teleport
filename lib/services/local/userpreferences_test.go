@@ -19,7 +19,6 @@
 package local_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -36,7 +35,7 @@ import (
 func newUserPreferencesService(t *testing.T) *local.UserPreferencesService {
 	t.Helper()
 	backend, err := memory.New(memory.Config{
-		Context: context.Background(),
+		Context: t.Context(),
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
@@ -46,7 +45,7 @@ func newUserPreferencesService(t *testing.T) *local.UserPreferencesService {
 func TestUserPreferences_ClusterPreferences(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	defaultPref := local.DefaultUserPreferences()
 	defaultPref.ClusterPreferences = &userpreferencesv1.ClusterUserPreferences{
 		PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
@@ -77,7 +76,7 @@ func TestUserPreferences_ClusterPreferences(t *testing.T) {
 func TestUserPreferencesCRUD(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	defaultPref := local.DefaultUserPreferences()
 	username := "something"
 

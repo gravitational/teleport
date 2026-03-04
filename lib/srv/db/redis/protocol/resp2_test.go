@@ -20,7 +20,6 @@ package protocol
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -136,7 +135,7 @@ func TestReadWriteStatus(t *testing.T) {
 }
 
 func TestMakeUnknownCommandErrorForCmd(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	tests := []struct {
 		name          string
 		command       []any

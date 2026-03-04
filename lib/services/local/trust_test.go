@@ -232,7 +232,7 @@ func TestUpdateCertAuthorityCondActs(t *testing.T) {
 
 func TestRemoteClusterCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -358,7 +358,7 @@ func TestRemoteClusterCRUD(t *testing.T) {
 
 func TestPresenceService_PatchRemoteCluster(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -427,7 +427,7 @@ func TestPresenceService_PatchRemoteCluster(t *testing.T) {
 
 func TestPresenceService_ListRemoteClusters(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -484,7 +484,7 @@ func TestPresenceService_ListRemoteClusters(t *testing.T) {
 
 func TestTrustedClusterCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)

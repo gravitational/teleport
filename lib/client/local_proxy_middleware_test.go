@@ -36,7 +36,7 @@ import (
 )
 
 func TestCertChecker(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	certIssuer := newMockCertIssuer(t, clock)
 	certChecker := client.NewCertChecker(certIssuer, clock)
@@ -78,7 +78,7 @@ func TestCertChecker(t *testing.T) {
 }
 
 func TestLocalCertGenerator(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	certIssuer := newMockCertIssuer(t, clock)
 	certChecker := client.NewCertChecker(certIssuer, clock)

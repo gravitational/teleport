@@ -38,7 +38,7 @@ import (
 func newTestKeypair(t *testing.T) crypto.Signer {
 	t.Helper()
 
-	key, err := cryptosuites.GenerateKey(context.Background(), func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
+	key, err := cryptosuites.GenerateKey(t.Context(), func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	}, cryptosuites.BoundKeypairJoining)
 	require.NoError(t, err)

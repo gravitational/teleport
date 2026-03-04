@@ -93,7 +93,7 @@ func TestAgentCertChecker(t *testing.T) {
 				logger:      logtest.NewLogger(),
 			}
 
-			_, err = dialer.DialContext(context.Background(), *utils.MustParseAddr(sshServer.Addr()))
+			_, err = dialer.DialContext(t.Context(), *utils.MustParseAddr(sshServer.Addr()))
 			tc.requireErr(t, err)
 		})
 	}

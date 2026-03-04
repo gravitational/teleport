@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -36,7 +35,7 @@ import (
 func TestGetWindowsDesktops(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -87,7 +86,7 @@ func TestGetWindowsDesktops(t *testing.T) {
 func TestListWindowsDesktops(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -204,7 +203,7 @@ func TestListWindowsDesktops(t *testing.T) {
 func TestListWindowsDesktops_Filters(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{

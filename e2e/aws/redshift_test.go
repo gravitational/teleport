@@ -66,7 +66,7 @@ func testRedshiftServerless(t *testing.T) {
 
 func testRedshiftCluster(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	t.Cleanup(cancel)
 
 	autoUserKeep := "auto_keep_" + randASCII(t)

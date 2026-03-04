@@ -49,7 +49,7 @@ import (
 )
 
 func TestWebauthnLogin_ssh(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	clusterMFA := configureClusterForMFA(t, env, &types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -105,7 +105,7 @@ func TestWebauthnLogin_ssh(t *testing.T) {
 		},
 	} {
 		// 1st login step: request challenge.
-		ctx := context.Background()
+		ctx := t.Context()
 		beginResp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), &client.MFAChallengeRequest{
 			User: user,
 			Pass: password,
@@ -158,7 +158,7 @@ func TestWebauthnLogin_web(t *testing.T) {
 	password := clusterMFA.Password
 	device := clusterMFA.WebDev.Key
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	sessionResp, _ := loginWebMFA(ctx, t, loginWebMFAParams{
 		webClient:     proxy.newClient(t),
@@ -178,7 +178,7 @@ func TestWebauthnLogin_web(t *testing.T) {
 func TestWebauthnLogin_webWithPrivateKeyEnabledError(t *testing.T) {
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rpID := env.server.TLS.ClusterName()
 	authPref := &types.AuthPreferenceSpecV2{
@@ -244,7 +244,7 @@ func TestAuthenticate_passwordless(t *testing.T) {
 
 	// Fetch the WebAuthn User Handle. In a real-world scenario the device stores
 	// the handle alongside the credentials during registration.
-	ctx := context.Background()
+	ctx := t.Context()
 	authServer := env.server.Auth()
 	wla, err := authServer.GetWebauthnLocalAuth(ctx, user)
 	require.NoError(t, err)
@@ -412,7 +412,7 @@ func TestPasswordlessProhibitedForSSO(t *testing.T) {
 		},
 	})
 	user := mfa.User
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Register a passwordless device.
 	userClient, err := testServer.NewClient(authtest.TestUser(user))
@@ -507,7 +507,7 @@ func TestPasswordlessProhibitedForSSO(t *testing.T) {
 }
 
 func TestAuthenticate_rateLimiting(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name  string
@@ -562,7 +562,7 @@ func TestAuthenticate_deviceWebToken(t *testing.T) {
 		}, nil
 	})
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("login using OTP", func(t *testing.T) {
 		// Create a user with password + OTP.
@@ -609,7 +609,7 @@ type configureMFAResp struct {
 
 func configureClusterForMFA(t *testing.T, env *webPack, spec *types.AuthPreferenceSpecV2) *configureMFAResp {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Configure cluster auth preferences.
 	cap, err := types.NewAuthPreference(*spec)

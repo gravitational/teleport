@@ -50,7 +50,7 @@ func TestAccessRequestSearch(t *testing.T) {
 	)
 	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-	ctx := context.Background()
+	ctx := t.Context()
 	const (
 		rootClusterName = "root-cluster"
 		rootKubeCluster = "first-cluster"
@@ -202,7 +202,7 @@ func TestAccessRequestSearch(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancel()
 			homePath, _ := mustLoginLegacy(t, s, tc.args.teleportCluster)
 			captureStdout := new(bytes.Buffer)

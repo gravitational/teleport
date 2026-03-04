@@ -19,7 +19,6 @@
 package circleci
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -195,7 +194,7 @@ func TestValidateToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			claims, err := ValidateToken(
 				ctx, fake.issuerURL(realOrgID), realOrgID, tt.token,
 			)

@@ -202,7 +202,7 @@ func defaultBotConfig(
 // such as the bot not having a role granting access to a resource.
 func TestBot(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 
 	// Make a new auth server.
@@ -581,7 +581,7 @@ func tlsIdentFromDest(ctx context.Context, t *testing.T, dest destination.Destin
 // correctly.
 func TestBot_ResumeFromStorage(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 
 	// Make a new auth server.
@@ -633,7 +633,7 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 func TestBot_IdentityRenewalFails(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 
 	// This test asserts that we can continue running (and recover) even when
@@ -868,7 +868,7 @@ func (f *failureProxy) setFailing(failing bool) {
 
 func TestBot_InsecureViaProxy(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 
 	// Make a new auth server.
@@ -939,7 +939,7 @@ func newMockDiscoveredKubeCluster(t *testing.T, name, discoveredName string) *ty
 
 func TestBotDatabaseTunnel(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 
 	// Make a new auth server.
@@ -1046,7 +1046,7 @@ func TestBotDatabaseTunnel(t *testing.T) {
 
 func TestBotSSHMultiplexer(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 
 	currentUser, err := user.Current()
@@ -1211,7 +1211,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 func TestBotDeviceTrust(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 
 	// Start a test server with `device.trust.mode="required-for-humans"`.
@@ -1263,7 +1263,7 @@ func TestBotDeviceTrust(t *testing.T) {
 // traditional YAML onboarding config.
 func TestBotJoiningURI(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 
 	process, err := testenv.NewTeleportProcess(

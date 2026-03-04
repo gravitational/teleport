@@ -81,7 +81,7 @@ func TestListDatabasesIAMConfigReqDefaults(t *testing.T) {
 }
 
 func TestListDatabasesIAMConfig(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	baseReq := ConfigureIAMListDatabasesRequest{
 		Region:          "us-east-1",
 		IntegrationRole: "integrationrole",
@@ -144,7 +144,7 @@ func TestListDatabasesIAMConfigOutput(t *testing.T) {
 		existingRoles:        []string{req.IntegrationRole},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	require.NoError(t, ConfigureListDatabasesIAM(ctx, clt, req))
 	if golden.ShouldSet() {
 		golden.Set(t, buf.Bytes())

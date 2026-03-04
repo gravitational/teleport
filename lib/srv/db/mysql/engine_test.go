@@ -128,7 +128,7 @@ func TestFetchMySQLVersion(t *testing.T) {
 			}()
 
 			srvAddr := fakeMySQL.Addr().String()
-			ctx := context.Background()
+			ctx := t.Context()
 
 			version, err := FetchMySQLVersion(ctx, &types.DatabaseV3{
 				Spec: types.DatabaseSpecV3{
@@ -170,7 +170,7 @@ func TestFetchMySQLVersionDoesntBlock(t *testing.T) {
 	}()
 
 	srvAddr := fakeMySQL.Addr().String()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	t.Cleanup(cancel)
 
 	fetchVerErrs := make(chan error)

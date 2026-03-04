@@ -309,7 +309,7 @@ func makeLockWatcher(t *testing.T) *services.LockWatcher {
 	t.Helper()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	lockWatcher, err := services.NewLockWatcher(context.Background(), services.LockWatcherConfig{
+	lockWatcher, err := services.NewLockWatcher(t.Context(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "git.test",
 			Client:    local.NewEventsService(backend),

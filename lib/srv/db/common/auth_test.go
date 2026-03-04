@@ -461,7 +461,7 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 }
 
 func TestGetAzureIdentityResourceIDCache(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	identityName := "identity"
 	virtualMachinesMock := &azure.ARMComputeMock{
 		GetErr: errors.New("failed to fetch VM"),
@@ -565,7 +565,7 @@ func TestRedshiftServerlessUsernameToRoleARN(t *testing.T) {
 func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	tests := map[string]struct {
 		checkGetAuthFn func(t *testing.T, auth Auth)
@@ -756,7 +756,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 func TestGetAWSIAMCreds(t *testing.T) {
 	t.Parallel()
 	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for name, tt := range map[string]struct {
 		db                   types.Database
@@ -1170,7 +1170,7 @@ func (f fakeAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options
 }
 
 func Test_awsRedisIAMTokenRequest(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	at := time.Date(2022, time.December, 22, 22, 22, 0, 0, time.UTC)
 	clock := clockwork.NewFakeClockAt(at)
 	cred := credentials.NewStaticCredentialsProvider("FAKEACCESSKEYID", "secret", "token")

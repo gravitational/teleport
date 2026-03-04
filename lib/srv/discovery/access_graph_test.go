@@ -19,7 +19,6 @@
 package discovery
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -242,7 +241,7 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			accessPoint := newFakeAccessPoint()
 			s := &Server{
-				ctx: context.Background(),
+				ctx: t.Context(),
 				Config: &Config{
 					AccessPoint: accessPoint,
 					clock:       clock,

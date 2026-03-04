@@ -27,7 +27,7 @@ import (
 
 func TestShouldDeleteServerHeartbeatsOnShutdown(t *testing.T) {
 	type contextKey string
-	ctx := context.Background()
+	ctx := t.Context()
 
 	require.True(t, ShouldDeleteServerHeartbeatsOnShutdown(ctx))
 	require.True(t, ShouldDeleteServerHeartbeatsOnShutdown(context.WithValue(ctx, contextKey("key"), "value")))

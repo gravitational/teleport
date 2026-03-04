@@ -198,7 +198,7 @@ func (m *mockSigstorePolicyEvaluator) Evaluate(ctx context.Context, policyNames 
 func TestIssueWorkloadIdentityE2E(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tp := newIssuanceTestPack(t, ctx)
 
 	role, err := types.NewRole("my-role", types.RoleSpecV6{
@@ -391,7 +391,7 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 func TestIssueWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tp := newIssuanceTestPack(t, ctx)
 
 	wildcardAccess, _, err := authtest.CreateUserAndRole(
@@ -1345,7 +1345,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 func TestIssueWorkloadIdentities(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tp := newIssuanceTestPack(t, ctx)
 
 	user, _, err := authtest.CreateUserAndRole(
@@ -1661,7 +1661,7 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -1864,7 +1864,7 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -2001,7 +2001,7 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -2117,7 +2117,7 @@ func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -2225,7 +2225,7 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -2413,7 +2413,7 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -2578,7 +2578,7 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 func TestRevocationService_CreateWorkloadIdentityX509Revocation(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -2771,7 +2771,7 @@ func TestRevocationService_CreateWorkloadIdentityX509Revocation(t *testing.T) {
 func TestRevocationService_DeleteWorkloadIdentityX509Revocation(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -2908,7 +2908,7 @@ func TestRevocationService_DeleteWorkloadIdentityX509Revocation(t *testing.T) {
 func TestRevocationService_GetWorkloadIdentityX509Revocation(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -3024,7 +3024,7 @@ func TestRevocationService_GetWorkloadIdentityX509Revocation(t *testing.T) {
 func TestRevocationService_ListWorkloadIdentityX509Revocations(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -3135,7 +3135,7 @@ func TestRevocationService_ListWorkloadIdentityX509Revocations(t *testing.T) {
 func TestRevocationService_UpdateWorkloadIdentityX509Revocation(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -3325,7 +3325,7 @@ func TestRevocationService_UpdateWorkloadIdentityX509Revocation(t *testing.T) {
 func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),

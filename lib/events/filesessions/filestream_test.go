@@ -20,7 +20,6 @@ package filesessions
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"os"
 	"testing"
@@ -32,7 +31,7 @@ import (
 )
 
 func TestReserveUploadPart(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	partNumber := int64(1)
 	dir := t.TempDir()
 
@@ -54,7 +53,7 @@ func TestReserveUploadPart(t *testing.T) {
 }
 
 func TestUploadPart(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	partNumber := int64(1)
 	dir := t.TempDir()
 	expectedContent := []byte("upload part contents")
@@ -88,7 +87,7 @@ func TestUploadPart(t *testing.T) {
 }
 
 func TestCompleteUpload(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create some upload parts using reserve + write.
 	createPart := func(t *testing.T, handler *Handler, upload *events.StreamUpload, partNumber int64, content []byte) events.StreamPart {

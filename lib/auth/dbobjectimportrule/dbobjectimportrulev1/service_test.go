@@ -65,7 +65,7 @@ func otherAdminStates(states []authz.AdminActionAuthState) []authz.AdminActionAu
 func callMethod(t *testing.T, service *DatabaseObjectImportRuleService, method string) error {
 	for _, desc := range dbobjectimportrulev1.DatabaseObjectImportRuleService_ServiceDesc.Methods {
 		if desc.MethodName == method {
-			_, err := desc.Handler(service, context.Background(), func(_ any) error { return nil }, nil)
+			_, err := desc.Handler(service, t.Context(), func(_ any) error { return nil }, nil)
 			return err
 		}
 	}

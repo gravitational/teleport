@@ -112,7 +112,7 @@ func awsDBDiscoveryUnmatched(t *testing.T) {
 	// Wait for the discovery service to not create a database resource
 	// because the database does not match the selectors.
 	require.Never(t, func() bool {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		databases, err := authC.GetDatabases(ctx)
@@ -168,14 +168,14 @@ func execPGTestQuery(t *testing.T, conn *pgconn.PgConn, query string) {
 	t.Helper()
 	defer func() {
 		// dont wait forever to gracefully terminate.
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 		// Disconnect.
 		assert.NoError(t, conn.Close(ctx))
 	}()
 
 	// dont wait forever on the exec.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	// Execute a query.
@@ -219,7 +219,7 @@ func mysqlLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user s
 // startLocalALPNProxy starts local ALPN proxy for the specified database.
 func startLocalALPNProxy(t *testing.T, user string, cluster *helpers.TeleInstance, route tlsca.RouteToDatabase) *alpnproxy.LocalProxy {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	proto, err := alpncommon.ToALPNProtocol(route.Protocol)
 	require.NoError(t, err)
@@ -279,12 +279,13 @@ func generateClientDBCert(t *testing.T, authSrv *auth.Server, user string, route
 
 func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...string) {
 	t.Helper()
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	baseCtx := t.Context()
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		ctx, cancel := context.WithTimeout(baseCtx, 5*time.Second)
 		defer cancel()
 
 		databases, err := auth.GetAuthServer().GetDatabases(ctx)
-		require.NoError(t, err)
+		require.NoError(ct, err)
 
 		// map the registered "db" resource names.
 		seen := map[string]struct{}{}
@@ -292,15 +293,15 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...
 			seen[db.GetName()] = struct{}{}
 		}
 		for _, name := range wantNames {
-			require.Contains(t, seen, name)
+			require.Contains(ct, seen, name)
 		}
 	}, 3*time.Minute, 3*time.Second, "waiting for the discovery service to create db resources")
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		ctx, cancel := context.WithTimeout(baseCtx, 5*time.Second)
 		defer cancel()
 
 		servers, err := auth.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
+		require.NoError(ct, err)
 
 		// map the registered "db_server" resource names.
 		seen := map[string]struct{}{}
@@ -308,7 +309,7 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...
 			seen[s.GetName()] = struct{}{}
 		}
 		for _, name := range wantNames {
-			require.Contains(t, seen, name)
+			require.Contains(ct, seen, name)
 		}
 	}, 1*time.Minute, time.Second, "waiting for the database service to heartbeat the databases")
 }
@@ -505,7 +506,7 @@ func waitForDBConnection(t *testing.T, connectFn func(context.Context) error) {
 	// retry for a while, the database service might need time to give itself
 	// IAM permissions.
 	waitForSuccess(t, func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), connRetryTick)
+		ctx, cancel := context.WithTimeout(t.Context(), connRetryTick)
 		defer cancel()
 		return connectFn(ctx)
 	}, waitForConnTimeout, connRetryTick, "connecting to database")

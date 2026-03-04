@@ -114,14 +114,14 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 	}
 
 	t.Run("without an integration client, must return missing integration getter error", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		_, err := provider.GetConfig(ctx, dummyRegion, WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}))
 		require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
 		require.ErrorContains(t, err, "missing integration getter")
 	})
 
 	t.Run("with an integration client, must return integration fetch error", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		fakeIntegrationClt := fakeIntegrationClt
 		fakeIntegrationClt.getIntegrationFn = func(context.Context, string) (types.Integration, error) {
@@ -137,7 +137,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 	})
 
 	t.Run("with an integration client, must check for AWS integration subkind", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		azureIntegration, err := types.NewIntegrationAzureOIDC(
 			types.Metadata{Name: "integration-test"},
@@ -161,7 +161,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 	})
 
 	t.Run("with an integration client, must return token generation errors", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		fakeIntegrationClt := fakeIntegrationClt
 		fakeIntegrationClt.getTokenFn = func(context.Context, string) (string, error) {
 			return "", trace.BadParameter("failed to generate OIDC token")
@@ -176,7 +176,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 	})
 
 	t.Run("with an integration client, must return the credentials", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		cfg, err := provider.GetConfig(ctx, dummyRegion,
 			WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}),
@@ -190,7 +190,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 	})
 
 	t.Run("with an integration credential provider assuming a role, must return assumed role credentials", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		cfg, err := provider.GetConfig(ctx, dummyRegion,
 			WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}),
@@ -206,7 +206,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 	})
 
 	t.Run("with an integration credential provider assuming a role, must limit role chain length", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		_, err := provider.GetConfig(ctx, dummyRegion,
 			WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}),
 			WithOIDCIntegrationClient(&fakeIntegrationClt),
@@ -220,7 +220,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 	})
 
 	t.Run("with an integration credential provider, but using an empty integration falls back to ambient credentials", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		_, err := provider.GetConfig(ctx, dummyRegion,
 			WithCredentialsMaybeIntegration(IntegrationMetadata{}),
@@ -230,7 +230,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 	})
 
 	t.Run("with an integration credential provider, but using ambient credentials", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		_, err := provider.GetConfig(ctx, dummyRegion,
 			WithAmbientCredentials(),
@@ -240,7 +240,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 	})
 
 	t.Run("with an integration credential provider, but no credential source", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		_, err := provider.GetConfig(ctx, dummyRegion,
 			WithOIDCIntegrationClient(&fakeOIDCIntegrationClient{unauth: true}),
@@ -250,7 +250,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 	})
 
 	t.Run("with base config", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		baseCfg, err := provider.GetConfig(ctx, dummyRegion,
 			WithCredentialsMaybeIntegration(IntegrationMetadata{}),
@@ -272,7 +272,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 	})
 
 	t.Run("with a Roles Anywhere integration", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		integrationClient := &mockRolesAnywhereClient{
 			getIntegrationFn: func(context.Context, string) (types.Integration, error) {

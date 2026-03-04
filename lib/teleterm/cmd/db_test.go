@@ -144,7 +144,7 @@ func TestNewDBCLICommand(t *testing.T) {
 			}
 
 			authClient := &mockAuthClient{database: tc.database}
-			cmds, err := newDBCLICommandWithExecer(context.Background(), &cluster, mockGateway, fakeExec{}, authClient)
+			cmds, err := newDBCLICommandWithExecer(t.Context(), &cluster, mockGateway, fakeExec{}, authClient)
 			require.NoError(t, err)
 
 			tc.checkCmds(t, mockGateway, cmds)

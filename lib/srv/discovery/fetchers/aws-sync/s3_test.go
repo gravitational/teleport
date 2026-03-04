@@ -19,7 +19,6 @@
 package aws_sync
 
 import (
-	"context"
 	"sort"
 	"sync"
 	"testing"
@@ -189,7 +188,7 @@ func TestPollAWSS3(t *testing.T) {
 				lastResult: &Resources{},
 			}
 			result := &Resources{}
-			execFunc := a.pollAWSS3Buckets(context.Background(), result, collectErr)
+			execFunc := a.pollAWSS3Buckets(t.Context(), result, collectErr)
 			require.NoError(t, execFunc())
 			require.Error(t, trace.NewAggregate(errs...))
 

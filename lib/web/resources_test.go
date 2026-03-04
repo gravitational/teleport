@@ -70,7 +70,7 @@ metadata:
 }
 
 func TestCheckResourceUpsert(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	tests := []struct {
 		desc                string
 		httpMethod          string
@@ -366,7 +366,7 @@ func TestListRolesQueryParamIncludeSystemRoles(t *testing.T) {
 }
 
 func TestRoleCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
@@ -476,7 +476,7 @@ func TestRoleCRUD(t *testing.T) {
 }
 
 func TestGithubConnectorsCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 
@@ -597,7 +597,7 @@ func TestGithubConnectorsCRUD(t *testing.T) {
 }
 
 func TestGetTrustedClustersFallback(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	m := &mockedResourceAPIGetter{}
 
 	m.mockGetTrustedClusters = func(ctx context.Context) ([]types.TrustedCluster, error) {
@@ -615,7 +615,7 @@ func TestGetTrustedClustersFallback(t *testing.T) {
 }
 
 func TestListTrustedClusters(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	m := &mockedResourceAPIGetter{}
 
 	m.mockListTrustedClusters = func(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error) {
@@ -652,7 +652,7 @@ func TestUpsertTrustedCluster(t *testing.T) {
 	invalidKind := `kind: invalid-kind
 metadata:
   name: test`
-	tc, err := upsertTrustedCluster(context.Background(), m, invalidKind, "", httprouter.Params{})
+	tc, err := upsertTrustedCluster(t.Context(), m, invalidKind, "", httprouter.Params{})
 	require.Nil(t, tc)
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err))
@@ -669,30 +669,30 @@ spec:
 version: v2`
 
 	// Updating non-existing trusted cluster fails.
-	tc, err = upsertTrustedCluster(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	tc, err = upsertTrustedCluster(t.Context(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
 	require.Nil(t, tc)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 
 	// Creating non-existing trusted cluster succeeds.
-	tc, err = upsertTrustedCluster(context.Background(), m, goodContent, "POST", httprouter.Params{})
+	tc, err = upsertTrustedCluster(t.Context(), m, goodContent, "POST", httprouter.Params{})
 	require.NoError(t, err)
 	require.Contains(t, tc.Content, "name: test-goodcontent")
 
 	// Creating existing trusted cluster fails.
-	tc, err = upsertTrustedCluster(context.Background(), m, goodContent, "POST", httprouter.Params{})
+	tc, err = upsertTrustedCluster(t.Context(), m, goodContent, "POST", httprouter.Params{})
 	require.Nil(t, tc)
 	require.Error(t, err)
 	require.True(t, trace.IsAlreadyExists(err))
 
 	// Updating existing trusted cluster succeeds.
-	tc, err = upsertTrustedCluster(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	tc, err = upsertTrustedCluster(t.Context(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
 	require.NoError(t, err)
 	require.Contains(t, tc.Content, "name: test-goodcontent")
 
 	// Renaming existing trusted cluster fails.
 	goodContentRenamed := strings.ReplaceAll(goodContent, "test-goodcontent", "test-goodcontent-new-name")
-	tc, err = upsertTrustedCluster(context.Background(), m, goodContentRenamed, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	tc, err = upsertTrustedCluster(t.Context(), m, goodContentRenamed, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
 	require.Nil(t, tc)
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err))

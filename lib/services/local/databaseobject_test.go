@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -40,7 +39,7 @@ import (
 
 func getService(t *testing.T) services.DatabaseObjects {
 	backend, err := memory.New(memory.Config{
-		Context: context.Background(),
+		Context: t.Context(),
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
@@ -60,7 +59,7 @@ func getObject(t *testing.T, index int) *dbobjectv1.DatabaseObject {
 
 func prepopulate(t *testing.T, service services.DatabaseObjects, count int) {
 	for i := range count {
-		_, err := service.CreateDatabaseObject(context.Background(), getObject(t, i))
+		_, err := service.CreateDatabaseObject(t.Context(), getObject(t, i))
 		require.NoError(t, err)
 	}
 }
@@ -68,7 +67,7 @@ func prepopulate(t *testing.T, service services.DatabaseObjects, count int) {
 func TestCreateDatabaseObjects(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getService(t)
 
 	obj, err := databaseobject.NewDatabaseObject("obj", &dbobjectv1.DatabaseObjectSpec{Name: "obj", Protocol: "postgres"})
@@ -87,7 +86,7 @@ func TestCreateDatabaseObjects(t *testing.T) {
 func TestUpsertDatabaseObjects(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getService(t)
 
 	obj, err := databaseobject.NewDatabaseObject("obj", &dbobjectv1.DatabaseObjectSpec{Name: "obj", Protocol: "postgres"})
@@ -107,7 +106,7 @@ func TestUpsertDatabaseObjects(t *testing.T) {
 func TestGetDatabaseObject(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getService(t)
 	prepopulate(t, service, 1)
 
@@ -153,7 +152,7 @@ func TestGetDatabaseObject(t *testing.T) {
 func TestUpdateDatabaseObject(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getService(t)
 	prepopulate(t, service, 1)
 
@@ -174,7 +173,7 @@ func TestUpdateDatabaseObject(t *testing.T) {
 func TestDeleteDatabaseObject(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getService(t)
 	prepopulate(t, service, 1)
 
@@ -211,7 +210,7 @@ func TestDeleteDatabaseObject(t *testing.T) {
 func TestListDatabaseObjects(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	counts := []int{0, 1, 5, 10}
 	for _, count := range counts {

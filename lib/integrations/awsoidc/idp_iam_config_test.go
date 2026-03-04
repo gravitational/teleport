@@ -164,7 +164,7 @@ func assumeRoleStatementJSON(issuer string) string {
 }
 
 func TestConfigureIdPIAM(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tlsServer := httptest.NewTLSServer(nil)
 	tlsServerURL, err := url.Parse(tlsServer.URL)
@@ -309,7 +309,7 @@ func TestConfigureIdPIAM(t *testing.T) {
 }
 
 func TestConfigureIdPIAMWithPresetPolicy(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	tlsServer := httptest.NewTLSServer(nil)
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
@@ -405,7 +405,7 @@ var goldenIdPIAMConfigureRequest IdPIAMConfigureRequest = IdPIAMConfigureRequest
 }
 
 func TestConfigureIdPIAMOutput(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	var buf bytes.Buffer
 	req := goldenIdPIAMConfigureRequest
 	req.stdout = &buf
@@ -424,7 +424,7 @@ func TestConfigureIdPIAMOutput(t *testing.T) {
 }
 
 func TestConfigureIdPIAMWithPolicyPresetOutput(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	var buf bytes.Buffer
 	req := goldenIdPIAMConfigureRequest
 	req.stdout = &buf
@@ -563,13 +563,13 @@ func TestNewIdPIAMConfigureClient(t *testing.T) {
 		t.Setenv("AWS_CONFIG_FILE", "/dev/null/does-not-exist")
 		t.Setenv("AWS_REGION", "")
 		t.Setenv("AWS_DEFAULT_REGION", "")
-		_, err := NewIdPIAMConfigureClient(context.Background())
+		_, err := NewIdPIAMConfigureClient(t.Context())
 		require.ErrorContains(t, err, "please set the AWS_REGION environment variable")
 	})
 
 	t.Run("aws_region env var was set, success", func(t *testing.T) {
 		t.Setenv("AWS_REGION", "some-region")
-		idpClient, err := NewIdPIAMConfigureClient(context.Background())
+		idpClient, err := NewIdPIAMConfigureClient(t.Context())
 		require.NoError(t, err)
 		require.NotNil(t, idpClient)
 	})

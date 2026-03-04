@@ -226,7 +226,7 @@ func TestFillSAMLSigningKeyFromExisting(t *testing.T) {
 	// Test execution
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			connector := &types.SAMLConnectorV2{
 				Metadata: types.Metadata{
 					Name: tc.connectorName,

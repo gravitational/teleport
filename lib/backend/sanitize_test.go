@@ -113,7 +113,7 @@ func TestSanitize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.inKey.String(), func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			safeBackend := NewSanitizer(&nopBackend{})
 
 			_, err := safeBackend.Get(ctx, tt.inKey)

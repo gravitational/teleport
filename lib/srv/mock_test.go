@@ -71,7 +71,7 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	sshConn.localAddr, _ = utils.ParseAddr("127.0.0.1:3022")
 	sshConn.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	recConfig := types.DefaultSessionRecordingConfig()
 	recConfig.SetMode(types.RecordOff)
 	clusterName := "localhost"

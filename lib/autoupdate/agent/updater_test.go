@@ -74,7 +74,7 @@ func TestWarnUmask(t *testing.T) {
 		{old: 0o777, warn: true},
 	} {
 		t.Run(fmt.Sprintf("old umask %o", tt.old), func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			out := &bytes.Buffer{}
 			warnUmask(ctx, slog.New(slog.NewTextHandler(out,
 				&slog.HandlerOptions{ReplaceAttr: msgOnly},
@@ -146,7 +146,7 @@ func TestUpdater_Disable(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			err = updater.Disable(context.Background())
+			err = updater.Disable(t.Context())
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -234,7 +234,7 @@ func TestUpdater_Unpin(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			err = updater.Unpin(context.Background())
+			err = updater.Unpin(t.Context())
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -872,7 +872,7 @@ func TestUpdater_Update(t *testing.T) {
 					return !tbot, nil
 				}
 
-				ctx := context.Background()
+				ctx := t.Context()
 				err = updater.Update(ctx, tt.now)
 				if tt.errMatch != "" {
 					require.Error(t, err)
@@ -1080,7 +1080,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 				},
 			}
 
-			ctx := context.Background()
+			ctx := t.Context()
 			err = updater.LinkPackage(ctx)
 			if tt.errMatch != "" {
 				require.Error(t, err)
@@ -1455,7 +1455,7 @@ func TestUpdater_Remove(t *testing.T) {
 					return !tbot, nil
 				}
 
-				ctx := context.Background()
+				ctx := t.Context()
 				err = updater.Remove(ctx, tt.force)
 				if tt.errMatch != "" {
 					require.Error(t, err)
@@ -1972,7 +1972,7 @@ func TestUpdater_Install(t *testing.T) {
 					return !tbot, nil
 				}
 
-				ctx := context.Background()
+				ctx := t.Context()
 				err = updater.Install(ctx, userCfg)
 				if tt.errMatch != "" {
 					require.Error(t, err)
@@ -2251,7 +2251,7 @@ func TestUpdater_Setup(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			ctx := context.Background()
+			ctx := t.Context()
 			err = updater.Setup(ctx, "test", Revision{Version: "version"}, SetupFeatures{SELinuxSSH: tt.installSELinux, Tbot: true}, tt.restart)
 			if tt.errMatch != "" {
 				require.Error(t, err)

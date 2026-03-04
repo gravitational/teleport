@@ -54,7 +54,7 @@ func TestPostgresEvents(t *testing.T) {
 	// Don't t.Parallel(), relies on the database backed by urlEnvVar.
 	log := newLogForTesting(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	truncateEvents := func(t *testing.T) {
 		_, err := log.pool.Exec(ctx, "TRUNCATE events")
@@ -118,7 +118,7 @@ func TestLog_nonStandardSessionID(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Emit event with non-standard session ID.
 	require.NoError(t,
@@ -161,7 +161,7 @@ func newLogForTesting(t *testing.T) *Log {
 	var cfg Config
 	require.NoError(t, cfg.SetFromURL(u), "cfg.SetFromURL")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	eventsLog, err := New(ctx, cfg)

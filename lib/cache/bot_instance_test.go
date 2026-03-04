@@ -452,7 +452,7 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 func TestBotInstanceCacheFallback(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	p := newTestPack(t, func(cfg Config) Config {
 		cfg.neverOK = true // Force the cache into an unhealthy state

@@ -481,7 +481,7 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ca, err := casGetter(context.Background(), types.CertAuthID{
+	ca, err := casGetter(t.Context(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName,
 	}, false)
@@ -647,7 +647,7 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 				return ca, nil
 			}
 
-			err = pl.VerifySignature(context.Background(), mockCAGetter, tt.localClusterName, clock)
+			err = pl.VerifySignature(t.Context(), mockCAGetter, tt.localClusterName, clock)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 			} else {

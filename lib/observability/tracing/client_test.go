@@ -20,7 +20,6 @@ package tracing
 
 import (
 	"bufio"
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -120,14 +119,14 @@ func TestRotatingFileClient(t *testing.T) {
 
 			// upload spans a bunch of spans
 			for range uploadCount {
-				require.NoError(t, client.UploadTraces(context.Background(), testSpans))
+				require.NoError(t, client.UploadTraces(t.Context(), testSpans))
 			}
 
 			// stop the client to close and flush the files
-			require.NoError(t, client.Stop(context.Background()))
+			require.NoError(t, client.Stop(t.Context()))
 
 			// ensure that if we try to upload more spans we get back ErrShutdown
-			err = client.UploadTraces(context.Background(), testSpans)
+			err = client.UploadTraces(t.Context(), testSpans)
 			require.ErrorIs(t, err, ErrShutdown)
 
 			// get the names of all the files created and verify that files were rotated

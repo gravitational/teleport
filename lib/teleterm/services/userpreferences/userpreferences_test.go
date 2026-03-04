@@ -52,7 +52,7 @@ var leafPreferencesMock = &userpreferencesv1.UserPreferences{
 }
 
 func TestUserPreferencesGet(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	mockedRootClient := &mockClient{preferences: rootPreferencesMock}
@@ -65,7 +65,7 @@ func TestUserPreferencesGet(t *testing.T) {
 }
 
 func TestUserPreferencesUpdateForRoot(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	mockedClient := &mockClient{preferences: rootPreferencesMock}
@@ -92,7 +92,7 @@ func TestUserPreferencesUpdateForRoot(t *testing.T) {
 }
 
 func TestUserPreferencesUpdateForRootAndLeaf(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	mockedRootClient := &mockClient{preferences: rootPreferencesMock}

@@ -170,7 +170,7 @@ func TestUploadMetadata(t *testing.T) {
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
-	handler, err := NewHandler(context.Background(), Config{
+	handler, err := NewHandler(t.Context(), Config{
 		Region:   "us-west-1",
 		Path:     "/test/",
 		Bucket:   "teleport-unit-tests",
@@ -214,14 +214,14 @@ func TestEndpoints(t *testing.T) {
 			var once sync.Once
 			mux := http.NewServeMux()
 			mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				once.Do(func() { request = r.Clone(context.Background()) })
+				once.Do(func() { request = r.Clone(t.Context()) })
 				w.WriteHeader(http.StatusTeapot)
 			}))
 
 			server := httptest.NewServer(mux)
 			t.Cleanup(server.Close)
 
-			handler, err := NewHandler(context.Background(), Config{
+			handler, err := NewHandler(t.Context(), Config{
 				Region: "us-west-1",
 				Path:   "/test/",
 				Bucket: "teleport-unit-tests",

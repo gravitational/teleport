@@ -20,7 +20,6 @@ package k8s
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -178,7 +177,7 @@ func TestKubernetesOutputService_render(t *testing.T) {
 			}
 
 			err = svc.render(
-				context.Background(),
+				t.Context(),
 				status,
 				id,
 				[]types.CertAuthority{fakeCA(t, types.HostCA, mockClusterName)},

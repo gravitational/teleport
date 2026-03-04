@@ -70,7 +70,7 @@ func (m mockListVPCsClient) DescribeVpcs(ctx context.Context, params *ec2.Descri
 }
 
 func TestListVPCs(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	noErrorFunc := func(err error) bool {
 		return err == nil

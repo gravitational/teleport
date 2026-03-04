@@ -69,7 +69,7 @@ func (m mockListEC2ICEClient) DescribeInstanceConnectEndpoints(ctx context.Conte
 }
 
 func TestListEC2ICE(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	noErrorFunc := func(err error) bool {
 		return err == nil

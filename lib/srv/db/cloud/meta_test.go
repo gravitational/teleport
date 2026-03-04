@@ -19,7 +19,6 @@
 package cloud
 
 import (
-	"context"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -413,7 +412,7 @@ func TestAWSMetadata(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			database, err := types.NewDatabaseV3(types.Metadata{
@@ -500,7 +499,7 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			database, err := types.NewDatabaseV3(types.Metadata{

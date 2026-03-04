@@ -207,7 +207,7 @@ func TestPollAWSEKSClusters(t *testing.T) {
 			}
 
 			var result Resources
-			execFunc := a.pollAWSEKSClusters(context.Background(), &result, collectErr)
+			execFunc := a.pollAWSEKSClusters(t.Context(), &result, collectErr)
 			require.NoError(t, execFunc())
 			require.Empty(t, cmp.Diff(
 				tt.want,

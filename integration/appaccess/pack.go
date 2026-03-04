@@ -20,7 +20,6 @@ package appaccess
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -280,12 +279,12 @@ func (p *Pack) CreateUser(t *testing.T) (types.User, string) {
 
 	role := services.RoleForUser(user)
 	role.SetLogins(types.Allow, []string{username, "root", "ubuntu"})
-	role, err = p.rootCluster.Process.GetAuthServer().UpsertRole(context.Background(), role)
+	role, err = p.rootCluster.Process.GetAuthServer().UpsertRole(t.Context(), role)
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
 	user.SetTraits(map[string][]string{"env": {"production"}, "empty": {}, "nil": nil})
-	user, err = p.rootCluster.Process.GetAuthServer().CreateUser(context.Background(), user)
+	user, err = p.rootCluster.Process.GetAuthServer().CreateUser(t.Context(), user)
 	require.NoError(t, err)
 
 	err = p.rootCluster.Process.GetAuthServer().UpsertPassword(user.GetName(), []byte(password))
@@ -441,7 +440,7 @@ type CreateAppSessionParams struct {
 }
 
 func (p *Pack) CreateAppSession(t *testing.T, params CreateAppSessionParams) types.WebSession {
-	ctx := context.Background()
+	ctx := t.Context()
 	userState, err := p.rootCluster.Process.GetAuthServer().GetUserOrLoginState(ctx, params.Username)
 	require.NoError(t, err)
 	accessInfo := services.AccessInfoFromUserState(userState)
@@ -464,7 +463,7 @@ func (p *Pack) CreateAppSession(t *testing.T, params CreateAppSessionParams) typ
 
 // LockUser will lock the configured user for this pack.
 func (p *Pack) LockUser(t *testing.T) {
-	err := p.rootCluster.Process.GetAuthServer().UpsertLock(context.Background(), &types.LockV2{
+	err := p.rootCluster.Process.GetAuthServer().UpsertLock(t.Context(), &types.LockV2{
 		Spec: types.LockSpecV2{
 			Target: types.LockTarget{
 				User: p.username,
@@ -519,7 +518,7 @@ func (p *Pack) ensureAuditEvent(t *testing.T, eventType string, matchEvent func(
 // initCertPool initializes root cluster CA pool.
 func (p *Pack) initCertPool(t *testing.T) {
 	authClient := p.rootCluster.GetSiteAPI(p.rootCluster.Secrets.SiteName)
-	ca, err := authClient.GetCertAuthority(context.Background(), types.CertAuthID{
+	ca, err := authClient.GetCertAuthority(t.Context(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: p.rootCluster.Secrets.SiteName,
 	}, false)
@@ -541,13 +540,13 @@ func (p *Pack) startLocalProxy(t *testing.T, tlsConfig *tls.Config) string {
 		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolTCP},
 		InsecureSkipVerify: true,
 		Listener:           listener,
-		ParentContext:      context.Background(),
+		ParentContext:      t.Context(),
 		Cert:               tlsConfig.Certificates[0],
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { proxy.Close() })
 
-	go proxy.Start(context.Background())
+	go proxy.Start(t.Context())
 
 	return proxy.GetAddr()
 }
@@ -572,7 +571,7 @@ func (p *Pack) makeTLSConfig(t *testing.T, params tlsConfigParams) *tls.Config {
 
 	// Make sure the session ID can be seen in the backend before we continue onward.
 	require.Eventually(t, func() bool {
-		_, err := p.rootCluster.Process.GetAuthServer().GetAppSession(context.Background(), types.GetAppSessionRequest{
+		_, err := p.rootCluster.Process.GetAuthServer().GetAppSession(t.Context(), types.GetAppSessionRequest{
 			SessionID: params.sessionID,
 		})
 		return err == nil

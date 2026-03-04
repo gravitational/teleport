@@ -67,7 +67,7 @@ import (
 // testTeletermDbGatewaysCertRenewal is run from within TestALPNSNIProxyDatabaseAccess to amortize the
 // cost of setting up clusters in tests.
 func testTeletermDbGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("root cluster", func(t *testing.T) {
 		profileName := mustGetProfileName(t, pack.Root.Cluster.Web)
@@ -395,7 +395,7 @@ func (c *mockTSHDEventsService) PromptMFA(context.Context, *api.PromptMFARequest
 func TestTeletermKubeGateway(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const (
 		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
@@ -615,7 +615,7 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 func checkKubeconfigPathInCommandEnv(t *testing.T, daemonService *daemon.Service, gw gateway.Gateway, wantKubeconfigPath string) {
 	t.Helper()
 
-	cmds, err := daemonService.GetGatewayCLICommand(context.Background(), gw)
+	cmds, err := daemonService.GetGatewayCLICommand(t.Context(), gw)
 	require.NoError(t, err)
 	require.Equal(t, []string{"KUBECONFIG=" + wantKubeconfigPath}, cmds.Exec.Env)
 	require.Equal(t, []string{"KUBECONFIG=" + wantKubeconfigPath}, cmds.Preview.Env)
@@ -731,7 +731,7 @@ func requireSessionMFARole(ctx context.Context, t *testing.T, authServer *auth.S
 type makeTCAndWebauthnLoginFunc func(t *testing.T) (*libclient.TeleportClient, mfa.WebauthnLoginFunc)
 
 func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, makeTCAndWebauthnLogin makeTCAndWebauthnLoginFunc) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("root cluster", func(t *testing.T) {
 		t.Parallel()
@@ -901,7 +901,7 @@ func testTeletermAppGatewayTargetPortValidation(t *testing.T, pack *appaccess.Pa
 			daemonService.Stop()
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 		t.Cleanup(cancel)
 
 		// Here the test setup ends and actual test code starts.

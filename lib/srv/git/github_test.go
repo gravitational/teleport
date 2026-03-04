@@ -143,7 +143,7 @@ func TestMakeGitHubSigner(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := MakeGitHubSigner(context.Background(), test.config)
+			_, err := MakeGitHubSigner(t.Context(), test.config)
 			test.checkError(t, err)
 		})
 	}
@@ -230,7 +230,7 @@ func Test_githubKeyDownloader(t *testing.T) {
 			test.setup(d)
 		}
 
-		test.checkRefreshError(t, d.refresh(context.Background()))
+		test.checkRefreshError(t, d.refresh(t.Context()))
 
 		keys, err := d.GetKnownKeys()
 		require.NoError(t, err)

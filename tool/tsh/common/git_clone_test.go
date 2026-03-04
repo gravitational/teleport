@@ -19,7 +19,6 @@
 package common
 
 import (
-	"context"
 	"os/exec"
 	"slices"
 	"testing"
@@ -104,7 +103,7 @@ func TestGitCloneCommand(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cf := &CLIConf{
-				Context:          context.Background(),
+				Context:          t.Context(),
 				executablePath:   "tsh",
 				cmdRunner:        tt.verifyCommand,
 				lookPathOverride: "git",

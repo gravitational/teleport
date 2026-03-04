@@ -51,7 +51,7 @@ import (
 // TestApplicationServersCRUD verifies backend operations on app servers.
 func TestApplicationServersCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	backend, err := memory.New(memory.Config{
@@ -157,7 +157,7 @@ func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.Databas
 
 func TestDatabaseServersCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	backend, err := memory.New(memory.Config{
@@ -242,7 +242,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 
 func TestNodeCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = backend.Close() })
@@ -350,7 +350,7 @@ func TestNodeCRUD(t *testing.T) {
 
 func TestListResources(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	tests := map[string]struct {
@@ -756,7 +756,7 @@ func TestListResources(t *testing.T) {
 
 func TestListResources_Helpers(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	namespace := apidefaults.Namespace
 	bend, err := memory.New(memory.Config{
@@ -938,7 +938,7 @@ func TestListResources_Helpers(t *testing.T) {
 
 func TestFakePaginate_TotalCount(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	namespace := apidefaults.Namespace
 	bend, err := memory.New(memory.Config{
@@ -1068,7 +1068,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 
 func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bk.Close() })
@@ -1149,7 +1149,7 @@ func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 // among duplicated resources, and once a match is found, excludes duplicated matches from the result.
 func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	backend, err := memory.New(memory.Config{
 		Clock: clockwork.NewFakeClock(),
@@ -1274,7 +1274,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 
 func TestServerInfoCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -1350,7 +1350,7 @@ func TestServerInfoCRUD(t *testing.T) {
 
 func TestPresenceService_ListReverseTunnels(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -1407,7 +1407,7 @@ func TestPresenceService_ListReverseTunnels(t *testing.T) {
 
 func TestPresenceService_UpsertReverseTunnel(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)

@@ -96,7 +96,7 @@ func TestAWSAppAccessConfigReqDefaults(t *testing.T) {
 }
 
 func TestAWSAppAccessConfig(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	baseReq := func() AWSAppAccessConfigureRequest {
 		return AWSAppAccessConfigureRequest{
 			IntegrationRole: "integrationrole",
@@ -147,7 +147,7 @@ func TestAWSAppAccessConfig(t *testing.T) {
 }
 
 func TestAWSAppAccessConfigOutput(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	var buf bytes.Buffer
 	req := AWSAppAccessConfigureRequest{
 		IntegrationRole: "integrationrole",

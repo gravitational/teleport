@@ -19,7 +19,6 @@
 package common
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 
@@ -42,7 +41,7 @@ func TestRegisterEngine(t *testing.T) {
 	})
 
 	ec := EngineConfig{
-		Context:           context.Background(),
+		Context:           t.Context(),
 		Clock:             clockwork.NewFakeClock(),
 		Log:               slog.Default(),
 		Auth:              &testAuth{},

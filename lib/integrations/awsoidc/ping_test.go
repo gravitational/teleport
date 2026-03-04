@@ -44,7 +44,7 @@ func (m mockPingClient) GetCallerIdentity(ctx context.Context, params *sts.GetCa
 }
 
 func TestPing(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	pingResp, err := Ping(ctx, mockPingClient{
 		accountID: "123",

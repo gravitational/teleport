@@ -152,7 +152,7 @@ func TestGetByPurpose(t *testing.T) {
 				test.setupMock(m)
 			}
 
-			cred, err := GetByPurpose(context.Background(), test.ref, purpose, m)
+			cred, err := GetByPurpose(t.Context(), test.ref, purpose, m)
 			if test.wantError != nil {
 				require.True(t, test.wantError(err))
 				return
@@ -230,7 +230,7 @@ func TestGetIntegrationCertAuthorities(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.ig.GetName(), func(t *testing.T) {
-			actualCAKeySet, err := GetIntegrationCertAuthorities(context.Background(), test.ig, m)
+			actualCAKeySet, err := GetIntegrationCertAuthorities(t.Context(), test.ig, m)
 			if test.checkError != nil {
 				require.True(t, test.checkError(err))
 			} else {

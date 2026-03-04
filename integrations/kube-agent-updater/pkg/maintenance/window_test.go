@@ -19,7 +19,6 @@
 package maintenance
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -133,7 +132,7 @@ func Test_windowRepr_inWindow(t *testing.T) {
 
 func TestWindowTrigger_CanStart(t *testing.T) {
 	// Test setup: generating and loading fixtures
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	now := clock.Now()
 	namespace := "bar"

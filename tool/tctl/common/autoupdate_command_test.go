@@ -47,7 +47,7 @@ import (
 // TestClientToolsAutoUpdateCommands verifies all commands related to client auto updates, by
 // enabling/disabling auto update, setting the target version and retrieve it.
 func TestClientToolsAutoUpdateCommands(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
 	require.NoError(t, err)
@@ -127,7 +127,7 @@ func runAutoUpdateCommand(t *testing.T, client *authclient.Client, args []string
 	selectedCmd, err := app.Parse(append([]string{"autoupdate"}, args...))
 	require.NoError(t, err)
 
-	_, err = command.TryRun(context.Background(), selectedCmd, func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
+	_, err = command.TryRun(t.Context(), selectedCmd, func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
 		return client, func(context.Context) {}, nil
 	})
 	return &stdoutBuff, err
@@ -149,7 +149,7 @@ func (m *mockAutoUpdateClient) ListAutoUpdateAgentReports(_ context.Context, pag
 }
 
 func TestAutoUpdateAgentStatusCommand(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	now := time.Now()
 
 	tests := []struct {
@@ -464,7 +464,7 @@ prod (catch-all) Unstarted                        outside_window 789         0
 }
 
 func TestAutoUpdateAgentReportCommand(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	now := time.Now()
 	fewSecondsAgo := now.Add(-5 * time.Second)
 	fewMinutesAgo := now.Add(-5 * time.Minute)

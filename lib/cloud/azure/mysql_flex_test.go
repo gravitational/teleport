@@ -19,7 +19,6 @@
 package azure
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -44,7 +43,7 @@ func TestMySQLFlexClient(t *testing.T) {
 			expectServers := []string{"mysql-flex-prod-1", "mysql-flex-prod-2", "mysql-flex-dev"}
 
 			c := NewMySQLFlexServersClientByAPI(mockAPI)
-			resources, err := c.ListAll(context.Background())
+			resources, err := c.ListAll(t.Context())
 			require.NoError(t, err)
 			requireMySQLFlexServers(t, expectServers, resources)
 		})
@@ -54,7 +53,7 @@ func TestMySQLFlexClient(t *testing.T) {
 			expectServers := []string{"mysql-flex-prod-1", "mysql-flex-prod-2"}
 
 			c := NewMySQLFlexServersClientByAPI(mockAPI)
-			resources, err := c.ListWithinGroup(context.Background(), "group-prod")
+			resources, err := c.ListWithinGroup(t.Context(), "group-prod")
 			require.NoError(t, err)
 			requireMySQLFlexServers(t, expectServers, resources)
 		})

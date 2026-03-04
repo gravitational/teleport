@@ -19,7 +19,6 @@
 package common
 
 import (
-	"context"
 	"io"
 	"os"
 	"slices"
@@ -121,7 +120,7 @@ func TestEditResources(t *testing.T) {
 }
 
 func testEditGithubConnector(t *testing.T, clt *authclient.Client) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	expected, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
 		ClientID:     "12345",
@@ -170,7 +169,7 @@ func testEditGithubConnector(t *testing.T, clt *authclient.Client) {
 }
 
 func testEditRole(t *testing.T, clt *authclient.Client) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	expected, err := types.NewRole("test-role", types.RoleSpecV6{})
 	require.NoError(t, err, "creating initial role resource")
@@ -207,7 +206,7 @@ func testEditRole(t *testing.T, clt *authclient.Client) {
 }
 
 func testEditUser(t *testing.T, clt *authclient.Client) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	expected, err := types.NewUser("llama")
 	require.NoError(t, err, "creating initial user resource")
@@ -246,7 +245,7 @@ func testEditUser(t *testing.T, clt *authclient.Client) {
 }
 
 func testEditClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	expected := types.DefaultClusterNetworkingConfig()
 	initial, err := clt.GetClusterNetworkingConfig(ctx)
@@ -285,7 +284,7 @@ func testEditClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
 }
 
 func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	expected := types.DefaultAuthPreference()
 	initial, err := clt.GetAuthPreference(ctx)
@@ -322,7 +321,7 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 }
 
 func testEditSessionRecordingConfig(t *testing.T, clt *authclient.Client) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	expected := types.DefaultSessionRecordingConfig()
 	initial, err := clt.GetSessionRecordingConfig(ctx)
@@ -406,7 +405,7 @@ func TestEditEnterpriseResources(t *testing.T) {
 }
 
 func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
-	ctx := context.Background()
+	ctx := t.Context()
 	expected, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
 		ClientID:     "12345",
 		ClientSecret: "678910",
@@ -458,7 +457,7 @@ func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
 }
 
 func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	expected, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "original-acs",
@@ -526,7 +525,7 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 }
 
 func testEditStaticHostUser(t *testing.T, clt *authclient.Client) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	expected := userprovisioning.NewStaticHostUser("alice", &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
@@ -573,7 +572,7 @@ func testEditStaticHostUser(t *testing.T, clt *authclient.Client) {
 }
 
 func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	expected, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
 		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
@@ -615,7 +614,7 @@ func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 }
 
 func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	expected, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
 		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
@@ -688,7 +687,7 @@ func testEditDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
 func TestMultipleRoles(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
 	require.NoError(t, err)

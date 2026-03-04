@@ -71,7 +71,7 @@ func testDraftExternalAuditStorage(t *testing.T) *externalauditstorage.ExternalA
 }
 
 func TestConfiguratorIsUsed(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	draftConfig := testDraftExternalAuditStorage(t)
 	tests := []struct {

@@ -19,7 +19,6 @@
 package common
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -84,7 +83,7 @@ func TestUserAdd(t *testing.T) {
 		},
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	ctx := context.Background()
+	ctx := t.Context()
 	client, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
@@ -259,7 +258,7 @@ func TestUserUpdate(t *testing.T) {
 		},
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	ctx := context.Background()
+	ctx := t.Context()
 	client, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })

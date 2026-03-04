@@ -17,7 +17,6 @@
 package quic
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -215,7 +214,7 @@ func TestCertificateVerification(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = client.Close() })
 
-			err = client.Ping(context.Background())
+			err = client.Ping(t.Context())
 			tc.check(t, err)
 		})
 	}
@@ -275,7 +274,7 @@ func TestBasicFunctionality(t *testing.T) {
 	t.Cleanup(func() { _ = client.Close() })
 
 	t.Run("ping", func(t *testing.T) {
-		require.NoError(t, client.Ping(context.Background()))
+		require.NoError(t, client.Ping(t.Context()))
 	})
 
 	clientDialRandomNode := func() (net.Conn, error) {

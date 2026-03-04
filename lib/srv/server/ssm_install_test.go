@@ -633,7 +633,7 @@ func TestSSMInstaller(t *testing.T) {
 		// an event once completed
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			tc.req.SSM = tc.client
 			installationResultsCollector := &mockInstallationResults{}
 			inst, err := NewSSMInstaller(SSMInstallerConfig{

@@ -132,7 +132,7 @@ func Test_EmitAuditEvent(t *testing.T) {
 					Uploader:         tt.uploader,
 				},
 			}
-			err := p.EmitAuditEvent(context.Background(), tt.in)
+			err := p.EmitAuditEvent(t.Context(), tt.in)
 			if tt.wantErrorMsg != "" {
 				require.ErrorContains(t, err, tt.wantErrorMsg)
 				return

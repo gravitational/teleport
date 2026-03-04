@@ -170,7 +170,7 @@ func TestEC2SSMIAMConfigReqDefaults(t *testing.T) {
 }
 
 func TestEC2SSMIAMConfig(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	baseReq := func() EC2SSMIAMConfigureRequest {
 		return EC2SSMIAMConfigureRequest{
 			Region:          "us-east-1",
@@ -280,7 +280,7 @@ func TestEC2SSMIAMConfig(t *testing.T) {
 }
 
 func TestEC2SSMIAMConfigOutput(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	var buf bytes.Buffer
 	req := EC2SSMIAMConfigureRequest{
 		Region:                               "us-east-1",

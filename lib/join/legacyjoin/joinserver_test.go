@@ -155,7 +155,7 @@ func newGRPCServer(t *testing.T, opts ...grpc.ServerOption) (*grpc.Server, *bufc
 
 func newGRPCConn(t *testing.T, l *bufconn.Listener) *grpc.ClientConn {
 	conn, err := grpc.DialContext(
-		context.Background(),
+		t.Context(),
 		"bufconn",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
@@ -279,7 +279,7 @@ func TestJoinServiceGRPCServer_RegisterUsingIAMMethod(t *testing.T) {
 				"_proxy": testPack.proxyClient,
 			} {
 				t.Run(tc.desc+suffix, func(t *testing.T) {
-					certs, err := clt.RegisterUsingIAMMethod(context.Background(), challengeResponder)
+					certs, err := clt.RegisterUsingIAMMethod(t.Context(), challengeResponder)
 					if tc.challengeResponseErr != nil {
 						// error returned to the client should equal the error
 						// returned from the challenge responder
@@ -353,7 +353,7 @@ func TestJoinServiceGRPCServer_RegisterUsingAzureMethod(t *testing.T) {
 				"_proxy": testPack.proxyClient,
 			} {
 				t.Run(tc.desc+suffix, func(t *testing.T) {
-					certs, err := clt.RegisterUsingAzureMethod(context.Background(), challengeResponder)
+					certs, err := clt.RegisterUsingAzureMethod(t.Context(), challengeResponder)
 					if tc.challengeResponseErr != nil {
 						require.Equal(t, tc.challengeResponseErr, err)
 						return
@@ -434,7 +434,7 @@ func TestJoinServiceGRPCServer_RegisterUsingToken(t *testing.T) {
 			} {
 				t.Run(tc.desc+suffix, func(t *testing.T) {
 					certs, err := clt.RegisterUsingToken(
-						context.Background(),
+						t.Context(),
 						tc.req,
 					)
 					if tc.authErr != "" {
@@ -547,7 +547,7 @@ func TestJoinServiceGRPCServer_RegisterUsingTPMMethod(t *testing.T) {
 			} {
 				t.Run(tc.desc+suffix, func(t *testing.T) {
 					certs, err := clt.RegisterUsingTPMMethod(
-						context.Background(), tc.initReq, challengeResponder,
+						t.Context(), tc.initReq, challengeResponder,
 					)
 					if tc.challengeResponseErr != nil {
 						require.ErrorIs(t, err, tc.challengeResponseErr)
@@ -654,7 +654,7 @@ func TestJoinServiceGRPCServer_RegisterUsingBoundKeypairMethodSimple(t *testing.
 			} {
 				t.Run(tc.desc+suffix, func(t *testing.T) {
 					response, err := clt.RegisterUsingBoundKeypairMethod(
-						context.Background(), tc.req, challengeResponder,
+						t.Context(), tc.req, challengeResponder,
 					)
 					if tc.challengeResponseErr != nil {
 						require.ErrorIs(t, err, tc.challengeResponseErr)
@@ -712,7 +712,7 @@ func TestTimeout(t *testing.T) {
 				// When a well-behaved client returns an error responding to the
 				// challenge, the context should be canceled and all open
 				// stream connections should be closed immediately.
-				clt.RegisterUsingIAMMethod(context.Background(), func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
+				clt.RegisterUsingIAMMethod(t.Context(), func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 					return nil, trace.BadParameter("")
 				})
 				synctest.Wait()
@@ -742,7 +742,7 @@ func TestTimeout(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				testPack := newTestPack(t)
 				clt := tc.clt(testPack)
-				srv, err := clt.RegisterUsingIAMMethod(context.Background())
+				srv, err := clt.RegisterUsingIAMMethod(t.Context())
 				require.NoError(t, err)
 
 				_, err = srv.Recv()

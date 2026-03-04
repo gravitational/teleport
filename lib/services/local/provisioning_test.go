@@ -17,7 +17,6 @@
 package local_test
 
 import (
-	"context"
 	"strconv"
 	"testing"
 
@@ -37,7 +36,7 @@ import (
 
 func TestProvisioningService_ListProvisionTokens_Pagination(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cases := []struct {
 		name     string
@@ -103,7 +102,7 @@ func TestProvisioningService_ListProvisionTokens_Pagination(t *testing.T) {
 
 func TestProvisioningService_ListProvisionTokens_Filters(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	service := newProvisioningService(t, clockwork.NewFakeClock())
 
@@ -372,7 +371,7 @@ func TestProvisioningServiceTokenNameConflict(t *testing.T) {
 func newProvisioningService(t *testing.T, clock clockwork.Clock) *local.ProvisioningService {
 	t.Helper()
 	backend, err := memory.New(memory.Config{
-		Context: context.Background(),
+		Context: t.Context(),
 		Clock:   clock,
 	})
 	require.NoError(t, err)

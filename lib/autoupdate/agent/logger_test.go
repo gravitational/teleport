@@ -20,7 +20,6 @@ package agent
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -34,7 +33,7 @@ func TestLineLogger(t *testing.T) {
 
 	out := &bytes.Buffer{}
 	ll := lineLogger{
-		ctx: context.Background(),
+		ctx: t.Context(),
 		log: slog.New(slog.NewTextHandler(out,
 			&slog.HandlerOptions{ReplaceAttr: msgOnly},
 		)),
@@ -162,7 +161,7 @@ func TestProgressLogger(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			out := &bytes.Buffer{}
 			ll := progressLogger{
-				ctx: context.Background(),
+				ctx: t.Context(),
 				log: slog.New(slog.NewTextHandler(out,
 					&slog.HandlerOptions{ReplaceAttr: msgOnly},
 				)),

@@ -19,7 +19,6 @@
 package alpnproxy
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -142,7 +141,7 @@ func (s *Suite) Start(t *testing.T) {
 	svr := s.CreateProxyServer(t)
 
 	go func() {
-		err := svr.Serve(context.Background())
+		err := svr.Serve(t.Context())
 		require.NoError(t, err)
 	}()
 
@@ -286,7 +285,7 @@ func mustStartLocalProxy(t *testing.T, config LocalProxyConfig) {
 		require.NoError(t, err)
 	})
 	go func() {
-		err := lp.Start(context.Background())
+		err := lp.Start(t.Context())
 		require.NoError(t, err)
 	}()
 }

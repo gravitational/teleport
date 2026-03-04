@@ -51,7 +51,7 @@ func TestNewSession(t *testing.T) {
 		Tracer: tracing.NoopProvider().Tracer("test"),
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// defaults:
 	ses, err := newSession(ctx, nc, nil, nil, nil, nil, true)
 	require.NoError(t, err)
@@ -90,7 +90,7 @@ func TestProxyConnection(t *testing.T) {
 	localSrv := newTestListener(t, func(con net.Conn) {
 		defer con.Close()
 
-		proxyErrCh <- proxyConnection(context.Background(), con, remoteSrv.Addr().String(), new(net.Dialer))
+		proxyErrCh <- proxyConnection(t.Context(), con, remoteSrv.Addr().String(), new(net.Dialer))
 	})
 	defer localSrv.Close()
 
@@ -199,7 +199,7 @@ func TestListenAndForwardCancel(t *testing.T) {
 			unblockCh := make(chan struct{})
 
 			// Create a new cancelable listener.
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			ln, err := newWrappedListener(acceptCh)
 			require.NoError(t, err)
 

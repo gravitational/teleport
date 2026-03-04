@@ -123,7 +123,7 @@ func TestEvents(t *testing.T) {
 	auditEventsSink := eventstest.NewChannelEmitter(10)
 	fakeClock := clockwork.NewFakeClock()
 	service := newService(t, fakeChecker{allowedVerbs: rwVerbs}, testReporter, auditEventsSink, fakeClock)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ut1, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
 		Integration: "my-integration",
@@ -289,7 +289,7 @@ func callMethod(t *testing.T, service *Service, method string) error {
 
 	for _, desc := range usertasksv1.UserTaskService_ServiceDesc.Methods {
 		if desc.MethodName == method {
-			_, err := desc.Handler(service, context.Background(), func(arg any) error {
+			_, err := desc.Handler(service, t.Context(), func(arg any) error {
 				switch arg := arg.(type) {
 				case *usertasksv1.CreateUserTaskRequest:
 					arg.UserTask = emptyUserTask

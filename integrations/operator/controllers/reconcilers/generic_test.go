@@ -176,7 +176,7 @@ func (f fakeResourceAdapter[T]) SetResourceLabels(res T, labels map[string]strin
 }
 
 func TestTeleportResourceReconciler_Delete(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	resourceName := "test"
 	kubeResource := &unstructured.Unstructured{}
 	kubeResource.SetName(resourceName)

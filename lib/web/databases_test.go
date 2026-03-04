@@ -358,7 +358,7 @@ type listDatabaseServicesResp struct {
 func TestHandleDatabaseServicesGet(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	user := "user"
 	roleRODatabaseServices, err := types.NewRole(services.RoleNameForUser(user), types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -426,7 +426,7 @@ type listDatabaseServerResp struct {
 func TestHandleDatabaseServerGet(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	user := "user"
 	roleDatabaseServer, err := types.NewRole(services.RoleNameForUser(user), types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -480,7 +480,7 @@ func TestHandleDatabaseServerGet(t *testing.T) {
 }
 
 func TestHandleSQLServerConfigureScript(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "user", nil /* roles */)
@@ -574,7 +574,7 @@ func TestHandleSQLServerConfigureScript(t *testing.T) {
 // database URI, ensures that special characters are escaped when placed on the
 // PowerShell script.
 func TestHandleSQLServerConfigureScriptDatabaseURIEscaped(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "user", nil /* roles */)
@@ -600,7 +600,7 @@ func TestHandleSQLServerConfigureScriptDatabaseURIEscaped(t *testing.T) {
 }
 
 func TestConnectDatabaseInteractiveSession(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	forwardedClientAddr := "1.2.3.4"

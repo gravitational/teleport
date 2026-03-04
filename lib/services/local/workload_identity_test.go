@@ -42,7 +42,7 @@ func setupWorkloadIdentityServiceTest(
 	t *testing.T,
 ) (context.Context, *WorkloadIdentityService) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	mem, err := memory.New(memory.Config{
 		Context: ctx,

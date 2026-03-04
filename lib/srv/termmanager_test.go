@@ -103,7 +103,7 @@ func TestNoReadWhenOff(t *testing.T) {
 	t.Parallel()
 
 	m := NewTermManager()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*15)
 	defer cancel()
 
 	r, w := io.Pipe()

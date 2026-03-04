@@ -101,7 +101,7 @@ func (m mockListDatabasesClient) DescribeDBClusters(ctx context.Context, params 
 }
 
 func TestListDatabases(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	noErrorFunc := func(err error) bool {
 		return err == nil

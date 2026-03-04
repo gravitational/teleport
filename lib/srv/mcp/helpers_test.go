@@ -343,8 +343,8 @@ func findDockerContainerID(ctx context.Context, dockerClient *docker.Client, con
 }
 
 func forceRemoveContainer(t *testing.T, dockerClient *docker.Client, containerName string) {
-	if containerID := findDockerContainerID(context.Background(), dockerClient, containerName); containerID != "" {
-		if err := dockerClient.ContainerRemove(context.Background(), containerID, container.RemoveOptions{Force: true}); err != nil {
+	if containerID := findDockerContainerID(t.Context(), dockerClient, containerName); containerID != "" {
+		if err := dockerClient.ContainerRemove(t.Context(), containerID, container.RemoveOptions{Force: true}); err != nil {
 			t.Log("Failed to remove container", err)
 		}
 	}

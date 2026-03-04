@@ -43,7 +43,7 @@ import (
 
 func TestE2E_ApplicationTunnelService(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 
 	// Spin up a test HTTP server

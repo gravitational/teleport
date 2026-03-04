@@ -87,7 +87,7 @@ func (tt *servicesContext) Close() error {
 }
 
 func TestCRUD(t *testing.T) {
-	tt := setupServicesContext(context.Background(), t)
+	tt := setupServicesContext(t.Context(), t)
 
 	t.Run("TestUserCACRUD", tt.suite.CertAuthCRUD)
 	t.Run("TestServerCRUD", tt.suite.ServerCRUD)
@@ -112,7 +112,7 @@ func TestCRUD(t *testing.T) {
 }
 
 func TestSemaphore(t *testing.T) {
-	tt := setupServicesContext(context.Background(), t)
+	tt := setupServicesContext(t.Context(), t)
 
 	t.Run("TestSemaphoreLock", tt.suite.SemaphoreLock)
 	t.Run("TestSemaphoreConcurrency", tt.suite.SemaphoreConcurrency)

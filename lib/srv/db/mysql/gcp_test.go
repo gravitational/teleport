@@ -64,7 +64,7 @@ func (a fakeAuth) WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) c
 }
 
 func Test_getGCPUserAndPassword(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	authClient := makeAuthClient(t)
 	db := makeGCPMySQLDatabase(t)
 

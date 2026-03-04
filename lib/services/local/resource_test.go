@@ -39,7 +39,7 @@ import (
 
 func TestCreateResourcesProvisionToken(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	tt := setupServicesContext(ctx, t)
 
 	token, err := types.NewProvisionToken(
@@ -58,7 +58,7 @@ func TestCreateResourcesProvisionToken(t *testing.T) {
 
 func TestCreateResource(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	tt := setupServicesContext(ctx, t)
 	cap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type: constants.Local,
@@ -86,14 +86,14 @@ func TestCreateResource(t *testing.T) {
 
 func TestUserResource(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	tt := setupServicesContext(ctx, t)
 	runUserResourceTest(ctx, t, tt, false)
 }
 
 func TestUserResourceWithSecrets(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	tt := setupServicesContext(ctx, t)
 	runUserResourceTest(ctx, t, tt, true)
 }
@@ -142,7 +142,7 @@ func runUserResourceTest(
 
 func TestCertAuthorityResource(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	tt := setupServicesContext(ctx, t)
 
 	userCA, err := authcatest.NewCA(types.UserCA, "example.com")
@@ -161,7 +161,7 @@ func TestCertAuthorityResource(t *testing.T) {
 func TestTrustedClusterResource(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tt := setupServicesContext(ctx, t)
 
 	foo, err := types.NewTrustedCluster("foo", types.TrustedClusterSpecV2{
@@ -196,7 +196,7 @@ func TestTrustedClusterResource(t *testing.T) {
 func TestGithubConnectorResource(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tt := setupServicesContext(ctx, t)
 
 	connector := &types.GithubConnectorV3{
@@ -268,7 +268,7 @@ func newUserTestCase(t *testing.T, name string, roles []string, withSecrets bool
 
 func TestBootstrapLock(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	tt := setupServicesContext(ctx, t)
 
 	nl, err := types.NewLock("test", types.LockSpecV2{

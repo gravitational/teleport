@@ -54,7 +54,7 @@ func TestStreamerCompleteEmpty(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 
 	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1})
@@ -84,7 +84,7 @@ func TestStreamerCompleteEmpty(t *testing.T) {
 // happens, the streamer will be canceled and the error will be returned in
 // future `EmitAuditEvent` calls.
 func TestNewSliceErrors(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	expectedErr := errors.New("test upload error")
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader: &eventstest.MockUploader{ReserveUploadPartError: expectedErr},
@@ -103,7 +103,7 @@ func TestNewSliceErrors(t *testing.T) {
 // the current sliceWriter. If there is any error on this, it should be
 // returned.
 func TestNewStreamErrors(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	expectedErr := errors.New("test upload error")
 
 	t.Run("CreateAuditStream", func(t *testing.T) {
@@ -194,7 +194,7 @@ func TestProtoStreamLargeEvent(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader: eventstest.NewMemoryUploader(),

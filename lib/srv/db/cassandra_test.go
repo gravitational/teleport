@@ -42,7 +42,7 @@ import (
 func TestAccessCassandra(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withCassandra("cassandra"))
 	go testCtx.startHandlingConnections()
 
@@ -149,7 +149,7 @@ func TestAccessCassandraHandshake(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withCassandra("cassandra"))
 	go testCtx.startHandlingConnections()
 	const teleportUser = "alice"
@@ -198,7 +198,7 @@ func TestAccessCassandraHandshake(t *testing.T) {
 
 func TestAuditCassandra(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withCassandra("cassandra"))
 	go testCtx.startHandlingConnections()
 
@@ -241,7 +241,7 @@ func TestAuditCassandra(t *testing.T) {
 
 func TestBatchCassandra(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withCassandra("cassandra"))
 	go testCtx.startHandlingConnections()
 
@@ -276,7 +276,7 @@ func TestBatchCassandra(t *testing.T) {
 
 func TestEventCassandra(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withCassandra("cassandra"))
 	go testCtx.startHandlingConnections()
 

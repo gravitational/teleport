@@ -45,7 +45,7 @@ func (m *mockGCPServiceAccountImpersonator) makeTokenSource(_ context.Context, s
 
 func Test_makeGCPCloudSQLAuthOptionsForServiceAccount(t *testing.T) {
 	mustSetGoogleApplicationCredentialsEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := slog.Default()
 	m := &mockGCPServiceAccountImpersonator{}
 

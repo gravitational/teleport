@@ -20,7 +20,6 @@ package filesessions
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -33,7 +32,7 @@ import (
 )
 
 func TestPlainFileOpsReservations(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rec := NewPlainFileRecorder(logtest.NewLogger(), os.OpenFile)
 	base := t.TempDir()
 	reservation := filepath.Join(base, "reservation")
@@ -57,7 +56,7 @@ func TestPlainFileOpsReservations(t *testing.T) {
 }
 
 func TestPlainFileOpsCombineParts(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rec := NewPlainFileRecorder(logtest.NewLogger(), os.OpenFile)
 	base := t.TempDir()
 	parts := []string{"part1", "part2", "part3"}

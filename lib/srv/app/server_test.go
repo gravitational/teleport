@@ -209,7 +209,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	})
 
 	// Set up the host cert pool.
-	rootCA, err := s.tlsServer.Auth().GetCertAuthority(context.Background(), types.CertAuthID{
+	rootCA, err := s.tlsServer.Auth().GetCertAuthority(t.Context(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: "root.example.com",
 	}, false)
@@ -238,7 +238,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		},
 	}
 	// Create user for regular tests.
-	s.user, err = authtest.CreateUser(context.Background(), s.tlsServer.Auth(), "foo", s.role)
+	s.user, err = authtest.CreateUser(t.Context(), s.tlsServer.Auth(), "foo", s.role)
 	require.NoError(t, err)
 
 	// Create a in-memory HTTP server that will respond with a UUID. This value
@@ -520,7 +520,7 @@ func TestWaitStop(t *testing.T) {
 	s := SetUpSuite(t)
 
 	// Make sure that wait will block while the server is running.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	go func() {
 		s.appServer.Wait()
 		cancel()
@@ -564,7 +564,7 @@ func TestShutdown(t *testing.T) {
 			app0, err := makeStaticApp("app0", nil)
 			require.NoError(t, err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			s := SetUpSuiteWithConfig(t, suiteConfig{
 				Apps: types.Apps{app0},
 			})
@@ -701,7 +701,7 @@ func TestAppWithUpdatedLabels(t *testing.T) {
 			})
 
 			if test.cloudLabels != nil {
-				require.NoError(t, test.cloudLabels.Sync(context.Background()))
+				require.NoError(t, test.cloudLabels.Sync(t.Context()))
 			}
 
 			s.appServer.mu.RLock()
@@ -755,7 +755,7 @@ func (i *testIMClient) GetID(ctx context.Context) (string, error) {
 }
 
 func mustNewCloudImporter(t *testing.T, config *labels.CloudConfig) labels.Importer {
-	importer, err := labels.NewCloudImporter(context.Background(), config)
+	importer, err := labels.NewCloudImporter(t.Context(), config)
 	require.NoError(t, err)
 
 	return importer
@@ -978,7 +978,7 @@ func TestAuthorize(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			s := SetUpSuiteWithConfig(t, suiteConfig{
@@ -1210,7 +1210,7 @@ func TestRequestAuditEvents(t *testing.T) {
 		}, 500*time.Millisecond, 50*time.Millisecond, "app.session.request event not generated")
 	})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
 		From:       time.Time{},
 		To:         time.Now().Add(time.Minute),

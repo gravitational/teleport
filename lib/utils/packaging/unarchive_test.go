@@ -21,7 +21,6 @@
 package packaging
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -46,7 +45,7 @@ func TestPackaging(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(binPath, "tsh"), []byte(script), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(binPath, "tctl"), []byte(script), 0o755))
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("tar.gz", func(t *testing.T) {
 		toolsDir := t.TempDir()

@@ -53,7 +53,7 @@ import (
 
 // TestAccessListCRUD tests backend operations with access list resources.
 func TestAccessListCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -161,7 +161,7 @@ func requireAccessDenied(t require.TestingT, err error, i ...any) {
 }
 
 func Test_AccessList_validation_noTypeChange(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -227,7 +227,7 @@ func Test_AccessList_validation_noTypeChange(t *testing.T) {
 }
 
 func Test_AccessList_validation_DeprecatedDynamic_special_case(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -332,7 +332,7 @@ func Test_AccessList_validation_DeprecatedDynamic_special_case(t *testing.T) {
 
 func getAccessListDirectlyFromBackend(t *testing.T, storage backend.Backend, key backend.Key) *accesslist.AccessList {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	item, err := backend.NewSanitizer(storage).Get(ctx, key)
 	require.NoError(t, err)
@@ -350,7 +350,7 @@ func modifyAccessListDirectlyInBackend(
 	modifyFn func(*accesslist.AccessList),
 ) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	item, err := makeItemFn(accessList)
 	require.NoError(t, err)
@@ -377,7 +377,7 @@ func modifyAccessListDirectlyInBackend(
 func TestAccessList_EntitlementLimits(t *testing.T) {
 	type aclSelector func([]*accesslist.AccessList) *accesslist.AccessList
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	// an ACL selection function that creates a new AccessList to insert
@@ -575,7 +575,7 @@ func TestAccessList_EntitlementLimits(t *testing.T) {
 // TestAccessListCreate_UpdateAccessList tests creating access list
 // and updating access list with the same name.
 func TestAccessListCreate_UpdateAccessList(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -607,7 +607,7 @@ func TestAccessListCreate_UpdateAccessList(t *testing.T) {
 }
 
 func TestAccessListDedupeOwnersBackwardsCompat(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -636,7 +636,7 @@ func TestAccessListDedupeOwnersBackwardsCompat(t *testing.T) {
 
 func deleteAllAccessLists(t *testing.T, service *AccessListService) func() {
 	return func() {
-		require.NoError(t, service.DeleteAllAccessLists(context.Background()))
+		require.NoError(t, service.DeleteAllAccessLists(t.Context()))
 	}
 }
 
@@ -757,7 +757,7 @@ func testSetEmptyAccessListMembers(t *testing.T, service *AccessListService, clo
 }
 
 func TestUpsertAccessListWithMembers(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -868,7 +868,7 @@ func TestUpsertAccessListWithMembers(t *testing.T) {
 }
 
 func TestUpdateAccessListAndOverwriteMembers(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -963,7 +963,7 @@ func TestUpdateAccessListAndOverwriteMembers(t *testing.T) {
 }
 
 func TestAccessListMembersCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -1133,7 +1133,7 @@ func TestAccessListMembersCRUD(t *testing.T) {
 }
 
 func Test_AccessListMember_Validation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -1229,7 +1229,7 @@ func runAccessListMemberValidationSuite(
 	errorCheck func(t *testing.T, err error),
 ) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	makeBad(member)
 
@@ -1262,7 +1262,7 @@ func runAccessListMemberValidationSuite(
 }
 
 func TestUpsertAndUpdateAccessListWithMembers_PreservesIdentityCenterLablesForExistingMembers(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	mem, err := memory.New(memory.Config{
 		Context: ctx,
@@ -1307,7 +1307,7 @@ func TestUpsertAndUpdateAccessListWithMembers_PreservesIdentityCenterLablesForEx
 }
 
 func TestAccessListReviewCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -1490,7 +1490,7 @@ func TestAccessListReviewCRUD(t *testing.T) {
 }
 
 func Test_CreateAccessListReview_NestedListMemberRemoval(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -1534,7 +1534,7 @@ func Test_CreateAccessListReview_NestedListMemberRemoval(t *testing.T) {
 }
 
 func Test_CreateAccessListReview_FailForNonReviewable(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -1772,7 +1772,7 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock, opts ...new
 
 func createAccessList(t *testing.T, service *AccessListService, name string, clock clockwork.Clock, opts ...newAccessListOpt) *accesslist.AccessList {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	accessList := newAccessList(t, name, clock, opts...)
 	upserted, err := service.UpsertAccessList(ctx, accessList)
 	require.NoError(t, err)
@@ -1781,7 +1781,7 @@ func createAccessList(t *testing.T, service *AccessListService, name string, clo
 
 func getAccessList(t *testing.T, service *AccessListService, name string) *accesslist.AccessList {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	al, err := service.GetAccessList(ctx, name)
 	require.NoError(t, err)
@@ -1889,7 +1889,7 @@ func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Revi
 }
 
 func TestAccessListService_ListAllAccessListMembers(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -1937,7 +1937,7 @@ func TestAccessListService_ListAllAccessListMembers(t *testing.T) {
 }
 
 func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -2181,7 +2181,7 @@ func testAccessListService_Status_OwnerOf_suite(t *testing.T,
 }
 
 func TestAccessListService_Status_MemberOf(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -2547,7 +2547,7 @@ func (fn testAccessListGetterFunc) GetAccessList(ctx context.Context, name strin
 
 func requireStatusOwnerOf(t *testing.T, service testAccessListGetter, accessListName string, ownerOf []string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	accessList, err := service.GetAccessList(ctx, accessListName)
 	require.NoError(t, err)
 	slices.Sort(ownerOf)
@@ -2557,7 +2557,7 @@ func requireStatusOwnerOf(t *testing.T, service testAccessListGetter, accessList
 
 func requireStatusMemberOf(t *testing.T, service testAccessListGetter, accessListName string, memberOf []string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	accessList, err := service.GetAccessList(ctx, accessListName)
 	require.NoError(t, err)
 	slices.Sort(memberOf)
@@ -2585,7 +2585,7 @@ func assertMemberOf(t *testing.T, ctx context.Context, svc *AccessListService, n
 }
 
 func TestInsertAccessListCollection(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	t.Run("memberOf and ownerOf check", func(t *testing.T) {

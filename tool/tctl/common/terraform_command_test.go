@@ -40,7 +40,7 @@ func TestTerraformCommand_checkIfRoleExists(t *testing.T) {
 	// Test setup
 	authHelper := integration.MinimalAuthHelper{}
 	adminClient := authHelper.StartServer(t)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	newRoleFixture := func(name string) types.Role {

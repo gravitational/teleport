@@ -19,7 +19,6 @@
 package web
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -39,7 +38,7 @@ import (
 func TestUserTask(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	env := newWebPack(t, 1)
 	clusterName := env.server.ClusterName()

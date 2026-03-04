@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -39,7 +38,7 @@ import (
 
 func TestExternalAuditStorageService(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{

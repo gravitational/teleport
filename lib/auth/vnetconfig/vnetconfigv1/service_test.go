@@ -44,7 +44,7 @@ import (
 func TestServiceAccess(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	vnetConfig := &vnet.VnetConfig{
 		Kind:    types.KindVnetConfig,

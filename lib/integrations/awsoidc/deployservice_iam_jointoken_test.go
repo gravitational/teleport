@@ -49,7 +49,7 @@ func (m *mockGetUpsertToken) UpsertToken(ctx context.Context, token types.Provis
 }
 
 func TestUpsertIAMJoinToken(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("when token doesnt exist, it is created", func(t *testing.T) {
 		m := &mockGetUpsertToken{}

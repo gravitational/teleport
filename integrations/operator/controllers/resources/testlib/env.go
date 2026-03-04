@@ -64,7 +64,7 @@ func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
 		ObjectMeta: metav1.ObjectMeta{Name: ValidRandomResourceName("ns-")},
 	}
 
-	err := kc.Create(context.Background(), ns)
+	err := kc.Create(t.Context(), ns)
 	require.NoError(t, err)
 
 	return ns
@@ -163,7 +163,7 @@ func clientForTeleport(t *testing.T, teleportServer *helpers.TeleInstance, userN
 }
 
 func clientWithCreds(t *testing.T, authAddr string, creds client.Credentials) *client.Client {
-	c, err := client.New(context.Background(), client.Config{
+	c, err := client.New(t.Context(), client.Config{
 		Addrs:       []string{authAddr},
 		Credentials: []client.Credentials{creds},
 	})
@@ -217,12 +217,12 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	ctrl.SetLogger(logger)
 	setupLog := logger.WithName("setup")
 
-	pong, err := s.TeleportClient.Ping(context.Background())
+	pong, err := s.TeleportClient.Ping(t.Context())
 	require.NoError(t, err)
 	err = resources.SetupAllControllers(setupLog, k8sManager, s.TeleportClient, pong.ServerFeatures)
 	require.NoError(t, err)
 
-	ctx, ctxCancel := context.WithCancel(context.Background())
+	ctx, ctxCancel := context.WithCancel(t.Context())
 
 	s.Operator = k8sManager
 	s.OperatorCancel = ctxCancel

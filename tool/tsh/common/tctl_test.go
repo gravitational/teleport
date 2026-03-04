@@ -19,7 +19,6 @@
 package common
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -51,7 +50,7 @@ func TestLoadConfigFromProfile(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -109,7 +108,7 @@ func TestRemoteTctlWithProfile(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -140,7 +139,7 @@ func TestRemoteTctlWithProfile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			err := common.TryRun(context.Background(), tt.commands, tt.args)
+			err := common.TryRun(t.Context(), tt.commands, tt.args)
 			if tt.wantErrContains != "" {
 				var exitError *toolcommon.ExitCodeError
 				require.ErrorAs(t, err, &exitError)
@@ -189,7 +188,7 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 		},
 	}
 
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",

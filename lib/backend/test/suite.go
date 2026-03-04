@@ -222,7 +222,7 @@ func testCRUD(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	prefix := MakePrefix()
 
 	item := backend.Item{Key: prefix("hello"), Value: []byte("world")}
@@ -311,7 +311,7 @@ func testQueryRange(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	prefix := MakePrefix()
 
 	outOfScope := backend.Item{Key: prefix("a"), Value: []byte("should not show up")}
@@ -372,7 +372,7 @@ func testItems(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	prefix := MakePrefix()
 
 	outOfScope := backend.Item{Key: prefix("a"), Value: []byte("should not show up")}
@@ -580,7 +580,7 @@ func testDeleteRange(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	prefix := MakePrefix()
 
 	a := backend.Item{Key: prefix("prefix", "a"), Value: []byte("val a")}
@@ -620,7 +620,7 @@ func testCompareAndSwap(t *testing.T, newBackend Constructor) {
 	defer func() { require.NoError(t, uut.Close()) }()
 
 	prefix := MakePrefix()
-	ctx := context.Background()
+	ctx := t.Context()
 	expires := clock.Now().UTC().Add(time.Hour)
 
 	key := prefix("one")
@@ -696,7 +696,7 @@ func testExpiration(t *testing.T, newBackend Constructor) {
 	defer func() { require.NoError(t, uut.Close()) }()
 
 	prefix := MakePrefix()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	itemA := backend.Item{Key: prefix("a"), Value: []byte("val1"), Expires: clock.Now().UTC().Add(time.Hour)}
 	leaseA, err := uut.Put(ctx, itemA)
@@ -730,7 +730,7 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	defer func() { require.NoError(t, uut.Close()) }()
 
 	prefix := MakePrefix()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	// When I create a new watcher...
@@ -800,7 +800,7 @@ func testEvents(t *testing.T, newBackend Constructor) {
 	defer func() { require.NoError(t, uut.Close()) }()
 
 	prefix := MakePrefix()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Create a new watcher for the test prefix.
@@ -872,7 +872,7 @@ func testFetchLimit(t *testing.T, newBackend Constructor) {
 	defer func() { require.NoError(t, uut.Close()) }()
 
 	prefix := MakePrefix()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Allocate 65KB buffer.
@@ -897,7 +897,7 @@ func testLimit(t *testing.T, newBackend Constructor) {
 	defer func() { require.NoError(t, uut.Close()) }()
 
 	prefix := MakePrefix()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	item := &backend.Item{
@@ -980,7 +980,7 @@ func testWatchersClose(t *testing.T, newBackend Constructor) {
 	defer uut.Close()
 
 	prefix := MakePrefix()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: []backend.Key{prefix("")}})
@@ -996,7 +996,7 @@ func testWatchersClose(t *testing.T, newBackend Constructor) {
 	}
 
 	// closing backend should close associated watcher too
-	watcher, err = uut.NewWatcher(context.Background(), backend.Watch{Prefixes: []backend.Key{prefix("")}})
+	watcher, err = uut.NewWatcher(t.Context(), backend.Watch{Prefixes: []backend.Key{prefix("")}})
 	require.NoError(t, err)
 
 	require.NoError(t, uut.Close())
@@ -1250,7 +1250,7 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	defer func() { require.NoError(t, uut.Close()) }()
 
 	prefix := MakePrefix()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Create a new watcher for the test prefix.
@@ -1325,7 +1325,7 @@ func testConditionalDelete(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	prefix := MakePrefix()
 
 	item := backend.Item{Key: prefix("hello"), Value: []byte("world")}
@@ -1365,7 +1365,7 @@ func testConditionalUpdate(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	prefix := MakePrefix()
 
 	item := backend.Item{Key: prefix("hello"), Value: []byte("world")}

@@ -42,7 +42,7 @@ type headlessAuthenticationWatcherTestEnv struct {
 func newHeadlessAuthenticationWatcherTestEnv(t *testing.T, clock clockwork.Clock) *headlessAuthenticationWatcherTestEnv {
 	identity := newIdentityService(t, clock)
 
-	watcherCtx, watcherCancel := context.WithCancel(context.Background())
+	watcherCtx, watcherCancel := context.WithCancel(t.Context())
 	t.Cleanup(watcherCancel)
 
 	w, err := local.NewHeadlessAuthenticationWatcher(watcherCtx, local.HeadlessAuthenticationWatcherConfig{
@@ -51,7 +51,7 @@ func newHeadlessAuthenticationWatcherTestEnv(t *testing.T, clock clockwork.Clock
 	})
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	require.NoError(t, w.WaitInit(ctx))
 
@@ -64,7 +64,7 @@ func newHeadlessAuthenticationWatcherTestEnv(t *testing.T, clock clockwork.Clock
 
 func TestHeadlessAuthenticationWatcher_Subscribe(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	pubUUID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 	username := "username"
@@ -188,7 +188,7 @@ func TestHeadlessAuthenticationWatcher_Subscribe(t *testing.T) {
 
 func TestHeadlessAuthenticationWatcher_WaitForUpdate(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	pubUUID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 	username := "username"

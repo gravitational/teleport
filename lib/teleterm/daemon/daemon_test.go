@@ -237,7 +237,7 @@ func TestGatewayCRUD(t *testing.T) {
 			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendKube,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				wantGateway := c.nameToGateway["kube-gateway"]
-				actualGateway, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+				actualGateway, err := daemon.CreateGateway(t.Context(), CreateGatewayParams{
 					TargetURI: wantGateway.TargetURI().String(),
 				})
 				require.NoError(t, err)
@@ -250,7 +250,7 @@ func TestGatewayCRUD(t *testing.T) {
 			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				createdGateway := c.nameToGateway["gateway"]
-				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+				_, err := daemon.CreateGateway(t.Context(), CreateGatewayParams{
 					TargetURI:  createdGateway.TargetURI().String(),
 					TargetUser: createdGateway.TargetUser(),
 				})
@@ -264,7 +264,7 @@ func TestGatewayCRUD(t *testing.T) {
 			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendApp,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				createdGateway := c.nameToGateway["gateway"]
-				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+				_, err := daemon.CreateGateway(t.Context(), CreateGatewayParams{
 					TargetURI:             createdGateway.TargetURI().String(),
 					TargetSubresourceName: createdGateway.TargetSubresourceName(),
 				})
@@ -278,13 +278,13 @@ func TestGatewayCRUD(t *testing.T) {
 			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				createdGateway := c.nameToGateway["gateway"]
-				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+				_, err := daemon.CreateGateway(t.Context(), CreateGatewayParams{
 					TargetURI:             createdGateway.TargetURI().String(),
 					TargetSubresourceName: "4242",
 				})
 				require.NoError(t, err)
 
-				_, err = daemon.SetGatewayTargetSubresourceName(context.Background(),
+				_, err = daemon.SetGatewayTargetSubresourceName(t.Context(),
 					createdGateway.URI().String(), "4242")
 				require.Error(t, err)
 				require.True(t, trace.IsAlreadyExists(err))
@@ -319,7 +319,7 @@ func TestGatewayCRUD(t *testing.T) {
 			nameToGateway := make(map[string]gateway.Gateway, len(tt.gatewayNamesToCreate))
 
 			for _, gatewayName := range tt.gatewayNamesToCreate {
-				gateway, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+				gateway, err := daemon.CreateGateway(t.Context(), CreateGatewayParams{
 					TargetURI:             tt.appendGatewayTargetURI(gatewayName).String(),
 					TargetUser:            "alice",
 					TargetSubresourceName: "",
@@ -398,7 +398,7 @@ func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
 
 func TestRetryWithRelogin(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	resolvableErr := trace.Errorf("ssh: cert has expired")
 	unresolvableErr := trace.AccessDenied("")
@@ -527,7 +527,7 @@ func TestRetryWithRelogin(t *testing.T) {
 
 func TestConcurrentHeadlessAuthPrompts(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	storage, err := clusters.NewStorage(clusters.Config{
 		ClientStore:        client.NewFSClientStore(t.TempDir()),
@@ -745,7 +745,7 @@ func TestGetGatewayCLICommand(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmds, err := daemon.GetGatewayCLICommand(context.Background(), test.inputGateway)
+			cmds, err := daemon.GetGatewayCLICommand(t.Context(), test.inputGateway)
 			test.checkError(t, err)
 			test.checkCmds(t, cmds)
 		})

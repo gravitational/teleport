@@ -274,7 +274,7 @@ func TestReconciler(t *testing.T) {
 			require.NoError(t, err)
 
 			// Reconcile and make sure we got all expected callback calls.
-			err = reconciler.Reconcile(context.Background())
+			err = reconciler.Reconcile(t.Context())
 			require.NoError(t, err)
 			require.ElementsMatch(t, test.onCreateCalls, onCreateCalls)
 			require.ElementsMatch(t, test.onUpdateCalls, onUpdateCalls)
@@ -342,7 +342,7 @@ func TestGenericReconciler(t *testing.T) {
 	require.NoError(t, err)
 
 	// WHEN I run a reconciliation
-	err = r.Reconcile(context.Background())
+	err = r.Reconcile(t.Context())
 
 	// EXPECT the reconciliation to succeed
 	require.NoError(t, err)

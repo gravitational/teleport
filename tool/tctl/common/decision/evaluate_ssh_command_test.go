@@ -18,7 +18,6 @@ package decision_test
 
 import (
 	"bytes"
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -81,7 +80,7 @@ func TestEvaluateSSH(t *testing.T) {
 				},
 			}
 
-			err := cmd.Run(context.Background(), clt)
+			err := cmd.Run(t.Context(), clt)
 			require.NoError(t, err, "evaluating SSH access failed")
 
 			var expected bytes.Buffer

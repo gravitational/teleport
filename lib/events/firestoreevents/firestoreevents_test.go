@@ -19,7 +19,6 @@
 package firestoreevents
 
 import (
-	"context"
 	"net"
 	"os"
 	"testing"
@@ -84,7 +83,7 @@ func setupFirestoreContext(t *testing.T) *firestoreContext {
 }
 
 func (tt *firestoreContext) setupTest(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Delete all documents.
 	docSnaps, err := tt.log.svc.Collection(tt.log.CollectionName).Documents(ctx).GetAll()

@@ -37,7 +37,7 @@ import (
 )
 
 func TestAccessOpenSearch(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t)
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases:         []types.Database{withOpenSearch("OpenSearch")(t, ctx, testCtx)},
@@ -139,7 +139,7 @@ func TestAccessOpenSearch(t *testing.T) {
 }
 
 func TestAuditOpenSearch(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t)
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases:         []types.Database{withOpenSearch("OpenSearch")(t, ctx, testCtx)},

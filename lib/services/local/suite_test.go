@@ -116,7 +116,7 @@ func newUser(name string, roles []string) types.User {
 }
 
 func (s *ServicesTestSuite) UsersCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	u, err := s.WebS.GetUsers(ctx, false)
 	require.NoError(t, err)
@@ -169,7 +169,7 @@ func (s *ServicesTestSuite) UsersCRUD(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) UsersExpiry(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	expiresAt := s.Clock.Now().Add(1 * time.Minute)
 
 	_, err := s.WebS.UpsertUser(ctx, &types.UserV2{
@@ -200,7 +200,7 @@ func (s *ServicesTestSuite) LoginAttempts(t *testing.T) {
 	user1 := uuid.NewString()
 
 	user := newUser(user1, []string{"admin", "user"})
-	user, err := s.WebS.UpsertUser(context.Background(), user)
+	user, err := s.WebS.UpsertUser(t.Context(), user)
 	require.NoError(t, err)
 
 	attempts, err := s.WebS.GetUserLoginAttempts(user.GetName())
@@ -224,7 +224,7 @@ func (s *ServicesTestSuite) LoginAttempts(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ca, err := authcatest.NewCA(types.UserCA, "example.com")
 	require.NoError(t, err)
 	require.NoError(t, s.TrustS.UpsertCertAuthority(ctx, ca))
@@ -359,7 +359,7 @@ func NewServer(kind, name, addr, namespace string) *types.ServerV2 {
 }
 
 func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// SSH service.
 	out, err := s.PresenceS.GetNodes(ctx, apidefaults.Namespace)
@@ -430,7 +430,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 
 // AppServerCRUD tests CRUD functionality for services.Server.
 func (s *ServicesTestSuite) AppServerCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Expect not to be returned any applications and trace.NotFound.
 	out, err := s.PresenceS.GetApplicationServers(ctx, apidefaults.Namespace)
@@ -487,7 +487,7 @@ func newReverseTunnel(clusterName string, dialAddrs []string) *types.ReverseTunn
 }
 
 func (s *ServicesTestSuite) PasswordCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_, err := s.WebS.GetPasswordHash("user1")
 	require.True(t, trace.IsNotFound(err), fmt.Sprintf("%#v", err))
@@ -514,7 +514,7 @@ func (s *ServicesTestSuite) PasswordCRUD(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) WebSessionCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	req := types.GetWebSessionRequest{User: "user1", SessionID: "sid1"}
 	_, err := s.WebS.WebSessions().Get(ctx, req)
 	require.True(t, trace.IsNotFound(err), fmt.Sprintf("%#v", err))
@@ -562,7 +562,7 @@ func (s *ServicesTestSuite) WebSessionCRUD(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err := s.ProvisioningS.GetToken(ctx, "token")
 	require.True(t, trace.IsNotFound(err))
 
@@ -637,7 +637,7 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) RolesCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	out, err := s.Access.GetRoles(ctx)
 	require.NoError(t, err)
@@ -695,7 +695,7 @@ func (s *ServicesTestSuite) RolesCRUD(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	connector := &types.SAMLConnectorV2{
 		Kind:    types.KindSAML,
 		Version: types.V2,
@@ -1276,7 +1276,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	connector := &types.GithubConnectorV3{
 		Kind:    types.KindGithubConnector,
 		Version: types.V3,
@@ -1530,7 +1530,7 @@ func (s *ServicesTestSuite) GithubPagination(t *testing.T) {
 
 // AuthPreference tests authentication preference service
 func (s *ServicesTestSuite) AuthPreference(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:                  constants.Local,
 		SecondFactor:          constants.SecondFactorOTP,
@@ -1561,7 +1561,7 @@ func (s *ServicesTestSuite) AuthPreference(t *testing.T) {
 
 // AccessGraphSettings tests access graph settings service
 func (s *ServicesTestSuite) AccessGraphSettings(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ap, err := clusterconfig.NewAccessGraphSettings(
 		&clusterconfigpb.AccessGraphSettingsSpec{
 			SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
@@ -1594,7 +1594,7 @@ func (s *ServicesTestSuite) AccessGraphSettings(t *testing.T) {
 
 // SessionRecordingConfig tests session recording configuration.
 func (s *ServicesTestSuite) SessionRecordingConfig(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
@@ -1734,7 +1734,7 @@ func CollectOptions(opts ...Option) Options {
 
 // ClusterName tests cluster name.
 func (s *ServicesTestSuite) ClusterName(t *testing.T, opts ...Option) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
@@ -1762,7 +1762,7 @@ func (s *ServicesTestSuite) ClusterName(t *testing.T, opts ...Option) {
 
 // ClusterNetworkingConfig tests cluster networking configuration.
 func (s *ServicesTestSuite) ClusterNetworkingConfig(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		ClientIdleTimeout: types.NewDuration(17 * time.Second),
 		KeepAliveCountMax: 3000,
@@ -1802,7 +1802,7 @@ func (s *ServicesTestSuite) ClusterNetworkingConfig(t *testing.T) {
 
 // ClusterAuditConfig tests cluster audit configuration.
 func (s *ServicesTestSuite) ClusterAuditConfig(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 		Region:                  "us-east-1",
 		EnableContinuousBackups: true,
@@ -1852,7 +1852,7 @@ func (w *semWrapper) KeepAliveSemaphoreLease(ctx context.Context, lease types.Se
 }
 
 func (s *ServicesTestSuite) SemaphoreFlakiness(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	const renewals = 3
 	// wrap our services.Semaphores instance to cause two out of three lease
 	// keepalive attempts fail with a meaningless error.  Locks should make
@@ -1907,7 +1907,7 @@ func (s *ServicesTestSuite) SemaphoreFlakiness(t *testing.T) {
 // to start returning "too much contention" errors at around 100 concurrent
 // attempts.
 func (s *ServicesTestSuite) SemaphoreContention(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	const locks int64 = 50
 	const iters = 5
 	for i := range iters {
@@ -1945,7 +1945,7 @@ func (s *ServicesTestSuite) SemaphoreContention(t *testing.T) {
 // SemaphoreConcurrency verifies that a large number of concurrent
 // acquisitions result in the correct number of successful acquisitions.
 func (s *ServicesTestSuite) SemaphoreConcurrency(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	const maxLeases int64 = 20
 	const attempts int64 = 200
 	cfg := services.SemaphoreLockConfig{
@@ -1985,7 +1985,7 @@ func (s *ServicesTestSuite) SemaphoreConcurrency(t *testing.T) {
 // SemaphoreLock verifies correct functionality of the basic
 // semaphore lock scenarios.
 func (s *ServicesTestSuite) SemaphoreLock(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cfg := services.SemaphoreLockConfig{
 		Service: s.PresenceS,
@@ -2044,7 +2044,7 @@ func (s *ServicesTestSuite) SemaphoreLock(t *testing.T) {
 
 // Events tests various events variations
 func (s *ServicesTestSuite) Events(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCases := []eventTest{
 		{
 			name: "Cert authority with secrets",
@@ -2417,7 +2417,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 
 // NetworkRestrictions tests network restrictions.
 func (s *ServicesTestSuite) NetworkRestrictions(t *testing.T, opts ...Option) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// blank slate, should be get/delete should fail
 	_, err := s.RestrictionsS.GetNetworkRestrictions(ctx)
@@ -2458,7 +2458,7 @@ func (s *ServicesTestSuite) NetworkRestrictions(t *testing.T, opts ...Option) {
 }
 
 func (s *ServicesTestSuite) runEventsTests(t *testing.T, testCases []eventTest, watch types.Watch) {
-	ctx := context.Background()
+	ctx := t.Context()
 	w, err := s.EventsS.NewWatcher(ctx, watch)
 	require.NoError(t, err)
 	defer w.Close()
@@ -2512,7 +2512,7 @@ skiploop:
 }
 
 func (s *ServicesTestSuite) runUnknownEventsTest(t *testing.T, watch types.Watch) {
-	ctx := context.Background()
+	ctx := t.Context()
 	w, err := s.EventsS.NewWatcher(ctx, watch)
 	if err != nil {
 		// depending on the implementation of EventsS, it might fail here immediately
@@ -2557,11 +2557,11 @@ waitLoop:
 			t.Fatalf("Watcher exited with error %v", w.Error())
 		case event := <-w.Events():
 			if event.Type != types.OpPut {
-				slog.DebugContext(context.Background(), "Skipping event", "event", event)
+				slog.DebugContext(t.Context(), "Skipping event", "event", event)
 				continue
 			}
 			if resource.GetName() != event.Resource.GetName() || resource.GetKind() != event.Resource.GetKind() || resource.GetSubKind() != event.Resource.GetSubKind() {
-				slog.DebugContext(context.Background(), "Skipping event", "event", event)
+				slog.DebugContext(t.Context(), "Skipping event", "event", event)
 				continue waitLoop
 			}
 			require.Empty(t, cmp.Diff(resource, event.Resource))
@@ -2582,7 +2582,7 @@ waitLoop:
 			t.Fatalf("Watcher exited with error %v", w.Error())
 		case event := <-w.Events():
 			if event.Type != types.OpDelete {
-				slog.DebugContext(context.Background(), "Skipping stale event",
+				slog.DebugContext(t.Context(), "Skipping stale event",
 					"event_type", event.Type,
 					"resource_name", event.Resource.GetName(),
 				)

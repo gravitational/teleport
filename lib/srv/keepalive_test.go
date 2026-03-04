@@ -32,7 +32,7 @@ func TestServerClose(t *testing.T) {
 	t.Parallel()
 
 	doneCh := make(chan bool, 1)
-	closeContext, closeCancel := context.WithCancel(context.Background())
+	closeContext, closeCancel := context.WithCancel(t.Context())
 
 	// Create a request sender that always replies to keep-alive requests.
 	requestSender := &testRequestSender{
@@ -71,7 +71,7 @@ func TestLoopClose(t *testing.T) {
 	t.Parallel()
 
 	doneCh := make(chan bool, 1)
-	closeContext, closeCancel := context.WithCancel(context.Background())
+	closeContext, closeCancel := context.WithCancel(t.Context())
 
 	// Create a request sender that never replies to keep-alive requests.
 	requestSender := &testRequestSender{

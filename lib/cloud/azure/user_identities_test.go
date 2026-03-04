@@ -19,7 +19,6 @@
 package azure
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -55,7 +54,7 @@ func TestUserAssignedIdentitiesClient(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			client := NewUserAssignedIdentitiesClientByAPI(mockAPI)
-			actualClientID, err := client.GetClientID(context.Background(), test.inputResourceGroupName, test.inputUserName)
+			actualClientID, err := client.GetClientID(t.Context(), test.inputResourceGroupName, test.inputUserName)
 			if test.wantError {
 				require.Error(t, err)
 			} else {

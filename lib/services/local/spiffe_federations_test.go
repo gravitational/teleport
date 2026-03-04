@@ -57,7 +57,7 @@ func setupSPIFFEFederationTest(
 	t *testing.T,
 ) (context.Context, *SPIFFEFederationService) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	mem, err := memory.New(memory.Config{
 		Context: ctx,

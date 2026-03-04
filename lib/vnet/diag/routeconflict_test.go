@@ -133,7 +133,7 @@ func TestRouteConflictDiag(t *testing.T) {
 				VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing, RefetchRoutesDuration: time.Millisecond,
 			})
 			require.NoError(t, err)
-			report, err := routeConflictDiag.Run(context.Background())
+			report, err := routeConflictDiag.Run(t.Context())
 			require.NoError(t, err)
 			rcs := report.GetRouteConflictReport().RouteConflicts
 
@@ -159,7 +159,7 @@ func TestRouteConflictDiag_RetriesOnUnstableIfaceError(t *testing.T) {
 		VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing, RefetchRoutesDuration: time.Millisecond,
 	})
 	require.NoError(t, err)
-	_, err = routeConflictDiag.Run(context.Background())
+	_, err = routeConflictDiag.Run(t.Context())
 	require.NoError(t, err)
 
 	require.Equal(t, 2, routing.getRouteDestinationsCallCount, "Unexpected number of calls to Routing.GetRouteDestinations")
@@ -181,7 +181,7 @@ func TestRouteConflictDiag_RetriesUpToThreeTimes(t *testing.T) {
 		VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing, RefetchRoutesDuration: time.Millisecond,
 	})
 	require.NoError(t, err)
-	_, err = routeConflictDiag.Run(context.Background())
+	_, err = routeConflictDiag.Run(t.Context())
 	require.ErrorContains(t, err, "whoops something went wrong")
 
 	require.Equal(t, 3, routing.getRouteDestinationsCallCount, "Unexpected number of calls to Routing.GetRouteDestinations")
@@ -202,7 +202,7 @@ func TestRouteConflictDiag_RetriesOnNoVnetRouteDestinations(t *testing.T) {
 		VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing, RefetchRoutesDuration: time.Millisecond,
 	})
 	require.NoError(t, err)
-	report, err := routeConflictDiag.Run(context.Background())
+	report, err := routeConflictDiag.Run(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, report.GetRouteConflictReport().RouteConflicts)
 

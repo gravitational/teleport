@@ -551,7 +551,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				require.NoError(t, err)
 
 				// double-check
-				staticCreds, err := localClient.GetPluginStaticCredentials(context.Background(), igName)
+				staticCreds, err := localClient.GetPluginStaticCredentials(t.Context(), igName)
 				require.NoError(t, err)
 				require.NotNil(t, staticCreds)
 			},
@@ -561,7 +561,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 			Validate: func(t *testing.T, igName string) {
 				t.Helper()
-				_, err := localClient.GetPluginStaticCredentials(context.Background(), igName)
+				_, err := localClient.GetPluginStaticCredentials(t.Context(), igName)
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -662,9 +662,9 @@ func TestIntegrationCRUD(t *testing.T) {
 				t.Helper()
 				// Validate git server associated with the integration is
 				// removed and other git server is intact.
-				_, err := localClient.GetGitServer(context.Background(), igName)
+				_, err := localClient.GetGitServer(t.Context(), igName)
 				require.True(t, trace.IsNotFound(err))
-				_, err = localClient.GetGitServer(context.Background(), igName+igName)
+				_, err = localClient.GetGitServer(t.Context(), igName+igName)
 				require.NoError(t, err)
 			},
 			ErrAssertion: noError,
@@ -700,11 +700,11 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 			Validate: func(t *testing.T, igName string) {
 				t.Helper()
-				_, err := localClient.GetIntegration(context.Background(), igName)
+				_, err := localClient.GetIntegration(t.Context(), igName)
 				require.NoError(t, err)
-				_, err = localClient.GetDiscoveryConfig(context.Background(), igName)
+				_, err = localClient.GetDiscoveryConfig(t.Context(), igName)
 				require.NoError(t, err)
-				_, err = localClient.GetDiscoveryConfig(context.Background(), "problematicconfig")
+				_, err = localClient.GetDiscoveryConfig(t.Context(), "problematicconfig")
 				require.NoError(t, err)
 			},
 			ErrAssertion: trace.IsBadParameter,
@@ -748,17 +748,17 @@ func TestIntegrationCRUD(t *testing.T) {
 			Validate: func(t *testing.T, igName string) {
 				t.Helper()
 				// discovery_config associated with the integration is removed
-				_, err := localClient.GetDiscoveryConfig(context.Background(), igName)
+				_, err := localClient.GetDiscoveryConfig(t.Context(), igName)
 				require.True(t, trace.IsNotFound(err))
 				// app_server associated with the integration is removed
-				appServers, err := localClient.GetApplicationServers(context.Background(), defaults.Namespace)
+				appServers, err := localClient.GetApplicationServers(t.Context(), defaults.Namespace)
 				require.NoError(t, err)
 				for _, appServer := range appServers {
 					require.NotEqual(t, igName, appServer.GetApp().GetIntegration(),
 						"app server with integration %s should have been deleted", igName)
 				}
 				// other integrations' associated resources should remain
-				_, err = localClient.GetDiscoveryConfig(context.Background(), igName+igName)
+				_, err = localClient.GetDiscoveryConfig(t.Context(), igName+igName)
 				require.NoError(t, err)
 				require.Condition(t, func() bool {
 					for _, appServer := range appServers {
@@ -920,7 +920,7 @@ func NewIdentityCenterPlugin(serviceProviderName, integrationName string) *types
 }
 
 func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPublicAddr string) (context.Context, localClient, *Service) {
-	ctx := context.Background()
+	ctx := t.Context()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
@@ -1162,14 +1162,14 @@ func newGitHubIntegration(name, id, secret string) (*types.IntegrationV1, error)
 func mustFindGitHubCredentials(t *testing.T, localClient Backend, igName, wantId, wantSecret string) {
 	t.Helper()
 
-	ig, err := localClient.GetIntegration(context.Background(), igName)
+	ig, err := localClient.GetIntegration(t.Context(), igName)
 	require.NoError(t, err)
 
 	creds := ig.GetCredentials()
 	require.NotNil(t, creds)
 	require.NotNil(t, creds.GetStaticCredentialsRef())
 
-	staticCreds, err := localClient.GetPluginStaticCredentialsByLabels(context.Background(), creds.GetStaticCredentialsRef().Labels)
+	staticCreds, err := localClient.GetPluginStaticCredentialsByLabels(t.Context(), creds.GetStaticCredentialsRef().Labels)
 	require.NoError(t, err)
 	require.Len(t, staticCreds, 2)
 

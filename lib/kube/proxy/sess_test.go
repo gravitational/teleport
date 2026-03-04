@@ -100,7 +100,7 @@ func TestSessionEndError(t *testing.T) {
 			)
 			// creates a Kubernetes service with a configured cluster pointing to mock api server
 			testCtx := SetupTestContext(
-				context.Background(),
+				t.Context(),
 				t,
 				TestConfig{
 					Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -311,7 +311,7 @@ func Test_session_trackSession(t *testing.T) {
 						AuthClient:        tt.args.authClient,
 						CachingAuthClient: tt.args.authClient,
 					},
-					ctx: context.Background(),
+					ctx: t.Context(),
 				},
 			}
 			p := &party{

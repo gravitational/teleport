@@ -21,7 +21,6 @@
 package workloadattest
 
 import (
-	"context"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -48,7 +47,7 @@ import (
 func TestKubernetesAttestor_Attest(t *testing.T) {
 	t.Parallel()
 	log := logtest.NewLogger()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mockToken := "FOOBARBUZZ"
 	mockPID := 1234

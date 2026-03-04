@@ -19,7 +19,6 @@
 package version
 
 import (
-	"context"
 	"testing"
 
 	"github.com/coreos/go-semver/semver"
@@ -33,7 +32,7 @@ var (
 )
 
 func TestValidVersionChange(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	tests := []struct {
 		name    string
 		current *semver.Version
@@ -91,7 +90,7 @@ func TestFailoverGetter_GetVersion(t *testing.T) {
 	t.Parallel()
 
 	// Test setup
-	ctx := context.Background()
+	ctx := t.Context()
 	tests := []struct {
 		name         string
 		getters      []Getter

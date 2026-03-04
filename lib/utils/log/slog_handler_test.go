@@ -20,7 +20,6 @@ package log
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"log/slog"
 	"regexp"
@@ -183,7 +182,7 @@ func TestSlogJSONHandler(t *testing.T) {
 }
 
 func TestSlogJSONHandlerReservedKeysOverrideTypeDoesntPanic(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	var buf bytes.Buffer
 	logger := slog.New(NewSlogJSONHandler(&buf, SlogJSONHandlerConfig{Level: slog.LevelDebug}))
 

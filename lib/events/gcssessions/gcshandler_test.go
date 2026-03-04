@@ -52,7 +52,7 @@ func TestFakeStreams(t *testing.T) {
 	server := *fakestorage.NewServer([]fakestorage.Object{})
 	defer server.Stop()
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(t.Context())
 	defer cancelFunc()
 
 	handler, err := NewHandler(ctx, cancelFunc, Config{

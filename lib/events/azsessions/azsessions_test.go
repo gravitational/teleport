@@ -19,7 +19,6 @@
 package azsessions
 
 import (
-	"context"
 	"net/url"
 	"os"
 	"testing"
@@ -39,7 +38,7 @@ func TestMain(m *testing.M) {
 // TestStreams runs the standard events test suite over azsessions, if a
 // configuration URL is specified in the appropriate envvar.
 func TestStreams(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	envURL := os.Getenv(teleport.AZBlobTestURI)
 	if envURL == "" {

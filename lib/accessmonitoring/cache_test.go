@@ -88,7 +88,7 @@ func TestInitializeCache(t *testing.T) {
 		}
 	}
 
-	require.NoError(t, cache.Initialize(context.Background(), mockFetchPages))
+	require.NoError(t, cache.Initialize(t.Context(), mockFetchPages))
 	require.Len(t, cache.Get(), 4)
 	require.ElementsMatch(t, append(rulesPageOne, rulesPageTwo...), cache.Get())
 }

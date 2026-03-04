@@ -45,7 +45,7 @@ const (
 )
 
 func TestInitializeCache(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(cancel)
 
 	mockClient := &mockClient{}
@@ -80,7 +80,7 @@ func TestInitializeCache(t *testing.T) {
 }
 
 func TestHandleAccessMonitoringRule(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(cancel)
 
 	mockClient := &mockClient{}
@@ -148,7 +148,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 // TestConflictingRules verifies that when there are multiple matching rules
 // with conflicting review decisions, the `DENIED` rule will take precedence.
 func TestConflictingRules(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(cancel)
 
 	testReqID := uuid.New().String()
@@ -204,7 +204,7 @@ func TestConflictingRules(t *testing.T) {
 }
 
 func TestScheduleRequest(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(cancel)
 
 	testReqID := uuid.New().String()
@@ -313,7 +313,7 @@ func TestScheduleRequest(t *testing.T) {
 }
 
 func TestResourceRequest(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(cancel)
 
 	testReqID := uuid.New().String()
@@ -454,7 +454,7 @@ func TestResourceRequest(t *testing.T) {
 }
 
 func TestHandleAccessRequest(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(cancel)
 
 	const (

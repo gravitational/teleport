@@ -56,7 +56,7 @@ func TestGetHealthChecker(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	for i, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()

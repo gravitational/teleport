@@ -17,7 +17,6 @@
 package debug
 
 import (
-	"context"
 	"net"
 	"net/http"
 	"os"
@@ -32,7 +31,7 @@ import (
 )
 
 func TestSetLogLevel(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Success", func(t *testing.T) {
 		socketPath, _ := newSocketMockService(t, http.StatusOK, []byte{})
@@ -57,7 +56,7 @@ func TestSetLogLevel(t *testing.T) {
 }
 
 func TestGetReadiness(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Success", func(t *testing.T) {
 		socketPath, _ := newSocketMockService(t, http.StatusOK, []byte(`{"status": "OK", "pid": 1234}`))
@@ -120,7 +119,7 @@ func TestGetReadiness(t *testing.T) {
 }
 
 func TestCollectProfile(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, test := range []struct {
 		desc         string
@@ -205,9 +204,9 @@ func newSocketMockService(t *testing.T, status int, contents []byte) (string, fu
 		}
 	}()
 
-	t.Cleanup(func() { srv.Shutdown(context.Background()) })
+	t.Cleanup(func() { srv.Shutdown(t.Context()) })
 	return socketDir, func() []string {
-		srv.Shutdown(context.Background())
+		srv.Shutdown(t.Context())
 		return requests
 	}
 }

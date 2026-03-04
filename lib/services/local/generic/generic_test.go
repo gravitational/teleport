@@ -136,7 +136,7 @@ func unmarshalResource(data []byte, opts ...services.MarshalOption) (*testResour
 
 // TestGenericCRUD tests backend operations with the generic service.
 func TestGenericCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -373,7 +373,7 @@ func TestGenericCRUD(t *testing.T) {
 }
 
 func TestGenericListResourcesReturnNextResource(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -416,7 +416,7 @@ func TestGenericListResourcesReturnNextResource(t *testing.T) {
 }
 
 func TestGenericListResourcesWithMultiplePrefixes(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -475,7 +475,7 @@ func TestGenericListResourcesWithMultiplePrefixes(t *testing.T) {
 }
 
 func TestGenericListResourcesWithFilter(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -522,7 +522,7 @@ func TestGenericListResourcesWithFilter(t *testing.T) {
 }
 
 func TestGenericListResourcesWithFilterForScale(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -597,7 +597,7 @@ func TestGenericListResourcesWithFilterForScale(t *testing.T) {
 }
 
 func TestGenericValidation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,

@@ -19,7 +19,6 @@
 package db
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -35,7 +34,7 @@ import (
 // TestLocalProxyPostgres verifies connecting to a Postgres database
 // through the local authenticated ALPN proxy.
 func TestLocalProxyPostgres(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
 	go testCtx.startHandlingConnections()
 
@@ -73,7 +72,7 @@ func TestLocalProxyPostgres(t *testing.T) {
 // TestLocalProxyMySQL verifies connecting to a MySQL database
 // through the local authenticated ALPN proxy.
 func TestLocalProxyMySQL(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
 
@@ -98,7 +97,7 @@ func TestLocalProxyMySQL(t *testing.T) {
 // TestLocalProxyMongoDB verifies connecting to a MongoDB database
 // through the local authenticated ALPN proxy.
 func TestLocalProxyMongoDB(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo"))
 	go testCtx.startHandlingConnections()
 
@@ -123,7 +122,7 @@ func TestLocalProxyMongoDB(t *testing.T) {
 // TestLocalProxyRedis verifies connecting to a Redis database
 // through the local authenticated ALPN proxy.
 func TestLocalProxyRedis(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 	go testCtx.startHandlingConnections()
 

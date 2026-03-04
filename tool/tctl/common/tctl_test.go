@@ -87,7 +87,7 @@ func TestCommandMatchBeforeAuthConnect(t *testing.T) {
 
 	testError := errors.New("auth client must not be initialized before match")
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clientFunc := func(ctx context.Context) (client *authclient.Client, close func(context.Context), err error) {
 		return nil, nil, testError
 	}
@@ -122,7 +122,7 @@ func TestCommandMatchBeforeAuthConnect(t *testing.T) {
 // TestConnect tests client config and connection logic.
 func TestConnect(t *testing.T) {
 	dynAddr := helpers.NewDynamicServiceAddr(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	fileConfig := &config.FileConfig{
 		Global: config.Global{

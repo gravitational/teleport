@@ -19,7 +19,6 @@
 package controller
 
 import (
-	"context"
 	"slices"
 	"testing"
 	"time"
@@ -67,7 +66,7 @@ func podFixture(name, namespace string, labels map[string]string, status v1.PodS
 
 func TestStatefulSetVersionUpdater_unblockStatefulSetRollout(t *testing.T) {
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := validRandomResourceName("ns-")
 
 	var (

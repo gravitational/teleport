@@ -18,7 +18,6 @@ package log
 
 import (
 	"bytes"
-	"context"
 	"log/slog"
 	"sync"
 	"testing"
@@ -29,7 +28,7 @@ import (
 )
 
 func TestPackageLogger(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	logger := NewPackageLogger(teleport.ComponentKey, "test").With("animal", "llama")
 

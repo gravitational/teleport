@@ -38,7 +38,7 @@ import (
 )
 
 func TestRedirector(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	username := "alice"
 
 	mockProxy := newMockProxy(t)

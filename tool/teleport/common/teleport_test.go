@@ -20,7 +20,6 @@ package common
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -107,7 +106,7 @@ func TestTeleportMain(t *testing.T) {
 		require.True(t, conf.Auth.Enabled)
 		require.True(t, conf.SSH.Enabled)
 		require.True(t, conf.Proxy.Enabled)
-		require.True(t, slog.Default().Handler().Enabled(context.Background(), slog.LevelError))
+		require.True(t, slog.Default().Handler().Enabled(t.Context(), slog.LevelError))
 	})
 
 	t.Run("RolesFlag", func(t *testing.T) {
@@ -148,7 +147,7 @@ func TestTeleportMain(t *testing.T) {
 		require.True(t, conf.SSH.Enabled)
 		require.False(t, conf.Auth.Enabled)
 		require.False(t, conf.Proxy.Enabled)
-		require.True(t, slog.Default().Handler().Enabled(context.Background(), slog.LevelDebug))
+		require.True(t, slog.Default().Handler().Enabled(t.Context(), slog.LevelDebug))
 		require.Equal(t, "hvostongo.example.org", conf.Hostname)
 
 		token, err := conf.Token()

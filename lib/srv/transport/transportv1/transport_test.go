@@ -218,7 +218,7 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 	}()
 
 	// gRPC client.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	cc, err := grpc.DialContext(ctx, "unused",
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
@@ -284,7 +284,7 @@ func TestService_GetClusterDetails(t *testing.T) {
 				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 			})
 
-			resp, err := srv.Client.GetClusterDetails(context.Background(), &transportv1pb.GetClusterDetailsRequest{})
+			resp, err := srv.Client.GetClusterDetails(t.Context(), &transportv1pb.GetClusterDetailsRequest{})
 			require.NoError(t, err)
 			require.Equal(t, test.FIPS, resp.Details.FipsEnabled)
 		})
@@ -365,7 +365,7 @@ func TestService_ProxyCluster(t *testing.T) {
 				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 			})
 
-			stream, err := srv.Client.ProxyCluster(context.Background())
+			stream, err := srv.Client.ProxyCluster(t.Context())
 			require.NoError(t, err)
 
 			test.fn(t, stream, conn)
@@ -523,7 +523,7 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 				},
 			})
 
-			stream, err := srv.Client.ProxySSH(context.Background())
+			stream, err := srv.Client.ProxySSH(t.Context())
 			require.NoError(t, err)
 
 			test.fn(t, stream, conn)
@@ -595,7 +595,7 @@ func TestService_ProxySSH(t *testing.T) {
 	})
 
 	// create the stream
-	stream, err := srv.Client.ProxySSH(context.Background())
+	stream, err := srv.Client.ProxySSH(t.Context())
 	require.NoError(t, err)
 
 	// send a fictitious dial target - it does not matter since
@@ -831,7 +831,7 @@ func TestService_ProxyWindowsDesktopSession(t *testing.T) {
 				},
 			})
 
-			stream, err := srv.Client.ProxyWindowsDesktopSession(context.Background())
+			stream, err := srv.Client.ProxyWindowsDesktopSession(t.Context())
 			require.NoError(t, err)
 
 			test.fn(t, stream, conn)

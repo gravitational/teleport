@@ -19,7 +19,6 @@
 package peer
 
 import (
-	"context"
 	"log/slog"
 	"net"
 	"testing"
@@ -69,7 +68,7 @@ func setupService(t *testing.T) (*proxyService, proto.ProxyServiceClient) {
 
 func TestInvalidFirstFrame(t *testing.T) {
 	_, client := setupService(t)
-	stream, err := client.DialNode(context.Background())
+	stream, err := client.DialNode(t.Context())
 	require.NoError(t, err)
 
 	err = stream.Send(&proto.Frame{
@@ -83,7 +82,7 @@ func TestInvalidFirstFrame(t *testing.T) {
 
 func TestSendReceive(t *testing.T) {
 	service, client := setupService(t)
-	stream, err := client.DialNode(context.Background())
+	stream, err := client.DialNode(t.Context())
 	require.NoError(t, err)
 
 	dialRequest := &proto.DialRequest{

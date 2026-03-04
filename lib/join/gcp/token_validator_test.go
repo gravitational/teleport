@@ -19,7 +19,6 @@
 package gcp
 
 import (
-	"context"
 	"crypto"
 	"encoding/json"
 	"net/http"
@@ -356,7 +355,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			v := NewIDTokenValidator(IDTokenValidatorConfig{
 				issuerHost: idp.server.Listener.Addr().String(),
 				insecure:   true,

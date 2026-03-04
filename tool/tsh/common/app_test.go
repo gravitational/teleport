@@ -84,7 +84,7 @@ func testDummyAppConn(addr string, tlsCerts ...tls.Certificate) (*http.Response,
 // - tsh app config
 // - tsh proxy app
 func TestAppCommands(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	oldResyncInterval := defaults.ResyncInterval
 	defaults.ResyncInterval = 100 * time.Millisecond
@@ -284,22 +284,21 @@ func TestAppCommands(t *testing.T) {
 
 								// Verify that the app.session.start event was emitted.
 								if app.cluster == "root" {
-									require.EventuallyWithT(t, func(t *assert.CollectT) {
+									require.EventuallyWithT(t, func(ct *assert.CollectT) {
 										now := time.Now()
-										ctx := context.Background()
 										es, _, err := rootAuthServer.SearchEvents(ctx, events.SearchEventsRequest{
 											From:       now.Add(-time.Hour),
 											To:         now.Add(time.Hour),
 											Order:      types.EventOrderDescending,
 											EventTypes: []string{events.AppSessionStartEvent},
 										})
-										require.NoError(t, err)
+										require.NoError(ct, err)
 
 										for _, e := range es {
-											require.Equal(t, e.(*apievents.AppSessionStart).AppName, app.name)
+											require.Equal(ct, e.(*apievents.AppSessionStart).AppName, app.name)
 											return
 										}
-										t.Errorf("failed to find AppSessionStartCode event (0/%d events matched)", len(es))
+										ct.Errorf("failed to find AppSessionStartCode event (0/%d events matched)", len(es))
 									}, 5*time.Second, 500*time.Millisecond)
 								}
 								// app logout.
@@ -344,7 +343,7 @@ func TestAppCommands(t *testing.T) {
 
 								// proxy certs should not be saved to disk if mfa was used..
 								if requireMFAType == types.RequireMFAType_SESSION {
-									err = Run(context.Background(), []string{
+									err = Run(t.Context(), []string{
 										"app",
 										"config",
 										app.name,

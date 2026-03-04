@@ -56,7 +56,7 @@ import (
 // DeleteUnusedKeys is also generally tested under TestKeyStore, this test is
 // for conditions specific to AWS KMS.
 func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	for _, tc := range []struct {
@@ -192,12 +192,12 @@ func TestAWSKMS_WrongAccount(t *testing.T) {
 			account: "222222222222",
 		},
 	}
-	_, err = NewManager(context.Background(), cfg, opts)
+	_, err = NewManager(t.Context(), cfg, opts)
 	require.ErrorIs(t, err, trace.BadParameter(`configured AWS KMS account "111111111111" does not match AWS account of ambient credentials "222222222222"`))
 }
 
 func TestAWSKMS_RetryWhilePending(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	kms := &fakeAWSKMSService{
@@ -266,7 +266,7 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 // TestBackends and TestManager are both able to run with a real AWS KMS client
 // and you can confirm the keys are configured correctly there.
 func TestAWSKeyCreationParameters(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	const pageSize int = 4
@@ -851,7 +851,7 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			clock := clockwork.NewFakeClock()
 			fakeKMS := newFakeAWSKMSService(t, clock, testAccount, tc.config.AWSRegion, 1)
 			cluster, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "test-cluster"})

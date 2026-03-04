@@ -31,7 +31,7 @@ import (
 )
 
 func TestCollectProfiles(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, test := range []struct {
 		desc             string

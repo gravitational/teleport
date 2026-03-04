@@ -27,7 +27,7 @@ import (
 )
 
 func TestOSConfigProvider(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, tc := range []struct {
 		desc                 string
 		tunName              string

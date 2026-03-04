@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -37,7 +36,7 @@ import (
 // TestPluginsCRUD tests backend operations with plugin resources.
 func TestPluginsCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mem, err := memory.New(memory.Config{
 		Context: ctx,
@@ -146,7 +145,7 @@ func TestListPlugins(t *testing.T) {
 	t.Parallel()
 	const pageSize = 5
 	const numPlugins = 2*pageSize + 1
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mem, err := memory.New(memory.Config{
 		Context: ctx,

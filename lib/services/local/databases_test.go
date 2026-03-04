@@ -20,7 +20,6 @@ package local
 
 import (
 	"cmp"
-	"context"
 	"slices"
 	"strconv"
 	"testing"
@@ -40,7 +39,7 @@ import (
 
 // TestDatabasesCRUD tests backend operations with database resources.
 func TestDatabasesCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,

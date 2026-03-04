@@ -86,7 +86,7 @@ func TestRotatedAccessTokenProvider(t *testing.T) {
 			},
 		}
 
-		provider, err := NewRotatedTokenProvider(context.Background(), RotatedAccessTokenProviderConfig{
+		provider, err := NewRotatedTokenProvider(t.Context(), RotatedAccessTokenProviderConfig{
 			Store:     mockStore,
 			Refresher: refresher,
 			Clock:     clock,
@@ -106,7 +106,7 @@ func TestRotatedAccessTokenProvider(t *testing.T) {
 			},
 		}
 
-		provider, err := NewRotatedTokenProvider(context.Background(), RotatedAccessTokenProviderConfig{
+		provider, err := NewRotatedTokenProvider(t.Context(), RotatedAccessTokenProviderConfig{
 			Store:     mockStore,
 			Refresher: refresher,
 			Clock:     clock,
@@ -183,7 +183,7 @@ func TestRotatedAccessTokenProvider(t *testing.T) {
 			ExpiresAt:    clock.Now().Add(2 * time.Hour),
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
 		provider := newProvider(ctx, mockStore, refresher, clock, initialCreds)

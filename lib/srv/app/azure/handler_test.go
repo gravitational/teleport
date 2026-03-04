@@ -149,7 +149,7 @@ func TestForwarder_getToken(t *testing.T) {
 }
 
 func TestForwarder_getToken_cache(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	clock := clockwork.NewFakeClock()
 

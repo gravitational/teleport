@@ -203,7 +203,7 @@ type testClient struct {
 }
 
 func initSvc(t *testing.T) (userContext context.Context, noAccessContext context.Context, svc *Service) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	backend, err := memory.New(memory.Config{
 		Clock: clock,

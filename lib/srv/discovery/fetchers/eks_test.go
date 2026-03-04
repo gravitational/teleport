@@ -131,7 +131,7 @@ func TestEKSFetcher(t *testing.T) {
 				require.Contains(t, stsClt.GetAssumedRoleARNs(), tt.assumeRole.RoleARN)
 				stsClt.ResetAssumeRoleHistory()
 			}
-			resources, err := fetcher.Get(context.Background())
+			resources, err := fetcher.Get(t.Context())
 			require.NoError(t, err)
 
 			clusters := types.ResourcesWithLabels{}

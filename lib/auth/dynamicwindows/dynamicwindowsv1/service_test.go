@@ -48,7 +48,7 @@ func TestFailedAccessCheck(t *testing.T) {
 	req := dynamicwindowsv1.CreateDynamicWindowsDesktopRequest{
 		Desktop: desktop,
 	}
-	_, err = s.CreateDynamicWindowsDesktop(context.Background(), &req)
+	_, err = s.CreateDynamicWindowsDesktop(t.Context(), &req)
 	require.NoError(t, err)
 	checker.failAccess = true
 	testCases := []string{
@@ -68,7 +68,7 @@ func TestFailedAccessCheck(t *testing.T) {
 		req := dynamicwindowsv1.ListDynamicWindowsDesktopsRequest{
 			PageSize: 10,
 		}
-		resp, err := s.ListDynamicWindowsDesktops(context.Background(), &req)
+		resp, err := s.ListDynamicWindowsDesktops(t.Context(), &req)
 		require.NoError(t, err)
 		require.Empty(t, resp.Desktops)
 	})

@@ -31,7 +31,7 @@ import (
 )
 
 func TestHardwareKeyAgent_Server(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	agentDir := t.TempDir()
 
 	mockService := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)

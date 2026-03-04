@@ -167,7 +167,7 @@ func TestCRUDs(t *testing.T) {
 	require.Contains(t, user.Roles, "newrole")
 
 	// test list
-	users, err := getUsers(context.Background(), m)
+	users, err := getUsers(t.Context(), m)
 	require.NoError(t, err)
 	require.Len(t, users, 1)
 	require.Equal(t, "testname", users[0].Name)
@@ -314,7 +314,7 @@ func TestUpdateUser_updateUserTraitsPreset(t *testing.T) {
 			require.ElementsMatch(t, user.GetRoles(), defaultRoles)
 
 			// We can read back the user traits
-			uiUser, err := getUser(context.Background(), tt.name, m)
+			uiUser, err := getUser(t.Context(), tt.name, m)
 			require.NoError(t, err)
 
 			require.ElementsMatch(t, uiUser.Traits.Logins, tt.expectedTraits[constants.TraitLogins])
@@ -407,7 +407,7 @@ func TestCRUDErrors(t *testing.T) {
 	require.True(t, trace.IsAlreadyExists(err))
 	require.Nil(t, user)
 
-	users, err := getUsers(context.Background(), m)
+	users, err := getUsers(t.Context(), m)
 	require.True(t, trace.IsAccessDenied(err))
 	require.Nil(t, users)
 

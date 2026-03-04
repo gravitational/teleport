@@ -22,7 +22,6 @@
 package tbot
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -35,7 +34,7 @@ import (
 func TestLoadEmptyIdentity(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	dir := t.TempDir()
 	dest := destination.Directory{
 		Path: dir,

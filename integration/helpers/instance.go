@@ -1064,7 +1064,7 @@ func (i *TeleInstance) StartKube(t *testing.T, conf *servicecfg.Config, clusterN
 		return nil, trace.Wrap(err)
 	}
 
-	i.Log.DebugContext(context.Background(), "Teleport Kube Server started",
+	i.Log.DebugContext(t.Context(), "Teleport Kube Server started",
 		"instance", i.Secrets.SiteName,
 		"expected_events_count", len(expectedEvents),
 		"received_events_count", len(receivedEvents),
@@ -1138,7 +1138,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	receivedEvents, err := StartAndWait(process, expectedEvents)
 	require.NoError(t, err)
 
-	i.Log.DebugContext(context.Background(), "Teleport node and proxy started",
+	i.Log.DebugContext(t.Context(), "Teleport node and proxy started",
 		"instance", i.Secrets.SiteName,
 		"expected_events_count", len(expectedEvents),
 		"received_events_count", len(receivedEvents),
@@ -1557,11 +1557,11 @@ func (i *TeleInstance) CreateWebUser(t *testing.T, username, password string) {
 
 	role := services.RoleForUser(user)
 	role.SetLogins(types.Allow, []string{username})
-	role, err = i.Process.GetAuthServer().UpsertRole(context.Background(), role)
+	role, err = i.Process.GetAuthServer().UpsertRole(t.Context(), role)
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
-	_, err = i.Process.GetAuthServer().CreateUser(context.Background(), user)
+	_, err = i.Process.GetAuthServer().CreateUser(t.Context(), user)
 	require.NoError(t, err)
 
 	err = i.Process.GetAuthServer().UpsertPassword(user.GetName(), []byte(password))

@@ -19,7 +19,6 @@
 package local_test
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -43,7 +42,7 @@ import (
 func TestCreateUserTask(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getUserTasksService(t)
 
 	obj := getUserTaskObject(t, 0)
@@ -61,7 +60,7 @@ func TestCreateUserTask(t *testing.T) {
 func TestUpsertUserTask(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getUserTasksService(t)
 	obj := getUserTaskObject(t, 0)
 	// the first attempt should succeed
@@ -78,7 +77,7 @@ func TestUpsertUserTask(t *testing.T) {
 func TestGetUserTask(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getUserTasksService(t)
 	prepopulateUserTask(t, service, 1)
 
@@ -124,7 +123,7 @@ func TestGetUserTask(t *testing.T) {
 func TestUpdateUserTask(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getUserTasksService(t)
 	prepopulateUserTask(t, service, 1)
 
@@ -148,7 +147,7 @@ func TestUpdateUserTask(t *testing.T) {
 func TestUpdateUserTaskMissingRevision(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getUserTasksService(t)
 	prepopulateUserTask(t, service, 1)
 
@@ -165,7 +164,7 @@ func TestUpdateUserTaskMissingRevision(t *testing.T) {
 func TestDeleteUserTask(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getUserTasksService(t)
 	prepopulateUserTask(t, service, 1)
 
@@ -202,7 +201,7 @@ func TestDeleteUserTask(t *testing.T) {
 func TestListUserTask(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cmpOpts := []cmp.Option{
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
@@ -259,7 +258,7 @@ func TestListUserTask(t *testing.T) {
 
 func getUserTasksService(t *testing.T) services.UserTasks {
 	backend, err := memory.New(memory.Config{
-		Context: context.Background(),
+		Context: t.Context(),
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
@@ -297,7 +296,7 @@ func getUserTaskObject(t *testing.T, index int) *usertasksv1.UserTask {
 
 func prepopulateUserTask(t *testing.T, service services.UserTasks, count int) {
 	for i := range count {
-		_, err := service.CreateUserTask(context.Background(), getUserTaskObject(t, i))
+		_, err := service.CreateUserTask(t.Context(), getUserTaskObject(t, i))
 		require.NoError(t, err)
 	}
 }

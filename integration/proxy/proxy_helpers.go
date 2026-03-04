@@ -217,7 +217,7 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// Wait for both nodes to show up before attempting to dial to them.
-	err = p.root.WaitForNodeCount(context.Background(), p.leaf.Secrets.SiteName, 2)
+	err = p.root.WaitForNodeCount(t.Context(), p.leaf.Secrets.SiteName, 2)
 	require.NoError(t, err)
 }
 
@@ -376,7 +376,7 @@ func createTestRole(username string) types.Role {
 func withStandardRoleMapping() proxySuiteOptionsFunc {
 	return func(options *suiteOptions) {
 		options.updateRoleMappingFunc = func(t *testing.T, suite *Suite) {
-			ctx := context.Background()
+			ctx := t.Context()
 			rc := suite.root
 			lc := suite.leaf
 			role := suite.root.Secrets.Users[helpers.MustGetCurrentUser(t).Username].Roles[0]
@@ -401,7 +401,7 @@ func withTrustedCluster() proxySuiteOptionsFunc {
 			secondRole := suite.leaf.Secrets.Users[helpers.MustGetCurrentUser(t).Username].Roles[0]
 
 			trustedClusterToken := "trustedclustertoken"
-			err := root.Process.GetAuthServer().UpsertToken(context.Background(),
+			err := root.Process.GetAuthServer().UpsertToken(t.Context(),
 				types.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 			require.NoError(t, err)
 			trustedCluster := root.AsTrustedCluster(trustedClusterToken, types.RoleMap{
@@ -437,13 +437,13 @@ func withTrustedClusterBehindALB() proxySuiteOptionsFunc {
 }
 
 func mustRunPostgresQuery(t *testing.T, client *pgconn.PgConn) {
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	result, err := client.Exec(t.Context(), "select 1").ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 }
 
 func mustClosePostgresClient(t *testing.T, client *pgconn.PgConn) {
-	err := client.Close(context.Background())
+	err := client.Close(t.Context())
 	require.NoError(t, err)
 }
 
@@ -529,7 +529,7 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 	})
 
 	go func() {
-		err := lp.Start(context.Background())
+		err := lp.Start(t.Context())
 		assert.NoError(t, err)
 	}()
 	return lp
@@ -565,7 +565,7 @@ func mustCreateKubeLocalProxyMiddleware(t *testing.T, teleportCluster, kubeClust
 		CertReissuer: func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
 			return tls.Certificate{}, nil
 		},
-		CloseContext: context.Background(),
+		CloseContext: t.Context(),
 	})
 }
 
@@ -644,7 +644,7 @@ func mustCreateIAMJoinProvisionToken(t *testing.T, name, awsAccountID, allowedAR
 func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token string, credentials aws.CredentialsProvider) {
 	t.Helper()
 
-	cred, err := credentials.Retrieve(context.Background())
+	cred, err := credentials.Retrieve(t.Context())
 	require.NoError(t, err)
 
 	t.Setenv("AWS_ACCESS_KEY_ID", cred.AccessKeyID)
@@ -669,10 +669,10 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 func mustFindKubePod(t *testing.T, tc *client.TeleportClient) {
 	t.Helper()
 
-	serviceClient, err := tc.NewKubernetesServiceClient(context.Background(), tc.SiteName)
+	serviceClient, err := tc.NewKubernetesServiceClient(t.Context(), tc.SiteName)
 	require.NoError(t, err)
 
-	response, err := serviceClient.ListKubernetesResources(context.Background(), &kubeproto.ListKubernetesResourcesRequest{
+	response, err := serviceClient.ListKubernetesResources(t.Context(), &kubeproto.ListKubernetesResourcesRequest{
 		ResourceType:        types.KindKubePod,
 		KubernetesCluster:   kubeClusterName,
 		KubernetesNamespace: metav1.NamespaceDefault,
@@ -792,7 +792,7 @@ func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kube
 func mustGetKubePod(t *testing.T, client *kubernetes.Clientset) {
 	t.Helper()
 
-	resp, err := client.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
+	resp, err := client.CoreV1().Pods(metav1.NamespaceDefault).List(t.Context(), metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, resp.Items, 3)
 }

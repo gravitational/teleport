@@ -193,7 +193,7 @@ func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) ty
 func TestRBAC(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ca := newCertAuthority(t, types.HostCA, "test")
 
@@ -488,7 +488,7 @@ func TestRBAC(t *testing.T) {
 func TestGetCertAuthority(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newTestPack(t)
 
 	authorizer := &fakeAuthorizer{
@@ -752,7 +752,7 @@ func TestGetCertAuthority_outdatedTctl(t *testing.T) {
 func TestGetCertAuthorities(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newTestPack(t)
 
 	authorizer := &fakeAuthorizer{
@@ -859,7 +859,7 @@ func TestGetCertAuthorities(t *testing.T) {
 func TestDeleteCertAuthority(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newTestPack(t)
 
 	authorizer := &fakeAuthorizer{
@@ -934,7 +934,7 @@ func TestDeleteCertAuthority(t *testing.T) {
 func TestUpsertCertAuthority(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newTestPack(t)
 
 	authorizer := &fakeAuthorizer{
@@ -1012,7 +1012,7 @@ func TestUpsertCertAuthority(t *testing.T) {
 func TestRotateCertAuthority(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newTestPack(t)
 
 	authorizer := &fakeAuthorizer{
@@ -1079,7 +1079,7 @@ func TestRotateCertAuthority(t *testing.T) {
 func TestRotateExternalCertAuthority(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newTestPack(t)
 	trust := local.NewCAService(p.mem)
 
@@ -1218,7 +1218,7 @@ func TestRotateExternalCertAuthority(t *testing.T) {
 func TestGenerateHostCert(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newTestPack(t)
 
 	authorizer := &fakeAuthorizer{

@@ -332,7 +332,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 				return test.hasTouchIDCredentials
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 
 			// Test.
@@ -370,7 +370,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	password := sa.Password
 
 	// Disable MFA. It makes testing easier.
-	ctx := context.Background()
+	ctx := t.Context()
 	authServer := sa.Auth.GetAuthServer()
 	authPref, err := authServer.GetAuthPreference(ctx)
 	require.NoError(t, err, "GetAuthPreference failed")
@@ -627,7 +627,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	authServer := authProcess.GetAuthServer()
 
 	// Initialize user's password and MFA.
-	ctx := context.Background()
+	ctx := t.Context()
 	const password = "supersecretpassword"
 	token, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
@@ -835,7 +835,7 @@ func TestRetryWithRelogin(t *testing.T) {
 	t.Run("Does not try login if function succeeds on the first run", func(t *testing.T) {
 		calledTimes := 0
 
-		err = client.RetryWithRelogin(context.Background(), tc, errorOnTry(&calledTimes, -1))
+		err = client.RetryWithRelogin(t.Context(), tc, errorOnTry(&calledTimes, -1))
 
 		require.NoError(t, err)
 		require.Equal(t, 1, calledTimes)
@@ -843,7 +843,7 @@ func TestRetryWithRelogin(t *testing.T) {
 	t.Run("Runs 'beforeLoginHook' before login, if it's present", func(t *testing.T) {
 		calledTimes := 0
 
-		err = client.RetryWithRelogin(context.Background(), tc, errorOnTry(&calledTimes, 1), client.WithBeforeLoginHook(
+		err = client.RetryWithRelogin(t.Context(), tc, errorOnTry(&calledTimes, 1), client.WithBeforeLoginHook(
 			func() error {
 				return errors.New("hook called")
 			}))
@@ -863,7 +863,7 @@ func TestRetryWithRelogin(t *testing.T) {
 		prompt.SetStdin(prompt.NewFakeReader().AddString(sa.Password).AddReply(solveOTP))
 		calledTimes := 0
 
-		err = client.RetryWithRelogin(context.Background(), tc, errorOnTry(&calledTimes, 1))
+		err = client.RetryWithRelogin(t.Context(), tc, errorOnTry(&calledTimes, 1))
 
 		require.NoError(t, err)
 		require.Equal(t, 2, calledTimes)

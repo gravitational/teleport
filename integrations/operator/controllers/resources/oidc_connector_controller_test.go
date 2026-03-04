@@ -153,7 +153,7 @@ func TestOIDCConnectorSecretLookup(t *testing.T) {
 	test := &oidcTestingPrimitives{}
 	setup := testlib.SetupFakeKubeTestEnv(t)
 	test.Init(setup)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	crName := validRandomResourceName("oidc")
 	secretName := validRandomResourceName("oidc-secret")

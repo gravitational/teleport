@@ -297,7 +297,7 @@ func TestGenericListerRangeWithFallback(t *testing.T) {
 			}
 
 			p.cache.ok = tt.cacheOk
-			got, err := stream.Collect(l.RangeWithFallback(context.Background(), tt.start, tt.end))
+			got, err := stream.Collect(l.RangeWithFallback(t.Context(), tt.start, tt.end))
 
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)

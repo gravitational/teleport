@@ -19,7 +19,6 @@
 package auth_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -54,7 +53,7 @@ func TestUnmoderatedSessionsAllowed(t *testing.T) {
 	require.NoError(t, err)
 	tracker.AddParticipant(types.Participant{})
 
-	_, err = srv.CreateSessionTracker(context.Background(), tracker)
+	_, err = srv.CreateSessionTracker(t.Context(), tracker)
 	require.NoError(t, err)
 	require.NotNil(t, tracker)
 }
@@ -92,7 +91,7 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 	require.NoError(t, err)
 	tracker.AddParticipant(types.Participant{})
 
-	tracker, err = srv.CreateSessionTracker(context.Background(), tracker)
+	tracker, err = srv.CreateSessionTracker(t.Context(), tracker)
 	require.Error(t, err)
 	require.Nil(t, tracker)
 	require.ErrorIs(t, err, auth.ErrRequiresEnterprise)
@@ -131,7 +130,7 @@ func TestModeratedSesssionsEnabled(t *testing.T) {
 	require.NoError(t, err)
 	tracker.AddParticipant(types.Participant{})
 
-	_, err = srv.CreateSessionTracker(context.Background(), tracker)
+	_, err = srv.CreateSessionTracker(t.Context(), tracker)
 	require.NoError(t, err)
 	require.NotNil(t, tracker)
 }

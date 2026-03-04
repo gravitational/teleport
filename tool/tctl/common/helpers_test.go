@@ -353,7 +353,7 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service
 	if len(dbs) == 0 {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	for {
 		select {

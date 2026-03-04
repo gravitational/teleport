@@ -352,7 +352,7 @@ func newTestGCPKMSService(t *testing.T, opts ...fakeGCPKMSServerOption) (*fakeGC
 // newTestGPCKMSClient accepts a dial function and creates a test gRPC client
 // connected over a bufconn to a KeyManagement service.
 func newTestGCPKMSClient(t *testing.T, dialer contextDialer) *kms.KeyManagementClient {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	conn, err := grpc.Dial("bufconn",
 		grpc.WithContextDialer(dialer),
@@ -411,7 +411,7 @@ func TestGCPKMSKeystore(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 
-			testCtx, cancelTestCtx := context.WithCancel(context.Background())
+			testCtx, cancelTestCtx := context.WithCancel(t.Context())
 			clientContext, cancelClientContext := context.WithCancel(testCtx)
 			var wg sync.WaitGroup
 			tickerErr := make(chan error)

@@ -307,21 +307,21 @@ func TestLocks(t *testing.T) {
 	require.NoError(t, unlock2())
 
 	// Can take read lock with timeout
-	unlock, err = FSTryReadLockTimeout(context.Background(), fp, time.Second)
+	unlock, err = FSTryReadLockTimeout(t.Context(), fp, time.Second)
 	require.NoError(t, err)
 	require.NoError(t, unlock())
 
 	// Can take write lock with timeout
-	unlock, err = FSTryWriteLockTimeout(context.Background(), fp, time.Second)
+	unlock, err = FSTryWriteLockTimeout(t.Context(), fp, time.Second)
 	require.NoError(t, err)
 
 	// Fails because timeout is exceeded, since file is already locked.
-	unlock2, err = FSTryWriteLockTimeout(context.Background(), fp, time.Millisecond)
+	unlock2, err = FSTryWriteLockTimeout(t.Context(), fp, time.Millisecond)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	require.Nil(t, unlock2)
 
 	// Fails because context is expired while waiting for timeout.
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now())
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now())
 	defer cancel()
 	unlock2, err = FSTryWriteLockTimeout(ctx, fp, time.Hour*1000)
 	require.ErrorIs(t, err, context.DeadlineExceeded)

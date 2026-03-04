@@ -218,7 +218,7 @@ func TestAWSICAccountFilters(t *testing.T) {
 }
 
 func TestSCIMBaseURLValidation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	requireURL := func(expectedURL string) require.ValueAssertionFunc {
 		return func(subtestT require.TestingT, value any, _ ...any) {
@@ -603,7 +603,7 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 				httpProvider: roundTripper,
 			}
 
-			err := cliArgs.RotateAWSICCreds(context.Background(), args)
+			err := cliArgs.RotateAWSICCreds(t.Context(), args)
 			test.assertError(t, err)
 
 			pluginsClient.AssertExpectations(t)

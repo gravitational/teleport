@@ -41,7 +41,7 @@ func TestCeremony_Run(t *testing.T) {
 	defer env.Close()
 
 	devices := env.DevicesClient
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create a fake device and enroll it, so the fake server has the necessary
 	// data to verify challenge signatures.
@@ -109,7 +109,7 @@ func TestCeremony_RunWeb(t *testing.T) {
 
 	devicesClient := env.DevicesClient
 	fakeService := env.Service
-	ctx := context.Background()
+	ctx := t.Context()
 
 	macOSFakeDev1, err := testenv.NewFakeMacOSDevice()
 	require.NoError(t, err, "NewFakeMacOSDevice failed")

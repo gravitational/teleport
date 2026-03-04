@@ -262,13 +262,13 @@ func TestDynamicClientReuse(t *testing.T) {
 	require.NoError(t, nconn.Close())
 
 	// node connector closure should not affect proxy client
-	_, err = pconn.Client.Ping(context.Background())
+	_, err = pconn.Client.Ping(t.Context())
 	require.NoError(t, err)
 
 	require.NoError(t, pconn.Close())
 
 	// proxy connector closure should not affect instance client
-	_, err = iconn.Client.Ping(context.Background())
+	_, err = iconn.Client.Ping(t.Context())
 	require.NoError(t, err)
 
 	require.NoError(t, iconn.Close())
@@ -470,7 +470,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 		require.NoError(t, err)
 		process := &TeleportProcess{
 			Supervisor: &LocalSupervisor{
-				exitContext: context.Background(),
+				exitContext: t.Context(),
 			},
 			backend: backend,
 		}
@@ -502,7 +502,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 }
 
 func TestAthenaAuditLogSetup(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -519,7 +519,7 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 	require.NoError(t, err)
 	process := &TeleportProcess{
 		Supervisor: &LocalSupervisor{
-			exitContext: context.Background(),
+			exitContext: t.Context(),
 		},
 		backend: backend,
 		logger:  logtest.NewLogger(),
@@ -1332,7 +1332,7 @@ func TestProxyGRPCServers(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(insecureGRPC.GracefulStop)
 
-	proxyLockWatcher, err := services.NewLockWatcher(context.Background(), services.LockWatcherConfig{
+	proxyLockWatcher, err := services.NewLockWatcher(t.Context(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
 			Client:    testConnector.Client,
@@ -1606,7 +1606,7 @@ func TestSingleProcessModeResolver(t *testing.T) {
 			process := TeleportProcess{Config: &test.config}
 			resolver := process.SingleProcessModeResolver(test.mode)
 			require.NotNil(t, resolver)
-			addr, mode, err := resolver(context.Background())
+			addr, mode, err := resolver(t.Context())
 			if test.wantError {
 				require.Error(t, err)
 				return
@@ -1898,7 +1898,7 @@ func TestInitDatabaseService(t *testing.T) {
 
 			// This timeout should consider time to receive the event + shutdown
 			// time.
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 			defer cancel()
 
 			// Arbitrary channel size to avoid blocking.
@@ -2082,7 +2082,7 @@ func TestMetricsService(t *testing.T) {
 	require.NoError(t, process.metricsRegistry.Register(localMetric))
 	require.NoError(t, prometheus.Register(globalMetric))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	t.Cleanup(cancel)
 	_, err = process.WaitForEvent(ctx, MetricsReady)
 	require.NoError(t, err)
@@ -2239,7 +2239,7 @@ func TestInstanceCertReissue(t *testing.T) {
 	var eg errgroup.Group
 	defer func() { require.NoError(t, eg.Wait()) }()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Create temporary directories for the auth and agent data directories.

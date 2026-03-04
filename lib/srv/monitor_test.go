@@ -369,7 +369,7 @@ func TestTrackingReadConn(t *testing.T) {
 	require.NoError(t, server.Close())
 
 	// Wrap the client in a TrackingReadConn.
-	ctx, cancel := context.WithCancelCause(context.Background())
+	ctx, cancel := context.WithCancelCause(t.Context())
 	tc, err := NewTrackingReadConn(TrackingReadConnConfig{
 		Conn:    client,
 		Clock:   clockwork.NewFakeClock(),
@@ -391,7 +391,7 @@ func TestTrackingReadConn(t *testing.T) {
 	})
 
 	t.Run("Close", func(t *testing.T) {
-		ctx, cancel := context.WithCancelCause(context.Background())
+		ctx, cancel := context.WithCancelCause(t.Context())
 		tc, err := NewTrackingReadConn(TrackingReadConnConfig{
 			Conn:    client,
 			Clock:   clockwork.NewFakeClock(),

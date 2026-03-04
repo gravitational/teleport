@@ -48,7 +48,7 @@ func failIfCalledTwice(t *testing.T, value string, err error) func(context.Conte
 }
 
 func TestTimedMemoize_Get(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	now := time.Now()
 	longBefore := now.Add(-2 * time.Hour)

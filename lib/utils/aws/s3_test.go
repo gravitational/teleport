@@ -35,7 +35,7 @@ import (
 
 func TestNewS3V2FileWriter(t *testing.T) {
 	t.Run("writer.Close waits for upload to finish", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mock := &s3ClientMock{}
 		writer, err := NewS3V2FileWriter(ctx, mock, "bucket", "key", nil /* uploader options */)
 		require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestNewS3V2FileWriter(t *testing.T) {
 	})
 
 	t.Run("on failure from upload, error is propagated", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mock := &s3ClientMock{
 			putObjectErr: errors.New("error from reading"),
 		}

@@ -53,7 +53,7 @@ func Test_renderAWSCreds(t *testing.T) {
 		SecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYzEXAMPLESAK",
 		Expiration:      "2028-07-27T04:36:55Z",
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name         string
@@ -157,7 +157,7 @@ func (m mockClientDoFunc) Do(req *http.Request) (*http.Response, error) {
 
 func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 
 	tests := []struct {

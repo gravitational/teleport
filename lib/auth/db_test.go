@@ -19,7 +19,6 @@
 package auth_test
 
 import (
-	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -95,7 +94,7 @@ func Test_getSnowflakeJWTParams(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			subject, issuer := auth.GetSnowflakeJWTParams(context.Background(), tt.args.accountName, tt.args.userName, tt.args.publicKey)
+			subject, issuer := auth.GetSnowflakeJWTParams(t.Context(), tt.args.accountName, tt.args.userName, tt.args.publicKey)
 
 			require.Equal(t, tt.wantSubject, subject)
 			require.Equal(t, tt.wantIssuer, issuer)
@@ -113,7 +112,7 @@ func TestDBCertSigning(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
 	require.NoError(t, err)
@@ -281,7 +280,7 @@ func TestFilterExtensions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := auth.FilterExtensions(context.Background(), slog.Default(), tt.input, tt.allowedOIDs...)
+			got := auth.FilterExtensions(t.Context(), slog.Default(), tt.input, tt.allowedOIDs...)
 			require.Equal(t, tt.expected, got)
 		})
 	}

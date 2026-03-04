@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -37,7 +36,7 @@ import (
 
 // TestDiscoveryConfigCRUD tests backend operations with discovery config resources.
 func TestDiscoveryConfigCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{

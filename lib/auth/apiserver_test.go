@@ -20,7 +20,6 @@ package auth_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -40,7 +39,7 @@ import (
 func TestUpsertServer(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	const remoteAddr = "request-remote-addr"
 
 	tests := []struct {

@@ -138,9 +138,9 @@ func TestGKEFetcher(t *testing.T) {
 				ProjectID:     tt.args.projectID,
 				Logger:        logtest.NewLogger(),
 			}
-			fetcher, err := NewGKEFetcher(context.Background(), cfg)
+			fetcher, err := NewGKEFetcher(t.Context(), cfg)
 			require.NoError(t, err)
-			resources, err := fetcher.Get(context.Background())
+			resources, err := fetcher.Get(t.Context())
 			require.NoError(t, err)
 
 			require.Equal(t, tt.want.ToMap(), resources.ToMap())

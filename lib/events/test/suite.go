@@ -195,7 +195,7 @@ type EventsSuite struct {
 }
 
 func (s *EventsSuite) EventExport(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	baseTime := time.Now().UTC()
@@ -212,7 +212,7 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 
 	// create an initial set of events that should all end up in the same chunk
 	for i, name := range names {
-		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+		err := s.Log.EmitAuditEvent(t.Context(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: name},
@@ -255,7 +255,7 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 
 	// add more events that should end up in a new chunk
 	for i, name := range names {
-		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+		err := s.Log.EmitAuditEvent(t.Context(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: name},
@@ -354,7 +354,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	names := []string{"bob", "jack", "daisy", "evan"}
 
 	for i, name := range names {
-		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+		err := s.Log.EmitAuditEvent(t.Context(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: name},
@@ -372,7 +372,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	var err error
 	var checkpoint string
 
-	ctx := context.Background()
+	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
 			From:     baseTime,
@@ -477,7 +477,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	baseTime2 := time.Now().UTC().AddDate(0, 0, -2)
 
 	for _, name := range names {
-		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+		err := s.Log.EmitAuditEvent(t.Context(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: name},
@@ -523,7 +523,7 @@ Outer:
 func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	loginTime := s.Clock.Now().UTC()
 	// Bob has logged in
-	err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+	err := s.Log.EmitAuditEvent(t.Context(), &apievents.UserLogin{
 		Method:       events.LoginMethodSAML,
 		Status:       apievents.Status{Success: true},
 		UserMetadata: apievents.UserMetadata{User: "bob"},
@@ -541,7 +541,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	}
 
 	var history []apievents.AuditEvent
-	ctx := context.Background()
+	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		history, _, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
 			From:  loginTime.Add(-1 * time.Hour),
@@ -559,7 +559,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	// sessionStartTime must be greater than loginTime, because in search we assume
 	// order.
 	sessionStartTime := loginTime.Add(1 * time.Minute)
-	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionStart{
+	err = s.Log.EmitAuditEvent(t.Context(), &apievents.SessionStart{
 		Metadata: apievents.Metadata{
 			ID:    uuid.NewString(),
 			Time:  sessionStartTime,
@@ -576,7 +576,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	sessionEndTime := s.Clock.Now().Add(time.Hour).UTC()
-	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionEnd{
+	err = s.Log.EmitAuditEvent(t.Context(), &apievents.SessionEnd{
 		Metadata: apievents.Metadata{
 			ID:    uuid.NewString(),
 			Time:  sessionEndTime,
@@ -739,7 +739,7 @@ func (s *EventsSuite) SearchSessionEventsBySessionID(t *testing.T) {
 				SessionID: id,
 			},
 		}
-		err := s.Log.EmitAuditEvent(context.Background(), event)
+		err := s.Log.EmitAuditEvent(t.Context(), event)
 		require.NoError(t, err)
 	}
 	from := time.Time{}
@@ -750,7 +750,7 @@ func (s *EventsSuite) SearchSessionEventsBySessionID(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		ctx := context.Background()
+		ctx := t.Context()
 		events, _, err := s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
 			From:      from,
 			To:        to,

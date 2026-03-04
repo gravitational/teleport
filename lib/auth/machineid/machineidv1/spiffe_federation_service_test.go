@@ -19,7 +19,6 @@
 package machineidv1_test
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"testing"
@@ -45,7 +44,7 @@ import (
 func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 	t.Parallel()
 	srv, mockEmitter := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -228,7 +227,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 	t.Parallel()
 	srv, mockEmitter := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -373,7 +372,7 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	role, err := types.NewRole("federation-reader", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -467,7 +466,7 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	role, err := types.NewRole("federation-reader", types.RoleSpecV6{
 		Allow: types.RoleConditions{

@@ -134,7 +134,7 @@ func TestBootstrapInfra(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.desc, func(t *testing.T) {
-			testCtx := context.Background()
+			testCtx := t.Context()
 			s3Clt := &mockBootstrapS3Client{buckets: make(map[string]bucket)}
 			athenaClt := &mockBootstrapAthenaClient{}
 			glueClt := &mockBootstrapGlueClient{}

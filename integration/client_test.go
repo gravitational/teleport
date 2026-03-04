@@ -66,7 +66,7 @@ func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
 	// Create an expired identity file: ttl is 1 second in the past
 	identityFilePath := helpers.MustCreateUserIdentityFile(t, rc, username, -time.Second)
 
-	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancelFunc := context.WithTimeout(t.Context(), time.Second)
 	defer cancelFunc()
 	_, err = client.New(ctx, client.Config{
 		Addrs:       []string{rc.Auth},

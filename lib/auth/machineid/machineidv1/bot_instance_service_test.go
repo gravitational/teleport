@@ -159,7 +159,7 @@ func TestBotInstanceServiceAccess(t *testing.T) {
 func TestBotInstanceServiceReadDelete(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	backend := newBotInstanceBackend(t)
 	idsFoo := createInstances(t, ctx, backend, "foo", 3)
@@ -249,7 +249,7 @@ func (f identityGetterFn) GetIdentity() tlsca.Identity {
 
 func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const botName = "test-bot"
 	const botInstanceID = "123-456"
@@ -469,7 +469,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 
 func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const botName = "test-bot"
 	const botInstanceID = "123-456"
@@ -563,7 +563,7 @@ func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resourc
 func callMethod(t *testing.T, service *BotInstanceService, method string) error {
 	for _, desc := range machineidv1.BotInstanceService_ServiceDesc.Methods {
 		if desc.MethodName == method {
-			_, err := desc.Handler(service, context.Background(), func(_ any) error { return nil }, nil)
+			_, err := desc.Handler(service, t.Context(), func(_ any) error { return nil }, nil)
 			return err
 		}
 	}

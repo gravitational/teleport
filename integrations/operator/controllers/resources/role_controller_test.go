@@ -48,7 +48,7 @@ var TeleportRoleGVKV5 = schema.GroupVersionKind{
 }
 
 func TestRoleCreationFromYAML(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	setup := testlib.SetupFakeKubeTestEnv(t)
 	tests := []struct {
 		name         string

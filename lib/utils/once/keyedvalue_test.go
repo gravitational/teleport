@@ -51,7 +51,7 @@ func TestKeyedValue(t *testing.T) {
 		key := i % 2
 		go func() {
 			for j := 0; j < 16; j++ {
-				val, err := fn(context.Background(), key)
+				val, err := fn(t.Context(), key)
 				results <- struct {
 					key int
 					val string
@@ -92,12 +92,12 @@ func TestKeyedValueCancellation(t *testing.T) {
 
 	// verify normal operation
 	unblock <- struct{}{}
-	val, err := fn(context.Background(), 1)
+	val, err := fn(t.Context(), 1)
 	require.NoError(t, err)
 	require.Equal(t, "value-1", val)
 
 	// verify cancellation of caller context
-	tctx, cancel := context.WithTimeout(context.Background(), 1)
+	tctx, cancel := context.WithTimeout(t.Context(), 1)
 	defer cancel()
 	val, err = fn(tctx, 2)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
@@ -105,13 +105,13 @@ func TestKeyedValueCancellation(t *testing.T) {
 
 	// unblock the inner function and verify it completes normally
 	unblock <- struct{}{}
-	val, err = fn(context.Background(), 2)
+	val, err = fn(t.Context(), 2)
 	require.NoError(t, err)
 	require.Equal(t, "value-2", val)
 
 	// verify cancellation of the inner function via the cancel function
 	cancelInner()
-	val, err = fn(context.Background(), 3)
+	val, err = fn(t.Context(), 3)
 	require.ErrorIs(t, err, canceledInner)
 	require.Empty(t, val)
 }

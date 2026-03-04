@@ -20,7 +20,6 @@ package db
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -44,7 +43,7 @@ import (
 // TestAuditPostgres verifies proper audit events are emitted for Postgres
 // connections.
 func TestAuditPostgres(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	recorder := eventstest.NewChannelRecorder(100)
 	testCtx := setupTestContext(ctx, t)
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
@@ -172,7 +171,7 @@ func TestAuditPostgres(t *testing.T) {
 // TestAuditMySQL verifies proper audit events are emitted for MySQL
 // connections.
 func TestAuditMySQL(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
 
@@ -212,7 +211,7 @@ func TestAuditMySQL(t *testing.T) {
 // TestAuditMongo verifies proper audit events are emitted for MongoDB
 // connections.
 func TestAuditMongo(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo"))
 	go testCtx.startHandlingConnections()
 
@@ -245,7 +244,7 @@ func TestAuditMongo(t *testing.T) {
 }
 
 func TestAuditRedis(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 	go testCtx.startHandlingConnections()
 
@@ -286,7 +285,7 @@ func TestAuditRedis(t *testing.T) {
 // TestAuditSQLServer verifies proper audit events are emitted for SQLServer
 // connections.
 func TestAuditSQLServer(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withSQLServer("sqlserver"))
 	go testCtx.startHandlingConnections()
 
@@ -307,7 +306,7 @@ func TestAuditSQLServer(t *testing.T) {
 
 		requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
 
-		err = conn.Ping(context.Background())
+		err = conn.Ping(t.Context())
 		require.NoError(t, err)
 		requireEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
 
@@ -318,7 +317,7 @@ func TestAuditSQLServer(t *testing.T) {
 
 // TestAuditClickHouseHTTP verifies proper audit events are emitted for Clickhouse HTTP connections.
 func TestAuditClickHouseHTTP(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withClickhouseHTTP(defaults.ProtocolClickHouseHTTP))
 	go testCtx.startHandlingConnections()
 

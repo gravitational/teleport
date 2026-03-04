@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -49,7 +48,7 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 	service, err := NewAutoUpdateService(bk)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	config := &autoupdatev1pb.AutoUpdateConfig{
 		Kind:     types.KindAutoUpdateConfig,
 		Version:  types.V1,
@@ -114,7 +113,7 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 	service, err := NewAutoUpdateService(bk)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	version := &autoupdatev1pb.AutoUpdateVersion{
 		Kind:     types.KindAutoUpdateVersion,
 		Version:  types.V1,
@@ -183,7 +182,7 @@ func TestAutoUpdateServiceAgentReportCRUD(t *testing.T) {
 	oldDate := time.Now()
 	newDate := time.Now().Add(2 * time.Minute)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	report := &autoupdatev1pb.AutoUpdateAgentReport{
 		Kind:     types.KindAutoUpdateAgentReport,
 		Version:  types.V1,
@@ -258,7 +257,7 @@ func TestAutoUpdateServiceInvalidNameCreate(t *testing.T) {
 	service, err := NewAutoUpdateService(bk)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	config := &autoupdatev1pb.AutoUpdateConfig{
 		Kind:     types.KindAutoUpdateConfig,
 		Version:  types.V1,
@@ -301,7 +300,7 @@ func TestAutoUpdateServiceInvalidNameUpdate(t *testing.T) {
 	service, err := NewAutoUpdateService(bk)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Validate the config update restriction.
 	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{

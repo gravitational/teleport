@@ -40,7 +40,7 @@ func (f *fakeDiscoveryResourceChecker) Check(_ context.Context, _ types.Database
 func Test_discoveryResourceChecker(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	successChecker := &fakeDiscoveryResourceChecker{}
 	failChecker := &fakeDiscoveryResourceChecker{
 		fakeError: trace.BadParameter("check failed"),

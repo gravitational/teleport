@@ -19,7 +19,6 @@
 package web
 
 import (
-	"context"
 	"net/url"
 	"testing"
 
@@ -36,7 +35,7 @@ func TestBuildAWSRATrustAnchorConfigureScript(t *testing.T) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 
 	// Unauthenticated client for script downloading.

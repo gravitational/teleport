@@ -32,7 +32,7 @@ import (
 // TestGetSignalHandler verifies the cancellation stack order.
 func TestGetSignalHandler(t *testing.T) {
 	testHandler := GetSignalHandler()
-	parent := context.Background()
+	parent := t.Context()
 
 	ctx1, cancel1 := testHandler.NotifyContext(parent)
 	ctx2, cancel2 := testHandler.NotifyContext(parent)

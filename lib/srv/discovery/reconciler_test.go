@@ -111,7 +111,7 @@ func TestLabelReconciler(t *testing.T) {
 	t.Parallel()
 	clock := clockwork.NewFakeClock()
 	lr, ap := initLabelReconcilerForTests(t, clock)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	t.Cleanup(cancel)
 	go lr.run(ctx)
 

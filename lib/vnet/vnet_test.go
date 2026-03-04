@@ -779,7 +779,7 @@ func (c *fakeAuthClient) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, e
 // TestDialFakeApp tests basic functionality of TCP app access via VNet.
 func TestDialFakeApp(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	clock := clockwork.NewFakeClockAt(time.Now())
 
@@ -1111,7 +1111,7 @@ func testEchoConnection(t *testing.T, conn net.Conn) {
 // is called when a user connects to a valid TCP app.
 func TestOnNewAppConnection(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	clock := clockwork.NewFakeClockAt(time.Now())
 
@@ -1172,7 +1172,7 @@ func TestWithAlgorithmSuites(t *testing.T) {
 }
 
 func testWithAlgorithmSuite(t *testing.T, suite types.SignatureAlgorithmSuite) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	clock := clockwork.NewFakeClockAt(time.Now())
 

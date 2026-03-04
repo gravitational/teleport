@@ -96,7 +96,7 @@ func TestAccessGraphIAMConfigReqDefaults(t *testing.T) {
 }
 
 func TestAccessGraphAWSIAMConfig(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	baseReq := func() AccessGraphAWSIAMConfigureRequest {
 		return AccessGraphAWSIAMConfigureRequest{
 			IntegrationRole:     "integrationrole",
@@ -255,7 +255,7 @@ func TestAccessGraphAWSIAMConfig(t *testing.T) {
 }
 
 func TestAccessGraphAWSIAMConfigOuput(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	var buf bytes.Buffer
 	req := AccessGraphAWSIAMConfigureRequest{
 		IntegrationRole: "integrationrole",

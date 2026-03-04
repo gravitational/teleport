@@ -19,7 +19,6 @@
 package secretlookup
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -32,7 +31,7 @@ import (
 
 func TestLookupSecret(t *testing.T) {
 	// Test setup: crafting fixtures
-	ctx := context.Background()
+	ctx := t.Context()
 	namespace := "foo"
 	crName := "test-cr-name"
 	secretName := "test-secret"

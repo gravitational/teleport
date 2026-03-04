@@ -42,7 +42,7 @@ import (
 )
 
 func TestWorkloadIdentityIssueX509(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	role, err := types.NewRole("workload-identity-issuer", types.RoleSpecV6{
 		Allow: types.RoleConditions{

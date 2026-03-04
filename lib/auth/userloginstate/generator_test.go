@@ -606,7 +606,7 @@ func TestAccessLists(t *testing.T) {
 				},
 			})
 
-			ctx := context.Background()
+			ctx := t.Context()
 			svc, backendSvc, err := initGeneratorSvc()
 			require.NoError(t, err)
 
@@ -660,7 +660,7 @@ func TestAccessLists(t *testing.T) {
 }
 
 func TestGitHubIdentity(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	svc, backendSvc, err := initGeneratorSvc()
 	require.NoError(t, err)
 

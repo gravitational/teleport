@@ -19,7 +19,6 @@
 package podman_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -59,24 +58,24 @@ func TestClient(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("inspect container success", func(t *testing.T) {
-		container, err := client.InspectContainer(context.Background(), "container-1234")
+		container, err := client.InspectContainer(t.Context(), "container-1234")
 		require.NoError(t, err)
 		require.Equal(t, "web-server", container.Name)
 	})
 
 	t.Run("container not found", func(t *testing.T) {
-		_, err := client.InspectContainer(context.Background(), "not-found")
+		_, err := client.InspectContainer(t.Context(), "not-found")
 		require.True(t, trace.IsNotFound(err))
 	})
 
 	t.Run("inspect pod success", func(t *testing.T) {
-		pod, err := client.InspectPod(context.Background(), "pod-1234")
+		pod, err := client.InspectPod(t.Context(), "pod-1234")
 		require.NoError(t, err)
 		require.Equal(t, map[string]string{"technology": "node.js"}, pod.Labels)
 	})
 
 	t.Run("pod not found", func(t *testing.T) {
-		_, err := client.InspectContainer(context.Background(), "not-found")
+		_, err := client.InspectContainer(t.Context(), "not-found")
 		require.True(t, trace.IsNotFound(err))
 	})
 }

@@ -19,7 +19,6 @@
 package azure
 
 import (
-	"context"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -56,7 +55,7 @@ func TestListSubscriptionIDs(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := NewSubscriptionClient(tt.mockAPI)

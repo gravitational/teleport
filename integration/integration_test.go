@@ -274,7 +274,7 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 				SourceIP: test.ip,
 			})
 			require.NoError(t, err)
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			test.errAssertion(t, cl.SSH(ctx, []string{"echo hi"}))
 		})
@@ -313,7 +313,7 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 	var nodeID string
 	// verify node control stream registers, extracting the id.
 	require.Eventually(t, func() bool {
-		status, err := clt.GetInventoryStatus(context.Background(), &proto.InventoryStatusRequest{
+		status, err := clt.GetInventoryStatus(t.Context(), &proto.InventoryStatusRequest{
 			Connected: true,
 		})
 		require.NoError(t, err)
@@ -333,7 +333,7 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 	var nodeAddr string
 	// verify node heartbeat was successful, extracting the addr.
 	require.Eventually(t, func() bool {
-		node, err := clt.GetNode(context.Background(), defaults.Namespace, nodeID)
+		node, err := clt.GetNode(t.Context(), defaults.Namespace, nodeID)
 		if trace.IsNotFound(err) {
 			return false
 		}
@@ -1417,7 +1417,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 
 			receivedEvents, err := helpers.StartAndWait(process, expectedEvents)
 			require.NoError(t, err)
-			i.Log.DebugContext(context.Background(), "Teleport node started",
+			i.Log.DebugContext(t.Context(), "Teleport node started",
 				"node_name", process.Config.Hostname,
 				"instance", i.Secrets.SiteName,
 				"expected_events_count", len(expectedEvents),
@@ -4263,7 +4263,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	require.Equal(t, "hello world\n", output)
 
 	// Stop everything.
-	err = proxyTunnel.Shutdown(context.Background())
+	err = proxyTunnel.Shutdown(t.Context())
 	require.NoError(t, err)
 }
 
@@ -4406,7 +4406,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	require.Equal(t, "hello world\n", output)
 
 	// Stop everything.
-	err = proxyTunnel.Shutdown(context.Background())
+	err = proxyTunnel.Shutdown(t.Context())
 	require.NoError(t, err)
 	err = main.StopAll()
 	require.NoError(t, err)
@@ -4841,7 +4841,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			caGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 				return instance.Process.GetAuthServer().Cache.GetCertAuthority(ctx, id, loadKeys)
 			}
-			proxyEnabledListener, err := helpers.CreatePROXYEnabledListener(context.Background(), t, net.JoinHostPort(Host, strconv.Itoa(nodePort)),
+			proxyEnabledListener, err := helpers.CreatePROXYEnabledListener(t.Context(), t, net.JoinHostPort(Host, strconv.Itoa(nodePort)),
 				caGetter, instance.Secrets.SiteName)
 			require.NoError(t, err)
 
@@ -4868,11 +4868,11 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			})
 			require.NoError(t, err)
 			server.SetSubKind(types.SubKindOpenSSHNode)
-			_, err = clt.UpsertNode(context.Background(), server)
+			_, err = clt.UpsertNode(t.Context(), server)
 			require.NoError(t, err)
 
 			// Wait for the node to be visible before continuing.
-			err = instance.WaitForNodeCount(context.Background(), helpers.Site, 2)
+			err = instance.WaitForNodeCount(t.Context(), helpers.Site, 2)
 			require.NoError(t, err)
 
 			_, err = runCommand(t.Context(), instance, []string{"echo hello"}, clientConfig, 1)
@@ -5218,7 +5218,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	var eg errgroup.Group
 	defer func() { require.NoError(t, eg.Wait()) }()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	teleport := suite.NewTeleportInstance(t)
@@ -5388,7 +5388,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	var eg errgroup.Group
 	defer func() { require.NoError(t, eg.Wait()) }()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	tconf := s.rotationConfig(true)
@@ -5529,7 +5529,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	var eg errgroup.Group
 	defer func() { require.NoError(t, eg.Wait()) }()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	clusterMain := "rotate-main"
@@ -6013,7 +6013,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 
 			// Get list of nodes and check that the returned nodes match the
 			// expected nodes.
-			nodes, err := userClt.ListNodesWithFilters(context.Background())
+			nodes, err := userClt.ListNodesWithFilters(t.Context())
 			require.NoError(t, err)
 			for _, node := range nodes {
 				ok := slices.Contains(tt.outNodes, node.GetHostname())
@@ -6256,7 +6256,7 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 			// Create a client terminal and context to signal when the client is done
 			// with the terminal.
 			term := NewTerminal(250)
-			doneContext, doneCancel := context.WithCancel(context.Background())
+			doneContext, doneCancel := context.WithCancel(t.Context())
 
 			func() {
 				client, err := main.NewClient(helpers.ClientConfig{
@@ -6492,7 +6492,7 @@ func testSSHExitCode(t *testing.T, suite *integrationTestSuite) {
 			t.Cleanup(func() { main.StopAll() })
 
 			// context to signal when the client is done with the terminal.
-			doneContext, doneCancel := context.WithTimeout(context.Background(), time.Second*10)
+			doneContext, doneCancel := context.WithTimeout(t.Context(), time.Second*10)
 			defer doneCancel()
 
 			cli, err := main.NewClient(helpers.ClientConfig{
@@ -6595,7 +6595,7 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 
 		// "Type" a command into the terminal.
 		term.Type(fmt.Sprintf("\a%v\n\r\aexit\n\r\a", lsPath))
-		err = client.SSH(context.Background(), []string{})
+		err = client.SSH(t.Context(), []string{})
 		if err != nil {
 			t.Errorf("Failed to start SSH session: %v.", err)
 		}
@@ -6739,7 +6739,7 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 			Port:        helpers.Port(t, main.SSH),
 			Interactive: false,
 		}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 
 		cmd := "sleep 10"
 
@@ -7003,7 +7003,7 @@ func runCommandWithCertReissue(t *testing.T, instance *helpers.TeleInstance, cmd
 		return trace.Wrap(err)
 	}
 
-	err = tc.ReissueUserCerts(context.Background(), cachePolicy, reissueParams)
+	err = tc.ReissueUserCerts(t.Context(), cachePolicy, reissueParams)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -7545,7 +7545,7 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	leafCAs, err := leaf.Secrets.GetCAs()
 	require.NoError(t, err)
 	for _, leafCA := range leafCAs {
-		require.NoError(t, tc.AddTrustedCA(context.Background(), leafCA))
+		require.NoError(t, tc.AddTrustedCA(t.Context(), leafCA))
 	}
 
 	// Wait for the nodes to be visible to both Proxy instances.
@@ -7579,7 +7579,7 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 
 			// Create load balancer that will send PROXY header if required
 			frontendTun := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
-			tunLB, err := utils.NewLoadBalancer(context.Background(), frontendTun)
+			tunLB, err := utils.NewLoadBalancer(t.Context(), frontendTun)
 			require.NoError(t, err)
 			if proxyProtocolMode == multiplexer.PROXYProtocolOn {
 				tunLB.PROXYHeader = []byte("PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n")
@@ -7629,7 +7629,7 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 		main := suite.NewTeleportWithConfig(t, nil, nil, mainConfig)
 		t.Cleanup(func() { require.NoError(t, main.StopAll()) })
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 		dialer := apiclient.NewDialer(
 			ctx,
@@ -7686,7 +7686,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		instance.StopAll()
 	})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	authServer := instance.Process.GetAuthServer()
 
 	// Create peer and moderator users and roles
@@ -7755,7 +7755,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	_, err = authServer.CreateUser(ctx, moderatorUser)
 	require.NoError(t, err)
 
-	err = instance.WaitForNodeCount(context.Background(), helpers.Site, 1)
+	err = instance.WaitForNodeCount(t.Context(), helpers.Site, 1)
 	require.NoError(t, err)
 
 	// Start a shell so a moderated session is created
@@ -8336,7 +8336,7 @@ func testWebSFTP(t *testing.T, suite *integrationTestSuite) {
 			lbFrontend := utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
 			webAddr, err := teleport.Process.ProxyWebAddr()
 			require.NoError(t, err)
-			lb, err := utils.NewLoadBalancer(context.Background(), *lbFrontend, *webAddr)
+			lb, err := utils.NewLoadBalancer(t.Context(), *lbFrontend, *webAddr)
 			require.NoError(t, err)
 			if proxyProtocolMode == multiplexer.PROXYProtocolOn {
 				lb.PROXYHeader = []byte("PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n")
@@ -8575,7 +8575,7 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 			require.NoError(t, err)
 			tlsConfig.NextProtos = []string{string(common.ProtocolProxySSHGRPC)}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 			defer cancel()
 			conn, err := grpc.DialContext(
 				ctx,
@@ -8761,7 +8761,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			term := NewTerminal(200)
 			cli.Stdout = term
 			cli.Stdin = term
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 			defer cancel()
 			errChan := make(chan error, 1)
 			go func() {
@@ -8779,7 +8779,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			term = NewTerminal(200)
 			cli.Stdout = term
 			cli.Stdin = term
-			ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel = context.WithTimeout(t.Context(), 15*time.Second)
 			defer cancel()
 			go func() {
 				errChan <- cli.SSH(ctx, test.command)
@@ -8998,7 +8998,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 
 	instance := suite.NewTeleportWithConfig(t, nil, nil, cfg)
 
-	ctx, cancel := context.WithCancelCause(context.Background())
+	ctx, cancel := context.WithCancelCause(t.Context())
 	defer cancel(nil)
 
 	peerRole, err := types.NewRole("moderated", types.RoleSpecV6{
@@ -9255,7 +9255,7 @@ func testForceListenerInTunnelMode(t *testing.T, suite *integrationTestSuite) {
 	forceListenDirectNode, err := main.StartNode(nodeConfig(false, true))
 	require.NoError(t, err)
 
-	require.NoError(t, main.WaitForNodeCount(context.Background(), helpers.Site, 4))
+	require.NoError(t, main.WaitForNodeCount(t.Context(), helpers.Site, 4))
 
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 		Process:  main.Process,

@@ -19,7 +19,6 @@
 package maintenance
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -37,7 +36,7 @@ func TestFailoverTrigger_CanStart(t *testing.T) {
 	t.Parallel()
 
 	// Test setup
-	ctx := context.Background()
+	ctx := t.Context()
 	tests := []struct {
 		name         string
 		triggers     []Trigger

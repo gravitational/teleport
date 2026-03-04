@@ -245,7 +245,7 @@ func (p *proxyTunnelStrategy) dialNode(t *testing.T) {
 		client.Stdout = output
 
 		cmd := []string{"echo", "hello world"}
-		err = client.SSH(context.Background(), cmd)
+		err = client.SSH(t.Context(), cmd)
 		require.NoError(t, err)
 		require.Equal(t, "hello world\n", output.String())
 	}
@@ -253,7 +253,7 @@ func (p *proxyTunnelStrategy) dialNode(t *testing.T) {
 
 func (p *proxyTunnelStrategy) dialDatabase(t *testing.T) {
 	for i, proxy := range p.proxies {
-		connClient, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+		connClient, err := postgres.MakeTestClient(t.Context(), common.TestClientConfig{
 			AuthClient: p.dbAuthClient,
 			AuthServer: p.auth.Process.GetAuthServer(),
 			Address:    proxy.Web,
@@ -268,12 +268,12 @@ func (p *proxyTunnelStrategy) dialDatabase(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		result, err := connClient.Exec(context.Background(), "select 1").ReadAll()
+		result, err := connClient.Exec(t.Context(), "select 1").ReadAll()
 		require.NoError(t, err)
 		require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 		require.Equal(t, uint32(i+1), p.postgresDB.QueryCount())
 
-		err = connClient.Close(context.Background())
+		err = connClient.Close(t.Context())
 		require.NoError(t, err)
 	}
 }
@@ -284,7 +284,7 @@ func (p *proxyTunnelStrategy) makeLoadBalancer(t *testing.T) {
 		require.Fail(t, "load balancer already initialized")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	lbAddr := utils.MustParseAddr(net.JoinHostPort(helpers.Loopback, "0"))
@@ -467,7 +467,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 
 	role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
 	role.SetDatabaseNames(types.Allow, []string{types.Wildcard})
-	_, err = p.auth.Process.GetAuthServer().UpsertRole(context.Background(), role)
+	_, err = p.auth.Process.GetAuthServer().UpsertRole(t.Context(), role)
 	require.NoError(t, err)
 
 	// start the process and block until specified events are received.
@@ -513,11 +513,12 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 // proxies by making sure the proxy peer connectivity info (if any) got
 // propagated to the auth server.
 func (p *proxyTunnelStrategy) waitForNodeToBeReachable(t *testing.T) {
-	nodeID, err := p.node.Process.WaitForHostID(t.Context())
+	ctx := t.Context()
+	nodeID, err := p.node.Process.WaitForHostID(ctx)
 	require.NoError(t, err)
-	check := func(t *helpers.TeleInstance, availability int) (bool, error) {
-		nodes, err := t.GetSiteAPI(p.cluster).GetNodes(
-			context.Background(),
+	check := func(inst *helpers.TeleInstance, availability int) (bool, error) {
+		nodes, err := inst.GetSiteAPI(p.cluster).GetNodes(
+			ctx,
 			apidefaults.Namespace,
 		)
 		if err != nil {
@@ -538,11 +539,12 @@ func (p *proxyTunnelStrategy) waitForNodeToBeReachable(t *testing.T) {
 // proxies by making sure the proxy peer connectivity info (if any) got
 // propagated to the auth server.
 func (p *proxyTunnelStrategy) waitForDatabaseToBeReachable(t *testing.T) {
-	dbID, err := p.db.Process.WaitForHostID(t.Context())
+	ctx := t.Context()
+	dbID, err := p.db.Process.WaitForHostID(ctx)
 	require.NoError(t, err)
-	check := func(t *helpers.TeleInstance, availability int) (bool, error) {
-		databases, err := t.GetSiteAPI(p.cluster).GetDatabaseServers(
-			context.Background(),
+	check := func(inst *helpers.TeleInstance, availability int) (bool, error) {
+		databases, err := inst.GetSiteAPI(p.cluster).GetDatabaseServers(
+			ctx,
 			apidefaults.Namespace,
 		)
 		if err != nil {

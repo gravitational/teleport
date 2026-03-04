@@ -48,11 +48,11 @@ func TestGetOnCallUsers(t *testing.T) {
 			},
 		},
 	}
-	users, err := a.getOnCallUsers(context.Background(), []string{"rota1"})
+	users, err := a.getOnCallUsers(t.Context(), []string{"rota1"})
 	require.NoError(t, err)
 	require.Equal(t, []string{"user1", "user2"}, users)
 
-	users, err = a.getOnCallUsers(context.Background(), []string{"rota1", "rota3", "rota2"})
+	users, err = a.getOnCallUsers(t.Context(), []string{"rota1", "rota3", "rota2"})
 	require.NoError(t, err)
 	require.Equal(t, []string{"user1", "user2", "user3", "user2"}, users)
 }

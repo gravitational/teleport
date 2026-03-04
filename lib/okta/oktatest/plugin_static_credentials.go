@@ -19,7 +19,6 @@
 package oktatest
 
 import (
-	"context"
 	"testing" //nolint:depguard // this a shared test package
 
 	"github.com/google/uuid"
@@ -84,7 +83,7 @@ func NewPluginStaticCredentials(t *testing.T, plugin *types.PluginV1, opts ...pl
 // UpsertPluginStaticCredentials upserts Okta plugin ignoring the revision.
 func UpsertPluginStaticCredentials(t *testing.T, credsSvc services.PluginStaticCredentials, staticCreds types.PluginStaticCredentials) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	require.Equal(t, types.PluginTypeOkta, staticCreds.GetName())
 

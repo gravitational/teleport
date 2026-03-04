@@ -287,7 +287,7 @@ func TestUpdateBotLogins(t *testing.T) {
 				setLogins: tt.set,
 			}
 
-			err = cmd.updateBotLogins(context.Background(), bot, fieldMask)
+			err = cmd.updateBotLogins(t.Context(), bot, fieldMask)
 			tt.assert(t, bot, fieldMask, err)
 		})
 	}
@@ -413,7 +413,7 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 		},
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableProxy())
-	ctx := context.Background()
+	ctx := t.Context()
 	client, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
 

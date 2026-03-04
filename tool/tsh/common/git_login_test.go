@@ -19,7 +19,6 @@
 package common
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -33,7 +32,7 @@ func Test_getGitHubIdentity(t *testing.T) {
 		Proxy:    "proxy",
 		Username: "github-username",
 		HomePath: t.TempDir(),
-		Context:  context.Background(),
+		Context:  t.Context(),
 	}
 
 	tests := []struct {

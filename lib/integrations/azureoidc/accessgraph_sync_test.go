@@ -89,7 +89,7 @@ func (c *mockAzureConfigClient) GrantAppRoleToServicePrincipal(ctx context.Conte
 }
 
 func TestAccessGraphAzureConfigOutput(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, tt := range []struct {
 		clientCfg mockClientConfig
 		hasError  bool

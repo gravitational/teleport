@@ -96,7 +96,7 @@ func TestIsInstanceMetadataAvailable(t *testing.T) {
 			client := &InstanceMetadataClient{
 				getMetadata: tc.getMetadata,
 			}
-			tc.assert(t, client.IsAvailable(context.Background()))
+			tc.assert(t, client.IsAvailable(t.Context()))
 		})
 	}
 
@@ -106,7 +106,7 @@ func TestIsInstanceMetadataAvailable(t *testing.T) {
 		}
 		client, err := NewInstanceMetadataClient(nil)
 		require.NoError(t, err)
-		require.True(t, client.IsAvailable(context.Background()))
+		require.True(t, client.IsAvailable(t.Context()))
 	})
 }
 
@@ -204,7 +204,7 @@ func TestGetTags(t *testing.T) {
 				getMetadata:    tc.getMetadata,
 				instanceGetter: tc.instancesClient,
 			}
-			tags, err := client.GetTags(context.Background())
+			tags, err := client.GetTags(t.Context())
 			tc.assertErr(t, err)
 			require.Equal(t, tc.expectedTags, tags)
 		})

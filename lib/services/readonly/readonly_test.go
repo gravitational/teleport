@@ -70,14 +70,14 @@ func TestAuthPreference(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get the auth preference resource.
-	authPref, err := cache.GetReadOnlyAuthPreference(context.Background())
+	authPref, err := cache.GetReadOnlyAuthPreference(t.Context())
 	require.NoError(t, err)
 
 	// Verify that the auth preference resource cannot be cast back to a write-supporting interface.
 	_, ok := authPref.(types.AuthPreference)
 	require.False(t, ok)
 
-	authPref2, err := cache.GetReadOnlyAuthPreference(context.Background())
+	authPref2, err := cache.GetReadOnlyAuthPreference(t.Context())
 	require.NoError(t, err)
 
 	// verify pointer equality (i.e. that subsequent reads return the same shared resource).
@@ -95,14 +95,14 @@ func TestClusterNetworkingConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get the cluster networking config resource.
-	networking, err := cache.GetReadOnlyClusterNetworkingConfig(context.Background())
+	networking, err := cache.GetReadOnlyClusterNetworkingConfig(t.Context())
 	require.NoError(t, err)
 
 	// Verify that the cluster networking config resource cannot be cast back to a write-supporting interface.
 	_, ok := networking.(types.ClusterNetworkingConfig)
 	require.False(t, ok)
 
-	networking2, err := cache.GetReadOnlyClusterNetworkingConfig(context.Background())
+	networking2, err := cache.GetReadOnlyClusterNetworkingConfig(t.Context())
 	require.NoError(t, err)
 
 	// verify pointer equality (i.e. that subsequent reads return the same shared resource).
@@ -120,14 +120,14 @@ func TestSessionRecordingConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get the session recording config resource.
-	recording, err := cache.GetReadOnlySessionRecordingConfig(context.Background())
+	recording, err := cache.GetReadOnlySessionRecordingConfig(t.Context())
 	require.NoError(t, err)
 
 	// Verify that the session recording config resource cannot be cast back to a write-supporting interface.
 	_, ok := recording.(types.SessionRecordingConfig)
 	require.False(t, ok)
 
-	recording2, err := cache.GetReadOnlySessionRecordingConfig(context.Background())
+	recording2, err := cache.GetReadOnlySessionRecordingConfig(t.Context())
 	require.NoError(t, err)
 
 	// verify pointer equality (i.e. that subsequent reads return the same shared resource).
@@ -165,7 +165,7 @@ func TestAccessGraphSettings(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get the session recording config resource.
-	ag, err := cache.GetReadOnlyAccessGraphSettings(context.Background())
+	ag, err := cache.GetReadOnlyAccessGraphSettings(t.Context())
 	require.NoError(t, err)
 
 	// Verify that the access graph settings resource cannot be cast back to a write-supporting interface.
@@ -174,7 +174,7 @@ func TestAccessGraphSettings(t *testing.T) {
 	_, ok := ag.(sealedAccessGraphSettings)
 	require.True(t, ok)
 
-	ag2, err := cache.GetReadOnlyAccessGraphSettings(context.Background())
+	ag2, err := cache.GetReadOnlyAccessGraphSettings(t.Context())
 	require.NoError(t, err)
 
 	// verify pointer equality (i.e. that subsequent reads return the same shared resource).

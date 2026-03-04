@@ -31,7 +31,7 @@ import (
 func TestGenerateReport_FailedCheck(t *testing.T) {
 	diagCheck := &FakeDiagCheck{shouldFail: true}
 
-	report, err := GenerateReport(context.Background(), ReportPrerequisites{
+	report, err := GenerateReport(t.Context(), ReportPrerequisites{
 		Clock:               clockwork.NewFakeClock(),
 		NetworkStackAttempt: &diagv1.NetworkStackAttempt{},
 		DiagChecks:          []DiagCheck{diagCheck},
@@ -52,7 +52,7 @@ func TestGenerateReport_FailedCheck(t *testing.T) {
 func TestGenerateReport_SkipCommands(t *testing.T) {
 	diagCheck := &FakeDiagCheck{}
 
-	report, err := GenerateReport(context.Background(), ReportPrerequisites{
+	report, err := GenerateReport(t.Context(), ReportPrerequisites{
 		Clock:               clockwork.NewFakeClock(),
 		NetworkStackAttempt: &diagv1.NetworkStackAttempt{},
 		DiagChecks:          []DiagCheck{diagCheck},

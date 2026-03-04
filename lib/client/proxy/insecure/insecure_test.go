@@ -19,7 +19,6 @@
 package insecure
 
 import (
-	"context"
 	"crypto/tls"
 	"errors"
 	"log/slog"
@@ -148,7 +147,7 @@ func TestBuildTLSConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(apidefaults.TLSRoutingConnUpgradeEnvVar, strconv.FormatBool(tt.alpnEnvValue))
-			tlsConfig, alpnUpgrade := buildTLSConfig(context.Background(), ConnectionConfig{
+			tlsConfig, alpnUpgrade := buildTLSConfig(t.Context(), ConnectionConfig{
 				ProxyServer: tt.proxyAddr,
 				Insecure:    tt.insecure,
 				Log:         slog.Default(),

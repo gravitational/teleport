@@ -79,12 +79,12 @@ func TestIsAvailable(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			imdsURL := mockIMDSServer(t, tc.imdsStatus, tc.imdsResponse)
 			clt := &InstanceMetadataClient{baseIMDSAddr: imdsURL}
-			tc.assert(t, clt.IsAvailable(context.Background()))
+			tc.assert(t, clt.IsAvailable(t.Context()))
 		})
 	}
 
 	t.Run("don't hang on connection", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 		t.Cleanup(cancel)
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			select {
@@ -119,7 +119,7 @@ func TestGetTags(t *testing.T) {
 		},
 	})
 	clt := &InstanceMetadataClient{baseIMDSAddr: serverURL}
-	tags, err := clt.GetTags(context.Background())
+	tags, err := clt.GetTags(t.Context())
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{
 		"my-namespace/foo": "bar",

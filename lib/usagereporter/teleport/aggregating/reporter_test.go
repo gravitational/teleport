@@ -43,7 +43,7 @@ import (
 )
 
 func TestReporter(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	clk := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{
@@ -220,7 +220,7 @@ func TestReporter(t *testing.T) {
 }
 
 func TestReporterMachineWorkloadIdentityActivity(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	clk := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{

@@ -133,7 +133,7 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 		c := newSqsMessagesCollector(cfg)
 		eventsChan := c.getEventsChan()
 
-		readSQSCtx, readCancel := context.WithCancel(context.Background())
+		readSQSCtx, readCancel := context.WithCancel(t.Context())
 		go c.fromSQS(readSQSCtx)
 
 		// When
@@ -346,7 +346,7 @@ func rawProtoMessage(in apievents.AuditEvent) sqsTypes.Message {
 // from ReceiveMessage endpoint, will wait specified interval before retrying
 // after receiving error from API call.
 func TestSQSMessagesCollectorErrorsOnReceive(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Minute)
 	defer cancel()
 
 	mockReceiver := &mockReceiver{
@@ -431,9 +431,9 @@ func TestConsumerRunContinuouslyOnSingleAuth(t *testing.T) {
 	m1 := mockEventsProcessor{interval: batchInterval}
 	m2 := mockEventsProcessor{interval: batchInterval}
 
-	ctx1, cancel1 := context.WithCancel(context.Background())
+	ctx1, cancel1 := context.WithCancel(t.Context())
 	defer cancel1()
-	ctx2, cancel2 := context.WithCancel(context.Background())
+	ctx2, cancel2 := context.WithCancel(t.Context())
 	defer cancel2()
 
 	// start two consumer with different mocks in background.
@@ -494,7 +494,7 @@ func (m *mockEventsProcessor) getCount() int {
 }
 
 func TestRunWithMinInterval(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	t.Run("function returns earlier than minInterval, wait should happen", func(t *testing.T) {
 		fn := func(ctx context.Context) bool {
 			// did not reached max size
@@ -561,7 +561,7 @@ func TestRunWithMinInterval(t *testing.T) {
 // files are created and compare it against file in testdata.
 // Testdata files should be verified with "parquet tools" cli after changing.
 func TestConsumerWriteToS3(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Minute)
 	defer cancel()
 
 	tmp := t.TempDir()
@@ -659,7 +659,7 @@ func parquetRowsToAuditEvents(in []eventParquet) ([]apievents.AuditEvent, error)
 
 func TestDeleteMessagesFromQueue(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	handlesGen := func(n int) []string {
 		out := make([]string, 0, n)

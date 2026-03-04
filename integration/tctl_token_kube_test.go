@@ -122,7 +122,7 @@ func TestTCTLTokenConfigureKubeCommand_OIDC(t *testing.T) {
 
 	// Test setup: obtaining and authclient connected via the proxy.
 	clt := getAuthClientForProxy(t, rc, testUsername, time.Hour)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	pong, err := clt.Ping(ctx)
 	require.NoError(t, err)
@@ -239,7 +239,7 @@ func TestTCTLTokenConfigureKubeCommand_JWKS(t *testing.T) {
 
 	// Test setup: obtaining and authclient connected via the proxy.
 	clt := getAuthClientForProxy(t, rc, testUsername, time.Hour)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	pong, err := clt.Ping(ctx)
 	require.NoError(t, err)

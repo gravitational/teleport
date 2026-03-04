@@ -682,13 +682,13 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 					// Here we continue the use and maintenance of the single "test-pod" pod approach.
 					// On successful test, "test-pod" is deleted, and re-created for the next test.
 					pod := newPod(testNamespace, testPod)
-					if _, err := suite.CoreV1().Pods(testNamespace).Create(context.Background(), pod, metav1.CreateOptions{}); err != nil {
+					if _, err := suite.CoreV1().Pods(testNamespace).Create(t.Context(), pod, metav1.CreateOptions{}); err != nil {
 						require.True(t, kubeerrors.IsAlreadyExists(err), "Failed to create test pod: %s.", err)
 					}
 
 					// Wait for pod to be running.
 					require.Eventually(t, func() bool {
-						rsp, err := suite.CoreV1().Pods(testNamespace).Get(context.Background(), testPod, metav1.GetOptions{})
+						rsp, err := suite.CoreV1().Pods(testNamespace).Get(t.Context(), testPod, metav1.GetOptions{})
 						if err != nil {
 							t.Logf("Get pod error: %s", err)
 							return false

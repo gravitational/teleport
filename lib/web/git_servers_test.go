@@ -19,7 +19,6 @@
 package web
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -37,7 +36,7 @@ func TestGitServers(t *testing.T) {
 	wPack := newWebPack(t, 1 /* proxies */)
 	proxy := wPack.proxies[0]
 	authPack := proxy.authPack(t, "user", []types.Role{services.NewPresetEditorRole()})
-	ctx := context.Background()
+	ctx := t.Context()
 
 	orgName := "my-org"
 	integrationName := "github-" + orgName

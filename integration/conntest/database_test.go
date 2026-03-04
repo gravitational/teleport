@@ -19,7 +19,6 @@
 package conntest
 
 import (
-	"context"
 	"encoding/base32"
 	"encoding/json"
 	"net"
@@ -69,7 +68,7 @@ func startPostgresTestServer(t *testing.T, authServer *auth.Server) *postgres.Te
 func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 	modules.SetInsecureTestMode(true)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	diagnoseConnectionEndpoint := strings.Join([]string{"sites", "$site", "diagnostics", "connections"}, "/")
 
 	// Start Teleport Auth and Proxy services
@@ -319,7 +318,7 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 }
 
 func waitForDatabases(t *testing.T, authServer *auth.Server, dbNames []string) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	require.Eventually(t, func() bool {
 		all, err := authServer.GetDatabaseServers(ctx, apidefaults.Namespace)

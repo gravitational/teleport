@@ -19,7 +19,6 @@
 package auth_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -303,7 +302,7 @@ func newBotToken(t *testing.T, tokenName, botName string, role types.SystemRole,
 // renewable certificates for a non-interactive user.
 func TestJoin_Bot(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	srv := newTestTLSServer(t)
 
@@ -417,7 +416,7 @@ func TestJoin_Bot(t *testing.T) {
 // does not exceed the limit.
 func TestJoin_Bot_Expiry(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	srv := newTestTLSServer(t)
 

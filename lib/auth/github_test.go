@@ -132,7 +132,7 @@ func TestPopulateClaims(t *testing.T) {
 
 func TestCreateGithubUser(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	tt := setupGithubContext(ctx, t)
 
 	// Dry-run creation of Github user.
@@ -197,7 +197,7 @@ func (c *testGithubAPIClient) getTeams() ([]auth.GithubTeamResponse, error) {
 func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 	t.Parallel()
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
-	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
+	ctx := authz.ContextWithClientSrcAddr(t.Context(), clientAddr)
 	tt := setupGithubContext(ctx, t)
 	logger := logtest.NewLogger()
 
@@ -296,7 +296,7 @@ func (m *mockedGithubManager) ValidateGithubAuthRedirect(ctx context.Context, di
 
 func TestCalculateGithubUserNoTeams(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	a := &auth.Server{}
 	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
 		TeamsToRoles: []types.TeamRolesMapping{
@@ -326,7 +326,7 @@ func TestCalculateGithubUserNoTeams(t *testing.T) {
 // traits end up in the user params, and traits are evaluated exactly once.
 func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create a test role so that FetchRoles can succeed.
 	roles := map[string]types.Role{
@@ -526,7 +526,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 	}
 
 	var orgCache *utils.FnCache
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {

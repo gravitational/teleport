@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -34,7 +33,7 @@ import (
 
 // TestPluginStaticCredentialsCRUD tests backend operations with plugin static credentials resources.
 func TestPluginStaticCredentialsCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,

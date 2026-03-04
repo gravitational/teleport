@@ -51,7 +51,7 @@ import (
 func TestUserNotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
@@ -66,7 +66,7 @@ func TestUserNotFound(t *testing.T) {
 
 func TestPasswordLengthChange(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 		AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
@@ -147,7 +147,7 @@ func TestChangePasswordWithOTP(t *testing.T) {
 	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
 	dev, err := services.NewTOTPDevice("otp", otpSecret, clock.Now())
 	require.NoError(t, err)
-	ctx := context.Background()
+	ctx := t.Context()
 	err = as.AuthServer.UpsertMFADevice(ctx, req.User, dev)
 	require.NoError(t, err)
 
@@ -184,7 +184,7 @@ func TestServer_ChangePassword(t *testing.T) {
 	userClient, err := srv.NewClient(authtest.TestUser(username))
 	require.NoError(t, err)
 	passwordlessDev, err := authtest.RegisterTestDevice(
-		context.Background(),
+		t.Context(),
 		userClient,
 		"passwordless-1",
 		proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
@@ -274,7 +274,7 @@ func TestServer_ChangePassword(t *testing.T) {
 	}
 
 	authServer := srv.Auth()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -318,7 +318,7 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 	server := newTestTLSServer(t)
 	mfa := configureForMFA(t, server)
 	authServer := server.Auth()
-	ctx := context.Background()
+	ctx := t.Context()
 	username := mfa.User
 	password := mfa.Password
 
@@ -444,7 +444,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
 	authServer := as.AuthServer
 	clock := as.Clock()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name              string
@@ -723,7 +723,7 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	username := "joe@example.com"
 	_, _, err = authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
@@ -826,7 +826,7 @@ func TestResetPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	// Reset password.
-	ctx := context.Background()
+	ctx := t.Context()
 	err = as.AuthServer.ResetPassword(ctx, "dave")
 	require.NoError(t, err)
 

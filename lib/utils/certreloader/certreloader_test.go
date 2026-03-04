@@ -19,7 +19,6 @@
 package certreloader
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"os"
@@ -156,7 +155,7 @@ func TestCertReloader(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			// Create empty certs and ensure they get cleaned up.
 			certs := newCerts(t)
 

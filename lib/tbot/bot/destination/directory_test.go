@@ -19,7 +19,6 @@
 package destination
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -97,7 +96,7 @@ func TestDestinationDirectory_ACLs(t *testing.T) {
 		t.Skipf("ACLs not supported on this host")
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test")
 

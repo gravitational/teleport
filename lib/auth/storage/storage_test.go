@@ -47,7 +47,7 @@ import (
 )
 
 func TestRDPLicense(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mem, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	storage := ProcessStorage{
@@ -206,7 +206,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 				kubeBackend = tt.args.kubeBackend
 			}
 
-			hostID, err := readOrGenerateHostID(context.Background(), cfg, kubeBackend)
+			hostID, err := readOrGenerateHostID(t.Context(), cfg, kubeBackend)
 			require.NoError(t, err)
 
 			require.True(t, tt.wantFunc(hostID))

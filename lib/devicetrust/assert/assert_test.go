@@ -36,7 +36,7 @@ func TestCeremony(t *testing.T) {
 
 	deviceID := uuid.NewString()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	macDev, err := testenv.NewFakeMacOSDevice()
 	require.NoError(t, err, "NewFakeMacOSDevice errored")

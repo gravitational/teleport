@@ -19,7 +19,6 @@
 package log
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -48,7 +47,7 @@ func TestFileSharedWriterNotify(t *testing.T) {
 	})
 
 	signal := make(chan struct{})
-	err = logWriter.runWatcherFunc(context.Background(), func() error {
+	err = logWriter.runWatcherFunc(t.Context(), func() error {
 		err := logWriter.Reopen()
 		signal <- struct{}{}
 		return err
@@ -102,7 +101,7 @@ func TestFileSharedWriterFinalizer(t *testing.T) {
 	firstLogWriter, err := NewFileSharedWriter(logFileName, testFileFlag, testFileMode)
 	require.NoError(t, err, "failed to init the file shared writer")
 
-	err = firstLogWriter.runWatcherFunc(context.Background(), func() error {
+	err = firstLogWriter.runWatcherFunc(t.Context(), func() error {
 		firstWatcherTriggered.Store(true)
 		return nil
 	})
@@ -119,7 +118,7 @@ func TestFileSharedWriterFinalizer(t *testing.T) {
 	require.NoError(t, err, "failed to init the file shared writer")
 
 	signal := make(chan struct{})
-	err = secondLogWriter.runWatcherFunc(context.Background(), func() error {
+	err = secondLogWriter.runWatcherFunc(t.Context(), func() error {
 		err := secondLogWriter.Reopen()
 		signal <- struct{}{}
 		return err
@@ -148,7 +147,7 @@ func TestFileSharedWriterFinalizer(t *testing.T) {
 
 	// Check that we receive the error if we are going to try to run watcher
 	// again for closed one.
-	err = firstLogWriter.RunWatcherReopen(context.Background())
+	err = firstLogWriter.RunWatcherReopen(t.Context())
 	require.ErrorIs(t, err, ErrFileSharedWriterClosed)
 
 	// First file shared writer must be already closed and produce error after

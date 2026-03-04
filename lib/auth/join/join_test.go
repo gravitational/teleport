@@ -84,7 +84,7 @@ func newTestTLSServer(t testing.TB) *authtest.TLSServer {
 // algorithm suite.
 func TestRegisterWithAlgorithmSuite(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	srv := newTestTLSServer(t)
 
@@ -158,7 +158,7 @@ func TestRegisterWithAlgorithmSuite(t *testing.T) {
 // renewable certificates for a non-interactive user.
 func TestRegister_Bot(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	srv := newTestTLSServer(t)
 
@@ -272,7 +272,7 @@ func TestRegister_Bot(t *testing.T) {
 // does not exceed the limit.
 func TestRegister_Bot_Expiry(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	srv := newTestTLSServer(t)
 
@@ -369,7 +369,7 @@ func (a *authJoinClientMock) Ping(_ context.Context) (proto.PingResponse, error)
 // TestRegisterWithAuthClient is a unit test to validate joining using a
 // auth client supplied via RegisterParams
 func TestRegisterWithAuthClient(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	expectedCerts := &proto.Certs{
 		SSH: []byte("ssh-cert"),
 	}

@@ -269,7 +269,7 @@ func TestSessions(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	user := "user1"
 	pass := []byte("abcdef123456")
@@ -436,7 +436,7 @@ func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
 		return makeTokenSuccess(ctx, dwt)
 	})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	makeReq := func(ua string) *authclient.AuthenticateUserRequest {
 		return &authclient.AuthenticateUserRequest{
 			Username: user,
@@ -525,7 +525,7 @@ func TestAuthenticateWebUser_trustedDeviceRequirement(t *testing.T) {
 
 	s := newAuthSuite(t)
 	authServer := s.a
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const user1 = "llama"
 	const pass1 = "supersecretpassword!!1!"
@@ -643,7 +643,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Register the leaf cluster.
 	leaf, err := types.NewRemoteCluster("leaf.localhost")
@@ -939,7 +939,7 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	const user = "llama"
 	const pass = "supersecret!!1!one"
 
@@ -1125,7 +1125,7 @@ func TestUserLock(t *testing.T) {
 func TestAuth_SetStaticTokens(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	roles := types.SystemRoles{types.RoleProxy}
 	st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -1171,7 +1171,7 @@ func TestBadTokens(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// empty
 	_, err := s.a.ValidateToken(ctx, "")
 	require.Error(t, err)
@@ -1244,7 +1244,7 @@ func TestLocalControlStream(t *testing.T) {
 func TestUpdateConfig(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cn, err := s.a.GetClusterName(ctx)
 	require.NoError(t, err)
@@ -1317,7 +1317,7 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	s := newAuthSuite(t)
 
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
-	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
+	ctx := authz.ContextWithClientSrcAddr(t.Context(), clientAddr)
 	s.a.SetEmitter(s.mockEmitter)
 
 	// set up existing cluster to bypass switch cases that
@@ -1376,7 +1376,7 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	s := newAuthSuite(t)
 
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
-	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
+	ctx := authz.ContextWithClientSrcAddr(t.Context(), clientAddr)
 	github, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{
 		TeamsToRoles: []types.TeamRolesMapping{
 			{
@@ -1430,7 +1430,7 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{
 		ClientID:     "a",
 		ClientSecret: "b",
@@ -1480,7 +1480,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// generate a certificate that makes ParseCertificatePEM happy, copied from ca_test.go
 	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
@@ -1552,7 +1552,7 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 	t.Parallel()
 	mockE := &eventstest.MockRecorderEmitter{}
 
-	auth.EmitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), false)
+	auth.EmitSSOLoginFailureEvent(t.Context(), mockE, "test", trace.BadParameter("some error"), false)
 
 	expectedLoginFailure := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
@@ -1568,7 +1568,7 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 	}
 	require.Equal(t, expectedLoginFailure, mockE.LastEvent())
 
-	auth.EmitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), true)
+	auth.EmitSSOLoginFailureEvent(t.Context(), mockE, "test", trace.BadParameter("some error"), true)
 
 	expectedTestFailure := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
@@ -1598,7 +1598,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	authServer := as.AuthServer
 	emitter := &eventstest.MockRecorderEmitter{}
 	authServer.SetEmitter(emitter)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const username = "llama"
 	const pass = "secret!!1!!!"
@@ -1755,7 +1755,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
 	authServer := as.AuthServer
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const pass1 = "secret!!1!!!"
 	const pass2 = "secret!!2!!!"
@@ -1855,7 +1855,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	// Issue augmented certs for user1.
 	// Used to test that re-issue of augmented certs is not allowed.
 	ctxFromAuthorize := as.Authorizer.Authorize
-	aCtx := authz.ContextWithUserCertificate(context.Background(), xCert1)
+	aCtx := authz.ContextWithUserCertificate(t.Context(), xCert1)
 	aCtx = authz.ContextWithUser(aCtx, authz.LocalUser{
 		Username: identity1.Username,
 		Identity: *identity1,
@@ -2210,7 +2210,7 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
 	authServer := as.AuthServer
-	ctx := context.Background()
+	ctx := t.Context()
 
 	userData := setupUserForAugmentWebSessionCertificatesTest(t, authServer)
 
@@ -2341,7 +2341,7 @@ func TestServer_ExtendWebSession_deviceExtensions(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
 	authServer := as.AuthServer
-	ctx := context.Background()
+	ctx := t.Context()
 
 	userData := setupUserForAugmentWebSessionCertificatesTest(t, authServer)
 
@@ -2411,7 +2411,7 @@ type augmentUserData struct {
 }
 
 func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, authServer *auth.Server) *augmentUserData {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	user := &augmentUserData{
 		user: "llama_" + uuid.NewString(),
@@ -2449,7 +2449,7 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 
 	s := newAuthSuite(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const pinnedUser = "pinnedUser"
 	const unpinnedUser = "unpinnedUser"
@@ -3193,7 +3193,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	authServer.SetEmitter(mockEmitter)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const username = "llama@goteleport.com"
 	_, _, err := authtest.CreateUserAndRole(authServer, username, []string{username}, nil /* allowRules */)
@@ -3338,7 +3338,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	clock := testServer.Clock()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const username = "llama@goteleport.com"
 	_, _, err := authtest.CreateUserAndRole(authServer, username, []string{username}, nil)
@@ -3440,7 +3440,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 			if test.tokenRequest != nil {
 				token, err := authServer.NewUserToken(ctx, *test.tokenRequest)
 				require.NoError(t, err)
-				_, err = authServer.CreateUserToken(context.Background(), token)
+				_, err = authServer.CreateUserToken(t.Context(), token)
 				require.NoError(t, err)
 
 				deleteReq.TokenID = token.GetName()
@@ -3462,7 +3462,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create a user with TOTP and Webauthn.
 	userCreds, err := createUserWithSecondFactors(testServer)
@@ -3570,7 +3570,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	authServer.SetEmitter(mockEmitter)
 	clock := authServer.GetClock()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -3788,7 +3788,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 func TestGetMFADevices_WithToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -3847,7 +3847,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 			if tc.tokenRequest != nil {
 				token, err := srv.Auth().NewUserToken(ctx, *tc.tokenRequest)
 				require.NoError(t, err)
-				_, err = srv.Auth().CreateUserToken(context.Background(), token)
+				_, err = srv.Auth().CreateUserToken(t.Context(), token)
 				require.NoError(t, err)
 
 				tokenID = token.GetName()
@@ -3870,7 +3870,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 
 func TestGetMFADevices_WithAuth(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -3979,7 +3979,7 @@ func (m mockCache) ListResources(ctx context.Context, req proto.ListResourcesReq
 
 func TestFilterResources(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	fail := errors.New("fail")
 
@@ -4060,7 +4060,7 @@ func (f *fakeAuthPreferenceGetter) GetAuthPreference(context.Context) (types.Aut
 
 func TestCAGeneration(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	const (
 		clusterName = "cluster1"
 		HostUUID    = "0000-000-000-0000"
@@ -4102,7 +4102,7 @@ func TestGetLicense(t *testing.T) {
 	s := newAuthSuite(t)
 
 	// GetLicense should return error if license is not set
-	_, err := s.a.GetLicense(context.Background())
+	_, err := s.a.GetLicense(t.Context())
 	assert.Error(t, err)
 
 	// GetLicense should return cert and key pem concatenated, when license is set
@@ -4112,7 +4112,7 @@ func TestGetLicense(t *testing.T) {
 	}
 	s.a.SetLicense(&l)
 
-	actual, err := s.a.GetLicense(context.Background())
+	actual, err := s.a.GetLicense(t.Context())
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("%s%s", l.CertPEM, l.KeyPEM), actual)
 }
@@ -4120,7 +4120,7 @@ func TestGetLicense(t *testing.T) {
 func TestInstallerCRUD(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var inst types.Installer
 	var err error
@@ -4182,7 +4182,7 @@ func TestInstallerCRUD(t *testing.T) {
 func TestGetTokens(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_, _, err := authtest.CreateUserAndRole(s.a, "username", []string{"username"}, nil)
 	require.NoError(t, err)
@@ -4264,7 +4264,7 @@ func TestAccessRequestAuditLog(t *testing.T) {
 
 func testCreateRole(t *testing.T, server *authtest.TLSServer, name string, setup func(*types.RoleSpecV6)) types.Role {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	spec := types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -4291,7 +4291,7 @@ func testCreateRole(t *testing.T, server *authtest.TLSServer, name string, setup
 
 func testCreateUserWithRoles(t *testing.T, server *authtest.TLSServer, user string, roles ...string) (authtest.TestIdentity, *authclient.Client) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	u, err := types.NewUser(user)
 	require.NoError(t, err, "types.NewUser")
@@ -4308,7 +4308,7 @@ func testCreateUserWithRoles(t *testing.T, server *authtest.TLSServer, user stri
 
 func TestAccessRequestNotifications(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	fakeClock := clockwork.NewFakeClock()
 
@@ -4401,7 +4401,7 @@ func testNewAccessRequest(t *testing.T, user string, roles ...string) types.Acce
 
 func TestAccessRequestDryRunEnrichment(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
@@ -4553,7 +4553,7 @@ func TestAccessRequestDryRunEnrichment(t *testing.T) {
 
 func TestCleanupNotifications(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	fakeClock := clockwork.NewFakeClock()
@@ -4691,7 +4691,7 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 }
 
 func testCreateAccessListReminderNotifications(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
@@ -4975,7 +4975,7 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 
 			testTLSServer.AuthServer.AuthServer.SetLicense(tt.license)
 
-			got, err := testTLSServer.AuthServer.AuthServer.GetAnonymizationKey(context.Background())
+			got, err := testTLSServer.AuthServer.AuthServer.GetAnonymizationKey(t.Context())
 			tt.errCheck(t, err)
 			require.Equal(t, tt.want, got)
 		})
@@ -5030,7 +5030,7 @@ func newGlobalNotificationWithExpiry(t *testing.T, title string, expires *timest
 // illegal name being placed in a label.
 func TestServerHostnameSanitization(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, srv.Close()) })
@@ -5299,7 +5299,7 @@ func TestCreateAuthPreference(t *testing.T) {
 				test.preference(pref)
 			}
 
-			created, err := server.CreateAuthPreference(context.Background(), pref)
+			created, err := server.CreateAuthPreference(t.Context(), pref)
 			test.assertion(t, created, err)
 		})
 	}

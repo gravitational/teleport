@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 
 	"github.com/jonboulle/clockwork"
@@ -32,7 +31,7 @@ import (
 func TestDatabaseServices(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{

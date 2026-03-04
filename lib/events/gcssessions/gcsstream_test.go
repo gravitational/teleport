@@ -69,7 +69,7 @@ func TestUploadFromPath(t *testing.T) {
 
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	uri := os.Getenv(teleport.GCSTestURI)
 	if uri == "" {
 		t.Skipf("Skipping GCS tests, set env var %q, details here: https://goteleport.com/teleport/docs/gcp-guide/",

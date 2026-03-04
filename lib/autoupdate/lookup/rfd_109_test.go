@@ -19,7 +19,6 @@
 package lookup
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -88,7 +87,7 @@ func (m *mockRFD109VersionServer) ServeHTTP(w http.ResponseWriter, r *http.Reque
 
 func TestGetVersionFromChannel(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	channelName := "test-channel"
 
@@ -171,7 +170,7 @@ func TestGetVersionFromChannel(t *testing.T) {
 
 func TestGetTriggerFromChannel(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	channelName := "test-channel"
 

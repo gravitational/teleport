@@ -20,7 +20,6 @@ package common
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -106,7 +105,7 @@ spec:
 }
 
 func testEditHealthCheckConfig(t *testing.T, clt *authclient.Client) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// create expected health check config
 	expected, err := healthcheckconfig.NewHealthCheckConfig("test",

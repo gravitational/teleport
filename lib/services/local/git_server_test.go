@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"sort"
 	"testing"
 
@@ -57,7 +56,7 @@ func compareGitServers(t *testing.T, listA, listB []types.Server) {
 }
 
 func TestGitServerCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	backend, err := memory.New(memory.Config{

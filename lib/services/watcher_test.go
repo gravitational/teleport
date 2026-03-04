@@ -78,7 +78,7 @@ func (n nopProxyGetter) ListProxyServers(_ context.Context, _ int, _ string) ([]
 
 func TestResourceWatcher_Backoff(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	w, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
@@ -119,7 +119,7 @@ func TestResourceWatcher_Backoff(t *testing.T) {
 func TestProxyWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -222,7 +222,7 @@ func newProxyServer(t *testing.T, name, addr string) types.Server {
 func TestLockWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -327,7 +327,7 @@ func TestLockWatcher(t *testing.T) {
 func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -563,7 +563,7 @@ func resourceDiff(res1, res2 types.Resource) string {
 func TestDatabaseWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -663,7 +663,7 @@ func newDatabase(t *testing.T, name string) types.Database {
 func TestAppWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -760,7 +760,7 @@ func newApp(t *testing.T, name string) *types.AppV3 {
 func TestCertAuthorityWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -832,7 +832,7 @@ func TestCertAuthorityWatcher(t *testing.T) {
 func TestDeprecatedCertAuthorityWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -984,7 +984,7 @@ func (f unhealthyWatcher) NewWatcher(ctx context.Context, watch types.Watch) (ty
 func TestNodeWatcherFallback(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	clock := clockwork.NewFakeClock()
 
@@ -1037,7 +1037,7 @@ func TestNodeWatcherFallback(t *testing.T) {
 func TestNodeWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -1111,7 +1111,7 @@ func newNodeServer(t *testing.T, name, hostname, addr string, tunnel bool) types
 func TestKubeServerWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -1161,14 +1161,14 @@ func TestKubeServerWatcher(t *testing.T) {
 		kubeServers = append(kubeServers, kubeServer)
 	}
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		filtered, err := w.CurrentResources(context.Background())
-		require.NoError(t, err)
-		require.Len(t, filtered, len(kubeServers))
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		filtered, err := w.CurrentResources(ctx)
+		require.NoError(ct, err)
+		require.Len(ct, filtered, len(kubeServers))
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive kube servers.")
 
 	// Test filtering by cluster name.
-	filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
+	filtered, err := w.CurrentResourcesWithFilter(t.Context(), func(ks readonly.KubeServer) bool {
 		return ks.GetName() == kubeServers[0].GetName()
 	})
 	require.NoError(t, err)
@@ -1176,13 +1176,13 @@ func TestKubeServerWatcher(t *testing.T) {
 
 	// Test Deleting a kube server.
 	require.NoError(t, presence.DeleteKubernetesServer(ctx, kubeServers[0].GetHostID(), kubeServers[0].GetName()))
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		kube, err := w.CurrentResources(context.Background())
-		require.NoError(t, err)
-		require.Len(t, kube, len(kubeServers)-1)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		kube, err := w.CurrentResources(ctx)
+		require.NoError(ct, err)
+		require.Len(ct, kube, len(kubeServers)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the delete event.")
 
-	filtered, err = w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
+	filtered, err = w.CurrentResourcesWithFilter(t.Context(), func(ks readonly.KubeServer) bool {
 		return ks.GetName() == kubeServers[0].GetName()
 	})
 	require.NoError(t, err)
@@ -1192,35 +1192,35 @@ func TestKubeServerWatcher(t *testing.T) {
 	kubeServer := newKubeServer(t, kubeServers[1].GetName(), "addr", uuid.NewString())
 	_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		filtered, err := w.CurrentResourcesWithFilter(ctx, func(ks readonly.KubeServer) bool {
 			return ks.GetName() == kubeServers[1].GetName()
 		})
-		require.NoError(t, err)
-		require.Len(t, filtered, 2)
+		require.NoError(ct, err)
+		require.Len(ct, filtered, 2)
 	}, 1000*time.Second, time.Millisecond, "Timeout waiting for watcher to the new registered kube server.")
 
 	// Test deleting all kube servers with the same name.
-	filtered, err = w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
+	filtered, err = w.CurrentResourcesWithFilter(t.Context(), func(ks readonly.KubeServer) bool {
 		return ks.GetName() == kubeServers[1].GetName()
 	})
 	assert.NoError(t, err)
 	for _, server := range filtered {
 		require.NoError(t, presence.DeleteKubernetesServer(ctx, server.GetHostID(), server.GetName()))
 	}
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		filtered, err := w.CurrentResourcesWithFilter(ctx, func(ks readonly.KubeServer) bool {
 			return ks.GetName() == kubeServers[1].GetName()
 		})
-		require.NoError(t, err)
-		require.Empty(t, filtered)
+		require.NoError(ct, err)
+		require.Empty(ct, filtered)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the two delete events.")
 
 	require.NoError(t, presence.DeleteAllKubernetesServers(ctx))
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		filtered, err := w.CurrentResources(context.Background())
-		require.NoError(t, err)
-		require.Empty(t, filtered)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		filtered, err := w.CurrentResources(ctx)
+		require.NoError(ct, err)
+		require.Empty(ct, filtered)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive all delete events.")
 }
 
@@ -1229,7 +1229,7 @@ func TestKubeServerWatcher(t *testing.T) {
 func TestAccessRequestWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -1340,7 +1340,7 @@ func newAccessRequest(t *testing.T, name string) types.AccessRequest {
 func TestOktaAssignmentWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -1500,7 +1500,7 @@ func newOktaAssignment(t *testing.T, name string) types.OktaAssignment {
 func TestGitServerWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
@@ -1563,7 +1563,7 @@ func TestGitServerWatcher(t *testing.T) {
 func TestHealthCheckConfigWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
@@ -1757,7 +1757,7 @@ func syncTestAppServerWatcher(t *testing.T) {
 	require.Empty(t, diffAppServers(appServers, current))
 
 	// Ensure filtering works
-	filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(s readonly.AppServer) bool {
+	filtered, err := w.CurrentResourcesWithFilter(t.Context(), func(s readonly.AppServer) bool {
 		return s.GetName() == appServers[0].GetName()
 	})
 	require.NoError(t, err)

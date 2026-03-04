@@ -19,7 +19,6 @@
 package web
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -42,7 +41,7 @@ import (
 func TestDiscoveryConfig(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	env := newWebPack(t, 1)
 	clusterName := env.server.ClusterName()

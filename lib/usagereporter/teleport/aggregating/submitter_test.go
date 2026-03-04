@@ -41,7 +41,7 @@ import (
 // function is just a jittered periodic call to submitOnce, so testing it has
 // very little use.
 func TestSubmitOnce(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clk := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{
 		Clock:     clk,

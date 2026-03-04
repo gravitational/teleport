@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -38,7 +37,7 @@ import (
 
 // TestAccessMonitoringRulesCRUD tests backend operations with AccessMonitoringRule resources.
 func TestAccessMonitoringRulesCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mem, err := memory.New(memory.Config{
 		Context: ctx,
@@ -245,7 +244,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	mem, err := memory.New(memory.Config{
 		Context: ctx,
 	})
@@ -277,7 +276,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 func TestListAccessMonitoringRules(t *testing.T) {
 	const pageSize = 5
 	const numAccessMonitoringRules = 2*pageSize + 1
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mem, err := memory.New(memory.Config{
 		Context: ctx,

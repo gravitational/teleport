@@ -62,7 +62,7 @@ func TestNew(t *testing.T) {
 // TestLogRotation makes sure that logs are rotated
 // on the day boundary and symlinks are created and updated
 func TestLogRotation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	start := time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC)
 	clock := clockwork.NewFakeClockAt(start)
 
@@ -133,7 +133,7 @@ func TestConcurrentStreaming(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { alog.Close() })
 
-	ctx := context.Background()
+	ctx := t.Context()
 	sid := session.ID("abc123")
 
 	// upload a bogus session so that we can try to stream its events
@@ -180,7 +180,7 @@ func TestStreamSessionEvents(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { alog.Close() })
 
-	ctx := context.Background()
+	ctx := t.Context()
 	sid := session.NewID()
 	sessionEvents := []apievents.AuditEvent{
 		&apievents.DatabaseSessionStart{
@@ -317,7 +317,7 @@ func TestExternalLog(t *testing.T) {
 	defer alog.Close()
 
 	evt := &apievents.SessionConnect{}
-	require.NoError(t, alog.EmitAuditEvent(context.Background(), evt))
+	require.NoError(t, alog.EmitAuditEvent(t.Context(), evt))
 
 	require.Len(t, m.Emitter.Events(), 1)
 	require.Equal(t, m.Emitter.Events()[0], evt)

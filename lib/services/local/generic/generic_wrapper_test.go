@@ -17,7 +17,6 @@
 package generic
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -90,7 +89,7 @@ func unmarshalResource153(data []byte, opts ...services.MarshalOption) (*testRes
 
 // TestGenericWrapperCRUD tests backend operations with the generic service.
 func TestGenericWrapperCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -268,7 +267,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 
 // TestGenericWrapperWithPrefix tests the withPrefix method of the generic service wrapper.
 func TestGenericWrapperWithPrefix(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,

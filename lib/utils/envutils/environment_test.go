@@ -20,7 +20,6 @@ package envutils
 
 import (
 	"bytes"
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,7 +27,7 @@ import (
 
 func TestReadEnvironment(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// contents of environment file
 	rawenv := []byte(`

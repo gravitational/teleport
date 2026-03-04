@@ -283,7 +283,7 @@ func TestWrapContextWithUser(t *testing.T) {
 				remoteAddr: utils.MustParseAddr("127.0.0.1:4242"),
 			}
 
-			parentCtx := context.Background()
+			parentCtx := t.Context()
 			ctx, err := m.WrapContextWithUser(parentCtx, conn)
 			require.NoError(t, err)
 			require.Equal(t, tt.needsHandshake, conn.handshakeCalled)

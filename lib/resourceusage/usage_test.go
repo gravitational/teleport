@@ -19,7 +19,6 @@
 package resourceusage
 
 import (
-	"context"
 	"slices"
 	"testing"
 	"time"
@@ -61,7 +60,7 @@ func TestGetAccessRequestMonthlyUsage(t *testing.T) {
 		return nil
 	})
 
-	result, err := GetAccessRequestMonthlyUsage(context.Background(), al, now)
+	result, err := GetAccessRequestMonthlyUsage(t.Context(), al, now)
 	require.NoError(t, err)
 	require.Len(t, mockEvents, result)
 }

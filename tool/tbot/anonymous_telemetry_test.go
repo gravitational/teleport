@@ -57,7 +57,7 @@ func mockEnvGetter(data map[string]string) envGetter {
 }
 
 func TestSendTelemetry(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 
 	t.Run("sends telemetry when enabled", func(t *testing.T) {

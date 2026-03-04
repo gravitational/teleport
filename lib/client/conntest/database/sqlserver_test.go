@@ -80,7 +80,7 @@ func TestSQLServerPing(t *testing.T) {
 	require.NoError(t, err)
 
 	pinger := &SQLServerPinger{}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	require.NoError(t, pinger.Ping(ctx, PingParams{

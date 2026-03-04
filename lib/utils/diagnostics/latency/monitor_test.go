@@ -66,7 +66,7 @@ func (f fakeReporter) Report(ctx context.Context, stats Statistics) error {
 }
 
 func TestMonitor(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	clock := clockwork.NewFakeClock()
 

@@ -299,7 +299,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 			}
 			clientConn := tls.Client(conn, clientTLSConf)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 			defer cancel()
 
 			err = clientConn.HandshakeContext(ctx)

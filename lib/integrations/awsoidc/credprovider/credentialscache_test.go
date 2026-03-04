@@ -73,7 +73,7 @@ func (f *fakeSTSClient) AssumeRoleWithWebIdentity(ctx context.Context, params *s
 }
 
 func TestCredentialsCache(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	modulestest.SetTestModules(t, modulestest.Modules{
@@ -222,7 +222,7 @@ func TestCredentialsCache(t *testing.T) {
 }
 
 func TestCredentialsCacheRetrieveBeforeInit(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	clock := clockwork.NewFakeClock()

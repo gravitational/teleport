@@ -45,7 +45,7 @@ import (
 func TestService_GetThumbnail(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	uploader := eventstest.NewMemoryUploader()
 
 	thumbnail := newThumbnail()
@@ -72,7 +72,7 @@ func TestService_GetThumbnail(t *testing.T) {
 func TestService_GetThumbnailNotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	uploader := eventstest.NewMemoryUploader()
 
 	service := &Service{
@@ -90,7 +90,7 @@ func TestService_GetThumbnailNotFound(t *testing.T) {
 func TestService_GetThumbnailAuthorized(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	authorizer := &fakeAuthorizer{
 		authorizedSessions: map[string]bool{
 			"allowed-session": true,
@@ -164,7 +164,7 @@ func TestService_GetThumbnailAuthorized(t *testing.T) {
 func TestService_GetMetadata(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	uploader := eventstest.NewMemoryUploader()
 
 	metadata := newMetadata()
@@ -231,7 +231,7 @@ func TestService_GetMetadata(t *testing.T) {
 func TestService_GetMetadataNotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	uploader := eventstest.NewMemoryUploader()
 
 	service := &Service{
@@ -261,15 +261,15 @@ func TestService_GetMetadataAuthorized(t *testing.T) {
 	uploader := eventstest.NewMemoryUploader()
 
 	allowedSessionMetadata := newMetadata()
-	err := uploadMetadata(context.Background(), uploader, session.ID("allowed-session"), allowedSessionMetadata, nil)
+	err := uploadMetadata(t.Context(), uploader, session.ID("allowed-session"), allowedSessionMetadata, nil)
 	require.NoError(t, err, "failed to upload metadata for allowed session")
 
 	deniedSessionMetadata := newMetadata()
-	err = uploadMetadata(context.Background(), uploader, session.ID("denied-session"), deniedSessionMetadata, nil)
+	err = uploadMetadata(t.Context(), uploader, session.ID("denied-session"), deniedSessionMetadata, nil)
 	require.NoError(t, err, "failed to upload metadata for denied session")
 
 	testSessionMetadata := newMetadata()
-	err = uploadMetadata(context.Background(), uploader, session.ID("test-session"), testSessionMetadata, nil)
+	err = uploadMetadata(t.Context(), uploader, session.ID("test-session"), testSessionMetadata, nil)
 	require.NoError(t, err, "failed to upload metadata for test session")
 
 	service := &Service{
@@ -304,7 +304,7 @@ func TestService_GetMetadataAuthorized(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			stream := &fakeServerStream{ctx: context.Background()}
+			stream := &fakeServerStream{ctx: t.Context()}
 
 			err := service.GetMetadata(&recordingmetadatav1pb.GetMetadataRequest{
 				SessionId: tc.sessionID,
@@ -325,7 +325,7 @@ func TestService_GetMetadataAuthorized(t *testing.T) {
 func TestService_AuthorizerError(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	authorizer := &fakeAuthorizer{
 		shouldError: true,
 	}

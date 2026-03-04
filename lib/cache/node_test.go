@@ -131,7 +131,7 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 	require.NoError(b, err)
 	defer p.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(b.Context())
 	defer cancel()
 
 	createErr := make(chan error, 1)

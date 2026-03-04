@@ -384,7 +384,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
+	resp, err := k8Client.CoreV1().Pods("default").List(t.Context(), metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, resp.Items, 3, "pods item length mismatch")
 
@@ -611,7 +611,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 				// If PROXY protocol is required, create load balancer in front of Teleport cluster
 				if tt.proxyProtocolMode == multiplexer.PROXYProtocolOn {
 					frontend := *utils.MustParseAddr("127.0.0.1:0")
-					lb, err := utils.NewLoadBalancer(context.Background(), frontend)
+					lb, err := utils.NewLoadBalancer(t.Context(), frontend)
 					require.NoError(t, err)
 					lb.PROXYHeader = []byte("PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n") // Send fake PROXY header
 					lb.AddBackend(targetAddr)
@@ -644,7 +644,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 						kubeConfig)
 				}
 
-				resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
+				resp, err := k8Client.CoreV1().Pods("default").List(t.Context(), metav1.ListOptions{})
 				require.NoError(t, err)
 				require.Len(t, resp.Items, 3, "pods item length mismatch")
 			}
@@ -817,7 +817,7 @@ func TestKubeIPPinning(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
+			resp, err := k8Client.CoreV1().Pods("default").List(t.Context(), metav1.ListOptions{})
 			if tc.wantClientErr != "" {
 				require.ErrorContains(t, err, tc.wantClientErr)
 				return
@@ -933,7 +933,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			CheckCertNeeded: true,
 		})
 		t.Run("connect to main cluster via proxy", func(t *testing.T) {
-			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+			client, err := postgres.MakeTestClient(t.Context(), common.TestClientConfig{
 				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
 				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
 				Address:    lp.GetAddr(),
@@ -951,7 +951,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			mustClosePostgresClient(t, client)
 		})
 		t.Run("connect to leaf cluster via proxy", func(t *testing.T) {
-			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+			client, err := postgres.MakeTestClient(t.Context(), common.TestClientConfig{
 				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
 				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
 				Address:    lp.GetAddr(),
@@ -978,7 +978,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 				// (this is how a local proxy would actually be configured for postgres).
 				CheckCertNeeded: true,
 			})
-			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+			client, err := postgres.MakeTestClient(t.Context(), common.TestClientConfig{
 				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
 				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
 				Address:    pingProxy.GetAddr(),
@@ -1000,7 +1000,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	t.Run("mongo", func(t *testing.T) {
 		lp := mustStartALPNLocalProxy(t, pack.Root.Cluster.SSHProxy, alpncommon.ProtocolMongoDB)
 		t.Run("connect to main cluster via proxy", func(t *testing.T) {
-			client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+			client, err := mongodb.MakeTestClient(t.Context(), common.TestClientConfig{
 				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
 				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
 				Address:    lp.GetAddr(),
@@ -1015,15 +1015,15 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute a query.
-			_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+			_, err = client.Database("test").Collection("test").Find(t.Context(), bson.M{})
 			require.NoError(t, err)
 
 			// Disconnect.
-			err = client.Disconnect(context.Background())
+			err = client.Disconnect(t.Context())
 			require.NoError(t, err)
 		})
 		t.Run("connect to leaf cluster via proxy", func(t *testing.T) {
-			client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+			client, err := mongodb.MakeTestClient(t.Context(), common.TestClientConfig{
 				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
 				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
 				Address:    lp.GetAddr(),
@@ -1038,16 +1038,16 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute a query.
-			_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+			_, err = client.Database("test").Collection("test").Find(t.Context(), bson.M{})
 			require.NoError(t, err)
 
 			// Disconnect.
-			err = client.Disconnect(context.Background())
+			err = client.Disconnect(t.Context())
 			require.NoError(t, err)
 		})
 		t.Run("connect to main cluster via proxy with ping protocol", func(t *testing.T) {
 			pingProxy := mustStartALPNLocalProxy(t, pack.Root.Cluster.SSHProxy, alpncommon.ProtocolWithPing(alpncommon.ProtocolMongoDB))
-			client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+			client, err := mongodb.MakeTestClient(t.Context(), common.TestClientConfig{
 				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
 				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
 				Address:    pingProxy.GetAddr(),
@@ -1062,11 +1062,11 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute a query.
-			_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+			_, err = client.Database("test").Collection("test").Find(t.Context(), bson.M{})
 			require.NoError(t, err)
 
 			// Disconnect.
-			err = client.Disconnect(context.Background())
+			err = client.Disconnect(t.Context())
 			require.NoError(t, err)
 		})
 	})
@@ -1096,7 +1096,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 				ALPNConnUpgradeRequired: true,
 				InsecureSkipVerify:      true,
 			})
-			client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+			client, err := mongodb.MakeTestClient(t.Context(), common.TestClientConfig{
 				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
 				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
 				Address:    lp.GetAddr(),
@@ -1111,11 +1111,11 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute a query.
-			_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+			_, err = client.Database("test").Collection("test").Find(t.Context(), bson.M{})
 			require.NoError(t, err)
 
 			// Disconnect.
-			require.NoError(t, client.Disconnect(context.Background()))
+			require.NoError(t, client.Disconnect(t.Context()))
 		})
 
 		// Test the case where the database client cert is terminated within
@@ -1237,7 +1237,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 		// advance the fake clock and verify that the local proxy thinks its cert expired.
 		fakeClock.Advance(time.Hour * 48)
-		err = lp.CheckDBCert(context.Background(), routeToDatabase)
+		err = lp.CheckDBCert(t.Context(), routeToDatabase)
 		require.Error(t, err)
 		var x509Err x509.CertificateInvalidError
 		require.ErrorAs(t, err, &x509Err)
@@ -1264,7 +1264,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 // TestALPNSNIProxyAppAccess tests application access via ALPN SNI proxy service.
 func TestALPNSNIProxyAppAccess(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	pack := appaccess.SetupWithOptions(t, appaccess.AppTestOptions{
 		RootClusterListeners: helpers.SingleProxyPortSetup,
 		LeafClusterListeners: helpers.SingleProxyPortSetup,
@@ -1368,7 +1368,7 @@ func TestALPNProxyRootLeafAuthDial(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	clusterClient, err := client.ConnectToCluster(ctx)
 	require.NoError(t, err)
@@ -1486,10 +1486,10 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			tc, err := client.New(context.Background(), test.clientConfig)
+			tc, err := client.New(t.Context(), test.clientConfig)
 			require.NoError(t, err)
 
-			resp, err := tc.Ping(context.Background())
+			resp, err := tc.Ping(t.Context())
 			require.NoError(t, err)
 			require.Equal(t, rc.Secrets.SiteName, resp.ClusterName)
 		})
@@ -1544,7 +1544,7 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 		Host:    "localhost",
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	output := &bytes.Buffer{}
 	cmd := []string{"echo", "hello world"}
 	tc, err := rc.NewClient(cfg)
@@ -1623,7 +1623,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	_, err = rc.StartNode(makeNodeConfig("first-root-node", rcProxyAddr))
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*30))
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(time.Second*30))
 	defer cancel()
 
 	err = rc.WaitForNodeCount(ctx, "root.example.com", 1)
@@ -1727,7 +1727,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 		startErrC <- err
 	}()
 	require.NoError(t, <-startErrC)
-	require.NoError(t, rc.WaitForNodeCount(context.Background(), rc.Secrets.SiteName, 1))
+	require.NoError(t, rc.WaitForNodeCount(t.Context(), rc.Secrets.SiteName, 1))
 	require.Greater(t, ph.Count(), 0)
 }
 

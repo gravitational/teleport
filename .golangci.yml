@@ -375,9 +375,9 @@ linters:
         - suite-extra-assert-call
         - suite-thelper
     usetesting:
+        context-background: true
         context-todo: true
         # TODO: Enable the following after the issues are fixed.
-        context-background: false
         os-chdir: false
         os-create-temp: false
         os-mkdir-temp: false

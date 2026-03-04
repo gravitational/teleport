@@ -37,7 +37,7 @@ import (
 
 // TestProxyConn tests proxying the connection between client and server.
 func TestProxyConn(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	echoServer, err := newEchoServer()
 	require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestProxyConn(t *testing.T) {
 
 // TestProxyConnCancel verifies context cancellation for the proxy loop.
 func TestProxyConnCancel(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	echoServer, err := newEchoServer()
 	require.NoError(t, err)

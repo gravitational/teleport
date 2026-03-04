@@ -92,7 +92,7 @@ func (m mockListEC2Client) DescribeInstances(ctx context.Context, params *ec2.De
 }
 
 func TestListEC2(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	noErrorFunc := func(err error) bool {
 		return err == nil

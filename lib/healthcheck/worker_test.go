@@ -34,7 +34,7 @@ import (
 
 func Test_newUnstartedWorker(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	protocol := string(types.TargetHealthProtocolTCP)
 	listener, err := net.Listen(protocol, "localhost:0")
 	require.NoError(t, err)

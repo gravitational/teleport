@@ -352,7 +352,7 @@ type localClient interface {
 }
 
 func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) authz.Authorizer) (context.Context, localClient, *Service) {
-	ctx := context.Background()
+	ctx := t.Context()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 

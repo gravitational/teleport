@@ -75,27 +75,27 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	upload, err := mu.CreateUpload(context.Background(), sessionID)
+	upload, err := mu.CreateUpload(t.Context(), sessionID)
 	require.NoError(t, err)
 
-	err = uc.CheckUploads(context.Background())
+	err = uc.CheckUploads(t.Context())
 	require.NoError(t, err)
 	require.False(t, mu.IsCompleted(upload.ID))
 
 	// enough to expire the session tracker, not enough to pass the grace period
 	clock.Advance(2 * time.Hour)
 
-	err = uc.CheckUploads(context.Background())
+	err = uc.CheckUploads(t.Context())
 	require.NoError(t, err)
 	require.False(t, mu.IsCompleted(upload.ID))
 
-	trackers, err := sessionTrackerService.GetActiveSessionTrackers(context.Background())
+	trackers, err := sessionTrackerService.GetActiveSessionTrackers(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, trackers)
 
 	clock.Advance(22*time.Hour + time.Nanosecond)
 
-	err = uc.CheckUploads(context.Background())
+	err = uc.CheckUploads(t.Context())
 	require.NoError(t, err)
 	require.True(t, mu.IsCompleted(upload.ID))
 }
@@ -125,10 +125,10 @@ func TestUploadCompleterNeedsSemaphore(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	upload, err := mu.CreateUpload(context.Background(), sessionID)
+	upload, err := mu.CreateUpload(t.Context(), sessionID)
 	require.NoError(t, err)
 
-	uc.PerformPeriodicCheck(context.Background())
+	uc.PerformPeriodicCheck(t.Context())
 
 	// upload should not have completed as the semaphore could not be acquired
 	require.False(t, mu.IsCompleted(upload.ID), "upload %v should not have completed", upload.ID)
@@ -163,10 +163,10 @@ func TestUploadCompleterAcquiresSemaphore(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	upload, err := mu.CreateUpload(context.Background(), sessionID)
+	upload, err := mu.CreateUpload(t.Context(), sessionID)
 	require.NoError(t, err)
 
-	uc.PerformPeriodicCheck(context.Background())
+	uc.PerformPeriodicCheck(t.Context())
 
 	// upload should have completed as semaphore acquisition was successful
 	require.True(t, mu.IsCompleted(upload.ID), "upload %v should have completed", upload.ID)
@@ -210,15 +210,15 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			upload, err := mu.CreateUpload(context.Background(), session.NewID())
+			upload, err := mu.CreateUpload(t.Context(), session.NewID())
 			require.NoError(t, err)
 
 			// session end events are only emitted if there's at least one
 			// part to be uploaded, so create that here
-			_, err = mu.UploadPart(context.Background(), *upload, 0, strings.NewReader("part"))
+			_, err = mu.UploadPart(t.Context(), *upload, 0, strings.NewReader("part"))
 			require.NoError(t, err)
 
-			err = uc.CheckUploads(context.Background())
+			err = uc.CheckUploads(t.Context())
 			require.NoError(t, err)
 
 			// advance the clock to force the asynchronous session end event emission
@@ -290,7 +290,7 @@ func TestCheckUploadsSkipsUploadsInProgress(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	uc.CheckUploads(context.Background())
+	uc.CheckUploads(t.Context())
 	require.Empty(t, completedUploads)
 
 }
@@ -363,7 +363,7 @@ func TestCheckUploadsContinuesOnError(t *testing.T) {
 
 	// verify that the 2nd upload completed even though the first one failed
 	clock.Advance(1 * time.Hour)
-	uc.CheckUploads(context.Background())
+	uc.CheckUploads(t.Context())
 	require.ElementsMatch(t, completedUploads, []session.ID{session.ID(sessionTrackers[1].GetSessionID())})
 }
 

@@ -19,7 +19,6 @@
 package local_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -36,7 +35,7 @@ func TestIdentityService_HeadlessAuthenticationBackend(t *testing.T) {
 	t.Parallel()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 
-	ctx := context.Background()
+	ctx := t.Context()
 	pubUUID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 	expires := identity.Clock().Now().Add(time.Minute)
 	headlessAuthn := &types.HeadlessAuthentication{

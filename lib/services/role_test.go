@@ -3923,7 +3923,7 @@ func TestApplyTraits(t *testing.T) {
 // TestExtractFrom makes sure roles and traits are extracted from SSH and TLS
 // certificates not services.User.
 func TestExtractFrom(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	origRoles := []string{"admin"}
 	origTraits := wrappers.Traits(map[string][]string{
 		"login": {"foo"},
@@ -8931,7 +8931,7 @@ func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 
 	localAccessInfo := AccessInfoFromUserState(user)
 	require.Equal(t, "mockCurrentUser", localAccessInfo.Username)
-	accessChecker, err := NewAccessCheckerForRemoteCluster(context.Background(), localAccessInfo, "remoteCluster", currentUserRoleGetter)
+	accessChecker, err := NewAccessCheckerForRemoteCluster(t.Context(), localAccessInfo, "remoteCluster", currentUserRoleGetter)
 	require.NoError(t, err)
 
 	// After sort: "admin","default-implicit-role","dev"

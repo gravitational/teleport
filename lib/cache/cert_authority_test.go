@@ -17,7 +17,6 @@
 package cache
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -37,7 +36,7 @@ func TestCA(t *testing.T) {
 
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	userCA, err := authcatest.NewCA(types.UserCA, "example.com")
 	require.NoError(t, err)
@@ -84,7 +83,7 @@ func TestCA(t *testing.T) {
 func TestNodeCAFiltering(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
@@ -180,7 +179,7 @@ func TestNodeCAFiltering(t *testing.T) {
 // by auth, even if a CA filter includes a "new" CA type.
 func TestCAWatcherFilters(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 

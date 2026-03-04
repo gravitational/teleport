@@ -68,7 +68,7 @@ func TestListKubernetesResources(t *testing.T) {
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
-		context.Background(),
+		t.Context(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -604,7 +604,7 @@ func TestListKubernetesResources(t *testing.T) {
 			kubeClient := newGrpcClient(testCtx.Context, t, grpcServerListener.Addr().String(), tlsConfig)
 
 			rsp, err := kubeClient.ListKubernetesResources(
-				context.Background(),
+				t.Context(),
 				&proto.ListKubernetesResourcesRequest{
 					ResourceType:        tt.args.resourceKind,
 					Limit:               100,

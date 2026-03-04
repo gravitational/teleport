@@ -17,7 +17,6 @@
 package decisionv1_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -56,7 +55,7 @@ func NewTestenv(t *testing.T) *Testenv {
 	require.NoError(t, err, "NewTestServer failed")
 	t.Cleanup(func() {
 		assert.NoError(t,
-			testServer.Shutdown(context.Background()),
+			testServer.Shutdown(t.Context()),
 			"testServer.Shutdown failed")
 	})
 

@@ -156,7 +156,7 @@ type testClient struct {
 }
 
 func initSvc(t *testing.T) (map[string]context.Context, *Service) {
-	ctx := context.Background()
+	ctx := t.Context()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 

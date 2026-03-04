@@ -168,7 +168,7 @@ func TestLimiter_UnaryServerInterceptor(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := peer.NewContext(context.Background(), &peer.Peer{Addr: mockAddr{}})
+	ctx := peer.NewContext(t.Context(), &peer.Peer{Addr: mockAddr{}})
 	req := "request"
 	serverInfo := &grpc.UnaryServerInfo{
 		FullMethod: "/method",
@@ -235,7 +235,7 @@ func TestLimiter_StreamServerInterceptor(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := peer.NewContext(context.Background(), &peer.Peer{Addr: mockAddr{}})
+	ctx := peer.NewContext(t.Context(), &peer.Peer{Addr: mockAddr{}})
 	ss := mockServerStream{
 		ctx: ctx,
 	}

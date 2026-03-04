@@ -17,7 +17,6 @@
 package web
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -28,7 +27,7 @@ import (
 // is available.
 func TestJWKSOktaPublicEndpoint(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 

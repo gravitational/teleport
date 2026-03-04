@@ -19,7 +19,6 @@
 package app
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -41,7 +40,7 @@ import (
 )
 
 func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name        string

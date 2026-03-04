@@ -19,7 +19,6 @@
 package lite
 
 import (
-	"context"
 	"net/url"
 	"os"
 	"testing"
@@ -57,7 +56,7 @@ func TestLite(t *testing.T) {
 			return nil, nil, test.ErrMirrorNotSupported
 		}
 
-		backend, err := NewWithConfig(context.Background(), Config{
+		backend, err := NewWithConfig(t.Context(), Config{
 			Path:             t.TempDir(),
 			PollStreamPeriod: 300 * time.Millisecond,
 			Clock:            clock,

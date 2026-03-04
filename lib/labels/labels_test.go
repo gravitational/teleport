@@ -19,7 +19,6 @@
 package labels
 
 import (
-	"context"
 	"os"
 	"testing"
 	"time"
@@ -38,7 +37,7 @@ func TestMain(m *testing.M) {
 
 func TestSync(t *testing.T) {
 	// Create dynamic labels and sync right away.
-	l, err := NewDynamic(context.Background(), &DynamicConfig{
+	l, err := NewDynamic(t.Context(), &DynamicConfig{
 		Labels: map[string]types.CommandLabel{
 			"foo": &types.CommandLabelV2{
 				Period:  types.NewDuration(1 * time.Second),
@@ -55,7 +54,7 @@ func TestSync(t *testing.T) {
 
 func TestStart(t *testing.T) {
 	// Create dynamic labels and setup async update.
-	l, err := NewDynamic(context.Background(), &DynamicConfig{
+	l, err := NewDynamic(t.Context(), &DynamicConfig{
 		Labels: map[string]types.CommandLabel{
 			"foo": &types.CommandLabelV2{
 				Period:  types.NewDuration(1 * time.Second),
@@ -76,7 +75,7 @@ func TestStart(t *testing.T) {
 // TestInvalidCommand makes sure that invalid commands return a error message.
 func TestInvalidCommand(t *testing.T) {
 	// Create invalid labels and sync right away.
-	l, err := NewDynamic(context.Background(), &DynamicConfig{
+	l, err := NewDynamic(t.Context(), &DynamicConfig{
 		Labels: map[string]types.CommandLabel{
 			"foo": &types.CommandLabelV2{
 				Period:  types.NewDuration(1 * time.Second),

@@ -19,7 +19,6 @@
 package azuredevops
 
 import (
-	"context"
 	"crypto"
 	"encoding/json"
 	"net/http"
@@ -260,7 +259,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			v := NewIDTokenValidator()
 			v.insecureDiscovery = true
 			v.overrideDiscoveryHost = idp.server.Listener.Addr().String()

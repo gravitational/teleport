@@ -21,7 +21,6 @@
 package tools_test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -56,7 +55,7 @@ import (
 // $ tsh version
 // Teleport v2.0.0
 func TestAliasLoginWithUpdater(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rootServer, homeDir := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeEnabled, testVersions[1])
@@ -108,7 +107,7 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 // TestSequentialUpdate runs test cluster with sequential changing version required for
 // client tools for managed updates. After each new login we should receive updated version.
 func TestSequentialUpdate(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rootServer, _ := bootstrapTestServer(t)
 
@@ -145,7 +144,7 @@ func TestSequentialUpdate(t *testing.T) {
 // $ tsh version
 // Teleport v2.0.0
 func TestLoginWithUpdaterAndProfile(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rootServer, _ := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeDisabled, testVersions[1])
@@ -182,7 +181,7 @@ func TestLoginWithUpdaterAndProfile(t *testing.T) {
 // $ tsh version
 // Teleport v1.0.0
 func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rootServer, _ := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeDisabled, testVersions[1])
@@ -228,7 +227,7 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 // $ tsh version
 // Teleport v1.0.0
 func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rootServer, _ := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeDisabled, testVersions[1])
@@ -269,7 +268,7 @@ func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 func TestMigratedUpdateNotReExec(t *testing.T) {
 	testToolsDir := t.TempDir()
 	t.Setenv(types.HomeEnvVar, testToolsDir)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	require.NoError(t, os.MkdirAll(filepath.Join(testToolsDir, "bin"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(testToolsDir, "bin", "tsh"), []byte("#!/bin/sh\n echo 'Teleport v5.5.5 git'\n"), 0755))
@@ -288,7 +287,7 @@ func TestMigratedUpdateNotReExec(t *testing.T) {
 // path of the executed binary, because `tsh config` is referencing this path for execution.
 func TestUpdateConfigReExecPath(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, t.TempDir())
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rootServer, _ := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeEnabled, testVersions[1])
@@ -371,7 +370,7 @@ func bootstrapTestServer(t *testing.T) (*service.TeleportProcess, string) {
 
 func setupManagedUpdates(t *testing.T, server *auth.Server, muMode string, muVersion string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
 		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 			Mode: muMode,

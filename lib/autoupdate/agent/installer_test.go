@@ -22,7 +22,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -138,7 +137,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 				ReservedFreeInstallDisk: tt.reservedInstall,
 				Template:                "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}",
 			}
-			ctx := context.Background()
+			ctx := t.Context()
 			err = installer.Install(ctx, NewRevision(version, tt.flags), server.URL, tt.force)
 			if tt.errMatch != "" {
 				require.Error(t, err)
@@ -470,7 +469,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 				ValidateBinary: validator.IsExecutable,
 				Template:       autoupdate.DefaultCDNURITemplate,
 			}
-			ctx := context.Background()
+			ctx := t.Context()
 			revert, err := installer.Link(ctx, NewRevision(version, autoupdate.FlagEnterprise), filepath.Join(linkDir, "bin"), tt.force)
 			if tt.errMatch != "" {
 				require.Error(t, err)
@@ -729,7 +728,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 				Log:            slog.Default(),
 				ValidateBinary: validator.IsExecutable,
 			}
-			ctx := context.Background()
+			ctx := t.Context()
 			err = installer.TryLink(ctx, NewRevision(version, autoupdate.FlagEnterprise), filepath.Join(linkDir, "bin"))
 			if tt.errMatch != "" {
 				require.Error(t, err)
@@ -872,7 +871,7 @@ func TestLocalInstaller_Remove(t *testing.T) {
 				Log:            slog.Default(),
 				ValidateBinary: validator.IsExecutable,
 			}
-			ctx := context.Background()
+			ctx := t.Context()
 			err = installer.Remove(ctx, NewRevision(tt.removeVersion, 0))
 			if tt.errMatch != "" {
 				require.Error(t, err)
@@ -948,7 +947,7 @@ func TestLocalInstaller_IsLinked(t *testing.T) {
 				Log:            slog.Default(),
 				ValidateBinary: validator.IsExecutable,
 			}
-			ctx := context.Background()
+			ctx := t.Context()
 			if tt.createVersion != "" {
 				versionDir := filepath.Join(versionsDir, tt.createVersion)
 				err := os.MkdirAll(versionDir, 0o755)
@@ -1109,7 +1108,7 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 				},
 				Log: slog.Default(),
 			}
-			ctx := context.Background()
+			ctx := t.Context()
 			err = installer.Unlink(ctx, NewRevision(version, 0), filepath.Join(linkDir, "bin"))
 			if tt.errMatch != "" {
 				require.Error(t, err)
@@ -1152,7 +1151,7 @@ func TestLocalInstaller_List(t *testing.T) {
 		InstallDir: installDir,
 		Log:        slog.Default(),
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	revisions, err := installer.List(ctx)
 	require.NoError(t, err)
 	require.Equal(t, []Revision{

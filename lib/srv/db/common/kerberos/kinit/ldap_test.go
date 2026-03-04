@@ -113,7 +113,7 @@ func TestTLSConfigForLDAP(t *testing.T) {
 	connector, err := newLDAPConnector(slog.Default(), auth, adConfig)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tlsConfig, err := connector.tlsConfigForLDAP(ctx, "test-cluster")
 	require.NoError(t, err)
 	require.NotNil(t, tlsConfig)

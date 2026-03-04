@@ -37,7 +37,7 @@ import (
 )
 
 func TestKeyManager_verify_github(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	bk, err := memory.New(memory.Config{})

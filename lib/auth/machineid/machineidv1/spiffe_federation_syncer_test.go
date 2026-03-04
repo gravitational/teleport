@@ -62,7 +62,7 @@ func makeTrustDomain(t *testing.T, name string) (spiffeid.TrustDomain, *spiffebu
 func TestSPIFFEFederationSyncer(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	logger := logtest.NewLogger()
@@ -190,7 +190,7 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	logger := logtest.NewLogger()

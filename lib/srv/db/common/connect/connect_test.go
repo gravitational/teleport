@@ -69,7 +69,7 @@ func TestGetDatabaseServers(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			servers, err := GetDatabaseServers(context.Background(), GetDatabaseServersParams{
+			servers, err := GetDatabaseServers(t.Context(), GetDatabaseServersParams{
 				Logger:                logtest.NewLogger(),
 				ClusterName:           "root",
 				DatabaseServersGetter: tc.getter,
@@ -129,7 +129,7 @@ func TestGetServerTLSConfig(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			tlsConfig, err := GetServerTLSConfig(context.Background(), ServerTLSConfigParams{
+			tlsConfig, err := GetServerTLSConfig(t.Context(), ServerTLSConfigParams{
 				CertSigner:     authServer.AuthServer,
 				AuthPreference: authServer.AuthServer,
 				Server:         tc.server,
@@ -190,7 +190,7 @@ func TestConnect(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			conn, stats, err := Connect(context.Background(), ConnectParams{
+			conn, stats, err := Connect(t.Context(), ConnectParams{
 				Logger:         logtest.NewLogger(),
 				Identity:       tc.identity,
 				Servers:        tc.dialer.getServers(),

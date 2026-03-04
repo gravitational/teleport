@@ -19,7 +19,6 @@
 package web
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 	"testing"
@@ -34,7 +33,7 @@ func TestAzureOIDCConfigureScript(t *testing.T) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 
 	proxyAddr := env.proxies[0].webURL.String()

@@ -62,7 +62,7 @@ import (
 
 func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	reqUserPassword := func(user, pass string) *proto.CreateAuthenticateChallengeRequest {
 		return &proto.CreateAuthenticateChallengeRequest{
@@ -239,7 +239,7 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 
 func TestCreateAuthenticateChallenge_WithAuth(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	u, err := createUserWithSecondFactors(srv)
@@ -266,7 +266,7 @@ func TestCreateAuthenticateChallenge_WithAuth(t *testing.T) {
 
 func TestCreateAuthenticateChallenge_WithUserCredentials(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	u, err := createUserWithSecondFactors(srv)
@@ -323,7 +323,7 @@ func TestCreateAuthenticateChallenge_WithUserCredentials(t *testing.T) {
 
 func TestCreateAuthenticateChallenge_WithUserCredentials_WithLock(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	u, err := createUserWithSecondFactors(srv)
@@ -349,7 +349,7 @@ func TestCreateAuthenticateChallenge_WithUserCredentials_WithLock(t *testing.T) 
 
 func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	u, err := createUserWithSecondFactors(srv)
@@ -415,7 +415,7 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 	t.Parallel()
 
 	testServer := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	adminClient, err := testServer.NewClient(authtest.TestBuiltin(types.RoleAdmin))
 	require.NoError(t, err, "NewClient(types.RoleAdmin)")
@@ -640,7 +640,7 @@ func TestCreateAuthenticateChallenge_failedLoginAudit(t *testing.T) {
 	authServer := testServer.Auth()
 	authServer.SetEmitter(emitter)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Set the cluster to require 2nd factor, create the user, set a password and
 	// register a webauthn device.
@@ -675,7 +675,7 @@ func TestCreateAuthenticateChallenge_failedLoginAudit(t *testing.T) {
 
 func TestCreateRegisterChallenge(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	u, err := createUserWithSecondFactors(srv)
@@ -776,7 +776,7 @@ func TestCreateRegisterChallenge_unusableDevice(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	clock := authServer.GetClock()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	initialPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -899,7 +899,7 @@ v7nNLYBIfxaKxXf+dAFVllYzVUrSzAQxi1LSAplOJVgOtHv0J69dRSUSzA==
 func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
@@ -941,7 +941,7 @@ func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 func TestBasicSSHScopedLogin(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 
@@ -1122,7 +1122,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
@@ -1201,7 +1201,7 @@ func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
@@ -1258,7 +1258,7 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	svr := newTestTLSServer(t)
 	authServer := svr.Auth()
 	mfa := configureForMFA(t, svr)
@@ -1365,7 +1365,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 
 	// Configure Auth separately, we want a passwordless-capable device
 	// registered too.
-	ctx := context.Background()
+	ctx := t.Context()
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
@@ -1568,7 +1568,7 @@ func TestPasswordlessProhibitedForSSO(t *testing.T) {
 	clock := testServer.Clock()
 
 	mfa := configureForMFA(t, testServer)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Register a passwordless device.
 	userClient, err := testServer.NewClient(authtest.TestUser(mfa.User))
@@ -1658,7 +1658,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 	clock := testServer.Clock()
 
 	mfa := configureForMFA(t, testServer)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Edit the configured user so it looks like an SSO user attempting local
 	// logins. This isn't exactly like an SSO user, but it's close enough.
@@ -1845,7 +1845,7 @@ func TestSSOAccountRecoveryProhibited(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	clock := testServer.Clock()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Enable RecoveryCodes feature.
 	modulestest.SetTestModules(t, modulestest.Modules{
@@ -1945,7 +1945,7 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 	proxyClient, err := svr.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tests := []struct {
 		name    string
 		dev     *authtest.Device
@@ -2015,7 +2015,7 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 func TestServer_Authenticate_headless(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 
 	for _, tc := range []struct {
@@ -2145,7 +2145,7 @@ func configureForMFA(t *testing.T, srv *authtest.TLSServer) *configureMFAResp {
 	require.NoError(t, err)
 
 	authServer := srv.Auth()
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err = authServer.UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 

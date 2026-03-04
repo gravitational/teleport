@@ -105,7 +105,7 @@ func TestReconcileServerInfo(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("ok", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 
 		ap := newMockServerInfoAccessPoint()
@@ -134,7 +134,7 @@ func TestReconcileServerInfo(t *testing.T) {
 	})
 
 	t.Run("restart on error", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 
 		ap := newMockServerInfoAccessPoint()

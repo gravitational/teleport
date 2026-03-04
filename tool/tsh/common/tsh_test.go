@@ -455,7 +455,7 @@ func TestAlias(t *testing.T) {
 // …plus whatever is set in the launch daemon plist under the EnvironmentVariables key.
 func TestNoEnvVars(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	t.Cleanup(cancel)
 
 	testExecutable, err := os.Executable()
@@ -482,7 +482,7 @@ func TestDefaultPrintUsage(t *testing.T) {
 	testExecutable, err := os.Executable()
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cmd := exec.CommandContext(ctx, testExecutable, "version", "--help")
 	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv), "TELEPORT_TOOLS_VERSION=off"}
@@ -514,7 +514,7 @@ func TestFailedLogin(t *testing.T) {
 		return nil, loginFailed
 	}
 
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -526,7 +526,7 @@ func TestFailedLogin(t *testing.T) {
 func TestOIDCLogin(t *testing.T) {
 	tmpHomePath := t.TempDir()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	// set up an initial role with `request_access: always` in order to
@@ -604,7 +604,7 @@ func TestOIDCLogin(t *testing.T) {
 
 	buf := bytes.NewBuffer([]byte{})
 	sc := bufio.NewScanner(buf)
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -667,7 +667,7 @@ func TestLoginIdentityOut(t *testing.T) {
 
 	kubeServer, err := types.NewKubernetesServerV3FromCluster(cluster, kubeClusterName, kubeClusterName)
 	require.NoError(t, err)
-	_, err = authServer.UpsertKubernetesServer(context.Background(), kubeServer)
+	_, err = authServer.UpsertKubernetesServer(t.Context(), kubeServer)
 	require.NoError(t, err)
 
 	cases := []struct {
@@ -717,7 +717,7 @@ func TestLoginIdentityOut(t *testing.T) {
 			if tt.requiresTLSRouting {
 				switchProxyListenerMode(t, authServer, types.ProxyListenerMode_Multiplex)
 			}
-			err = Run(context.Background(), append([]string{
+			err = Run(t.Context(), append([]string{
 				"login",
 				"--insecure",
 				"--debug",
@@ -733,16 +733,16 @@ func TestLoginIdentityOut(t *testing.T) {
 // switchProxyListenerMode switches the proxy listener mode to the specified mode
 // and schedules a reversion to the previous value once the sub-test completes.
 func switchProxyListenerMode(t *testing.T, authServer *auth.Server, mode types.ProxyListenerMode) {
-	networkCfg, err := authServer.GetClusterNetworkingConfig(context.Background())
+	networkCfg, err := authServer.GetClusterNetworkingConfig(t.Context())
 	require.NoError(t, err)
 	prevValue := networkCfg.GetProxyListenerMode()
 	networkCfg.SetProxyListenerMode(mode)
-	_, err = authServer.UpsertClusterNetworkingConfig(context.Background(), networkCfg)
+	_, err = authServer.UpsertClusterNetworkingConfig(t.Context(), networkCfg)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		networkCfg.SetProxyListenerMode(prevValue)
-		_, err = authServer.UpsertClusterNetworkingConfig(context.Background(), networkCfg)
+		_, err = authServer.UpsertClusterNetworkingConfig(t.Context(), networkCfg)
 		require.NoError(t, err)
 	})
 }
@@ -772,7 +772,7 @@ func TestRelogin(t *testing.T) {
 
 	buf := bytes.NewBuffer([]byte{})
 	sc := bufio.NewScanner(buf)
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -784,7 +784,7 @@ func TestRelogin(t *testing.T) {
 	require.NoError(t, err)
 	findMOTD(t, sc, motd)
 
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -797,14 +797,14 @@ func TestRelogin(t *testing.T) {
 	require.NoError(t, err)
 	findMOTD(t, sc, motd)
 
-	err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath),
+	err = Run(t.Context(), []string{"logout"}, setHomePath(tmpHomePath),
 		func(cf *CLIConf) error {
 			cf.overrideStderr = buf
 			return nil
 		})
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -843,7 +843,7 @@ func TestIgnoreHTTPSPrefix(t *testing.T) {
 	var buf bytes.Buffer
 
 	proxyAddress := "https://" + proxyAddr.String()
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -889,7 +889,7 @@ func TestSwitchingProxies(t *testing.T) {
 
 	// perform initial login to both proxies
 
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -897,7 +897,7 @@ func TestSwitchingProxies(t *testing.T) {
 	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer1, alice, connector.GetName()))
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -907,7 +907,7 @@ func TestSwitchingProxies(t *testing.T) {
 	require.NoError(t, err)
 
 	// login again while both proxies are still valid and ensure it is successful without an SSO login provided
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -916,7 +916,7 @@ func TestSwitchingProxies(t *testing.T) {
 
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -927,12 +927,12 @@ func TestSwitchingProxies(t *testing.T) {
 
 	// logout
 
-	err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath))
+	err = Run(t.Context(), []string{"logout"}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	// after logging out, make sure that any attempt to log in without providing a valid login function fails
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond*50)
 	err = Run(ctx, []string{
 		"login",
 		"--insecure",
@@ -1168,7 +1168,7 @@ func TestMakeClient(t *testing.T) {
 	// If profile is missing, makeClient should call Ping on the proxy to fetch SSHProxyAddr
 	conf = CLIConf{
 		Proxy:              proxyWebAddr.String(),
-		Context:            context.Background(),
+		Context:            t.Context(),
 		InsecureSkipVerify: true,
 	}
 	tc, err = makeClient(&conf)
@@ -1184,7 +1184,7 @@ func TestMakeClient(t *testing.T) {
 	conf = CLIConf{
 		Proxy:              proxyWebAddr.String(),
 		IdentityFileIn:     "../../../fixtures/certs/identities/tls.pem",
-		Context:            context.Background(),
+		Context:            t.Context(),
 		InsecureSkipVerify: true,
 	}
 	tc, err = makeClient(&conf)
@@ -2038,7 +2038,7 @@ func TestNoRelogin(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--proxy", proxyAddr.String(),
@@ -2092,7 +2092,7 @@ func TestNoRelogin(t *testing.T) {
 				"12.12.12.12:8080",
 				"uptime",
 			)
-			err := Run(context.Background(), tshArgs, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
+			err := Run(t.Context(), tshArgs, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
 			tc.errorAssertion(t, err)
 		})
 	}
@@ -2103,7 +2103,7 @@ func TestNoRelogin(t *testing.T) {
 // AccessDenied.
 func TestSSHAccessRequest(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	requester, err := types.NewRole("requester", types.RoleSpecV6{
@@ -2431,7 +2431,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	t.Parallel()
 
 	tmpHomePath := t.TempDir()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	isInsecure := lib.IsInsecureDevMode()
@@ -2547,7 +2547,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 func TestSSHAccessRequestWait(t *testing.T) {
 	// Access requests require enterprise.
 	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Set up a requester role the user will have.
@@ -2825,7 +2825,7 @@ func TestSSHCommands(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		ctx := context.Background()
+		ctx := t.Context()
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2887,7 +2887,7 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 
 func TestKubeCredentialsLock(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	const kubeClusterName = "kube-cluster"
 
@@ -2947,7 +2947,7 @@ func TestKubeCredentialsLock(t *testing.T) {
 		require.NoError(t, err)
 		kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, kubeClusterName, kubeClusterName)
 		require.NoError(t, err)
-		_, err = authServer.UpsertKubernetesServer(context.Background(), kubeServer)
+		_, err = authServer.UpsertKubernetesServer(t.Context(), kubeServer)
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -2968,7 +2968,7 @@ func TestKubeCredentialsLock(t *testing.T) {
 			return mockSSOLogin(ctx, connectorID, keyRing, protocol)
 		}
 
-		err = Run(context.Background(), []string{
+		err = Run(t.Context(), []string{
 			"login",
 			"--insecure",
 			"--debug",
@@ -3023,7 +3023,7 @@ iUK/veLmZ6XoouiWLCdU1VJz/1Fcwe/IEamg6ETfofvsqOCgcNYJ
 
 		errChan := make(chan error)
 		runCreds := func() {
-			credErr := Run(context.Background(), []string{
+			credErr := Run(t.Context(), []string{
 				"kube",
 				"credentials",
 				"--insecure",
@@ -3189,7 +3189,7 @@ func TestSSHHeadlessCLIFlags(t *testing.T) {
 func TestSSHHeadless(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	user, err := user.Current()
@@ -3325,7 +3325,7 @@ func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	agentKeyring, _ := createAgent(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	user, err := user.Current()
@@ -4096,7 +4096,7 @@ func TestAuthClientFromTSHProfile(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -5600,7 +5600,7 @@ func TestForwardingTraces(t *testing.T) {
 				errCh <- collector.Start()
 			}()
 			t.Cleanup(func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+				ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 				defer cancel()
 				require.NoError(t, collector.Shutdown(ctx))
 				require.NoError(t, <-errCh)
@@ -5621,7 +5621,7 @@ func TestForwardingTraces(t *testing.T) {
 			require.NoError(t, err)
 
 			// --trace should cause the login to be traced.
-			err = Run(context.Background(), []string{
+			err = Run(t.Context(), []string{
 				"login",
 				"--insecure",
 				"--proxy", proxyAddr.String(),
@@ -5638,7 +5638,7 @@ func TestForwardingTraces(t *testing.T) {
 			loginAssertion := spanAssertion(true, !traceCfg.Enabled)
 			loginAssertion(t, collector.Spans())
 
-			err = Run(context.Background(), []string{
+			err = Run(t.Context(), []string{
 				"ls",
 				"--insecure",
 				"--proxy", proxyAddr.String(),
@@ -5735,7 +5735,7 @@ func TestExportingTraces(t *testing.T) {
 
 			// login events should be included since there is
 			// no forwarding
-			err = Run(context.Background(), []string{
+			err = Run(t.Context(), []string{
 				"login",
 				"--insecure",
 				"--proxy", proxyAddr.String(),
@@ -5752,7 +5752,7 @@ func TestExportingTraces(t *testing.T) {
 			tt.teleportSpanAssertion(t, teleportCollector.Spans())
 			tt.tshSpanAssertion(t, tshCollector.Spans())
 
-			err = Run(context.Background(), []string{
+			err = Run(t.Context(), []string{
 				"ls",
 				"--insecure",
 				"--proxy", proxyAddr.String(),
@@ -6180,7 +6180,7 @@ func TestBenchmarkMySQL(t *testing.T) {
 func TestLogout(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	})
@@ -6279,7 +6279,7 @@ func TestLogout(t *testing.T) {
 			_, err = os.Lstat(tmpHomePath)
 			require.NoError(t, err)
 
-			err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath))
+			err = Run(t.Context(), []string{"logout"}, setHomePath(tmpHomePath))
 			require.NoError(t, err, trace.DebugReport(err))
 
 			// directory should be empty.
@@ -6391,7 +6391,7 @@ func TestFlatten(t *testing.T) {
 		HomePath:           home,
 		AuthConnector:      connector.GetName(),
 		MockSSOLogin:       mockSSOLogin(authServer, alice),
-		Context:            context.Background(),
+		Context:            t.Context(),
 	}
 	require.NoError(t, onLogin(&conf))
 
@@ -6406,7 +6406,7 @@ func TestFlatten(t *testing.T) {
 		InsecureSkipVerify: true,
 		IdentityFileIn:     identityPath,
 		HomePath:           freshHome,
-		Context:            context.Background(),
+		Context:            t.Context(),
 	}
 	require.NoError(t, flattenIdentity(&conf))
 
@@ -6414,7 +6414,7 @@ func TestFlatten(t *testing.T) {
 	clt, err := makeClient(&conf)
 	require.NoError(t, err)
 
-	_, err = clt.Ping(context.Background())
+	_, err = clt.Ping(t.Context())
 	require.NoError(t, err)
 
 	// Test execution: validate that flattening succeeds if a profile already exists.
@@ -6423,7 +6423,7 @@ func TestFlatten(t *testing.T) {
 		InsecureSkipVerify: true,
 		IdentityFileIn:     identityPath,
 		HomePath:           freshHome,
-		Context:            context.Background(),
+		Context:            t.Context(),
 	}
 	require.NoError(t, flattenIdentity(&conf), "unexpected error when overwriting a tsh profile")
 }
@@ -6711,7 +6711,7 @@ type listPack[T any] struct {
 }
 
 func testListingResources[T any](t *testing.T, pack listPack[T], unmarshalFunc func(*testing.T, string, bool, []byte) []T, lessFunc func(a, b T) bool) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rootProxyAddr, err := pack.rootProcess.ProxyWebAddr()
 	require.NoError(t, err)
@@ -6818,7 +6818,7 @@ func TestStatusPrintsProfilesIfNoActiveProfile(t *testing.T) {
 
 	buf := bytes.NewBuffer([]byte{})
 
-	err := Run(context.Background(), []string{
+	err := Run(t.Context(), []string{
 		"status",
 	}, setHomePath(t.TempDir()), func(c *CLIConf) error {
 		c.OverrideStdout = buf
@@ -7145,7 +7145,7 @@ func TestResolve(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		ctx := context.Background()
+		ctx := t.Context()
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -7237,7 +7237,7 @@ func TestInteractiveCompatibilityFlags(t *testing.T) {
 
 	// Run "tsh login".
 	home := t.TempDir()
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -7599,7 +7599,7 @@ func TestSCP(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		ctx := context.Background()
+		ctx := t.Context()
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -7912,7 +7912,7 @@ func prepareCLIOptionForReadingLoggingOpts() (func(t *testing.T) loggingOpts, Cl
 
 func Test_validateKingpinAppHelp(t *testing.T) {
 	err := Run(
-		context.Background(),
+		t.Context(),
 		[]string{"version"},
 		setHomePath(t.TempDir()),
 		func(cf *CLIConf) error {
@@ -8149,7 +8149,7 @@ func TestLogoutOneIdentity(t *testing.T) {
 				t.Setenv(k, v)
 			}
 
-			err = Run(context.Background(), []string{
+			err = Run(t.Context(), []string{
 				"login",
 				"--insecure",
 				"--proxy", proxyAddr.String()},
@@ -8158,7 +8158,7 @@ func TestLogoutOneIdentity(t *testing.T) {
 			require.NoError(t, err)
 
 			buf := bytes.NewBuffer([]byte{})
-			err := Run(context.Background(), tc.command,
+			err := Run(t.Context(), tc.command,
 				setHomePath(tmpHomePath),
 				func(cf *CLIConf) error {
 					cf.OverrideStdout = buf

@@ -19,7 +19,6 @@
 package proxy
 
 import (
-	"context"
 	"errors"
 	"sync/atomic"
 	"testing"
@@ -38,7 +37,7 @@ import (
 
 func TestNewClusterDetails(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	getClusterDetailsConfig := func(c *clockwork.FakeClock) (clusterDetailsConfig, *clusterDetailsClientSet) {
 		client := &clusterDetailsClientSet{}

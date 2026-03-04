@@ -93,7 +93,7 @@ type fakeServer struct {
 
 func TestServer_generateAgentVersionReport(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	now := time.Now()
 	twoMinutesAgo := now.Add(-time.Minute * 2)
 	// agentRole are typicial roles an agent can have
@@ -347,7 +347,7 @@ func TestServer_reportAgentVersions(t *testing.T) {
 		})
 		t.Cleanup(stream.close)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	rollout, err := autoupdate.NewAutoUpdateAgentRollout(&autoupdatev1pb.AutoUpdateAgentRolloutSpec{
 		StartVersion:              "1.2.3",
 		TargetVersion:             "1.2.4",

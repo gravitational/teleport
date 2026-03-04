@@ -19,7 +19,6 @@
 package proxy
 
 import (
-	"context"
 	"crypto/tls"
 	"errors"
 	"io"
@@ -50,7 +49,7 @@ func TestProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	newProxyService(t, lis, authClient)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	client, err := secretscannerclient.NewSecretsScannerServiceClient(ctx, secretscannerclient.ClientConfig{
 		ProxyServer: lis.Addr().String(),

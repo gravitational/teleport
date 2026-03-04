@@ -89,7 +89,7 @@ func newClient(t *testing.T) *client {
 func TestUnifiedResourceWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 
 	// Add node to the backend.
@@ -238,7 +238,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 
 	node := newNodeServer(t, "node1", "hostname1", "127.0.0.1:22", false /*tunnel*/)
@@ -425,7 +425,7 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 func TestUnifiedResourceCacheIteration(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const resourceCount = 1234
 	ids := make([]string, 0, resourceCount)
@@ -814,7 +814,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 func TestUnifiedResourceWatcher_PreventDuplicates(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -969,7 +969,7 @@ func TestUnifiedResourceCache_AppServerComponentFeaturesIntersection(t *testing.
 func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -1216,7 +1216,7 @@ func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter
 
 func TestOktaAppServers(t *testing.T) {
 	clt := newClient(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	appsServer := []*types.AppServerV3{
 		mustCreateOktaAppServer(t, uuid.NewString(), "App 1"),
@@ -1228,7 +1228,7 @@ func TestOktaAppServers(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	w, err := services.NewUnifiedResourceCache(context.Background(), services.UnifiedResourceCacheConfig{
+	w, err := services.NewUnifiedResourceCache(t.Context(), services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentUnifiedResource,
 			Client:    clt,
@@ -1303,7 +1303,7 @@ func newMCPServerApp(t *testing.T, name string) *types.AppV3 {
 func TestUnifiedResourceCacheIterateMCPServers(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 
 	app, err := types.NewAppServerV3(

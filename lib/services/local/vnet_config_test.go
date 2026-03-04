@@ -17,7 +17,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -40,7 +39,7 @@ func TestVnetConfigService(t *testing.T) {
 	service, err := NewVnetConfigService(bk)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	vnetConfig := &vnet.VnetConfig{
 		Kind:     types.KindVnetConfig,
 		Version:  types.V1,
@@ -104,7 +103,7 @@ func TestVnetConfigValidation(t *testing.T) {
 	service, err := NewVnetConfigService(bk)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tc := range []struct {
 		name    string

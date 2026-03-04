@@ -19,7 +19,6 @@
 package accesslists
 
 import (
-	"context"
 	"testing"
 
 	"github.com/jonboulle/clockwork"
@@ -185,7 +184,7 @@ func TestCollection_RefUpdates(t *testing.T) {
 
 func TestCollection_Validate(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("validates successfully with valid access lists and members", func(t *testing.T) {
 		list1 := newAccessList(t, "list1", clock)
@@ -348,7 +347,7 @@ func TestCollection_Validate(t *testing.T) {
 
 func TestCollection_ListAccessListMembers(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("returns all members when pageSize is 0", func(t *testing.T) {
 		list1 := newAccessList(t, "list1", clock)

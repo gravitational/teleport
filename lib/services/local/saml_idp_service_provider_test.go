@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -42,7 +41,7 @@ import (
 
 // TestSAMLIdPServiceProviderCRUD tests backend operations with SAML IdP service provider resources.
 func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -211,7 +210,7 @@ const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
 `
 
 func TestCreateSAMLIdPServiceProvider_fetchOrGenerateEntityDescriptor(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clockwork.NewFakeClock(),
@@ -352,7 +351,7 @@ func TestCreateSAMLIdPServiceProvider_fetchAndSetEntityDescriptor(t *testing.T) 
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -388,7 +387,7 @@ func TestCreateSAMLIdPServiceProvider_fetchAndSetEntityDescriptor(t *testing.T) 
 }
 
 func TestCreateSAMLIdPServiceProvider_embedAttributeMapping(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -650,7 +649,7 @@ func NewMattermostPlugin() *types.PluginV1 {
 }
 
 func TestDeleteSAMLServiceProviderWhenReferencedByPlugin(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clockwork.NewFakeClock(),
@@ -703,7 +702,7 @@ func TestGenerateAndSetEntityDescriptorPerPreset(t *testing.T) {
 			wantNameIDFormat: saml.PersistentNameIDFormat,
 		},
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clockwork.NewFakeClock(),

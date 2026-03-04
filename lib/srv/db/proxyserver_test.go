@@ -38,7 +38,7 @@ func TestProxyConnectionLimiting(t *testing.T) {
 		connLimitNumber = 3 // Arbitrary number
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t,
 		withSelfHostedPostgres("postgres"),
 		withSelfHostedMySQL("mysql"))
@@ -139,7 +139,7 @@ func TestProxyRateLimiting(t *testing.T) {
 		connLimitNumber = 20 // Should be enough to hit the connection limit.
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t,
 		withSelfHostedPostgres("postgres"),
 		withSelfHostedMySQL("mysql"),
@@ -244,7 +244,7 @@ func TestProxyRateLimiting(t *testing.T) {
 }
 
 func TestProxyMySQLVersion(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t,
 		withSelfHostedMySQL("mysql", withMySQLServerVersion("8.0.12")),
 	)

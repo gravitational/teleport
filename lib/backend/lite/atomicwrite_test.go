@@ -19,7 +19,6 @@
 package lite
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -50,7 +49,7 @@ func newAtomicWriteTestBackendBuilder(t *testing.T) test.Constructor {
 			return nil, nil, test.ErrMirrorNotSupported
 		}
 
-		backend, err := NewWithConfig(context.Background(), Config{
+		backend, err := NewWithConfig(t.Context(), Config{
 			Path:             t.TempDir(),
 			PollStreamPeriod: 300 * time.Millisecond,
 			Clock:            clock,

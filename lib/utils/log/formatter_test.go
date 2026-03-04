@@ -20,7 +20,6 @@ package log
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -148,7 +147,7 @@ func TestOutput(t *testing.T) {
 				// Add some fields and output the message at the desired log level via slog.
 				l2 := slogLogger.With("test", 123).With("animal", "llama\n").With("error", logErr)
 				slogTestLogLineNumber := func() int {
-					l2.With(teleport.ComponentFields, fields).Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
+					l2.With(teleport.ComponentFields, fields).Log(t.Context(), test.slogLevel, message, "diag_addr", &addr)
 					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
 				}()
 
@@ -246,7 +245,7 @@ func TestOutput(t *testing.T) {
 				// Add some fields and output the message at the desired log level via slog.
 				l2 := slogLogger.With("test", 123).With("animal", "llama").With("error", trace.Wrap(logErr))
 				slogTestLogLineNumber := func() int {
-					l2.With(teleport.ComponentFields, fields).Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
+					l2.With(teleport.ComponentFields, fields).Log(t.Context(), test.slogLevel, message, "diag_addr", &addr)
 					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
 				}()
 
@@ -303,7 +302,7 @@ func getCallerLineNumber() int {
 }
 
 func BenchmarkFormatter(b *testing.B) {
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ReportAllocs()
 
 	b.Run("slog", func(b *testing.B) {
@@ -361,7 +360,7 @@ func TestConcurrentOutput(t *testing.T) {
 	})).With(teleport.ComponentKey, "test")
 
 	var wg sync.WaitGroup
-	ctx := context.Background()
+	ctx := t.Context()
 	for i := range 1000 {
 		wg.Add(1)
 		go func(i int) {
@@ -436,7 +435,7 @@ func TestExtraFields(t *testing.T) {
 
 				record.AddAttrs(slog.String(teleport.ComponentKey, "test"), slog.String("animal", "llama"), slog.String("vegetable", "carrot"))
 
-				require.NoError(t, slogHandler.Handle(context.Background(), record))
+				require.NoError(t, slogHandler.Handle(t.Context(), record))
 
 				for k := range replaced {
 					delete(replaced, k)
@@ -470,7 +469,7 @@ func TestExtraFields(t *testing.T) {
 
 				record.AddAttrs(slog.String(teleport.ComponentKey, "test"), slog.String("animal", "llama"), slog.String("vegetable", "carrot"))
 
-				require.NoError(t, slogHandler.Handle(context.Background(), record))
+				require.NoError(t, slogHandler.Handle(t.Context(), record))
 
 				var slogData map[string]any
 				require.NoError(t, json.Unmarshal(slogOutput.Bytes(), &slogData))

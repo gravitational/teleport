@@ -75,7 +75,7 @@ func testRDS(t *testing.T) {
 	t.Parallel()
 	// Give everything some time to finish. Realistically it takes ~10-20
 	// seconds, but let's be generous to maybe avoid flakey failures.
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	t.Cleanup(cancel)
 
 	// use random names so we can test auto provisioning these users with these

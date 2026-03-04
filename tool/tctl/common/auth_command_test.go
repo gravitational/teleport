@@ -332,7 +332,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			// Generate kubeconfig.
-			err := tt.ac.generateUserKeys(context.Background(), tt.client)
+			err := tt.ac.generateUserKeys(t.Context(), tt.client)
 			tt.assertErr(t, err)
 			// error is already asserted, so we can return early.
 			if err != nil {
@@ -502,7 +502,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 		cas: []types.CertAuthority{dbCA},
 	}
 
-	keyRing, err := generateKeyRing(context.Background(), authClient, cryptosuites.DatabaseClient)
+	keyRing, err := generateKeyRing(t.Context(), authClient, cryptosuites.DatabaseClient)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -606,7 +606,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 				genTTL:        time.Hour,
 			}
 
-			err = ac.generateDatabaseKeysForKeyRing(context.Background(), authClient, keyRing)
+			err = ac.generateDatabaseKeysForKeyRing(t.Context(), authClient, keyRing)
 			if test.genKeyErrMsg == "" {
 				require.NoError(t, err)
 			} else {
@@ -707,7 +707,7 @@ func TestGenerateAppCertificates(t *testing.T) {
 				genTTL:        time.Hour,
 				appName:       tc.appName,
 			}
-			err = ac.generateUserKeys(context.Background(), authClient)
+			err = ac.generateUserKeys(t.Context(), authClient)
 			tc.assertErr(t, err)
 			if err != nil {
 				return
@@ -729,7 +729,7 @@ func TestGenerateAppCertificates(t *testing.T) {
 }
 
 func TestGenerateDatabaseUserCertificates(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	tests := map[string]struct {
 		clusterName        string
 		dbService          string
@@ -962,14 +962,14 @@ func TestGenerateAndSignKeys(t *testing.T) {
 				genTTL:        time.Hour,
 			}
 
-			err = ac.GenerateAndSignKeys(context.Background(), test.authClient)
+			err = ac.GenerateAndSignKeys(t.Context(), test.authClient)
 			require.NoError(t, err)
 		})
 	}
 }
 
 func TestExportCRL(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	name, err := types.NewClusterName(types.ClusterNameSpecV2{ClusterName: "name", ClusterID: "clusterID"})
 	require.NoError(t, err)
 	cas := make([]types.CertAuthority, len(allowedCRLCertificateTypes))

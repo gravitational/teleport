@@ -101,7 +101,7 @@ func TestResumption(t *testing.T) {
 		t.Parallel()
 		require := require.New(t)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 
 		originalNC, err := net.Dial(directListener.Addr().Network(), directListener.Addr().String())
@@ -174,7 +174,7 @@ func testResumption(t *testing.T, network, address string, expectedHostID string
 	t.Run("SSH through resumable conn", func(t *testing.T) {
 		require := require.New(t)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 
 		originalNC, err := net.Dial(network, address)

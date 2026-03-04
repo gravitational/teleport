@@ -98,7 +98,7 @@ func TestMFADeviceManagement(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	clock := testServer.Clock().(*clockwork.FakeClock)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Enable MFA support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -461,7 +461,7 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 	t.Parallel()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Enable MFA support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -580,7 +580,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	clock := testServer.Clock().(*clockwork.FakeClock)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name     string
@@ -790,7 +790,7 @@ func addOneOfEachMFADevice(t *testing.T, userClient *authclient.Client, clock cl
 	const totpName = "totp-dev"
 	const webName = "webauthn-dev"
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	totpDev, err := authtest.RegisterTestDevice(
 		ctx, userClient, totpName, proto.DeviceType_DEVICE_TYPE_TOTP, nil /* authenticator */, authtest.WithTestDeviceClock(clock))
@@ -888,7 +888,7 @@ func testDeleteMFADevice(ctx context.Context, t *testing.T, authClient *authclie
 
 func TestCreateAppSession_deviceExtensions(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 
@@ -974,7 +974,7 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 
 func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	testServer := newTestTLSServer(t)
 
 	// Create an user for testing.
@@ -1060,7 +1060,7 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 
 	testServer := newTestTLSServer(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := testServer.Clock()
 	clusterName := testServer.ClusterName()
 	authServer := testServer.Auth()
@@ -1339,7 +1339,7 @@ func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
 
 	testServer := newTestTLSServer(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	authServer := testServer.Auth()
 
 	// Create a user for testing.
@@ -1466,7 +1466,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 		TestFeatures:  modules.GetModules().Features(),
 	})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 	clock := srv.Clock()
 	userCertTTL := 12 * time.Hour
@@ -2566,7 +2566,7 @@ func TestIsMFARequired(t *testing.T) {
 	}
 	modulestest.SetTestModules(t, testModules)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	// Register an SSH node.
@@ -2653,7 +2653,7 @@ func TestIsMFARequired(t *testing.T) {
 
 func TestIsMFARequired_unauthorized(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	// Enable MFA support.
@@ -2743,7 +2743,7 @@ func TestIsMFARequired_unauthorized(t *testing.T) {
 func TestIsMFARequired_nodeMatch(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	// Register an SSH node.
@@ -2840,7 +2840,7 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 
 func TestIsMFARequired_App(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	appA, err := types.NewAppV3(types.Metadata{
@@ -2985,7 +2985,7 @@ func testOriginDynamicStored(t *testing.T, setWithOrigin func(*authclient.Client
 
 func TestAuthPreferenceOriginDynamic(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	setWithOrigin := func(cl *authclient.Client, origin string) error {
 		authPref := types.DefaultAuthPreference()
@@ -3003,7 +3003,7 @@ func TestAuthPreferenceOriginDynamic(t *testing.T) {
 
 func TestClusterNetworkingConfigOriginDynamic(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	setWithOrigin := func(cl *authclient.Client, origin string) error {
 		netConfig := types.DefaultClusterNetworkingConfig()
@@ -3021,7 +3021,7 @@ func TestClusterNetworkingConfigOriginDynamic(t *testing.T) {
 
 func TestSessionRecordingConfigOriginDynamic(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	setWithOrigin := func(cl *authclient.Client, origin string) error {
 		recConfig := types.DefaultSessionRecordingConfig()
@@ -3039,7 +3039,7 @@ func TestSessionRecordingConfigOriginDynamic(t *testing.T) {
 
 func TestGenerateHostCerts(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
@@ -3066,7 +3066,7 @@ func TestGenerateHostCerts(t *testing.T) {
 
 func TestGenerateDatabaseCerts(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
@@ -3217,7 +3217,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 
 func TestGetSSHTargets(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
@@ -3270,7 +3270,7 @@ func TestGetSSHTargets(t *testing.T) {
 
 func TestResolveSSHTarget(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
@@ -3333,7 +3333,7 @@ func TestResolveSSHTarget(t *testing.T) {
 
 func TestNodesCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
@@ -3442,7 +3442,7 @@ func TestLocksCRUD(t *testing.T) {
 		return filter
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
@@ -3658,7 +3658,7 @@ func TestLocksCRUD(t *testing.T) {
 // TestApplicationServersCRUD tests application server operations.
 func TestApplicationServersCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
@@ -3731,7 +3731,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 // TestAppsCRUD tests application resource operations.
 func TestAppsCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
@@ -3916,7 +3916,7 @@ func TestAppsCRUD(t *testing.T) {
 // TestAppServersCRUD tests application server resource operations.
 func TestAppServersCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	// Create an app server, expected origin dynamic.
@@ -4042,7 +4042,7 @@ func TestAppServersCRUD(t *testing.T) {
 // TestDatabasesCRUD tests database resource operations.
 func TestDatabasesCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
@@ -4155,7 +4155,7 @@ func TestDatabasesCRUD(t *testing.T) {
 // TestDatabaseServicesCRUD tests DatabaseService resource operations.
 func TestDatabaseServicesCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
@@ -4281,7 +4281,7 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 
 func TestServerInfoCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
@@ -4378,7 +4378,7 @@ func TestServerInfoCRUD(t *testing.T) {
 // TestSAMLIdPServiceProvidersCRUD tests SAMLIdPServiceProviders resource operations.
 func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
@@ -4463,7 +4463,7 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 
 func TestListResources(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
@@ -4645,7 +4645,7 @@ func TestListResources(t *testing.T) {
 func TestCustomRateLimiting(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tests := []struct {
 		name  string
 		burst int
@@ -4972,7 +4972,7 @@ func TestExport(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
+			ctx := t.Context()
 			as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir:         t.TempDir(),
 				Clock:       clockwork.NewFakeClock(),
@@ -5068,7 +5068,7 @@ func TestSAMLValidation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 
 			server := newTestTLSServer(t)
@@ -5133,7 +5133,7 @@ const testEntityDescriptor = `
 
 func TestGRPCServer_GetInstallers(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	server := newTestTLSServer(t)
 	grpc := server.TLSServer.GRPCServer()
 
@@ -5305,7 +5305,7 @@ func TestRoleVersions(t *testing.T) {
 		},
 	})
 
-	user, err := authtest.CreateUser(context.Background(), srv.Auth(), "user", enabledRole, disabledRole, undefinedRole)
+	user, err := authtest.CreateUser(t.Context(), srv.Auth(), "user", enabledRole, disabledRole, undefinedRole)
 	require.NoError(t, err)
 
 	client, err := srv.NewClient(authtest.TestUser(user.GetName()))
@@ -5395,7 +5395,7 @@ func TestRoleVersions(t *testing.T) {
 			for _, clientVersion := range tc.clientVersions {
 				t.Run(clientVersion, func(t *testing.T) {
 					// setup client metadata
-					ctx := context.Background()
+					ctx := t.Context()
 					if clientVersion == "" {
 						ctx = context.WithValue(ctx, metadata.DisableInterceptors{}, struct{}{})
 					} else {
@@ -5518,7 +5518,7 @@ func TestRoleVersions(t *testing.T) {
 func TestUpsertApplicationServerOrigin(t *testing.T) {
 	t.Parallel()
 
-	parentCtx := context.Background()
+	parentCtx := t.Context()
 	server := newTestTLSServer(t)
 
 	admin := authtest.TestAdmin()
@@ -5667,7 +5667,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 				I: test.identity,
 			})
 			require.NoError(t, err)
-			rsp, err := client.GetClusterAccessGraphConfig(context.Background())
+			rsp, err := client.GetClusterAccessGraphConfig(t.Context())
 			test.assertErr(t, err)
 			require.Empty(t, cmp.Diff(test.expected, rsp, protocmp.Transform()))
 		})
@@ -6007,7 +6007,7 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 		},
 	})
 
-	user, err := authtest.CreateUser(context.Background(), srv.Auth(), "user",
+	user, err := authtest.CreateUser(t.Context(), srv.Auth(), "user",
 		testRole1,
 		downgradev7comptibleK8sResourcesRole,
 		downgradev7incompatibleK8sResourcesRole,
@@ -6431,7 +6431,7 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 			for _, clientVersion := range tc.clientVersions {
 				t.Run(clientVersion, func(t *testing.T) {
 					// Setup client metadata.
-					ctx := context.Background()
+					ctx := t.Context()
 					if clientVersion == "" {
 						ctx = context.WithValue(ctx, metadata.DisableInterceptors{}, struct{}{})
 					} else {

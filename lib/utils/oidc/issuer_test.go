@@ -102,7 +102,7 @@ func (m *mockProxyGetter) ListProxyServers(_ context.Context, _ int, _ string) (
 }
 
 func TestIssuerForCluster(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, tt := range []struct {
 		name           string
 		paths          []string

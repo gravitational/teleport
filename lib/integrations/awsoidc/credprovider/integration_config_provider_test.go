@@ -41,7 +41,7 @@ const (
 
 func TestCreateAWSConfigForIntegration(t *testing.T) {
 	deps := newDepsMock(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("should auto init credentials during retrieve call", func(t *testing.T) {
 		stsClient := &fakeSTSClient{clock: clockwork.NewFakeClock()}
@@ -101,7 +101,7 @@ func (d *depsMock) GetClusterName(_ context.Context) (types.ClusterName, error) 
 }
 
 func newDepsMock(t *testing.T) *depsMock {
-	ctx := context.Background()
+	ctx := t.Context()
 	var out depsMock
 	b, err := memory.New(memory.Config{
 		Clock: clockwork.NewFakeClock(),
@@ -131,7 +131,7 @@ func newDepsMock(t *testing.T) *depsMock {
 	)
 	require.NoError(t, err)
 
-	_, err = out.IntegrationsService.CreateIntegration(context.Background(), oidcIntegration)
+	_, err = out.IntegrationsService.CreateIntegration(t.Context(), oidcIntegration)
 	require.NoError(t, err)
 
 	out.proxies = []types.Server{

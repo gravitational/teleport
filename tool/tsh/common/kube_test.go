@@ -80,7 +80,7 @@ func TestKubeLogin(t *testing.T) {
 
 		// Test "tsh proxy kube root-cluster1".
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		t.Cleanup(cancel)
 
@@ -126,7 +126,7 @@ type kubeTestPack struct {
 func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 	t.Helper()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	rootKubeCluster1 := "root-cluster"
 	rootKubeCluster2 := "first-cluster"
 	// mock a discovered kube cluster name in the leaf Teleport cluster.
@@ -299,7 +299,7 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 
 			captureStdout := new(bytes.Buffer)
 			err := Run(
-				context.Background(),
+				t.Context(),
 				append([]string{
 					"--insecure",
 					"kube",
@@ -376,7 +376,7 @@ func TestKubeSelection(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
@@ -619,7 +619,7 @@ func TestKubeSelection(t *testing.T) {
 				t.Parallel()
 				tshHome, kubeConfigPath := mustLoginLegacy(t, s)
 				err := Run(
-					context.Background(),
+					t.Context(),
 					append([]string{"kube", "login", "--insecure"},
 						test.args...,
 					),
@@ -710,7 +710,7 @@ func TestKubeSelection(t *testing.T) {
 		wg := &errgroup.Group{}
 		wg.Go(func() error {
 			err := Run(
-				context.Background(),
+				t.Context(),
 				[]string{
 					"--insecure",
 					"kube",
@@ -733,7 +733,7 @@ func TestKubeSelection(t *testing.T) {
 		require.Eventually(t, func() bool {
 			accessRequests, err := s.root.GetAuthServer().
 				GetAccessRequests(
-					context.Background(),
+					t.Context(),
 					types.AccessRequestFilter{State: types.RequestState_PENDING},
 				)
 			if err != nil || len(accessRequests) != 1 {
@@ -755,7 +755,7 @@ func TestKubeSelection(t *testing.T) {
 			return equal
 		}, 10*time.Second, 500*time.Millisecond, "waiting for access request to be created")
 		// Approve the access request to release the login command lock.
-		err := s.root.GetAuthServer().SetAccessRequestState(context.Background(), types.AccessRequestUpdate{
+		err := s.root.GetAuthServer().SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
 			RequestID: accessRequestID,
 			State:     types.RequestState_APPROVED,
 		})

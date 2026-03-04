@@ -114,7 +114,7 @@ func TestProtoStreamer(t *testing.T) {
 }
 
 func TestWriterEmitter(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 
 	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 0})
@@ -133,7 +133,7 @@ func TestWriterEmitter(t *testing.T) {
 }
 
 func TestAsyncEmitter(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 20})
 
 	// Slow tests that async emitter does not block
@@ -224,7 +224,7 @@ func TestExport(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	stream, err := streamer.CreateAuditStream(ctx, sid)
 	require.NoError(t, err)
 

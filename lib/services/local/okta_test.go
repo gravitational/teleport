@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -36,7 +35,7 @@ import (
 
 // TestOktaImportRuleCRUD tests backend operations with Okta import rule resources.
 func TestOktaImportRuleCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	backend, err := memory.New(memory.Config{
@@ -300,7 +299,7 @@ func TestValidateOktaImportRuleRegexes(t *testing.T) {
 
 // TestOktaAssignmentCRUD tests backend operations with Okta assignment resources.
 func TestOktaAssignmentCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	backend, err := memory.New(memory.Config{

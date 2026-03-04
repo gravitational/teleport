@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -31,7 +30,7 @@ import (
 
 func TestAssertionReplayService(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	delay := func(t time.Duration) time.Time { return time.Now().UTC().Add(t) }
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)

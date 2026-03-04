@@ -163,7 +163,7 @@ func TestEC2NodeJoin(t *testing.T) {
 	if os.Getenv("TELEPORT_TEST_EC2") == "" {
 		t.Skipf("Skipping TestEC2NodeJoin because TELEPORT_TEST_EC2 is not set")
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// fetch the IID to create a token which will match this instance
 	iid := getIID(ctx, t)
@@ -229,7 +229,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	if os.Getenv("TELEPORT_TEST_EC2") == "" {
 		t.Skipf("Skipping TestIAMNodeJoin because TELEPORT_TEST_EC2 is not set")
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// create and start the auth server
 	authConfig := newAuthConfig(t, nil /*clock*/)
@@ -390,7 +390,7 @@ func TestEC2Labels(t *testing.T) {
 	require.NoError(t, proc.Start())
 	t.Cleanup(func() { require.NoError(t, proc.Close()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 	authServer := proc.GetAuthServer()
 
 	var nodes []types.Server
@@ -419,42 +419,42 @@ func TestEC2Labels(t *testing.T) {
 	tagName := fmt.Sprintf("%s/Name", labels.AWSLabelNamespace)
 
 	// Check that EC2 labels were applied.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		node, err := authServer.GetNode(ctx, tconf.SSH.Namespace, nodes[0].GetName())
-		require.NoError(t, err)
+		require.NoError(ct, err)
 
 		_, nodeHasLabel := node.GetAllLabels()[tagName]
-		require.True(t, nodeHasLabel)
+		require.True(ct, nodeHasLabel)
 
 		apps, err := authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		require.Len(t, apps, 1)
+		require.NoError(ct, err)
+		require.Len(ct, apps, 1)
 
 		app := apps[0].GetApp()
 		_, appHasLabel := app.GetAllLabels()[tagName]
-		require.True(t, appHasLabel)
+		require.True(ct, appHasLabel)
 
 		databases, err := authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		require.Len(t, databases, 1)
+		require.NoError(ct, err)
+		require.Len(ct, databases, 1)
 
 		database := databases[0].GetDatabase()
 		_, dbHasLabel := database.GetAllLabels()[tagName]
-		require.True(t, dbHasLabel)
+		require.True(ct, dbHasLabel)
 
 		kubeResources, err := apiclient.GetResourcesWithFilters(
-			context.Background(), authServer,
+			ctx, authServer,
 			proto.ListResourcesRequest{ResourceType: types.KindKubeServer},
 		)
-		require.NoError(t, err)
-		require.Len(t, kubeResources, 1)
+		require.NoError(ct, err)
+		require.Len(ct, kubeResources, 1)
 
 		kubeServers, err := types.ResourcesWithLabels(kubeResources).AsKubeServers()
-		require.NoError(t, err)
+		require.NoError(ct, err)
 
 		kube := kubeServers[0].GetCluster()
 		_, kubeHasLabel := kube.GetStaticLabels()[tagName]
-		require.True(t, kubeHasLabel)
+		require.True(ct, kubeHasLabel)
 	}, 10*time.Second, time.Second)
 }
 

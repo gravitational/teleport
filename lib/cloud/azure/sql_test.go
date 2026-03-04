@@ -19,7 +19,6 @@
 package azure
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -30,7 +29,7 @@ import (
 
 func TestSQLListAll(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tc := range []struct {
 		desc            string
@@ -77,7 +76,7 @@ func TestSQLListAll(t *testing.T) {
 
 func TestSQLListWithinGroup(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tc := range []struct {
 		desc            string

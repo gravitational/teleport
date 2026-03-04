@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -43,7 +42,7 @@ import (
 func TestCreateStaticHostUser(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getStaticHostUserService(t)
 
 	obj := getStaticHostUser(0)
@@ -61,7 +60,7 @@ func TestCreateStaticHostUser(t *testing.T) {
 func TestUpsertStaticHostUser(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getStaticHostUserService(t)
 
 	obj := getStaticHostUser(0)
@@ -80,7 +79,7 @@ func TestUpsertStaticHostUser(t *testing.T) {
 func TestGetStaticHostUser(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getStaticHostUserService(t)
 	prepopulateStaticHostUsers(t, service, 1)
 
@@ -125,7 +124,7 @@ func TestGetStaticHostUser(t *testing.T) {
 func TestUpdateStaticHostUser(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getStaticHostUserService(t)
 	prepopulateStaticHostUsers(t, service, 1)
 
@@ -149,7 +148,7 @@ func TestUpdateStaticHostUser(t *testing.T) {
 func TestUpdateStaticHostUserMissingRevision(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getStaticHostUserService(t)
 	prepopulateStaticHostUsers(t, service, 1)
 
@@ -166,7 +165,7 @@ func TestUpdateStaticHostUserMissingRevision(t *testing.T) {
 func TestDeleteStaticHostUser(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	service := getStaticHostUserService(t)
 	prepopulateStaticHostUsers(t, service, 1)
 
@@ -199,7 +198,7 @@ func TestDeleteStaticHostUser(t *testing.T) {
 
 func TestListStaticHostUsers(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	counts := []int{0, 1, 5, 10}
 
 	for _, count := range counts {
@@ -252,7 +251,7 @@ func TestListStaticHostUsers(t *testing.T) {
 
 func getStaticHostUserService(t *testing.T) services.StaticHostUser {
 	backend, err := memory.New(memory.Config{
-		Context: context.Background(),
+		Context: t.Context(),
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
@@ -283,7 +282,7 @@ func getStaticHostUser(index int) *userprovisioningpb.StaticHostUser {
 
 func prepopulateStaticHostUsers(t *testing.T, service services.StaticHostUser, count int) {
 	for i := range count {
-		_, err := service.CreateStaticHostUser(context.Background(), getStaticHostUser(i))
+		_, err := service.CreateStaticHostUser(t.Context(), getStaticHostUser(i))
 		require.NoError(t, err)
 	}
 }

@@ -473,7 +473,7 @@ func testDatabaseLogin(t *testing.T) {
 				go updateAccessRequestForDB(t, s, test.name, test.databaseName, test.setAccessRequestState)
 			}
 
-			err := Run(context.Background(), args, cliOpts...)
+			err := Run(t.Context(), args, cliOpts...)
 			if test.expectLoginErrorIs != nil {
 				require.Error(t, err)
 				require.True(t, test.expectLoginErrorIs(err))
@@ -504,7 +504,7 @@ func testDatabaseLogin(t *testing.T) {
 					args := append([]string{
 						"db", "config",
 					}, selectors...)
-					err := Run(context.Background(), args, cliOpts...)
+					err := Run(t.Context(), args, cliOpts...)
 
 					if test.expectErrForConfigCmd {
 						require.Error(t, err)
@@ -518,7 +518,7 @@ func testDatabaseLogin(t *testing.T) {
 					args := append([]string{
 						"db", "env",
 					}, selectors...)
-					err := Run(context.Background(), args, cliOpts...)
+					err := Run(t.Context(), args, cliOpts...)
 
 					if test.expectErrForEnvCmd {
 						require.Error(t, err)
@@ -533,7 +533,7 @@ func testDatabaseLogin(t *testing.T) {
 				args := append([]string{
 					"db", "logout",
 				}, selectors...)
-				err := Run(context.Background(), args, cliOpts...)
+				err := Run(t.Context(), args, cliOpts...)
 				require.NoError(t, err)
 			})
 		})
@@ -544,7 +544,7 @@ func updateAccessRequestForDB(t *testing.T, s *suite, wantRequestReason, wantDBN
 	var accessRequestID string
 	require.Eventually(t, func() bool {
 		filter := types.AccessRequestFilter{State: types.RequestState_PENDING}
-		accessRequests, err := s.root.GetAuthServer().GetAccessRequests(context.Background(), filter)
+		accessRequests, err := s.root.GetAuthServer().GetAccessRequests(t.Context(), filter)
 		if err != nil {
 			return false
 		}
@@ -564,7 +564,7 @@ func updateAccessRequestForDB(t *testing.T, s *suite, wantRequestReason, wantDBN
 		return false
 	}, 10*time.Second, 500*time.Millisecond, "waiting for access request")
 
-	err := s.root.GetAuthServer().SetAccessRequestState(context.Background(), types.AccessRequestUpdate{
+	err := s.root.GetAuthServer().SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
 		RequestID: accessRequestID,
 		State:     updateState,
 	})
@@ -591,7 +591,7 @@ func TestLocalProxyRequirement(t *testing.T) {
 	require.NoError(t, err)
 
 	// Log into Teleport cluster.
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
 	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
 	require.NoError(t, err)
@@ -744,7 +744,7 @@ func testListDatabase(t *testing.T) {
 	tshHome, _ := mustLoginLegacy(t, s)
 
 	captureStdout := new(bytes.Buffer)
-	err := Run(context.Background(), []string{
+	err := Run(t.Context(), []string{
 		"db",
 		"ls",
 		"--insecure",
@@ -763,7 +763,7 @@ func testListDatabase(t *testing.T) {
 		"non-verbose listing should not print full db name")
 
 	captureStdout.Reset()
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"db",
 		"ls",
 		"--verbose",
@@ -779,7 +779,7 @@ func testListDatabase(t *testing.T) {
 		"verbose listing should print full db name")
 
 	captureStdout.Reset()
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"db",
 		"ls",
 		"--cluster",
@@ -989,7 +989,7 @@ func TestDBInfoHasChanged(t *testing.T) {
 
 func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
 	timeout := 10 * time.Second
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(t.Context(), timeout)
 	defer cancel()
 	for {
 		select {
@@ -1672,7 +1672,7 @@ func testDatabaseSelection(t *testing.T) {
 				wantRoutes: activeRoutes,
 			},
 		}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -1840,7 +1840,7 @@ func testDatabaseSelection(t *testing.T) {
 				wantErr:      "multiple databases are available",
 			},
 		}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 		for _, test := range tests {
 			t.Run(test.desc, func(t *testing.T) {
@@ -1916,7 +1916,7 @@ func testDatabaseSelection(t *testing.T) {
 				wantErr:      "multiple databases are available",
 			},
 		}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 		for _, test := range tests {
 			t.Run(test.desc, func(t *testing.T) {
@@ -2290,7 +2290,7 @@ func TestMongoDBSeparatePortCommandError(t *testing.T) {
 		return nil
 	}
 
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"db",
 		"connect",
 		"mongo",

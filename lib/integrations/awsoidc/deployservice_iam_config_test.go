@@ -167,7 +167,7 @@ func TestDeployServiceIAMConfigReqDefaults(t *testing.T) {
 }
 
 func TestDeployServiceIAMConfig(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tt := range []struct {
 		name              string
@@ -223,7 +223,7 @@ func TestDeployServiceIAMConfig(t *testing.T) {
 }
 
 func TestDeployServiceIAMConfigOutput(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var buf bytes.Buffer
 	req := baseReq()

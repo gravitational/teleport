@@ -51,7 +51,7 @@ func newTestElasticsearchEngine(ec common.EngineConfig) common.Engine {
 
 func TestAccessElasticsearch(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withElasticsearch("Elasticsearch"))
 	go testCtx.startHandlingConnections()
 
@@ -139,7 +139,7 @@ func TestAccessElasticsearch(t *testing.T) {
 
 func TestAuditElasticsearch(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t, withElasticsearch("Elasticsearch"))
 	go testCtx.startHandlingConnections()
 

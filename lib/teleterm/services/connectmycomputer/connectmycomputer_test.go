@@ -42,7 +42,7 @@ func TestRoleSetupRun_WithNonLocalUser(t *testing.T) {
 	roleSetup, err := NewRoleSetup(&RoleSetupConfig{})
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	oidcUser, err := types.NewUser("alice")
@@ -69,7 +69,7 @@ func TestRoleSetupRun_Idempotency(t *testing.T) {
 	roleSetup, err := NewRoleSetup(&RoleSetupConfig{})
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	user, err := types.NewUser("alice")
@@ -121,7 +121,7 @@ func TestRoleSetupRun_RoleErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
 
 			user, err := types.NewUser("alice")
@@ -152,7 +152,7 @@ const nodejoinWaitTestTimeout = 10 * time.Second
 
 func TestNodeJoinWaitRun_WaitsForHostUUIDFileToBeCreatedAndFetchesNodeFromCluster(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), nodejoinWaitTestTimeout)
+	ctx, cancel := context.WithTimeout(t.Context(), nodejoinWaitTestTimeout)
 	t.Cleanup(cancel)
 
 	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}
@@ -202,7 +202,7 @@ func TestNodeJoinWaitRun_WaitsForHostUUIDFileToBeCreatedAndFetchesNodeFromCluste
 
 func TestNodeJoinWaitRun_WatchesForOpPutIfNodeWasNotFound(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), nodejoinWaitTestTimeout)
+	ctx, cancel := context.WithTimeout(t.Context(), nodejoinWaitTestTimeout)
 	t.Cleanup(cancel)
 
 	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}
@@ -264,7 +264,7 @@ func TestNodeJoinWaitRun_WatchesForOpPutIfNodeWasNotFound(t *testing.T) {
 
 func TestNodeJoinWaitRun_ReturnsEarlyIfGetNodeReturnsErrorOtherThanNotFound(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), nodejoinWaitTestTimeout)
+	ctx, cancel := context.WithTimeout(t.Context(), nodejoinWaitTestTimeout)
 	t.Cleanup(cancel)
 
 	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}

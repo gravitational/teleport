@@ -19,7 +19,6 @@
 package auth_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -55,7 +54,7 @@ func newOktaUser(t *testing.T) types.User {
 // with a given
 func newTestServerWithRoles(t *testing.T, srv *authtest.AuthServer, role types.SystemRole) *auth.ServerWithRoles {
 
-	authzContext := authz.ContextWithUser(context.Background(), authtest.TestBuiltin(role).I)
+	authzContext := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(role).I)
 	ctxIdentity, err := srv.Authorizer.Authorize(authzContext)
 	require.NoError(t, err)
 
@@ -72,7 +71,7 @@ func newTestServerWithRoles(t *testing.T, srv *authtest.AuthServer, role types.S
 
 func TestOktaMayNotResetPasswords(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Given an auth server...
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
@@ -136,7 +135,7 @@ func newTestLock(t *testing.T, target types.User, origin string) types.Lock {
 
 func TestOktaServiceLockCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Given an auth server...
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
@@ -153,13 +152,13 @@ func TestOktaServiceLockCRUD(t *testing.T) {
 
 	newLockInCluster := func(innerT *testing.T, target types.User, origin string) types.Lock {
 		lock := newTestLock(innerT, target, origin)
-		require.NoError(innerT, srv.AuthServer.UpsertLock(context.Background(), lock))
+		require.NoError(innerT, srv.AuthServer.UpsertLock(t.Context(), lock))
 		return lock
 	}
 
 	newUserInCluster := func(innerT *testing.T, origin string) types.User {
 		user := newUserWithOrigin(innerT, origin)
-		created, err := srv.AuthServer.CreateUser(context.Background(), user)
+		created, err := srv.AuthServer.CreateUser(t.Context(), user)
 		require.NoError(innerT, err)
 		return created
 	}

@@ -19,7 +19,6 @@
 package workloadattest
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -122,7 +121,7 @@ func TestSigstoreAttestor_Attest_WithCredentials(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	att, err := attestor.Attest(context.Background(), testContainer{
+	att, err := attestor.Attest(t.Context(), testContainer{
 		image:       fmt.Sprintf("%s/simple-signing:v1", registry),
 		imageDigest: "sha256:21c76c650023cac8d753af4cb591e6f7450c6e2b499b5751d4a21e26e2fc5012",
 	})
@@ -131,7 +130,7 @@ func TestSigstoreAttestor_Attest_WithCredentials(t *testing.T) {
 }
 
 func TestSigstoreAttestor_Attest_Caching(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Run a fake registry that just counts the number of requests to make sure
 	// we don't hit it once we're cached.

@@ -136,7 +136,7 @@ func FuzzFetchMySQLVersion(f *testing.F) {
 		"YXRpdmVfcGFzc3dvcmQA"))
 
 	f.Fuzz(func(t *testing.T, packet []byte) {
-		ctx := context.Background()
+		ctx := t.Context()
 		r := bytes.NewReader(packet)
 
 		require.NotPanics(t, func() {
@@ -153,7 +153,7 @@ func FuzzIsHandshakeV10Packet(f *testing.F) {
 	f.Add([]byte{0, 0, 0, 0, 0})
 	f.Add([]byte{0, 0, 0, 0, 10})
 	f.Fuzz(func(t *testing.T, packet []byte) {
-		ctx := context.Background()
+		ctx := t.Context()
 		conn := NewBufferedConn(ctx, &buffTestReader{reader: bytes.NewReader(packet)})
 		require.NotPanics(t, func() {
 			_, _ = IsHandshakeV10Packet(conn)

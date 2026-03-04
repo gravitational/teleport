@@ -109,7 +109,7 @@ func TestAuthExport(t *testing.T) {
 		}
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tt := range []struct {
 		name           string

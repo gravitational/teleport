@@ -152,7 +152,7 @@ func TestTeleportProcess_initDiscoveryService(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			accessGraphCfg, err := buildAccessGraphFromTAGOrFallbackToAuth(
-				context.Background(),
+				t.Context(),
 				&servicecfg.Config{
 					AccessGraph: tt.cfg,
 				},

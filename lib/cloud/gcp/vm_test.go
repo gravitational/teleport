@@ -222,7 +222,7 @@ func (m *mockListener) Addr() net.Addr {
 
 func TestRunCommand(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	t.Cleanup(cancel)
 
 	signer, err := generateKeyPair(cryptosuites.ECDSAP256)
@@ -264,7 +264,7 @@ func TestRunCommand(t *testing.T) {
 }
 
 func TestGetInstance(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/compute/v1/projects/{project}/zones/{zone}/instances/{id}", func(w http.ResponseWriter, r *http.Request) {
 		out, err := json.Marshal(&computepb.Instance{

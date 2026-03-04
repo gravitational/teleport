@@ -48,7 +48,7 @@ import (
 )
 
 func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	appAccessRole, err := types.NewRole("app-access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -260,7 +260,7 @@ func RegisterPasswordlessDeviceForUser(t *testing.T, server *service.TeleportPro
 	require.NoError(t, err)
 	device.SetPasswordless()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	token, err := server.GetAuthServer().CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})

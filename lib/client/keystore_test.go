@@ -19,7 +19,6 @@
 package client
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -54,7 +53,7 @@ func testEachKeyStore(t *testing.T, testFunc func(t *testing.T, keyStore KeyStor
 func TestKeyStore(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	s := newTestAuthority(t)
 	hwks := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
 

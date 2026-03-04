@@ -19,7 +19,6 @@
 package aws_sync
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -150,7 +149,7 @@ func TestPollAWSKMS(t *testing.T) {
 			got := &Resources{}
 			var gotErr error
 			collectErr := func(err error) { gotErr = err }
-			pollFn := fetcher.pollAWSKMSKeys(context.Background(), got, collectErr)
+			pollFn := fetcher.pollAWSKMSKeys(t.Context(), got, collectErr)
 			err := pollFn()
 			require.NoError(t, err)
 			want, wantErr := kmsMockToProto(kmsClient, accountID, regions[0])

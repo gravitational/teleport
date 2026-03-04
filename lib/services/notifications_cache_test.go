@@ -19,7 +19,6 @@
 package services_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -42,7 +41,7 @@ type notificationServices struct {
 }
 
 func newUserNotificationPack(t *testing.T) (notificationServices, *services.UserNotificationCache) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{
 		Context: ctx,
@@ -68,7 +67,7 @@ func newUserNotificationPack(t *testing.T) (notificationServices, *services.User
 }
 
 func newGlobalNotificationPack(t *testing.T) (notificationServices, *services.GlobalNotificationCache) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{
 		Context: ctx,

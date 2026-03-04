@@ -31,7 +31,7 @@ import (
 
 // TestSuites tests that each algorithm suite defines a valid algorithm for each key purpose.
 func TestSuites(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for s := range types.SignatureAlgorithmSuite_name {
 		suite := types.SignatureAlgorithmSuite(s)

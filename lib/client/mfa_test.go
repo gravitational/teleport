@@ -45,7 +45,7 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 	})
 
 	const proxyAddr = "example.com"
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// The Webauthn challenge below looks like a typical MFA challenge.
 	challengeWebauthnOnly := &proto.MFAAuthenticateChallenge{

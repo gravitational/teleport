@@ -90,7 +90,7 @@ func TestShowClusterAlerts(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			alertGetter := mockAlertGetter(test.alerts)
 			var got bytes.Buffer
-			err := ShowClusterAlerts(context.Background(), alertGetter, &got, nil, types.AlertSeverity_LOW)
+			err := ShowClusterAlerts(t.Context(), alertGetter, &got, nil, types.AlertSeverity_LOW)
 			require.NoError(t, err)
 			require.Equal(t, test.wantOut, got.String())
 		})

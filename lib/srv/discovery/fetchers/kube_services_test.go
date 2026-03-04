@@ -19,7 +19,6 @@
 package fetchers
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -296,7 +295,7 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			result, err := fetcher.Get(context.Background())
+			result, err := fetcher.Get(t.Context())
 			require.NoError(t, err)
 			require.Len(t, tt.expected, len(result))
 			slices.SortFunc(result, func(a, b types.ResourceWithLabels) int {

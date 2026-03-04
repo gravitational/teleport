@@ -122,7 +122,7 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 
 	cfgWithDeviceMode := func(mode string) SessionControllerConfig {
 		cfg := minimalCfg()
-		authPref, _ := cfg.AccessPoint.GetAuthPreference(context.Background())
+		authPref, _ := cfg.AccessPoint.GetAuthPreference(t.Context())
 		authPref.(*types.AuthPreferenceV2).Spec.DeviceTrust = &types.DeviceTrust{
 			Mode: mode,
 		}

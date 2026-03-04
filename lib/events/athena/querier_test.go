@@ -632,9 +632,9 @@ func TestSearchEvents(t *testing.T) {
 			var err error
 			var paginationKey string
 			if tt.searchParams != nil {
-				_, paginationKey, err = q.SearchEvents(context.Background(), *tt.searchParams)
+				_, paginationKey, err = q.SearchEvents(t.Context(), *tt.searchParams)
 			} else {
-				_, paginationKey, err = q.SearchSessionEvents(context.Background(), *tt.searchSessionParams)
+				_, paginationKey, err = q.SearchSessionEvents(t.Context(), *tt.searchSessionParams)
 			}
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
@@ -858,7 +858,7 @@ func Test_querier_fetchResults(t *testing.T) {
 					resp: tt.fakeResp,
 				},
 			}
-			gotEvents, gotKeyset, err := q.fetchResults(context.Background(), "queryid", tt.limit, tt.condition)
+			gotEvents, gotKeyset, err := q.fetchResults(t.Context(), "queryid", tt.limit, tt.condition)
 			require.NoError(t, err)
 
 			want := make([]events.EventFields, 0, len(tt.wantEvents))

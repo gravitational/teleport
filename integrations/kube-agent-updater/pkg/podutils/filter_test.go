@@ -19,7 +19,6 @@
 package podutils
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -31,7 +30,7 @@ import (
 func Test_isPodUnhealthy(t *testing.T) {
 	now := metav1.Now()
 	hourAgo := metav1.NewTime(time.Now().Add(-time.Hour))
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name string

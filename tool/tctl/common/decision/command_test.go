@@ -71,19 +71,19 @@ func TestCommands(t *testing.T) {
 
 	cmd.Initialize(kingpin.New("tctl", "test"), nil, nil)
 
-	match, err := cmd.TryRun(context.Background(), "decision evaluate-ssh-access", func(ctx context.Context) (client *authclient.Client, close func(context.Context), err error) {
+	match, err := cmd.TryRun(t.Context(), "decision evaluate-ssh-access", func(ctx context.Context) (client *authclient.Client, close func(context.Context), err error) {
 		return nil, nil, errors.New("fail")
 	})
 	assert.True(t, match, "evaluate SSH command did not match")
 	assert.Error(t, err, "expected failure from init function")
 
-	match, err = cmd.TryRun(context.Background(), "decision evaluate-db-access", func(ctx context.Context) (client *authclient.Client, close func(context.Context), err error) {
+	match, err = cmd.TryRun(t.Context(), "decision evaluate-db-access", func(ctx context.Context) (client *authclient.Client, close func(context.Context), err error) {
 		return nil, nil, errors.New("fail")
 	})
 	assert.True(t, match, "evaluate database command did not match")
 	assert.Error(t, err, "expected failure from init function")
 
-	match, err = cmd.TryRun(context.Background(), "decision evaluate-foo", func(ctx context.Context) (client *authclient.Client, close func(context.Context), err error) {
+	match, err = cmd.TryRun(t.Context(), "decision evaluate-foo", func(ctx context.Context) (client *authclient.Client, close func(context.Context), err error) {
 		return nil, nil, errors.New("fail")
 	})
 	assert.False(t, match, "evaluate foo command matched")

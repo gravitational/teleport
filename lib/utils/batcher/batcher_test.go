@@ -38,7 +38,7 @@ func TestCollectBatch_TimeWindow(t *testing.T) {
 	)
 
 	events := make(chan string)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	var batch []string
@@ -70,7 +70,7 @@ func TestCollectBatch_Threshold(t *testing.T) {
 		events <- i
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	batch, err := collector.CollectBatch(ctx, events)
@@ -90,7 +90,7 @@ func TestCollectBatch_ChannelClosed(t *testing.T) {
 	events <- "event2"
 	close(events)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	batch, err := collector.CollectBatch(ctx, events)
 
@@ -104,7 +104,7 @@ func TestCollectBatch_ContextCanceled(t *testing.T) {
 	events := make(chan string, 2)
 	events <- "event1"
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	_, err := collector.CollectBatch(ctx, events)
@@ -121,7 +121,7 @@ func TestCollectBatch_EmptyChannel(t *testing.T) {
 	events := make(chan string)
 	close(events)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	batch, err := collector.CollectBatch(ctx, events)
 
 	require.ErrorIs(t, err, io.EOF)

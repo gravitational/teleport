@@ -19,7 +19,6 @@
 package common
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"log/slog"
@@ -184,7 +183,7 @@ func TestAppRewriteHeaders(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			actualHeaders := AppRewriteHeaders(context.Background(), test.rewrite, slog.Default())
+			actualHeaders := AppRewriteHeaders(t.Context(), test.rewrite, slog.Default())
 			require.Equal(t, test.wantHeaders, slices.Collect(actualHeaders))
 		})
 	}

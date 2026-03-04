@@ -19,7 +19,6 @@
 package machineidv1_test
 
 import (
-	"context"
 	"errors"
 	"net"
 	"os"
@@ -70,7 +69,7 @@ func TestBotResourceName(t *testing.T) {
 func TestCreateBot(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	botCreator, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -639,7 +638,7 @@ func TestCreateBot(t *testing.T) {
 func TestUpdateBot(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	botUpdaterUser, _, err := authtest.CreateUserAndRole(srv.Auth(), "bot-updater", []string{}, []types.Rule{
 		{
@@ -1042,7 +1041,7 @@ func TestUpdateBot(t *testing.T) {
 func TestUpsertBot(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	botCreator, _, err := authtest.CreateUserAndRole(srv.Auth(), "bot-creator", []string{}, []types.Rule{
 		{
@@ -1629,7 +1628,7 @@ func TestUpsertBot(t *testing.T) {
 func TestGetBot(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	botGetterUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -1791,7 +1790,7 @@ func TestGetBot(t *testing.T) {
 func TestListBots(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	botListerUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -1946,7 +1945,7 @@ func TestListBots(t *testing.T) {
 func TestDeleteBot(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	botDeleterUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),

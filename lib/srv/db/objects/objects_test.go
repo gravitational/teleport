@@ -17,7 +17,6 @@
 package objects
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 	"time"
@@ -43,7 +42,7 @@ func TestLoadEnvVar(t *testing.T) {
 			t.Setenv("TEST_ENV_VAR", tc.envValue)
 			c := &Config{Log: slog.Default()}
 
-			found, duration := c.loadEnvVar(context.Background(), "TEST_ENV_VAR")
+			found, duration := c.loadEnvVar(t.Context(), "TEST_ENV_VAR")
 
 			require.Equal(t, tc.expectedFound, found)
 			require.Equal(t, tc.expectedDuration, duration)
@@ -113,7 +112,7 @@ func TestLoadEnvVarOverrides(t *testing.T) {
 			}
 
 			c := &Config{Log: slog.Default()}
-			c.loadEnvVarOverrides(context.Background())
+			c.loadEnvVarOverrides(t.Context())
 
 			require.Equal(t, tc.expectedScanInt, c.ScanInterval)
 			require.Equal(t, tc.expectedObjectTTL, c.ObjectTTL)

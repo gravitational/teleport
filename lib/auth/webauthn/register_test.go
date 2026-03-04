@@ -20,7 +20,6 @@ package webauthn_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/pem"
 	"sort"
 	"strings"
@@ -51,7 +50,7 @@ func TestRegistrationFlow_BeginFinish(t *testing.T) {
 		Identity: identity,
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tests := []struct {
 		name                 string
 		user                 string
@@ -181,7 +180,7 @@ func TestRegistrationFlow_Begin_excludeList(t *testing.T) {
 		Identity: identity,
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tests := []struct {
 		name            string
 		passwordless    bool
@@ -232,7 +231,7 @@ func TestRegistrationFlow_Begin_excludeList(t *testing.T) {
 
 func TestRegistrationFlow_Begin_webID(t *testing.T) {
 	const rpID = "localhost"
-	ctx := context.Background()
+	ctx := t.Context()
 
 	alpacaWebID := []byte{1, 2, 3, 4, 5}
 	tests := []struct {
@@ -294,7 +293,7 @@ func TestRegistrationFlow_Begin_errors(t *testing.T) {
 		Identity: newFakeIdentity(user),
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err := webRegistration.Begin(ctx, "" /* user */, false /* passwordless */)
 	require.True(t, trace.IsBadParameter(err)) // user required
 }
@@ -309,7 +308,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 		Identity: newFakeIdentity(user),
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
 	require.NoError(t, err)
@@ -499,7 +498,7 @@ func TestRegistrationFlow_Finish_attestation(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			webRegistration := wanlib.RegistrationFlow{
@@ -550,7 +549,7 @@ func TestRegistrationFlow_credProps(t *testing.T) {
 
 	const user = "llama"
 	const origin = "https://localhost"
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rf := &wanlib.RegistrationFlow{
 		Webauthn: &types.Webauthn{

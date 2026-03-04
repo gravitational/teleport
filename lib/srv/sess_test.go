@@ -195,6 +195,7 @@ func TestSession_newRecorder(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := logtest.NewLogger()
+	ctx := t.Context()
 
 	isNotSessionWriter := func(t require.TestingT, i any, i2 ...any) {
 		require.NotNil(t, i)
@@ -289,7 +290,7 @@ func TestSession_newRecorder(t *testing.T) {
 				require.NotNil(t, i)
 				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
-				require.NoError(t, sw.Close(context.Background()))
+				require.NoError(t, sw.Close(ctx))
 			},
 		},
 		{
@@ -311,7 +312,7 @@ func TestSession_newRecorder(t *testing.T) {
 				require.NotNil(t, i)
 				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
-				require.NoError(t, sw.Close(context.Background()))
+				require.NoError(t, sw.Close(ctx))
 			},
 		},
 	}
@@ -802,7 +803,7 @@ func TestSessionRecordingModes(t *testing.T) {
 			require.NoError(t, err)
 
 			// Close the recorder, indicating there is some error.
-			err = sess.Recorder().Complete(context.Background())
+			err = sess.Recorder().Complete(t.Context())
 			require.NoError(t, err)
 
 			// Send more writes.

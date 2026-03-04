@@ -146,7 +146,7 @@ func (g *samlTestingPrimitives) DebugDrifts(t *testing.T, name string) {
 	cachedClient := g.setup.TeleportServer.Process.GetAuthServer()
 
 	// t.Context() is already expired when this function is called by t.Cleanup().
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	testResource, err := testClient.GetSAMLConnector(ctx, name, false)

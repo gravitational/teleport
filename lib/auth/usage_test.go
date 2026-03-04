@@ -19,7 +19,6 @@
 package auth_test
 
 import (
-	"context"
 	"slices"
 	"testing"
 	"time"
@@ -43,7 +42,7 @@ import (
 func TestAccessRequestLimit(t *testing.T) {
 	username := "alice"
 	rolename := "access"
-	ctx := context.Background()
+	ctx := t.Context()
 
 	s := setUpAccessRequestLimitForJulyAndAugust(t, username, rolename)
 
@@ -64,7 +63,7 @@ func TestAccessRequestLimit(t *testing.T) {
 func TestAccessRequest_WithAndWithoutLimit(t *testing.T) {
 	username := "alice"
 	rolename := "access"
-	ctx := context.Background()
+	ctx := t.Context()
 
 	s := setUpAccessRequestLimitForJulyAndAugust(t, username, rolename)
 

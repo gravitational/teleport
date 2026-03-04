@@ -75,7 +75,7 @@ func otherAdminStates(states []authz.AdminActionAuthState) []authz.AdminActionAu
 func callMethod(t *testing.T, service *Service, method string) error {
 	for _, desc := range autoupdatev1pb.AutoUpdateService_ServiceDesc.Methods {
 		if desc.MethodName == method {
-			_, err := desc.Handler(service, context.Background(), func(_ any) error { return nil }, nil)
+			_, err := desc.Handler(service, t.Context(), func(_ any) error { return nil }, nil)
 			return err
 		}
 	}
@@ -469,7 +469,7 @@ func TestAutoUpdateConfigEvents(t *testing.T) {
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	checker := fakeChecker{allowedVerbs: rwVerbs, allowedKinds: []string{types.KindAutoUpdateConfig}}
 	service := newService(t, authz.AdminActionAuthMFAVerified, checker, mockEmitter)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
 		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
@@ -516,7 +516,7 @@ func TestAutoUpdateVersionEvents(t *testing.T) {
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	checker := fakeChecker{allowedVerbs: rwVerbs, allowedKinds: []string{types.KindAutoUpdateVersion}}
 	service := newService(t, authz.AdminActionAuthMFAVerified, checker, mockEmitter)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	config, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
 		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
@@ -569,7 +569,7 @@ func TestAutoUpdateAgentRolloutEvents(t *testing.T) {
 			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
 		},
 		mockEmitter)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rollout, err := autoupdate.NewAutoUpdateAgentRollout(&autoupdatev1pb.AutoUpdateAgentRolloutSpec{
 		StartVersion:   "1.2.3",

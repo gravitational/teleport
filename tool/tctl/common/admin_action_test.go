@@ -85,7 +85,7 @@ func TestAdminActionMFA(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testUsers(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	user, err := types.NewUser("teleuser")
 	require.NoError(t, err)
@@ -137,7 +137,7 @@ func (s *adminActionTestSuite) testUsers(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testBots(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	botName := "bot"
 	botReq := &machineidv1pb.CreateBotRequest{
@@ -193,7 +193,7 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testAuth(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	user, err := types.NewUser("teleuser")
 	require.NoError(t, err)
@@ -238,7 +238,7 @@ func (s *adminActionTestSuite) testAuth(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testRoles(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	role, err := types.NewRole("telerole", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -271,7 +271,7 @@ func (s *adminActionTestSuite) testRoles(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testAccessRequests(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	role, err := types.NewRole("telerole", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -369,7 +369,7 @@ func (s *adminActionTestSuite) testAccessRequests(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testTokens(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	token, err := types.NewProvisionToken("teletoken", []types.SystemRole{types.RoleNode}, time.Time{})
 	require.NoError(t, err)
@@ -450,7 +450,7 @@ func (s *adminActionTestSuite) testTokens(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testUserGroups(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	userGroup, err := types.NewUserGroup(types.Metadata{
 		Name:   "teleusergroup",
@@ -474,7 +474,7 @@ func (s *adminActionTestSuite) testUserGroups(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	sshKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
@@ -559,7 +559,7 @@ func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testOIDCConnector(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	connector, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
 		ClientID:     "12345",
@@ -608,7 +608,7 @@ func (s *adminActionTestSuite) testOIDCConnector(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testSAMLConnector(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	connector, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "http://localhost:65535/acs", // not called
@@ -653,7 +653,7 @@ func (s *adminActionTestSuite) testSAMLConnector(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testGithubConnector(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
 		ClientID:     "12345",
@@ -702,7 +702,7 @@ func (s *adminActionTestSuite) testGithubConnector(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testSAMLIdpServiceProvider(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
 		Name: "test-saml-app",
@@ -751,7 +751,7 @@ func (s *adminActionTestSuite) testSAMLIdpServiceProvider(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testClusterAuthPreference(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	originalAuthPref, err := s.authServer.GetAuthPreference(ctx)
 	require.NoError(t, err)
@@ -797,7 +797,7 @@ func (s *adminActionTestSuite) testClusterAuthPreference(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testNetworkRestriction(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	netRestrictions := types.NewNetworkRestrictions()
 
@@ -832,7 +832,7 @@ func (s *adminActionTestSuite) testNetworkRestriction(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testNetworkingConfig(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	netConfig := types.DefaultClusterNetworkingConfig()
 	netConfig.SetOrigin(types.OriginDynamic)
@@ -870,7 +870,7 @@ func (s *adminActionTestSuite) testNetworkingConfig(t *testing.T) {
 }
 
 func (s *adminActionTestSuite) testSessionRecordingConfig(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	sessionRecordingConfig := types.DefaultSessionRecordingConfig()
 	sessionRecordingConfig.SetOrigin(types.OriginDynamic)
@@ -1049,7 +1049,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	s := &adminActionTestSuite{}
 
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
@@ -1139,7 +1139,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 
 	// Login as the admin user.
 	tshHome := t.TempDir()
-	err = tsh.Run(context.Background(), []string{
+	err = tsh.Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -1281,7 +1281,7 @@ func getResourceRef(r types.Resource) string {
 
 func setupWebAuthn(t *testing.T, authServer *auth.Server, username string) libclient.WebauthnLoginFunc {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const origin = "https://localhost"
 	device, err := mocku2f.Create()

@@ -19,7 +19,6 @@
 package reporter_test
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"sort"
@@ -91,7 +90,7 @@ func TestReporter(t *testing.T) {
 				withPreAssertError(tt.preAssertError),
 			)
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			client, err := secretsscannerclient.NewSecretsScannerServiceClient(ctx,
 				secretsscannerclient.ClientConfig{

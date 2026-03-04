@@ -102,7 +102,7 @@ func TestResolveDefaultAddr(t *testing.T) {
 	expectedAddr := fmt.Sprintf("127.0.0.1:%d", ports[magicServerIndex])
 
 	// When I attempt to resolve a default address
-	addr, err := pickDefaultAddr(context.Background(), true, "127.0.0.1", ports)
+	addr, err := pickDefaultAddr(t.Context(), true, "127.0.0.1", ports)
 
 	// Expect that the "magic" server is selected
 	require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestResolveDefaultAddr(t *testing.T) {
 
 func TestResolveDefaultAddrNoCandidates(t *testing.T) {
 	t.Parallel()
-	_, err := pickDefaultAddr(context.Background(), true, "127.0.0.1", []int{})
+	_, err := pickDefaultAddr(t.Context(), true, "127.0.0.1", []int{})
 	require.Error(t, err)
 }
 
@@ -132,7 +132,7 @@ func TestResolveDefaultAddrSingleCandidate(t *testing.T) {
 	expectedAddr := fmt.Sprintf("127.0.0.1:%d", ports[0])
 
 	// When I attempt to resolve a default address
-	addr, err := pickDefaultAddr(context.Background(), true, "127.0.0.1", ports)
+	addr, err := pickDefaultAddr(t.Context(), true, "127.0.0.1", ports)
 
 	// Expect that the only server is selected
 	require.NoError(t, err)
@@ -158,7 +158,7 @@ func TestResolveDefaultAddrTimeout(t *testing.T) {
 	ports := mustGetCandidatePorts(servers)
 
 	// When I attempt to resolve the default address with a finite timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 1000*time.Millisecond)
 	defer cancel()
 	_, err := pickDefaultAddr(ctx, true, "127.0.0.1", ports)
 
@@ -178,7 +178,7 @@ func TestResolveNonOKResponseIsAnError(t *testing.T) {
 	ports := mustGetCandidatePorts(servers)
 
 	// When I attempt to resolve a default address
-	_, err := pickDefaultAddr(context.Background(), true, "127.0.0.1", ports)
+	_, err := pickDefaultAddr(t.Context(), true, "127.0.0.1", ports)
 
 	// Expect that the resolution fails because the server responded with a non-OK
 	// response
@@ -213,7 +213,7 @@ func TestResolveUndeliveredBodyDoesNotBlockForever(t *testing.T) {
 	ports := mustGetCandidatePorts(servers)
 
 	// When I attempt to resolve a default address
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel()
 	_, err := pickDefaultAddr(ctx, true, "127.0.0.1", ports)
 
@@ -240,7 +240,7 @@ func TestResolveDefaultAddrTimeoutBeforeAllRacersLaunched(t *testing.T) {
 
 	// When I attempt to resolve the default address with a timeout *smaller* than
 	// would allow for all of the racers to have been launched...
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
 	defer cancel()
 	_, err := pickDefaultAddr(ctx, true, "127.0.0.1", ports)
 
@@ -267,7 +267,7 @@ func TestResolveDefaultAddrHTTPProxy(t *testing.T) {
 	// Given an http proxy address...
 	t.Setenv("HTTPS_PROXY", proxyServer.URL)
 	// When I attempt to resove an address...
-	addr, err := pickDefaultAddr(context.Background(), true, localIP, ports)
+	addr, err := pickDefaultAddr(t.Context(), true, localIP, ports)
 	// Expect that pickDefaultAddr uses the http proxy.
 	require.NoError(t, err)
 	require.Equal(t, serverAddr.String(), addr)

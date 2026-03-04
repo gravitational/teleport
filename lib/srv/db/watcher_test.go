@@ -57,7 +57,7 @@ import (
 // TestWatcher verifies that database server properly detects and applies
 // changes to database resources.
 func TestWatcher(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t)
 
 	// Make a static configuration database.
@@ -170,7 +170,7 @@ func TestWatcher(t *testing.T) {
 // resources.
 func TestWatcherDynamicResource(t *testing.T) {
 	var db1, db2, db3, db4, db5, db6 *types.DatabaseV3
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t)
 
 	db0, err := makeStaticDatabase("db0", nil)
@@ -365,7 +365,7 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	setDiscoveryTypeLabel(azSQLServerDatabase, types.AzureMatcherSQLServer)
 	azSQLServerDatabase.SetOrigin(types.OriginCloud)
 	require.False(t, azSQLServerDatabase.IsAWSHosted())
-	ctx := context.Background()
+	ctx := t.Context()
 	testCtx := setupTestContext(ctx, t)
 
 	dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{

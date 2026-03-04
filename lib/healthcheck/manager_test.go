@@ -102,7 +102,7 @@ func TestNewManager(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			mgr, err := NewManager(context.Background(), test.cfg)
+			mgr, err := NewManager(t.Context(), test.cfg)
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
 				require.Nil(t, mgr)
@@ -117,7 +117,7 @@ func TestNewManager(t *testing.T) {
 
 func TestManager(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute*2)
 	t.Cleanup(cancel)
 	bk, err := memory.New(memory.Config{
 		Context: ctx,

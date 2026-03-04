@@ -540,7 +540,7 @@ func TestAWSSignerHandler(t *testing.T) {
 func TestRewriteRequest(t *testing.T) {
 	expectedReq, err := http.NewRequest("GET", "https://example.com", http.NoBody)
 	require.NoError(t, err)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	inputReq := mustNewRequest(t, "GET", "https://example.com", nil)
 	actualOutReq, err := rewriteRequest(ctx, inputReq, &common.AWSResolvedEndpoint{})
@@ -635,7 +635,7 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 		Recorder: libevents.WithNoOpPreparer(recorder),
 	})
 	require.NoError(t, err)
-	signerHandler, err := NewAWSSignerHandler(context.Background(),
+	signerHandler, err := NewAWSSignerHandler(t.Context(),
 		SignerHandlerConfig{
 			AWSConfigProvider: acp,
 			RoundTripper: &http.Transport{
