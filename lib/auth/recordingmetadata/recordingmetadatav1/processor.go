@@ -45,9 +45,11 @@ type recordingProcessor interface {
 
 func newRecordingProcessor(writer io.WriteCloser, logger *slog.Logger, sessionType recordingmetadata.SessionType, duration time.Duration) recordingProcessor {
 	base := baseRecordingProcessor{
-		metadata: &pb.SessionRecordingMetadata{},
-		writer:   writer,
-		logger:   logger,
+		metadata:          &pb.SessionRecordingMetadata{},
+		writer:            writer,
+		logger:            logger,
+		thumbnailInterval: calculateThumbnailInterval(duration, maxThumbnails),
+		thumbnailTime:     getRandomThumbnailTime(duration),
 	}
 
 	if sessionType == recordingmetadata.SessionTypeTTY {
