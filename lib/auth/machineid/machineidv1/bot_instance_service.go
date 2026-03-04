@@ -68,11 +68,12 @@ type BotInstancesCache interface {
 // BotInstanceServiceConfig holds configuration options for the BotInstance gRPC
 // service.
 type BotInstanceServiceConfig struct {
-	Authorizer authz.Authorizer
-	Cache      BotInstancesCache
-	Backend    services.BotInstance
-	Logger     *slog.Logger
-	Clock      clockwork.Clock
+	Authorizer       authz.Authorizer
+	ScopedAuthorizer authz.ScopedAuthorizer
+	Cache            BotInstancesCache
+	Backend          services.BotInstance
+	Logger           *slog.Logger
+	Clock            clockwork.Clock
 }
 
 // NewBotInstanceService returns a new instance of the BotInstanceService.
@@ -82,6 +83,8 @@ func NewBotInstanceService(cfg BotInstanceServiceConfig) (*BotInstanceService, e
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Cache == nil:
 		return nil, trace.BadParameter("cache service is required")
 	}
@@ -94,11 +97,12 @@ func NewBotInstanceService(cfg BotInstanceServiceConfig) (*BotInstanceService, e
 	}
 
 	return &BotInstanceService{
-		logger:     cfg.Logger,
-		authorizer: cfg.Authorizer,
-		cache:      cfg.Cache,
-		backend:    cfg.Backend,
-		clock:      cfg.Clock,
+		logger:           cfg.Logger,
+		authorizer:       cfg.Authorizer,
+		scopedAuthorizer: cfg.ScopedAuthorizer,
+		cache:            cfg.Cache,
+		backend:          cfg.Backend,
+		clock:            cfg.Clock,
 	}, nil
 }
 
@@ -108,9 +112,12 @@ type BotInstanceService struct {
 
 	backend    services.BotInstance
 	authorizer authz.Authorizer
-	cache      BotInstancesCache
-	logger     *slog.Logger
-	clock      clockwork.Clock
+	// TODO: I think it's actually safe for this to replace our entire
+	// authorizer rather than having both :')
+	scopedAuthorizer authz.ScopedAuthorizer
+	cache            BotInstancesCache
+	logger           *slog.Logger
+	clock            clockwork.Clock
 }
 
 // DeleteBotInstance deletes a bot specific bot instance
@@ -204,7 +211,7 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 
 // SubmitHeartbeat records heartbeat information for a bot
 func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.SubmitHeartbeatRequest) (*pb.SubmitHeartbeatResponse, error) {
-	authCtx, err := b.authorizer.Authorize(ctx)
+	authCtx, err := b.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -224,6 +231,8 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 	}
 
 	// Enforce that the connecting client is a bot and has a bot instance ID.
+	// todo: if we were to make scoped bots a seperate resource, we'd need to
+	// diverge here?
 	botName := authCtx.Identity.GetIdentity().BotName
 	botInstanceID := authCtx.Identity.GetIdentity().BotInstanceID
 	switch {
