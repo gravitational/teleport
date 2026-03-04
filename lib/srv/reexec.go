@@ -38,6 +38,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	ocselinux "github.com/opencontainers/selinux/go-selinux"
 	"golang.org/x/sys/unix"
@@ -949,6 +950,9 @@ func runCheckHomeDir() (code int, err error) {
 		default:
 			code = teleport.RemoteCommandFailure
 		}
+		fmt.Fprintf(os.Stderr, "stderr: hasAccessibleHomeDir returned an error: %v\n", err)
+		fmt.Fprintf(os.Stdout, "stdout: hasAccessibleHomeDir returned an error: %v\n", err)
+		os.WriteFile("/tmp/teleport-agent-checkhomedir-error-"+uuid.NewString(), []byte(err.Error()), 0444)
 	}
 
 	return code, nil
@@ -1187,20 +1191,17 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	// Set the command's cwd to the user's $HOME, or "/" if
 	// they don't have an existing home dir.
 	// TODO (atburke): Generalize this to support Windows.
-	hasAccess, err := CheckHomeDir(localUser)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	if hasAccess {
-		cmd.Dir = localUser.HomeDir
-	} else {
+	hasAccess, err := CheckHomeDir(localUser)
+	if err != nil || !hasAccess {
 		// Write failure to find home dir to stdout, same as OpenSSH.
-		msg := fmt.Sprintf("Could not set shell's cwd to home directory %q, defaulting to %q\n", localUser.HomeDir, rootDirectory)
+		msg := fmt.Sprintf("Could not set shell's cwd to home directory %q, defaulting to %q\nERROR: %v", localUser.HomeDir, rootDirectory, err)
 		if _, err := cmd.Stdout.Write([]byte(msg)); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		cmd.Dir = rootDirectory
+	} else {
+		cmd.Dir = localUser.HomeDir
 	}
 
 	// Only set process credentials if the UID/GID of the requesting user are
