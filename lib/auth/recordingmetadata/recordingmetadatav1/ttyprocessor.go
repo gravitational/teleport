@@ -127,13 +127,7 @@ func (t *ttyRecordingProcessor) handleResize(evt *apievents.Resize) error {
 		},
 	})
 
-	if err := t.thumbnailGenerator.handleEvent(evt); err != nil {
-		return trace.Wrap(err)
-	}
-
-	t.captureThumbnailIfNeeded(evt.Time)
-
-	return nil
+	return t.thumbnailGenerator.handleEvent(evt)
 }
 
 func (t *ttyRecordingProcessor) handleSessionPrint(evt *apievents.SessionPrint) error {
