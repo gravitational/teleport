@@ -1418,3 +1418,26 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 	c.readyr = nil
 	return trace.NewAggregate(waitErr, closeErr)
 }
+
+// EventMetadata returns ServerMetadata for this server context.
+func (c *ServerContext) ServerMetadata() apievents.ServerMetadata {
+	return c.GetServer().EventMetadata()
+}
+
+// UserMetadata returns UserMetadata for this server context.
+func (c *ServerContext) UserMetadata() apievents.UserMetadata {
+	return c.Identity.GetUserMetadata()
+}
+
+// UserMetadata returns ConnectionMetadata for this server context.
+func (c *ServerContext) ConnectionMetadata() apievents.ConnectionMetadata {
+	return apievents.ConnectionMetadata{
+		RemoteAddr: c.ServerConn.RemoteAddr().String(),
+		LocalAddr:  c.ServerConn.LocalAddr().String(),
+	}
+}
+
+// EmitAuditEvent emits a single audit event.
+func (c *ServerContext) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return c.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), event)
+}

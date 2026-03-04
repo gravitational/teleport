@@ -23,20 +23,12 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"net"
-	"reflect"
 	"testing"
-	"unsafe"
 
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/sshca"
-	"github.com/gravitational/teleport/lib/sshutils"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
 )
 
@@ -46,37 +38,18 @@ func TestSFTPProxyServeClosesRemoteFilesystem(t *testing.T) {
 	closeErr := errors.New("remote filesystem close failed")
 	remoteFS := &closeTrackingFS{closeErr: closeErr}
 
-	proxy := newTestSFTPProxy(t, remoteFS)
+	proxy := newTestSFTPProxy(remoteFS)
 
 	err := proxy.Serve()
 	require.ErrorIs(t, err, closeErr)
 	require.True(t, remoteFS.closed, "Serve should close the remote filesystem")
 }
 
-func newTestSFTPProxy(t *testing.T, remoteFS sftputils.FileSystem) *SFTPProxy {
-	t.Helper()
-
-	server := &Server{
-		StreamEmitter: &eventstest.MockRecorderEmitter{},
-		targetServer:  &types.ServerV2{},
-	}
-
-	scx := &srv.ServerContext{
-		ConnectionContext: &sshutils.ConnectionContext{
-			ServerConn: &ssh.ServerConn{Conn: &mockSSHConn{
-				remoteAddr: &net.TCPAddr{IP: net.ParseIP("10.0.0.2"), Port: 3022},
-				localAddr:  &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 3023},
-			}},
-		},
-		Identity: srv.IdentityContext{UnmappedIdentity: &sshca.Identity{}},
-	}
-	setServerContextField(t, scx, "srv", srv.Server(server))
-	setServerContextField(t, scx, "cancelContext", context.Background())
-
+func newTestSFTPProxy(remoteFS sftputils.FileSystem) *SFTPProxy {
 	handlers := &proxyHandlers{
-		scx:      scx,
-		remoteFS: remoteFS,
-		logger:   slog.Default(),
+		auditContext: mockSFTPAuditContext{},
+		remoteFS:     remoteFS,
+		logger:       slog.Default(),
 	}
 	srv := sftp.NewRequestServer(&eofReadWriteCloser{}, sftp.Handlers{
 		FileGet:  handlers,
@@ -88,11 +61,30 @@ func newTestSFTPProxy(t *testing.T, remoteFS sftputils.FileSystem) *SFTPProxy {
 	return &SFTPProxy{srv: srv, handlers: handlers}
 }
 
-func setServerContextField(t *testing.T, scx *srv.ServerContext, field string, value any) {
-	t.Helper()
-	fv := reflect.ValueOf(scx).Elem().FieldByName(field)
-	require.Truef(t, fv.IsValid(), "missing ServerContext field %q", field)
-	reflect.NewAt(fv.Type(), unsafe.Pointer(fv.UnsafeAddr())).Elem().Set(reflect.ValueOf(value))
+type mockSFTPAuditContext struct{}
+
+func (mockSFTPAuditContext) CancelContext() context.Context {
+	return context.Background()
+}
+
+func (mockSFTPAuditContext) EmitAuditEvent(context.Context, apievents.AuditEvent) error {
+	return nil
+}
+
+func (mockSFTPAuditContext) ServerMetadata() apievents.ServerMetadata {
+	return apievents.ServerMetadata{}
+}
+
+func (mockSFTPAuditContext) GetSessionMetadata() apievents.SessionMetadata {
+	return apievents.SessionMetadata{}
+}
+
+func (mockSFTPAuditContext) UserMetadata() apievents.UserMetadata {
+	return apievents.UserMetadata{}
+}
+
+func (mockSFTPAuditContext) ConnectionMetadata() apievents.ConnectionMetadata {
+	return apievents.ConnectionMetadata{}
 }
 
 type closeTrackingFS struct {
@@ -117,50 +109,5 @@ func (e *eofReadWriteCloser) Write(p []byte) (int, error) {
 }
 
 func (e *eofReadWriteCloser) Close() error {
-	return nil
-}
-
-type mockSSHConn struct {
-	remoteAddr net.Addr
-	localAddr  net.Addr
-}
-
-func (c *mockSSHConn) User() string {
-	return ""
-}
-
-func (c *mockSSHConn) SessionID() []byte {
-	return []byte{1}
-}
-
-func (c *mockSSHConn) ClientVersion() []byte {
-	return []byte{1}
-}
-
-func (c *mockSSHConn) ServerVersion() []byte {
-	return []byte{1}
-}
-
-func (c *mockSSHConn) RemoteAddr() net.Addr {
-	return c.remoteAddr
-}
-
-func (c *mockSSHConn) LocalAddr() net.Addr {
-	return c.localAddr
-}
-
-func (c *mockSSHConn) Close() error {
-	return nil
-}
-
-func (c *mockSSHConn) SendRequest(string, bool, []byte) (bool, []byte, error) {
-	return false, nil, nil
-}
-
-func (c *mockSSHConn) OpenChannel(string, []byte) (ssh.Channel, <-chan *ssh.Request, error) {
-	return nil, nil, nil
-}
-
-func (c *mockSSHConn) Wait() error {
 	return nil
 }
