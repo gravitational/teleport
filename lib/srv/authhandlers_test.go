@@ -780,9 +780,10 @@ func TestCheckAgentForward(t *testing.T) {
 			expectAllowed:  false,
 		},
 		{
-			name:          "proxy denies without permit",
-			component:     teleport.ComponentProxy,
-			expectAllowed: false,
+			name:           "proxy denies without permit",
+			component:      teleport.ComponentProxy,
+			proxyingPermit: nil,
+			expectAllowed:  false,
 		},
 		{
 			name:           "forwarding node denies without proxying permit",
