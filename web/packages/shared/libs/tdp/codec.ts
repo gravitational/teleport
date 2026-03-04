@@ -98,11 +98,13 @@ export enum ScrollAxis {
   HORIZONTAL = 1,
 }
 
-// | message type (1) | width uint32 | height uint32 |
+// | message type (1) | width uint32 | height uint32 | 
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#1---client-screen-spec
 export type ClientScreenSpec = {
-  width: number;
-  height: number;
+width: number;
+height: number;
+// scale is only supported for TDPB connections.
+ scale: number;
 };
 
 export type PointerData = {
@@ -358,6 +360,7 @@ export type LatencyStats = {
 
 export type ServerHello = {
   clipboardSupport: boolean;
+  hidpiSupported: boolean;
   activationEvent: RdpConnectionActivated;
 };
 
@@ -626,8 +629,12 @@ export class TdpbCodec implements Codec {
     switch (envelope.payload.oneofKind) {
       case 'serverHello':
         return {
-          kind: 'rdpConnectionActivated',
-          data: envelope.payload.serverHello.activationSpec,
+          kind: 'serverHello',
+          data: {
+            clipboardSupport: envelope.payload.serverHello.clipboardEnabled,
+            hidpiSupported: envelope.payload.serverHello.hidpiSupported,
+            activationEvent: envelope.payload.serverHello.activationSpec,
+          },
         };
       case 'pngFrame':
         const frame = envelope.payload.pngFrame;
@@ -1265,6 +1272,8 @@ export class TdpCodec implements Codec {
     return {
       width: dv.getUint32(1),
       height: dv.getUint32(5),
+      // Scale is only used in the protobuf message, so we can default to 0 here.
+      scale: 0,
     };
   }
 

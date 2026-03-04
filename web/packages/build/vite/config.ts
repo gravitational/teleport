@@ -145,9 +145,10 @@ export function createViteConfig(
         [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`]:
           {
             target: `wss://${target}`,
-            changeOrigin: false,
+            changeOrigin: true,
             secure: false,
             ws: true,
+            rewriteWsOrigin: true,
           },
         // /webapi/sites/:site/kube/exec
         [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/kube/exec`]: {

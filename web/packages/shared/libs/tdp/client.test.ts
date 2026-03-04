@@ -51,7 +51,7 @@ test('tdp upgrade', async () => {
   const transportOpen = new Promise<void>(client.onTransportOpen);
 
   client.connect({
-    screenSpec: { width: 1920, height: 1080 },
+    screenSpec: { width: 1920, height: 1080, scale: 100 },
     keyboardLayout: 4,
   });
 
@@ -86,6 +86,6 @@ test('tdp upgrade', async () => {
   }
 
   const hello = envelope.payload.clientHello;
-  expect(hello.screenSpec).toEqual({ width: 1920, height: 1080 });
+  expect(hello.screenSpec).toEqual({ width: 1920, height: 1080, scale: 100 });
   expect(hello.keyboardLayout).toEqual(4);
 });

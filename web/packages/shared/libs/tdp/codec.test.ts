@@ -39,6 +39,7 @@ test('encodes and decodes the screen spec', () => {
   const spec = {
     width: 1800,
     height: 1200,
+    scale: 0,
   };
   const message = codec.encodeClientScreenSpec(spec);
   const view = new DataView(message);
@@ -197,6 +198,7 @@ test('tdpb encode/decode', () => {
     screenSpec: {
       width: 1920,
       height: 1080,
+      scale: 0,
     },
     keyboardLayout: 1,
   });
@@ -226,6 +228,7 @@ test('tdpb decode known but unsupported message', () => {
     screenSpec: {
       width: 1,
       height: 2,
+      scale: 0,
     },
     keyboardLayout: 10,
   });

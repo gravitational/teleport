@@ -36,6 +36,7 @@ message ClientHello {
 message ServerHello {
   ConnectionActivated activation_spec = 1;
   bool clipboard_enabled = 2;
+  bool hidpi_supported = 3;
 }
 
 // Defines the boundaries that PNG frame will update.
@@ -113,6 +114,8 @@ message KeyboardButton {
 message ClientScreenSpec {
   uint32 width = 1;
   uint32 height = 2;
+  // Display scale factor as a percentage (e.g. 100 for 1x, 200 for 2x).
+  uint32 scale = 3;
 }
 
 // Severity of an alert contained in an Alert message.
