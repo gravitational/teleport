@@ -1030,6 +1030,8 @@ func (s *leafCluster) runValidatedMFAChallengeSync(
 ) error {
 	log := s.logger.With("component", "runValidatedMFAChallengeSync", "cluster", s.GetName())
 
+	// Wait for the watcher to initialize before starting the sync loop to ensure that we have an initial state of the
+	// ValidatedMFAChallenge resources in the root cluster.
 	if err := s.validatedMFAChallengeWatcher.WaitInitialization(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1048,6 +1050,9 @@ func (s *leafCluster) runValidatedMFAChallengeSync(
 			ctx,
 			func() error {
 				for {
+					// If there are no pending challenges to sync, wait for the next set of challenges from the watcher.
+					// If there are pending challenges, it means we had a failure in the previous sync attempt, so we
+					// should retry syncing those before waiting for new changes from the watcher.
 					if len(pending) == 0 {
 						select {
 						case <-ctx.Done():
@@ -1064,6 +1069,12 @@ func (s *leafCluster) runValidatedMFAChallengeSync(
 							pending = challenges
 						}
 					}
+
+					log.DebugContext(
+						ctx,
+						"Syncing ValidatedMFAChallenges to leaf cluster",
+						"pending_count", len(pending),
+					)
 
 					count, err := s.syncValidatedMFAChallenges(ctx, pending)
 					if err != nil {
@@ -1085,7 +1096,7 @@ func (s *leafCluster) runValidatedMFAChallengeSync(
 					// Clear the pending challenges as they have been successfully synced.
 					pending = nil
 
-					// Sync was successful, reset the retry to clear any accumulated backoff.
+					// Reset the retry to clear any accumulated backoff.
 					retry.Reset()
 				}
 			},
