@@ -55,7 +55,7 @@ type AuthServer interface {
 		ext *mfav1.ChallengeExtensions,
 	) (*authz.MFAAuthData, error)
 
-	ValidateBrowserMFAChallenge(
+	CompleteBrowserMFAChallenge(
 		ctx context.Context,
 		requestID string,
 		webauthnResponse *webauthnpb.CredentialAssertionResponse,
@@ -773,17 +773,17 @@ func isRemoteProxy(authContext authz.Context) bool {
 	return true
 }
 
-// ValidateBrowserMFAChallenge takes a MFA response from the browser and, if
-// valid, returns it via an encrypted response parameter in a callback URL for
-// the browser to return to tsh.
-func (s *Service) ValidateBrowserMFAChallenge(ctx context.Context, req *mfav1.ValidateBrowserMFAChallengeRequest) (*mfav1.ValidateBrowserMFAChallengeResponse, error) {
+// CompleteBrowserMFAChallenge takes a MFA response from the browser and returns
+// it via an encrypted response parameter in a callback URL for the browser to
+// return to tsh.
+func (s *Service) CompleteBrowserMFAChallenge(ctx context.Context, req *mfav1.CompleteBrowserMFAChallengeRequest) (*mfav1.CompleteBrowserMFAChallengeResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if !authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
-		return nil, trace.AccessDenied("this request can only be executed by a proxy")
+	if !authz.IsLocalOrRemoteUser(*authCtx) {
+		return nil, trace.AccessDenied("only local or remote users can complete a browser MFA challenge")
 	}
 
 	if req.BrowserMfaResponse == nil {
@@ -798,7 +798,7 @@ func (s *Service) ValidateBrowserMFAChallenge(ctx context.Context, req *mfav1.Va
 		return nil, trace.BadParameter("missing webauthn_response in browser_mfa_response")
 	}
 
-	tshRedirectURL, err := s.authServer.ValidateBrowserMFAChallenge(
+	tshRedirectURL, err := s.authServer.CompleteBrowserMFAChallenge(
 		ctx,
 		req.BrowserMfaResponse.RequestId,
 		req.BrowserMfaResponse.WebauthnResponse,
@@ -807,7 +807,7 @@ func (s *Service) ValidateBrowserMFAChallenge(ctx context.Context, req *mfav1.Va
 		return nil, trace.Wrap(err)
 	}
 
-	return &mfav1.ValidateBrowserMFAChallengeResponse{
+	return &mfav1.CompleteBrowserMFAChallengeResponse{
 		TshRedirectUrl: tshRedirectURL,
 	}, nil
 }

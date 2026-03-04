@@ -20,6 +20,7 @@ package sso
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -139,6 +140,7 @@ func (m *MFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateChalle
 
 	var redirectURL string
 	if isBrowser {
+		fmt.Println(browserChallenge.RequestId)
 		redirectURL = "https://" + m.ProxyAddress + WebBrowserMFAPath + browserChallenge.RequestId
 	} else {
 		redirectURL = ssoChallenge.RedirectUrl

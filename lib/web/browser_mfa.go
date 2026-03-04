@@ -46,15 +46,20 @@ func (h *Handler) putBrowserMFA(_ http.ResponseWriter, r *http.Request, params h
 		return nil, trace.Errorf("mfa response is nil")
 	}
 
-	proxyClient := h.GetProxyClient()
+	clt, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	redirectURL, err := proxyClient.ValidateBrowserMFAChallenge(r.Context(), &mfav1.BrowserMFAResponse{
-		RequestId:        requestID,
-		WebauthnResponse: mfaResp.GetWebauthn(),
+	resp, err := clt.MFAServiceClient().CompleteBrowserMFAChallenge(r.Context(), &mfav1.CompleteBrowserMFAChallengeRequest{
+		BrowserMfaResponse: &mfav1.BrowserMFAResponse{
+			RequestId:        requestID,
+			WebauthnResponse: mfaResp.GetWebauthn(),
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return redirectURL, nil
+	return resp.TshRedirectUrl, nil
 }

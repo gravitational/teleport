@@ -61,42 +61,25 @@ func (a *Server) BeginBrowserMFAChallenge(ctx context.Context, params mfatypes.B
 	return browserChal, nil
 }
 
-// ValidateBrowserMFAChallenge validates an MFA challenge response and returns the redirect URL with encrypted response.
-func (a *Server) ValidateBrowserMFAChallenge(ctx context.Context, requestID string, webauthnResponse *webauthnpb.CredentialAssertionResponse) (string, error) {
+// CompleteBrowserMFAChallenge completes an MFA challenge response by returning the redirect URL with encrypted response.
+func (a *Server) CompleteBrowserMFAChallenge(ctx context.Context, requestID string, webauthnResponse *webauthnpb.CredentialAssertionResponse) (string, error) {
+	const notFoundErrMsg = "mfa sso session data not found"
+
 	// Retrieve the MFA session
 	mfaSession, err := a.GetSSOMFASession(ctx, requestID)
+	if trace.IsNotFound(err) {
+		return "", trace.AccessDenied("%s", notFoundErrMsg)
+	} else if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	user, err := authz.UserFromContext(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	// Get WebAuthn configuration for validation
-	pref, err := a.GetAuthPreference(ctx)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	webConfig, err := pref.GetWebauthn()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// Validate the WebAuthn response
-	webLogin := &wanlib.LoginFlow{
-		Webauthn: webConfig,
-		Identity: a.Services,
-	}
-
-	wr := wantypes.CredentialAssertionResponseFromProto(webauthnResponse)
-	if err := webLogin.Validate(ctx,
-		mfaSession.Username,
-		wr,
-		&mfav1.ChallengeExtensions{
-			Scope:                       mfaSession.ChallengeExtensions.Scope,
-			AllowReuse:                  mfaSession.ChallengeExtensions.AllowReuse,
-			UserVerificationRequirement: mfaSession.ChallengeExtensions.UserVerificationRequirement,
-		},
-	); err != nil {
-		return "", trace.Wrap(err, "failed to validate browser MFA response")
+	if mfaSession.Username != user.GetIdentity().Username {
+		return "", trace.AccessDenied("%s", notFoundErrMsg)
 	}
 
 	// Valid WebAuthn response, encrypt and return it
@@ -105,6 +88,7 @@ func (a *Server) ValidateBrowserMFAChallenge(ctx context.Context, requestID stri
 		return "", trace.Wrap(err)
 	}
 
+	wr := wantypes.CredentialAssertionResponseFromProto(webauthnResponse)
 	clientRedirectURL, err := internal.EncryptBrowserMFAResponse(u, wr)
 	if err != nil {
 		return "", trace.Wrap(err)

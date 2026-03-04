@@ -278,7 +278,6 @@ const auth = {
     req: CreateAuthenticateChallengeRequest,
     abortSignal?: AbortSignal
   ): Promise<MfaAuthenticateChallenge | undefined> {
-    console.log(req)
     return api
       .post(
         cfg.api.mfaAuthnChallengePath,
