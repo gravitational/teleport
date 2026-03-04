@@ -113,14 +113,20 @@ func TestTTYRecordingProcessor(t *testing.T) {
 			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
 				require.NotNil(t, metadata)
 
-				joinUsers := make(map[string]bool)
+				joins := make(map[string]*pb.SessionRecordingEvent)
 				for _, event := range metadata.Events {
 					if join := event.GetJoin(); join != nil {
-						joinUsers[join.User] = true
+						joins[join.User] = event
 					}
 				}
-				require.True(t, joinUsers["alice"], "expected alice join event")
-				require.True(t, joinUsers["bob"], "expected bob join event")
+
+				require.Len(t, joins, 2, "expected join events for alice and bob")
+
+				require.Equal(t, 2*time.Second, joins["alice"].StartOffset.AsDuration())
+				require.Equal(t, 6*time.Second, joins["alice"].EndOffset.AsDuration())
+
+				require.Equal(t, 4*time.Second, joins["bob"].StartOffset.AsDuration())
+				require.Equal(t, 10*time.Second, joins["bob"].EndOffset.AsDuration())
 			},
 		},
 	}
