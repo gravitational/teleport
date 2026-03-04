@@ -69,6 +69,7 @@ func OutputServiceBuilder(
 			clientBuilder:             deps.ClientBuilder,
 			log:                       deps.Logger,
 			statusReporter:            deps.GetStatusReporter(),
+			getBotIdentity:            deps.BotIdentity,
 		}
 		return svc, nil
 	}
@@ -96,6 +97,7 @@ type OutputService struct {
 	alpnUpgradeCache  *internal.ALPNUpgradeCache
 	identityGenerator *identity.Generator
 	clientBuilder     *client.Builder
+	getBotIdentity    func() *identity.Identity
 }
 
 func (s *OutputService) String() string {
@@ -109,11 +111,17 @@ func (s *OutputService) OneShot(ctx context.Context) error {
 	return s.generate(ctx)
 }
 
+const scopedMode = true
+
 func (s *OutputService) Run(ctx context.Context) error {
+	run := s.generate
+	if scopedMode {
+		run = s.generateScoped
+	}
 	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service:         s.String(),
 		Name:            "output-renewal",
-		F:               s.generate,
+		F:               run,
 		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval,
 		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
@@ -122,6 +130,51 @@ func (s *OutputService) Run(ctx context.Context) error {
 		StatusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
+}
+
+// todo: I'd argue this is less "generateScoped" and more
+// "generateWithoutAllTheRoleImpersonationFunctionality"
+//
+// I've split this out here, because it honestly felt cleaner/more manageable
+// than introducing a bunch of conditionals for now. Currently
+// GenerateUserCerts cannot be called using scoped identities.
+func (s *OutputService) generateScoped(ctx context.Context) error {
+	s.log.InfoContext(ctx, "Generating output")
+
+	// Check the ACLs. We can't fix them, but we can warn if they're
+	// misconfigured. We'll need to precompute a list of keys to check.
+	// Note: This may only log a warning, depending on configuration.
+	if err := s.cfg.Destination.Verify(identity.ListKeys(identity.DestinationKinds()...)); err != nil {
+		return trace.Wrap(err)
+	}
+	// Ensure this destination is also writable. This is a hard fail if
+	// ACLs are misconfigured, regardless of configuration.
+	if err := identity.VerifyWrite(ctx, s.cfg.Destination); err != nil {
+		return trace.Wrap(err, "verifying destination")
+	}
+
+	hostCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.UserCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	databaseCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// todo: iirc there's some horrible weirdness going on with the bots core
+	// identity and the host certificates we hold within. be cautious if this
+	// code progresses to prod. I remember it's something like the host/user
+	// certs being conjoined into one set of CAs.
+	if err := s.render(ctx, s.getBotIdentity(), hostCAs, userCAs, databaseCAs); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func (s *OutputService) generate(ctx context.Context) error {

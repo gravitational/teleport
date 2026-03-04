@@ -205,6 +205,8 @@ func WithRouteToCluster(cluster string) GenerateOption {
 	}
 }
 
+const scopedMode = true
+
 // GenerateFacade calls Generate and wraps the resulting Identity in a Facade
 // for easy use in API clients, etc.
 func (g *Generator) GenerateFacade(ctx context.Context, opts ...GenerateOption) (*Facade, error) {
@@ -227,7 +229,9 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 
 	log := cmp.Or(o.logger, g.logger)
 
-	if len(o.roles) == 0 {
+	// scopes note: in scoped mode, we do not support role requests or leverage
+	// them at all, so we don't need to worry about fetching default roles :')
+	if len(o.roles) == 0 && !scopedMode{
 		if o.currentIdentity != nil {
 			// If the caller provided an impersonated identity, take its roles.
 			o.roles = o.currentIdentity.TLSIdentity.Groups
