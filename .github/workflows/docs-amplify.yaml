@@ -31,13 +31,32 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         wait: "true"
 
+    - name: Check for unsigned commits
+      if: failure() && github.event_name == 'pull_request'
+      id: check_signing
+      continue-on-error: true
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Check if any commits in this PR are unverified
+        UNVERIFIED=$(gh api --paginate repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/commits \
+          --jq '[.[] | select(.commit.verification.verified == false)] | length')
+        if [ "$UNVERIFIED" -gt 0 ]; then
+          echo "unsigned=true" >> "$GITHUB_OUTPUT"
+          echo "Found $UNVERIFIED unsigned commit(s) in this PR"
+        fi
+
     - name: Print failure message
       if: failure()
       env:
         ERR_TITLE: Teleport Docs preview build failed
+        UNSIGNED: ${{ steps.check_signing.outputs.unsigned }}
         ERR_MESSAGE: >-
           Please refer to the following documentation for help: https://www.notion.so/goteleport/How-to-Amplify-deployments-162fdd3830be8096ba72efa1a49ee7bc?pvs=4
           Execution info: ${{ steps.amplify_preview.outputs.amplify_app_id }} ${{ steps.amplify_preview.outputs.amplify_branch_name }} ${{ steps.amplify_preview.outputs.amplify_job_id }}
       run: |
-        echo ::error title=$ERR_TITLE::$ERR_MESSAGE
+        if [ "$UNSIGNED" = "true" ]; then
+          echo "::error title=Unsigned commits detected::This PR contains unsigned commits which may have caused the Amplify preview build to fail. Please sign your commits with GPG or SSH. See: https://docs.github.com/en/authentication/managing-commit-signature-verification"
+        fi
+        echo "::error title=$ERR_TITLE::$ERR_MESSAGE"
         exit 1
