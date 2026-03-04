@@ -41,13 +41,13 @@ import (
 // newCAOverridesPrefix returns the CertAuthorityOverride storage prefix key.
 //
 // CA override keys are in the format
-// `/cert_authority_overrides/c/{clusterName}/{caType}`.
+// `/cert_authority_overrides/cluster/{clusterName}/{caType}`.
 //
 // CA override resources mimic CA resources, which means:
 //   - ClusterName is recorded at ca.Resource.Name.
 //   - CAType is recorded at ca.SubKind.
 func newCAOverridesPrefix() backend.Key {
-	return backend.NewKey("cert_authority_overrides", "c")
+	return backend.NewKey("cert_authority_overrides", "cluster")
 }
 
 var (
