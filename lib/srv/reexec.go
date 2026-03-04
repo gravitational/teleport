@@ -1111,7 +1111,7 @@ func RunAndExit(commandType string) {
 		// Write the error to stderr, where it can be seen by the parent teleport process and
 		// propagated to the client.
 		if code == teleport.RemoteCommandFailure {
-			fmt.Fprintf(os.Stderr, "Failed to launch: %v.\r\n", err)
+			fmt.Fprintf(os.Stderr, "Failed to launch: %v.\n", err)
 		}
 
 		// The "operation not permitted" error is expected from a variety of operations if the
