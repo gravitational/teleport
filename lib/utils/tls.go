@@ -152,6 +152,44 @@ func VerifyConnection(now func() time.Time, getRoots func() (*x509.CertPool, err
 	}
 }
 
+// VerifyConnectionIgnoreServerName returns a [tls.Config.VerifyConnection]
+// function that uses the provided function to generate a [*x509.CertPool]
+// that's used as the source of root CAs for verification. The verification will
+// not perform the server name check, only the certificates validity.
+//
+// See more information [VerifyConnection] about the instructions for this
+// function usage.
+func VerifyConnectionIgnoreServerName(now func() time.Time, getRoots func() (*x509.CertPool, error)) func(cs tls.ConnectionState) error {
+	return func(cs tls.ConnectionState) error {
+		roots, err := getRoots()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		opts := x509.VerifyOptions{
+			Roots:         roots,
+			Intermediates: nil,
+			DNSName:       "", // Skip server name validation
+		}
+		if len(cs.PeerCertificates) > 1 {
+			opts.Intermediates = x509.NewCertPool()
+			for _, cert := range cs.PeerCertificates[1:] {
+				opts.Intermediates.AddCert(cert)
+			}
+		}
+
+		if now != nil {
+			opts.CurrentTime = now()
+		}
+
+		if _, err := cs.PeerCertificates[0].Verify(opts); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+}
+
 type (
 	GetCertificateFunc = func() (*tls.Certificate, error)
 	GetRootsFunc       = func() (*x509.CertPool, error)

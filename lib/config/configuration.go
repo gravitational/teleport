@@ -2150,10 +2150,15 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		if application.TLS != nil {
+			mode := servicecfg.TLSMode(application.TLS.Mode)
+			if err := mode.CheckAndSetDefaults(); err != nil {
+				return trace.Wrap(err, "invalid tls.mode for application %q", application.Name)
+			}
 			app.TLS = &types.AppTLS{
 				CaPath:   application.TLS.CAPath,
 				CertPath: application.TLS.CertPath,
 				KeyPath:  application.TLS.KeyPath,
+				Mode:     mode.ToAppProto(),
 			}
 		}
 

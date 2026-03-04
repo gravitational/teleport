@@ -2417,6 +2417,8 @@ type AppTLS struct {
 	CertPath string `yaml:"cert_path,omitempty"`
 	// KeyPath defines the client key path used on the connection.
 	KeyPath string `yaml:"key_path,omitempty"`
+	// Mode defines the TLS connection verification mode.
+	Mode string `yaml:"mode,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

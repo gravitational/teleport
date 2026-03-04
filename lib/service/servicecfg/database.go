@@ -132,7 +132,7 @@ func (d *Database) ToDatabase() (types.Database, error) {
 		TLS: types.DatabaseTLS{
 			CACert:              string(d.TLS.CACert),
 			ServerName:          d.TLS.ServerName,
-			Mode:                d.TLS.Mode.ToProto(),
+			Mode:                d.TLS.Mode.ToDatabaseProto(),
 			TrustSystemCertPool: d.TLS.TrustSystemCertPool,
 		},
 		MySQL: types.MySQLOptions{

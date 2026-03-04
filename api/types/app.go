@@ -1068,3 +1068,50 @@ func (h *LLM_Provider) UnmarshalJSON(data []byte) error {
 	err = h.decode(val)
 	return trace.Wrap(err)
 }
+
+// UnmarshalJSON supports parsing AppTLS_Mode from number or string.
+func (d *AppTLS_Mode) UnmarshalJSON(data []byte) error {
+	type loopBreaker AppTLS_Mode
+	var val loopBreaker
+	if err := json.Unmarshal(data, &val); err == nil {
+		*d = AppTLS_Mode(val)
+		return nil
+	}
+
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return trace.Wrap(err)
+	}
+	return d.decodeName(s)
+}
+
+// UnmarshalYAML supports parsing AppTLS_Mode from number or string.
+func (d *AppTLS_Mode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type loopBreaker AppTLS_Mode
+	var val loopBreaker
+	if err := unmarshal(&val); err == nil {
+		*d = AppTLS_Mode(val)
+		return nil
+	}
+
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return trace.Wrap(err)
+	}
+	return d.decodeName(s)
+}
+
+func (d *AppTLS_Mode) decodeName(name string) error {
+	switch name {
+	case "verify-full", "":
+		*d = AppTLS_MODE_VERIFY_FULL
+		return nil
+	case "verify-ca":
+		*d = AppTLS_MODE_VERIFY_CA
+		return nil
+	case "insecure":
+		*d = AppTLS_MODE_INSECURE
+		return nil
+	}
+	return trace.BadParameter("AppTLSMode invalid value %v", d)
+}

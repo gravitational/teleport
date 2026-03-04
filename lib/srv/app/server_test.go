@@ -1446,7 +1446,7 @@ func (m *mtlsUpstreamSetup) generateAndWriteClientCert(t *testing.T, clock clock
 // and starts an httptest TLS server that requires client certs signed by the
 // client CA. The clock parameter controls client cert validation time via
 // tls.Config.Time.
-func (m *mtlsUpstreamSetup) startUpstreamServer(t *testing.T, clock clockwork.Clock, message string) *httptest.Server {
+func (m *mtlsUpstreamSetup) startUpstreamServer(t *testing.T, clock clockwork.Clock, message string, dnsNames []string, ca *tlsca.CertAuthority) *httptest.Server {
 	t.Helper()
 
 	serverKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
@@ -1454,11 +1454,17 @@ func (m *mtlsUpstreamSetup) startUpstreamServer(t *testing.T, clock clockwork.Cl
 	serverKeyPEM, err := keys.MarshalPrivateKey(serverKey)
 	require.NoError(t, err)
 
-	serverCertPEM, err := m.serverCA.GenerateCertificate(tlsca.CertificateRequest{
+	// Allow caller to specify a custom CA to generate the server certificates.
+	genCertFunc := m.serverCA.GenerateCertificate
+	if ca != nil {
+		genCertFunc = ca.GenerateCertificate
+	}
+
+	serverCertPEM, err := genCertFunc(tlsca.CertificateRequest{
 		PublicKey: serverKey.Public(),
 		Subject:   pkix.Name{CommonName: "127.0.0.1"},
 		NotAfter:  time.Now().Add(1 * time.Hour),
-		DNSNames:  []string{"127.0.0.1"},
+		DNSNames:  dnsNames,
 	})
 	require.NoError(t, err)
 
@@ -1488,7 +1494,7 @@ func (m *mtlsUpstreamSetup) startUpstreamServer(t *testing.T, clock clockwork.Cl
 
 // newApp creates a types.AppV3 configured for mTLS with the upstream URL and
 // the cert paths from this setup.
-func (m *mtlsUpstreamSetup) newApp(t *testing.T, upstreamURL string) *types.AppV3 {
+func (m *mtlsUpstreamSetup) newApp(t *testing.T, upstreamURL string, tlsMode types.AppTLS_Mode) *types.AppV3 {
 	t.Helper()
 
 	app, err := types.NewAppV3(types.Metadata{
@@ -1501,6 +1507,7 @@ func (m *mtlsUpstreamSetup) newApp(t *testing.T, upstreamURL string) *types.AppV
 			CaPath:   m.caPath,
 			CertPath: m.certPath,
 			KeyPath:  m.keyPath,
+			Mode:     tlsMode,
 		},
 	})
 	require.NoError(t, err)
@@ -1519,8 +1526,8 @@ func TestHandleConnectionMTLSUpstream(t *testing.T) {
 		setup.generateAndWriteClientCert(t, clock, time.Now().Add(1*time.Hour))
 
 		message := uuid.New().String()
-		upstream := setup.startUpstreamServer(t, clock, message)
-		app := setup.newApp(t, upstream.URL)
+		upstream := setup.startUpstreamServer(t, clock, message, []string{"127.0.0.1"}, nil /* ca */)
+		app := setup.newApp(t, upstream.URL, types.AppTLS_MODE_VERIFY_FULL)
 
 		s := SetUpSuiteWithConfig(t, suiteConfig{Apps: types.Apps{app}})
 		s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
@@ -1538,8 +1545,8 @@ func TestHandleConnectionMTLSUpstream(t *testing.T) {
 		setup.generateAndWriteClientCert(t, clock, clock.Now().Add(time.Minute))
 
 		message := uuid.New().String()
-		upstream := setup.startUpstreamServer(t, clock, message)
-		app := setup.newApp(t, upstream.URL)
+		upstream := setup.startUpstreamServer(t, clock, message, []string{"127.0.0.1"}, nil /* ca */)
+		app := setup.newApp(t, upstream.URL, types.AppTLS_MODE_VERIFY_FULL)
 
 		s := SetUpSuiteWithConfig(t, suiteConfig{
 			Clock: clock,
@@ -1558,6 +1565,55 @@ func TestHandleConnectionMTLSUpstream(t *testing.T) {
 		// Write a fresh client cert to disk, simulating rotation.
 		setup.generateAndWriteClientCert(t, clock, clock.Now().Add(1*time.Hour))
 
+		s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			buf, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, message, strings.TrimSpace(string(buf)))
+		})
+	})
+
+	t.Run("verify-ca mode", func(t *testing.T) {
+		clock := clockwork.NewRealClock()
+		setup := newMTLSUpstreamSetup(t)
+		setup.generateAndWriteClientCert(t, clock, time.Now().Add(1*time.Hour))
+
+		message := uuid.New().String()
+		// Starts a https server whose certificate contains a different SCAN
+		// name than localhost (used by app_service to reach the service).
+		upstream := setup.startUpstreamServer(t, clock, message, []string{"my-random-domain.com"}, nil /* ca */)
+		app := setup.newApp(t, upstream.URL, types.AppTLS_MODE_VERIFY_CA)
+
+		s := SetUpSuiteWithConfig(t, suiteConfig{Apps: types.Apps{app}})
+		s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			buf, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, message, strings.TrimSpace(string(buf)))
+		})
+	})
+
+	t.Run("insecure mode", func(t *testing.T) {
+		serverCAKey, serverCACertPEM, err := tlsca.GenerateSelfSignedCA(
+			pkix.Name{Organization: []string{"test-alternative-server-ca"}},
+			nil,
+			1*time.Hour,
+		)
+		require.NoError(t, err)
+		serverCA, err := tlsca.FromKeys(serverCACertPEM, serverCAKey)
+		require.NoError(t, err)
+
+		clock := clockwork.NewRealClock()
+		setup := newMTLSUpstreamSetup(t)
+		setup.generateAndWriteClientCert(t, clock, time.Now().Add(1*time.Hour))
+
+		message := uuid.New().String()
+		// Starts a https server that uses a certificate signed by a different
+		// CA than what app_service is expecting.
+		upstream := setup.startUpstreamServer(t, clock, message, []string{"my-random-domain.com"}, serverCA)
+		app := setup.newApp(t, upstream.URL, types.AppTLS_MODE_INSECURE)
+
+		s := SetUpSuiteWithConfig(t, suiteConfig{Apps: types.Apps{app}})
 		s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			buf, err := io.ReadAll(resp.Body)

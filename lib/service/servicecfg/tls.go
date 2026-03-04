@@ -54,8 +54,8 @@ func (m *TLSMode) CheckAndSetDefaults() error {
 	return nil
 }
 
-// ToProto returns a matching protobuf type or VerifyFull for empty value.
-func (m TLSMode) ToProto() types.DatabaseTLSMode {
+// ToDatabaseProto returns a matching protobuf type or VerifyFull for empty value.
+func (m TLSMode) ToDatabaseProto() types.DatabaseTLSMode {
 	switch m {
 	case VerifyCA:
 		return types.DatabaseTLSMode_VERIFY_CA
@@ -63,5 +63,17 @@ func (m TLSMode) ToProto() types.DatabaseTLSMode {
 		return types.DatabaseTLSMode_INSECURE
 	default: // VerifyFull
 		return types.DatabaseTLSMode_VERIFY_FULL
+	}
+}
+
+// ToDatabaseProto returns a matching protobuf type or VerifyFull for empty value.
+func (m TLSMode) ToAppProto() types.AppTLS_Mode {
+	switch m {
+	case VerifyCA:
+		return types.AppTLS_MODE_VERIFY_CA
+	case Insecure:
+		return types.AppTLS_MODE_INSECURE
+	default: // VerifyFull
+		return types.AppTLS_MODE_VERIFY_FULL
 	}
 }

@@ -1226,6 +1226,22 @@ message AppTLS {
   string cert_path = 2;
   // Defines the client key path used on the connection.
   string key_path = 3;
+
+  // Mode represents the level of TLS verification performed by app agent when
+  // connecting to an app.
+  enum Mode {
+    // MODE_VERIFY_FULL performs full certificate validation.
+    MODE_VERIFY_FULL = 0;
+    // MODE_VERIFY_CA works the same as VERIFY_FULL, but it skips the hostname
+    // check.
+    MODE_VERIFY_CA = 1;
+    // MODE_INSECURE accepts any certificate provided by server. This is the
+    // least secure option.
+    MODE_INSECURE = 2;
+  }
+
+  // Defines the TLS connection verification mode.
+  Mode mode = 4;
 }
 
 // MCP contains MCP server-related configurations.
