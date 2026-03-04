@@ -184,11 +184,6 @@ func preFlightInstallerChecks(proxyAddr string) map[installstatus.ExitCode]strin
 		Path:   path.Join("webapi", "find"),
 	}
 
-	// installerScriptMinFreeDiskMB is the minimum free disk space in megabytes required for Teleport installation.
-	// This currently sits at around 990MB: 210MB for the tarball, and around 780MB for the extracted files.
-	// Setting this value to 1250MB provides a buffer for the installation process and future updates, while still being reasonable for most systems.
-	const installerScriptMinFreeDiskMB = 1250
-
 	return map[installstatus.ExitCode]string{
 		// Basic command checks for bash, sudo and curl.
 		installstatus.BashNotFound: fmt.Sprintf(`command -v bash > /dev/null 2>&1 || exit %d`, installstatus.BashNotFound),
@@ -199,9 +194,12 @@ func preFlightInstallerChecks(proxyAddr string) map[installstatus.ExitCode]strin
 		// df -Pm outputs disk usage in megabytes; awk selects the data row (NR==2) and
 		// exits non-zero if the available column ($4) is below the required threshold.
 		// Falls back to checking "/" if "/opt" does not exist.
-		installstatus.InsufficientDiskSpace: fmt.Sprintf(`df -Pm $([ -d /opt ] && echo /opt || echo /) | awk 'NR==2{exit($4<%d)}' || exit %d`, installerScriptMinFreeDiskMB, installstatus.InsufficientDiskSpace),
+		installstatus.InsufficientDiskSpace: fmt.Sprintf(`df -Pm $([ -d /opt ] && echo /opt || echo /) | awk 'NR==2{exit($4<%d)}' || exit %d`, installstatus.InstallerMinFreeDiskMB, installstatus.InsufficientDiskSpace),
 
 		// check if network connection to the proxy is available
-		installstatus.ProxyPingError: fmt.Sprintf(`curl --silent --max-time 10 --output /dev/null %s || exit %d`, proxyFindURL.String(), installstatus.ProxyPingError),
+		installstatus.ProxyPingError: fmt.Sprintf(`curl --silent --max-time 10 --output /dev/null %s || exit %d`,
+			shsprintf.EscapeDefaultContext(proxyFindURL.String()),
+			installstatus.ProxyPingError,
+		),
 	}
 }

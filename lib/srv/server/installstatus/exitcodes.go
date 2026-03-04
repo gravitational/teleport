@@ -20,8 +20,6 @@ package installstatus
 
 import (
 	"fmt"
-
-	"github.com/gravitational/teleport/api/types/usertasks"
 )
 
 // ExitCode represents a classified exit code from the auto-enrollment installer pipeline.
@@ -67,14 +65,5 @@ func (c ExitCode) String() string {
 			"Installation failed with exit code %d. "+
 				"Please check stdout and stderr and try again.",
 			int(c))
-	}
-}
-
-// IssueType returns the user task issue type for the exit code.
-// Unrecognized codes default to ec2-ssm-script-failure.
-func (c ExitCode) IssueType() string {
-	switch c {
-	default:
-		return usertasks.AutoDiscoverEC2IssueSSMScriptFailure
 	}
 }
