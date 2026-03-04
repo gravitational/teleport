@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"cmp"
 	"context"
-	"errors"
 	"log/slog"
 	"time"
 
@@ -32,6 +31,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -86,13 +86,13 @@ type Identity interface {
 // See lib/auth.MFAService.
 type MFAService interface {
 	CreateValidatedMFAChallenge(ctx context.Context,
-		username string,
+		targetCluster string,
 		chal *mfav1.ValidatedMFAChallenge,
 	) (*mfav1.ValidatedMFAChallenge, error)
 
 	GetValidatedMFAChallenge(
 		ctx context.Context,
-		username string,
+		targetCluster string,
 		challengeName string,
 	) (*mfav1.ValidatedMFAChallenge, error)
 
@@ -100,7 +100,7 @@ type MFAService interface {
 		ctx context.Context,
 		pageSize int32,
 		pageToken string,
-		filter *mfav1.ListValidatedMFAChallengesFilter,
+		targetCluster string,
 	) ([]*mfav1.ValidatedMFAChallenge, string, error)
 }
 
@@ -225,8 +225,8 @@ func (s *Service) CreateSessionChallenge(
 	)
 
 	// Create the MFA challenge response with a randomly generated UUID for its name. This name is used to track the
-	// status of the MFA challenge throughout its lifecycle by the service that the user is authenticating to. The name
-	// is scoped to the user and the actual challenge has a short TTL, so collisions are extremely unlikely.
+	// status of the MFA challenge throughout its lifecycle by the service that the user is authenticating to. The key
+	// is scoped by target cluster and the actual challenge has a short TTL, so collisions are extremely unlikely.
 	challenge := &mfav1.CreateSessionChallengeResponse{
 		MfaChallenge: &mfav1.AuthenticateChallenge{
 			Name: uuid.NewString(),
@@ -371,7 +371,7 @@ func (s *Service) ValidateSessionChallenge(
 	// Store the validated challenge resource.
 	_, err = s.storage.CreateValidatedMFAChallenge(
 		ctx,
-		username,
+		details.TargetCluster,
 		&mfav1.ValidatedMFAChallenge{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
@@ -421,11 +421,14 @@ func (s *Service) ListValidatedMFAChallenges(
 		return nil, trace.Wrap(err)
 	}
 
+	// If a filter is provided with a target cluster, use it to scope the listing of validated MFA challenges.
+	targetCluster := cmp.Or(req.GetFilter().GetTargetCluster(), "")
+
 	challenges, nextPageToken, err := s.storage.ListValidatedMFAChallenges(
 		ctx,
 		req.GetPageSize(),
 		req.GetPageToken(),
-		req.GetFilter(),
+		targetCluster,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -483,7 +486,7 @@ func (s *Service) ReplicateValidatedMFAChallenge(
 		},
 	}
 
-	created, err := s.storage.CreateValidatedMFAChallenge(ctx, req.GetUsername(), chal)
+	created, err := s.storage.CreateValidatedMFAChallenge(ctx, req.GetTargetCluster(), chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -510,14 +513,31 @@ func (s *Service) VerifyValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	chal, err := s.waitForValidatedMFAChallenge(ctx, req.GetUsername(), req.GetName())
+	currentCluster, err := s.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Ensure the source cluster that was initially used to create the challenge matches the source cluster provided in
-	// the request. Performed first to reduce unnecessary information leakage.
-	if req.GetSourceCluster() != chal.GetSpec().GetSourceCluster() {
+	// The challenge may not exist at the time of the request since there is some delay between when the challenge
+	// response is validated and when the validated challenge resource is created in the local storage. For example, in
+	// the case of trusted clusters, the validated challenge is created in the root cluster and then eventually
+	// replicated to the leaf cluster. Until the replication occurs, the validated challenge won't exist in the leaf
+	// cluster storage and therefore won't be found by this method.
+	chal, err := s.waitForValidatedMFAChallenge(ctx, currentCluster.GetClusterName(), req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch {
+	case req.GetUsername() != chal.GetSpec().GetUsername():
+		// Ensure the username in the request matches the username in the challenge to prevent replay attacks where an
+		// attacker could use a validated challenge for one user to authenticate as a different user.
+		return nil, trace.AccessDenied("request username does not match validated challenge username")
+
+	case req.GetSourceCluster() != chal.GetSpec().GetSourceCluster():
+		// Ensure the source cluster that was initially used to create the challenge matches the source cluster provided
+		// in the request to prevent replay attacks where an attacker could use a validated challenge created in one
+		// cluster to authenticate in a different cluster.
 		return nil, trace.AccessDenied("request source cluster does not match validated challenge source cluster")
 	}
 
@@ -811,30 +831,30 @@ func (s *Service) waitForValidatedMFAChallenge(ctx context.Context, username, ch
 	ctx, cancel := context.WithTimeout(ctx, verifyValidatedMFAChallengeTimeout)
 	defer cancel()
 
-	ticker := time.NewTicker(verifyValidatedMFAChallengePollInterval)
-	defer ticker.Stop()
-
-	for {
-		chal, err := s.storage.GetValidatedMFAChallenge(ctx, username, challengeName)
-		switch {
-		case err != nil && !trace.IsNotFound(err):
-			return nil, trace.Wrap(err)
-
-		case err == nil && chal != nil:
-			return chal, nil
-		}
-
-		select {
-		case <-ctx.Done():
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return nil, trace.Wrap(ctx.Err(), "timed out waiting for validated MFA challenge")
-			}
-			return nil, trace.Wrap(ctx.Err())
-
-		case <-ticker.C:
-			// Continue polling for the validated MFA challenge to be created.
-		}
+	retry, err := retryutils.NewConstant(verifyValidatedMFAChallengePollInterval)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	var chal *mfav1.ValidatedMFAChallenge
+
+	if err := retry.For(
+		ctx,
+		func() error {
+			var err error
+
+			chal, err = s.storage.GetValidatedMFAChallenge(ctx, username, challengeName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			return nil
+		},
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return chal, nil
 }
 
 func checkPayload(sip *mfav1.SessionIdentifyingPayload) error {

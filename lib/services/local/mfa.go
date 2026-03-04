@@ -65,12 +65,12 @@ func NewMFAService(b backend.Backend) (*MFAService, error) {
 // CreateValidatedMFAChallenge persists the ValidatedMFAChallenge resource.
 func (s *MFAService) CreateValidatedMFAChallenge(
 	ctx context.Context,
-	username string,
+	targetCluster string,
 	chal *mfav1.ValidatedMFAChallenge,
 ) (*mfav1.ValidatedMFAChallenge, error) {
 	switch {
-	case username == "":
-		return nil, trace.BadParameter("param username must not be empty")
+	case targetCluster == "":
+		return nil, trace.BadParameter("param targetCluster must not be empty")
 	case chal == nil:
 		return nil, trace.BadParameter("param chal must not be nil")
 	}
@@ -81,8 +81,12 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	// Scope the service to the given username, so that the resource is created under that user's prefix.
-	svc := s.service.WithPrefix(username)
+	if challenge.Spec.GetTargetCluster() != targetCluster {
+		return nil, trace.BadParameter("param targetCluster does not match challenge target cluster")
+	}
+
+	// Scope resources by target cluster so the backend key is target-cluster/challenge-name.
+	svc := s.service.WithPrefix(targetCluster)
 
 	// All validated MFA challenges must expire after 5 minutes.
 	chal.Metadata.SetExpiry(time.Now().Add(5 * time.Minute))
@@ -98,18 +102,18 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 // GetValidatedMFAChallenge retrieves a ValidatedMFAChallenge resource.
 func (s *MFAService) GetValidatedMFAChallenge(
 	ctx context.Context,
-	username string,
+	targetCluster string,
 	chalName string,
 ) (*mfav1.ValidatedMFAChallenge, error) {
 	switch {
-	case username == "":
-		return nil, trace.BadParameter("param username must not be empty")
+	case targetCluster == "":
+		return nil, trace.BadParameter("param targetCluster must not be empty")
 	case chalName == "":
 		return nil, trace.BadParameter("param chalName must not be empty")
 	}
 
-	// Scope the service to the given username, so that the resource is created under that user's prefix.
-	svc := s.service.WithPrefix(username)
+	// Scope resources by target cluster so the backend key is target-cluster/challenge-name.
+	svc := s.service.WithPrefix(targetCluster)
 
 	res, err := svc.GetResource(ctx, chalName)
 	if err != nil {
@@ -119,29 +123,21 @@ func (s *MFAService) GetValidatedMFAChallenge(
 	return (*mfav1.ValidatedMFAChallenge)(res), nil
 }
 
-// ListValidatedMFAChallenges lists all ValidatedMFAChallenge resources across all users sessions.
+// ListValidatedMFAChallenges lists all ValidatedMFAChallenge resources.
 func (s *MFAService) ListValidatedMFAChallenges(
 	ctx context.Context,
 	pageSize int32,
 	pageToken string,
-	filter *mfav1.ListValidatedMFAChallengesFilter,
+	targetCluster string,
 ) ([]*mfav1.ValidatedMFAChallenge, string, error) {
-	filterFunc := func(chal *validatedMFAChallenge) bool {
-		// If no filter is specified, return all challenges.
-		if filter == nil {
-			return true
-		}
+	svc := s.service
 
-		// If a filter with a target cluster is specified, only return challenges that match the target cluster.
-		if filter.GetTargetCluster() != "" && chal.Spec.GetTargetCluster() != filter.GetTargetCluster() {
-			return false
-		}
-
-		// All filter criteria met, return the challenge.
-		return true
+	if targetCluster != "" {
+		// Scope listing by target cluster when provided to avoid scanning unrelated keys.
+		svc = svc.WithPrefix(targetCluster)
 	}
 
-	internalChallenges, nextPageToken, err := s.service.ListResourcesWithFilter(ctx, int(pageSize), pageToken, filterFunc)
+	internalChallenges, nextPageToken, err := svc.ListResources(ctx, int(pageSize), pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -220,6 +216,8 @@ func checkValidatedMFAChallenge(chal *validatedMFAChallenge) error {
 		return trace.BadParameter("source_cluster must be set")
 	case chal.Spec.TargetCluster == "":
 		return trace.BadParameter("target_cluster must be set")
+	case chal.Spec.Username == "":
+		return trace.BadParameter("username must be set")
 	default:
 		return nil
 	}
@@ -248,6 +246,8 @@ func (r *validatedMFAChallengeResource) UnwrapT() *mfav1.ValidatedMFAChallenge {
 func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		// Inflate key components into a challenge so consumers can access the backend key structure directly from a
+		// concrete resource type.
 		key := event.Item.Key.TrimPrefix(backend.NewKey(types.KindValidatedMFAChallenge))
 
 		keyComponents := key.Components()
@@ -255,15 +255,19 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
 
-		return &types.ResourceHeader{
+		chal := &mfav1.ValidatedMFAChallenge{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
-			Metadata: types.Metadata{
-				Name:        keyComponents[len(keyComponents)-1],
-				Namespace:   defaults.Namespace,
-				Description: keyComponents[0],
+			Metadata: &types.Metadata{
+				Name:      keyComponents[len(keyComponents)-1], // The challenge name is the last component of the key.
+				Namespace: defaults.Namespace,
 			},
-		}, nil
+			Spec: &mfav1.ValidatedMFAChallengeSpec{
+				TargetCluster: keyComponents[0], // The target cluster is the first component of the key.
+			},
+		}
+
+		return newValidatedMFAChallengeResource(chal), nil
 
 	case types.OpPut:
 		resource, err := UnmarshalValidatedMFAChallenge(
@@ -275,24 +279,28 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 			return nil, trace.Wrap(err)
 		}
 
-		challenge := (*mfav1.ValidatedMFAChallenge)(resource)
+		chal := (*mfav1.ValidatedMFAChallenge)(resource)
 
-		metadata := types.Metadata{}
-		if challenge.Metadata != nil {
-			metadata = *challenge.Metadata
-		}
-
-		return &validatedMFAChallengeResource{
-			ResourceHeader: &types.ResourceHeader{
-				Kind:     challenge.Kind,
-				SubKind:  challenge.SubKind,
-				Version:  challenge.Version,
-				Metadata: metadata,
-			},
-			challenge: challenge,
-		}, nil
+		return newValidatedMFAChallengeResource(chal), nil
 
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newValidatedMFAChallengeResource(challenge *mfav1.ValidatedMFAChallenge) types.Resource {
+	metadata := types.Metadata{}
+	if challenge.Metadata != nil {
+		metadata = *challenge.Metadata
+	}
+
+	return &validatedMFAChallengeResource{
+		ResourceHeader: &types.ResourceHeader{
+			Kind:     challenge.Kind,
+			SubKind:  challenge.SubKind,
+			Version:  challenge.Version,
+			Metadata: metadata,
+		},
+		challenge: challenge,
 	}
 }

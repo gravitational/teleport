@@ -58,6 +58,8 @@ rules:
       - teleportinferencepolicies/status
       - teleportinferencesecrets
       - teleportinferencesecrets/status
+      - teleportaccessmonitoringrulesv1
+      - teleportaccessmonitoringrulesv1/status
     verbs:
       - get
       - list

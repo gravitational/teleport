@@ -236,6 +236,10 @@ class TeleportContext implements types.Context {
         userContext.getAutoUpdateAgentRolloutAccess().read,
       listAutoUpdateAgentReport:
         userContext.getAutoUpdateAgentReportAccess().list,
+      sessionSummaries:
+        userContext.getInferencePolicyAccess().list ||
+        userContext.getInferenceModelAccess().list ||
+        userContext.getInferenceSecretAccess().list,
     };
   }
 }
@@ -288,6 +292,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   readAutoUpdateVersion: false,
   readAutoUpdateAgentRollout: false,
   listAutoUpdateAgentReport: false,
+  sessionSummaries: false,
 };
 
 export default TeleportContext;

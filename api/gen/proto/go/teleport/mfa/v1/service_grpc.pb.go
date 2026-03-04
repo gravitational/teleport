@@ -38,6 +38,7 @@ const (
 	MFAService_ListValidatedMFAChallenges_FullMethodName     = "/teleport.mfa.v1.MFAService/ListValidatedMFAChallenges"
 	MFAService_ReplicateValidatedMFAChallenge_FullMethodName = "/teleport.mfa.v1.MFAService/ReplicateValidatedMFAChallenge"
 	MFAService_VerifyValidatedMFAChallenge_FullMethodName    = "/teleport.mfa.v1.MFAService/VerifyValidatedMFAChallenge"
+	MFAService_CompleteBrowserMFAChallenge_FullMethodName    = "/teleport.mfa.v1.MFAService/CompleteBrowserMFAChallenge"
 )
 
 // MFAServiceClient is the client API for MFAService service.
@@ -66,6 +67,14 @@ type MFAServiceClient interface {
 	// The payload is used to verify the challenge is tied to the correct user session. If the verification fails, an
 	// error is returned.
 	VerifyValidatedMFAChallenge(ctx context.Context, in *VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*VerifyValidatedMFAChallengeResponse, error)
+	// CompleteBrowserMFAChallenge completes a browser MFA challenge request by encrypting
+	// it and returning it to the browser.
+	// This is called when a user has been sent to the browser to solve an MFA challenge
+	// that was triggered by tsh or tctl. When the user solves the MFA challenge, the
+	// response is sent to this RPC. CompleteBrowserMFAChallenge receives the MFA
+	// response, encrypts it, appends it to tsh/tctl's callback URL and returns it to the browser.
+	// More info: https://github.com/gravitational/teleport/blob/master/rfd/0233-tsh-browser-mfa.md
+	CompleteBrowserMFAChallenge(ctx context.Context, in *CompleteBrowserMFAChallengeRequest, opts ...grpc.CallOption) (*CompleteBrowserMFAChallengeResponse, error)
 }
 
 type mFAServiceClient struct {
@@ -126,6 +135,16 @@ func (c *mFAServiceClient) VerifyValidatedMFAChallenge(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *mFAServiceClient) CompleteBrowserMFAChallenge(ctx context.Context, in *CompleteBrowserMFAChallengeRequest, opts ...grpc.CallOption) (*CompleteBrowserMFAChallengeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompleteBrowserMFAChallengeResponse)
+	err := c.cc.Invoke(ctx, MFAService_CompleteBrowserMFAChallenge_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MFAServiceServer is the server API for MFAService service.
 // All implementations should embed UnimplementedMFAServiceServer
 // for forward compatibility.
@@ -152,6 +171,14 @@ type MFAServiceServer interface {
 	// The payload is used to verify the challenge is tied to the correct user session. If the verification fails, an
 	// error is returned.
 	VerifyValidatedMFAChallenge(context.Context, *VerifyValidatedMFAChallengeRequest) (*VerifyValidatedMFAChallengeResponse, error)
+	// CompleteBrowserMFAChallenge completes a browser MFA challenge request by encrypting
+	// it and returning it to the browser.
+	// This is called when a user has been sent to the browser to solve an MFA challenge
+	// that was triggered by tsh or tctl. When the user solves the MFA challenge, the
+	// response is sent to this RPC. CompleteBrowserMFAChallenge receives the MFA
+	// response, encrypts it, appends it to tsh/tctl's callback URL and returns it to the browser.
+	// More info: https://github.com/gravitational/teleport/blob/master/rfd/0233-tsh-browser-mfa.md
+	CompleteBrowserMFAChallenge(context.Context, *CompleteBrowserMFAChallengeRequest) (*CompleteBrowserMFAChallengeResponse, error)
 }
 
 // UnimplementedMFAServiceServer should be embedded to have
@@ -175,6 +202,9 @@ func (UnimplementedMFAServiceServer) ReplicateValidatedMFAChallenge(context.Cont
 }
 func (UnimplementedMFAServiceServer) VerifyValidatedMFAChallenge(context.Context, *VerifyValidatedMFAChallengeRequest) (*VerifyValidatedMFAChallengeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifyValidatedMFAChallenge not implemented")
+}
+func (UnimplementedMFAServiceServer) CompleteBrowserMFAChallenge(context.Context, *CompleteBrowserMFAChallengeRequest) (*CompleteBrowserMFAChallengeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CompleteBrowserMFAChallenge not implemented")
 }
 func (UnimplementedMFAServiceServer) testEmbeddedByValue() {}
 
@@ -286,6 +316,24 @@ func _MFAService_VerifyValidatedMFAChallenge_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MFAService_CompleteBrowserMFAChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteBrowserMFAChallengeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MFAServiceServer).CompleteBrowserMFAChallenge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MFAService_CompleteBrowserMFAChallenge_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MFAServiceServer).CompleteBrowserMFAChallenge(ctx, req.(*CompleteBrowserMFAChallengeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MFAService_ServiceDesc is the grpc.ServiceDesc for MFAService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -312,6 +360,10 @@ var MFAService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "VerifyValidatedMFAChallenge",
 			Handler:    _MFAService_VerifyValidatedMFAChallenge_Handler,
+		},
+		{
+			MethodName: "CompleteBrowserMFAChallenge",
+			Handler:    _MFAService_CompleteBrowserMFAChallenge_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

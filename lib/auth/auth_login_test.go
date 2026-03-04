@@ -900,12 +900,14 @@ func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 
 	const username = "bowman"
 	const password = "it's full of stars!"
-	_, _, err := authtest.CreateUserAndRole(authServer, username, nil, nil)
+	_, _, err = authtest.CreateUserAndRole(authServer, username, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertPassword(username, []byte(password)))
 
@@ -1121,8 +1123,10 @@ func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 
 	const username = "capybara"
 
@@ -1198,12 +1202,14 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 
 	const username = "bowman"
 	const password = "it's full of stars!"
-	_, _, err := authtest.CreateUserAndRole(authServer, username, nil, nil)
+	_, _, err = authtest.CreateUserAndRole(authServer, username, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertPassword(username, []byte(password)))
 

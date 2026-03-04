@@ -43,9 +43,6 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// This is bcrypt hash for password "barbaz".
-var fakePasswordHash = []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
-
 // ChangeUserAuthentication implements AuthService.ChangeUserAuthentication.
 func (a *Server) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	user, err := a.changeUserAuthentication(ctx, req)
@@ -184,7 +181,7 @@ func (a *Server) checkPasswordWOToken(ctx context.Context, user string, password
 	if trace.IsNotFound(err) {
 		userFound = false
 		a.logger.DebugContext(ctx, "Password for username not found, using fake hash to mitigate timing attacks", "user", user)
-		hash = fakePasswordHash
+		hash = a.fakePasswordHash
 	}
 
 	if err = bcrypt.CompareHashAndPassword(hash, password); err != nil {

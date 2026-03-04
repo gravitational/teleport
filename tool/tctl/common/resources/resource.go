@@ -64,6 +64,7 @@ func Handlers() map[string]Handler {
 		types.KindGitServer:                          gitServerHandler(),
 		types.KindInferenceModel:                     inferenceModelHandler(),
 		types.KindInferenceSecret:                    inferenceSecretHandler(),
+		types.KindInferencePolicy:                    inferencePolicyHandler(),
 		types.KindInstaller:                          installerHandler(),
 		types.KindKubeServer:                         kubeServerHandler(),
 		types.KindKubernetesCluster:                  kubeClusterHandler(),
@@ -94,6 +95,7 @@ func Handlers() map[string]Handler {
 		scopedaccess.KindScopedRole:                  scopedRoleHandler(),
 		scopedaccess.KindScopedRoleAssignment:        scopedRoleAssignmentHandler(),
 		types.KindWorkloadCluster:                    workloadClusterHandler(),
+		scopedaccess.KindScopedToken:                 scopedTokenHandler(),
 	}
 }
 

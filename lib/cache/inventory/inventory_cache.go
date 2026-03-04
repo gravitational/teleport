@@ -1039,11 +1039,13 @@ func (e *unifiedFilterEnvironment) GetVersion() string {
 		return ""
 	}
 	if e.ui.isInstance() {
-		return e.ui.instance.Spec.Version
+		// Trim "v" prefix if it's there
+		return strings.TrimPrefix(e.ui.instance.Spec.Version, "v")
 	}
 	// For bot instances, get version from latest heartbeat
 	if e.ui.bot.Status != nil && len(e.ui.bot.Status.LatestHeartbeats) > 0 {
-		return e.ui.bot.Status.LatestHeartbeats[0].Version
+		// Trim "v" prefix if it's there
+		return strings.TrimPrefix(e.ui.bot.Status.LatestHeartbeats[0].Version, "v")
 	}
 	return ""
 }

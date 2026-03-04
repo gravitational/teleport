@@ -106,6 +106,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -449,8 +450,24 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build the proxy address list for app routing. When
+	// proxy_service.public_addr is not configured, only activate the
+	// cluster-name fallback if the request host is a subdomain of the
+	// cluster name. This avoids misclassifying requests that arrive on
+	// a different hostname (e.g. behind a load balancer) as app requests.
+	proxyAddrs := h.handler.cfg.ProxyPublicAddrs
+	if len(proxyAddrs) == 0 && h.appHandler != nil {
+		clusterName := h.handler.auth.clusterName
+		raddr, err := utils.ParseAddr(r.Host)
+		if err == nil && clusterName != "" && strings.HasSuffix(raddr.Host(), "."+clusterName) {
+			port := raddr.Port(443)
+			host := net.JoinHostPort(clusterName, strconv.Itoa(port))
+			proxyAddrs = []utils.NetAddr{{Addr: host}}
+		}
+	}
+
 	// if the request is for an app, passthrough OPTIONS requests to the app handler
-	redir, ok := app.HasName(r, h.handler.cfg.ProxyPublicAddrs)
+	redir, ok := app.HasName(r, proxyAddrs)
 	if ok && r.Method == http.MethodOptions {
 		h.handlePreflight(w, r)
 		return
@@ -737,11 +754,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		}
 	}
 
-	resp, err := h.cfg.ProxySettings.GetProxySettings(cfg.Context)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Create application specific handler. This handler handles sessions and
 	// forwarding for application access.
 	var appHandler *app.Handler
@@ -753,7 +765,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			ClusterGetter:         cfg.Proxy,
 			CipherSuites:          cfg.CipherSuites,
 			ProxyPublicAddrs:      cfg.ProxyPublicAddrs,
-			WebPublicAddr:         resp.SSH.PublicAddr,
 			IntegrationAppHandler: cfg.IntegrationAppHandler,
 		})
 		if err != nil {
@@ -998,10 +1009,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	// MFA private endpoints.
 	h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
 	h.POST("/webapi/mfa/authenticatechallenge", h.WithAuth(h.createAuthenticateChallengeHandle))
-	// TODO(Joerger) v19.0.0: currently unused, WebUI can use these in v19 without backwards compatibility concerns.
-	h.DELETE("/webapi/mfa/devices", h.WithAuth(h.deleteMFADeviceHandle))
-	h.POST("/webapi/mfa/registerchallenge", h.WithAuth(h.createRegisterChallengeHandle))
-
 	h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))
 
 	// Device Trust.
@@ -1058,7 +1065,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/desktopservices", h.WithClusterAuth(h.clusterDesktopServicesGet))
 	h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
 	// GET /webapi/sites/:site/desktops/:desktopName/connect?username=<username>&width=<width>&height=<height>
-	h.GET("/webapi/sites/:site/desktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(h.desktopConnectHandle, WithSubprotocols(protocolTDPB)))
+	h.GET("/webapi/sites/:site/desktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(h.desktopConnectHandle, WithSubprotocols(tdpb.ProtocolName)))
 	// GET /webapi/sites/:site/desktopplayback/:sid/ws
 	h.GET("/webapi/sites/:site/desktopplayback/:sid/ws", h.WithClusterAuthWebSocket(h.desktopPlaybackHandle))
 	h.GET("/webapi/sites/:site/desktops/:desktopName/active", h.WithClusterAuth(h.desktopIsActive))
@@ -2037,7 +2044,6 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		UI:                             h.getUIConfig(r.Context()),
 		IsPolicyRoleVisualizerEnabled:  !disableRoleVisualizer,
 		IsDashboard:                    services.IsDashboard(clusterFeatures),
-		IsTeam:                         false,
 		IsUsageBasedBilling:            clusterFeatures.GetIsUsageBased(),
 		AutomaticUpgrades:              automaticUpgradesEnabled,
 		AutomaticUpgradesTargetVersion: automaticUpgradesTargetVersion,
@@ -2047,7 +2053,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		PremiumSupport:                 clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
 		PlayableDatabaseProtocols:      player.SupportedDatabaseProtocols,
 		SessionSummarizerEnabled:       sessionSummarizerEnabled,
-		// Entitlements are reset/overridden in setEntitlementsWithLegacyLogic until setEntitlementsWithLegacyLogic is removed in v18
+		// if Entitlements are not present, GetWebCfgEntitlements will return a map of entitlement to {enabled:false}
+		// if Entitlements are present, GetWebCfgEntitlements will populate the fields appropriately
 		Entitlements: GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
 		IdentitySecurity: webclient.IdentitySecurity{
 			IsClusterLicensed:           modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled,
@@ -2055,9 +2062,6 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			SessionSummarizationEnabled: sessionSummarizerEnabled,
 		},
 	}
-
-	// Set entitlements with backwards field compatibility
-	setEntitlementsWithLegacyLogic(&webCfg, clusterFeatures)
 
 	resource, err := h.cfg.ProxyClient.GetClusterName(r.Context())
 	if err != nil {
@@ -2221,83 +2225,6 @@ func (h *Handler) getUserMatchedAuthConnectors(w http.ResponseWriter, r *http.Re
 	return &getUserMatchedAuthConnectorsResponse{
 		Connectors: connectors,
 	}, nil
-}
-
-// setEntitlementsWithLegacyLogic ensures entitlements on webCfg are backwards compatible
-// If Entitlements are present, will set the legacy fields equal to the equivalent entitlement value
-// i.e. webCfg.IsIGSEnabled = clusterFeatures.Entitlements[entitlements.Identity].Enabled
-// && webCfg.Entitlements[entitlements.Identity] = clusterFeatures.Entitlements[entitlements.Identity].Enabled
-// If Entitlements are not present, will set the legacy fields AND the entitlement equal to the legacy feature
-// i.e. webCfg.IsIGSEnabled = clusterFeatures.GetIdentityGovernance()
-// && webCfg.Entitlements[entitlements.Identity] = clusterFeatures.GetIdentityGovernance()
-// todo (michellescripts) remove in v18; & inline entitlement logic above
-func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures proto.Features) {
-	// if Entitlements are not present, GetWebCfgEntitlements will return a map of entitlement to {enabled:false}
-	// if Entitlements are present, GetWebCfgEntitlements will populate the fields appropriately
-	webCfg.Entitlements = GetWebCfgEntitlements(clusterFeatures.GetEntitlements())
-
-	if ent := clusterFeatures.GetEntitlements(); len(ent) > 0 {
-		// webCfg.Entitlements: No update as they are set above
-		// webCfg.<legacy fields>: set equal to entitlement value
-		webCfg.AccessRequests = modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessRequests).Enabled
-		webCfg.ExternalAuditStorage = modules.GetProtoEntitlement(&clusterFeatures, entitlements.ExternalAuditStorage).Enabled
-		webCfg.HideInaccessibleFeatures = modules.GetProtoEntitlement(&clusterFeatures, entitlements.FeatureHiding).Enabled
-		webCfg.IsIGSEnabled = modules.GetProtoEntitlement(&clusterFeatures, entitlements.Identity).Enabled
-		webCfg.IsPolicyEnabled = modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled
-		webCfg.JoinActiveSessions = modules.GetProtoEntitlement(&clusterFeatures, entitlements.JoinActiveSessions).Enabled
-		webCfg.MobileDeviceManagement = modules.GetProtoEntitlement(&clusterFeatures, entitlements.MobileDeviceManagement).Enabled
-		webCfg.OIDC = modules.GetProtoEntitlement(&clusterFeatures, entitlements.OIDC).Enabled
-		webCfg.SAML = modules.GetProtoEntitlement(&clusterFeatures, entitlements.SAML).Enabled
-		webCfg.TrustedDevices = modules.GetProtoEntitlement(&clusterFeatures, entitlements.DeviceTrust).Enabled
-		webCfg.FeatureLimits = webclient.FeatureLimits{
-			AccessListCreateLimit:               int(modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessLists).Limit),
-			AccessMonitoringMaxReportRangeLimit: int(modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessMonitoring).Limit),
-			AccessRequestMonthlyRequestLimit:    int(modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessRequests).Limit),
-		}
-
-	} else {
-		// webCfg.Entitlements: All records are {enabled: false}; update to equal legacy feature value
-		webCfg.Entitlements[string(entitlements.ExternalAuditStorage)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetExternalAuditStorage()}
-		webCfg.Entitlements[string(entitlements.FeatureHiding)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetFeatureHiding()}
-		webCfg.Entitlements[string(entitlements.Identity)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetIdentityGovernance()}
-		webCfg.Entitlements[string(entitlements.JoinActiveSessions)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetJoinActiveSessions()}
-		webCfg.Entitlements[string(entitlements.MobileDeviceManagement)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetMobileDeviceManagement()}
-		webCfg.Entitlements[string(entitlements.OIDC)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetOIDC()}
-		webCfg.Entitlements[string(entitlements.Policy)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetPolicy() != nil && clusterFeatures.GetPolicy().Enabled}
-		webCfg.Entitlements[string(entitlements.SAML)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetSAML()}
-		// set default Identity fields to legacy feature value
-		webCfg.Entitlements[string(entitlements.AccessLists)] = webclient.EntitlementInfo{Enabled: true, Limit: clusterFeatures.GetAccessList().GetCreateLimit()}
-		webCfg.Entitlements[string(entitlements.AccessMonitoring)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessMonitoring().GetEnabled(), Limit: clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()}
-		webCfg.Entitlements[string(entitlements.AccessRequests)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit() > 0, Limit: clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()}
-		webCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetDeviceTrust().GetEnabled(), Limit: clusterFeatures.GetDeviceTrust().GetDevicesUsageLimit()}
-		// override Identity Package features if Identity is enabled: set true and clear limit
-		if clusterFeatures.GetIdentityGovernance() {
-			webCfg.Entitlements[string(entitlements.AccessLists)] = webclient.EntitlementInfo{Enabled: true}
-			webCfg.Entitlements[string(entitlements.AccessMonitoring)] = webclient.EntitlementInfo{Enabled: true}
-			webCfg.Entitlements[string(entitlements.AccessRequests)] = webclient.EntitlementInfo{Enabled: true}
-			webCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: true}
-			webCfg.Entitlements[string(entitlements.OktaSCIM)] = webclient.EntitlementInfo{Enabled: true}
-			webCfg.Entitlements[string(entitlements.OktaUserSync)] = webclient.EntitlementInfo{Enabled: true}
-			webCfg.Entitlements[string(entitlements.SessionLocks)] = webclient.EntitlementInfo{Enabled: true}
-		}
-
-		// webCfg.<legacy fields>: set equal to legacy feature value
-		webCfg.AccessRequests = clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit() > 0
-		webCfg.ExternalAuditStorage = clusterFeatures.GetExternalAuditStorage()
-		webCfg.HideInaccessibleFeatures = clusterFeatures.GetFeatureHiding()
-		webCfg.IsIGSEnabled = clusterFeatures.GetIdentityGovernance()
-		webCfg.IsPolicyEnabled = clusterFeatures.GetPolicy() != nil && clusterFeatures.GetPolicy().Enabled
-		webCfg.JoinActiveSessions = clusterFeatures.GetJoinActiveSessions()
-		webCfg.MobileDeviceManagement = clusterFeatures.GetMobileDeviceManagement()
-		webCfg.OIDC = clusterFeatures.GetOIDC()
-		webCfg.SAML = clusterFeatures.GetSAML()
-		webCfg.TrustedDevices = clusterFeatures.GetDeviceTrust().GetEnabled()
-		webCfg.FeatureLimits = webclient.FeatureLimits{
-			AccessListCreateLimit:               int(clusterFeatures.GetAccessList().GetCreateLimit()),
-			AccessMonitoringMaxReportRangeLimit: int(clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()),
-			AccessRequestMonthlyRequestLimit:    int(clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()),
-		}
-	}
 }
 
 // GetWebCfgEntitlements takes a cloud entitlement set and returns a modules Entitlement set

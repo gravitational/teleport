@@ -19,8 +19,10 @@
 package tools
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -58,6 +60,20 @@ func newUpdater(toolsDir string) (*Updater, error) {
 
 	return NewUpdater(toolsDir, Version, WithBaseURL(baseURL)), nil
 }
+
+// FastReExecOnly is set by CTMU integration tests to test the re-execution fast
+// path; it's exported because integration tests live in a different package,
+// and it should only be set early because [CheckAndUpdateLocal] will read it
+// unsynchronously.
+var FastReExecOnly = false
+
+// The exit code and error message (written by [fmt.Fprintln] on [os.Stderr])
+// used if [FastReExecOnly] is set and [CheckAndUpdateLocal] needs a
+// re-execution but can't use the fast path. Only used in tests.
+const (
+	FastReExecOnlyExitCode     = 82
+	FastReExecOnlyErrorMessage = "expected fast re-exec"
+)
 
 // CheckAndUpdateLocal verifies if the TELEPORT_TOOLS_VERSION environment variable
 // is set and whether a version is defined (or explicitly disabled by setting it to "off").
@@ -101,13 +117,29 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 	}
 
 	slog.DebugContext(ctx, "Attempting to local update", "current_profile_name", currentProfileName)
-	resp, err := updater.CheckLocal(ctx, currentProfileName)
+	resp, readyTool, err := updater.CheckLocal(ctx, currentProfileName)
 	if err != nil {
 		slog.WarnContext(ctx, "Failed to check local teleport versions, client tools updates are disabled", "error", err)
 		return nil
 	}
 
+	if resp.ReExec && readyTool != nil {
+		slog.DebugContext(ctx, "Re-executing available tool immediately, skipping update step")
+		code, err := updater.ExecTool(ctx, readyTool, reExecArgs)
+		if err == nil {
+			os.Exit(code)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			slog.WarnContext(ctx, "Failed to re-exec client tool", "error", err, "code", code)
+			os.Exit(cmp.Or(code, 1))
+		}
+		slog.DebugContext(ctx, "Failed to re-exec available client tool", "error", err, "code", code)
+	}
+
 	if resp.ReExec {
+		if FastReExecOnly {
+			fmt.Fprintln(os.Stderr, FastReExecOnlyErrorMessage)
+			os.Exit(FastReExecOnlyExitCode)
+		}
 		return trace.Wrap(updateAndReExec(ctx, updater, resp.Version, reExecArgs))
 	}
 
@@ -210,7 +242,7 @@ func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string,
 	code, err := updater.Exec(ctx, toolsVersion, args)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		slog.DebugContext(ctx, "Failed to re-exec client tool", "error", err, "code", code)
-		os.Exit(code)
+		os.Exit(cmp.Or(code, 1))
 	} else if err == nil {
 		os.Exit(code)
 	}

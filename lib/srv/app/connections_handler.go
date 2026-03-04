@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
@@ -115,6 +116,9 @@ type ConnectionsHandlerConfig struct {
 	// Logger is the slog.Logger.
 	Logger *slog.Logger
 
+	// LimiterConfig is the configuration for connection and rate limits.
+	LimiterConfig limiter.Config
+
 	// MCPDemoServer enables the "Teleport Demo" MCP server.
 	MCPDemoServer bool
 }
@@ -180,6 +184,7 @@ type ConnectionsHandler struct {
 	tlsConfig  *tls.Config
 	tcpServer  *tcpServer
 	mcpServer  *mcp.Server
+	limiter    *limiter.Limiter
 
 	// cache holds sessionChunk objects for in-flight app sessions.
 	cache *utils.FnCache
@@ -261,9 +266,14 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	go c.expireSessions()
-
 	clustername, err := c.cfg.AccessPoint.GetClusterName(closeContext)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create limiter for connection and rate limiting. Applied to all
+	// app protocols (HTTP, TCP, MCP) in handleConnection.
+	c.limiter, err = limiter.NewLimiter(cfg.LimiterConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -298,6 +308,8 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 
 	// Figure out the port the proxy is running on.
 	c.proxyPort = c.getProxyPort(c.closeContext)
+
+	go c.expireSessions()
 
 	return c, nil
 }
@@ -595,6 +607,23 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Apply connection and rate limiting to all app protocols
+	// (HTTP, TCP, MCP) before any protocol-specific handling.
+	// Skip limiting when the client IP cannot be extracted (e.g.
+	// net.Pipe connections used by integration app proxying).
+	var release func()
+	if clientIP, err := utils.ClientIPFromConn(conn); err == nil {
+		release, err = c.limiter.RegisterRequestAndConnection(clientIP)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	defer func() {
+		if release != nil {
+			release()
+		}
+	}()
+
 	// Proxy sends a X.509 client certificate to pass identity information,
 	// extract it and run authorization checks on it.
 	tlsConn, user, app, err := c.getConnectionInfo(c.closeContext, tc)
@@ -653,7 +682,14 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 		return nil, trace.Wrap(c.mcpServer.HandleSession(ctx, &sessionCtx))
 
 	default:
+		// Transfer release ownership to the cleanup function so
+		// the deferred release above becomes a no-op.
+		releaseConn := release
+		release = nil
 		cleanup := func() {
+			if releaseConn != nil {
+				releaseConn()
+			}
 			cancel(nil)
 			c.deleteConnAuth(tlsConn)
 		}

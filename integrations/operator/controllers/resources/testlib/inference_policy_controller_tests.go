@@ -162,6 +162,13 @@ func InferencePolicyCreationTest(t *testing.T, clt *client.Client) {
 	)
 }
 
+func InferencePolicyDeletionTest(t *testing.T, clt *client.Client) {
+	test := &inferencePolicyTestingPrimitives{}
+	ResourceDeletionSynchronousTest(
+		t, resources.NewInferencePolicyReconciler, test, WithTeleportClient(clt),
+	)
+}
+
 func InferencePolicyDeletionDriftTest(t *testing.T, clt *client.Client) {
 	test := &inferencePolicyTestingPrimitives{}
 	ResourceDeletionDriftSynchronousTest(

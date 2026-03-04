@@ -46,6 +46,7 @@ import (
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -93,6 +94,7 @@ import (
 )
 
 func TestMFADeviceManagement(t *testing.T) {
+	t.Parallel()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	clock := testServer.Clock().(*clockwork.FakeClock)
@@ -456,6 +458,7 @@ func TestMFADeviceManagement(t *testing.T) {
 }
 
 func TestMFADeviceManagement_SSO(t *testing.T) {
+	t.Parallel()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	ctx := context.Background()
@@ -573,6 +576,7 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 }
 
 func TestDeletingLastPasswordlessDevice(t *testing.T) {
+	t.Parallel()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	clock := testServer.Clock().(*clockwork.FakeClock)
@@ -883,6 +887,7 @@ func testDeleteMFADevice(ctx context.Context, t *testing.T, authClient *authclie
 }
 
 func TestCreateAppSession_deviceExtensions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
@@ -968,6 +973,7 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 }
 
 func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testServer := newTestTLSServer(t)
 
@@ -2646,6 +2652,7 @@ func TestIsMFARequired(t *testing.T) {
 }
 
 func TestIsMFARequired_unauthorized(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -2832,6 +2839,7 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 }
 
 func TestIsMFARequired_App(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -5667,6 +5675,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 }
 
 func TestGetVnetConfig(t *testing.T) {
+	t.Parallel()
 	server := newTestTLSServer(t)
 	user, _, err := authtest.CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
 	require.NoError(t, err)
@@ -6511,4 +6520,30 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGRPCServingStatus(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+	defer srv.Close()
+
+	authClient, err := srv.NewClient(authtest.TestServerID(types.RoleNode, uuid.NewString()))
+	require.NoError(t, err)
+	defer authClient.Close()
+
+	srv.TLSServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthClient := grpc_health_v1.NewHealthClient(authClient.GetConnection())
+	resp, err := healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{
+		Service: "",
+	})
+	require.NoError(t, err)
+	require.Equal(t, grpc_health_v1.HealthCheckResponse_SERVING, resp.Status)
+
+	srv.TLSServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_NOT_SERVING)
+	resp, err = healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{
+		Service: "",
+	})
+	require.NoError(t, err)
+	require.Equal(t, grpc_health_v1.HealthCheckResponse_NOT_SERVING, resp.Status)
 }

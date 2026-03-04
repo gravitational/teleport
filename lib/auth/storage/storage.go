@@ -119,7 +119,7 @@ func (p *ProcessStorage) GetState(ctx context.Context, role types.SystemRole) (*
 }
 
 // CreateState creates process state if it does not exist yet.
-func (p *ProcessStorage) CreateState(role types.SystemRole, state state.StateV2) error {
+func (p *ProcessStorage) CreateState(ctx context.Context, role types.SystemRole, state state.StateV2) error {
 	if err := state.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -131,7 +131,7 @@ func (p *ProcessStorage) CreateState(role types.SystemRole, state state.StateV2)
 		Key:   backend.NewKey(statesPrefix, strings.ToLower(role.String()), stateName),
 		Value: value,
 	}
-	_, err = p.stateStorage.Create(context.TODO(), item)
+	_, err = p.stateStorage.Create(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -139,7 +139,7 @@ func (p *ProcessStorage) CreateState(role types.SystemRole, state state.StateV2)
 }
 
 // WriteState writes local cluster state to the backend.
-func (p *ProcessStorage) WriteState(role types.SystemRole, state state.StateV2) error {
+func (p *ProcessStorage) WriteState(ctx context.Context, role types.SystemRole, state state.StateV2) error {
 	if err := state.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -151,7 +151,7 @@ func (p *ProcessStorage) WriteState(role types.SystemRole, state state.StateV2) 
 		Key:   backend.NewKey(statesPrefix, strings.ToLower(role.String()), stateName),
 		Value: value,
 	}
-	_, err = p.stateStorage.Put(context.TODO(), item)
+	_, err = p.stateStorage.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -159,11 +159,11 @@ func (p *ProcessStorage) WriteState(role types.SystemRole, state state.StateV2) 
 }
 
 // ReadIdentity reads identity using identity name and role.
-func (p *ProcessStorage) ReadIdentity(name string, role types.SystemRole) (*state.Identity, error) {
+func (p *ProcessStorage) ReadIdentity(ctx context.Context, name string, role types.SystemRole) (*state.Identity, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
-	item, err := p.stateStorage.Get(context.TODO(), backend.NewKey(idsPrefix, strings.ToLower(role.String()), name))
+	item, err := p.stateStorage.Get(ctx, backend.NewKey(idsPrefix, strings.ToLower(role.String()), name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -188,7 +188,7 @@ func (p *ProcessStorage) ReadIdentity(name string, role types.SystemRole) (*stat
 }
 
 // WriteIdentity writes identity to the backend.
-func (p *ProcessStorage) WriteIdentity(name string, id state.Identity) error {
+func (p *ProcessStorage) WriteIdentity(ctx context.Context, name string, id state.Identity) error {
 	res := state.IdentityV2{
 		ResourceHeader: types.ResourceHeader{
 			Kind:    types.KindIdentity,
@@ -217,7 +217,7 @@ func (p *ProcessStorage) WriteIdentity(name string, id state.Identity) error {
 		Key:   backend.NewKey(idsPrefix, strings.ToLower(id.ID.Role.String()), name),
 		Value: value,
 	}
-	_, err = p.stateStorage.Put(context.TODO(), item)
+	_, err = p.stateStorage.Put(ctx, item)
 	return trace.Wrap(err)
 }
 
@@ -297,18 +297,18 @@ func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, key *types.RDPLicen
 //
 // TODO(nklaassen): delete this after ref has been removed from teleport.e
 func ReadLocalIdentity(dataDir string, id state.IdentityID) (*state.Identity, error) {
-	return ReadLocalIdentityForRole(dataDir, id.Role)
+	return ReadLocalIdentityForRole(context.TODO(), dataDir, id.Role)
 }
 
 // ReadLocalIdentityForRole reads, parses and returns the given pub/pri key +
 // cert from the key storage (dataDir).
-func ReadLocalIdentityForRole(dataDir string, role types.SystemRole) (*state.Identity, error) {
-	storage, err := NewProcessStorage(context.TODO(), dataDir)
+func ReadLocalIdentityForRole(ctx context.Context, dataDir string, role types.SystemRole) (*state.Identity, error) {
+	storage, err := NewProcessStorage(ctx, dataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer storage.Close()
-	return storage.ReadIdentity(state.IdentityCurrent, role)
+	return storage.ReadIdentity(ctx, state.IdentityCurrent, role)
 }
 
 // ReadOrGenerateHostID tries to read the `host_uuid` from Kubernetes storage (if available) or local storage.

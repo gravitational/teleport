@@ -17,19 +17,21 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 
-import { render, screen, userEvent, waitFor } from 'design/utils/testing';
+import {
+  enableMswServer,
+  render,
+  screen,
+  server,
+  userEvent,
+  waitFor,
+} from 'design/utils/testing';
 
 import { storageService } from 'teleport/services/storageService';
 
 import { FormIdentifierFirst } from './FormIdentifierFirst';
 
-const server = setupServer();
-
-beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
+enableMswServer();
 
 test('no user remembered in localstorage renders username input form', () => {
   storageService.setRememberedSsoUsername('');

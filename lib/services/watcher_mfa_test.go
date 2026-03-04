@@ -116,7 +116,7 @@ func TestNewValidatedMFAChallengeWatcher_Validation(t *testing.T) {
 				ClusterName:                 "leaf",
 				ResourceWatcherConfig:       &services.ResourceWatcherConfig{},
 			},
-			wantErr: trace.BadParameter("cfg.ValidatedMFAChallengeGetter must be set"),
+			wantErr: trace.BadParameter("cfg.ValidatedMFAChallengeLister must be set"),
 		},
 		{
 			name: "empty ClusterName",
