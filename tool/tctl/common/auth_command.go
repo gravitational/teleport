@@ -99,7 +99,8 @@ type AuthCommand struct {
 	identityWriter             identityfile.ConfigWriter
 	integration                string
 
-	authRotate authRotateCommand
+	authRotate  authRotateCommand
+	certInspect certCommand
 
 	authGenerate *kingpin.CmdClause
 	authExport   *kingpin.CmdClause
@@ -167,6 +168,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	a.authSign.Flag("omit-cdp", `Omit CRL Distribution Points from the cert. Only used when --format is set to "windows"`).BoolVar(&a.omitCDP)
 
 	a.authRotate.Initialize(auth)
+	a.certInspect.Initialize(auth)
 
 	a.authLS = auth.Command("ls", "List connected auth servers.")
 	a.authLS.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&a.format)
@@ -180,6 +182,9 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 // or returns match=false if 'cmd' does not belong to it
 func (a *AuthCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	if match, err := a.authRotate.TryRun(ctx, cmd, clientFunc); match || err != nil {
+		return match, trace.Wrap(err)
+	}
+	if match, err := a.certInspect.TryRun(ctx, cmd, clientFunc); match || err != nil {
 		return match, trace.Wrap(err)
 	}
 
