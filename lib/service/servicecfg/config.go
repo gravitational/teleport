@@ -342,6 +342,9 @@ type ConfigTesting struct {
 	// especially when the list is also being modified concurrently by the background
 	// eligibility handler.
 	RunWhileLockedRetryInterval time.Duration
+
+	// TriggerOktaSyncC is a channel that can be used in tests to trigger Okta sync immediately instead of waiting for the next scheduled sync.
+	TriggerOktaSyncC chan struct{}
 }
 
 // UserMonitorConfig contains configuration for the user monitor service, which is responsible for monitoring

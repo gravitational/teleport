@@ -28,8 +28,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/shlex"
 	"github.com/gravitational/trace"
+	"github.com/mattn/go-shellwords"
 
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -148,7 +148,7 @@ func expandAliasDefinition(executablePath, aliasName, aliasDef string, runtimeAr
 		return nil, trace.BadParameter("tsh alias %q requires %v arguments, but was invoked with %v", aliasName, maxMissing+1, len(runtimeArgs))
 	}
 
-	split, err := shlex.Split(expanded)
+	split, err := shellwords.Parse(expanded)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
