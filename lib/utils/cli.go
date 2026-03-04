@@ -176,7 +176,11 @@ func UserMessageFromError(err error) string {
 		fmt.Fprint(&buf, Color(Red, "ERROR: "))
 	}
 	formatErrorWriter(err, &buf)
-	return buf.String()
+	message := buf.String()
+	if !strings.HasSuffix(message, "\n") {
+		message = message + "\n"
+	}
+	return message
 }
 
 // FormatErrorWithNewline returns user friendly error message from error.
@@ -210,7 +214,7 @@ func formatErrorWriter(err error, w io.Writer) {
 		return
 	}
 
-	fmt.Fprintln(w, AllowWhitespace(msg))
+	fmt.Fprint(w, AllowWhitespace(msg))
 }
 
 func formatCertError(err error) string {
