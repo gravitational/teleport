@@ -205,13 +205,26 @@ func (b *Backend) findStream(ctx context.Context) (*string, error) {
 }
 
 func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard streamtypes.Shard, eventsC chan shardEvent, initC chan<- error) error {
+	isInitializting := initC != nil
+	shardIteratorType := streamtypes.ShardIteratorTypeTrimHorizon
+	if isInitializting {
+		// for the initial shard iterator registration, we want to start from the end of the stream to avoid processing old events
+		shardIteratorType = streamtypes.ShardIteratorTypeLatest
+	}
 	shardIterator, err := b.streams.GetShardIterator(ctx, &dynamodbstreams.GetShardIteratorInput{
 		ShardId:           shard.ShardId,
-		ShardIteratorType: streamtypes.ShardIteratorTypeLatest,
+		ShardIteratorType: shardIteratorType,
 		StreamArn:         streamArn,
 	})
 
-	if initC != nil {
+	if err == nil && shardIterator.ShardIterator == nil {
+		// In both cases for either new init calls or shard split we expect a valid iterator. For LATEST calls on a shard that may be
+		// closed the iterator is still valid but will return no records. for TRIM_HORIZON the iterator will always start at the beginning
+		// of the shard.
+		err = trace.BadParameter("expected valid iterator for shard %q, got nil (this is a bug)", aws.ToString(shard.ShardId))
+	}
+
+	if isInitializting {
 		select {
 		case initC <- convertError(err):
 		case <-ctx.Done():
@@ -226,13 +239,7 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 	defer ticker.Stop()
 	iterator := shardIterator.ShardIterator
 	shardID := aws.ToString(shard.ShardId)
-	for iterator != nil {
-		select {
-		case <-ctx.Done():
-			return trace.ConnectionProblem(ctx.Err(), "context is closing")
-		case <-ticker.C:
-		}
-
+	for {
 		out, err := b.streams.GetRecords(ctx, &dynamodbstreams.GetRecordsInput{
 			ShardIterator: iterator,
 		})
@@ -259,10 +266,23 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 		}
 
 		iterator = out.NextShardIterator
-	}
+		if iterator == nil {
+			// Fast exit if the shard is closed.
+			b.logger.Log(ctx, logutils.TraceLevel, "Shard is closed", "shard_id", shardID)
+			return shardClosedError{}
+		}
 
-	b.logger.Log(ctx, logutils.TraceLevel, "Shard is closed", "shard_id", shardID)
-	return shardClosedError{}
+		select {
+		case <-ctx.Done():
+			return trace.ConnectionProblem(ctx.Err(), "context is closing")
+		case <-ticker.C:
+			// TODO(okraport): for very low values of [PollStreamPeriod], it's possible that [GetRecords] is called
+			// each tick even if previous call returns 0 items. The default poll period of 1000ms is sufficent to mitigate
+			// this but we may wish to change this behaviour to backoff for longer periods of time if no records are returned.
+			// This is especially true when there are large number of shards and low writes after a period of high throughput.
+			// Similairly avoiding sleeping when records are returned may also be desirable to improve latency.
+		}
+	}
 }
 
 // collectActiveShards collects shards
