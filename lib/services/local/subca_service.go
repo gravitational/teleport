@@ -210,7 +210,7 @@ func (s *SubCAService) serviceForClusterAndType(
 		return nil, trace.BadParameter("resource sub_kind/caType required")
 	}
 
-	return s.service.WithNameKeyFunc(func(_ string) backend.Key {
+	return s.service.WithNameKeyFunc(func() backend.Key {
 		return backend.NewKey(clusterName, caType)
 	}), nil
 }
