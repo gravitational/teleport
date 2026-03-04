@@ -157,8 +157,9 @@ func TestHSMRotation(t *testing.T) {
 	}))
 }
 
-func getAdminClient(authDataDir string, authAddr string) (*authclient.Client, error) {
+func getAdminClient(ctx context.Context, authDataDir string, authAddr string) (*authclient.Client, error) {
 	identity, err := storage.ReadLocalIdentityForRole(
+		ctx,
 		filepath.Join(authDataDir, teleport.ComponentProcess),
 		types.RoleAdmin)
 	if err != nil {
@@ -182,7 +183,7 @@ func getAdminClient(authDataDir string, authAddr string) (*authclient.Client, er
 
 func testAdminClient(t *testing.T, authDataDir string, authAddr string) {
 	f := func() error {
-		clt, err := getAdminClient(authDataDir, authAddr)
+		clt, err := getAdminClient(t.Context(), authDataDir, authAddr)
 		if err != nil {
 			return err
 		}

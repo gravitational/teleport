@@ -19,6 +19,7 @@
 package srv
 
 import (
+	"cmp"
 	"context"
 	"os"
 	"slices"
@@ -43,6 +44,15 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 ) (*ssh.Permissions, error) {
 	if len(preconds) == 0 {
 		return perms, nil
+	}
+
+	// Source cluster must be the cluster the user will perform the MFA ceremony with. This is usually the cluster the
+	// user is trying to access, but in some cases, such as trusted clusters, the user has to perform the MFA ceremony
+	// with the root cluster instead. In those cases, the RouteToCluster field will be set to the root cluster, so we
+	// should use that if it's set.
+	sourceCluster := cmp.Or(id.RouteToCluster, id.ClusterName)
+	if sourceCluster == "" {
+		return nil, trace.BadParameter("identity missing cluster name (this is a bug)")
 	}
 
 	// If an unknown or unsupported precondition is provided, fail close to prevent potential authentication bypasses.
@@ -81,8 +91,7 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		for _, p := range preconds {
 			switch p.GetKind() {
 			case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
-				// TODO(cthach): Use the source cluster name that the client will do the MFA ceremony with.
-				verifier, err := srvssh.NewMFAPromptVerifier(h.c.ValidatedMFAChallengeVerifier, id.ClusterName, id.Username, metadata.SessionID())
+				verifier, err := srvssh.NewMFAPromptVerifier(h.c.ValidatedMFAChallengeVerifier, sourceCluster, id.Username, metadata.SessionID())
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}

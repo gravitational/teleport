@@ -9,6 +9,16 @@
 The minimum version of macOS required to run Teleport or associated client tools
 is now macOS 12 (Monterey).
 
+#### Application Access connection limits
+
+The `connection_limits` configuration now applies to the Application
+Service. Each `app_service` instance enforces the same per-client-IP
+default (15,000 max simultaneous connections per source IP) as all
+other services. The limit is aggregated across all apps on the
+`app_service` instance, not tracked per app. If you have
+`connection_limits` configured, those values apply to app access
+connections after upgrading to v19.
+
 ## 18.5.0 (12/04/25)
 
 ### Kubernetes support for Relay Service

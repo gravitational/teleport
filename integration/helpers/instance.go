@@ -1525,6 +1525,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		Stdout:                        cfg.Stdout,
 		NonInteractive:                true,
 		DisableSSHResumption:          cfg.DisableSSHResumption,
+		AddKeysToAgent:                client.AddKeysToAgentNo,
 	}
 
 	// JumpHost turns on jump host mode
