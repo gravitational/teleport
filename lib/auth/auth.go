@@ -1493,6 +1493,10 @@ type Server struct {
 	// EncryptedIO provides encryption for session related data such as
 	// recordings, thumbnails, and metadata.
 	EncryptedIO *recordingencryption.EncryptedIO
+
+	// hmacAnonymizer is used to anonymize sensitive data in a consistent way for
+	// use in telemetry and logging without exposing the original values.
+	hmacAnonymizer *utils.HMACAnonymizer
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -2562,6 +2566,30 @@ func (a *Server) GetAnonymizationKey(ctx context.Context) (string, error) {
 	}
 	id, err := a.GetClusterID(ctx)
 	return id, trace.Wrap(err)
+}
+
+// GetHMACAnonymizer returns a lazily-initialized, HMAC anonymizer for this auth server.
+// The anonymizer key is set to the the cluster's anonymization key.
+// Subsequent calls return the same instance.
+func (a *Server) GetHMACAnonymizer(ctx context.Context) (*utils.HMACAnonymizer, error) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
+	if a.hmacAnonymizer != nil {
+		return a.hmacAnonymizer, nil
+	}
+
+	key, err := a.GetAnonymizationKey(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get anonymization key")
+	}
+	anonymizer, err := utils.NewHMACAnonymizer(key)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create HMAC anonymizer")
+	}
+
+	a.hmacAnonymizer = anonymizer
+	return anonymizer, nil
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
