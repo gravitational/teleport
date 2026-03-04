@@ -648,7 +648,7 @@ func TestGenericKeyOverride(t *testing.T) {
 		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
-		NameKeyFunc:   func(string) backend.Key { return backend.NewKey("llama") },
+		NameKeyFunc:   func() backend.Key { return backend.NewKey("llama") },
 	})
 	require.NoError(t, err)
 
@@ -729,7 +729,7 @@ func TestGenericKeyOverride(t *testing.T) {
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	t.Run("WithNameKeyFunc", func(t *testing.T) {
-		s := service.WithNameKeyFunc(func(name string) backend.Key {
+		s := service.WithNameKeyFunc(func() backend.Key {
 			return backend.NewKey("camelid", "thellama")
 		})
 
