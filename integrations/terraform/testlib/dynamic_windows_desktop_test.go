@@ -28,6 +28,70 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+func (s *TerraformSuiteOSS) TestDynamicWindowsDesktopDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	checkDestroyed := func(state *terraform.State) error {
+		_, err := s.client.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, "test")
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	desktop, err := types.NewDynamicWindowsDesktopV1(
+		"test",
+		nil,
+		types.DynamicWindowsDesktopSpecV1{
+			Addr:   "localhost:3000",
+			NonAD:  true,
+			Domain: "my.domain",
+			ScreenSize: &types.Resolution{
+				Width:  800,
+				Height: 600,
+			},
+		},
+	)
+	require.NoError(s.T(), err)
+
+	_, err = s.client.DynamicDesktopClient().CreateDynamicWindowsDesktop(ctx, desktop)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, desktop.GetName())
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DynamicDesktopClient().DeleteDynamicWindowsDesktop(ctx, desktop.GetName()))
+	})
+
+	name := "data.teleport_dynamic_windows_desktop.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkDestroyed,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("dynamic_windows_desktop_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "dynamic_windows_desktop"),
+					resource.TestCheckResourceAttr(name, "version", "v1"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
+					resource.TestCheckResourceAttr(name, "spec.addr", "localhost:3000"),
+					resource.TestCheckResourceAttr(name, "spec.non_ad", "true"),
+					resource.TestCheckResourceAttr(name, "spec.domain", "my.domain"),
+					resource.TestCheckResourceAttr(name, "spec.screen_size.width", "800"),
+					resource.TestCheckResourceAttr(name, "spec.screen_size.height", "600"),
+				),
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteOSS) TestDynamicWindowsDesktop() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)

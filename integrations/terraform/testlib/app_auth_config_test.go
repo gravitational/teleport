@@ -30,6 +30,57 @@ import (
 	"github.com/gravitational/teleport/api/types/appauthconfig"
 )
 
+func (s *TerraformSuiteOSS) TestAppAuthConfigDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	config := appauthconfig.NewAppAuthConfigJWT(
+		"test",
+		[]*labelv1.Label{{Name: "*", Values: []string{"*"}}},
+		&appauthconfigv1.AppAuthConfigJWTSpec{
+			Audience: "teleport",
+			Issuer:   "https://issuer-url",
+			KeysSource: &appauthconfigv1.AppAuthConfigJWTSpec_JwksUrl{
+				JwksUrl: "https://issuer-url/.well-known/jwks.json",
+			},
+		},
+	)
+
+	_, err := s.client.CreateAppAuthConfig(ctx, config)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.GetAppAuthConfig(ctx, config.GetMetadata().GetName())
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DeleteAppAuthConfig(ctx, config.GetMetadata().GetName()))
+	})
+
+	name := "data.teleport_app_auth_config.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("app_auth_config_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "app_auth_config"),
+					resource.TestCheckResourceAttr(name, "version", "v1"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
+					resource.TestCheckResourceAttr(name, "spec.app_labels.0.name", "*"),
+					resource.TestCheckResourceAttr(name, "spec.app_labels.0.values.0", "*"),
+					resource.TestCheckResourceAttr(name, "spec.jwt.issuer", "https://issuer-url"),
+					resource.TestCheckResourceAttr(name, "spec.jwt.audience", "teleport"),
+					resource.TestCheckResourceAttr(name, "spec.jwt.jwks_url", "https://issuer-url/.well-known/jwks.json"),
+				),
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteOSS) TestAppAuthConfig() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)

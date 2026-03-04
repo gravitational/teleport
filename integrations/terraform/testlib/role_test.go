@@ -37,15 +37,6 @@ func (s *TerraformSuiteOSS) TestRoleDataSource() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
-	checkDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetRole(ctx, "test")
-		if trace.IsNotFound(err) {
-			return nil
-		}
-
-		return err
-	}
-
 	role := &types.RoleV6{
 		Kind:    "role",
 		Version: "v8",
@@ -96,14 +87,23 @@ func (s *TerraformSuiteOSS) TestRoleDataSource() {
 	err := role.CheckAndSetDefaults()
 	require.NoError(s.T(), err)
 
-	_, err = s.client.UpsertRole(ctx, role)
+	_, err = s.client.CreateRole(ctx, role)
 	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.GetRole(ctx, role.GetName())
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DeleteRole(ctx, role.GetName()))
+	})
 
 	name := "data.teleport_role.test"
 
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
-		CheckDestroy:             checkDestroyed,
+		IsUnitTest:               true,
 		Steps: []resource.TestStep{
 			{
 				Config: s.getFixture("role_data_source.tf"),
@@ -111,7 +111,6 @@ func (s *TerraformSuiteOSS) TestRoleDataSource() {
 					resource.TestCheckResourceAttr(name, "kind", "role"),
 					resource.TestCheckResourceAttr(name, "version", "v8"),
 					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
-
 					resource.TestCheckResourceAttr(name, "spec.options.cert_format", "standard"),
 					resource.TestCheckResourceAttr(name, "spec.options.client_idle_timeout", "1h0m0s"),
 					resource.TestCheckResourceAttr(name, "spec.options.create_db_user", "false"),
@@ -169,6 +168,10 @@ func (s *TerraformSuiteOSS) TestRole() {
 					resource.TestCheckNoResourceAttr(name, "spec.options"),
 					resource.TestCheckResourceAttr(name, "version", "v8"),
 					resource.TestCheckResourceAttr(name, "spec.allow.logins.0", "anonymous"),
+
+					// Computed fields
+					resource.TestCheckResourceAttr(name, "spec.options.record_session.default", "best_effort"),
+					resource.TestCheckResourceAttr(name, "spec.options.record_session.desktop", "true"),
 				),
 			},
 			{
@@ -189,6 +192,10 @@ func (s *TerraformSuiteOSS) TestRole() {
 					resource.TestCheckResourceAttr(name, "spec.allow.request.claims_to_roles.0.roles.0", "example"),
 					resource.TestCheckResourceAttr(name, "spec.allow.node_labels.example.0", "yes"),
 					resource.TestCheckResourceAttr(name, "spec.allow.node_labels.example.1", "no"),
+
+					// Computed fields
+					resource.TestCheckResourceAttr(name, "spec.options.record_session.default", "best_effort"),
+					resource.TestCheckResourceAttr(name, "spec.options.record_session.desktop", "true"),
 
 					resource.TestCheckResourceAttr(name, "version", "v8"),
 				),

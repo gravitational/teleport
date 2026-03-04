@@ -17,8 +17,58 @@ limitations under the License.
 package testlib
 
 import (
+	"context"
+	"time"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
+
+func (s *TerraformSuiteOSS) TestClusterMaintenanceConfigDataSource() {
+	ctx, cancel := context.WithCancel(s.T().Context())
+	s.T().Cleanup(cancel)
+
+	name := "data.teleport_cluster_maintenance_config.test"
+
+	config := &types.ClusterMaintenanceConfigV1{
+		Spec: types.ClusterMaintenanceConfigSpecV1{
+			AgentUpgrades: &types.AgentUpgradeWindow{
+				UTCStartHour: 8,
+				Weekdays:     []string{"Mon"},
+			},
+		},
+	}
+
+	err := config.CheckAndSetDefaults()
+	require.NoError(s.T(), err)
+
+	err = s.client.UpdateClusterMaintenanceConfig(ctx, config)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.GetClusterMaintenanceConfig(ctx)
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("maintenance_config_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "cluster_maintenance_config"),
+					resource.TestCheckResourceAttr(name, "version", "v1"),
+					resource.TestCheckResourceAttr(name, "id", "cluster-maintenance-config"),
+					resource.TestCheckResourceAttr(name, "spec.agent_upgrades.utc_start_hour", "8"),
+					resource.TestCheckResourceAttr(name, "spec.agent_upgrades.weekdays.0", "Mon"),
+				),
+			},
+		},
+	})
+}
 
 func (s *TerraformSuiteOSS) TestClusterMaintenanceConfig() {
 	name := "teleport_cluster_maintenance_config.test"

@@ -20,14 +20,80 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 )
+
+func (s *TerraformSuiteOSS) TestDiscoveryConfigDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	discoveryCfg, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{
+			Name: "test",
+		},
+		discoveryconfig.Spec{
+			DiscoveryGroup: "test-group",
+			AWS: []types.AWSMatcher{
+				{
+					Types:   []string{"ec2"},
+					Regions: []string{"us-west-2"},
+					Tags: types.Labels{
+						"env": []string{"test"},
+					},
+					Params: &types.InstallerParams{
+						JoinMethod: "iam",
+						JoinToken:  "test-token",
+						ScriptName: "test-installer",
+					},
+				},
+			},
+		},
+	)
+	require.NoError(s.T(), err)
+
+	_, err = s.client.DiscoveryConfigClient().CreateDiscoveryConfig(ctx, discoveryCfg)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.DiscoveryConfigClient().GetDiscoveryConfig(ctx, discoveryCfg.GetName())
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DiscoveryConfigClient().DeleteDiscoveryConfig(ctx, discoveryCfg.GetName()))
+	})
+
+	name := "data.teleport_discovery_config.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("discovery_config_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "header.metadata.name", "test"),
+					resource.TestCheckResourceAttr(name, "header.version", "v1"),
+					resource.TestCheckResourceAttr(name, "spec.discovery_group", "test-group"),
+					resource.TestCheckResourceAttr(name, "spec.aws.0.types.0", "ec2"),
+					resource.TestCheckResourceAttr(name, "spec.aws.0.regions.0", "us-west-2"),
+					resource.TestCheckResourceAttr(name, "spec.aws.0.tags.env.0", "test"),
+					resource.TestCheckResourceAttr(name, "spec.aws.0.install.join_method", "iam"),
+					resource.TestCheckResourceAttr(name, "spec.aws.0.install.join_token", "test-token"),
+					resource.TestCheckResourceAttr(name, "spec.aws.0.install.script_name", "test-installer"),
+				),
+			},
+		},
+	})
+}
 
 func (s *TerraformSuiteOSS) TestDiscoveryConfig() {
 	t := s.T()

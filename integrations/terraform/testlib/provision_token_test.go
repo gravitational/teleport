@@ -19,6 +19,7 @@ package testlib
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -27,6 +28,62 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 )
+
+func (s *TerraformSuiteOSS) TestProvisionTokenDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	token := &types.ProvisionTokenV2{
+		Metadata: types.Metadata{
+			Name: "test",
+		},
+		Spec: types.ProvisionTokenSpecV2{
+			Roles:      []types.SystemRole{"Bot"},
+			BotName:    "mybot",
+			JoinMethod: types.JoinMethodIAM,
+			Allow: []*types.TokenRule{
+				{
+					AWSAccount: "example-account",
+				},
+			},
+		},
+	}
+	err := token.CheckAndSetDefaults()
+	require.NoError(s.T(), err)
+
+	err = s.client.CreateToken(ctx, token)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.GetToken(ctx, token.GetName())
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DeleteToken(ctx, token.GetName()))
+	})
+
+	name := "data.teleport_provision_token.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("provision_token_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "token"),
+					resource.TestCheckResourceAttr(name, "version", "v2"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
+					resource.TestCheckResourceAttr(name, "spec.roles.0", "Bot"),
+					resource.TestCheckResourceAttr(name, "spec.bot_name", "mybot"),
+					resource.TestCheckResourceAttr(name, "spec.join_method", "iam"),
+					resource.TestCheckResourceAttr(name, "spec.allow.0.aws_account", "example-account"),
+				),
+			},
+		},
+	})
+}
 
 func (s *TerraformSuiteOSS) TestProvisionToken() {
 	ctx, cancel := context.WithCancel(context.Background())

@@ -32,6 +32,72 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+func (s *TerraformSuiteOSS) TestStaticHostUserDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	shu := &userprovisioningv2.StaticHostUser{
+		Metadata: &v1.Metadata{
+			Name: "test",
+		},
+		Kind:    types.KindStaticHostUser,
+		Version: types.V2,
+		Spec: &userprovisioningv2.StaticHostUserSpec{
+			Matchers: []*userprovisioningv2.Matcher{
+				{
+					NodeLabels: []*labelv1.Label{
+						{
+							Name:   "foo",
+							Values: []string{"bar"},
+						},
+					},
+					Groups:       []string{"foo", "bar"},
+					Sudoers:      []string{"example"},
+					Uid:          1234,
+					Gid:          1234,
+					DefaultShell: "/bin/bash",
+				},
+			},
+		},
+	}
+	shu, err := s.client.StaticHostUserClient().CreateStaticHostUser(ctx, shu)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.StaticHostUserClient().GetStaticHostUser(ctx, shu.GetMetadata().GetName())
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.StaticHostUserClient().DeleteStaticHostUser(ctx, shu.GetMetadata().GetName()))
+	})
+
+	name := "data.teleport_static_host_user.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("static_host_user_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "static_host_user"),
+					resource.TestCheckResourceAttr(name, "version", "v2"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
+					resource.TestCheckResourceAttr(name, "spec.matchers.0.node_labels.0.name", "foo"),
+					resource.TestCheckResourceAttr(name, "spec.matchers.0.node_labels.0.values.0", "bar"),
+					resource.TestCheckResourceAttr(name, "spec.matchers.0.groups.0", "foo"),
+					resource.TestCheckResourceAttr(name, "spec.matchers.0.groups.1", "bar"),
+					resource.TestCheckResourceAttr(name, "spec.matchers.0.sudoers.0", "example"),
+					resource.TestCheckResourceAttr(name, "spec.matchers.0.uid", "1234"),
+					resource.TestCheckResourceAttr(name, "spec.matchers.0.gid", "1234"),
+					resource.TestCheckResourceAttr(name, "spec.matchers.0.default_shell", "/bin/bash"),
+				),
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteOSS) TestStaticHostUser() {
 	t := s.T()
 	ctx, cancel := context.WithCancel(context.Background())

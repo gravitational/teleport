@@ -17,6 +17,7 @@ limitations under the License.
 package testlib
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -28,6 +29,53 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 )
+
+func (s *TerraformSuiteOSS) TestIntegrationDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	integration, err := types.NewIntegrationAWSOIDC(types.Metadata{
+		Name: "aws-oidc",
+	}, &types.AWSOIDCIntegrationSpecV1{
+		Audience:    "aws-identity-center",
+		IssuerS3URI: "s3://test-s3-bucket/some-prefix",
+		RoleARN:     "arn:aws:iam::123456789012:role/test-role",
+	})
+	require.NoError(s.T(), err)
+
+	_, err = s.client.CreateIntegration(ctx, integration)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.GetIntegration(ctx, integration.GetName())
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DeleteIntegration(ctx, integration.GetName()))
+	})
+
+	name := "data.teleport_integration.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("integration_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "integration"),
+					resource.TestCheckResourceAttr(name, "sub_kind", "aws-oidc"),
+					resource.TestCheckResourceAttr(name, "version", "v1"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "aws-oidc"),
+					resource.TestCheckResourceAttr(name, "spec.aws_oidc.audience", "aws-identity-center"),
+					resource.TestCheckResourceAttr(name, "spec.aws_oidc.issuer_s3_uri", "s3://test-s3-bucket/some-prefix"),
+					resource.TestCheckResourceAttr(name, "spec.aws_oidc.role_arn", "arn:aws:iam::123456789012:role/test-role"),
+				),
+			},
+		},
+	})
+}
 
 func (s *TerraformSuiteOSS) TestIntegration() {
 	const (

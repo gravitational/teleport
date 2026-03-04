@@ -33,15 +33,6 @@ func (s *TerraformSuiteOSS) TestUserDataSource() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
-	checkUserDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetUser(ctx, "test", false)
-		if trace.IsNotFound(err) {
-			return nil
-		}
-
-		return err
-	}
-
 	expires := time.Date(2035, 10, 12, 0, 0, 0, 0, time.UTC)
 	user := &types.UserV2{
 		Metadata: types.Metadata{
@@ -80,11 +71,20 @@ func (s *TerraformSuiteOSS) TestUserDataSource() {
 	_, err = s.client.CreateUser(ctx, user)
 	require.NoError(s.T(), err)
 
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.GetUser(ctx, user.GetName(), false)
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DeleteUser(ctx, user.GetName()))
+	})
+
 	name := "data.teleport_user.test"
 
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
-		CheckDestroy:             checkUserDestroyed,
+		IsUnitTest:               true,
 		Steps: []resource.TestStep{
 			{
 				Config: s.getFixture("user_data_source.tf"),
@@ -102,6 +102,8 @@ func (s *TerraformSuiteOSS) TestUserDataSource() {
 					resource.TestCheckResourceAttr(name, "spec.github_identities.0.username", "example"),
 					resource.TestCheckResourceAttr(name, "spec.saml_identities.0.connector_id", "saml"),
 					resource.TestCheckResourceAttr(name, "spec.saml_identities.0.username", "example"),
+					resource.TestCheckResourceAttr(name, "status.password_state", "1"),
+					resource.TestCheckResourceAttr(name, "status.mfa_weakest_device", "1"),
 				),
 			},
 		},
@@ -142,6 +144,8 @@ func (s *TerraformSuiteOSS) TestUser() {
 					resource.TestCheckResourceAttr(name, "spec.github_identities.0.username", "example"),
 					resource.TestCheckResourceAttr(name, "spec.saml_identities.0.connector_id", "saml"),
 					resource.TestCheckResourceAttr(name, "spec.saml_identities.0.username", "example"),
+					resource.TestCheckResourceAttr(name, "status.password_state", "1"),
+					resource.TestCheckResourceAttr(name, "status.mfa_weakest_device", "1"),
 				),
 			},
 			{
@@ -160,6 +164,8 @@ func (s *TerraformSuiteOSS) TestUser() {
 					resource.TestCheckResourceAttr(name, "spec.oidc_identities.0.username", "example"),
 					resource.TestCheckNoResourceAttr(name, "spec.github_identities"),
 					resource.TestCheckNoResourceAttr(name, "spec.saml_identities"),
+					resource.TestCheckResourceAttr(name, "status.password_state", "1"),
+					resource.TestCheckResourceAttr(name, "status.mfa_weakest_device", "1"),
 				),
 			},
 			{

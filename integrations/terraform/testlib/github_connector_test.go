@@ -19,6 +19,7 @@ package testlib
 import (
 	"context"
 	"regexp"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -27,6 +28,64 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 )
+
+func (s *TerraformSuiteOSS) TestGithubConnectorDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	githubConnector := &types.GithubConnectorV3{
+		Metadata: types.Metadata{
+			Name: "test",
+		},
+		Spec: types.GithubConnectorSpecV3{
+			ClientID:     "example-id",
+			ClientSecret: "example-secret",
+			TeamsToRoles: []types.TeamRolesMapping{
+				{
+					Organization: "example-org",
+					Team:         "example-team",
+					Roles:        []string{"example-role"},
+				},
+			},
+		},
+	}
+	err := githubConnector.CheckAndSetDefaults()
+	require.NoError(s.T(), err)
+
+	_, err = s.client.CreateGithubConnector(ctx, githubConnector)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.GetGithubConnector(ctx, githubConnector.GetName(), false)
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DeleteGithubConnector(ctx, githubConnector.GetName()))
+	})
+
+	name := "data.teleport_github_connector.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("github_connector_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "github"),
+					resource.TestCheckResourceAttr(name, "version", "v3"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
+					resource.TestCheckResourceAttr(name, "spec.client_id", "example-id"),
+					resource.TestCheckResourceAttr(name, "spec.client_secret", "example-secret"),
+					resource.TestCheckResourceAttr(name, "spec.teams_to_roles.0.organization", "example-org"),
+					resource.TestCheckResourceAttr(name, "spec.teams_to_roles.0.team", "example-team"),
+					resource.TestCheckResourceAttr(name, "spec.teams_to_roles.0.roles.0", "example-role"),
+				),
+			},
+		},
+	})
+}
 
 func (s *TerraformSuiteOSS) TestGithubConnector() {
 	ctx, cancel := context.WithCancel(context.Background())

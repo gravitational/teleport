@@ -29,6 +29,73 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+func (s *TerraformSuiteOSS) TestWorkloadIdentityDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	wi := &workloadidentityv1pb.WorkloadIdentity{
+		Metadata: &v1.Metadata{
+			Name: "test",
+		},
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+				Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+					{
+						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
+							{
+								Attribute: "user.name",
+								Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+									Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+										Value: "example",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id:   "/example-id",
+				Hint: "example-hint",
+			},
+		},
+	}
+	wi, err := s.client.CreateWorkloadIdentity(ctx, wi)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.GetWorkloadIdentity(ctx, wi.GetMetadata().GetName())
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DeleteWorkloadIdentity(ctx, wi.GetMetadata().GetName()))
+	})
+
+	name := "data.teleport_workload_identity.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("workload_identity_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "workload_identity"),
+					resource.TestCheckResourceAttr(name, "version", "v1"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
+					resource.TestCheckResourceAttr(name, "spec.rules.allow.0.conditions.0.attribute", "user.name"),
+					resource.TestCheckResourceAttr(name, "spec.rules.allow.0.conditions.0.eq.value", "example"),
+					resource.TestCheckResourceAttr(name, "spec.spiffe.id", "/example-id"),
+					resource.TestCheckResourceAttr(name, "spec.spiffe.hint", "example-hint"),
+				),
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteOSS) TestWorkloadIdentity() {
 	t := s.T()
 	ctx, cancel := context.WithCancel(context.Background())

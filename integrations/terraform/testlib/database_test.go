@@ -28,6 +28,64 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+func (s *TerraformSuiteOSS) TestDatabaseDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	checkDestroyed := func(state *terraform.State) error {
+		_, err := s.client.GetDatabase(ctx, "test")
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	database := &types.DatabaseV3{
+		Metadata: types.Metadata{
+			Name: "test",
+		},
+		Spec: types.DatabaseSpecV3{
+			Protocol: "postgres",
+			URI:      "localhost:5432",
+		},
+	}
+	err := database.CheckAndSetDefaults()
+	require.NoError(s.T(), err)
+
+	err = s.client.CreateDatabase(ctx, database)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.GetDatabase(ctx, database.GetName())
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DeleteDatabase(ctx, database.GetName()))
+	})
+
+	name := "data.teleport_database.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkDestroyed,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("database_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "db"),
+					resource.TestCheckResourceAttr(name, "version", "v3"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
+					resource.TestCheckResourceAttr(name, "spec.protocol", "postgres"),
+					resource.TestCheckResourceAttr(name, "spec.uri", "localhost:5432"),
+				),
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteOSS) TestDatabase() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
