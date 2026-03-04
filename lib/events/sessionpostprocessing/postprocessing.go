@@ -67,7 +67,7 @@ func Process(ctx context.Context, cfg Config) error {
 		metadataSvc := cfg.RecordingMetadataProvider.Service()
 		if !o.EndTime.IsZero() && !o.StartTime.IsZero() {
 			duration := o.EndTime.Sub(o.StartTime)
-			if err := metadataSvc.ProcessSessionRecording(ctx, cfg.SessionID, duration); err != nil {
+			if err := metadataSvc.ProcessSessionRecording(ctx, cfg.SessionID, recordingmetadata.SessionTypeTTY, duration); err != nil {
 				metadataErr = trace.Wrap(err, "failed to process session recording metadata")
 			}
 		}
