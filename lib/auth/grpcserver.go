@@ -530,12 +530,12 @@ const logInterval = 10000
 
 // WatchEvents returns a new stream of cluster events
 func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_WatchEventsServer) (err error) {
-	auth, err := g.authenticate(stream.Context())
+	auth, err := g.scopedAuthenticate(stream.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth))
+	return trace.Wrap(WatchEvents(watch, stream, auth.scopedContext.User.GetName(), auth))
 }
 
 // WatchEvent is a stream interface for sending events.

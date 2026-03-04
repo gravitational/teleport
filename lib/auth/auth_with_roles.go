@@ -1216,6 +1216,21 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(kind types.WatchKind) error 
 
 		return nil
 	}
+
+	// TODO: Janky janky janky!
+	if a.scopedContext != nil {
+		// janky: allow scoped identities access to calls that we expect all
+		// teleport identities to have the privilege to access? who knows.
+		ruleCtx := a.scopedContext.RuleContext()
+		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(&ruleCtx, kind.Kind, verb)
+		}); err != nil {
+			return nil
+		}
+
+		return nil
+	}
+
 	return trace.Wrap(a.authorizeAction(kind.Kind, verb))
 }
 
