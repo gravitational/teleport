@@ -233,20 +233,10 @@ func newValidatedMFAChallengeParser() *validatedMFAChallengeParser {
 	}
 }
 
-type validatedMFAChallengeResource struct {
-	*types.ResourceHeader
-
-	challenge *mfav1.ValidatedMFAChallenge
-}
-
-func (r *validatedMFAChallengeResource) UnwrapT() *mfav1.ValidatedMFAChallenge {
-	return r.challenge
-}
-
 func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		// Inflate key components into a challenge so consumers can access the backend key structure directly from a
+		// Inflate key components into a challenge so consumers can access the backend key structure directly from the
 		// concrete resource type.
 		key := event.Item.Key.TrimPrefix(backend.NewKey(types.KindValidatedMFAChallenge))
 
@@ -267,7 +257,7 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 			},
 		}
 
-		return newValidatedMFAChallengeResource(chal), nil
+		return types.LegacyMetadataToResource(chal), nil
 
 	case types.OpPut:
 		resource, err := UnmarshalValidatedMFAChallenge(
@@ -281,26 +271,9 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 
 		chal := (*mfav1.ValidatedMFAChallenge)(resource)
 
-		return newValidatedMFAChallengeResource(chal), nil
+		return types.LegacyMetadataToResource(chal), nil
 
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
-func newValidatedMFAChallengeResource(challenge *mfav1.ValidatedMFAChallenge) types.Resource {
-	metadata := types.Metadata{}
-	if challenge.Metadata != nil {
-		metadata = *challenge.Metadata
-	}
-
-	return &validatedMFAChallengeResource{
-		ResourceHeader: &types.ResourceHeader{
-			Kind:     challenge.Kind,
-			SubKind:  challenge.SubKind,
-			Version:  challenge.Version,
-			Metadata: metadata,
-		},
-		challenge: challenge,
 	}
 }

@@ -704,7 +704,7 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetValidatedMFAChallenge(); r != nil {
-		out.Resource = newValidatedMFAChallengeResource(r)
+		out.Resource = types.LegacyMetadataToResource(r)
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)
@@ -727,32 +727,4 @@ func EventTypeFromGRPC(in proto.Operation) (types.OpType, error) {
 
 type validatedMFAChallengeUnwrapper interface {
 	UnwrapT() *mfav1.ValidatedMFAChallenge
-}
-
-// validatedMFAChallengeResource is a wrapper around mfav1.ValidatedMFAChallenge that implements types.Resource.
-type validatedMFAChallengeResource struct {
-	*types.ResourceHeader
-
-	challenge *mfav1.ValidatedMFAChallenge
-}
-
-func (r *validatedMFAChallengeResource) UnwrapT() *mfav1.ValidatedMFAChallenge {
-	return r.challenge
-}
-
-func newValidatedMFAChallengeResource(challenge *mfav1.ValidatedMFAChallenge) types.Resource {
-	metadata := types.Metadata{}
-	if challenge.Metadata != nil {
-		metadata = *challenge.Metadata
-	}
-
-	return &validatedMFAChallengeResource{
-		ResourceHeader: &types.ResourceHeader{
-			Kind:     challenge.Kind,
-			SubKind:  challenge.SubKind,
-			Version:  challenge.Version,
-			Metadata: metadata,
-		},
-		challenge: challenge,
-	}
 }
