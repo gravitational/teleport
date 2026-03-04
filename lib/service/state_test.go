@@ -19,6 +19,9 @@
 package service
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -26,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/client/debug"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -171,6 +175,57 @@ func TestProcessStateCallback(t *testing.T) {
 				ps.update(time.Now(), event, component)
 			}
 			require.Equal(t, tt.expect, got)
+		})
+	}
+}
+
+// TestHandleReadinessJoinError verifies that the readyz handler surfaces the actual join error message.
+func TestHandleReadinessJoinError(t *testing.T) {
+	t.Parallel()
+
+	const genericMsg = "hasn't joined the cluster yet"
+
+	tests := []struct {
+		name       string
+		getter     func() string
+		wantMsgHas string
+	}{
+		{
+			name:       "no getter uses generic message",
+			getter:     nil,
+			wantMsgHas: genericMsg,
+		},
+		{
+			name:       "getter returning empty string uses generic message",
+			getter:     func() string { return "" },
+			wantMsgHas: genericMsg,
+		},
+		{
+			name:       "getter returning error surfaces it",
+			getter:     func() string { return "connection refused: bad token" },
+			wantMsgHas: "connection refused: bad token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// An empty states map puts the process in stateStarting.
+			ps := &processState{
+				states:          map[string]*componentState{},
+				joinErrorGetter: tt.getter,
+			}
+
+			w := httptest.NewRecorder()
+			ps.handleReadiness(w, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+
+			require.Equal(t, http.StatusBadRequest, w.Code)
+
+			var readiness debug.Readiness
+			require.NoError(t, json.NewDecoder(w.Body).Decode(&readiness))
+			require.False(t, readiness.Ready)
+			require.Contains(t, readiness.Status, tt.wantMsgHas)
 		})
 	}
 }

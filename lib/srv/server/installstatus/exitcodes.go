@@ -20,6 +20,8 @@ package installstatus
 
 import (
 	"fmt"
+
+	"github.com/gravitational/teleport/api/types/usertasks"
 )
 
 // ExitCode represents a classified exit code from the auto-enrollment installer pipeline.
@@ -32,6 +34,9 @@ const (
 	CurlNotFound          ExitCode = 102
 	InsufficientDiskSpace ExitCode = 103
 	ProxyPingError        ExitCode = 104
+
+	// Post-install exit codes (Go binary, 150–199).
+	JoinFailure ExitCode = 150
 )
 
 // InstallerMinFreeDiskMB is the minimum free disk space in megabytes required for Teleport installation.
@@ -62,10 +67,24 @@ func (c ExitCode) String() string {
 	case ProxyPingError:
 		return "Failed to connect to Teleport cluster HTTPS endpoint. " +
 			"Ensure this host can access your cluster and its certificate is trusted."
+	case JoinFailure:
+		return "Teleport was installed successfully but the agent " +
+			"failed to join the cluster. Check the readyz status in the " +
+			"standard error output for details."
 	default:
 		return fmt.Sprintf(
 			"Installation failed with exit code %d. "+
 				"Please check stdout and stderr and try again.",
 			int(c))
+	}
+}
+
+// IssueType returns the user task issue type for the exit code. Unrecognized codes default to ec2-ssm-script-failure.
+func (c ExitCode) IssueType() string {
+	switch c {
+	case JoinFailure:
+		return usertasks.AutoDiscoverEC2IssueJoinFailure
+	default:
+		return usertasks.AutoDiscoverEC2IssueSSMScriptFailure
 	}
 }
