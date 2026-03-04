@@ -194,9 +194,15 @@ func (s *Service) watchBeam(ctx context.Context, client beamsv1.BeamsServiceClie
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if trace.IsNotFound(err) {
-			return err
-		}
+
+		// TODO(boxofrad): This causes a circular dependency where the beam
+		// isn't created until the beam service returns, but the beam service
+		// doesn't return until the pod is ready, and the pod never becomes
+		// ready because we fail to read the beam.
+		//
+		// if trace.IsNotFound(err) {
+		// 	return err
+		// }
 
 		s.log.WarnContext(ctx, "Watching beam failed", "error", err)
 		retry.Inc()
