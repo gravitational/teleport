@@ -96,33 +96,33 @@ func createConfig() Config {
 	}
 }
 
-func TestHostID(t *testing.T) {
-	nilID := hostID{}
+func TestRDPClientID(t *testing.T) {
+	nilID := rdpClientID{}
 	// The MD5 hash of an empty string
-	emptyHash := hostID([16]byte{0xD4, 0x1D, 0x8C, 0xD9, 0x8F, 0x00, 0xB2, 0x04, 0xE9, 0x80, 0x09, 0x98, 0xEC, 0xF8, 0x42, 0x7E})
+	emptyHash := rdpClientID([16]byte{0xD4, 0x1D, 0x8C, 0xD9, 0x8F, 0x00, 0xB2, 0x04, 0xE9, 0x80, 0x09, 0x98, 0xEC, 0xF8, 0x42, 0x7E})
 
-	invalidIDs := []hostID{nilID, emptyHash}
+	invalidIDs := []rdpClientID{nilID, emptyHash}
 	t.Run("from uuid", func(t *testing.T) {
 		// We must continue to attempt to parse strings
 		// as UUIDs first.
 		newUUID := uuid.New()
-		id := newHostID(newUUID.String())
+		id := newRDPClientID(newUUID.String())
 		parsed, err := uuid.FromBytes(id[:])
 		require.NoError(t, err)
-		// The hostID should just be a UUID under the hood.
+		// The rdpClientID should just be a UUID under the hood.
 		require.Equal(t, newUUID, parsed)
 	})
 
 	t.Run("from other string", func(t *testing.T) {
 		otherID := "some-other-identifier"
-		id := newHostID(otherID)
+		id := newRDPClientID(otherID)
 		// At make sure it's not nil or the empty hash.
 		require.NotContains(t, invalidIDs, id)
 	})
 
 	t.Run("empty string", func(t *testing.T) {
 		// Should match the empty hash.
-		require.Equal(t, newHostID(""), emptyHash)
+		require.Equal(t, newRDPClientID(""), emptyHash)
 	})
 
 	t.Run("uint32 conversion", func(t *testing.T) {
@@ -131,10 +131,10 @@ func TestHostID(t *testing.T) {
 		// Then represent each 32-bit word as little endian and we get:
 		expected := [4]uint32{0xd98c1dd4, 0x04b2008f, 0x980980e9, 0x7e42f8ec}
 
-		// Our [4]uint32 representation of the HostID should
+		// Our [4]uint32 representation of the rdpClientID should
 		// match the above. As a bonus, this will serve as a regression
 		// test to ensure that we don't switch hash algorithms by mistake.
-		got := hostIDToUint32Array[uint32](newHostID(""))
+		got := rdpClientIDToUint32Array[uint32](newRDPClientID(""))
 		require.Equal(t, expected, got)
 	})
 }

@@ -454,7 +454,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
-			client_id:               hostIDToUint32Array[C.uint32_t](newHostID(c.cfg.HostID)),
+			client_id:               rdpClientIDToUint32Array[C.uint32_t](newRDPClientID(c.cfg.HostID)),
 			keyboard_layout:         C.uint32_t(c.keyboardLayout),
 		},
 	)

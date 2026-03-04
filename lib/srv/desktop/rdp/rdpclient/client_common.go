@@ -125,14 +125,14 @@ func (c *Config) hasSizeOverride() bool { //nolint:unused // used in client.go t
 	return c.Width != 0 && c.Height != 0
 }
 
-type hostID [16]byte
+type rdpClientID [16]byte
 
 type uint32Like interface {
 	~uint32
 }
 
 //nolint:unused // only used in client.go which is ignored by linter
-func hostIDToUint32Array[T uint32Like](h hostID) [4]T {
+func rdpClientIDToUint32Array[T uint32Like](h rdpClientID) [4]T {
 	cArray := [4]T{}
 	for idx := range cArray {
 		cArray[idx] = T(binary.LittleEndian.Uint32(h[idx*4:]))
@@ -140,20 +140,20 @@ func hostIDToUint32Array[T uint32Like](h hostID) [4]T {
 	return cArray
 }
 
-func newHostID(id string) hostID {
+func newRDPClientID(id string) rdpClientID {
 	// In previous revisions of this code, we incorrectly assumed
-	// that hostID would always be a UUID. This is not always the case,
-	// however, we should continue to attempt to parse hostID as a UUID
+	// that rdpClientID would always be a UUID. This is not always the case,
+	// however, we should continue to attempt to parse rdpClientID as a UUID
 	// so that the client ID stays the same for existing users as this
 	// may affect RDP licensing.
 	// See https://github.com/gravitational/teleport/issues/63766
 	parsedUUID, err := uuid.Parse(id)
 	if err == nil {
-		return hostID(parsedUUID)
+		return rdpClientID(parsedUUID)
 	}
 
-	// Fall back to taking a hash of the hostID
+	// Fall back to taking a hash of the rdpClientID
 	hash := [16]byte{}
 	copy(hash[:], md5.New().Sum([]byte(id)))
-	return hostID(hash)
+	return rdpClientID(hash)
 }
