@@ -337,7 +337,7 @@ export type CreateGatewayDocumentOpts = {
   port?: string;
   origin: DocumentOrigin;
   targetProtocol?: string;
-  autoUserProvisioning?: AutoUserProvisioning;
+  autoUserProvisioning: AutoUserProvisioning | undefined;
 };
 
 export type CreateAccessRequestDocumentOpts = {

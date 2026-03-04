@@ -58,6 +58,7 @@ test('updating target port creates new connection', async () => {
     targetUser: undefined,
     targetSubresourceName: '1337',
     origin: 'resource_table',
+    autoUserProvisioning: undefined,
   });
   // Add without opening. It's not necessary and it'll be easier to verify activating connections
   // later if we don't open the doc at this point.
@@ -116,6 +117,7 @@ test('updating target port to match connection params of gateway created by othe
     targetUri: app.uri,
     targetUser: undefined,
     origin: 'resource_table' as const,
+    autoUserProvisioning: undefined,
   };
   const doc1 = docsService.createGatewayDocument({
     ...baseDocumentGatewayFields,

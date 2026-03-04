@@ -32,7 +32,7 @@ export async function connectToDatabase(
     protocol: string;
     dbUser: string;
     gcpProjectId?: string;
-    autoUserProvisioning?: AutoUserProvisioning;
+    autoUserProvisioning: AutoUserProvisioning | undefined;
   },
   telemetry: {
     origin: DocumentOrigin;

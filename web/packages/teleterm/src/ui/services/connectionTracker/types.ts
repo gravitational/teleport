@@ -47,7 +47,7 @@ export interface TrackedGatewayConnection extends TrackedConnectionBase {
   port?: string;
   targetSubresourceName?: string;
   targetProtocol?: string;
-  autoUserProvisioning?: AutoUserProvisioning;
+  autoUserProvisioning: AutoUserProvisioning | undefined;
 }
 
 export interface TrackedKubeConnection extends TrackedConnectionBase {

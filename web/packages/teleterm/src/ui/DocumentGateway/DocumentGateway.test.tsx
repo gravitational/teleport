@@ -50,6 +50,7 @@ test('it allows reconnecting when the gateway fails to be created', async () => 
     origin: 'resource_table',
     title: '',
     status: '',
+    autoUserProvisioning: undefined,
   };
   appContext.addRootClusterWithDoc(cluster, doc);
 

@@ -264,6 +264,7 @@ export function mapToAction(
               protocol,
               gcpProjectId,
               dbUser: dbUser.value,
+              autoUserProvisioning: undefined,
             },
             { origin: 'search_bar' }
           ),
