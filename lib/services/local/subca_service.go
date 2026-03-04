@@ -38,13 +38,17 @@ import (
 	"github.com/gravitational/teleport/lib/subca"
 )
 
+// newCAOverridesPrefix returns the CertAuthorityOverride storage prefix key.
+//
 // CA override keys are in the format
 // `/cert_authority_overrides/c/{clusterName}/{caType}`.
 //
 // CA override resources mimic CA resources, which means:
 //   - ClusterName is recorded at ca.Resource.Name.
 //   - CAType is recorded at ca.SubKind.
-var caOverridesPrefix = backend.NewKey("cert_authority_overrides", "c")
+func newCAOverridesPrefix() backend.Key {
+	return backend.NewKey("cert_authority_overrides", "c")
+}
 
 var (
 	allowedCAOverrideSubKinds = []string{
@@ -97,7 +101,7 @@ func NewSubCAService(p SubCAServiceParams) (*SubCAService, error) {
 	service, err := generic.NewServiceWrapper(generic.ServiceConfig[*subcav1.CertAuthorityOverride]{
 		Backend:       p.Backend,
 		ResourceKind:  types.KindCertAuthorityOverride,
-		BackendPrefix: caOverridesPrefix,
+		BackendPrefix: newCAOverridesPrefix(),
 		MarshalFunc:   services.MarshalCertAuthorityOverride,
 		UnmarshalFunc: services.UnmarshalCertAuthorityOverride,
 		ValidateFunc: func(*subcav1.CertAuthorityOverride) error {
