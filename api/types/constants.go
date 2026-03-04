@@ -1137,6 +1137,9 @@ const (
 	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
 	BotLabel = TeleportInternalLabelPrefix + "bot"
 
+	// BotScopeLabel is used to persist the scope of a Bot on a user.
+	BotScopeLabel = TeleportInternalLabelPrefix + "bot-scope"
+
 	// BotGenerationLabel is a label used to record the certificate generation counter.
 	BotGenerationLabel = TeleportInternalLabelPrefix + "bot-generation"
 

@@ -54,7 +54,11 @@ type Bot struct {
 	Spec *BotSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
 	// Fields that are set by the server as results of operations. These should
 	// not be modified by users.
-	Status        *BotStatus `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
+	Status *BotStatus `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
+	// The scope in which this Bot resides. If unset, this Bot is unscoped. If
+	// set, this Bot is scoped. This has a major impact on behaviour and
+	// functionality.
+	Scope         string `protobuf:"bytes,7,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -129,6 +133,13 @@ func (x *Bot) GetStatus() *BotStatus {
 		return x.Status
 	}
 	return nil
+}
+
+func (x *Bot) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
 }
 
 // Trait is an individual trait that will be applied to the bot user.
@@ -317,14 +328,15 @@ var File_teleport_machineid_v1_bot_proto protoreflect.FileDescriptor
 
 const file_teleport_machineid_v1_bot_proto_rawDesc = "" +
 	"\n" +
-	"\x1fteleport/machineid/v1/bot.proto\x12\x15teleport.machineid.v1\x1a\x1egoogle/protobuf/duration.proto\x1a!teleport/header/v1/metadata.proto\"\xf6\x01\n" +
+	"\x1fteleport/machineid/v1/bot.proto\x12\x15teleport.machineid.v1\x1a\x1egoogle/protobuf/duration.proto\x1a!teleport/header/v1/metadata.proto\"\x8c\x02\n" +
 	"\x03Bot\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x122\n" +
 	"\x04spec\x18\x05 \x01(\v2\x1e.teleport.machineid.v1.BotSpecR\x04spec\x128\n" +
-	"\x06status\x18\x06 \x01(\v2 .teleport.machineid.v1.BotStatusR\x06status\"3\n" +
+	"\x06status\x18\x06 \x01(\v2 .teleport.machineid.v1.BotStatusR\x06status\x12\x14\n" +
+	"\x05scope\x18\a \x01(\tR\x05scope\"3\n" +
 	"\x05Trait\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06values\x18\x02 \x03(\tR\x06values\"\x98\x01\n" +

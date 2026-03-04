@@ -38,6 +38,10 @@ message Bot {
   // Fields that are set by the server as results of operations. These should
   // not be modified by users.
   BotStatus status = 6;
+  // The scope in which this Bot resides. If unset, this Bot is unscoped. If
+  // set, this Bot is scoped. This has a major impact on behaviour and
+  // functionality.
+  string scope = 7;
 }
 
 // Trait is an individual trait that will be applied to the bot user.

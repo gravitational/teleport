@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/scopes"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
@@ -687,6 +688,7 @@ func setKindAndVersion(b *pb.Bot) error {
 	return nil
 }
 
+// TODO: Split into Weak/Strong validate - I like this pattern <3
 func validateBot(b *pb.Bot) error {
 	if b == nil {
 		return trace.BadParameter("must be non-nil")
@@ -702,6 +704,12 @@ func validateBot(b *pb.Bot) error {
 	}
 	if slices.Contains(b.Spec.Roles, "") {
 		return trace.BadParameter("spec.roles: must not contain empty strings")
+	}
+
+	if b.Scope != "" {
+		if err := scopes.StrongValidate(b.Scope); err != nil {
+			return trace.Wrap(err, "scope:")
+		}
 	}
 	return nil
 }
