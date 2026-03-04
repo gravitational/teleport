@@ -125,7 +125,10 @@ func ResourceUpdateTestSynchronous[T reconcilers.Resource, K reconcilers.Kuberne
 		equal, diff := test.CompareTeleportAndKubernetesResource(reconciledResource, kubeResource)
 		require.True(t, equal, "Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 		// Resources might be equal but this does not mean the update passed yet. We must wait for the revision to change.
-		require.NotEqual(t, test.GetResourceRevision(tResource), test.GetResourceRevision(reconciledResource), "Teleport resource revision did not change.")
+		// Note: some resources don't support revisions, this is a workaround.
+		if previousRevision, newRevision := test.GetResourceRevision(reconciledResource), test.GetResourceRevision(tResource); newRevision != "" && previousRevision != "" {
+			require.NotEqual(t, previousRevision, newRevision, "Teleport resource revision did not change.")
+		}
 	})
 
 	// Test execution: Induce a drift by updating the Kubernetes CR
@@ -167,7 +170,10 @@ func ResourceUpdateTestSynchronous[T reconcilers.Resource, K reconcilers.Kuberne
 		equal, diff := test.CompareTeleportAndKubernetesResource(finalResource, kubeResource)
 		require.True(t, equal, "Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 		// Resources might be equal but this does not mean the update passed yet. We must wait for the revision to change.
-		require.NotEqual(t, test.GetResourceRevision(reconciledResource), test.GetResourceRevision(finalResource), "Teleport resource revision did not change.")
+		// Note: some resources don't support revisions, this is a workaround.
+		if previousRevision, newRevision := test.GetResourceRevision(reconciledResource), test.GetResourceRevision(finalResource); newRevision != "" && previousRevision != "" {
+			require.NotEqual(t, previousRevision, newRevision, "Teleport resource revision did not change.")
+		}
 	})
 	testPassed = true
 
