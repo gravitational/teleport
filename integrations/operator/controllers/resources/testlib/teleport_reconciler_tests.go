@@ -21,6 +21,7 @@ package testlib
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -100,17 +101,44 @@ func ResourceUpdateTestSynchronous[T reconcilers.Resource, K reconcilers.Kuberne
 			Name:      resourceName,
 		},
 	}
+
+	// Reconcile can transiently return compare-failed while Teleport revisions propagate. Retry those conflicts
+	// briefly, but fail fast on any other error to keep test failures actionable.
+	reconcileWithRetry := func(expectedResource T) {
+		require.Eventually(
+			t,
+			func() bool {
+				_, err = reconciler.Reconcile(ctx, req)
+
+				switch {
+				case err == nil:
+					return true
+
+				case trace.IsCompareFailed(err):
+					return false
+
+				default:
+					require.NoError(t, err)
+					return false
+				}
+			},
+			5*time.Second,
+			100*time.Millisecond,
+		)
+
+		if err != nil {
+			// Fetch the latest resource state so conflict failures include a diff against what we expected to upsert.
+			unexpectedResource, getErr := test.GetTeleportResource(ctx, resourceName)
+			require.NoError(t, getErr, "retrieving the resource after an unexpected conflict")
+			require.Failf(t, ConflictErrorMessage, cmp.Diff(expectedResource, unexpectedResource, protocmp.Transform()))
+		}
+	}
+
 	// First reconcile adds the finalizer
 	_, err = reconciler.Reconcile(ctx, req)
 	require.NoError(t, err)
 	// Second reconcile actually does the Teleport call.
-	_, err = reconciler.Reconcile(ctx, req)
-	if trace.IsCompareFailed(err) {
-		unexpectedResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(t, err, "Retrieving the user after an unexpected conflict")
-		require.Failf(t, ConflictErrorMessage, cmp.Diff(tResource, unexpectedResource, protocmp.Transform()))
-	}
-	require.NoError(t, err)
+	reconcileWithRetry(tResource)
 
 	var reconciledResource T
 
@@ -131,13 +159,7 @@ func ResourceUpdateTestSynchronous[T reconcilers.Resource, K reconcilers.Kuberne
 	require.NoError(t, test.ModifyKubernetesResource(ctx, resourceName))
 
 	// Test execution: Trigger reconciliation
-	_, err = reconciler.Reconcile(ctx, req)
-	if trace.IsCompareFailed(err) {
-		unexpectedResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(t, err, "Retrieving the user after an unexpected conflict")
-		require.Failf(t, ConflictErrorMessage, cmp.Diff(reconciledResource, unexpectedResource, protocmp.Transform()))
-	}
-	require.NoError(t, err)
+	reconcileWithRetry(reconciledResource)
 
 	var testPassed bool
 	debugInfo := func() {
