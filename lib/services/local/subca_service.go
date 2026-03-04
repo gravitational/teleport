@@ -152,10 +152,11 @@ func (s *SubCAService) validateCAOverrideForCreate(
 	}
 
 	// Fetch corresponding CA.
+	const loadSigningKeys = false
 	ca, err := s.trust.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.CertAuthType(resource.SubKind),
 		DomainName: resource.Metadata.Name,
-	}, false /* loadSigningKeys */)
+	}, loadSigningKeys)
 	if err != nil {
 		return trace.Wrap(err, "read CA resource")
 	}
