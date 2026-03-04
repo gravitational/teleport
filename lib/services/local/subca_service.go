@@ -264,31 +264,38 @@ func validateCertificateOverride(
 				"certificate chain has too many entries (%d > %d)", len(co.Chain), maxChainLength)
 		}
 
-		overrideIssuer := cert.Issuer.String()
-		overrideSub := cert.Subject.String()
-		nextSubj := overrideIssuer
+		prev := cert
 		for i, chainPEM := range co.Chain {
 			chainCert, err := subca.ParseCertificateOverrideCertificate(chainPEM)
 			if err != nil {
 				return nil, fmt.Sprintf("chain[%d]", i), err
 			}
-
 			chainSub := chainCert.Subject.String()
-			if i == 0 && chainSub == overrideSub {
+
+			// Certificate not in chain.
+			if i == 0 && cert.Subject.String() == chainSub {
 				return nil, fmt.Sprintf("chain[%d]", i),
 					errors.New("override certificate should not be included in chain")
 			}
 
-			// Chain MUST be from leaf to root.
-			if chainSub != nextSubj {
+			// Issuer/Subject relationship.
+			if issuer := prev.Issuer.String(); issuer != chainSub {
 				return nil, fmt.Sprintf("chain[%d]", i),
-					fmt.Errorf("chain out of order, subject=%q (want %q)", chainSub, nextSubj)
+					fmt.Errorf("chain out of order, subject=%q (want %q)", chainSub, issuer)
 			}
 
-			// TODO(codingllama): Check chain signatures in addition to Subject/Issuer
-			//  relationships.
+			// Verify signature.
+			if err := prev.CheckSignatureFrom(chainCert); err != nil {
+				return nil,
+					fmt.Sprintf("chain[%d]", i),
+					fmt.Errorf("chain signature check failed, previous certificate not signed by current: %w", err)
+			}
 
-			nextSubj = chainCert.Issuer.String()
+			// Note: we purposefully avoid time-based chain validation at this layer,
+			// as that could make an override that was once valid impossible to
+			// bootstrap or update without destructive action.
+
+			prev = chainCert
 		}
 	}
 

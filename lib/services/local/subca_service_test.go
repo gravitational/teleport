@@ -17,6 +17,7 @@
 package local_test
 
 import (
+	"crypto/x509"
 	"slices"
 	"testing"
 
@@ -67,6 +68,16 @@ func TestSubCAService_Create(t *testing.T) {
 
 	// Used to test various public key mismatch scenarios. "Random".
 	const unrelatedPublicKey = `9852b3bbc867cc047e6d894333488da322df27fa96aa20ebb29c0bf44ff6327f`
+
+	// Forge a CA that has the correct Subject to match the override certificate,
+	// but has a different set of keys.
+	forgedExternalRoot, err := subcaenv.NewSelfSignedCA(&subcaenv.CAParams{
+		Clock: sharedEnv.Clock,
+		Template: &x509.Certificate{
+			Subject: sharedEnv.ExternalRoot.Cert.Subject,
+		},
+	})
+	require.NoError(t, err)
 
 	// Verify that resources are written under the correct customized key.
 	t.Run("storage key", func(t *testing.T) {
@@ -275,6 +286,17 @@ func TestSubCAService_Create(t *testing.T) {
 				co.Chain = caChain.RootToLeafPEMs() // reverse order
 			},
 			wantErr: "chain out of order",
+		},
+		{
+			name: "certificate_override: chain signature invalid (forged CA)",
+			modify: func(ca *subcav1.CertAuthorityOverride) {
+				co := ca.Spec.CertificateOverrides[0]
+				co.Chain = append(
+					[]string{string(forgedExternalRoot.CertPEM)},
+					leafToRootChain[1:]...,
+				)
+			},
+			wantErr: "chain signature check failed",
 		},
 		{
 			name: "certificate_override: chain has too many entries",
