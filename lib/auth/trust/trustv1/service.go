@@ -109,7 +109,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 
 // GetCertAuthority retrieves the matching certificate authority.
 func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuthorityRequest) (*types.CertAuthorityV2, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -131,14 +131,26 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	if err = authCtx.CheckAccessToResource(contextCA, readVerb); err != nil {
+	decisionFn := authCtx.CheckerContext.RiskyUnpinnedDecision
+	ruleCtx := authCtx.RuleContext()
+	ruleCtx.Resource = contextCA
+	if err := decisionFn(ctx, scopes.Root, func(checker *services.SplitAccessChecker) error {
+		return checker.Common().CheckAccessToRules(&ruleCtx, types.KindCertAuthority, readVerb)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Require admin MFA to read secrets.
 	if req.IncludeKey {
-		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-			return nil, trace.Wrap(err)
+		decisionFn = authCtx.CheckerContext.Decision
+
+		// Require admin MFA to read secrets (admin MFA is currently only supported for unscoped identities).
+		if unscopedCtx, ok := authCtx.UnscopedContext(); ok {
+			if err := unscopedCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			return nil, trace.AccessDenied("cannot perform admin action %s:%s as scoped identity", types.KindCertAuthority, types.VerbRead)
 		}
 	}
 
@@ -149,7 +161,11 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	if err = authCtx.CheckAccessToResource(ca, readVerb); err != nil {
+	ruleCtx = authCtx.RuleContext()
+	ruleCtx.Resource = ca
+	if err := decisionFn(ctx, scopes.Root, func(checker *services.SplitAccessChecker) error {
+		return checker.Common().CheckAccessToRules(&ruleCtx, types.KindCertAuthority, readVerb)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
