@@ -86,7 +86,7 @@ func TestSubCAService_Create(t *testing.T) {
 		// Form our customized key.
 		wantKey := backend.NewKey(
 			"cert_authority_overrides",
-			"c",
+			"cluster",
 			caOverride.Metadata.Name,
 			caOverride.SubKind,
 		)
@@ -98,7 +98,7 @@ func TestSubCAService_Create(t *testing.T) {
 		// Verify that the "normal" generic.Service key doesn't exist.
 		notWantKey := backend.NewKey(
 			"cert_authority_overrides",
-			"c",
+			"cluster",
 			caOverride.Metadata.Name,
 		)
 		_, err = be.Get(ctx, notWantKey)
