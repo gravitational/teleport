@@ -1039,54 +1039,54 @@ func (s *leafCluster) runValidatedMFAChallengeSync(
 		return trace.Wrap(err)
 	}
 
+	// Keep track of pending challenges that need to be synced to the leaf cluster. This ensures that if a sync fails,
+	// we will retry with the full set of challenges that need to be replicated.
+	var pending []*mfav1.ValidatedMFAChallenge
+
 	return trace.Wrap(
 		retry.For(
 			ctx,
 			func() error {
 				for {
+					if len(pending) == 0 {
+						select {
+						case <-ctx.Done():
+							return nil
+
+						case <-s.validatedMFAChallengeWatcher.Done():
+							return retryutils.PermanentRetryError(trace.Errorf("watcher done"))
+
+						case challenges, ok := <-s.validatedMFAChallengeWatcher.ResourcesC:
+							if !ok {
+								return retryutils.PermanentRetryError(trace.Errorf("watcher channel closed"))
+							}
+
+							pending = challenges
+						}
+					}
+
+					count, err := s.syncValidatedMFAChallenges(ctx, pending)
+					if err != nil {
+						log.WarnContext(
+							ctx,
+							"Failed to sync ValidatedMFAChallenges to leaf cluster, will retry",
+							"backoff_duration", retry.Duration(),
+							"error", err,
+						)
+						return trace.Wrap(err)
+					}
+
 					log.DebugContext(
 						ctx,
-						"Watching for ValidatedMFAChallenge events to replicate to leaf cluster",
+						"Successfully synced ValidatedMFAChallenges to leaf cluster",
+						"replicated_count", count,
 					)
 
-					select {
-					case <-ctx.Done():
-						return nil
+					// Clear the pending challenges as they have been successfully synced.
+					pending = nil
 
-					case <-s.validatedMFAChallengeWatcher.Done():
-						return retryutils.PermanentRetryError(trace.Errorf("watcher done"))
-
-					case challenges, ok := <-s.validatedMFAChallengeWatcher.ResourcesC:
-						if !ok {
-							return retryutils.PermanentRetryError(trace.Errorf("watcher channel closed"))
-						}
-
-						log.DebugContext(
-							ctx,
-							"New ValidatedMFAChallenges received, syncing to leaf cluster",
-							"challenge_count", len(challenges),
-						)
-
-						count, err := s.syncValidatedMFAChallenges(ctx, challenges)
-						if err != nil {
-							log.WarnContext(
-								ctx,
-								"Failed to sync ValidatedMFAChallenges to leaf cluster, will retry",
-								"backoff_duration", retry.Duration(),
-								"error", err,
-							)
-							return trace.Wrap(err)
-						}
-
-						log.DebugContext(
-							ctx,
-							"Successfully synced ValidatedMFAChallenges to leaf cluster",
-							"replicated_count", count,
-						)
-
-						// Sync was successful, reset the retry to clear any accumulated backoff.
-						retry.Reset()
-					}
+					// Sync was successful, reset the retry to clear any accumulated backoff.
+					retry.Reset()
 				}
 			},
 		),
@@ -1128,8 +1128,6 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 		}
 
 		replicatedCount++
-
-		continue
 	}
 
 	return replicatedCount, nil

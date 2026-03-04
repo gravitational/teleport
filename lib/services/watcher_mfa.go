@@ -53,7 +53,7 @@ func NewValidatedMFAChallengeWatcher(
 ) (*GenericWatcher[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge], error) {
 	switch {
 	case cfg.ValidatedMFAChallengeLister == nil:
-		return nil, trace.BadParameter("cfg.ValidatedMFAChallengeGetter must be set")
+		return nil, trace.BadParameter("cfg.ValidatedMFAChallengeLister must be set")
 
 	case cfg.ClusterName == "":
 		return nil, trace.BadParameter("cfg.ClusterName must be set")
@@ -119,7 +119,7 @@ func NewValidatedMFAChallengeWatcher(
 				).String()
 			},
 			ResourceDiffer: func(oldR, newR *mfav1.ValidatedMFAChallenge) bool {
-				return proto.Equal(oldR, newR)
+				return !proto.Equal(oldR, newR)
 			},
 		},
 	)
