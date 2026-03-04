@@ -253,7 +253,7 @@ func (m *mockDatabaseServerWatcher) CurrentResourcesWithFilter(_ context.Context
 
 	var out []types.DatabaseServer
 	for _, s := range m.servers {
-		if filter(s) {
+		if filter(readonly.NewDatabaseServer(s)) {
 			out = append(out, s)
 		}
 	}

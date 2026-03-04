@@ -293,42 +293,26 @@ type AppServer interface {
 var _ AppServer = types.AppServer(nil)
 
 // DatabaseServer is a read only variant of [types.DatabaseServer]
-type DatabaseServer interface {
-	// ResourceWithLabels provides common resource methods.
-	ResourceWithLabels
-	// GetNamespace returns server namespace.
-	GetNamespace() string
-	// GetTeleportVersion returns the teleport version the server is running on.
-	GetTeleportVersion() string
-	// GetHostname returns the server hostname.
-	GetHostname() string
-	// GetHostID returns ID of the host the server is running on.
-	GetHostID() string
-	// GetRotation gets the state of certificate authority rotation.
-	GetRotation() types.Rotation
-	// String returns string representation of the server.
-	String() string
-	// Copy returns a copy of this database server object.
-	Copy() types.DatabaseServer
-	// GetDatabase returns the database this database server proxies.
-	GetDatabase() types.Database
-	// ProxiedService provides common methods for a proxied service.
-	ProxiedService
-	// GetRelayGroup returns the name of the Relay group that the database
-	// server is connected to.
-	GetRelayGroup() string
-	// GetRelayIDs returns the list of Relay host IDs that the database server
-	// is connected to.
-	GetRelayIDs() []string
-	// GetTargetHealth returns the database server's target health.
-	GetTargetHealth() types.TargetHealth
-	// GetTargetHealthStatus returns target health status
-	GetTargetHealthStatus() types.TargetHealthStatus
-	// GetScope returns the scope this server belongs to.
-	GetScope() string
+type DatabaseServer struct {
+	inner types.DatabaseServer
 }
 
-var _ DatabaseServer = types.DatabaseServer(nil)
+// GetDatabaseName returns the name of the database this server is proxying.
+func (d DatabaseServer) GetDatabaseName() string {
+	if d.inner == nil {
+		return ""
+	}
+	db := d.inner.GetDatabase()
+	if db == nil {
+		return ""
+	}
+	return db.GetName()
+}
+
+// NewDatabaseServer returns a new read-only DatabaseServer.
+func NewDatabaseServer(server types.DatabaseServer) DatabaseServer {
+	return DatabaseServer{inner: server}
+}
 
 // KubeServer is a read only variant of [types.KubeServer].
 type KubeServer interface {

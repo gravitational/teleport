@@ -64,7 +64,7 @@ type GetDatabaseServersParams struct {
 // DatabaseServerWatcher for fast in-memory lookup.
 func GetDatabaseServers(ctx context.Context, params GetDatabaseServersParams) ([]types.DatabaseServer, error) {
 	result, err := params.Watcher.CurrentResourcesWithFilter(ctx, func(ds readonly.DatabaseServer) bool {
-		return ds.GetDatabase().GetName() == params.Identity.RouteToDatabase.ServiceName
+		return ds.GetDatabaseName() == params.Identity.RouteToDatabase.ServiceName
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

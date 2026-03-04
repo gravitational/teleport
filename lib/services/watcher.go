@@ -594,9 +594,7 @@ func NewDatabaseServerWatcher(ctx context.Context, cfg DatabaseServerWatcherConf
 		},
 		DisableUpdateBroadcast: true,
 		CloneFunc:              types.DatabaseServer.Copy,
-		ReadOnlyFunc: func(resource types.DatabaseServer) readonly.DatabaseServer {
-			return resource
-		},
+		ReadOnlyFunc:           readonly.NewDatabaseServer,
 	})
 
 	return w, trace.Wrap(err)

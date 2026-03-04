@@ -804,7 +804,7 @@ func syncTestDatabaseServerWatcher(t *testing.T) {
 	synctest.Wait()
 
 	servers, err = w.CurrentResourcesWithFilter(ctx, func(ds readonly.DatabaseServer) bool {
-		return ds.GetDatabase().GetName() == "db1"
+		return ds.GetDatabaseName() == "db1"
 	})
 	require.NoError(t, err)
 	require.Len(t, servers, 1)
@@ -821,7 +821,7 @@ func syncTestDatabaseServerWatcher(t *testing.T) {
 	require.Len(t, servers, 2)
 
 	servers, err = w.CurrentResourcesWithFilter(ctx, func(ds readonly.DatabaseServer) bool {
-		return ds.GetDatabase().GetName() == "db2"
+		return ds.GetDatabaseName() == "db2"
 	})
 	require.NoError(t, err)
 	require.Len(t, servers, 1)
