@@ -47,14 +47,17 @@ message Database {
   TargetHealth target_health = 9;
   // gcp_project_id is optional project ID set for GCP Project databases.
   string gcp_project_id = 10;
-  // auto_users_enabled indicates if the database supports automatic user provisioning and the user's role allows it.
-  bool auto_users_enabled = 11;
-  // database_roles is a list of database roles that will be assigned to the auto-provisioned
-  // database user. Empty when auto user provisioning is disabled.
-  repeated string database_roles = 12;
-  // auto_user_db_username is the pre-computed database username to use when auto-user provisioning
-  // is enabled. For leaf clusters it includes the "remote-" prefix and root cluster name
-  string auto_user_db_username = 13;
+  // auto_user_provisioning contains database auto-user provisioning information.
+  AutoUserProvisioning auto_user_provisioning = 11;
+}
+
+// AutoUserProvisioning contains database auto-user provisioning information.
+message AutoUserProvisioning {
+  // database_roles is a list of database roles that will be assigned to the auto-provisioned database user.
+  repeated string database_roles = 2;
+  // username is the pre-computed database username to use.
+  // For leaf clusters it includes the "remote-" prefix and root cluster name.
+  string username = 3;
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal

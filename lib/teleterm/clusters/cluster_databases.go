@@ -143,8 +143,8 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, authClient authcl
 	return dbUsers.Allowed(), nil
 }
 
-// GetDatabaseAutoUserInfo returns whether auto-user provisioning is enabled for a database
-func (c *Cluster) GetDatabaseAutoUserInfo(accessChecker services.AccessChecker, db types.Database) (bool, error) {
+// IsDatabaseUserAutoProvisioningEnabled returns whether auto-user provisioning is enabled for a database
+func (c *Cluster) IsDatabaseUserAutoProvisioningEnabled(accessChecker services.AccessChecker, db types.Database) (bool, error) {
 	autoUser, err := accessChecker.DatabaseAutoUserMode(db)
 	if err != nil {
 		return false, trace.Wrap(err)

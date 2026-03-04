@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { PropsWithChildren, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 
 import {
@@ -33,6 +33,7 @@ import {
 } from 'design';
 import * as Alerts from 'design/Alert';
 import { ChevronDown, ChevronRight } from 'design/Icon';
+import { AutoUserProvisioning } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import Validation from 'shared/components/Validation';
@@ -51,10 +52,9 @@ export function OnlineDocumentGateway(props: {
   disconnectAttempt: Attempt<void>;
   gateway: Gateway;
   runCliCommand: () => void;
-  autoUsersEnabled?: boolean;
-  databaseRoles?: string[];
+  autoUserProvisioning?: AutoUserProvisioning;
 }) {
-  const { gateway, autoUsersEnabled, databaseRoles = [] } = props;
+  const { gateway, autoUserProvisioning } = props;
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
   const isPortOrDbNameProcessing =
@@ -127,7 +127,7 @@ export function OnlineDocumentGateway(props: {
               ml={2}
               mb={0}
             />
-            {autoUsersEnabled && (
+            {autoUserProvisioning && (
               <ConfigFieldInput
                 label="User"
                 value={gateway.targetUser}
@@ -140,9 +140,9 @@ export function OnlineDocumentGateway(props: {
             )}
           </Validation>
         </Flex>
-        {databaseRoles.length > 0 && (
+        {autoUserProvisioning?.databaseRoles?.length > 0 && (
           <AdvancedRoles
-            databaseRoles={databaseRoles}
+            databaseRoles={autoUserProvisioning.databaseRoles}
             isAdvancedOpen={isAdvancedOpen}
             setIsAdvancedOpen={setIsAdvancedOpen}
           />
@@ -192,7 +192,7 @@ const AdvancedRoles = ({
   databaseRoles: string[];
   isAdvancedOpen: boolean;
   setIsAdvancedOpen: (isAdvancedOpen: boolean) => void;
-} & PropsWithChildren) => {
+}) => {
   return (
     <Box mt={2} mb={2}>
       <ExpandToggle onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}>

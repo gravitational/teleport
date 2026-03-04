@@ -191,7 +191,7 @@ test('updating target port to match connection params of gateway created by othe
   expect(docsService.getLocation()).toEqual(doc1.uri);
 });
 
-test('connection tracker syncs database roles and autoUsersEnabled when gateway document is updated', async () => {
+test('connection tracker syncs autoUserProvisioning when gateway document is updated', async () => {
   const ctx = new MockAppContext();
   const rootCluster = makeRootCluster();
   ctx.addRootCluster(rootCluster);
@@ -205,7 +205,7 @@ test('connection tracker syncs database roles and autoUsersEnabled when gateway 
 
   const database = makeDatabase({
     protocol: 'postgres',
-    autoUsersEnabled: true,
+    autoUserProvisioning: { databaseRoles: [], username: 'alice' },
   });
 
   jest.spyOn(ctx.tshd, 'createGateway').mockImplementation(async () => {
@@ -225,8 +225,10 @@ test('connection tracker syncs database roles and autoUsersEnabled when gateway 
     targetUri: database.uri,
     targetUser: 'alice',
     origin: 'resource_table',
-    autoUsersEnabled: true,
-    databaseRoles: ['reader', 'writer'],
+    autoUserProvisioning: {
+      databaseRoles: ['reader', 'writer'],
+      username: 'alice',
+    },
   });
 
   docsService.add(doc);
@@ -252,24 +254,27 @@ test('connection tracker syncs database roles and autoUsersEnabled when gateway 
   let connections = ctx.connectionTracker.getConnections();
   expect(connections).toHaveLength(1);
   let connection = connections[0] as TrackedGatewayConnection;
-  expect(connection.databaseRoles).toEqual(['reader', 'writer']);
-  expect(connection.autoUsersEnabled).toBe(true);
+  expect(connection.autoUserProvisioning?.databaseRoles).toEqual([
+    'reader',
+    'writer',
+  ]);
 
   act(() => {
     ctx.workspacesService.setState(draftState => {
       const workspace = draftState.workspaces[rootCluster.uri];
       const document = workspace.documents.find(d => d.uri === doc.uri);
       if (document && document.kind === 'doc.gateway') {
-        document.databaseRoles = ['admin'];
-        document.autoUsersEnabled = false;
+        document.autoUserProvisioning = {
+          databaseRoles: ['admin'],
+          username: 'alice',
+        };
       }
     });
   });
 
   connections = ctx.connectionTracker.getConnections();
   connection = connections[0] as TrackedGatewayConnection;
-  expect(connection.databaseRoles).toEqual(['admin']);
-  expect(connection.autoUsersEnabled).toBe(false);
+  expect(connection.autoUserProvisioning?.databaseRoles).toEqual(['admin']);
 });
 
 function setupTests(): {

@@ -169,7 +169,7 @@ it('displays a simple Connect button for databases with auto-user provisioning e
 
   const database = makeDatabase({
     name: 'auto-user-db',
-    autoUsersEnabled: true,
+    autoUserProvisioning: { databaseRoles: [], username: 'alice' },
   });
 
   const responseWithDatabase = {
@@ -225,7 +225,6 @@ it('displays a user dropdown for databases without auto-user provisioning', asyn
   const database = makeDatabase({
     name: 'regular-db',
     protocol: 'postgres',
-    autoUsersEnabled: false,
   });
 
   const responseWithDatabase = {

@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AutoUserProvisioning } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import {
   ResourceHealthStatus,
@@ -112,15 +113,10 @@ export interface DocumentGateway extends DocumentBase {
    */
   targetProtocol?: string;
   /**
-   * databaseRoles is the list of database roles to assign to the auto-provisioned database user.
-   * Only applicable for database gateways with auto-user provisioning enabled.
+   * autoUserProvisioning contains auto-user provisioning information for this database gateway.
+   * Its presence indicates that auto-user provisioning is enabled.
    */
-  databaseRoles?: string[];
-  /**
-   * autoUsersEnabled indicates whether automatic user provisioning is enabled for this database.
-   * When true, the database user will be automatically provisioned with the configured roles.
-   */
-  autoUsersEnabled?: boolean;
+  autoUserProvisioning?: AutoUserProvisioning;
 }
 
 /**
@@ -341,8 +337,7 @@ export type CreateGatewayDocumentOpts = {
   port?: string;
   origin: DocumentOrigin;
   targetProtocol?: string;
-  databaseRoles?: string[];
-  autoUsersEnabled?: boolean;
+  autoUserProvisioning?: AutoUserProvisioning;
 };
 
 export type CreateAccessRequestDocumentOpts = {

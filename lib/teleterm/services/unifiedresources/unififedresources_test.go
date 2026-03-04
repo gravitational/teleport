@@ -175,6 +175,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 		URI:                uri.NewClusterURI(cluster.ProfileName).AppendDB(database.GetName()),
 		Database:           database.GetDatabase(),
 		AutoUsersEnabled:   true,
+		DatabaseRoles:      []string{},
 		AutoUserDbUsername: "testUser",
 	}}, response.Resources[1])
 
@@ -224,6 +225,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 		URI:                leafCluster.URI.AppendDB(leafDatabase.GetName()),
 		Database:           leafDatabase.GetDatabase(),
 		AutoUsersEnabled:   true,
+		DatabaseRoles:      []string{},
 		AutoUserDbUsername: "remote-testUser-foo",
 	}}, leafResponse.Resources[0])
 }

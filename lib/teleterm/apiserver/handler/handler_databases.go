@@ -77,6 +77,14 @@ func newAPIDatabase(db clusters.Database) *api.Database {
 	// ignore potential (and unlikely) errors
 	gcpProjectID, _ := db.GetGCPProjectID()
 
+	var autoUserProvisioning *api.AutoUserProvisioning
+	if db.AutoUsersEnabled {
+		autoUserProvisioning = &api.AutoUserProvisioning{
+			DatabaseRoles: db.DatabaseRoles,
+			Username:      db.AutoUserDbUsername,
+		}
+	}
+
 	return &api.Database{
 		Uri:      db.URI.String(),
 		Name:     db.GetName(),
@@ -89,10 +97,8 @@ func newAPIDatabase(db clusters.Database) *api.Database {
 			Error:   db.TargetHealth.TransitionError,
 			Message: db.TargetHealth.Message,
 		},
-		GcpProjectId:       gcpProjectID,
-		AutoUsersEnabled:   db.AutoUsersEnabled,
-		DatabaseRoles:      db.DatabaseRoles,
-		AutoUserDbUsername: db.AutoUserDbUsername,
+		GcpProjectId:         gcpProjectID,
+		AutoUserProvisioning: autoUserProvisioning,
 	}
 }
 

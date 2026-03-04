@@ -143,8 +143,7 @@ export class DocumentsService {
       gatewayUri,
       origin,
       targetProtocol,
-      databaseRoles,
-      autoUsersEnabled,
+      autoUserProvisioning,
     } = opts;
     const uri = routing.getDocUri({ docId: unique() });
 
@@ -161,8 +160,7 @@ export class DocumentsService {
       origin,
       status: '',
       targetProtocol,
-      databaseRoles,
-      autoUsersEnabled,
+      autoUserProvisioning,
     };
     doc.title = getDocumentGatewayTitle(doc);
     return doc;

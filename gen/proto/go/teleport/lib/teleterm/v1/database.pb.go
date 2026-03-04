@@ -61,16 +61,10 @@ type Database struct {
 	TargetHealth *TargetHealth `protobuf:"bytes,9,opt,name=target_health,json=targetHealth,proto3" json:"target_health,omitempty"`
 	// gcp_project_id is optional project ID set for GCP Project databases.
 	GcpProjectId string `protobuf:"bytes,10,opt,name=gcp_project_id,json=gcpProjectId,proto3" json:"gcp_project_id,omitempty"`
-	// auto_users_enabled indicates if the database supports automatic user provisioning and the user's role allows it.
-	AutoUsersEnabled bool `protobuf:"varint,11,opt,name=auto_users_enabled,json=autoUsersEnabled,proto3" json:"auto_users_enabled,omitempty"`
-	// database_roles is a list of database roles that will be assigned to the auto-provisioned
-	// database user. Empty when auto user provisioning is disabled.
-	DatabaseRoles []string `protobuf:"bytes,12,rep,name=database_roles,json=databaseRoles,proto3" json:"database_roles,omitempty"`
-	// auto_user_db_username is the pre-computed database username to use when auto-user provisioning
-	// is enabled. For leaf clusters it includes the "remote-" prefix and root cluster name
-	AutoUserDbUsername string `protobuf:"bytes,13,opt,name=auto_user_db_username,json=autoUserDbUsername,proto3" json:"auto_user_db_username,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// auto_user_provisioning contains database auto-user provisioning information.
+	AutoUserProvisioning *AutoUserProvisioning `protobuf:"bytes,11,opt,name=auto_user_provisioning,json=autoUserProvisioning,proto3" json:"auto_user_provisioning,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *Database) Reset() {
@@ -173,23 +167,65 @@ func (x *Database) GetGcpProjectId() string {
 	return ""
 }
 
-func (x *Database) GetAutoUsersEnabled() bool {
+func (x *Database) GetAutoUserProvisioning() *AutoUserProvisioning {
 	if x != nil {
-		return x.AutoUsersEnabled
+		return x.AutoUserProvisioning
 	}
-	return false
+	return nil
 }
 
-func (x *Database) GetDatabaseRoles() []string {
+// AutoUserProvisioning contains database auto-user provisioning information.
+type AutoUserProvisioning struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// database_roles is a list of database roles that will be assigned to the auto-provisioned database user.
+	DatabaseRoles []string `protobuf:"bytes,2,rep,name=database_roles,json=databaseRoles,proto3" json:"database_roles,omitempty"`
+	// username is the pre-computed database username to use.
+	// For leaf clusters it includes the "remote-" prefix and root cluster name.
+	Username      string `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AutoUserProvisioning) Reset() {
+	*x = AutoUserProvisioning{}
+	mi := &file_teleport_lib_teleterm_v1_database_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutoUserProvisioning) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutoUserProvisioning) ProtoMessage() {}
+
+func (x *AutoUserProvisioning) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_database_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutoUserProvisioning.ProtoReflect.Descriptor instead.
+func (*AutoUserProvisioning) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_database_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *AutoUserProvisioning) GetDatabaseRoles() []string {
 	if x != nil {
 		return x.DatabaseRoles
 	}
 	return nil
 }
 
-func (x *Database) GetAutoUserDbUsername() string {
+func (x *AutoUserProvisioning) GetUsername() string {
 	if x != nil {
-		return x.AutoUserDbUsername
+		return x.Username
 	}
 	return ""
 }
@@ -209,7 +245,7 @@ type DatabaseServer struct {
 
 func (x *DatabaseServer) Reset() {
 	*x = DatabaseServer{}
-	mi := &file_teleport_lib_teleterm_v1_database_proto_msgTypes[1]
+	mi := &file_teleport_lib_teleterm_v1_database_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -221,7 +257,7 @@ func (x *DatabaseServer) String() string {
 func (*DatabaseServer) ProtoMessage() {}
 
 func (x *DatabaseServer) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_database_proto_msgTypes[1]
+	mi := &file_teleport_lib_teleterm_v1_database_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -234,7 +270,7 @@ func (x *DatabaseServer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DatabaseServer.ProtoReflect.Descriptor instead.
 func (*DatabaseServer) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_database_proto_rawDescGZIP(), []int{1}
+	return file_teleport_lib_teleterm_v1_database_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *DatabaseServer) GetUri() string {
@@ -269,7 +305,7 @@ var File_teleport_lib_teleterm_v1_database_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/lib/teleterm/v1/database.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\x1a,teleport/lib/teleterm/v1/target_health.proto\"\xd8\x03\n" +
+	"'teleport/lib/teleterm/v1/database.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\x1a,teleport/lib/teleterm/v1/target_health.proto\"\xb6\x03\n" +
 	"\bDatabase\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -281,10 +317,11 @@ const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
 	"\x06labels\x18\b \x03(\v2\x1f.teleport.lib.teleterm.v1.LabelR\x06labels\x12K\n" +
 	"\rtarget_health\x18\t \x01(\v2&.teleport.lib.teleterm.v1.TargetHealthR\ftargetHealth\x12$\n" +
 	"\x0egcp_project_id\x18\n" +
-	" \x01(\tR\fgcpProjectId\x12,\n" +
-	"\x12auto_users_enabled\x18\v \x01(\bR\x10autoUsersEnabled\x12%\n" +
-	"\x0edatabase_roles\x18\f \x03(\tR\rdatabaseRoles\x121\n" +
-	"\x15auto_user_db_username\x18\r \x01(\tR\x12autoUserDbUsername\"\xa4\x01\n" +
+	" \x01(\tR\fgcpProjectId\x12d\n" +
+	"\x16auto_user_provisioning\x18\v \x01(\v2..teleport.lib.teleterm.v1.AutoUserProvisioningR\x14autoUserProvisioning\"Y\n" +
+	"\x14AutoUserProvisioning\x12%\n" +
+	"\x0edatabase_roles\x18\x02 \x03(\tR\rdatabaseRoles\x12\x1a\n" +
+	"\busername\x18\x03 \x01(\tR\busername\"\xa4\x01\n" +
 	"\x0eDatabaseServer\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x17\n" +
@@ -303,22 +340,24 @@ func file_teleport_lib_teleterm_v1_database_proto_rawDescGZIP() []byte {
 	return file_teleport_lib_teleterm_v1_database_proto_rawDescData
 }
 
-var file_teleport_lib_teleterm_v1_database_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_teleport_lib_teleterm_v1_database_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_lib_teleterm_v1_database_proto_goTypes = []any{
-	(*Database)(nil),       // 0: teleport.lib.teleterm.v1.Database
-	(*DatabaseServer)(nil), // 1: teleport.lib.teleterm.v1.DatabaseServer
-	(*Label)(nil),          // 2: teleport.lib.teleterm.v1.Label
-	(*TargetHealth)(nil),   // 3: teleport.lib.teleterm.v1.TargetHealth
+	(*Database)(nil),             // 0: teleport.lib.teleterm.v1.Database
+	(*AutoUserProvisioning)(nil), // 1: teleport.lib.teleterm.v1.AutoUserProvisioning
+	(*DatabaseServer)(nil),       // 2: teleport.lib.teleterm.v1.DatabaseServer
+	(*Label)(nil),                // 3: teleport.lib.teleterm.v1.Label
+	(*TargetHealth)(nil),         // 4: teleport.lib.teleterm.v1.TargetHealth
 }
 var file_teleport_lib_teleterm_v1_database_proto_depIdxs = []int32{
-	2, // 0: teleport.lib.teleterm.v1.Database.labels:type_name -> teleport.lib.teleterm.v1.Label
-	3, // 1: teleport.lib.teleterm.v1.Database.target_health:type_name -> teleport.lib.teleterm.v1.TargetHealth
-	3, // 2: teleport.lib.teleterm.v1.DatabaseServer.target_health:type_name -> teleport.lib.teleterm.v1.TargetHealth
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	3, // 0: teleport.lib.teleterm.v1.Database.labels:type_name -> teleport.lib.teleterm.v1.Label
+	4, // 1: teleport.lib.teleterm.v1.Database.target_health:type_name -> teleport.lib.teleterm.v1.TargetHealth
+	1, // 2: teleport.lib.teleterm.v1.Database.auto_user_provisioning:type_name -> teleport.lib.teleterm.v1.AutoUserProvisioning
+	4, // 3: teleport.lib.teleterm.v1.DatabaseServer.target_health:type_name -> teleport.lib.teleterm.v1.TargetHealth
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_database_proto_init() }
@@ -334,7 +373,7 @@ func file_teleport_lib_teleterm_v1_database_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_database_proto_rawDesc), len(file_teleport_lib_teleterm_v1_database_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

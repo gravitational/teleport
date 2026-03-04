@@ -26,10 +26,14 @@ import { IAppContext } from 'teleterm/ui/types';
 import { connectToDatabase } from './connectToDatabase';
 
 describe('connectToDatabase', () => {
-  test('creates gateway document with autoUsersEnabled when enabled', async () => {
+  test('creates gateway document with autoUserProvisioning when enabled', async () => {
     const appContext = new MockAppContext();
     setTestCluster(appContext);
     const database = makeDatabase();
+    const autoUserProvisioning = {
+      databaseRoles: ['reader'],
+      username: 'alice',
+    };
 
     await connectToDatabase(
       appContext,
@@ -38,7 +42,7 @@ describe('connectToDatabase', () => {
         name: database.name,
         protocol: database.protocol,
         dbUser: 'alice',
-        autoUsersEnabled: true,
+        autoUserProvisioning,
       },
       { origin: 'resource_table' }
     );
@@ -51,7 +55,7 @@ describe('connectToDatabase', () => {
       kind: 'doc.gateway',
       targetUri: database.uri,
       targetUser: 'alice',
-      autoUsersEnabled: true,
+      autoUserProvisioning,
     });
   });
 
@@ -74,7 +78,10 @@ describe('connectToDatabase', () => {
         name: leafDatabase.name,
         protocol: 'postgres',
         dbUser: 'remote-alice-root',
-        autoUsersEnabled: true,
+        autoUserProvisioning: {
+          databaseRoles: [],
+          username: 'remote-alice-root',
+        },
       },
       { origin: 'resource_table' }
     );

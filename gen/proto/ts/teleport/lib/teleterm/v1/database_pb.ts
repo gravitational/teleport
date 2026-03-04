@@ -99,25 +99,31 @@ export interface Database {
      */
     gcpProjectId: string;
     /**
-     * auto_users_enabled indicates if the database supports automatic user provisioning and the user's role allows it.
+     * auto_user_provisioning contains database auto-user provisioning information.
      *
-     * @generated from protobuf field: bool auto_users_enabled = 11;
+     * @generated from protobuf field: teleport.lib.teleterm.v1.AutoUserProvisioning auto_user_provisioning = 11;
      */
-    autoUsersEnabled: boolean;
+    autoUserProvisioning?: AutoUserProvisioning;
+}
+/**
+ * AutoUserProvisioning contains database auto-user provisioning information.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.AutoUserProvisioning
+ */
+export interface AutoUserProvisioning {
     /**
-     * database_roles is a list of database roles that will be assigned to the auto-provisioned
-     * database user. Empty when auto user provisioning is disabled.
+     * database_roles is a list of database roles that will be assigned to the auto-provisioned database user.
      *
-     * @generated from protobuf field: repeated string database_roles = 12;
+     * @generated from protobuf field: repeated string database_roles = 2;
      */
     databaseRoles: string[];
     /**
-     * auto_user_db_username is the pre-computed database username to use when auto-user provisioning
-     * is enabled. For leaf clusters it includes the "remote-" prefix and root cluster name
+     * username is the pre-computed database username to use.
+     * For leaf clusters it includes the "remote-" prefix and root cluster name.
      *
-     * @generated from protobuf field: string auto_user_db_username = 13;
+     * @generated from protobuf field: string username = 3;
      */
-    autoUserDbUsername: string;
+    username: string;
 }
 /**
  * DatabaseServer (db_server) describes a database heartbeat signal
@@ -158,9 +164,7 @@ class Database$Type extends MessageType<Database> {
             { no: 8, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
             { no: 9, name: "target_health", kind: "message", T: () => TargetHealth },
             { no: 10, name: "gcp_project_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 11, name: "auto_users_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 12, name: "database_roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 13, name: "auto_user_db_username", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 11, name: "auto_user_provisioning", kind: "message", T: () => AutoUserProvisioning }
         ]);
     }
     create(value?: PartialMessage<Database>): Database {
@@ -174,9 +178,6 @@ class Database$Type extends MessageType<Database> {
         message.addr = "";
         message.labels = [];
         message.gcpProjectId = "";
-        message.autoUsersEnabled = false;
-        message.databaseRoles = [];
-        message.autoUserDbUsername = "";
         if (value !== undefined)
             reflectionMergePartial<Database>(this, message, value);
         return message;
@@ -216,14 +217,8 @@ class Database$Type extends MessageType<Database> {
                 case /* string gcp_project_id */ 10:
                     message.gcpProjectId = reader.string();
                     break;
-                case /* bool auto_users_enabled */ 11:
-                    message.autoUsersEnabled = reader.bool();
-                    break;
-                case /* repeated string database_roles */ 12:
-                    message.databaseRoles.push(reader.string());
-                    break;
-                case /* string auto_user_db_username */ 13:
-                    message.autoUserDbUsername = reader.string();
+                case /* teleport.lib.teleterm.v1.AutoUserProvisioning auto_user_provisioning */ 11:
+                    message.autoUserProvisioning = AutoUserProvisioning.internalBinaryRead(reader, reader.uint32(), options, message.autoUserProvisioning);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -267,15 +262,9 @@ class Database$Type extends MessageType<Database> {
         /* string gcp_project_id = 10; */
         if (message.gcpProjectId !== "")
             writer.tag(10, WireType.LengthDelimited).string(message.gcpProjectId);
-        /* bool auto_users_enabled = 11; */
-        if (message.autoUsersEnabled !== false)
-            writer.tag(11, WireType.Varint).bool(message.autoUsersEnabled);
-        /* repeated string database_roles = 12; */
-        for (let i = 0; i < message.databaseRoles.length; i++)
-            writer.tag(12, WireType.LengthDelimited).string(message.databaseRoles[i]);
-        /* string auto_user_db_username = 13; */
-        if (message.autoUserDbUsername !== "")
-            writer.tag(13, WireType.LengthDelimited).string(message.autoUserDbUsername);
+        /* teleport.lib.teleterm.v1.AutoUserProvisioning auto_user_provisioning = 11; */
+        if (message.autoUserProvisioning)
+            AutoUserProvisioning.internalBinaryWrite(message.autoUserProvisioning, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -286,6 +275,61 @@ class Database$Type extends MessageType<Database> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.Database
  */
 export const Database = new Database$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AutoUserProvisioning$Type extends MessageType<AutoUserProvisioning> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.AutoUserProvisioning", [
+            { no: 2, name: "database_roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "username", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AutoUserProvisioning>): AutoUserProvisioning {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.databaseRoles = [];
+        message.username = "";
+        if (value !== undefined)
+            reflectionMergePartial<AutoUserProvisioning>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AutoUserProvisioning): AutoUserProvisioning {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string database_roles */ 2:
+                    message.databaseRoles.push(reader.string());
+                    break;
+                case /* string username */ 3:
+                    message.username = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AutoUserProvisioning, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string database_roles = 2; */
+        for (let i = 0; i < message.databaseRoles.length; i++)
+            writer.tag(2, WireType.LengthDelimited).string(message.databaseRoles[i]);
+        /* string username = 3; */
+        if (message.username !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.username);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AutoUserProvisioning
+ */
+export const AutoUserProvisioning = new AutoUserProvisioning$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class DatabaseServer$Type extends MessageType<DatabaseServer> {
     constructor() {

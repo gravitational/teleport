@@ -23,12 +23,14 @@ import (
 	"slices"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
@@ -62,13 +64,23 @@ func List(ctx context.Context, cluster *clusters.Cluster, proxyClient ProxyClust
 
 	req.Kinds = kinds
 	req.IncludeLogins = true
-	enrichedResources, nextKey, err := apiclient.GetUnifiedResourcePage(ctx, client, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	accessChecker, err := cluster.NewAccessChecker(ctx, client)
-	if err != nil {
+	var (
+		enrichedResources []*types.EnrichedResource
+		nextKey           string
+		accessChecker     services.AccessChecker
+	)
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		var err error
+		enrichedResources, nextKey, err = apiclient.GetUnifiedResourcePage(ctx, client, req)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		accessChecker, err = cluster.NewAccessChecker(ctx, client)
+		return err
+	})
+	if err := g.Wait(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	response := &ListResponse{
@@ -93,17 +105,13 @@ func List(ctx context.Context, cluster *clusters.Cluster, proxyClient ProxyClust
 			})
 		case types.DatabaseServer:
 			db := r.GetDatabase()
-			autoUsersEnabled, err := cluster.GetDatabaseAutoUserInfo(accessChecker, db)
+			autoUsersEnabled, err := cluster.IsDatabaseUserAutoProvisioningEnabled(accessChecker, db)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			dbRoles, err := accessChecker.CheckDatabaseRoles(db, nil)
+			databaseRoles, err := accessChecker.CheckDatabaseRoles(db, nil)
 			if err != nil {
 				return nil, trace.Wrap(err)
-			}
-			var databaseRoles []string
-			if len(dbRoles) > 0 {
-				databaseRoles = dbRoles
 			}
 			var autoUserDbUsername string
 			if autoUsersEnabled {

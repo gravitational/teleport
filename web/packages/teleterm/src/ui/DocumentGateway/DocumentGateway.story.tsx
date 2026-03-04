@@ -168,8 +168,9 @@ export function Story(props: StoryProps) {
     changePort: async () => [undefined, null],
     changePortAttempt: makeEmptyAttempt(),
     disconnectAttempt: makeEmptyAttempt(),
-    autoUsersEnabled: props.autoUsersEnabled,
-    databaseRoles: props.databaseRoles,
+    autoUserProvisioning: props.autoUsersEnabled
+      ? { databaseRoles: props.databaseRoles, username: '' }
+      : undefined,
   };
 
   if (props.dbNameAttempt === 'error') {

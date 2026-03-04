@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AutoUserProvisioning } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
+
 import {
   AppUri,
   DatabaseUri,
@@ -45,8 +47,7 @@ export interface TrackedGatewayConnection extends TrackedConnectionBase {
   port?: string;
   targetSubresourceName?: string;
   targetProtocol?: string;
-  databaseRoles?: string[];
-  autoUsersEnabled?: boolean;
+  autoUserProvisioning?: AutoUserProvisioning;
 }
 
 export interface TrackedKubeConnection extends TrackedConnectionBase {

@@ -216,14 +216,8 @@ export function ConnectDatabaseActionButton(props: {
   const appContext = useAppContext();
 
   function connect(dbUser: string): void {
-    const {
-      uri,
-      name,
-      protocol,
-      gcpProjectId,
-      autoUsersEnabled,
-      databaseRoles,
-    } = props.database;
+    const { uri, name, protocol, gcpProjectId, autoUserProvisioning } =
+      props.database;
 
     connectToDatabase(
       appContext,
@@ -233,19 +227,18 @@ export function ConnectDatabaseActionButton(props: {
         protocol,
         dbUser,
         gcpProjectId,
-        autoUsersEnabled,
-        databaseRoles,
+        autoUserProvisioning,
       },
       { origin: 'resource_table' }
     );
   }
 
-  if (props.database.autoUsersEnabled) {
+  if (props.database.autoUserProvisioning) {
     return (
       <ButtonBorder
         size="small"
         onClick={() => {
-          connect(props.database.autoUserDbUsername);
+          connect(props.database.autoUserProvisioning.username);
         }}
         textTransform="none"
         width={buttonWidth}

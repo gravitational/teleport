@@ -57,9 +57,9 @@ func TestNewAPIDatabase_Fields(t *testing.T) {
 		require.Equal(t, "test-db", apiDB.Name)
 		require.Equal(t, "Test database", apiDB.Desc)
 		require.Equal(t, "postgres", apiDB.Protocol)
-		require.True(t, apiDB.AutoUsersEnabled)
-		require.Equal(t, []string{"reader", "writer"}, apiDB.DatabaseRoles)
-		require.Equal(t, "alice", apiDB.AutoUserDbUsername)
+		require.NotNil(t, apiDB.AutoUserProvisioning)
+		require.Equal(t, []string{"reader", "writer"}, apiDB.AutoUserProvisioning.DatabaseRoles)
+		require.Equal(t, "alice", apiDB.AutoUserProvisioning.Username)
 		require.NotNil(t, apiDB.Labels)
 	})
 }
