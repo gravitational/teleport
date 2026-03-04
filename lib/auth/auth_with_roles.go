@@ -5219,9 +5219,25 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 
 // GetAuthPreference gets cluster auth preference.
 func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	if err := a.authorizeAction(types.KindClusterAuthPreference, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+	// TODO: Do we really need this boilerplatery IF? Surely we should just
+	// ensure that the right authenticate vs authenticateScoped is called above?
+	if a.scopedContext != nil {
+		ruleCtx := a.scopedContext.RuleContext()
+		// for reading auth preferences, we do not enforce scope pinning, and we
+		// need scoped and unscoped identities to be able to read auth preferences
+		// for essential checks.
+		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(
+			ctx, scopes.Root, func(checker *services.SplitAccessChecker) error {
+				return checker.Common().CheckAccessToRules(&ruleCtx, types.KindClusterAuthPreference, types.VerbRead)
+			}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := a.authorizeAction(types.KindClusterAuthPreference, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
 	cfg, err := a.authServer.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
