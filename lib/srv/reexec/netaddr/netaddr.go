@@ -6,8 +6,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-
-	"github.com/gravitational/trace"
 )
 
 // NetAddr is network address that includes network, optional path and
@@ -112,7 +110,7 @@ func (a *NetAddr) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (a *NetAddr) Set(s string) error {
 	v, err := ParseAddr(s)
 	if err != nil {
-		return trace.Wrap(err)
+		return err
 	}
 	a.Addr = v.Addr
 	a.AddrNetwork = v.AddrNetwork
@@ -124,7 +122,7 @@ func ParseAddrs(addrs []string) (result []NetAddr, err error) {
 	for _, addr := range addrs {
 		parsed, err := ParseAddr(addr)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, err
 		}
 		result = append(result, *parsed)
 	}
@@ -135,14 +133,14 @@ func ParseAddrs(addrs []string) (result []NetAddr, err error) {
 // *NetAddr or an error
 func ParseAddr(a string) (*NetAddr, error) {
 	if a == "" {
-		return nil, trace.BadParameter("missing parameter address")
+		return nil, fmt.Errorf("missing parameter address")
 	}
 	if !strings.Contains(a, "://") {
 		a = "tcp://" + a
 	}
 	u, err := url.Parse(a)
 	if err != nil {
-		return nil, trace.BadParameter("failed to parse %q: %v", a, err)
+		return nil, fmt.Errorf("failed to parse %q: %w", a, err)
 	}
 	switch u.Scheme {
 	case "tcp":
@@ -152,7 +150,7 @@ func ParseAddr(a string) (*NetAddr, error) {
 	case "http", "https":
 		return &NetAddr{Addr: u.Host, AddrNetwork: u.Scheme, Path: u.Path}, nil
 	default:
-		return nil, trace.BadParameter("%q: unsupported scheme: %q", a, u.Scheme)
+		return nil, fmt.Errorf("%q: unsupported scheme: %q", a, u.Scheme)
 	}
 }
 

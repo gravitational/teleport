@@ -36,11 +36,12 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/lib/srv/reexec"
+
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/srv/reexec"
 )
 
 const (

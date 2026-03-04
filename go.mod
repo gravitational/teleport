@@ -157,6 +157,7 @@ require (
 	github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1
 	github.com/gravitational/roundtrip v1.0.3
 	github.com/gravitational/teleport/api v0.0.0
+	github.com/gravitational/teleport/lib/srv/reexec v0.0.0
 	github.com/gravitational/trace v1.5.1
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.1
@@ -624,6 +625,18 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.6.0 // indirect
 )
 
+require (
+	github.com/ncruces/go-strftime v0.1.9 // indirect
+	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	modernc.org/gc/v3 v3.0.0-20240107210532-573471604cb6 // indirect
+	modernc.org/libc v1.41.0 // indirect
+	modernc.org/mathutil v1.6.0 // indirect
+	modernc.org/memory v1.7.2 // indirect
+	modernc.org/sqlite v1.29.6 // indirect
+	modernc.org/strutil v1.2.0 // indirect
+	modernc.org/token v1.1.0 // indirect
+)
+
 // when changing the replace directives make sure to also apply the same changes
 // to integrations/event-handler/go.mod and integrations/terraform/go.mod, and
 // update "ignore" in .github/dependabot.yml.
@@ -634,6 +647,7 @@ replace (
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.9.1-teleport.4
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-teleport.2
 	github.com/gravitational/teleport/api => ./api
+	github.com/gravitational/teleport/lib/srv/reexec => ./lib/srv/reexec
 	github.com/hinshun/vt10x => github.com/gravitational/vt10x v0.0.3-teleport.1
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-teleport.1

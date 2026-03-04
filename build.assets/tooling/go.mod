@@ -151,6 +151,7 @@ require (
 	github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1 // indirect
 	github.com/gravitational/roundtrip v1.0.3 // indirect
 	github.com/gravitational/teleport/api v0.0.0 // indirect
+	github.com/gravitational/teleport/lib/srv/reexec v0.0.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.1 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
@@ -309,8 +310,10 @@ require (
 
 replace github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
 
-replace github.com/gravitational/teleport => ../..
-
-replace github.com/gravitational/teleport/api => ../../api
+replace (
+	github.com/gravitational/teleport => ../..
+	github.com/gravitational/teleport/api => ../../api
+	github.com/gravitational/teleport/lib/srv/reexec => ../../lib/srv/reexec
+)
 
 replace github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.4

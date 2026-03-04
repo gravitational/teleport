@@ -11,8 +11,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/srv/reexec"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils/envutils"
 )
 

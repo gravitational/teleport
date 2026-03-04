@@ -39,23 +39,22 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gravitational/trace"
 	ocselinux "github.com/opencontainers/selinux/go-selinux"
 	"github.com/pkg/sftp"
 	"golang.org/x/sys/unix"
 
-	"github.com/gravitational/teleport/lib/auditd"
-	"github.com/gravitational/teleport/lib/pam"
-	"github.com/gravitational/teleport/lib/selinux"
-	"github.com/gravitational/teleport/lib/service/servicecfg/pamconfig"
-	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/srv/uacc"
-	"github.com/gravitational/teleport/lib/sshutils/networking"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/teleport/lib/utils/envutils"
-	"github.com/gravitational/teleport/lib/utils/host"
-	"github.com/gravitational/teleport/lib/utils/netaddr"
-	"github.com/gravitational/teleport/lib/utils/uds"
+	"github.com/gravitational/teleport/lib/srv/reexec/auditd"
+	"github.com/gravitational/teleport/lib/srv/reexec/envutils"
+	"github.com/gravitational/teleport/lib/srv/reexec/host"
+	"github.com/gravitational/teleport/lib/srv/reexec/netaddr"
+	"github.com/gravitational/teleport/lib/srv/reexec/networking"
+	"github.com/gravitational/teleport/lib/srv/reexec/pam"
+	"github.com/gravitational/teleport/lib/srv/reexec/pamconfig"
+	"github.com/gravitational/teleport/lib/srv/reexec/selinux"
+	"github.com/gravitational/teleport/lib/srv/reexec/shell"
+	"github.com/gravitational/teleport/lib/srv/reexec/uacc"
+	"github.com/gravitational/teleport/lib/srv/reexec/uds"
+	"github.com/gravitational/teleport/lib/srv/reexec/x11"
 )
 
 const (
@@ -274,15 +273,15 @@ func RunCommand() (code int, err error) {
 	// Parent sends the command payload in the third file descriptor.
 	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
 	if cmdfd == nil {
-		return RemoteCommandFailure, trace.BadParameter("command pipe not found")
+		return RemoteCommandFailure, fmt.Errorf("command pipe not found")
 	}
 	contfd := os.NewFile(ContinueFile, fdName(ContinueFile))
 	if contfd == nil {
-		return RemoteCommandFailure, trace.BadParameter("continue pipe not found")
+		return RemoteCommandFailure, fmt.Errorf("continue pipe not found")
 	}
 	readyfd := os.NewFile(ReadyFile, fdName(ReadyFile))
 	if readyfd == nil {
-		return RemoteCommandFailure, trace.BadParameter("ready pipe not found")
+		return RemoteCommandFailure, fmt.Errorf("ready pipe not found")
 	}
 
 	// Ensure that the ready signal is sent if a failure causes execution
@@ -297,13 +296,13 @@ func RunCommand() (code int, err error) {
 
 	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if terminatefd == nil {
-		return RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
+		return RemoteCommandFailure, fmt.Errorf("terminate pipe not found")
 	}
 
 	// Read in the command payload.
 	var c ExecCommand
 	if err := json.NewDecoder(cmdfd).Decode(&c); err != nil {
-		return RemoteCommandFailure, trace.Wrap(err)
+		return RemoteCommandFailure, err
 	}
 
 	initLogger("reexec", c.LogConfig)
@@ -341,7 +340,7 @@ func RunCommand() (code int, err error) {
 	if c.Terminal {
 		tty = os.NewFile(TTYFile, fdName(TTYFile))
 		if tty == nil {
-			return RemoteCommandFailure, trace.BadParameter("tty not found")
+			return RemoteCommandFailure, fmt.Errorf("tty not found")
 		}
 	}
 
@@ -380,7 +379,7 @@ func RunCommand() (code int, err error) {
 			Stderr: stderr,
 		})
 		if err != nil {
-			return RemoteCommandFailure, trace.Wrap(err)
+			return RemoteCommandFailure, err
 		}
 		defer pamContext.Close()
 
@@ -392,7 +391,7 @@ func RunCommand() (code int, err error) {
 	// and that we are now waiting for the continue signal before proceeding. This is needed
 	// to ensure that PAM changing the cgroup doesn't bypass enhanced recording.
 	if err := readyfd.Close(); err != nil {
-		return RemoteCommandFailure, trace.Wrap(err)
+		return RemoteCommandFailure, err
 	}
 	readyfd = nil
 	uaccHandler := uacc.NewUserAccountHandler(uacc.UaccConfig{
@@ -407,7 +406,7 @@ func RunCommand() (code int, err error) {
 		if uaccErr := uaccHandler.FailedLogin(c.Login, &c.UaccMetadata.RemoteAddr); uaccErr != nil {
 			slog.DebugContext(ctx, "unable to write failed login attempt to uacc", "error", uaccErr)
 		}
-		return RemoteCommandFailure, trace.Wrap(err)
+		return RemoteCommandFailure, err
 	}
 
 	if c.Terminal {
@@ -429,14 +428,14 @@ func RunCommand() (code int, err error) {
 	// Build the actual command that will launch the shell.
 	cmd, err := buildCommand(&c, localUser, tty, pamEnvironment)
 	if err != nil {
-		return RemoteCommandFailure, trace.Wrap(err)
+		return RemoteCommandFailure, err
 	}
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
 	err = WaitForSignal(ctx, contfd, 10*time.Second)
 	if err != nil {
-		return RemoteCommandFailure, trace.Wrap(err)
+		return RemoteCommandFailure, err
 	}
 
 	// If we're planning on changing credentials, we should first park an
@@ -453,7 +452,7 @@ func RunCommand() (code int, err error) {
 			cmd.SysProcAttr.Credential,
 			c.Login, &systemUser{u: localUser})
 		if err != nil {
-			return RemoteCommandFailure, trace.Wrap(err)
+			return RemoteCommandFailure, err
 		}
 	}
 
@@ -467,7 +466,7 @@ func RunCommand() (code int, err error) {
 	if c.SetSELinuxContext {
 		seContext, err := selinux.UserContext(c.Login)
 		if err != nil {
-			return RemoteCommandFailure, trace.Wrap(err, "failed to get SELinux context of login user")
+			return RemoteCommandFailure, fmt.Errorf("failed to get SELinux context of login user: %w", err)
 		}
 
 		// SetExecLabel changes the SELinux exec context for the
@@ -479,20 +478,20 @@ func RunCommand() (code int, err error) {
 		// restrictive)SELinux context.
 		runtime.LockOSThread()
 		if err := ocselinux.SetExecLabel(seContext); err != nil {
-			return RemoteCommandFailure, trace.Wrap(err, "failed to set SELinux context")
+			return RemoteCommandFailure, fmt.Errorf("failed to set SELinux context: %w", err)
 		}
 	}
 
 	// Start the command.
 	if err := cmd.Start(); err != nil {
-		return RemoteCommandFailure, trace.Wrap(err)
+		return RemoteCommandFailure, err
 	}
 
 	parkerCancel()
 
 	err = waitForShell(terminatefd, cmd)
 
-	return exitCode(err), trace.Wrap(err)
+	return exitCode(err), err
 }
 
 // waitForShell waits either for the command to return or the kill signal from the parent Teleport process.
@@ -506,9 +505,9 @@ func waitForShell(terminatefd *os.File, cmd *exec.Cmd) error {
 		_, err := terminatefd.Read(buf)
 		if errors.Is(err, io.EOF) {
 			// Kill the shell process
-			err = trace.Errorf("shell process has been killed: %w", cmd.Process.Kill())
+			err = fmt.Errorf("shell process has been killed: %w", cmd.Process.Kill())
 		} else {
-			err = trace.Errorf("failed to read from terminate file: %w", err)
+			err = fmt.Errorf("failed to read from terminate file: %w", err)
 		}
 		terminateChan <- err
 	}()
@@ -586,12 +585,12 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 			// The service group doesn't exist. Auto-provision is disabled, do nothing.
 			return nil
 		}
-		return trace.Wrap(err)
+		return err
 	}
 
 	groups, err := localUser.GroupIds()
 	if err != nil {
-		return trace.Wrap(err)
+		return err
 	}
 
 	found := false
@@ -609,15 +608,15 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 	}
 
 	if err := o.newParker(ctx, *credential); err != nil {
-		return trace.Wrap(err)
+		return err
 	}
 
 	localUserCheck, err := o.LookupUser(loginAsUser)
 	if err != nil {
-		return trace.Wrap(err)
+		return err
 	}
 	if localUser.UID() != localUserCheck.Uid || localUser.GID() != localUserCheck.Gid {
-		return trace.BadParameter("user %q has been changed", loginAsUser)
+		return fmt.Errorf("user %q has been changed", loginAsUser)
 	}
 
 	return nil
@@ -635,18 +634,18 @@ func RunNetworking() (code int, err error) {
 	// Parent sends the command payload in the third file descriptor.
 	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
 	if cmdfd == nil {
-		return RemoteCommandFailure, trace.BadParameter("command pipe not found")
+		return RemoteCommandFailure, fmt.Errorf("command pipe not found")
 	}
 
 	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if terminatefd == nil {
-		return RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
+		return RemoteCommandFailure, fmt.Errorf("terminate pipe not found")
 	}
 
 	// Read in the command payload.
 	var c ExecCommand
 	if err := json.NewDecoder(cmdfd).Decode(&c); err != nil {
-		return RemoteCommandFailure, trace.Wrap(err)
+		return RemoteCommandFailure, err
 	}
 
 	initLogger("networking", c.LogConfig)
@@ -669,7 +668,7 @@ func RunNetworking() (code int, err error) {
 			Env: c.PAMConfig.Environment,
 		})
 		if err != nil {
-			return RemoteCommandFailure, trace.Wrap(err)
+			return RemoteCommandFailure, err
 		}
 		defer pamContext.Close()
 
@@ -681,12 +680,12 @@ func RunNetworking() (code int, err error) {
 	// done with the user's permissions.
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
-		return RemoteCommandFailure, trace.NotFound("%s", err)
+		return RemoteCommandFailure, fmt.Errorf("%s", err)
 	}
 
 	cred, err := host.GetHostUserCredential(localUser)
 	if err != nil {
-		return RemoteCommandFailure, trace.Wrap(err)
+		return RemoteCommandFailure, err
 	}
 
 	if os.Getuid() != int(cred.Uid) || os.Getgid() != int(cred.Gid) {
@@ -696,14 +695,14 @@ func RunNetworking() (code int, err error) {
 				groups[i] = int(g)
 			}
 			if err := unix.Setgroups(groups); err != nil {
-				return RemoteCommandFailure, trace.Wrap(err, "failed to set groups for networking process")
+				return RemoteCommandFailure, fmt.Errorf("failed to set groups for networking process: %w", err)
 			}
 		}
 		if err := unix.Setgid(int(cred.Gid)); err != nil {
-			return RemoteCommandFailure, trace.Wrap(err, "failed to set gid for networking process")
+			return RemoteCommandFailure, fmt.Errorf("failed to set gid for networking process: %w", err)
 		}
 		if err := unix.Setuid(int(cred.Uid)); err != nil {
-			return RemoteCommandFailure, trace.Wrap(err, "failed to set uid for networking process")
+			return RemoteCommandFailure, fmt.Errorf("failed to set uid for networking process: %w", err)
 		}
 	}
 
@@ -722,28 +721,28 @@ func RunNetworking() (code int, err error) {
 	for _, kv := range pamEnvironment {
 		key, value, ok := strings.Cut(strings.TrimSpace(kv), "=")
 		if !ok {
-			return RemoteCommandFailure, trace.BadParameter("bad environment variable from PAM, expected format \"key=value\" but got %q", kv)
+			return RemoteCommandFailure, fmt.Errorf("bad environment variable from PAM, expected format \"key=value\" but got %q", kv)
 		}
 		if err := os.Setenv(key, value); err != nil {
-			return RemoteCommandFailure, trace.Wrap(err)
+			return RemoteCommandFailure, err
 		}
 	}
 
 	// Ensure that the working directory is one that the local user has access to.
 	if err := os.Chdir(workingDir); err != nil {
-		return RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process: %s", workingDir)
+		return RemoteCommandFailure, fmt.Errorf("failed to set working directory for networking process %+q: %w", workingDir, err)
 	}
 
 	// Build request listener from first extra file that was passed to command.
 	ffd := os.NewFile(FirstExtraFile, "listener")
 	if ffd == nil {
-		return RemoteCommandFailure, trace.BadParameter("missing socket fd")
+		return RemoteCommandFailure, fmt.Errorf("missing socket fd")
 	}
 
 	parentConn, err := uds.FromFile(ffd)
 	_ = ffd.Close()
 	if err != nil {
-		return RemoteCommandFailure, trace.Wrap(err)
+		return RemoteCommandFailure, err
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -780,25 +779,25 @@ func RunNetworking() (code int, err error) {
 				// parent connection closed, process should exit.
 				return RemoteCommandSuccess, nil
 			}
-			writeErrorToConn(parentConn, trace.Wrap(err, "error reading networking request from parent"))
+			writeErrorToConn(parentConn, fmt.Errorf("error reading networking request from parent: %w", err))
 			continue
 		}
 
 		if fn == 0 {
-			writeErrorToConn(parentConn, trace.BadParameter("networking request requires a control file"))
+			writeErrorToConn(parentConn, fmt.Errorf("networking request requires a control file"))
 			continue
 		}
 
 		requestConn, err := uds.FromFile(fbuf[0])
 		_ = fbuf[0].Close()
 		if err != nil {
-			writeErrorToConn(parentConn, trace.Wrap(err, "failed to get a connection from control file"))
+			writeErrorToConn(parentConn, fmt.Errorf("failed to get a connection from control file: %w", err))
 			continue
 		}
 
 		var req networking.Request
 		if err := json.Unmarshal(buf[:n], &req); err != nil {
-			writeErrorToConn(requestConn, trace.Wrap(err, "error parsing networking request"))
+			writeErrorToConn(requestConn, fmt.Errorf("error parsing networking request: %w", err))
 			_ = requestConn.Close()
 			continue
 		}
@@ -839,13 +838,13 @@ func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networ
 
 	netFile, filePaths, err := createNetworkingFile(ctx, req)
 	if err != nil {
-		conn.Write([]byte(trace.Wrap(err, "failed to create networking file").Error()))
+		conn.Write([]byte(fmt.Errorf("failed to create networking file: %w", err).Error()))
 		return nil
 	}
 	defer netFile.Close()
 
 	if _, _, err := uds.WriteWithFDs(conn, nil, []*os.File{netFile}); err != nil {
-		conn.Write([]byte(trace.Wrap(err, "failed to write networking file to control conn").Error()))
+		conn.Write([]byte(fmt.Errorf("failed to write networking file to control conn: %w", err).Error()))
 		return nil
 	}
 	return filePaths
@@ -857,31 +856,31 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 		var d net.Dialer
 		conn, err := d.DialContext(ctx, req.Network, req.Address)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, err
 		}
 		defer conn.Close()
 
 		connFD, err := getConnFile(conn)
-		return connFD, nil, trace.Wrap(err)
+		return connFD, nil, err
 
 	case networking.NetworkingOperationListen:
 		listener, err := net.Listen(req.Network, req.Address)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, err
 		}
 		defer listener.Close()
 
 		listenerFD, err := getListenerFile(listener)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, err
 		}
-		return listenerFD, []string{listener.Addr().String()}, trace.Wrap(err)
+		return listenerFD, []string{listener.Addr().String()}, err
 
 	case networking.NetworkingOperationListenAgent:
 		// Create a temp directory to hold the agent socket.
 		sockDir, err := os.MkdirTemp("", "teleport-")
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, err
 		}
 
 		sockPath := filepath.Join(sockDir, "agent.sock")
@@ -889,14 +888,14 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 		listener, err := net.Listen("unix", sockPath)
 		if err != nil {
 			os.RemoveAll(sockDir)
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, err
 		}
 		defer listener.Close()
 
 		listenerFD, err := getListenerFile(listener)
 		if err != nil {
 			os.RemoveAll(sockDir)
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, err
 		}
 
 		return listenerFD, []string{sockPath, sockDir}, nil
@@ -904,13 +903,13 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 	case networking.NetworkingOperationListenX11:
 		listener, display, err := x11.OpenNewXServerListener(req.X11Request.DisplayOffset, req.X11Request.MaxDisplay, req.X11Request.ScreenNumber)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, err
 		}
 		defer listener.Close()
 
 		removeCmd := x11.NewXAuthCommand(ctx, req.X11Request.XauthFile)
 		if err := removeCmd.RemoveEntries(display); err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, err
 		}
 
 		addCmd := x11.NewXAuthCommand(ctx, req.X11Request.XauthFile)
@@ -919,17 +918,17 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 			Proto:   req.X11Request.AuthProtocol,
 			Cookie:  req.X11Request.AuthCookie,
 		}); err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, err
 		}
 
 		listenerFD, err := getListenerFile(listener)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, err
 		}
-		return listenerFD, []string{listener.Addr().String()}, trace.Wrap(err)
+		return listenerFD, []string{listener.Addr().String()}, err
 
 	default:
-		return nil, nil, trace.BadParameter("unsupported networking operation %q", req.Operation)
+		return nil, nil, fmt.Errorf("unsupported networking operation %q", req.Operation)
 	}
 }
 
@@ -942,12 +941,12 @@ func getListenerFile(listener net.Listener) (*os.File, error) {
 		// the socket in the child namepsace once the process is closed.
 		l.SetUnlinkOnClose(false)
 		listenerFD, err := l.File()
-		return listenerFD, trace.Wrap(err)
+		return listenerFD, err
 	case *net.TCPListener:
 		listenerFD, err := l.File()
-		return listenerFD, trace.Wrap(err)
+		return listenerFD, err
 	default:
-		return nil, trace.Errorf("expected listener to be of type *net.UnixListener or *net.TCPListener, but was %T", l)
+		return nil, fmt.Errorf("expected listener to be of type *net.UnixListener or *net.TCPListener, but was %T", l)
 	}
 }
 
@@ -955,12 +954,12 @@ func getConnFile(conn net.Conn) (*os.File, error) {
 	switch c := conn.(type) {
 	case *net.UnixConn:
 		connFD, err := c.File()
-		return connFD, trace.Wrap(err)
+		return connFD, err
 	case *net.TCPConn:
 		connFD, err := c.File()
-		return connFD, trace.Wrap(err)
+		return connFD, err
 	default:
-		return nil, trace.Errorf("expected connection to be of type *net.UnixConn or *net.TCPConn, but was %T", conn)
+		return nil, fmt.Errorf("expected connection to be of type *net.UnixConn or *net.TCPConn, but was %T", conn)
 	}
 }
 
@@ -969,10 +968,6 @@ func runCheckHomeDir() (code int, err error) {
 	code = RemoteCommandSuccess
 	if err := hasAccessibleHomeDir(); err != nil {
 		switch {
-		case trace.IsNotFound(err), trace.IsBadParameter(err):
-			code = HomeDirNotFound
-		case trace.IsAccessDenied(err):
-			code = HomeDirNotAccessible
 		default:
 			code = RemoteCommandFailure
 		}
@@ -1033,17 +1028,17 @@ func RunAndExit(commandType string) {
 // bootstrapping reexec commands.
 func openFileAsUser(localUser *user.User, path string) (file *os.File, err error) {
 	if os.Args[1] != ExecSubCommand {
-		return nil, trace.Errorf("opening files as a user is only possible in a reexec context")
+		return nil, fmt.Errorf("opening files as a user is only possible in a reexec context")
 	}
 
 	uid, err := strconv.Atoi(localUser.Uid)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	gid, err := strconv.Atoi(localUser.Gid)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	prevUID := os.Geteuid()
@@ -1060,26 +1055,26 @@ func openFileAsUser(localUser *user.User, path string) (file *os.File, err error
 	}()
 
 	if err := syscall.Setegid(gid); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	if err := syscall.Seteuid(uid); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	file, err = os.Open(path)
-	return file, trace.ConvertSystemError(err)
+	return file, (err)
 }
 
 func readUserEnv(localUser *user.User, path string) ([]string, error) {
 	file, err := openFileAsUser(localUser, path)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 	defer file.Close()
 
 	envs, err := envutils.ReadEnvironment(context.Background(), file)
-	return envs, trace.Wrap(err)
+	return envs, err
 }
 
 // buildCommand constructs a command that will execute the users shell. This
@@ -1106,13 +1101,13 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 		case SFTPSubsystem:
 			executable, err := os.Executable()
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, err
 			}
 			cmd.Path = executable
 			cmd.Args = []string{executable, SFTPSubCommand}
 			isReexec = true
 		default:
-			return nil, trace.BadParameter("unsupported subsystem execution request %q", c.Command)
+			return nil, fmt.Errorf("unsupported subsystem execution request %q", c.Command)
 		}
 	} else if c.Command == "" {
 		// Set the path to the path of the shell.
@@ -1153,7 +1148,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 		path := filepath.Join(localUser.HomeDir, ".tsh", "environment")
 		userEnvs, err := readUserEnv(localUser, path)
 		if err != nil {
-			if !trace.IsNotFound(err) {
+			if true {
 				slog.WarnContext(context.Background(), "Could not read user environment", "error", err)
 			}
 		} else {
@@ -1196,7 +1191,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 				fd := FirstExtraFile + uintptr(i)
 				f := os.NewFile(fd, strconv.Itoa(int(fd)))
 				if f == nil {
-					return nil, trace.NotFound("extra file %d not found", fd)
+					return nil, fmt.Errorf("extra file %d not found", fd)
 				}
 				cmd.ExtraFiles[i] = f
 			}
@@ -1208,7 +1203,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	// TODO (atburke): Generalize this to support Windows.
 	hasAccess, err := CheckHomeDir(localUser)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	if hasAccess {
@@ -1217,7 +1212,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 		// Write failure to find home dir to stdout, same as OpenSSH.
 		msg := fmt.Sprintf("Could not set shell's cwd to home directory %q, defaulting to %q\n", localUser.HomeDir, rootDirectory)
 		if _, err := cmd.Stdout.Write([]byte(msg)); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, err
 		}
 		cmd.Dir = rootDirectory
 	}
@@ -1234,7 +1229,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	// are different from the process itself. If the credentials are not, simply
 	// pick up the ambient credentials of the process.
 	if err := host.MaybeSetCommandCredentialAsUser(context.Background(), &cmd, localUser, slog.Default()); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	// Perform OS-specific tweaks to the command.
@@ -1249,11 +1244,11 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 
 func coerceHomeDirError(usr *user.User, err error) error {
 	if os.IsNotExist(err) {
-		return trace.NotFound("home directory %q not found for user %q", usr.HomeDir, usr.Name)
+		return fmt.Errorf("home directory %q not found for user %q", usr.HomeDir, usr.Name)
 	}
 
 	if os.IsPermission(err) {
-		return trace.AccessDenied("%q does not have permission to access %q", usr.Name, usr.HomeDir)
+		return fmt.Errorf("%q does not have permission to access %q", usr.Name, usr.HomeDir)
 	}
 
 	return err
@@ -1271,16 +1266,16 @@ func hasAccessibleHomeDir() error {
 	// this should usually be fetching a cached value
 	currentUser, err := user.Current()
 	if err != nil {
-		return trace.Wrap(err)
+		return err
 	}
 
 	fi, err := os.Stat(currentUser.HomeDir)
 	if err != nil {
-		return trace.Wrap(coerceHomeDirError(currentUser, err))
+		return (coerceHomeDirError(currentUser, err))
 	}
 
 	if !fi.IsDir() {
-		return trace.BadParameter("%q is not a directory", currentUser.HomeDir)
+		return fmt.Errorf("%q is not a directory", currentUser.HomeDir)
 	}
 
 	accessibleHomeDirMu.Lock()
@@ -1288,7 +1283,7 @@ func hasAccessibleHomeDir() error {
 
 	cwd, err := os.Open(".")
 	if err != nil {
-		return trace.Wrap(err)
+		return err
 	}
 	defer cwd.Close()
 
@@ -1301,7 +1296,7 @@ func hasAccessibleHomeDir() error {
 	// attemping to cd into the target directory is the easiest, cross-platform way to test
 	// whether or not the current user has access
 	if err := os.Chdir(currentUser.HomeDir); err != nil {
-		return trace.Wrap(coerceHomeDirError(currentUser, err))
+		return (coerceHomeDirError(currentUser, err))
 	}
 
 	return nil
@@ -1313,17 +1308,17 @@ func hasAccessibleHomeDir() error {
 func CheckHomeDir(localUser *user.User) (bool, error) {
 	currentUser, err := user.Current()
 	if err != nil {
-		return false, trace.Wrap(err)
+		return false, err
 	}
 
 	// don't spawn a subcommand if already running as the user in question
 	if currentUser.Uid == localUser.Uid {
 		if err := hasAccessibleHomeDir(); err != nil {
-			if trace.IsNotFound(err) || trace.IsAccessDenied(err) || trace.IsBadParameter(err) {
+			if false {
 				return false, nil
 			}
 
-			return false, trace.Wrap(err)
+			return false, err
 		}
 
 		return true, nil
@@ -1331,12 +1326,12 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 
 	executable, err := os.Executable()
 	if err != nil {
-		return false, trace.Wrap(err)
+		return false, err
 	}
 
 	credential, err := host.GetHostUserCredential(localUser)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return false, err
 	}
 
 	// Build the "teleport exec" command.
@@ -1356,7 +1351,7 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 
 	if err := cmd.Run(); err != nil {
 		if cmd.ProcessState.ExitCode() == RemoteCommandFailure {
-			return false, trace.Wrap(err)
+			return false, err
 		}
 
 		return false, nil
@@ -1369,7 +1364,7 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential) error {
 	executable, err := os.Executable()
 	if err != nil {
-		return trace.Wrap(err)
+		return err
 	}
 
 	cmd := o.CommandContext(ctx, executable, ParkSubCommand)
@@ -1381,7 +1376,7 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 	parkerCommandOSTweaks(cmd)
 
 	if err := cmd.Start(); err != nil {
-		return trace.Wrap(err)
+		return err
 	}
 
 	// the process will get killed when the context ends, but we still need to
@@ -1410,11 +1405,11 @@ func WaitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) erro
 
 	select {
 	case <-ctx.Done():
-		return trace.Wrap(ctx.Err(), "got context error while waiting for continue signal")
+		return fmt.Errorf("got context error while waiting for continue signal: %w", ctx.Err())
 	case <-timer.C:
-		return trace.LimitExceeded("timed out waiting for continue signal")
+		return fmt.Errorf("timed out waiting for continue signal")
 	case err := <-waitCh:
-		return trace.Wrap(err)
+		return err
 	}
 }
 
@@ -1458,7 +1453,7 @@ func GetDefaultEnvPath(uid string, loginDefsPath string) string {
 	// open file, if it doesn't exist return a default path and move on
 	f, err := os.Open(loginDefsPath)
 	if err != nil {
-		err = trace.ConvertSystemError(err)
+		err = (err)
 		if uid == "0" {
 			slog.DebugContext(context.Background(), "Unable to open login.defs, returning default su path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvRootPath)
 			return defaultEnvRootPath
@@ -1552,8 +1547,8 @@ func IsFailedToSendCloseNotifyError(err error) bool {
 func IsOKNetworkError(err error) bool {
 	// trace.Aggregate contains at least one error and all the errors are
 	// non-nil
-	var a trace.Aggregate
-	if errors.As(trace.Unwrap(err), &a) {
+	var a interface{ Errors() []error }
+	if errors.As((err), &a) {
 		for _, err := range a.Errors() {
 			if !IsOKNetworkError(err) {
 				return false

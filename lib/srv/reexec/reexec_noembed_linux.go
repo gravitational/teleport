@@ -21,11 +21,11 @@
 package reexec
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"syscall"
 
-	"github.com/gravitational/trace"
 	"golang.org/x/sys/unix"
 )
 
@@ -115,14 +115,14 @@ func setNeutralOOMScore() error {
 	// won't be used as os.O_WRONLY won't create the file.
 	f, err := os.OpenFile("/proc/self/oom_score_adj", os.O_WRONLY, 0)
 	if err != nil {
-		return trace.ConvertSystemError(err)
+		return (err)
 	}
 
 	if _, err := f.WriteString("0"); err != nil {
-		return trace.NewAggregate(err, f.Close())
+		return errors.Join(err, f.Close())
 	}
 
 	// Make sure to return errors from Close(),
 	// as sync error may be returned here.
-	return trace.Wrap(f.Close())
+	return (f.Close())
 }

@@ -22,6 +22,7 @@ package reexec
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -30,11 +31,8 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/gravitational/trace"
 	"github.com/klauspost/compress/gzip"
 	"golang.org/x/sys/unix"
-
-	"github.com/gravitational/teleport"
 )
 
 func init() {
@@ -86,7 +84,7 @@ func embedFileInit() {
 		return
 	}
 
-	gzreader, err := gzip.NewReader(strings.NewReader(teleport.SSHDHelperBinaryGZ))
+	gzreader, err := gzip.NewReader(strings.NewReader(""))
 	if err != nil {
 		slog.WarnContext(context.Background(), "failed to decompress embedded binary (this is a bug)", "error", err)
 		return
@@ -179,14 +177,14 @@ func setNeutralOOMScore() error {
 	// won't be used as os.O_WRONLY won't create the file.
 	f, err := os.OpenFile("/proc/self/oom_score_adj", os.O_WRONLY, 0)
 	if err != nil {
-		return trace.ConvertSystemError(err)
+		return (err)
 	}
 
 	if _, err := f.WriteString("0"); err != nil {
-		return trace.NewAggregate(err, f.Close())
+		return errors.Join(err, f.Close())
 	}
 
 	// Make sure to return errors from Close(),
 	// as sync error may be returned here.
-	return trace.Wrap(f.Close())
+	return (f.Close())
 }

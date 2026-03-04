@@ -30,7 +30,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/utils/netaddr"
+	"github.com/gravitational/teleport/lib/srv/reexec/netaddr"
 )
 
 type NetAddr = netaddr.NetAddr

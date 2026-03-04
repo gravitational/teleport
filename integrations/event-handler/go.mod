@@ -202,6 +202,7 @@ require (
 	github.com/gosuri/uitable v0.0.4 // indirect
 	github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1 // indirect
 	github.com/gravitational/roundtrip v1.0.3 // indirect
+	github.com/gravitational/teleport/lib/srv/reexec v0.0.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.1 // indirect
@@ -400,6 +401,7 @@ require (
 replace (
 	github.com/gravitational/teleport => ../..
 	github.com/gravitational/teleport/api => ../../api
+	github.com/gravitational/teleport/lib/srv/reexec => ../../lib/srv/reexec
 )
 
 // replace statements from teleport
