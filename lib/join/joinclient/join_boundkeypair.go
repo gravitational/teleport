@@ -64,6 +64,10 @@ func boundKeypairJoin(
 	// challenges and rotation requests.
 
 	state := joinParams.BoundKeypairState
+	if state == nil {
+		return nil, trace.BadParameter("bound keypair state is required for bound keypair joining")
+	}
+
 	bkClientParams := state.GetClientParams(joinParams.BoundKeypairRegistrationSecret)
 
 	boundKeypairInit := &messages.BoundKeypairInit{

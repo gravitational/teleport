@@ -133,7 +133,7 @@ func (m *mockBoundKeypairState) GetSigner(pubKey []byte) (crypto.Signer, error) 
 	// may not match pubKey requested but that will test signatures
 	// using an incorrect key.
 	if int(challengeNum) > len(m.signingKeys) {
-		return nil, trace.Errorf("unabled to sign (solver has %d signing keys, %d challenges requested)", len(m.signingKeys), challengeNum)
+		return nil, trace.Errorf("unable to sign (solver has %d signing keys, %d challenges requested)", len(m.signingKeys), challengeNum)
 	}
 
 	signerPubKey := m.signingKeys[challengeNum-1]

@@ -396,7 +396,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 		}
 	case types.JoinMethodBoundKeypair:
 		if params.BoundKeypairState == nil {
-			return nil, trace.BadParameter("bound keypair parameters are required")
+			return nil, trace.BadParameter("bound keypair state is required")
 		}
 	}
 
