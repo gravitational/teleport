@@ -22,24 +22,27 @@ import { Box, Flex, Text } from 'design';
 import { FieldRadio } from 'design/FieldRadio';
 import { Rule } from 'shared/components/Validation/rules';
 
-import { Regions as AwsRegion } from 'teleport/services/integrations';
+import { CircleNumber } from './common';
+import { RegionMultiSelector } from './RegionMultiSelector';
+import { RegionGroup, WildcardRegion } from './RegionMultiSelector/types';
 
-import { RegionMultiSelector } from '../RegionMultiSelector';
-import { CircleNumber } from './EnrollAws';
-import { awsRegionGroups } from './regions';
-import { WildcardRegion } from './types';
-
-type RegionsOrWildcard = WildcardRegion | AwsRegion[];
-
-type RegionsSectionProps = {
-  regions: RegionsOrWildcard;
-  onChange: (regions: RegionsOrWildcard) => void;
+export type RegionsSectionProps<T> = {
+  regions: T[] | WildcardRegion;
+  regionGroups: readonly RegionGroup[];
+  onChange: (regions: T[] | WildcardRegion) => void;
 };
 
-const isWildcard = (regions: RegionsOrWildcard): regions is WildcardRegion =>
-  regions.length === 1 && regions[0] === '*';
+const isWildcard = (
+  regions: string[] | WildcardRegion
+): regions is WildcardRegion => regions.length === 1 && regions[0] === '*';
 
-export function RegionsSection({ regions, onChange }: RegionsSectionProps) {
+export function RegionsSection<T extends string>({
+  regions,
+  regionGroups,
+  onChange,
+}: RegionsSectionProps<T>) {
+  type RegionsOrWildcard = WildcardRegion | string[];
+
   const requiredAtLeastOneRegion: Rule<RegionsOrWildcard> =
     (regions: RegionsOrWildcard) => () => {
       if (isWildcard(regions)) {
@@ -62,7 +65,7 @@ export function RegionsSection({ regions, onChange }: RegionsSectionProps) {
         Regions
       </Flex>
       <Text mb={3} ml={4}>
-        Select the AWS regions where your resources are located.
+        Select the regions where your resources are located.
       </Text>
       <Box ml={4}>
         <FieldRadio
@@ -93,9 +96,9 @@ export function RegionsSection({ regions, onChange }: RegionsSectionProps) {
         {!isWildcard(regions) && (
           <Box mt={3}>
             <RegionMultiSelector
-              regionGroups={awsRegionGroups}
+              regionGroups={regionGroups}
               selectedRegions={regions}
-              onChange={regions => onChange(regions)}
+              onChange={onChange}
               disabled={false}
               required={true}
               rule={requiredAtLeastOneRegion}

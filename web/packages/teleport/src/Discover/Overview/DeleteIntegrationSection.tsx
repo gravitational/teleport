@@ -41,7 +41,7 @@ export function DeleteIntegrationSection({
                 {integrationName}
               </Text>{' '}
               module from your Terraform configuration will remove Teleport and
-              AWS resources used for auto-discovery.
+              cloud resources used for auto-discovery.
             </Text>
           </Flex>
         </Alert>

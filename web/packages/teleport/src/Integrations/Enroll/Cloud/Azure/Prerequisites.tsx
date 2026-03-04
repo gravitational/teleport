@@ -22,8 +22,6 @@ import { useToggle } from 'usehooks-ts';
 import { Box, Link as ExternalLink, Flex, Text } from 'design';
 import { ArrowSquareOut, ChevronRight } from 'design/Icon';
 
-import { Divider } from '../Shared';
-
 export function Prerequisites() {
   const [showPrerequisites, togglePrerequisites] = useToggle(true);
 
@@ -61,72 +59,13 @@ export function Prerequisites() {
               </ExternalLink>
             </li>
             <li>
-              <Text fontWeight="medium">AWS Terraform Provider:</Text>
-              <Text>Configure AWS credentials for IAM management</Text>
+              <Text fontWeight="medium">Azure Terraform Provider:</Text>
+              <Text>Configure Azure credentials</Text>
               <ExternalLink
-                href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs"
+                href="https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs"
                 target="_blank"
               >
-                AWS Provider Configuration <ArrowSquareOut size="small" />
-              </ExternalLink>
-            </li>
-          </ul>
-          <Divider />
-          <Text typography="h3" mb={2}>
-            AWS Permissions
-          </Text>
-          <Text typography="h3" fontSize="small">
-            For Single AWS Account Discovery:
-          </Text>
-          <ul
-            css={`
-              margin: 0;
-              padding-left: ${p => p.theme.space[3]}px;
-            `}
-          >
-            <li>
-              <Text>
-                AWS IAM permissions required for AWS Terraform provider
-              </Text>
-              <ExternalLink
-                href="https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery-terraform#step-15-configure-aws-terraform-provider"
-                target="_blank"
-              >
-                Terraform EC2 Auto-Discovery Configuration{' '}
-                <ArrowSquareOut size="small" />
-              </ExternalLink>
-            </li>
-          </ul>
-          <Text typography="h3" fontSize="small">
-            For EC2 resources:
-          </Text>
-          <ul
-            css={`
-              margin: 0;
-              padding-left: ${p => p.theme.space[3]}px;
-            `}
-          >
-            <li>
-              <Text>
-                AmazonSSMManagedInstanceCore IAM policy attached to EC2
-                instance's role.
-              </Text>
-              <ExternalLink
-                href="https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html"
-                target="_blank"
-              >
-                AmazonSSMManagedInstanceCore Policy{' '}
-                <ArrowSquareOut size="small" />
-              </ExternalLink>
-            </li>
-            <li>
-              <Text>SSM agent running on EC2 instances to be discovered.</Text>
-              <ExternalLink
-                href="https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html"
-                target="_blank"
-              >
-                Working with SSM Agent
-                <ArrowSquareOut size="small" />
+                Azure Provider Configuration <ArrowSquareOut size="small" />
               </ExternalLink>
             </li>
           </ul>

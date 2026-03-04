@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2025 Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -62,7 +62,8 @@ export function DeploymentMethodSection({
       </Flex>
       <Box ml={4} mb={3}>
         <Text mb={3}>
-          Deploy the required IAM resources in your AWS account using Terraform.
+          Deploy the required IAM resources in your Azure account using
+          Terraform.
         </Text>
         <Text fontSize={3} fontWeight="regular">
           Terraform
@@ -78,7 +79,7 @@ export function DeploymentMethodSection({
       <Box ml={6}>
         <Flex flexDirection="column" mb={3} gap={2}>
           <Text bold={true} fontSize="14px">
-            1. Add the Teleport AWS Discovery module to your Terraform
+            1. Add the Teleport Azure Discovery module to your Terraform
             configuration
           </Text>
           <Text>
@@ -137,7 +138,7 @@ export function DeploymentMethodSection({
                   primaryAction={{
                     content: 'View Integration',
                     linkTo: cfg.getIaCIntegrationRoute(
-                      IntegrationKind.AwsOidc,
+                      IntegrationKind.AzureOidc,
                       integrationName
                     ),
                   }}
@@ -179,7 +180,7 @@ export function DeploymentMethodSection({
                       >
                         Failed to detect integration
                         <Text fontWeight="regular" color="text.slightlyMuted">
-                          Unable to detect the AWS integration "
+                          Unable to detect the Azure integration "
                           {integrationName}". Please check your Terraform
                           configuration and try again.
                         </Text>

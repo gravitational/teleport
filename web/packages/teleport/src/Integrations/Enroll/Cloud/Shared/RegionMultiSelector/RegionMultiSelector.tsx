@@ -27,9 +27,9 @@ import Select, { Option } from 'shared/components/Select';
 import { useRule } from 'shared/components/Validation';
 import { Rule } from 'shared/components/Validation/rules';
 
-import { RegionGroup, RegionId } from './types';
+import { RegionGroup, Region } from './types';
 
-type RegionOption = Option<RegionId, React.ReactNode>;
+type RegionOption = Option<string, React.ReactNode>;
 type RegionOptionGroup = {
   label: string;
   options: RegionOption[];
@@ -68,19 +68,19 @@ function OptionWithCheckbox(
   );
 }
 
-function defaultRule(): Rule<RegionId[]> {
+function defaultRule(): Rule<string[]> {
   return () => () => ({ valid: true });
 }
 
 export interface RegionMultiSelectorProps {
   regionGroups: readonly RegionGroup[];
-  selectedRegions: RegionId[];
-  onChange(regions: RegionId[]): void;
+  selectedRegions: string[];
+  onChange(regions: string[]): void;
   label?: string;
   placeholder?: string;
   disabled?: boolean;
   required?: boolean;
-  rule?: Rule<RegionId[]>;
+  rule?: Rule<string[]>;
 }
 
 export function RegionMultiSelector({
@@ -114,6 +114,7 @@ export function RegionMultiSelector({
 
   const handleChange = (options: RegionOption[]) => {
     const regions = options ? options.map(option => option.value) : [];
+
     onChange(regions);
   };
 

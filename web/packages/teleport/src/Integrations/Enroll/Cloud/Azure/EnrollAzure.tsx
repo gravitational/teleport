@@ -30,10 +30,7 @@ import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
 import { useNoMinWidth } from 'teleport/Main';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
-import {
-  Regions as AwsRegion,
-  IntegrationKind,
-} from 'teleport/services/integrations';
+import { AzureRegion, IntegrationKind } from 'teleport/services/integrations';
 import { IntegrationEnrollKind } from 'teleport/services/userEvent/types';
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
@@ -57,12 +54,12 @@ import {
 import { DeploymentMethodSection } from './DeploymentMethodSection';
 import { InfoGuideContent } from './InfoGuide';
 import { Prerequisites } from './Prerequisites';
-import { awsRegionGroups } from './regions';
+import { azureRegionGroups } from './regions';
 import { ResourcesSection } from './ResourcesSection';
 import { buildTerraformConfig } from './tf_module';
-import { Ec2Config, WildcardRegion } from './types';
+import { VmConfig, WildcardRegion } from './types';
 
-export function EnrollAws() {
+export function EnrollAzure() {
   useNoMinWidth();
 
   const { clusterVersion } = useClusterVersion();
@@ -76,13 +73,13 @@ export function EnrollAws() {
     isError,
     checkIntegration,
     cancelCheckIntegration,
-  } = useCloudIntegration(IntegrationEnrollKind.AwsCloud);
+  } = useCloudIntegration(IntegrationEnrollKind.AzureCloud);
 
-  const [regions, setRegions] = useState<WildcardRegion | AwsRegion[]>([
+  const [regions, setRegions] = useState<WildcardRegion | AzureRegion[]>([
     '*',
   ] as WildcardRegion);
 
-  const [ec2Config, setEc2Config] = useState<Ec2Config>({
+  const [vmConfig, setVmConfig] = useState<VmConfig>({
     enabled: true,
     tags: [],
   });
@@ -91,11 +88,11 @@ export function EnrollAws() {
     () =>
       buildTerraformConfig({
         integrationName,
-        regions,
-        ec2Config,
         version: clusterVersion,
+        regions: regions,
+        vmConfig: vmConfig,
       }),
-    [integrationName, regions, ec2Config, clusterVersion]
+    [integrationName, clusterVersion, vmConfig, regions]
   );
 
   const {
@@ -115,7 +112,7 @@ export function EnrollAws() {
             panelWidth={PANEL_WIDTH}
           >
             <Flex justifyContent="space-between" alignItems="start" mb={1}>
-              <Header>Connect Amazon Web Services</Header>
+              <Header>Connect Azure</Header>
               <InfoGuideSwitch
                 isPanelOpen={isPanelOpen}
                 activeTab={activeInfoGuideTab}
@@ -123,7 +120,7 @@ export function EnrollAws() {
               />
             </Flex>
             <Subtitle1 mb={3}>
-              Connect your AWS account to automatically discover and enroll
+              Connect your Azure account to automatically discover and enroll
               resources in your Teleport Cluster.
             </Subtitle1>
             <Container flexDirection="column" p={4} mb={4}>
@@ -138,10 +135,7 @@ export function EnrollAws() {
               <Divider />
               <ConfigurationScopeSection />
               <Divider />
-              <ResourcesSection
-                ec2Config={ec2Config}
-                onEc2Change={setEc2Config}
-              />
+              <ResourcesSection vmConfig={vmConfig} onVmChange={setVmConfig} />
               <Divider />
               <RegionsSection regions={regions} onChange={setRegions} />
               <Divider />
@@ -168,7 +162,7 @@ export function EnrollAws() {
               <CheckIntegrationButton
                 integrationExists={integrationExists}
                 integrationName={integrationName}
-                integrationKind={IntegrationKind.AwsOidc}
+                integrationKind={IntegrationKind.AzureOidc}
               />
               <ButtonSecondary
                 ml={3}
@@ -234,7 +228,7 @@ export function IntegrationSection({
         Integration Details
       </Flex>
       <Text ml={4} mb={3}>
-        Provide a name to identify this AWS integration in Teleport.
+        Provide a name to identify this Azure integration in Teleport.
       </Text>
       <FieldInput
         ml={4}
@@ -243,7 +237,7 @@ export function IntegrationSection({
         value={integrationName}
         required={true}
         label="Integration name"
-        placeholder="my-aws-integration"
+        placeholder="my-azure-integration"
         maxWidth={360}
         disabled={disabled}
         onChange={e => onChange(e.target.value.trim())}
@@ -259,9 +253,9 @@ export function ConfigurationScopeSection() {
         <CircleNumber>2</CircleNumber>
         Configuration Scope
       </Flex>
-      <Text ml={4}>Single AWS Account</Text>
+      <Text ml={4}>Single Azure Account</Text>
       <Text ml={4} mb={3} color="text.slightlyMuted">
-        Discover resources from one specific AWS account. Additional accounts
+        Discover resources from one specific Azure account. Additional accounts
         require separate integration setup. <br />
         Best for: Single-account environments or testing.
       </Text>
@@ -273,7 +267,7 @@ export function ConfigurationScopeSection() {
         >
           <Text fontSize={2}>
             IAM resources used for discovery in Teleport will be created using
-            the account configured for your AWS Terraform provider.
+            the account configured for your Azure Terraform provider.
           </Text>
         </Box>
       </Box>
@@ -282,12 +276,12 @@ export function ConfigurationScopeSection() {
 }
 
 export function RegionsSection(
-  props: Omit<RegionsSectionProps<AwsRegion>, 'regionGroups'>
+  props: Omit<RegionsSectionProps<AzureRegion>, 'regionGroups'>
 ) {
   return (
     <BaseRegionsSection
       regions={props.regions}
-      regionGroups={awsRegionGroups}
+      regionGroups={azureRegionGroups}
       onChange={props.onChange}
     />
   );

@@ -26,16 +26,8 @@ import {
 
 const referenceLinks: ReferenceLink[] = [
   {
-    title: 'Teleport AWS Discovery Documentation',
-    href: 'https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/',
-  },
-  {
-    title: 'AWS IAM Roles',
-    href: 'https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html',
-  },
-  {
-    title: 'AWS Organizations',
-    href: 'https://docs.aws.amazon.com/organizations/',
+    title: 'Teleport Azure Discovery Documentation',
+    href: 'https://goteleport.com/docs/enroll-resources/auto-discovery/servers/azure-discovery/',
   },
 ];
 
@@ -44,7 +36,7 @@ export function InfoGuideContent() {
     <Box>
       <InfoTitle>Overview</InfoTitle>
       <InfoParagraph>
-        Connect your AWS account to Teleport to automatically discover and
+        Connect your Azure account to Teleport to automatically discover and
         enroll resources in your cluster.
       </InfoParagraph>
 
@@ -58,16 +50,16 @@ export function InfoGuideContent() {
           <li>
             <strong>Deploy IAM role with discovery permissions.</strong>
             <br /> Using Terraform, create an IAM role that grants Teleport
-            read-only access to your AWS resources.
+            read-only access to your Azure resources.
           </li>
           <li>
             <strong>Configure what to discover.</strong> <br />
-            Specify regions, resource types (EC2, RDS, EKS), and tag filters to
-            control which resources are discovered.
+            Specify regions, resource types (VMs), and tag filters to control
+            which resources are discovered.
           </li>
           <li>
             <strong>Automatic discovery begins.</strong> <br />
-            Teleport scans your AWS environment every 30 minutes to find
+            Teleport scans your Azure environment every 30 minutes to find
             resources matching your configuration.
           </li>
           <li>
