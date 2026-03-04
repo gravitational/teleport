@@ -742,6 +742,31 @@ type TeleportProcess struct {
 
 	tsrv            reversetunnelclient.Server
 	immutableLabels *joiningv1.ImmutableLabels
+
+	// joinStatus tracks the last join error from reconnectToAuthService.
+	joinStatus joinStatus
+}
+
+// joinStatus tracks the last join error. Thread-safe.
+type joinStatus struct {
+	mu        sync.RWMutex
+	lastError string
+}
+
+func (j *joinStatus) setError(err error) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if err == nil {
+		j.lastError = ""
+		return
+	}
+	j.lastError = err.Error()
+}
+
+func (j *joinStatus) getError() string {
+	j.mu.RLock()
+	defer j.mu.RUnlock()
+	return j.lastError
 }
 
 // processIndex is an internal process index
@@ -1336,6 +1361,8 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			prometheus.DefaultGatherer,
 		),
 	}
+
+	supervisor.processState.joinErrorGetter = process.joinStatus.getError
 
 	process.registerExpectedServices(cfg)
 

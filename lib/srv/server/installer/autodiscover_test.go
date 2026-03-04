@@ -20,14 +20,17 @@ package installer
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/buildkite/bintest/v3"
 	"github.com/gravitational/trace"
@@ -144,6 +147,10 @@ func TestAutoDiscoverNode_CheckAndSetDefaults(t *testing.T) {
 			conf := tt.initial
 			err := conf.checkAndSetDefaults()
 			require.NoError(t, err)
+			require.NotNil(t, conf.clock)
+			require.Equal(t, 30*time.Second, conf.joinCheckDelay)
+			conf.clock = nil
+			conf.joinCheckDelay = 0
 			require.Equal(t, tt.expected, conf)
 		})
 	}
@@ -260,6 +267,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 						imdsProviders:        mockIMDSProviders,
 						binariesLocation:     binariesLocation,
 						aptPublicKeyEndpoint: mockRepoKeys.URL,
+						joinCheckDelay:       time.Millisecond,
 					}
 
 					teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -360,6 +368,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			binariesLocation:       binariesLocation,
 			aptPublicKeyEndpoint:   mockRepoKeys.URL,
 			autoUpgradesChannelURL: proxyServer.URL,
+			joinCheckDelay:         time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -430,6 +439,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			binariesLocation:       binariesLocation,
 			aptPublicKeyEndpoint:   mockRepoKeys.URL,
 			autoUpgradesChannelURL: proxyServer.URL,
+			joinCheckDelay:         time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -515,6 +525,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			imdsProviders:        mockIMDSProviders,
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			joinCheckDelay:       time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -586,6 +597,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			},
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			joinCheckDelay:       time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -620,6 +632,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			imdsProviders:        mockIMDSProviders,
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			joinCheckDelay:       time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -687,6 +700,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			imdsProviders:        mockIMDSProviders,
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			joinCheckDelay:       time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -750,6 +764,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			imdsProviders:        mockIMDSProviders,
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			joinCheckDelay:       time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -813,6 +828,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			imdsProviders:        mockIMDSProviders,
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			joinCheckDelay:       time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -1203,3 +1219,116 @@ ID="sles"
 ANSI_COLOR="0;32"
 CPE_NAME="cpe:/o:suse:sles:12:sp3"`
 )
+
+// TestCheckJoinHealth verifies the three code paths in checkJoinHealth: socket unavailable (skip),
+// HTTP 200 (success), HTTP non-200 (ErrJoinFailure).
+func TestCheckJoinHealth(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		serveReadyz bool
+		statusCode  int
+		body        string
+		wantErr     error
+		wantMsgHas  string
+	}{
+		{
+			name:        "socket unavailable skips check",
+			serveReadyz: false,
+		},
+		{
+			name:        "agent ready returns nil",
+			serveReadyz: true,
+			statusCode:  http.StatusOK,
+			body:        `{"status":"ok","pid":1}`,
+		},
+		{
+			name:        "agent not ready returns ErrJoinFailure",
+			serveReadyz: true,
+			statusCode:  http.StatusBadRequest,
+			body:        `{"status":"bad token","pid":1}`,
+			wantErr:     ErrJoinFailure,
+			wantMsgHas:  "bad token",
+		},
+		{
+			name:        "long status is truncated in error message",
+			serveReadyz: true,
+			statusCode:  http.StatusBadRequest,
+			body:        fmt.Sprintf(`{"status":%q,"pid":1}`, strings.Repeat("x", 1000)),
+			wantErr:     ErrJoinFailure,
+			wantMsgHas:  "(truncated)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir, dataDirPath := newCheckJoinHealthTempDir(t)
+
+			if tt.serveReadyz {
+				socketPath := filepath.Join(dataDirPath, "debug.sock")
+				startReadyzServer(t, socketPath, tt.statusCode, tt.body)
+			}
+
+			inst := newTestJoinHealthInstaller(tmpDir)
+
+			checkErr := inst.checkJoinHealth(context.Background())
+			if tt.wantErr != nil {
+				require.ErrorIs(t, checkErr, tt.wantErr)
+				if tt.wantMsgHas != "" {
+					require.Contains(t, checkErr.Error(), tt.wantMsgHas)
+				}
+			} else {
+				require.NoError(t, checkErr)
+			}
+		})
+	}
+}
+
+// newCheckJoinHealthTempDir creates a short-named temporary directory (to stay within macOS's 104-char
+// Unix socket path limit that t.TempDir() would exceed by embedding the full test name) and the Teleport
+// data directory within it.
+func newCheckJoinHealthTempDir(t *testing.T) (tmpDir string, dataDirPath string) {
+	t.Helper()
+	var err error
+	tmpDir, err = os.MkdirTemp("", "tc")
+	require.NoError(t, err)
+	// Register dir removal first so that, when srv.Close is registered afterwards by startReadyzServer,
+	// LIFO order ensures the server releases its socket fd before the directory is deleted.
+	t.Cleanup(func() { os.RemoveAll(tmpDir) })
+
+	dataDirPath = filepath.Join(tmpDir, "var", "lib", "teleport")
+	require.NoError(t, os.MkdirAll(dataDirPath, 0o700))
+	return tmpDir, dataDirPath
+}
+
+// startReadyzServer starts an HTTP server on the given Unix socket path that responds to all requests
+// with the given status code and body.
+func startReadyzServer(t *testing.T, socketPath string, statusCode int, body string) {
+	t.Helper()
+	ln, err := net.Listen("unix", socketPath)
+	require.NoError(t, err)
+	srv := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(statusCode)
+			fmt.Fprint(w, body)
+		}),
+	}
+	go srv.Serve(ln)
+	t.Cleanup(func() { srv.Close() })
+}
+
+// newTestJoinHealthInstaller returns an AutoDiscoverNodeInstaller configured
+// for join-health tests: no join-check delay and fsRootPrefix set to tmpDir.
+func newTestJoinHealthInstaller(tmpDir string) *AutoDiscoverNodeInstaller {
+	return &AutoDiscoverNodeInstaller{
+		AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
+			Logger:         slog.Default(),
+			joinCheckDelay: 0,
+			fsRootPrefix:   tmpDir,
+		},
+	}
+}
