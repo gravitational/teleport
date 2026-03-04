@@ -57,7 +57,9 @@ type Registry interface {
 	SetUsageReportingInitFunc(func(process any) error)
 	// InitUsageReporting invokes the callback registered with SetUsageReportingInitFunc. It is
 	// called by initAuthService after setLocalAuth, ensuring the UsageReporter is available to
-	// auth-server enterprise extensions. A no-op if no callback was registered.
+	// auth-server enterprise extensions. The function process parameter is a *service.TeleportProcess
+	// instance.
+	// A no-op if no callback was registered.
 	InitUsageReporting(process any) error
 }
 
