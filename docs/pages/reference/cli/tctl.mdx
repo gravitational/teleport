@@ -394,6 +394,20 @@ $ tctl auth export --fingerprint=SHA256:8xu5kh1CbHCZRrGuitbQd4hM+d9V+I7YA1mUwA/2
 $ tctl auth export --type=tls-host
 ```
 
+## tctl recordings download
+
+Download session recordings from the cluster's recording storage to a local file.
+If you omit an output directory, recordings are saved to the current working directory.
+
+If session recording encryption is enabled in the cluster, recordings are decrypted during download.
+
+### Example
+
+```code
+$ tctl recordings download [--output-dir <output-dir>] <session_id>
+```
+
+
 ## tctl auth rotate
 
 Rotate certificate authorities in the cluster:
