@@ -283,17 +283,25 @@ type applicationService struct {
 func (s *applicationService) ResolveFQDN(ctx context.Context, req *vnetv1.ResolveFQDNRequest) (*vnetv1.ResolveFQDNResponse, error) {
 	fqdn := req.GetFqdn()
 
-	if !s.allowedDomains.contains(fqdn) {
-		return nil, trace.NotFound("fqdn %q is not in beam allowlist")
-	}
-
-	// Handle resolving the proxy address.
 	proxyAddr, err := s.proxyAddr(ctx)
 	if err != nil {
 		return nil, trace.BadParameter("getting proxy hostname")
 	}
-	if fqdn == fullyQualify(hostname(proxyAddr)) {
+
+	// Handle resolving the proxy address.
+	proxyHostname := fullyQualify(hostname(proxyAddr))
+	if fqdn == proxyHostname {
 		return nil, trace.NotFound("proxy address should be resolved upstream")
+	}
+
+	switch {
+	case s.allowedDomains.contains(fqdn):
+		// FQDN is allowlisted.
+	case strings.HasSuffix(fqdn, proxyHostname):
+		// TODO: should we explicitly allowlist the "normal" Teleport apps like
+		// the LLM proxy?
+	default:
+		return nil, trace.NotFound("fqdn %q is not in beam allowlist")
 	}
 
 	// Search for apps with a matching public_addr.
