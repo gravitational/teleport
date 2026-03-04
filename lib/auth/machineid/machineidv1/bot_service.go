@@ -423,6 +423,8 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO: Prohibit upsert/update that causes a scope transition.
+
 	bot, err := UpsertBot(
 		ctx, bs.backend, req.Bot, bs.clock.Now(), authCtx.User.GetName(),
 	)
@@ -493,6 +495,8 @@ func (bs *BotService) UpdateBot(
 	case len(req.UpdateMask.Paths) == 0:
 		return nil, trace.BadParameter("update_mask.paths: must be non-empty")
 	}
+
+	// TODO: Prohibit upsert/update that causes a scope transition.
 
 	user, err := bs.backend.GetUser(ctx, BotResourceName(req.Bot.Metadata.Name), false)
 	if err != nil {
