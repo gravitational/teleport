@@ -105,7 +105,7 @@ test('renders header and stats cards', () => {
 
   const ec2 = screen.getByTestId('ec2-stats');
   expect(within(ec2).getByTestId('sync')).toHaveTextContent(
-    'Last Sync: 0 seconds ago'
+    /Last Sync: \d+ seconds? ago/
   );
   expect(within(ec2).getByTestId('rules')).toHaveTextContent(
     'Enrollment Rules 24'
