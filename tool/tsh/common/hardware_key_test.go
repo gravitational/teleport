@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -560,12 +559,6 @@ func TestHardwareKeyApp(t *testing.T) {
 		defaults.ResyncInterval = oldResyncInterval
 	})
 
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(isInsecure)
-	})
-
 	accessUser, err := types.NewUser("access")
 	require.NoError(t, err)
 	accessUser.SetRoles([]string{"access"})
@@ -580,6 +573,7 @@ func TestHardwareKeyApp(t *testing.T) {
 		testserver.WithClusterName("root"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.InsecureMode = true
 			cfg.Apps = servicecfg.AppsConfig{
 				Enabled: true,
 				Apps: []servicecfg.App{{

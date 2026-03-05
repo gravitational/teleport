@@ -118,6 +118,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
+				InsecureMode:             process.Config.InsecureMode,
 				Component:                teleport.ComponentWindowsDesktop,
 				HostUUID:                 conn.HostID(),
 				Resolver:                 conn.TunnelProxyResolver(),

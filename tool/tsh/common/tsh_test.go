@@ -75,7 +75,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/kube"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -1259,12 +1258,6 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 
 	ctx := t.Context()
 
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(isInsecure)
-	})
-
 	origin := func(cluster string) string {
 		return fmt.Sprintf("https://%s", cluster)
 	}
@@ -1313,7 +1306,12 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	require.NoError(t, err)
 	device.SetPasswordless()
 
-	rootAuth, rootProxy := makeTestServers(t, withBootstrap(connector, alice, bob, noAccessRole, sshLoginRole, perSessionMFARole))
+	rootAuth, rootProxy := makeTestServers(t,
+		withBootstrap(connector, alice, bob, noAccessRole, sshLoginRole, perSessionMFARole),
+		withConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
+	)
 
 	rootAuthAddr, err := rootAuth.AuthAddr()
 	require.NoError(t, err)
@@ -1346,7 +1344,13 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	leafAuth, leafProxy := makeTestServers(t, withClusterName(t, "leafcluster"), withBootstrap(connector, alice, sshLoginRole, perSessionMFARole))
+	leafAuth, leafProxy := makeTestServers(t,
+		withClusterName(t, "leafcluster"),
+		withBootstrap(connector, alice, sshLoginRole, perSessionMFARole),
+		withConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
+	)
 	tryCreateTrustedCluster(t, leafAuth.GetAuthServer(), trustedCluster)
 
 	leafAuthAddr, err := leafAuth.AuthAddr()
@@ -2434,12 +2438,6 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(isInsecure)
-	})
-
 	requester, err := types.NewRole("requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
@@ -2457,6 +2455,9 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 
 	rootAuth, rootProxy := makeTestServers(t,
 		withBootstrap(requester, connector, alice),
+		withConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
 	)
 
 	rootAuthServer := rootAuth.GetAuthServer()
@@ -2481,7 +2482,12 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	leafAuth, _ := makeTestServers(t, withClusterName(t, "leafcluster"))
+	leafAuth, _ := makeTestServers(t,
+		withClusterName(t, "leafcluster"),
+		withConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
+	)
 	tryCreateTrustedCluster(t, leafAuth.GetAuthServer(), trustedCluster)
 
 	err = Run(ctx, []string{
@@ -5940,13 +5946,6 @@ func TestMakeProfileInfo_NoInternalLogins(t *testing.T) {
 }
 
 func TestBenchmarkPostgres(t *testing.T) {
-	// Set insecure mode to allow db agent to establish reverse tunnel.
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(isInsecure)
-	})
-
 	// Canceling the context right after the test ensures the local proxy
 	// started by the benchmark command is closed and the remaining connections
 	// (if any) are dropped.
@@ -5965,6 +5964,7 @@ func TestBenchmarkPostgres(t *testing.T) {
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.InsecureMode = true
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
 				{
@@ -6451,6 +6451,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			// Enable DB
+			cfg.InsecureMode = true
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
 				{
@@ -6474,6 +6475,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithClusterName("leaf"),
 		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
 			// Enable DB
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
