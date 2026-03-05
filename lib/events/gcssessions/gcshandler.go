@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
+	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/api/option"
@@ -461,9 +462,12 @@ func convertGCSError(err error) error {
 		return nil
 	}
 
+	var ae *apierror.APIError
 	switch {
 	case errors.Is(err, storage.ErrBucketNotExist), errors.Is(err, storage.ErrObjectNotExist):
 		return trace.NotFound("%s", err)
+	case errors.As(err, &ae):
+		return trace.ReadError(ae.HTTPCode(), []byte(ae.Error()))
 	default:
 		return trace.Wrap(err)
 	}
