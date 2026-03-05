@@ -13,6 +13,7 @@
     "**/ironrdp/pkg/**",
     "web/.storybook/public/mockServiceWorker.js",
   ],
+  "sortPackageJson": false,
   "sortImports": {
     "newlinesBetween": true,
     "partitionByComment": true,
