@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -49,8 +50,9 @@ func onBeamsAdd(cf *CLIConf) error {
 
 	tc.AllowHeadless = true
 
+	stopCreating := startBeamSpinner(cf.Stdout(), "creating...")
 	var beamID string
-	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+	createErr := client.RetryWithRelogin(cf.Context, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
@@ -63,11 +65,14 @@ func onBeamsAdd(cf *CLIConf) error {
 		}
 		beamID = beam.GetMetadata().GetName()
 		return nil
-	}); err != nil {
-		return trace.Wrap(err)
+	})
+	if createErr != nil {
+		stopCreating("")
+		return trace.Wrap(createErr)
 	}
-
-	printBeamCreating(cf.Stdout(), beamID)
+	idStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	diamondStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
+	stopCreating(fmt.Sprintf("%s created %s", diamondStyle.Render("◆"), idStyle.Render(beamID)))
 
 	clusterClient, err := tc.ConnectToCluster(cf.Context)
 	if err != nil {
@@ -81,13 +86,14 @@ func onBeamsAdd(cf *CLIConf) error {
 	tc.PredicateExpression = fmt.Sprintf(`labels["teleport.internal/beam/id"]==%q`, beamID)
 	tc.HostLogin = cmp.Or(cf.NodeLogin, "root")
 
-	stop := startBeamConnecting(cf.Stdout())
+	stopConnecting := startBeamSpinner(cf.Stdout(), "connecting...")
 	target, err := waitForBeamNode(cf.Context, tc, clusterClient.AuthClient)
-	stop()
 	if err != nil {
+		stopConnecting("")
 		return trace.Wrap(err)
 	}
-	printBeamReady(cf.Stdout())
+	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
+	stopConnecting(fmt.Sprintf("%s ready", arrowStyle.Render("↳")))
 
 	tc.Stdin = cf.Stdin()
 	sshFunc := func() error {
@@ -127,39 +133,35 @@ func onBeamsAllow(cf *CLIConf) error {
 	return nil
 }
 
-func printBeamCreating(w io.Writer, beamID string) {
-	idStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	diamondStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
-	fmt.Fprintf(w, "%s creating %s\n", diamondStyle.Render("◆"), idStyle.Render(beamID))
-}
-
-func printBeamReady(w io.Writer) {
-	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
-	fmt.Fprintf(w, "%s ready\n", arrowStyle.Render("↳"))
-}
-
-// startBeamConnecting prints an animated braille spinner to w while connecting.
-// Call the returned stop function to end the spinner.
-func startBeamConnecting(w io.Writer) func() {
+// startBeamSpinner prints an animated braille spinner with msg to w.
+// Call the returned stop function with a finalLine to replace the spinner
+// line in-place. Pass an empty string to just clear the line. stop blocks
+// until the goroutine has finished writing.
+func startBeamSpinner(w io.Writer, msg string) func(finalLine string) {
 	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 	spinStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
-	done := make(chan struct{})
+	done := make(chan string)
+	stopped := make(chan struct{})
 	go func() {
+		defer close(stopped)
 		ticker := time.NewTicker(80 * time.Millisecond)
 		defer ticker.Stop()
 		i := 0
 		for {
 			select {
-			case <-done:
-				fmt.Fprintf(w, "\n")
+			case finalLine := <-done:
+				fmt.Fprintf(w, "\r%s\r%s\n", strings.Repeat(" ", 40), finalLine)
 				return
 			case <-ticker.C:
-				fmt.Fprintf(w, "\r%s connecting...", spinStyle.Render(frames[i%len(frames)]))
+				fmt.Fprintf(w, "\r%s %s", spinStyle.Render(frames[i%len(frames)]), msg)
 				i++
 			}
 		}
 	}()
-	return func() { close(done) }
+	return func(finalLine string) {
+		done <- finalLine
+		<-stopped
+	}
 }
 
 func waitForBeamNode(ctx context.Context, tc *client.TeleportClient, authClient authclient.ClientI) (*client.TargetNode, error) {

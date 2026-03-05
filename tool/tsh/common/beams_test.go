@@ -26,11 +26,11 @@ import (
 
 // TODO(greedy52) DELETE ME
 func TestBeamSpinner(t *testing.T) {
-	printBeamCreating(os.Stdout, "beams-abc-123-fake-id")
-
-	stop := startBeamConnecting(os.Stdout)
+	stopCreating := startBeamSpinner(os.Stdout, "creating...")
 	time.Sleep(2 * time.Second)
-	stop()
+	stopCreating("◆ created beams-abc-123-fake-id")
 
-	printBeamReady(os.Stdout)
+	stopConnecting := startBeamSpinner(os.Stdout, "connecting...")
+	time.Sleep(2 * time.Second)
+	stopConnecting("↳ ready")
 }
