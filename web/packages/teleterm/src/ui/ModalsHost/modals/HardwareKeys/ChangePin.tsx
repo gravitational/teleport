@@ -193,7 +193,7 @@ export function ChangePin(props: {
 }
 
 const notDefaultPin =
-  <T = string,>(): Rule<T | T[] | readonly T[]> =>
+  <T = string>(): Rule<T | T[] | readonly T[]> =>
   value =>
   () => {
     const message = 'Default PIN is not allowed';
@@ -205,7 +205,7 @@ const notDefaultPin =
   };
 
 const notDefaultPuk =
-  <T = string,>(): Rule<T | T[] | readonly T[]> =>
+  <T = string>(): Rule<T | T[] | readonly T[]> =>
   value =>
   () => {
     const message = 'Default PUK is not allowed';
@@ -217,7 +217,7 @@ const notDefaultPuk =
   };
 
 const correctLength =
-  <T = string,>(message: string): Rule<T | T[] | readonly T[]> =>
+  <T = string>(message: string): Rule<T | T[] | readonly T[]> =>
   value =>
   () => {
     const valid =

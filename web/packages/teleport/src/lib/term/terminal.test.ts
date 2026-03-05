@@ -17,7 +17,6 @@
  */
 
 import 'jest-canvas-mock';
-
 import TtyTerminal from './terminal';
 import Tty from './tty';
 

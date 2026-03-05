@@ -16,11 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import '@testing-library/jest-dom';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
-
-import '@testing-library/jest-dom';
-
 import { ThemeProvider } from 'styled-components';
 
 import lightTheme from 'design/theme/themes/lightTheme';
