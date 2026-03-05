@@ -2023,11 +2023,12 @@ func TestGetAccessGraphSettings(t *testing.T) {
 
 func TestUpdateAccessGraphSettings(t *testing.T) {
 	cases := []struct {
-		name       string
-		mutator    func(p *clusterconfigpb.AccessGraphSettings)
-		authorizer authz.Authorizer
-		testSetup  func(*testing.T)
-		assertion  func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error)
+		name              string
+		mutator           func(p *clusterconfigpb.AccessGraphSettings)
+		authorizer        authz.Authorizer
+		testSetup         func(*testing.T)
+		accessGraphConfig clusterconfigv1.AccessGraphConfig
+		assertion         func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error)
 	}{
 		{
 			name: "unauthorized",
@@ -2087,6 +2088,7 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 				}
 				modulestest.SetTestModules(t, m)
 			},
+			accessGraphConfig: clusterconfigv1.AccessGraphConfig{Enabled: true},
 			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
 				return &authz.Context{
 					Checker: fakeChecker{
@@ -2120,7 +2122,7 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 				},
 			)
 			require.NoError(t, err)
-			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphSettings(settings))
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphConfig(test.accessGraphConfig), withAccessGraphSettings(settings))
 			require.NoError(t, err, "creating test service")
 
 			// Set revisions to allow the update to succeed.
@@ -2137,11 +2139,12 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 
 func TestUpsertAccessGraphSettings(t *testing.T) {
 	cases := []struct {
-		name       string
-		testSetup  func(*testing.T)
-		mutator    func(p *clusterconfigpb.AccessGraphSettings)
-		authorizer authz.Authorizer
-		assertion  func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error)
+		name              string
+		testSetup         func(*testing.T)
+		mutator           func(p *clusterconfigpb.AccessGraphSettings)
+		authorizer        authz.Authorizer
+		accessGraphConfig clusterconfigv1.AccessGraphConfig
+		assertion         func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error)
 	}{
 		{
 			name: "unauthorized",
@@ -2212,6 +2215,7 @@ func TestUpsertAccessGraphSettings(t *testing.T) {
 				}
 				modulestest.SetTestModules(t, m)
 			},
+			accessGraphConfig: clusterconfigv1.AccessGraphConfig{Enabled: true},
 			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
 				return &authz.Context{
 					Checker: fakeChecker{
@@ -2246,7 +2250,7 @@ func TestUpsertAccessGraphSettings(t *testing.T) {
 
 			require.NoError(t, err)
 
-			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphSettings(settings))
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphConfig(test.accessGraphConfig), withAccessGraphSettings(settings))
 			require.NoError(t, err, "creating test service")
 
 			// Discard revisions to allow the update to succeed.
@@ -2263,10 +2267,11 @@ func TestUpsertAccessGraphSettings(t *testing.T) {
 
 func TestResetAccessGraphSettings(t *testing.T) {
 	cases := []struct {
-		name       string
-		authorizer authz.Authorizer
-		testSetup  func(*testing.T)
-		assertion  func(t *testing.T, reset *clusterconfigpb.AccessGraphSettings, err error)
+		name              string
+		authorizer        authz.Authorizer
+		testSetup         func(*testing.T)
+		accessGraphConfig clusterconfigv1.AccessGraphConfig
+		assertion         func(t *testing.T, reset *clusterconfigpb.AccessGraphSettings, err error)
 	}{
 		{
 			name: "unauthorized",
@@ -2306,6 +2311,7 @@ func TestResetAccessGraphSettings(t *testing.T) {
 				}
 				modulestest.SetTestModules(t, m)
 			},
+			accessGraphConfig: clusterconfigv1.AccessGraphConfig{Enabled: true},
 			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
 				return &authz.Context{
 					Checker: fakeChecker{
@@ -2337,7 +2343,7 @@ func TestResetAccessGraphSettings(t *testing.T) {
 
 			require.NoError(t, err)
 
-			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphSettings(settings))
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphConfig(test.accessGraphConfig), withAccessGraphSettings(settings))
 			require.NoError(t, err, "creating test service")
 
 			reset, err := env.ResetAccessGraphSettings(context.Background(), &clusterconfigpb.ResetAccessGraphSettingsRequest{})
