@@ -19,6 +19,7 @@
 package common
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -78,8 +79,7 @@ func onBeamsAdd(cf *CLIConf) error {
 	tc.Labels = nil
 	tc.SearchKeywords = nil
 	tc.PredicateExpression = fmt.Sprintf(`labels["teleport.internal/beam/id"]==%q`, beamID)
-	//tc.HostLogin = "root"
-	tc.HostLogin = "beams"
+	tc.HostLogin = cmp.Or(cf.NodeLogin, "root")
 
 	stop := startBeamConnecting(cf.Stdout())
 	target, err := waitForBeamNode(cf.Context, tc, clusterClient.AuthClient)
