@@ -302,9 +302,10 @@ relaxing this restriction with additional controls.
 
 wip wip wip.
 
-The following additional validation will be enforced:
+When the Bot is scoped, the following additional validation will be enforced:
 
-- The `scope.roles` field must not be set.
+- The `spec.roles` field must not be set.
+- The `spec.traits` field must not be set.
 
 #### UX Changes
 
