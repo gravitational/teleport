@@ -127,7 +127,6 @@ func TestFeatures_ToProto(t *testing.T) {
 		ProductType:                1,
 		SupportType:                1,
 		AccessControls:             true,
-		AccessGraph:                true,
 		AdvancedAccessWorkflows:    true,
 		AutomaticUpgrades:          true,
 		Cloud:                      true,
@@ -172,6 +171,7 @@ func TestFeatures_ToProto(t *testing.T) {
 		Policy: &proto.PolicyFeature{
 			Enabled: true,
 		},
+		AccessGraph:          true,
 		AccessGraphDemoMode:  true,
 		ClientIPRestrictions: true,
 	}

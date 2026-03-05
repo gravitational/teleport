@@ -2367,7 +2367,8 @@ type Features struct {
 	// NOTE: this is a legacy flag that is currently used to signal
 	// that Access Graph integration is *enabled* on a cluster.
 	// *Access* to the feature is gated on the `Policy` entitlement.
-	// TODO(justinas): remove this field once "TAG enabled" status is moved to a resource in the backend.
+	// TODO(emargetis) DELETE IN v21.0.0
+	// Deprecated, use entitlements
 	AccessGraph bool `protobuf:"varint,24,opt,name=AccessGraph,proto3" json:"access_graph,omitempty"`
 	// ProductType describes the product being used.
 	ProductType ProductType `protobuf:"varint,27,opt,name=ProductType,proto3,enum=proto.ProductType" json:"product_type,omitempty"`

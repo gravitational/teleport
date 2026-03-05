@@ -76,12 +76,6 @@ type Features struct {
 	Plugins bool
 	// AutomaticUpgrades enables automatic upgrades of agents/services.
 	AutomaticUpgrades bool
-	// AccessGraph enables the usage of access graph.
-	// NOTE: this is a legacy flag that is currently used to signal
-	// that Access Graph integration is *enabled* on a cluster.
-	// *Access* to the feature is gated on the `Policy` flag.
-	// TODO(justinas): remove this field once "TAG enabled" status is moved to a resource in the backend.
-	AccessGraph bool
 	// AccessMonitoringConfigured contributes to the enablement of access monitoring.
 	// NOTE: this flag is used to signal that Access Monitoring is *enabled* on a cluster.
 	// *Access* to the feature is gated on the `AccessMonitoring` entitlement.
@@ -90,6 +84,13 @@ type Features struct {
 	// AccessControls enables FIPS access controls
 	// Deprecated
 	AccessControls bool
+	// AccessGraph enables the usage of access graph.
+	// NOTE: this is a legacy flag that is currently used to signal
+	// that Access Graph integration is *enabled* on a cluster.
+	// *Access* to the feature is gated on the `Policy` entitlement.
+	// TODO(emargetis) DELETE IN v21.0.0
+	// Deprecated
+	AccessGraph bool
 	// Assist enables Assistant feature
 	// Deprecated
 	Assist bool
@@ -125,7 +126,6 @@ func (f Features) ToProto() *proto.Features {
 		Questionnaire:              f.Questionnaire,
 		SupportType:                f.SupportType,
 		AccessControls:             f.AccessControls,
-		AccessGraph:                f.AccessGraph,
 		AdvancedAccessWorkflows:    f.AdvancedAccessWorkflows,
 		AutomaticUpgrades:          f.AutomaticUpgrades,
 		Plugins:                    f.Plugins,
@@ -139,6 +139,7 @@ func (f Features) ToProto() *proto.Features {
 		Policy: &proto.PolicyFeature{
 			Enabled: f.GetEntitlement(entitlements.Policy).Enabled,
 		},
+		AccessGraph:          f.AccessGraph,
 		AccessGraphDemoMode:  f.GetEntitlement(entitlements.AccessGraphDemoMode).Enabled,
 		ClientIPRestrictions: f.GetEntitlement(entitlements.ClientIPRestrictions).Enabled,
 	}
