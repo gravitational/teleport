@@ -85,11 +85,6 @@ const (
 )
 
 var (
-	// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
-	// complete the challenge with.
-	ErrNoMFADevices = &trace.AccessDeniedError{
-		Message: "Multi-factor authentication (MFA) is required to access this resource but the current user has no supported MFA devices enrolled; see Account Settings in the Web UI or use 'tsh mfa add' to register an MFA device",
-	}
 	// InvalidUserPassError is the error for when either the provided username or
 	// password is incorrect.
 	InvalidUserPassError = &trace.AccessDeniedError{Message: "invalid username or password"}

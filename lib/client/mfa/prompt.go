@@ -42,6 +42,21 @@ type WebauthnLoginFunc func(
 	opts *wancli.LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error)
 
+// WebauthnRegisterFunc is a function that performs WebAuthn registration.
+// Mimics the signature of [wancli.Register].
+type WebauthnRegisterFunc func(
+	ctx context.Context,
+	origin string,
+	cc *wantypes.CredentialCreation,
+	prompt wancli.RegisterPrompt,
+) (*proto.MFARegisterResponse, error)
+
+// TouchIDRegisterFunc is a function that performs Touch ID registration.
+type TouchIDRegisterFunc func(
+	origin string,
+	cc *wantypes.CredentialCreation,
+) (*proto.MFARegisterResponse, mfa.RegistrationCallbacks, error)
+
 // PromptConfig contains common mfa prompt config options shared by
 // different implementations of [mfa.Prompt].
 type PromptConfig struct {
@@ -50,6 +65,10 @@ type PromptConfig struct {
 	ProxyAddress string
 	// WebauthnLoginFunc performs client-side Webauthn login.
 	WebauthnLoginFunc WebauthnLoginFunc
+	// WebauthnRegisterFunc performs client-side Webauthn device registration.
+	WebauthnRegisterFunc WebauthnRegisterFunc
+	// TouchIDRegisterFunc performs client-side Touch ID device registration.
+	TouchIDRegisterFunc TouchIDRegisterFunc
 	// AuthenticatorAttachment specifies the desired authenticator attachment.
 	AuthenticatorAttachment wancli.AuthenticatorAttachment
 	// WebauthnSupported indicates whether Webauthn is supported.
@@ -59,9 +78,10 @@ type PromptConfig struct {
 // NewPromptConfig returns a prompt config that will induce default behavior.
 func NewPromptConfig(proxyAddr string, opts ...mfa.PromptOpt) *PromptConfig {
 	cfg := &PromptConfig{
-		ProxyAddress:      proxyAddr,
-		WebauthnLoginFunc: wancli.Login,
-		WebauthnSupported: wancli.HasPlatformSupport(),
+		ProxyAddress:         proxyAddr,
+		WebauthnLoginFunc:    wancli.Login,
+		WebauthnRegisterFunc: wancli.Register,
+		WebauthnSupported:    wancli.HasPlatformSupport(),
 	}
 
 	for _, opt := range opts {
