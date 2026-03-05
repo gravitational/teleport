@@ -1,0 +1,14 @@
+AWS configuration updated at: /home/user/.aws/config
+
+Profile                    Account Account ID   Role   SSO Session      
+-------------------------- ------- ------------ ------ ---------------- 
+teleport-awsic-dev-admin   dev     123456789012 Admin  teleport-d-12345 
+teleport-awsic-prod-reader prod    098765432109 Reader teleport-d-12345 
+
+To use these profiles, set the AWS_PROFILE environment variable and authenticate with AWS. Example:
+  export AWS_PROFILE=teleport-awsic-dev-admin
+  aws sso login
+
+You can now run AWS commands. Example:
+  aws s3 ls
+
