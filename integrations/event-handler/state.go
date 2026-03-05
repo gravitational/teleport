@@ -113,7 +113,7 @@ func NewState(c *StartCmdConfig, log *slog.Logger) (*State, error) {
 	return &s, nil
 }
 
-// createStorageDir is used to calculate storage dir path and create dir if it does not exits
+// createStorageDir is used to calculate storage dir path and create dir if it does not exist
 func createStorageDir(c *StartCmdConfig, log *slog.Logger) (string, error) {
 	host, port, err := net.SplitHostPort(c.TeleportAddr)
 	if err != nil {
@@ -306,9 +306,10 @@ func (s *State) GetSessions() (map[string]int64, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		// Assume 0 if empty/unset
-		if len(b) == 0 {
+		// Assume 0 if byte count is incorrect
+		if len(b) != 8 {
 			b = make([]byte, 8)
+			binary.BigEndian.PutUint64(b, uint64(0))
 		}
 
 		id := key[len(sessionPrefix):]
@@ -322,7 +323,7 @@ func (s *State) GetSessions() (map[string]int64, error) {
 func (s *State) SetSessionIndex(id string, index int64) error {
 	// refuse to set empty session ID
 	if id == "" {
-		return trace.Wrap(errors.New("session ID cannot be empty"))
+		return trace.BadParameter("session ID cannot be empty")
 	}
 
 	var b = make([]byte, 8)
