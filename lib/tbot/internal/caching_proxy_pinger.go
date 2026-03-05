@@ -22,6 +22,7 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -100,11 +101,23 @@ func (c *CachingProxyPinger) Ping(ctx context.Context) (*connection.ProxyPong, e
 		return nil, trace.BadParameter("unsupported address kind: %v", c.connCfg.AddressKind)
 	}
 
+	var clientTime time.Time
+	var serverTime time.Time
+
 	c.logger.DebugContext(ctx, "Pinging proxy", "addr", addr)
 	res, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: addr,
 		Insecure:  c.connCfg.Insecure,
+		ServerTimestampCallback: func(t time.Time, err error) {
+			clientTime = time.Now()
+
+			if err != nil {
+				c.logger.DebugContext(ctx, "Could not extract server time to estimate clock drift", "error", err)
+			} else {
+				serverTime = t
+			}
+		},
 	})
 	if err != nil {
 		c.logger.ErrorContext(ctx, "Failed to ping proxy", "error", err)
@@ -112,7 +125,22 @@ func (c *CachingProxyPinger) Ping(ctx context.Context) (*connection.ProxyPong, e
 	}
 	c.logger.DebugContext(ctx, "Successfully pinged proxy", "pong", res)
 
-	c.cachedValue = &connection.ProxyPong{PingResponse: res}
+	c.cachedValue = &connection.ProxyPong{
+		PingResponse: res,
+		ClientTime:   clientTime,
+		ServerTime:   serverTime,
+	}
+
+	if delta, ok := c.cachedValue.ClockDriftEstimate(); ok {
+		c.logger.DebugContext(ctx, "Clock drift estimate",
+			"client_time", clientTime,
+			"server_time", serverTime,
+			"delta", delta,
+		)
+	} else {
+		c.logger.DebugContext(ctx, "No clock drift estimate available")
+	}
+
 	if c.connCfg.AddressKind == connection.AddressKindProxy && c.connCfg.StaticProxyAddress {
 		c.cachedValue.StaticProxyAddress = addr
 	}
