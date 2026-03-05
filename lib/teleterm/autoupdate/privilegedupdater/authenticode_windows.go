@@ -24,6 +24,7 @@ package privilegedupdater
 import (
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"os"
 	"slices"
 	"syscall"
@@ -76,7 +77,7 @@ func verifySignature(updatePath string) error {
 	}
 
 	if !compareSubjectProperties(serviceCert, updateCert) {
-		return trace.BadParameter("signature verification failed: update and service subjects do not match")
+		return trace.BadParameter("signature verification failed: update and service subjects do not match (service: %s, update: %s)", logCert(serviceCert), logCert(updateCert))
 	}
 
 	return nil
@@ -190,6 +191,15 @@ func compareSubjectProperties(cert1, cert2 *x509.Certificate) bool {
 		slices.Equal(s1.Locality, s2.Locality) &&
 		slices.Equal(s1.Province, s2.Province) &&
 		slices.Equal(s1.Country, s2.Country)
+}
+
+func logCert(cert *x509.Certificate) string {
+	if cert == nil {
+		return "<nil>"
+	}
+
+	s := cert.Subject
+	return fmt.Sprintf("CN=%q, O=%v, L=%v, ST=%v, C=%v", s.CommonName, s.Organization, s.Locality, s.Province, s.Country)
 }
 
 func getCertInfoBlob(handle windows.Handle) ([]byte, error) {
