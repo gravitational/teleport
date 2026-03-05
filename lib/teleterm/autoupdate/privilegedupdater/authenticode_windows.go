@@ -23,10 +23,7 @@ package privilegedupdater
 
 import (
 	"crypto/x509"
-	"errors"
-	"os"
 	"slices"
-	"syscall"
 	"unsafe"
 
 	"github.com/gravitational/trace"
@@ -41,41 +38,41 @@ const (
 
 // verifySignature checks if the update is signed by the same entity as the running service.
 func verifySignature(updatePath string) error {
-	servicePath, err := os.Executable()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	servicePathPtr, err := windows.UTF16PtrFromString(servicePath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	//servicePath, err := os.Executable()
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+	//servicePathPtr, err := windows.UTF16PtrFromString(servicePath)
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
 
-	if err = verifyTrust(servicePathPtr); err != nil {
-		if errors.Is(err, syscall.Errno(windows.TRUST_E_NOSIGNATURE)) {
-			log.Warn("service is not signed, skipping signature verification")
-			return nil
-		}
-		return trace.Wrap(err)
-	}
+	//if err = verifyTrust(servicePathPtr); err != nil {
+	//	if errors.Is(err, syscall.Errno(windows.TRUST_E_NOSIGNATURE)) {
+	//		log.Warn("service is not signed, skipping signature verification")
+	//		return nil
+	//	}
+	//	return trace.Wrap(err)
+	//}
 
-	serviceCert, err := getCert(servicePathPtr)
-	if err != nil {
-		return trace.Wrap(err, "getting service certificate")
-	}
-
+	//serviceCert, err := getCert(servicePathPtr)
+	//if err != nil {
+	//	return trace.Wrap(err, "getting service certificate")
+	//}
+	//
 	updatePathPtr, err := windows.UTF16PtrFromString(updatePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = verifyTrust(updatePathPtr); err != nil {
-		return trace.Wrap(err, "verifying update signature")
-	}
+	//if err = verifyTrust(updatePathPtr); err != nil {
+	//	return trace.Wrap(err, "verifying update signature")
+	//}
 	updateCert, err := getCert(updatePathPtr)
 	if err != nil {
 		return trace.Wrap(err, "getting update certificate")
 	}
 
-	if !compareSubjectProperties(serviceCert, updateCert) {
+	if !compareSubjectProperties(nil, updateCert) {
 		return trace.BadParameter("signature verification failed: update and service subjects do not match")
 	}
 
@@ -178,6 +175,7 @@ func getCert(path *uint16) (*x509.Certificate, error) {
 //   - Tailscale verifies only the CN:
 //     https://github.com/tailscale/tailscale/blob/3ec5be3f510f74738179c1023468343a62a7e00f/clientupdate/clientupdate_windows.go#L70-L74
 func compareSubjectProperties(cert1, cert2 *x509.Certificate) bool {
+	log.Info("update cert", cert2.Subject.Organization, cert2.Subject.Locality, cert2.Subject.Province, cert2.Subject.Country)
 	if cert1 == nil || cert2 == nil {
 		return false
 	}
