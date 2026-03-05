@@ -63,7 +63,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		// lib/auth/auth_with_roles.go, the API allows creating
 		// saml_idp_service_provider objects using tctl for any build. We
 		// therefore enable it here unconditionally to mirror tctl behavior.
-		{"TeleportSAMLIdPServiceProvider", NewSAMLIdPServiceProviderReconciler},
+		{"TeleportSAMLIdPServiceProviderV1", NewSAMLIdPServiceProviderV1Reconciler},
 	}
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)

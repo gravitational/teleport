@@ -1,23 +1,23 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: teleportsamlidpserviceproviders.resources.teleport.dev
+  name: teleportsamlidpserviceprovidersv1.resources.teleport.dev
 spec:
   group: resources.teleport.dev
   names:
-    kind: TeleportSAMLIdPServiceProvider
-    listKind: TeleportSAMLIdPServiceProviderList
-    plural: teleportsamlidpserviceproviders
+    kind: TeleportSAMLIdPServiceProviderV1
+    listKind: TeleportSAMLIdPServiceProviderV1List
+    plural: teleportsamlidpserviceprovidersv1
     shortNames:
-    - samlidpserviceprovider
-    - samlidpserviceproviders
-    singular: teleportsamlidpserviceprovider
+    - samlidpserviceproviderv1
+    - samlidpserviceprovidersv1
+    singular: teleportsamlidpserviceproviderv1
   scope: Namespaced
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: SAMLIdPServiceProvider is the Schema for the samlidpserviceproviders
+        description: SAMLIdPServiceProviderV1 is the Schema for the samlidpserviceprovidersv1
           API
         properties:
           apiVersion:
