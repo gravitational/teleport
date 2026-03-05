@@ -209,9 +209,6 @@ const (
 	AuthService_GetSessionRecordingConfig_FullMethodName           = "/proto.AuthService/GetSessionRecordingConfig"
 	AuthService_SetSessionRecordingConfig_FullMethodName           = "/proto.AuthService/SetSessionRecordingConfig"
 	AuthService_ResetSessionRecordingConfig_FullMethodName         = "/proto.AuthService/ResetSessionRecordingConfig"
-	AuthService_GetAuthPreference_FullMethodName                   = "/proto.AuthService/GetAuthPreference"
-	AuthService_SetAuthPreference_FullMethodName                   = "/proto.AuthService/SetAuthPreference"
-	AuthService_ResetAuthPreference_FullMethodName                 = "/proto.AuthService/ResetAuthPreference"
 	AuthService_GetUIConfig_FullMethodName                         = "/proto.AuthService/GetUIConfig"
 	AuthService_SetUIConfig_FullMethodName                         = "/proto.AuthService/SetUIConfig"
 	AuthService_DeleteUIConfig_FullMethodName                      = "/proto.AuthService/DeleteUIConfig"
@@ -794,18 +791,6 @@ type AuthServiceClient interface {
 	// ResetSessionRecordingConfig resets session recording configuration to defaults.
 	// Deprecated: Use clusterconfigv1.Service.ResetSessionRecordingConfig instead.
 	ResetSessionRecordingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
-	// GetAuthPreference gets cluster auth preference.
-	// Deprecated: Use clusterconfigv1.Service.GetAuthPreference instead.
-	GetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error)
-	// Deprecated: Do not use.
-	// SetAuthPreference sets cluster auth preference.
-	// Deprecated: Use clusterconfigv1.Service.Create/Update/UpsertAuthPreference instead.
-	SetAuthPreference(ctx context.Context, in *types.AuthPreferenceV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
-	// ResetAuthPreference resets cluster auth preference to defaults.
-	// Deprecated: Use clusterconfigv1.Service.ResetAuthPreference instead.
-	ResetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetUIConfig gets the configuration for the UI served by the proxy service
 	GetUIConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.UIConfigV1, error)
 	// SetUIConfig sets the configuration for the UI served by the proxy service
@@ -2949,39 +2934,6 @@ func (c *authServiceClient) ResetSessionRecordingConfig(ctx context.Context, in 
 	return out, nil
 }
 
-// Deprecated: Do not use.
-func (c *authServiceClient) GetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(types.AuthPreferenceV2)
-	err := c.cc.Invoke(ctx, AuthService_GetAuthPreference_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// Deprecated: Do not use.
-func (c *authServiceClient) SetAuthPreference(ctx context.Context, in *types.AuthPreferenceV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, AuthService_SetAuthPreference_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// Deprecated: Do not use.
-func (c *authServiceClient) ResetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, AuthService_ResetAuthPreference_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *authServiceClient) GetUIConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.UIConfigV1, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.UIConfigV1)
@@ -4476,18 +4428,6 @@ type AuthServiceServer interface {
 	// ResetSessionRecordingConfig resets session recording configuration to defaults.
 	// Deprecated: Use clusterconfigv1.Service.ResetSessionRecordingConfig instead.
 	ResetSessionRecordingConfig(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
-	// GetAuthPreference gets cluster auth preference.
-	// Deprecated: Use clusterconfigv1.Service.GetAuthPreference instead.
-	GetAuthPreference(context.Context, *emptypb.Empty) (*types.AuthPreferenceV2, error)
-	// Deprecated: Do not use.
-	// SetAuthPreference sets cluster auth preference.
-	// Deprecated: Use clusterconfigv1.Service.Create/Update/UpsertAuthPreference instead.
-	SetAuthPreference(context.Context, *types.AuthPreferenceV2) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
-	// ResetAuthPreference resets cluster auth preference to defaults.
-	// Deprecated: Use clusterconfigv1.Service.ResetAuthPreference instead.
-	ResetAuthPreference(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetUIConfig gets the configuration for the UI served by the proxy service
 	GetUIConfig(context.Context, *emptypb.Empty) (*types.UIConfigV1, error)
 	// SetUIConfig sets the configuration for the UI served by the proxy service
@@ -5282,15 +5222,6 @@ func (UnimplementedAuthServiceServer) SetSessionRecordingConfig(context.Context,
 }
 func (UnimplementedAuthServiceServer) ResetSessionRecordingConfig(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResetSessionRecordingConfig not implemented")
-}
-func (UnimplementedAuthServiceServer) GetAuthPreference(context.Context, *emptypb.Empty) (*types.AuthPreferenceV2, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAuthPreference not implemented")
-}
-func (UnimplementedAuthServiceServer) SetAuthPreference(context.Context, *types.AuthPreferenceV2) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SetAuthPreference not implemented")
-}
-func (UnimplementedAuthServiceServer) ResetAuthPreference(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ResetAuthPreference not implemented")
 }
 func (UnimplementedAuthServiceServer) GetUIConfig(context.Context, *emptypb.Empty) (*types.UIConfigV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUIConfig not implemented")
@@ -8583,60 +8514,6 @@ func _AuthService_ResetSessionRecordingConfig_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AuthService_GetAuthPreference_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).GetAuthPreference(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AuthService_GetAuthPreference_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetAuthPreference(ctx, req.(*emptypb.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AuthService_SetAuthPreference_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(types.AuthPreferenceV2)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).SetAuthPreference(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AuthService_SetAuthPreference_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).SetAuthPreference(ctx, req.(*types.AuthPreferenceV2))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AuthService_ResetAuthPreference_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).ResetAuthPreference(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AuthService_ResetAuthPreference_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).ResetAuthPreference(ctx, req.(*emptypb.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _AuthService_GetUIConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
@@ -11039,18 +10916,6 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResetSessionRecordingConfig",
 			Handler:    _AuthService_ResetSessionRecordingConfig_Handler,
-		},
-		{
-			MethodName: "GetAuthPreference",
-			Handler:    _AuthService_GetAuthPreference_Handler,
-		},
-		{
-			MethodName: "SetAuthPreference",
-			Handler:    _AuthService_SetAuthPreference_Handler,
-		},
-		{
-			MethodName: "ResetAuthPreference",
-			Handler:    _AuthService_ResetAuthPreference_Handler,
 		},
 		{
 			MethodName: "GetUIConfig",
