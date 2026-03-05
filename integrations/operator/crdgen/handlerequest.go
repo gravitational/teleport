@@ -180,6 +180,7 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 		{name: "AppV3", opts: []resourceSchemaOption{withVersionOverride(types.V3), withVersionInKindOverride()}},
 		{name: "DatabaseV3", opts: []resourceSchemaOption{withVersionOverride(types.V3), withVersionInKindOverride()}},
 		{name: "SAMLConnectorV2"},
+		{name: "SAMLIdPServiceProviderV1"},
 		{name: "OIDCConnectorV3"},
 		{name: "GithubConnectorV3"},
 		{
