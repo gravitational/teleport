@@ -105,31 +105,27 @@ func List(ctx context.Context, cluster *clusters.Cluster, proxyClient ProxyClust
 			})
 		case types.DatabaseServer:
 			db := r.GetDatabase()
-			autoUsersEnabled, err := cluster.IsDatabaseUserAutoProvisioningEnabled(accessChecker, db)
+			autoUser, err := accessChecker.DatabaseAutoUserMode(db)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			autoUsersEnabled := db.IsAutoUsersEnabled() && autoUser.IsEnabled()
 			databaseRoles, err := accessChecker.CheckDatabaseRoles(db, nil)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			var autoUserDbUsername string
+			var autoUserProvisioning *clusters.AutoUserProvisioning
 			if autoUsersEnabled {
-				username := cluster.GetLoggedInUser().Name
-				if cluster.URI.IsLeaf() {
-					autoUserDbUsername = "remote-" + username + "-" + proxyClient.RootClusterName()
-				} else {
-					autoUserDbUsername = username
+				autoUserProvisioning = &clusters.AutoUserProvisioning{
+					DatabaseRoles: databaseRoles,
 				}
 			}
 			response.Resources = append(response.Resources, UnifiedResource{
 				Database: &clusters.Database{
-					URI:                cluster.URI.AppendDB(db.GetName()),
-					Database:           db,
-					TargetHealth:       r.GetTargetHealth(),
-					AutoUsersEnabled:   autoUsersEnabled,
-					DatabaseRoles:      databaseRoles,
-					AutoUserDbUsername: autoUserDbUsername,
+					URI:                  cluster.URI.AppendDB(db.GetName()),
+					Database:             db,
+					TargetHealth:         r.GetTargetHealth(),
+					AutoUserProvisioning: autoUserProvisioning,
 				},
 				RequiresRequest: requiresRequest,
 			})

@@ -223,19 +223,23 @@ export function mapToAction(
         return {
           type: 'simple-action',
           searchResult: result,
-          perform: () =>
-            connectToDatabase(
+          perform: async () => {
+            const dbUsers = await retryWithRelogin(ctx, uri, () =>
+              ctx.resourcesService.getDbUsers(uri)
+            );
+            return connectToDatabase(
               ctx,
               {
                 uri,
                 name,
                 protocol,
                 gcpProjectId,
-                dbUser: autoUserProvisioning.username,
+                dbUser: dbUsers[0],
                 autoUserProvisioning,
               },
               { origin: 'search_bar' }
-            ),
+            );
+          },
         };
       }
 

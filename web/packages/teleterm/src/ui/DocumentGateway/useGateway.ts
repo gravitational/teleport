@@ -31,6 +31,7 @@ import {
   getDocumentGatewayTitle,
 } from 'teleterm/ui/services/workspacesService';
 import { isAppUri, isDatabaseUri, routing } from 'teleterm/ui/uri';
+import * as uri from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function useGateway(doc: DocumentGateway) {
@@ -69,7 +70,7 @@ export function useGateway(doc: DocumentGateway) {
                   args.targetSubresourceName || doc.targetSubresourceName,
               }),
               isDatabaseUri(doc.targetUri)
-                ? findDatabase(resourcesService, doc)
+                ? findDatabase(resourcesService, doc.targetUri)
                 : Promise.resolve(undefined),
             ])
           );
@@ -212,13 +213,13 @@ export function useGateway(doc: DocumentGateway) {
 
 async function findDatabase(
   resourcesService: ResourcesService,
-  doc: DocumentGateway
+  targetUri: uri.DatabaseUri
 ): Promise<Database | undefined> {
-  const parsed = routing.parseDbUri(doc.targetUri);
+  const parsed = routing.parseDbUri(targetUri);
   if (!parsed) {
     return undefined;
   }
-  const clusterUri = routing.ensureClusterUri(doc.targetUri);
+  const clusterUri = routing.ensureClusterUri(targetUri);
   const { resources } = await resourcesService.listUnifiedResources({
     clusterUri,
     kinds: ['db'],
@@ -231,9 +232,12 @@ async function findDatabase(
     pinnedOnly: false,
     includeRequestable: false,
   });
+  if (resources.length !== 1) {
+    return undefined;
+  }
   const res = resources.at(0);
   if (res.kind !== 'database') {
-    throw new Error('Expected database resource');
+    throw new Error(`Expected database resource, got ${res.kind}`);
   }
   return res.resource;
 }

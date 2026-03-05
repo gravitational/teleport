@@ -78,10 +78,9 @@ func newAPIDatabase(db clusters.Database) *api.Database {
 	gcpProjectID, _ := db.GetGCPProjectID()
 
 	var autoUserProvisioning *api.AutoUserProvisioning
-	if db.AutoUsersEnabled {
+	if db.AutoUserProvisioning != nil {
 		autoUserProvisioning = &api.AutoUserProvisioning{
-			DatabaseRoles: db.DatabaseRoles,
-			Username:      db.AutoUserDbUsername,
+			DatabaseRoles: db.AutoUserProvisioning.DatabaseRoles,
 		}
 	}
 

@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
@@ -40,26 +41,36 @@ func TestNewAPIDatabase_Fields(t *testing.T) {
 		}, types.DatabaseSpecV3{
 			Protocol: "postgres",
 			URI:      "localhost:5432",
+			AdminUser: &types.DatabaseAdminUser{
+				Name: "admin",
+			},
 		})
 		require.NoError(t, err)
 
 		testDatabase := clusters.Database{
-			URI:                uri.NewClusterURI("test-cluster").AppendDB("test-db"),
-			Database:           db,
-			AutoUsersEnabled:   true,
-			DatabaseRoles:      []string{"reader", "writer"},
-			AutoUserDbUsername: "alice",
+			URI:      uri.NewClusterURI("test-cluster").AppendDB("test-db"),
+			Database: db,
+			AutoUserProvisioning: &clusters.AutoUserProvisioning{
+				DatabaseRoles: []string{"reader", "writer"},
+			},
 		}
 
 		apiDB := newAPIDatabase(testDatabase)
 
-		require.Equal(t, "/clusters/test-cluster/dbs/test-db", apiDB.Uri)
-		require.Equal(t, "test-db", apiDB.Name)
-		require.Equal(t, "Test database", apiDB.Desc)
-		require.Equal(t, "postgres", apiDB.Protocol)
-		require.NotNil(t, apiDB.AutoUserProvisioning)
-		require.Equal(t, []string{"reader", "writer"}, apiDB.AutoUserProvisioning.DatabaseRoles)
-		require.Equal(t, "alice", apiDB.AutoUserProvisioning.Username)
-		require.NotNil(t, apiDB.Labels)
+		require.Equal(t, &api.Database{
+			Uri:      "/clusters/test-cluster/dbs/test-db",
+			Name:     "test-db",
+			Desc:     "Test database",
+			Protocol: "postgres",
+			Type:     "self-hosted",
+			Labels: []*api.Label{
+				{Name: "env", Value: "test"},
+				{Name: "tier", Value: "backend"},
+			},
+			TargetHealth: &api.TargetHealth{},
+			AutoUserProvisioning: &api.AutoUserProvisioning{
+				DatabaseRoles: []string{"reader", "writer"},
+			},
+		}, apiDB)
 	})
 }

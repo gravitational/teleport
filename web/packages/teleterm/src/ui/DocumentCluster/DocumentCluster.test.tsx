@@ -169,7 +169,7 @@ it('displays a simple Connect button for databases with auto-user provisioning e
 
   const database = makeDatabase({
     name: 'auto-user-db',
-    autoUserProvisioning: { databaseRoles: [], username: 'alice' },
+    autoUserProvisioning: { databaseRoles: [] },
   });
 
   const responseWithDatabase = {

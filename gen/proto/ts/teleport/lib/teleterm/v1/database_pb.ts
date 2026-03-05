@@ -117,13 +117,6 @@ export interface AutoUserProvisioning {
      * @generated from protobuf field: repeated string database_roles = 2;
      */
     databaseRoles: string[];
-    /**
-     * username is the pre-computed database username to use.
-     * For leaf clusters it includes the "remote-" prefix and root cluster name.
-     *
-     * @generated from protobuf field: string username = 3;
-     */
-    username: string;
 }
 /**
  * DatabaseServer (db_server) describes a database heartbeat signal
@@ -279,14 +272,12 @@ export const Database = new Database$Type();
 class AutoUserProvisioning$Type extends MessageType<AutoUserProvisioning> {
     constructor() {
         super("teleport.lib.teleterm.v1.AutoUserProvisioning", [
-            { no: 2, name: "database_roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "username", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "database_roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AutoUserProvisioning>): AutoUserProvisioning {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.databaseRoles = [];
-        message.username = "";
         if (value !== undefined)
             reflectionMergePartial<AutoUserProvisioning>(this, message, value);
         return message;
@@ -298,9 +289,6 @@ class AutoUserProvisioning$Type extends MessageType<AutoUserProvisioning> {
             switch (fieldNo) {
                 case /* repeated string database_roles */ 2:
                     message.databaseRoles.push(reader.string());
-                    break;
-                case /* string username */ 3:
-                    message.username = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -317,9 +305,6 @@ class AutoUserProvisioning$Type extends MessageType<AutoUserProvisioning> {
         /* repeated string database_roles = 2; */
         for (let i = 0; i < message.databaseRoles.length; i++)
             writer.tag(2, WireType.LengthDelimited).string(message.databaseRoles[i]);
-        /* string username = 3; */
-        if (message.username !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.username);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

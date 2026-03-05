@@ -95,7 +95,7 @@ test('displays read-only user field when auto-user provisioning is enabled', asy
     origin: 'resource_table',
     title: '',
     status: '',
-    autoUserProvisioning: { databaseRoles: [], username: 'auto-user-alice' },
+    autoUserProvisioning: { databaseRoles: [] },
   };
   appContext.addRootClusterWithDoc(cluster, doc);
   appContext.clustersService.setState(draftState => {
@@ -132,7 +132,7 @@ test('displays database roles in collapsible advanced section', async () => {
     origin: 'resource_table',
     title: '',
     status: '',
-    autoUserProvisioning: { databaseRoles: ['reader', 'writer'], username: '' },
+    autoUserProvisioning: { databaseRoles: ['reader', 'writer'] },
   };
   appContext.addRootClusterWithDoc(cluster, doc);
   appContext.clustersService.setState(draftState => {

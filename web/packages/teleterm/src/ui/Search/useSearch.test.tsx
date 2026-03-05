@@ -581,7 +581,6 @@ describe('mapToAction for database results', () => {
       resource: makeDatabase({
         autoUserProvisioning: {
           databaseRoles: ['reader'],
-          username: 'alice',
         },
       }),
     });

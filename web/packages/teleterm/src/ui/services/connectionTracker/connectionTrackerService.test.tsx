@@ -207,7 +207,7 @@ test('connection tracker syncs autoUserProvisioning when gateway document is upd
 
   const database = makeDatabase({
     protocol: 'postgres',
-    autoUserProvisioning: { databaseRoles: [], username: 'alice' },
+    autoUserProvisioning: { databaseRoles: [] },
   });
 
   jest.spyOn(ctx.tshd, 'createGateway').mockImplementation(async () => {
@@ -229,7 +229,6 @@ test('connection tracker syncs autoUserProvisioning when gateway document is upd
     origin: 'resource_table',
     autoUserProvisioning: {
       databaseRoles: ['reader', 'writer'],
-      username: 'alice',
     },
   });
 
@@ -268,7 +267,6 @@ test('connection tracker syncs autoUserProvisioning when gateway document is upd
       if (document && document.kind === 'doc.gateway') {
         document.autoUserProvisioning = {
           databaseRoles: ['admin'],
-          username: 'alice',
         };
       }
     });

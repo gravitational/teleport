@@ -179,9 +179,6 @@ type AutoUserProvisioning struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// database_roles is a list of database roles that will be assigned to the auto-provisioned database user.
 	DatabaseRoles []string `protobuf:"bytes,2,rep,name=database_roles,json=databaseRoles,proto3" json:"database_roles,omitempty"`
-	// username is the pre-computed database username to use.
-	// For leaf clusters it includes the "remote-" prefix and root cluster name.
-	Username      string `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -221,13 +218,6 @@ func (x *AutoUserProvisioning) GetDatabaseRoles() []string {
 		return x.DatabaseRoles
 	}
 	return nil
-}
-
-func (x *AutoUserProvisioning) GetUsername() string {
-	if x != nil {
-		return x.Username
-	}
-	return ""
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal
@@ -318,10 +308,9 @@ const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
 	"\rtarget_health\x18\t \x01(\v2&.teleport.lib.teleterm.v1.TargetHealthR\ftargetHealth\x12$\n" +
 	"\x0egcp_project_id\x18\n" +
 	" \x01(\tR\fgcpProjectId\x12d\n" +
-	"\x16auto_user_provisioning\x18\v \x01(\v2..teleport.lib.teleterm.v1.AutoUserProvisioningR\x14autoUserProvisioning\"Y\n" +
+	"\x16auto_user_provisioning\x18\v \x01(\v2..teleport.lib.teleterm.v1.AutoUserProvisioningR\x14autoUserProvisioning\"=\n" +
 	"\x14AutoUserProvisioning\x12%\n" +
-	"\x0edatabase_roles\x18\x02 \x03(\tR\rdatabaseRoles\x12\x1a\n" +
-	"\busername\x18\x03 \x01(\tR\busername\"\xa4\x01\n" +
+	"\x0edatabase_roles\x18\x02 \x03(\tR\rdatabaseRoles\"\xa4\x01\n" +
 	"\x0eDatabaseServer\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x17\n" +

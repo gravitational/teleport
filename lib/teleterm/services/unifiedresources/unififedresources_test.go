@@ -38,7 +38,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	cluster := clusters.NewClusterForTest(uri.NewClusterURI("foo"), "foo", "foo", "testUser")
+	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}
 
 	node, err := types.NewServer("testNode", types.KindNode, types.ServerSpecV2{})
 	require.NoError(t, err)
@@ -136,12 +136,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	leafCluster := clusters.NewClusterForTest(
-		uri.NewClusterURI("foo").AppendLeafCluster("leaf"),
-		"foo",
-		"leaf",
-		"testUser",
-	)
+	leafCluster := &clusters.Cluster{URI: uri.NewClusterURI("foo").AppendLeafCluster("leaf"), ProfileName: "foo", Name: "leaf"}
 
 	mockedResources := []*proto.PaginatedResource{
 		{Resource: &proto.PaginatedResource_Node{Node: node.(*types.ServerV2)}, Logins: []string{"ec2-user"}},
@@ -172,11 +167,11 @@ func TestUnifiedResourcesList(t *testing.T) {
 	}}, response.Resources[0])
 
 	require.Equal(t, UnifiedResource{Database: &clusters.Database{
-		URI:                uri.NewClusterURI(cluster.ProfileName).AppendDB(database.GetName()),
-		Database:           database.GetDatabase(),
-		AutoUsersEnabled:   true,
-		DatabaseRoles:      []string{},
-		AutoUserDbUsername: "testUser",
+		URI:      uri.NewClusterURI(cluster.ProfileName).AppendDB(database.GetName()),
+		Database: database.GetDatabase(),
+		AutoUserProvisioning: &clusters.AutoUserProvisioning{
+			DatabaseRoles: []string{},
+		},
 	}}, response.Resources[1])
 
 	require.Equal(t, UnifiedResource{Kube: &clusters.Kube{
@@ -217,16 +212,16 @@ func TestUnifiedResourcesList(t *testing.T) {
 				{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: leafDatabase}},
 			},
 		},
-		rootClusterName: cluster.Name, // "foo" — the root cluster's site name
+		rootClusterName: cluster.Name,
 	}, &proto.ListUnifiedResourcesRequest{})
 	require.NoError(t, err)
 	require.Len(t, leafResponse.Resources, 1)
 	require.Equal(t, UnifiedResource{Database: &clusters.Database{
-		URI:                leafCluster.URI.AppendDB(leafDatabase.GetName()),
-		Database:           leafDatabase.GetDatabase(),
-		AutoUsersEnabled:   true,
-		DatabaseRoles:      []string{},
-		AutoUserDbUsername: "remote-testUser-foo",
+		URI:      leafCluster.URI.AppendDB(leafDatabase.GetName()),
+		Database: leafDatabase.GetDatabase(),
+		AutoUserProvisioning: &clusters.AutoUserProvisioning{
+			DatabaseRoles: []string{},
+		},
 	}}, leafResponse.Resources[0])
 }
 

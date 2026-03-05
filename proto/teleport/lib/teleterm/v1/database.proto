@@ -55,9 +55,6 @@ message Database {
 message AutoUserProvisioning {
   // database_roles is a list of database roles that will be assigned to the auto-provisioned database user.
   repeated string database_roles = 2;
-  // username is the pre-computed database username to use.
-  // For leaf clusters it includes the "remote-" prefix and root cluster name.
-  string username = 3;
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal

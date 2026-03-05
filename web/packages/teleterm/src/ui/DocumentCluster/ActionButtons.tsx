@@ -237,8 +237,13 @@ export function ConnectDatabaseActionButton(props: {
     return (
       <ButtonBorder
         size="small"
-        onClick={() => {
-          connect('');
+        onClick={async () => {
+          const dbUsers = await getDatabaseUsers(
+            appContext,
+            props.database.uri
+          );
+          const autoProvisionedDbUser = dbUsers[0].login;
+          connect(autoProvisionedDbUser);
         }}
         textTransform="none"
         width={buttonWidth}

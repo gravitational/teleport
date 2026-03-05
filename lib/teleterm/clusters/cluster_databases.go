@@ -33,11 +33,16 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
-	"github.com/gravitational/teleport/lib/services"
 	dbrole "github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+// AutoUserProvisioning contains auto-user provisioning information.
+type AutoUserProvisioning struct {
+	// DatabaseRoles is the list of database roles that will be assigned to the auto-provisioned user.
+	DatabaseRoles []string
+}
 
 // Database describes database
 type Database struct {
@@ -47,14 +52,8 @@ type Database struct {
 	// TargetHealth describes the health status of network connectivity
 	// reported from an agent (db_service) that is proxying this database.
 	TargetHealth types.TargetHealth
-	// AutoUsersEnabled indicates if the database supports automatic user provisioning and the user's role allows it.
-	AutoUsersEnabled bool
-	// DatabaseRoles is the list of database roles that will be assigned to the auto-provisioned
-	// database user. Empty when auto user provisioning is disabled.
-	DatabaseRoles []string
-	// AutoUserDbUsername is the pre-computed database username for auto-user provisioning.
-	// For leaf clusters: "remote-<username>-<rootClusterName>". For root clusters: "<username>".
-	AutoUserDbUsername string
+	// AutoUserProvisioning contains auto-user provisioning information.
+	AutoUserProvisioning *AutoUserProvisioning
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal
@@ -141,15 +140,6 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, authClient authcl
 	}
 
 	return dbUsers.Allowed(), nil
-}
-
-// IsDatabaseUserAutoProvisioningEnabled returns whether auto-user provisioning is enabled for a database
-func (c *Cluster) IsDatabaseUserAutoProvisioningEnabled(accessChecker services.AccessChecker, db types.Database) (bool, error) {
-	autoUser, err := accessChecker.DatabaseAutoUserMode(db)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	return db.IsAutoUsersEnabled() && autoUser.IsEnabled(), nil
 }
 
 // ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").

@@ -169,7 +169,7 @@ export function Story(props: StoryProps) {
     changePortAttempt: makeEmptyAttempt(),
     disconnectAttempt: makeEmptyAttempt(),
     autoUserProvisioning: props.autoUsersEnabled
-      ? { databaseRoles: props.databaseRoles, username: '' }
+      ? { databaseRoles: props.databaseRoles }
       : undefined,
   };
 

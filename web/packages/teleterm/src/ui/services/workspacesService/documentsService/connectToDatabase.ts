@@ -42,23 +42,16 @@ export async function connectToDatabase(
   const documentsService =
     ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
 
-  let targetUser: string;
-  if (target.autoUserProvisioning) {
-    targetUser = target.autoUserProvisioning.username;
-  } else {
-    targetUser = getTargetUser(
-      target.protocol as GatewayProtocol,
-      target.dbUser,
-      target.gcpProjectId
-    );
-  }
-
   const doc = documentsService.createGatewayDocument({
     // Not passing the `gatewayUri` field here, as at this point the gateway doesn't exist yet.
     // `port` is not passed as well, we'll let the tsh daemon pick a random one.
     targetUri: target.uri,
     targetName: target.name,
-    targetUser: targetUser,
+    targetUser: getTargetUser(
+      target.protocol as GatewayProtocol,
+      target.dbUser,
+      target.gcpProjectId
+    ),
     origin: telemetry.origin,
     autoUserProvisioning: target.autoUserProvisioning,
   });

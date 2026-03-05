@@ -32,7 +32,6 @@ describe('connectToDatabase', () => {
     const database = makeDatabase();
     const autoUserProvisioning = {
       databaseRoles: ['reader'],
-      username: 'alice',
     };
 
     await connectToDatabase(
@@ -80,7 +79,6 @@ describe('connectToDatabase', () => {
         dbUser: 'remote-alice-root',
         autoUserProvisioning: {
           databaseRoles: [],
-          username: 'remote-alice-root',
         },
       },
       { origin: 'resource_table' }
