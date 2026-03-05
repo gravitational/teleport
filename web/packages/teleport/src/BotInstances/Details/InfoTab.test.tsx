@@ -1,3 +1,4 @@
+/* oxlint-disable jest/no-conditional-expect */
 /**
  * Teleport
  * Copyright (C) 2025 Gravitational, Inc.
