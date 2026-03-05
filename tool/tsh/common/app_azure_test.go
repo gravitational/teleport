@@ -95,7 +95,7 @@ func TestAzure(t *testing.T) {
 
 	versionWithoutMSAL := new(semver.Version)
 	*versionWithoutMSAL = *azureCLIVersionMSALRequirement
-	require.Greater(t, versionWithoutMSAL.Minor, int64(0))
+	require.Greater(t, versionWithoutMSAL.Minor, 0)
 	versionWithoutMSAL.Minor -= 1
 
 	for name, tc := range map[string]struct {
@@ -510,9 +510,9 @@ func Test_formatAzureIdentities(t *testing.T) {
 		{
 			name:       "one item",
 			identities: []string{"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"},
-			want: `Available Azure identities
---------------------------------------------------------------------------------------------------------------------------------------------------------------
-/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure
+			want: `Available Azure identities                                                                                                                                     
+-------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure 
 `,
 		},
 		{
@@ -521,10 +521,10 @@ func Test_formatAzureIdentities(t *testing.T) {
 				"/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
 				"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
 			},
-			want: `Available Azure identities
---------------------------------------------------------------------------------------------------------------------------------------------------------------
-/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure
-/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure
+			want: `Available Azure identities                                                                                                                                     
+-------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure 
+/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure 
 `,
 		},
 	}
