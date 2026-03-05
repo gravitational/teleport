@@ -21,7 +21,11 @@ package common
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -29,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -63,7 +66,7 @@ func onBeamsAdd(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintf(cf.Stdout(), "Beam created: %s\n", beamID)
+	printBeamCreating(cf.Stdout(), beamID)
 
 	clusterClient, err := tc.ConnectToCluster(cf.Context)
 	if err != nil {
@@ -75,12 +78,16 @@ func onBeamsAdd(cf *CLIConf) error {
 	tc.Labels = nil
 	tc.SearchKeywords = nil
 	tc.PredicateExpression = fmt.Sprintf(`labels["teleport.internal/beam/id"]==%q`, beamID)
-	tc.HostLogin = "root"
+	//tc.HostLogin = "root"
+	tc.HostLogin = "beams"
 
+	stop := startBeamConnecting(cf.Stdout())
 	target, err := waitForBeamNode(cf.Context, tc, clusterClient.AuthClient)
+	stop()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	printBeamReady(cf.Stdout())
 
 	tc.Stdin = cf.Stdin()
 	sshFunc := func() error {
@@ -118,6 +125,41 @@ func onBeamsAllow(cf *CLIConf) error {
 
 	fmt.Fprintf(cf.Stdout(), "Allowed domain %q for beam %q\n", cf.BeamDomain, cf.BeamID)
 	return nil
+}
+
+func printBeamCreating(w io.Writer, beamID string) {
+	idStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	diamondStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
+	fmt.Fprintf(w, "%s creating %s\n", diamondStyle.Render("◆"), idStyle.Render(beamID))
+}
+
+func printBeamReady(w io.Writer) {
+	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
+	fmt.Fprintf(w, "%s ready\n", arrowStyle.Render("↳"))
+}
+
+// startBeamConnecting prints an animated braille spinner to w while connecting.
+// Call the returned stop function to end the spinner.
+func startBeamConnecting(w io.Writer) func() {
+	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	spinStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(80 * time.Millisecond)
+		defer ticker.Stop()
+		i := 0
+		for {
+			select {
+			case <-done:
+				fmt.Fprintf(w, "\n")
+				return
+			case <-ticker.C:
+				fmt.Fprintf(w, "\r%s connecting...", spinStyle.Render(frames[i%len(frames)]))
+				i++
+			}
+		}
+	}()
+	return func() { close(done) }
 }
 
 func waitForBeamNode(ctx context.Context, tc *client.TeleportClient, authClient authclient.ClientI) (*client.TargetNode, error) {
