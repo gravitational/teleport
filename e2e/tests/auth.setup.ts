@@ -18,9 +18,8 @@
 
 import { join } from 'node:path';
 
-import { test as setup } from '@playwright/test';
-
 import { login } from '../helpers/login';
+import { test as setup } from '../helpers/test';
 
 const authFile = join(__dirname, '../.auth/user.json');
 
