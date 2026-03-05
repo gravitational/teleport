@@ -2204,6 +2204,17 @@ type DatabaseAdminUser struct {
 	// Depending on the database type, this database may be used to store
 	// procedures or data for managing database users.
 	DefaultDatabase string `yaml:"default_database"`
+	// ReassignmentUser is the database user to transfer resource ownership
+	// to at the end of a session where the database user was auto-provisioned.
+	//
+	// If the role that was used to log into the database has create_db_user_mode
+	// set to best_effort_drop, and ReassignmentUser is not empty, Teleport will
+	// attempt to reassign all database objects owned by the user to the user
+	// specified by ReassignmentUser prior to dropping the logged-in user.
+	//
+	// ReassignmentUser is ignored when create_db_user_mode has a value other
+	// than best_effort_drop.
+	ReassignmentUser string `yaml:"reassignment_user"`
 }
 
 // DatabaseAD contains database Active Directory configuration.
