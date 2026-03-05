@@ -76,7 +76,7 @@ func ReadChildError(stderr io.Reader, context *ErrorContext) (string, error) {
 
 	unknownUserError := user.UnknownUserError(context.Login)
 	switch {
-	case strings.Contains(errMsg.String(), "Authentication failure."): // opaque PAM auth error.
+	case strings.Contains(errMsg.String(), "failed to open PAM context"): // PAM errors are often cause by an unknown user.
 		if _, err := user.Lookup(context.Login); errors.Is(err, unknownUserError) {
 			if ambiguousHostUserDenial {
 				return ambiguousHostUserError(), nil

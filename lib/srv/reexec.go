@@ -418,7 +418,8 @@ func RunCommand() (exitErr error, err error) {
 		// Open the PAM context.
 		pamContext, err := pam.Open(cfg)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to open PAM context")
+			// Format the PAM error to be user friendly.
+			return nil, trace.Errorf("failed to open PAM context: %v", err.Error())
 		}
 		defer pamContext.Close()
 
