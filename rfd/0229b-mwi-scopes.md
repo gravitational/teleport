@@ -488,8 +488,24 @@ wip: any changes in Certificate Issuance.
 
 ### Implementation Phases
 
-wip: list of individual tickets we will create as part of epic, and rough order
-wip: of implementation
+This section outlines a number of distinct tasks necessary to implement this
+RFD: 
+
+1. Support for Scoped Identities for critical unscoped RPCs.
+  1a. `GetClusterAuthPreference`
+  1b. `GetCertAuthority`
+  1c. `WatchEvents` for the CA kind.
+2. Proto changes and validation for scoped Bot resource
+3. CRUD/RBAC for scoped Bot resource
+4. Proto changes and validation for ScopedRoleAssignment.
+5. Proto changes and validation for ScopedToken.
+6. Logic changes for calculating scoped roles for a Bot identity.
+7. Logic changes to JoinRPCs to support and enforce restrictions specific to
+  scoped Bot joining. 
+7. Implementation of support within `tbot`:
+  7a. Support will initially focus on the `identity` service for SSH/tctl/terraform.
+
+wip wip wip
 
 ### Testing
 
