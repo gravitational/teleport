@@ -49,7 +49,7 @@ import (
 // EKS watchers can do that and they behave differently from non-integration ones - we install agent on the
 // discovered clusters, instead of just proxying them.
 func (s *Server) startKubeIntegrationWatchers() error {
-	if len(s.getKubeIntegrationFetchers()) == 0 && s.dynamicMatcherWatcher == nil {
+	if len(s.getKubeIntegrationFetchers()) == 0 && s.DiscoveryGroup == "" {
 		return nil
 	}
 
