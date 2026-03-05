@@ -296,9 +296,19 @@ func (s *State) GetSessions() (map[string]int64, error) {
 	r := make(map[string]int64)
 
 	for key := range s.dv.KeysPrefix(sessionPrefix, nil) {
+		// skip if the key is exactly the sessionPrefix
+		if string(key) == sessionPrefix {
+			continue
+		}
+
 		b, err := s.dv.Read(key)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		// Assume 0 if empty/unset
+		if len(b) == 0 {
+			b = make([]byte, 8)
 		}
 
 		id := key[len(sessionPrefix):]
@@ -310,6 +320,11 @@ func (s *State) GetSessions() (map[string]int64, error) {
 
 // SetSessionIndex writes current session index into state
 func (s *State) SetSessionIndex(id string, index int64) error {
+	// refuse to set empty session ID
+	if id == "" {
+		return trace.Wrap(errors.New("session ID cannot be empty"))
+	}
+
 	var b = make([]byte, 8)
 
 	binary.BigEndian.PutUint64(b, uint64(index))
