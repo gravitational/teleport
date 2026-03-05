@@ -156,7 +156,7 @@ func TestGetSessions(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := make([]session, 0, 10)
-	expectedmap := make(map[string]int64, 10)
+	expectedMap := make(map[string]int64, 10)
 	for i := 0; i < 10; i++ {
 		s := session{
 			ID:         strconv.Itoa(i),
@@ -165,7 +165,7 @@ func TestGetSessions(t *testing.T) {
 		}
 		err := state.SetSessionIndex(s.ID, 0)
 		expected = append(expected, s)
-		expectedmap[s.ID] = 0
+		expectedMap[s.ID] = 0
 		assert.NoError(t, err)
 	}
 
@@ -174,7 +174,7 @@ func TestGetSessions(t *testing.T) {
 	// the original sessions.
 	sessions, err := state.GetSessions()
 	require.NoError(t, err)
-	assert.Equal(t, expectedmap, sessions)
+	assert.Equal(t, expectedMap, sessions)
 
 	// add bogus entry by writing a file called `session` to the directory
 	var b = make([]byte, 8)
@@ -190,7 +190,7 @@ func TestGetSessions(t *testing.T) {
 	// now with bogus empty file, try GetSessions again
 	sessions, err = state.GetSessions()
 	require.NoError(t, err)
-	assert.Equal(t, expectedmap, sessions)
+	assert.Equal(t, expectedMap, sessions)
 
 }
 
