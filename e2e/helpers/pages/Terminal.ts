@@ -26,7 +26,7 @@ export class TerminalPage {
   private readonly input = this.page.getByRole('textbox', {
     name: 'Terminal input',
   });
-  private readonly terminal = this.page.locator('[data-testid="terminal"]');
+  private readonly terminal = this.page.getByTestId('terminal');
 
   constructor(private page: Page) {}
 
