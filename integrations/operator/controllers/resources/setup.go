@@ -62,7 +62,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		// oss builds when adding a resource due to the BuildType() check in
 		// lib/auth/auth_with_roles.go, the API allows creating
 		// saml_idp_service_provider objects using tctl for any build. We
-		// therefore enable it here unconditionally to mirror tcl behavior.
+		// therefore enable it here unconditionally to mirror tctl behavior.
 		{"TeleportSAMLIdPServiceProvider", NewSAMLIdPServiceProviderReconciler},
 	}
 
@@ -79,7 +79,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 	if saml.Enabled {
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportSAMLConnector", NewSAMLConnectorReconciler})
 	} else {
-		log.Info("SAML connectors are only available in Teleport Enterprise edition (requires SAML entitlement). TeleportSAMLConnector resources won't be reconciled")
+		log.Info("SAML connectors are only available in Teleport Enterprise edition. TeleportSAMLConnector resources won't be reconciled")
 	}
 
 	if policy.Enabled {
