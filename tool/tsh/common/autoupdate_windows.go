@@ -1,7 +1,5 @@
-//go:build !go1.25 && !goexperiment.synctest
-
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -16,22 +14,14 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package synctest
+package common
 
 import (
-	"testing"
+	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows/svc"
 )
 
-// Test runs the provided function in a synctest bubble if synctest is
-// supported, otherwise skips the test. To support older versions of Go, the
-// function might be called in a subtest of the provided test.
-func Test(t *testing.T, f func(*testing.T)) {
-	t.Skip("this test requires synctest")
-}
-
-// Wait blocks until every goroutine in the bubble is durably blocked. See
-// [synctest.Wait] for details. Wait will panic if called from outside a bubble.
-func Wait() {
-	// technically true!
-	panic("goroutine is not in a bubble")
+func isWindowsService() (bool, error) {
+	isSvc, err := svc.IsWindowsService()
+	return isSvc, trace.Wrap(err)
 }

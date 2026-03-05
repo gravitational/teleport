@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -43,6 +44,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -2223,12 +2225,54 @@ func (c *scopedRoleAssignmentCollection) writeText(w io.Writer, verbose bool) er
 	return trace.Wrap(err)
 }
 
+type scopedTokenCollection struct {
+	tokens []*joiningv1.ScopedToken
+}
+
+func (c *scopedTokenCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.tokens))
+	for i, resource := range c.tokens {
+		r[i] = types.ProtoResource153ToLegacy(resource)
+	}
+	return r
+}
+
+func (c *scopedTokenCollection) writeText(w io.Writer, verbose bool) error {
+	// when calling the getScopedToken, the secrets would already have been properly hidden or exposed.
+	_, err := scopedTokenTextHelper(c.tokens, false).WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type autoUpdateBotInstanceReportCollection struct {
 	report *autoupdatev1pb.AutoUpdateBotInstanceReport
 }
 
 func (c *autoUpdateBotInstanceReportCollection) resources() []types.Resource {
 	return []types.Resource{types.ProtoResource153ToLegacy(c.report)}
+}
+
+func scopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *bytes.Buffer {
+	table := asciitable.MakeTable([]string{"Token", "Secret", "Type", "Scope", "Assigns Scope", "Labels", "Expiry Time (UTC)"})
+
+	secretFunc := func(t *joiningv1.ScopedToken) string {
+		if withSecrets {
+			return t.GetStatus().GetSecret()
+		}
+		return "******"
+	}
+
+	now := time.Now()
+	for _, t := range tokens {
+		expiry := "never"
+		expiresAt := t.GetMetadata().GetExpires().AsTime()
+		if !expiresAt.IsZero() && expiresAt.Unix() != 0 {
+			exptime := expiresAt.Format(time.RFC822)
+			expdur := expiresAt.Sub(now).Round(time.Second)
+			expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
+		}
+		table.AddRow([]string{t.GetMetadata().GetName(), secretFunc(t), strings.Join(t.GetSpec().GetRoles(), ","), t.GetScope(), t.GetSpec().GetAssignedScope(), printMetadataLabels(t.GetMetadata().Labels), expiry})
+	}
+	return table.AsBuffer()
 }
 
 func (c *autoUpdateBotInstanceReportCollection) writeText(w io.Writer, _ bool) error {

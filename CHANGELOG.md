@@ -1,5 +1,17 @@
 # Changelog
 
+## 18.7.1 (02/24/26)
+
+* Fixed web app access in leaf clusters when VNet is enabled. [#63993](https://github.com/gravitational/teleport/pull/63993)
+* Fixed an issue where desktop session recordings would show a white screen instead of the recording player, and fixed an issue where if a session's metadata failed to load and the session had a summary it didn't display the summary. [#63982](https://github.com/gravitational/teleport/pull/63982)
+* Fixed db session page refresh redirecting to empty page. [#63938](https://github.com/gravitational/teleport/pull/63938)
+* Improved the performance of `tsh` and `tctl` when the profile directory is on a remote filesystem (NFS, SMB, etc.). [#63937](https://github.com/gravitational/teleport/pull/63937)
+* Added platform information to ssm.run events when auto discovering EC2 instances. [#63925](https://github.com/gravitational/teleport/pull/63925)
+* Added server side secret obfuscating for GetScopedTokens rpc and added UpsertScopedToken rpc. [#63902](https://github.com/gravitational/teleport/pull/63902)
+
+Enterprise:
+* Clarified MS Teams enrollment configuration values.
+
 ## 18.7.0 (02/13/26)
 
 #### Session timeline view for Identity Security

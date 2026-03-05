@@ -23,6 +23,7 @@ import (
 	"context"
 	"slices"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -39,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 func TestReporter(t *testing.T) {
@@ -615,12 +615,14 @@ func TestReporterIdentitySecuritySummariesGenerated(t *testing.T) {
 			require.Equal(t, anonymizer.AnonymizeString("server-01"), sshRecord.ResourceName)
 			require.Equal(t, uint64(250), sshRecord.TotalInputTokens)  // 100 + 150
 			require.Equal(t, uint64(125), sshRecord.TotalOutputTokens) // 50 + 75
+			require.Equal(t, uint64(2), sshRecord.SummariesGenerated)  // 2 successful summaries
 
 			require.NotNil(t, kubeRecord)
 			require.Equal(t, string(types.KubernetesSessionKind), kubeRecord.SessionType)
 			require.Equal(t, anonymizer.AnonymizeString("kube-cluster-01"), kubeRecord.ResourceName)
 			require.Equal(t, uint64(200), kubeRecord.TotalInputTokens)
 			require.Equal(t, uint64(100), kubeRecord.TotalOutputTokens)
+			require.Equal(t, uint64(1), kubeRecord.SummariesGenerated)
 
 			require.NoError(t, svc.deleteIdentitySecuritySummariesGeneratedReport(ctx, reports[0]))
 			require.Equal(t, types.OpDelete, recvBackendEvent().Type)

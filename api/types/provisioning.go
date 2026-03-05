@@ -145,6 +145,9 @@ type ProvisionToken interface {
 	SetLabels(map[string]string)
 	// GetAllowRules returns the list of allow rules
 	GetAllowRules() []*TokenRule
+	// GetAWSAllowRules returns the list of AWS-specific allow rules. GetAllowRules is kept for backwards compatibility,
+	// but GetAWSAllowRules should be preferred.
+	GetAWSAllowRules() []*TokenRule
 	// SetAllowRules sets the allow rules
 	SetAllowRules([]*TokenRule)
 	// GetIntegration returns the integration name that provides credentials to validate allow rules.
@@ -156,6 +159,12 @@ type ProvisionToken interface {
 	GetGithubRules() *ProvisionTokenSpecV2GitHub
 	// GetGitlabRules will return the GitLab rules within this token.
 	GetGitlabRules() *ProvisionTokenSpecV2GitLab
+	// GetAzure will return the Azure specific configuration for this token.
+	GetAzure() *ProvisionTokenSpecV2Azure
+	// GetAzureDevops will return the AzureDevops specific configuration for this token.
+	GetAzureDevops() *ProvisionTokenSpecV2AzureDevops
+	// GetOracle will return the Oracle specific configuration for this token.
+	GetOracle() *ProvisionTokenSpecV2Oracle
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -512,9 +521,14 @@ func (p *ProvisionTokenV2) SetLabels(l map[string]string) {
 	p.Metadata.Labels = l
 }
 
-// GetAllowRules returns the list of allow rules
-func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
+// GetAWSAllowRules returns the list of AWS-specific allow rules
+func (p *ProvisionTokenV2) GetAWSAllowRules() []*TokenRule {
 	return p.Spec.Allow
+}
+
+// GetAllowRules returns the list of allow rules.
+func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
+	return p.GetAWSAllowRules()
 }
 
 // SetAllowRules sets the allow rules.
@@ -522,7 +536,7 @@ func (p *ProvisionTokenV2) SetAllowRules(rules []*TokenRule) {
 	p.Spec.Allow = rules
 }
 
-// GetGCPRules will return the GCP rules within this token.
+// GetGCPRules will return the GCP-specific configuration for this token.
 func (p *ProvisionTokenV2) GetGCPRules() *ProvisionTokenSpecV2GCP {
 	return p.Spec.GCP
 }
@@ -540,6 +554,21 @@ func (p *ProvisionTokenV2) GetGitlabRules() *ProvisionTokenSpecV2GitLab {
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (p *ProvisionTokenV2) GetAWSIIDTTL() Duration {
 	return p.Spec.AWSIIDTTL
+}
+
+// GetAzure the Azure specific configuration for this token.
+func (p *ProvisionTokenV2) GetAzure() *ProvisionTokenSpecV2Azure {
+	return p.Spec.Azure
+}
+
+// GetAzureDevops will return the AzureDevops specific configuration for this token.
+func (p *ProvisionTokenV2) GetAzureDevops() *ProvisionTokenSpecV2AzureDevops {
+	return p.Spec.AzureDevops
+}
+
+// GetOracle will return the Oracle specific configuration for this token.
+func (p *ProvisionTokenV2) GetOracle() *ProvisionTokenSpecV2Oracle {
+	return p.Spec.Oracle
 }
 
 // GetJoinMethod returns joining method that must be used with this token.

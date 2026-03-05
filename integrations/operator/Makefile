@@ -50,6 +50,8 @@ PLATFORM_BUILDBOX ?= $(BUILDBOX_ARM)
 endif
 endif
 
+TEST_LOG_DIR ?= ${abspath ./test-logs}
+
 .PHONY: all
 all: build
 
@@ -99,7 +101,8 @@ PROTOS = \
 	teleport/legacy/types/types.proto \
 	teleport/machineid/v1/bot.proto \
 	teleport/workloadidentity/v1/resource.proto \
-	teleport/autoupdate/v1/autoupdate.proto
+	teleport/autoupdate/v1/autoupdate.proto \
+	teleport/summarizer/v1/summarizer.proto
 
 .PHONY: crd-manifests
 crd-manifests: crdgen ## Generates CRD manifests using crdgen.
@@ -148,12 +151,12 @@ crd-manifests-diff: crdgen
 		protoc \
 			-I=../../api/proto/ \
 			-I=$(PROTOBUF_MOD_PATH) \
-			--plugin=./build/protoc-gen-crd \
+			--plugin=./crdgen/build/protoc-gen-crd \
 			--crd_out=$(CRD_OUT_PATH) \
 			"$${proto}"; \
 	done
 
-	diff config/crd/bases $(CRD_OUT_PATH);\
+	diff -N config/crd/bases $(CRD_OUT_PATH);\
 	EXIT_CODE=$$?;\
 	rm -rf $(CRD_OUT_PATH) $(CUSTOM_IMPORTS_TMP_DIR);\
 	exit $$EXIT_CODE
@@ -172,11 +175,14 @@ debug-dump-request:
 			"$${proto}"; \
 	done
 
+$(TEST_LOG_DIR):
+	mkdir $(TEST_LOG_DIR)
+
 .PHONY: test
-test: generate $(ENVTEST) ## Run tests.
+test: generate $(ENVTEST) | $(TEST_LOG_DIR) ## Run tests.
 test: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
 test:
-	gotestsum --junitfile unit-tests-operator.xml --jsonfile unit-tests-operator.json
+	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-operator.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-operator.json
 
 .PHONY: echo-kubebuilder-assets
 echo-kubebuilder-assets:

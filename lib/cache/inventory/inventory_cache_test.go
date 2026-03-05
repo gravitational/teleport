@@ -24,6 +24,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -45,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
-	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 // testCache holds the resources needed for creating a test cache

@@ -69,7 +69,7 @@ func BenchmarkGetNodes(b *testing.B) {
 			} else {
 				dir := b.TempDir()
 
-				bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
+				bk, err = lite.NewWithConfig(b.Context(), lite.Config{
 					Path: dir,
 				})
 				require.NoError(b, err)
