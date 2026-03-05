@@ -685,7 +685,8 @@ func (a *Server) sendValidateRequestToProxy(ctx context.Context, host string, va
 		roundtrip.SanitizerEnabled(true),
 	}
 
-	if lib.IsInsecureDevMode() {
+	// TODO(tross): remove lib.IsInsecureDevMode after everything is converted.
+	if lib.IsInsecureDevMode() || a.insecureMode {
 		a.logger.WarnContext(ctx, "The setting insecureSkipVerify is used to communicate with proxy. Make sure you intend to run Teleport in insecure mode!")
 
 		// Get the default transport, this allows picking up proxy from the
@@ -743,7 +744,7 @@ func (a *Server) validateTrustedClusterName(ctx context.Context, trustedCluster 
 	resp, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: trustedCluster.GetProxyAddress(),
-		Insecure:  lib.IsInsecureDevMode(),
+		Insecure:  a.insecureMode,
 	})
 	if err != nil {
 		return trace.Wrap(err)
