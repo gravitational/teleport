@@ -57,6 +57,30 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 					AppName: "my-app",
 				}
 			},
+			want: &TunnelConfig{
+				Listen:  "tcp://0.0.0.0:3621",
+				Roles:   []string{"role1", "role2"},
+				AppName: "my-app",
+				Leeway:  time.Minute,
+			},
+			wantErr: "",
+		},
+		{
+			name: "valid with explicit leeway",
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:  "tcp://0.0.0.0:3621",
+					Roles:   []string{"role1", "role2"},
+					AppName: "my-app",
+					Leeway:  5 * time.Minute,
+				}
+			},
+			want: &TunnelConfig{
+				Listen:  "tcp://0.0.0.0:3621",
+				Roles:   []string{"role1", "role2"},
+				AppName: "my-app",
+				Leeway:  5 * time.Minute,
+			},
 			wantErr: "",
 		},
 		{
