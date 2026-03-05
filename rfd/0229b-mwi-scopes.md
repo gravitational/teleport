@@ -186,11 +186,11 @@ spec:
       - kind: bot
         verbs: [create, read, update, delete]
       - kind: scoped_role
-        verbs: [create, read, update, delete]
+        verbs: [create, readnosecrets, update, delete]
       - kind: scoped_role_assignment
-        verbs: [create, read, update, delete]
+        verbs: [create, readnosecrets, update, delete]
       - kind: scoped_token
-        verbs: [create, read, update, delete]
+        verbs: [create, readnosecrets, update, delete]
 ---
 kind: scoped_role_assignment
 version: v1
