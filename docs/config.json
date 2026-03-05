@@ -1837,7 +1837,7 @@
     },
     {
       "source": "/reference/monitoring/audit/",
-      "destination": "/reference/deployment/monitoring/audit/",
+      "destination": "/reference/audit-events/",
       "permanent": true
     },
     {
@@ -3628,6 +3628,11 @@
     {
       "source": "/installation/single-machine/amazon-ecs/",
       "destination": "/installation/agents/amazon-ecs/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/deployment/monitoring/audit/",
+      "destination": "/reference/audit-events/",
       "permanent": true
     }
   ]
