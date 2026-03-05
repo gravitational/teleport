@@ -21,23 +21,33 @@ package mfa
 import (
 	"cmp"
 	"context"
+	"encoding/base32"
 	"fmt"
+	"image/png"
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -49,7 +59,31 @@ const (
 	cliMFATypeSSO = "SSO"
 	// cliMFATypeBrowserMFA is the CLI display name for Browser MFA.
 	cliMFATypeBrowserMFA = "BROWSER"
+
+	totpDeviceType     = "TOTP"
+	webauthnDeviceType = "WEBAUTHN"
+	touchIDDeviceType  = "TOUCHID"
 )
+
+var (
+	totpDeviceTypes = []mfa.MFADeviceType{totpDeviceType}
+	webDeviceTypes  = initWebDevs()
+
+	// DefaultDeviceTypes lists the supported device types for `tsh mfa add`.
+	DefaultDeviceTypes = append(totpDeviceTypes, webDeviceTypes...)
+)
+
+func initWebDevs() []mfa.MFADeviceType {
+	if touchid.IsAvailable() {
+		return []mfa.MFADeviceType{mfa.WebauthnDeviceType, mfa.TouchIDDeviceType}
+	}
+	return []mfa.MFADeviceType{mfa.WebauthnDeviceType}
+}
+
+type ClusterClient interface {
+	CreateRegisterChallenge(ctx context.Context, in *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error)
+	AddMFADeviceSync(ctx context.Context, in *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
+}
 
 // CLIPromptConfig contains CLI prompt config options.
 type CLIPromptConfig struct {
@@ -75,7 +109,10 @@ type CLIPromptConfig struct {
 	// If nil prompt.Stdin() is used.
 	StdinFunc func() prompt.StdinReader
 	// RuntimeOS overrides runtime.GOOS. Intended for tests only.
-	RuntimeOS string
+	RuntimeOS           string
+	Stdout              io.Writer
+	RootClient          ClusterClient
+	CeremonyConstructor func() *mfa.Ceremony
 }
 
 // CLIPrompt is the default CLI mfa prompt implementation.
@@ -99,6 +136,13 @@ func (c *CLIPrompt) stdin() prompt.StdinReader {
 		return prompt.Stdin()
 	}
 	return c.cfg.StdinFunc()
+}
+
+func (c *CLIPrompt) stdout() io.Writer {
+	if c.cfg.Stdout == nil {
+		return os.Stdout
+	}
+	return c.cfg.Stdout
 }
 
 func (c *CLIPrompt) writer() io.Writer {
@@ -530,4 +574,356 @@ func (c *CLIPrompt) promptBrowser(ctx context.Context, chal *proto.MFAAuthentica
 	browserChal.SSOChallenge = nil
 	resp, err := c.cfg.CallbackCeremony.Run(ctx, &browserChal)
 	return resp, trace.Wrap(err)
+}
+
+// AskRegister prompts user for device details and registers a new MFA device.
+func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationResult, error) {
+	if !config.Confirmed {
+		yes, err := prompt.Confirmation(ctx, c.stdout(), c.stdin(),
+			"\nYou have no MFA devices registered. Do you want to register a new one?",
+		)
+		if err != nil {
+			return nil, err
+		}
+		if !yes {
+			return nil, nil
+		}
+	}
+
+	// Attempt to diagnose clamshell failures.
+	if !slices.Contains(DefaultDeviceTypes, touchIDDeviceType) {
+		diag, err := touchid.Diag()
+		if err == nil && diag.IsClamshellFailure() {
+			slog.WarnContext(ctx, "Touch ID support disabled, is your MacBook lid closed?")
+		}
+	}
+
+	if config.DeviceType == "" {
+		var err error
+		config.DeviceType, err = prompt.PickOne(
+			ctx, c.stdout(), c.stdin(),
+			"Choose device type", deviceTypesFromSecondFactor(config.AuthSecondFactor))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	devTypePB := map[mfa.MFADeviceType]proto.DeviceType{
+		totpDeviceType:     proto.DeviceType_DEVICE_TYPE_TOTP,
+		webauthnDeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		touchIDDeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+	}[config.DeviceType]
+	// Sanity check.
+	if devTypePB == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
+		return nil, trace.BadParameter("unexpected device type: %q", config.DeviceType)
+	}
+
+	if config.DeviceName == "" {
+		var err error
+		config.DeviceName, err = prompt.Input(ctx, c.stdout(), c.stdin(), "Enter device name")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	config.DeviceName = strings.TrimSpace(config.DeviceName)
+	if config.DeviceName == "" {
+		return nil, trace.BadParameter("device name cannot be empty")
+	}
+
+	switch config.DeviceType {
+	case webauthnDeviceType:
+		// Ask the user?
+		if config.DeviceUsage == proto.DeviceUsage_DEVICE_USAGE_UNSPECIFIED && wancli.IsFIDO2Available() {
+			answer, err := prompt.PickOne(ctx, c.stdout(), c.stdin(), "Allow passwordless logins", []string{"YES", "NO"})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if answer == "YES" {
+				config.DeviceUsage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
+			} else {
+				config.DeviceUsage = proto.DeviceUsage_DEVICE_USAGE_MFA
+			}
+		}
+	case touchIDDeviceType:
+		// Touch ID is always a resident key/passwordless
+		config.DeviceUsage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
+	}
+	slog.DebugContext(ctx, "Determined usage for newly registered MFA device", "usage", config.DeviceUsage.String())
+
+	// Tweak Windows platform messages so it's clear we whether we are prompting
+	// for the *registered* or *new* device.
+	// We do it here, preemptively, because it's the simpler solution (instead
+	// of finding out whether it is a Windows prompt or not).
+	const registeredMsg = "Using platform authentication for *registered* device, follow the OS dialogs"
+	const newMsg = "Using platform authentication for *new* device, follow the OS dialogs"
+	webauthnwin.SetPromptPlatformMessage(registeredMsg)
+	defer webauthnwin.ResetPromptPlatformMessage()
+
+	ceremony := c.cfg.MFACeremony
+	mfaResp, err := ceremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	regChal, err := ceremony.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		ExistingMFAResponse: mfaResp,
+		DeviceType:          devTypePB,
+		DeviceUsage:         config.DeviceUsage,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Prompt for registration.
+	webauthnwin.SetPromptPlatformMessage(newMsg)
+	resp, callback, err := c.promptRegisterChallenge(ctx, c.cfg.ProxyAddress, config.DeviceType, regChal)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &mfa.RegistrationResult{
+		Config:    config,
+		Response:  resp,
+		Callbacks: callback,
+	}, nil
+}
+
+// NotifyRegistrationSuccess notifies the user that the device registration was
+// successful.
+func (c *CLIPrompt) NotifyRegistrationSuccess(_ context.Context, config mfa.RegistrationPromptConfig) error {
+	fmt.Fprintf(c.stdout(), "MFA device %q added.\n\n", config.DeviceName)
+	return nil
+}
+
+func deviceTypesFromSecondFactor(sf constants.SecondFactorType) []mfa.MFADeviceType {
+	switch sf {
+	case constants.SecondFactorOTP:
+		return totpDeviceTypes
+	case constants.SecondFactorWebauthn:
+		return webDeviceTypes
+	default:
+		return DefaultDeviceTypes
+	}
+}
+
+type noopRegisterCallback struct{}
+
+func (n noopRegisterCallback) Rollback() error {
+	return nil
+}
+
+func (n noopRegisterCallback) Confirm() error {
+	return nil
+}
+
+func (c *CLIPrompt) promptRegisterChallenge(
+	ctx context.Context, proxyAddr string, devType mfa.MFADeviceType, rc *proto.MFARegisterChallenge,
+) (*proto.MFARegisterResponse, mfa.RegistrationCallbacks, error) {
+	switch rc.Request.(type) {
+	case *proto.MFARegisterChallenge_TOTP:
+		resp, err := c.promptTOTPRegisterChallenge(ctx, rc.GetTOTP())
+		return resp, noopRegisterCallback{}, err
+
+	case *proto.MFARegisterChallenge_Webauthn:
+		origin := proxyAddr
+		if !strings.HasPrefix(proxyAddr, "https://") {
+			origin = "https://" + origin
+		}
+		cc := wantypes.CredentialCreationFromProto(rc.GetWebauthn())
+
+		if devType == touchIDDeviceType {
+			return c.promptTouchIDRegisterChallenge(origin, cc)
+		}
+
+		resp, err := c.promptWebauthnRegisterChallenge(ctx, origin, cc)
+		return resp, noopRegisterCallback{}, err
+
+	default:
+		return nil, nil, trace.BadParameter("server bug: unexpected registration challenge type: %T", rc.Request)
+	}
+}
+
+func (c *CLIPrompt) promptTOTPRegisterChallenge(ctx context.Context, chal *proto.TOTPRegisterChallenge) (*proto.MFARegisterResponse, error) {
+	secretBin, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(chal.Secret)
+	if err != nil {
+		return nil, trace.BadParameter("server sent an invalid TOTP secret key %q: %v", chal.Secret, err)
+	}
+	var algorithm otp.Algorithm
+	switch strings.ToUpper(chal.Algorithm) {
+	case "SHA1":
+		algorithm = otp.AlgorithmSHA1
+	case "SHA256":
+		algorithm = otp.AlgorithmSHA256
+	case "SHA512":
+		algorithm = otp.AlgorithmSHA512
+	case "MD5":
+		algorithm = otp.AlgorithmMD5
+	default:
+		return nil, trace.BadParameter("server sent an unknown TOTP algorithm %q", chal.Algorithm)
+	}
+	otpKey, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      chal.Issuer,
+		AccountName: chal.Account,
+		Period:      uint(chal.PeriodSeconds),
+		Secret:      secretBin,
+		Digits:      otp.Digits(chal.Digits),
+		Algorithm:   algorithm,
+	})
+	if err != nil {
+		return nil, trace.BadParameter("server sent invalid TOTP parameters: %v", err)
+	}
+
+	// Try to show a QR code in the system image viewer.
+	// This is not supported on all platforms.
+	var showingQRCode bool
+	closeQR, err := showOTPQRCode(otpKey)
+	if err != nil {
+		slog.DebugContext(ctx, "Failed to show QR code", "error", err)
+	} else {
+		showingQRCode = true
+		defer closeQR()
+	}
+
+	fmt.Fprintln(c.stdout())
+	if showingQRCode {
+		fmt.Fprintln(c.stdout(), "Open your TOTP app and scan the QR code. Alternatively, you can manually enter these fields:")
+	} else {
+		fmt.Fprintln(c.stdout(), "Open your TOTP app and create a new manual entry with these fields:")
+	}
+	fmt.Fprintf(c.stdout(), `  URL: %s
+  Account name: %s
+  Secret key: %s
+  Issuer: %s
+  Algorithm: %s
+  Number of digits: %d
+  Period: %ds
+`, otpKey.URL(), chal.Account, chal.Secret, chal.Issuer, chal.Algorithm, chal.Digits, chal.PeriodSeconds)
+	fmt.Fprintln(c.stdout())
+
+	var totpCode string
+	// Help the user with typos, don't submit the code until it has the right
+	// length.
+	for {
+		totpCode, err = prompt.Password(
+			ctx, c.stdout(), prompt.Stdin(), "Once created, enter an OTP code generated by the app")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(totpCode) == int(chal.Digits) {
+			break
+		}
+		fmt.Fprintf(c.stdout(), "TOTP code must be exactly %d digits long, try again\n", chal.Digits)
+	}
+	return &proto.MFARegisterResponse{
+		Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{
+				Code: totpCode,
+				ID:   chal.ID,
+			},
+		},
+	}, nil
+}
+
+func (c *CLIPrompt) promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
+	slog.DebugContext(ctx, "prompting MFA devices with origin",
+		teleport.ComponentKey, "WebAuthn",
+		"origin", origin,
+	)
+
+	prompt := wancli.NewDefaultPrompt(ctx, c.stdout())
+	prompt.PINMessage = "Enter your *new* security key PIN"
+	prompt.FirstTouchMessage = "Tap your *new* security key"
+	prompt.SecondTouchMessage = "Tap your *new* security key again to complete registration"
+
+	resp, err := c.cfg.WebauthnRegisterFunc(ctx, origin, cc, prompt)
+	return resp, trace.Wrap(err)
+}
+
+func (c *CLIPrompt) promptTouchIDRegisterChallenge(origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, mfa.RegistrationCallbacks, error) {
+	slog.DebugContext(context.TODO(), "prompting registration with origin",
+		teleport.ComponentKey, "TouchID",
+		"origin", origin,
+	)
+
+	registerFunc := c.cfg.TouchIDRegisterFunc
+	if registerFunc != nil {
+		resp, callback, err := registerFunc(origin, cc)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return resp, callback, nil
+	}
+
+	reg, err := touchid.Register(origin, cc)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return &proto.MFARegisterResponse{
+		Response: &proto.MFARegisterResponse_Webauthn{
+			Webauthn: wantypes.CredentialCreationResponseToProto(reg.CCR),
+		},
+	}, reg, nil
+}
+
+func showOTPQRCode(k *otp.Key) (cleanup func(), retErr error) {
+	var imageViewer string
+	// imageViewerArgs is used to send additional arguments to exec command.
+	var imageViewerArgs []string
+	switch runtime.GOOS {
+	case "linux":
+		imageViewer = "xdg-open"
+	case "darwin":
+		imageViewer = "open"
+	case "windows":
+		// On windows start and many other commands are not executable files,
+		// rather internal commands of Command prompt. In order to use internal
+		// command it need to executed as: `cmd.exe /c start filename`
+		imageViewer = "cmd.exe"
+		imageViewerArgs = []string{"/c", "start"}
+	default:
+		return func() {}, trace.NotImplemented("showing QR codes is not implemented on %s", runtime.GOOS)
+	}
+
+	otpImage, err := k.Image(456, 456)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	imageFile, err := os.CreateTemp("", "teleport-otp-qr-code-*.png")
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	defer func() {
+		if retErr != nil {
+			imageFile.Close()
+			os.Remove(imageFile.Name())
+		}
+	}()
+
+	if err := png.Encode(imageFile, otpImage); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	if err := imageFile.Close(); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	ctx := context.TODO()
+	slog.DebugContext(ctx, "Wrote OTP QR code to file", "file", imageFile.Name())
+
+	cmd := exec.Command(imageViewer, append(imageViewerArgs, imageFile.Name())...)
+	if err := cmd.Start(); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	slog.DebugContext(ctx, "Opened QR code via image viewer", "image_viewer", imageViewer)
+	return func() {
+		if err := utils.RemoveSecure(imageFile.Name()); err != nil {
+			slog.DebugContext(ctx, "Failed to clean up temporary QR code file",
+				"file", imageFile.Name(),
+				"error", err,
+			)
+		}
+		if err := cmd.Process.Kill(); err != nil {
+			slog.DebugContext(ctx, "Failed to stop the QR code image viewer", "error", err)
+		}
+	}, nil
 }

@@ -47,6 +47,12 @@ var (
 	// the client user.
 	ErrMFANotSupported = trace.BadParameterError{Message: "re-authentication with MFA is not supported for this client"}
 
+	// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
+	// complete the challenge with.
+	ErrNoMFADevices = trace.AccessDeniedError{
+		Message: "Multi-factor authentication (MFA) is required to access this resource but the current user has no supported MFA devices enrolled; see Account Settings in the Web UI or use 'tsh mfa add' to register an MFA device",
+	}
+
 	// ErrExpiredReusableMFAResponse is returned by Auth APIs like
 	// GenerateUserCerts when an expired reusable MFA response is provided.
 	ErrExpiredReusableMFAResponse = trace.AccessDeniedError{

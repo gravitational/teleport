@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -779,7 +780,7 @@ func (c *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 See https://goteleport.com/docs/admin-guides/access-controls/device-trust/device-management/#troubleshooting for help.
 `
 		case errors.Is(err, services.ErrSessionMFARequired):
-			text = authclient.ErrNoMFADevices.Error()
+			text = mfa.ErrNoMFADevices.Error()
 
 		default:
 			text = http.StatusText(code)

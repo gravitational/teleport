@@ -4874,7 +4874,7 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 			return nil, trace.Wrap(err)
 		}
 	default:
-		return nil, trace.BadParameter("MFARegisterResponse is an unknown response type %T", req.deviceResp.Response)
+		return nil, trace.BadParameter("MFARegisterResponse is an unknown response type %T", req.deviceResp.GetResponse())
 	}
 
 	clusterName, err := a.GetClusterName(ctx)

@@ -2655,6 +2655,384 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestSSHAddingMFA tests that a user can automatically add an MFA device when
+// "tsh ssh" fails with NoMFADevices
+func TestSSHAddingMFA(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+	ctx := t.Context()
+
+	localUser, err := user.Current()
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+	alice.SetLogins([]string{localUser.Username})
+
+	connector := mockConnector(t)
+
+	// Create a test server that requires per-session Webauthn MFA.
+	sshHostname := "test-ssh-host"
+	server, err := testserver.NewTeleportProcess(t.TempDir(),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Hostname = sshHostname
+			cfg.Auth.Enabled = true
+			cfg.Proxy.Enabled = true
+			cfg.SSH.Enabled = true
+			cfg.SSH.DisableCreateHostUser = true
+
+			cfg.Auth.BootstrapResources = []types.Resource{alice, connector}
+			cfg.Auth.Preference = &types.AuthPreferenceV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{types.OriginLabel: types.OriginConfigFile},
+				},
+				Spec: types.AuthPreferenceSpecV2{
+					Type:          constants.Local,
+					SecondFactors: []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN},
+					Webauthn: &types.Webauthn{
+						RPID: "127.0.0.1",
+					},
+					RequireMFAType: types.RequireMFAType_SESSION,
+				},
+			}
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+		require.NoError(t, server.Wait())
+	})
+
+	// Wait for the node to appear.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		found, err := server.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, found, 1)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	proxyAddr, err := server.ProxyWebAddr()
+	require.NoError(t, err)
+
+	tmpHomePath := t.TempDir()
+
+	// Log the user in.
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+		"--user", "alice@example.com",
+	}, setHomePath(tmpHomePath), setMockSSOLogin(server.GetAuthServer(), alice, connector.GetName()))
+	require.NoError(t, err)
+
+	// Create a mock MFA device and set up the MFA registration and login
+	// functions.
+	device, err := mocku2f.Create()
+	require.NoError(t, err)
+
+	webauthnRegister := func(
+		ctx context.Context, origin string, cc *wantypes.CredentialCreation, _ wancli.RegisterPrompt,
+	) (*proto.MFARegisterResponse, error) {
+		ccr, err := device.SignCredentialCreation(origin, cc)
+		if err != nil {
+			return nil, err
+		}
+		println(ccr)
+
+		return &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
+			},
+		}, nil
+	}
+
+	webauthnLogin := func(
+		ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, _ wancli.LoginPrompt, _ *wancli.LoginOpts,
+	) (*proto.MFAAuthenticateResponse, string, error) {
+		car, err := device.SignAssertion(origin, assertion)
+		if err != nil {
+			return nil, "", err
+		}
+		return &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wantypes.CredentialAssertionResponseToProto(car),
+			},
+		}, "", nil
+	}
+
+	oldStdin := prompt.Stdin()
+	t.Cleanup(func() {
+		prompt.SetStdin(oldStdin)
+	})
+
+	const greeting = "Hello from the other side"
+	const mfaRegistrationQuestion = "You have no MFA devices registered. Do you want to register a new one?"
+	const mfaDeviceTypePrompt = "Choose device type [WEBAUTHN]"
+
+	testCases := []struct {
+		name      string
+		extraArgs []string
+		stdin     *prompt.FakeReader
+		assertFn  func(t *testing.T, stdout string, err error)
+	}{
+		{
+			name:  "refuse to create device",
+			stdin: prompt.NewFakeReader().AddString("n"),
+			assertFn: func(t *testing.T, stdout string, err error) {
+				var exiterr *common.ExitCodeError
+				require.ErrorAs(t, err, &exiterr)
+				assert.Equal(t, 1, exiterr.Code)
+				assert.Contains(t, stdout, mfaRegistrationQuestion)
+				assert.NotContains(t, stdout, mfaDeviceTypePrompt)
+				assert.NotContains(t, stdout, greeting)
+			},
+		},
+		{
+			name:      "--no-add-mfa flag skips registration prompt",
+			extraArgs: []string{"--no-add-mfa"},
+			stdin:     prompt.NewFakeReader(),
+			assertFn: func(t *testing.T, stdout string, err error) {
+				var exiterr *common.ExitCodeError
+				require.ErrorAs(t, err, &exiterr)
+				assert.Equal(t, 1, exiterr.Code)
+				// In this case, tsh ssh shouldn't even ask.
+				assert.NotContains(t, stdout, mfaRegistrationQuestion)
+				assert.NotContains(t, stdout, mfaDeviceTypePrompt)
+				assert.NotContains(t, stdout, greeting)
+			},
+		},
+		{
+			name: "accept and register device",
+			stdin: prompt.NewFakeReader().
+				AddString("y").        // Yes, create a new one
+				AddString("webauthn"). // Device type
+				AddString("mykey").    // Device name
+				AddString("NO"),       // Don't allow passwordless
+			assertFn: func(t *testing.T, stdout string, err error) {
+				require.NoError(t, err)
+				assert.Contains(t, stdout, mfaRegistrationQuestion)
+				assert.Contains(t, stdout, mfaDeviceTypePrompt)
+				assert.Contains(t, stdout, greeting)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			prompt.SetStdin(tc.stdin)
+
+			stdout := output{}
+			args := []string{
+				"ssh",
+				"--debug",
+				"--insecure",
+			}
+			args = append(args, tc.extraArgs...)
+			args = append(args,
+				fmt.Sprintf("%s@%s", localUser.Username, sshHostname),
+				"echo", greeting,
+			)
+
+			err := Run(ctx, args, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+				cf.OverrideStdout = &stdout
+				cf.WebauthnRegister = webauthnRegister
+				cf.WebauthnLogin = webauthnLogin
+				return nil
+			})
+
+			tc.assertFn(t, stdout.String(), err)
+		})
+	}
+}
+
+// TestSSHAccessRequestAndAddingMFA tests that tsh ssh can both auto-create an
+// access request and enroll an MFA device when the requested role enforces
+// per-session MFA.
+func TestSSHAccessRequestAndAddingMFA(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+	ctx := t.Context()
+
+	localUser, err := user.Current()
+	require.NoError(t, err)
+
+	requester, err := types.NewRole("requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles:         []string{"node-access-mfa"},
+				SearchAsRoles: []string{"node-access-mfa"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	nodeAccessMFA, err := types.NewRole("node-access-mfa", types.RoleSpecV6{
+		Options: types.RoleOptions{RequireMFAType: types.RequireMFAType_SESSION},
+		Allow: types.RoleConditions{
+			Logins: []string{localUser.Username},
+			NodeLabels: types.Labels{
+				"access": {"true"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"requester"})
+	alice.SetTraits(map[string][]string{
+		constants.TraitLogins: {localUser.Username},
+	})
+
+	connector := mockConnector(t)
+	sshHostname := "test-ssh-host"
+
+	server, err := testserver.NewTeleportProcess(t.TempDir(),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Hostname = sshHostname
+			cfg.Auth.Enabled = true
+			cfg.Proxy.Enabled = true
+			cfg.SSH.Enabled = true
+			cfg.SSH.DisableCreateHostUser = true
+			cfg.SSH.Labels = map[string]string{"access": "true"}
+
+			cfg.Auth.BootstrapResources = []types.Resource{requester, nodeAccessMFA, alice, connector}
+			cfg.Auth.Preference = &types.AuthPreferenceV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{types.OriginLabel: types.OriginConfigFile},
+				},
+				Spec: types.AuthPreferenceSpecV2{
+					Type:          constants.Local,
+					SecondFactors: []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN},
+					Webauthn:      &types.Webauthn{RPID: "127.0.0.1"},
+				},
+			}
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+		require.NoError(t, server.Wait())
+	})
+
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		found, err := server.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(ct, err)
+		require.Len(ct, found, 1)
+	}, 10*time.Second, 100*time.Millisecond, "node never showed up in the auth service")
+
+	// approve all requests as they're created
+	approverCtx, approverCancel := context.WithCancel(ctx)
+	errChan := make(chan error)
+	t.Cleanup(func() {
+		require.ErrorIs(t, <-errChan, context.Canceled, "unexpected error from approveAllAccessRequests")
+	})
+	go func() {
+		err := approveAllAccessRequests(approverCtx, server.GetAuthServer())
+		// Cancel the context, so Run calls don't block
+		approverCancel()
+		errChan <- err
+	}()
+
+	proxyAddr, err := server.ProxyWebAddr()
+	require.NoError(t, err)
+
+	tmpHomePath := t.TempDir()
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+		"--user", "alice@example.com",
+	}, setHomePath(tmpHomePath), setMockSSOLogin(server.GetAuthServer(), alice, connector.GetName()))
+	require.NoError(t, err)
+
+	// Wait for the proxy to see the node so that future SSH attempts may
+	// succeed, the most reliable way seems to make an SSH attempt and look for
+	// an AccessDenied error.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		var output strings.Builder
+		err = Run(ctx, []string{
+			"ssh", "--disable-access-request", "--no-add-mfa",
+			fmt.Sprintf("%s@%s", localUser.Username, sshHostname),
+		}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+			cf.overrideStderr = &output
+			return nil
+		})
+		require.Error(t, err)
+		require.Contains(t, output.String(), "access denied")
+	}, 10*time.Second, 100*time.Millisecond, "node never showed up in the proxy service")
+
+	device, err := mocku2f.Create()
+	require.NoError(t, err)
+
+	webauthnRegister := func(
+		ctx context.Context, origin string, cc *wantypes.CredentialCreation, _ wancli.RegisterPrompt,
+	) (*proto.MFARegisterResponse, error) {
+		ccr, err := device.SignCredentialCreation(origin, cc)
+		if err != nil {
+			return nil, err
+		}
+
+		return &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
+			},
+		}, nil
+	}
+
+	webauthnLogin := func(
+		ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, _ wancli.LoginPrompt, _ *wancli.LoginOpts,
+	) (*proto.MFAAuthenticateResponse, string, error) {
+		car, err := device.SignAssertion(origin, assertion)
+		if err != nil {
+			return nil, "", err
+		}
+		return &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wantypes.CredentialAssertionResponseToProto(car),
+			},
+		}, "", nil
+	}
+
+	oldStdin := prompt.Stdin()
+	t.Cleanup(func() {
+		prompt.SetStdin(oldStdin)
+	})
+	prompt.SetStdin(prompt.NewFakeReader().
+		AddString("y").
+		AddString("webauthn").
+		AddString("mykey").
+		AddString("no"))
+
+	const greeting = "hello-from-the-other-side"
+	const mfaPromptQuestion = "You have no MFA devices registered. Do you want to register a new one?"
+	requestReason := uuid.NewString()
+
+	attemptOut := &output{}
+	err = Run(ctx, []string{
+		"ssh",
+		"--debug",
+		"--insecure",
+		"--request-mode", accessRequestModeRole,
+		"--request-reason", requestReason,
+		fmt.Sprintf("%s@%s", localUser.Username, sshHostname),
+		"echo", greeting,
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		cf.OverrideStdout = attemptOut
+		cf.WebauthnRegister = webauthnRegister
+		cf.WebauthnLogin = webauthnLogin
+		return nil
+	})
+	require.NoError(t, err)
+	stdout := attemptOut.String()
+	require.Contains(t, stdout, mfaPromptQuestion)
+	require.Contains(t, stdout, greeting)
+
+	requests, err := server.GetAuthServer().GetAccessRequests(ctx, types.AccessRequestFilter{})
+	require.NoError(t, err)
+	require.True(t, slices.ContainsFunc(requests, func(request types.AccessRequest) bool {
+		return request.GetRequestReason() == requestReason
+	}), "access request with the specified reason was not found")
+}
+
 // TestSSHAccessRequestWait tests that "tsh ssh" automatically creates an
 // access request when required and properly waits for it to be approved.
 func TestSSHAccessRequestWait(t *testing.T) {

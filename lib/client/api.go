@@ -496,6 +496,14 @@ type Config struct {
 	// Defaults to [wancli.Login].
 	WebauthnLogin WebauthnLoginFunc
 
+	// WebauthnRegister allows tests to override the Webauthn Register func.
+	// Defaults to [wancli.Register].
+	WebauthnRegister WebauthnRegisterFunc
+
+	// TouchIDRegister allows tests to override the Touch ID Register func.
+	// Defaults to [touchid.Register].
+	TouchIDRegister TouchIDRegisterFunc
+
 	// SSHLogDir is the directory to log the output of multiple SSH commands to.
 	// If not set, no logs will be created.
 	SSHLogDir string
@@ -533,6 +541,10 @@ type Config struct {
 
 	// ProxyTemplates describe rules for parsing out proxy out of full hostnames.
 	ProxyTemplates ProxyTemplates
+
+	// RegisterMFADeviceIfRequired allows to offer the user registering an MFA
+	// device if they don't have one while connecting to a node with SSH.
+	RegisterMFADeviceIfRequired bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -2115,7 +2127,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	// Any direct connection errors other than access denied, which should be returned
 	// if MFA is required, take precedent over MFA errors due to users not having any
 	// enrolled devices.
-	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, authclient.ErrNoMFADevices):
+	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, &mfa.ErrNoMFADevices):
 		return nil, trace.Wrap(directErr)
 	case !errors.Is(mfaErr, io.EOF) && // Ignore any errors from MFA due to locks being enforced, the direct error will be friendlier
 		!errors.As(mfaErr, new(*MFARequiredUnknownError)) && // Ignore any failures that occurred before determining if MFA was required
