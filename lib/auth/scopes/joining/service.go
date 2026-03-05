@@ -24,20 +24,16 @@ import (
 	"iter"
 	"log/slog"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const defaultTokenPageSize = 100
@@ -96,33 +92,6 @@ func (s *Server) CreateScopedToken(ctx context.Context, req *scopedjoiningv1.Cre
 	}); err != nil {
 		s.logger.WarnContext(ctx, "user does not have permission to create scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", req.GetToken().GetScope())
 		return nil, trace.Wrap(err)
-	}
-
-	token := req.GetToken()
-	if token.GetMetadata().GetName() == "" {
-		if token.Metadata == nil {
-			token.Metadata = &headerv1.Metadata{}
-		}
-		name, err := uuid.NewRandom()
-		if err != nil {
-			return nil, trace.Wrap(err, "generating token name")
-		}
-		token.Metadata.Name = name.String()
-	}
-
-	if token.GetSpec() != nil && token.GetSpec().GetJoinMethod() == "" {
-		token.Spec.JoinMethod = string(types.JoinMethodToken)
-	}
-
-	if token.GetSpec().GetJoinMethod() == string(types.JoinMethodToken) {
-		if token.Status == nil {
-			token.Status = &scopedjoiningv1.ScopedTokenStatus{}
-		}
-		secret, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
-		if err != nil {
-			return nil, trace.Wrap(err, "generating token secret")
-		}
-		token.Status.Secret = secret
 	}
 
 	res, err := s.backend.CreateScopedToken(ctx, req)
@@ -308,5 +277,41 @@ func (s *Server) UpsertScopedToken(ctx context.Context, req *scopedjoiningv1.Ups
 	}
 
 	res, err := s.backend.UpsertScopedToken(ctx, req)
+	return res, trace.Wrap(err)
+}
+
+// UpdateScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
+func (s *Server) UpdateScopedToken(ctx context.Context, req *scopedjoiningv1.UpdateScopedTokenRequest) (*scopedjoiningv1.UpdateScopedTokenResponse, error) {
+	authzContext, err := s.authorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authzContext.RuleContext()
+
+	// do a pre-check to weed out requests that definitely won't be authorized.
+	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	extant, err := s.backend.GetScopedToken(ctx, &scopedjoiningv1.GetScopedTokenRequest{
+		Name: req.GetToken().GetMetadata().GetName(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if scopes.Compare(req.GetToken().GetScope(), extant.GetToken().GetScope()) != scopes.Equivalent {
+		return nil, trace.BadParameter("cannot modify the resource scope of scoped token %q (%q -> %q)", req.GetToken().GetMetadata().GetName(), extant.GetToken().GetScope(), req.GetToken().GetScope())
+	}
+
+	if err := authzContext.CheckerContext.Decision(ctx, req.GetToken().GetScope(), func(checker *services.SplitAccessChecker) error {
+		return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbUpdate)
+	}); err != nil {
+		s.logger.WarnContext(ctx, "user does not have permission to update scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", req.GetToken().GetScope())
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := s.backend.UpdateScopedToken(ctx, req)
 	return res, trace.Wrap(err)
 }

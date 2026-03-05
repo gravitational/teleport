@@ -627,6 +627,12 @@ func TestValidateTokenUpdate(t *testing.T) {
 				t.Spec.AssignedScope = "/test/one/two"
 			},
 		},
+		{
+			name: "status is nil in update (no change)",
+			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
+				t.Status = nil
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			modified := proto.CloneOf(baseToken)
