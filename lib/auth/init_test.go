@@ -1953,6 +1953,14 @@ spec:
   type: local
 version: v2
 `
+	workloadIdentityYAML = `kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+spec:
+  spiffe:
+    id: /svc/example
+`
 	botYAML = `kind: bot
 metadata:
   name: my-bot
@@ -1970,6 +1978,7 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 	lock := resourceFromYAML(t, lockYAML).(types.Lock)
 	clusterNetworkingConfig := resourceFromYAML(t, clusterNetworkingConfYAML).(types.ClusterNetworkingConfig)
 	authPref := resourceFromYAML(t, authPrefYAML).(types.AuthPreference)
+	workloadIdentity := resourceFromYAML(t, workloadIdentityYAML)
 	bot := resourceFromYAML(t, botYAML)
 
 	tests := []struct {
@@ -2036,6 +2045,13 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			name: "Apply AuthPreference",
 			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, authPref)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply WorkloadIdentity",
+			modifyConfig: func(cfg *auth.InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, workloadIdentity)
 			},
 			assertError: require.NoError,
 		},
@@ -2598,6 +2614,34 @@ version: v1`
 			version, err := auth.GetAutoUpdateVersion(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, "1.2.3", version.GetSpec().GetTools().GetTargetVersion())
+		})
+	}
+}
+
+func TestInitWithWorkloadIdentityResources(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	resources := []types.Resource{
+		resourceFromYAML(t, workloadIdentityYAML),
+	}
+
+	for _, test := range []struct {
+		name string
+		fn   func(cfg *auth.InitConfig)
+	}{
+		{name: "bootstrap", fn: func(cfg *auth.InitConfig) { cfg.BootstrapResources = resources }},
+		{name: "apply", fn: func(cfg *auth.InitConfig) { cfg.ApplyOnStartupResources = resources }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := setupConfig(t)
+			test.fn(&cfg)
+			auth, err := auth.Init(ctx, cfg)
+			require.NoError(t, err)
+
+			workloadIdentity, err := auth.GetWorkloadIdentity(ctx, "example-workload-identity")
+			require.NoError(t, err)
+			require.Equal(t, "/svc/example", workloadIdentity.GetSpec().GetSpiffe().GetId())
 		})
 	}
 }
