@@ -89,6 +89,9 @@ type remoteSite struct {
 	// nodeWatcher provides access the node set for the remote site
 	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
+	// databaseServerWatcher is a database server watcher.
+	databaseServerWatcher *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer]
+
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
 	// state has been changed, the tunnel will reconnect to re-create the client
@@ -179,8 +182,9 @@ func (s *remoteSite) GetClient() (authclient.ClientI, error) {
 	return s.remoteClient, nil
 }
 
-func (s *remoteSite) String() string {
-	return fmt.Sprintf("remoteSite(%v)", s.domainName)
+// DatabaseServerWatcher returns the Database server watcher for the leaf cluster.
+func (s *remoteSite) DatabaseServerWatcher() (*services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
+	return s.databaseServerWatcher, nil
 }
 
 func (s *remoteSite) connectionCount() int {

@@ -523,15 +523,15 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessPoint, err := cluster.CachingAccessPoint()
+	watcher, err := cluster.DatabaseServerWatcher()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	servers, err := connect.GetDatabaseServers(ctx, connect.GetDatabaseServersParams{
-		Logger:                s.log,
-		ClusterName:           cluster.GetName(),
-		DatabaseServersGetter: accessPoint,
-		Identity:              identity,
+		Logger:      s.log,
+		Watcher:     watcher,
+		ClusterName: cluster.GetName(),
+		Identity:    identity,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

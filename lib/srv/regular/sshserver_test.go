@@ -1802,6 +1802,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
+		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
@@ -1942,6 +1943,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
+		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
@@ -2613,6 +2615,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			LockWatcher:           lockWatcher,
 			NodeWatcher:           nodeWatcher,
 			GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
+			DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
 			CertAuthorityWatcher:  caWatcher,
 		})
 		require.NoError(t, err)
@@ -2867,6 +2870,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
+		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 	})
 	require.NoError(t, err)
@@ -3221,6 +3225,21 @@ func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Eve
 	return caWatcher
 }
 
+func newDatabaseServerWatcher(ctx context.Context, t *testing.T, client *authclient.Client) *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer] {
+	t.Helper()
+
+	databaseServerWatcher, err := services.NewDatabaseServerWatcher(ctx, services.DatabaseServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    client,
+		},
+	})
+
+	require.NoError(t, err)
+	t.Cleanup(databaseServerWatcher.Close)
+	return databaseServerWatcher
+}
+
 // newSigner creates a new SSH signer that can be used by the Server.
 func newSigner(t testing.TB, ctx context.Context, testServer *authtest.Server) ssh.Signer {
 	t.Helper()
@@ -3292,6 +3311,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
+		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})

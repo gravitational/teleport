@@ -114,8 +114,13 @@ func (p *clusterPeers) GetClient() (authclient.ClientI, error) {
 	return peer.GetClient()
 }
 
-func (p *clusterPeers) String() string {
-	return fmt.Sprintf("clusterPeer(%v)", p.clusterName)
+// DatabaseServerWatcher returns a watcher for database servers in the leaf cluster.
+func (p *clusterPeers) DatabaseServerWatcher() (*services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
+	peer, err := p.pickPeer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return peer.DatabaseServerWatcher()
 }
 
 func (p *clusterPeers) GetStatus() string {
@@ -214,6 +219,10 @@ func (s *clusterPeer) NodeWatcher() (*services.GenericWatcher[types.Server, read
 
 func (s *clusterPeer) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return nil, s.discoveryError("unable to fetch git server watcher for leaf cluster")
+}
+
+func (s *clusterPeer) DatabaseServerWatcher() (*services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
+	return nil, s.discoveryError("unable to fetch database server watcher for leaf cluster")
 }
 
 func (s *clusterPeer) GetClient() (authclient.ClientI, error) {
