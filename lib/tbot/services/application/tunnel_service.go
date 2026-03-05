@@ -24,7 +24,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -184,9 +183,15 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 	}
 	s.log.DebugContext(ctx, "Issued initial certificate for local proxy.")
 
-	var leeway time.Duration = 0
-	if l := s.cfg.Leeway; l != nil {
-		leeway = *l
+	leeway := s.cfg.Leeway
+	if leeway >= s.defaultCredentialLifetime.TTL {
+		s.log.WarnContext(ctx,
+			"leeway is greater than the credential lifetime and will be "+
+				"ignored, be aware of potential failures due to clock drift",
+			"credential_ttl", s.defaultCredentialLifetime.TTL,
+			"configured_leeway", leeway,
+		)
+		leeway = 0
 	}
 
 	middleware := internal.ALPNProxyMiddleware{

@@ -58,7 +58,7 @@ type TunnelConfig struct {
 
 	// Leeway is a duration added to the current time when checking if the
 	// tunnel's internal certificate needs to be renewed.
-	Leeway *time.Duration `yaml:"leeway,omitempty"`
+	Leeway time.Duration `yaml:"leeway,omitempty"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -100,11 +100,8 @@ func (s *TunnelConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err, "parsing listen")
 	}
 
-	// Leeway is a pointer to explicitly allow users to override this for zero
-	// leeway if desired.
-	if s.Leeway == nil {
-		v := time.Minute
-		s.Leeway = &v
+	if s.Leeway == 0 {
+		s.Leeway = time.Minute
 	}
 
 	return nil
