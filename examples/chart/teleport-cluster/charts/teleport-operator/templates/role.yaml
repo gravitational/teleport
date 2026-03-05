@@ -26,8 +26,8 @@ rules:
       - teleportoidcconnectors/status
       - teleportsamlconnectors
       - teleportsamlconnectors/status
-      - teleportsamlidpserviceproviders
-      - teleportsamlidpserviceproviders/status
+      - teleportsamlidpserviceprovidersv1
+      - teleportsamlidpserviceprovidersv1/status
       - teleportloginrules
       - teleportloginrules/status
       - teleportprovisiontokens

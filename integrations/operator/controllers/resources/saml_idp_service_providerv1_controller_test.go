@@ -96,18 +96,18 @@ func (g *samlIdPServiceProviderTestingPrimitives) DeleteTeleportResource(ctx con
 }
 
 func (g *samlIdPServiceProviderTestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {
-	sp := &resourcesv1.TeleportSAMLIdPServiceProvider{
+	sp := &resourcesv1.TeleportSAMLIdPServiceProviderV1{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
 		},
-		Spec: resourcesv1.TeleportSAMLIdPServiceProviderSpec(*samlIdPServiceProviderSpec),
+		Spec: resourcesv1.TeleportSAMLIdPServiceProviderV1Spec(*samlIdPServiceProviderSpec),
 	}
 	return trace.Wrap(g.setup.K8sClient.Create(ctx, sp))
 }
 
 func (g *samlIdPServiceProviderTestingPrimitives) DeleteKubernetesResource(ctx context.Context, name string) error {
-	sp := &resourcesv1.TeleportSAMLIdPServiceProvider{
+	sp := &resourcesv1.TeleportSAMLIdPServiceProviderV1{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
@@ -116,8 +116,8 @@ func (g *samlIdPServiceProviderTestingPrimitives) DeleteKubernetesResource(ctx c
 	return trace.Wrap(g.setup.K8sClient.Delete(ctx, sp))
 }
 
-func (g *samlIdPServiceProviderTestingPrimitives) GetKubernetesResource(ctx context.Context, name string) (*resourcesv1.TeleportSAMLIdPServiceProvider, error) {
-	sp := &resourcesv1.TeleportSAMLIdPServiceProvider{}
+func (g *samlIdPServiceProviderTestingPrimitives) GetKubernetesResource(ctx context.Context, name string) (*resourcesv1.TeleportSAMLIdPServiceProviderV1, error) {
+	sp := &resourcesv1.TeleportSAMLIdPServiceProviderV1{}
 	obj := kclient.ObjectKey{
 		Name:      name,
 		Namespace: g.setup.Namespace.Name,
@@ -135,7 +135,7 @@ func (g *samlIdPServiceProviderTestingPrimitives) ModifyKubernetesResource(ctx c
 	return trace.Wrap(g.setup.K8sClient.Update(ctx, sp))
 }
 
-func (g *samlIdPServiceProviderTestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.SAMLIdPServiceProvider, kubeResource *resourcesv1.TeleportSAMLIdPServiceProvider) (bool, string) {
+func (g *samlIdPServiceProviderTestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.SAMLIdPServiceProvider, kubeResource *resourcesv1.TeleportSAMLIdPServiceProviderV1) (bool, string) {
 	kubeTeleportResource := kubeResource.ToTeleport()
 	diff := cmp.Diff(
 		tResource,
@@ -161,22 +161,22 @@ func (g *samlIdPServiceProviderTestingPrimitives) CompareTeleportAndKubernetesRe
 
 func TestSAMLIdPServiceProviderCreation(t *testing.T) {
 	test := &samlIdPServiceProviderTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewSAMLIdPServiceProviderReconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewSAMLIdPServiceProviderV1Reconciler, test)
 }
 
 func TestSAMLIdPServiceProviderDeletion(t *testing.T) {
 	test := &samlIdPServiceProviderTestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(t, resources.NewSAMLIdPServiceProviderReconciler, test)
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewSAMLIdPServiceProviderV1Reconciler, test)
 }
 
 func TestSAMLIdPServiceProviderDeletionDrift(t *testing.T) {
 	test := &samlIdPServiceProviderTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewSAMLIdPServiceProviderReconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewSAMLIdPServiceProviderV1Reconciler, test)
 }
 
 func TestSAMLIdPServiceProviderUpdate(t *testing.T) {
 	test := &samlIdPServiceProviderTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewSAMLIdPServiceProviderReconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewSAMLIdPServiceProviderV1Reconciler, test)
 }
 
 // This test ensures the controller behavior for Teleport API validation
@@ -186,16 +186,16 @@ func TestSAMLIdPServiceProviderUpdate(t *testing.T) {
 func TestSAMLIdPServiceProviderCreateValidationError(t *testing.T) {
 	ctx := t.Context()
 	setup := testlib.SetupFakeKubeTestEnv(t)
-	reconciler, err := resources.NewSAMLIdPServiceProviderReconciler(setup.K8sClient, setup.TeleportClient)
+	reconciler, err := resources.NewSAMLIdPServiceProviderV1Reconciler(setup.K8sClient, setup.TeleportClient)
 	require.NoError(t, err)
 
 	name := validRandomResourceName("saml-sp-")
-	sp := &resourcesv1.TeleportSAMLIdPServiceProvider{
+	sp := &resourcesv1.TeleportSAMLIdPServiceProviderV1{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: setup.Namespace.Name,
 		},
-		Spec: resourcesv1.TeleportSAMLIdPServiceProviderSpec(types.SAMLIdPServiceProviderSpecV1{
+		Spec: resourcesv1.TeleportSAMLIdPServiceProviderV1Spec(types.SAMLIdPServiceProviderSpecV1{
 			EntityDescriptor: services.NewSAMLTestSPMetadata(
 				"https://example.com/saml/entity-from-descriptor",
 				"https://example.com/saml/acs-from-descriptor",
@@ -236,7 +236,7 @@ func TestSAMLIdPServiceProviderCreateValidationError(t *testing.T) {
 
 	// Wait until the controller status update is persisted on the Kubernetes CR.
 	fastEventually(t, func() bool {
-		current := &resourcesv1.TeleportSAMLIdPServiceProvider{}
+		current := &resourcesv1.TeleportSAMLIdPServiceProviderV1{}
 		getErr := setup.K8sClient.Get(ctx, kclient.ObjectKey{Name: name, Namespace: setup.Namespace.Name}, current)
 		if getErr != nil {
 			return false
@@ -249,7 +249,7 @@ func TestSAMLIdPServiceProviderCreateValidationError(t *testing.T) {
 
 	// Re-fetch the CR and assert the exact reconciliation condition values once
 	// the eventually loop has observed the status update.
-	current := &resourcesv1.TeleportSAMLIdPServiceProvider{}
+	current := &resourcesv1.TeleportSAMLIdPServiceProviderV1{}
 	require.NoError(t, setup.K8sClient.Get(ctx, kclient.ObjectKey{Name: name, Namespace: setup.Namespace.Name}, current))
 	condition := meta.FindStatusCondition(current.Status.Conditions, reconcilers.ConditionTypeSuccessfullyReconciled)
 	require.NotNil(t, condition)

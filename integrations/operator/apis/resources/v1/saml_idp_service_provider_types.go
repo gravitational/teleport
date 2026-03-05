@@ -26,34 +26,34 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&TeleportSAMLIdPServiceProvider{}, &TeleportSAMLIdPServiceProviderList{})
+	SchemeBuilder.Register(&TeleportSAMLIdPServiceProviderV1{}, &TeleportSAMLIdPServiceProviderV1List{})
 }
 
-// TeleportSAMLIdPServiceProviderSpec defines the desired state of TeleportSAMLIdPServiceProvider.
-type TeleportSAMLIdPServiceProviderSpec types.SAMLIdPServiceProviderSpecV1
+// TeleportSAMLIdPServiceProviderV1Spec defines the desired state of TeleportSAMLIdPServiceProviderV1.
+type TeleportSAMLIdPServiceProviderV1Spec types.SAMLIdPServiceProviderSpecV1
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// TeleportSAMLIdPServiceProvider is the Schema for the SAMLIdPServiceProvider API.
-type TeleportSAMLIdPServiceProvider struct {
+// TeleportSAMLIdPServiceProviderV1 is the Schema for the SAMLIdPServiceProvider API.
+type TeleportSAMLIdPServiceProviderV1 struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportSAMLIdPServiceProviderSpec `json:"spec"`
-	Status teleportcr.Status                  `json:"status"`
+	Spec   TeleportSAMLIdPServiceProviderV1Spec `json:"spec"`
+	Status teleportcr.Status                    `json:"status"`
 }
 
 //+kubebuilder:object:root=true
 
-// TeleportSAMLIdPServiceProviderList contains a list of TeleportSAMLIdPServiceProvider.
-type TeleportSAMLIdPServiceProviderList struct {
+// TeleportSAMLIdPServiceProviderV1List contains a list of TeleportSAMLIdPServiceProviderV1.
+type TeleportSAMLIdPServiceProviderV1List struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
-	Items           []TeleportSAMLIdPServiceProvider `json:"items"`
+	Items           []TeleportSAMLIdPServiceProviderV1 `json:"items"`
 }
 
-func (s TeleportSAMLIdPServiceProvider) ToTeleport() types.SAMLIdPServiceProvider {
+func (s TeleportSAMLIdPServiceProviderV1) ToTeleport() types.SAMLIdPServiceProvider {
 	return &types.SAMLIdPServiceProviderV1{
 		ResourceHeader: types.ResourceHeader{
 			Kind:    types.KindSAMLIdPServiceProvider,
@@ -70,28 +70,28 @@ func (s TeleportSAMLIdPServiceProvider) ToTeleport() types.SAMLIdPServiceProvide
 
 // StatusConditions returns a pointer to Status.Conditions slice. This is used
 // by the teleport resource controller to report conditions back to on resource.
-func (s *TeleportSAMLIdPServiceProvider) StatusConditions() *[]metav1.Condition {
+func (s *TeleportSAMLIdPServiceProviderV1) StatusConditions() *[]metav1.Condition {
 	return &s.Status.Conditions
 }
 
 // Marshal serializes a spec into binary data.
-func (spec *TeleportSAMLIdPServiceProviderSpec) Marshal() ([]byte, error) {
+func (spec *TeleportSAMLIdPServiceProviderV1Spec) Marshal() ([]byte, error) {
 	return (*types.SAMLIdPServiceProviderSpecV1)(spec).Marshal()
 }
 
 // Unmarshal deserializes a spec from binary data.
-func (spec *TeleportSAMLIdPServiceProviderSpec) Unmarshal(data []byte) error {
+func (spec *TeleportSAMLIdPServiceProviderV1Spec) Unmarshal(data []byte) error {
 	return (*types.SAMLIdPServiceProviderSpecV1)(spec).Unmarshal(data)
 }
 
 // DeepCopyInto deep-copies one user spec into another.
 // Required to satisfy runtime.Object interface.
-func (spec *TeleportSAMLIdPServiceProviderSpec) DeepCopyInto(out *TeleportSAMLIdPServiceProviderSpec) {
+func (spec *TeleportSAMLIdPServiceProviderV1Spec) DeepCopyInto(out *TeleportSAMLIdPServiceProviderV1Spec) {
 	data, err := spec.Marshal()
 	if err != nil {
 		panic(err)
 	}
-	*out = TeleportSAMLIdPServiceProviderSpec{}
+	*out = TeleportSAMLIdPServiceProviderV1Spec{}
 	if err = out.Unmarshal(data); err != nil {
 		panic(err)
 	}

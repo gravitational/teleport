@@ -58,14 +58,14 @@ func (r samlIdPServiceProviderClient) Delete(ctx context.Context, name string) e
 	return trace.Wrap(r.teleportClient.DeleteSAMLIdPServiceProvider(ctx, name))
 }
 
-// NewSAMLIdPServiceProviderReconciler instantiates a new Kubernetes controller
+// NewSAMLIdPServiceProviderV1Reconciler instantiates a new Kubernetes controller
 // reconciling saml_idp_service_provider resources.
-func NewSAMLIdPServiceProviderReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewSAMLIdPServiceProviderV1Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	spClient := &samlIdPServiceProviderClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.SAMLIdPServiceProvider, *resourcesv1.TeleportSAMLIdPServiceProvider](
+	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.SAMLIdPServiceProvider, *resourcesv1.TeleportSAMLIdPServiceProviderV1](
 		client,
 		spClient,
 	)
