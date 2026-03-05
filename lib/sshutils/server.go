@@ -320,9 +320,11 @@ func (s *Server) Addr() string {
 	return s.listener.Addr().String()
 }
 
-func (s *Server) Serve(listener net.Listener) error {
-	if err := s.SetListener(listener); err != nil {
-		return trace.Wrap(err)
+// Serve serves SSH connections using an already configured listener and blocks
+// until the listener is closed.
+func (s *Server) Serve() error {
+	if s.Addr() == "" {
+		return trace.BadParameter("listener is not set")
 	}
 	s.acceptConnections()
 	return nil
@@ -352,6 +354,9 @@ func (s *Server) Start() error {
 func (s *Server) SetListener(l net.Listener) error {
 	s.Lock()
 	defer s.Unlock()
+	if l == nil {
+		return trace.BadParameter("listener is nil")
+	}
 	if s.listener != nil {
 		return trace.BadParameter("listener is already set to %v", s.listener.Addr())
 	}
