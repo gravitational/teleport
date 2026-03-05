@@ -323,8 +323,7 @@ func (s *applicationService) ResolveFQDN(ctx context.Context, req *vnetv1.Resolv
 		return nil, trace.BadParameter("expected *types.AppV3, got %T", resp.Resources[0].GetApp())
 	}
 
-	// Only TCP apps are supported.
-	if !app.IsTCP() && !app.IsHTTP() && !app.IsLLM() {
+	if !vnet.IsVNetApp(app) {
 		// TODO(greedy52) properly support ResolveFQDNResponse_MatchedWebApp
 		// instead of using TCP response.
 		slog.InfoContext(ctx, "App not supported", "url", app.GetURI())

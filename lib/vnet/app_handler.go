@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -98,10 +99,7 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 	dialOptions := h.cfg.appInfo.GetDialOptions()
 
 	// TODO(greedy52) refactor to httpAppHandler ?
-	protocol := alpncommon.ProtocolTCP
-	if h.cfg.appInfo.App.IsHTTP() || h.cfg.appInfo.App.IsLLM() {
-		protocol = alpncommon.ProtocolHTTPSInMTLS
-	}
+	protocol := vnetALPNProtocol(h.cfg.appInfo.App)
 	h.log.InfoContext(ctx, "Preparing local proxy", "alpn", protocol)
 
 	localProxyConfig := alpnproxy.LocalProxyConfig{
@@ -190,6 +188,26 @@ func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnprox
 
 func (m *localProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 	return trace.Wrap(m.certChecker.OnStart(ctx, lp))
+}
+
+// IsVNetApp returns true if the app type is supported by VNet.
+func IsVNetApp(app types.Application) bool {
+	return app.IsTCP() || app.IsHTTP() || app.IsLLM() || isMCPStreamableHTTPApp(app)
+}
+
+// isMCPStreamableHTTPApp returns true if the app is an MCP server using the
+// streamable HTTP transport, which is supported by VNet.
+func isMCPStreamableHTTPApp(app types.Application) bool {
+	return types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP
+}
+
+// vnetALPNProtocol returns the ALPN protocol VNet should use for the given app.
+// TCP apps use ProtocolTCP; all others (HTTP, LLM, MCP streamable HTTP) use ProtocolHTTPSInMTLS.
+func vnetALPNProtocol(app types.Application) alpncommon.Protocol {
+	if app.IsTCP() {
+		return alpncommon.ProtocolTCP
+	}
+	return alpncommon.ProtocolHTTPSInMTLS
 }
 
 // RouteToApp returns a *proto.RouteToApp populated from appInfo and targetPort.

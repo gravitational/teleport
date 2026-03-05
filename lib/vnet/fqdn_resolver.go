@@ -186,7 +186,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	if !ok {
 		return nil, trace.BadParameter("expected *types.AppV3, got %T", resp.Resources[0].GetApp())
 	}
-	if !app.IsTCP() && !app.IsHTTP() && !app.IsLLM() {
+	if !IsVNetApp(app) {
 		// TODO(greedy52) properly support ResolveFQDNResponse_MatchedWebApp
 		// instead of using TCP response.
 		log.InfoContext(ctx, "App not supported", "url", app.GetURI())
