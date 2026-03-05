@@ -754,6 +754,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		sessionSummarizerProvider:    cfg.SessionSummarizerProvider,
 		recordingMetadataProvider:    cfg.RecordingMetadataProvider,
 		awsOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
+		insecureMode:                 cfg.InsecureMode,
 	}
 	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -1231,8 +1232,9 @@ type Server struct {
 	clock clockwork.Clock
 	bk    backend.Backend
 
-	closeCtx   context.Context
-	cancelFunc context.CancelFunc
+	insecureMode bool
+	closeCtx     context.Context
+	cancelFunc   context.CancelFunc
 
 	fakePasswordHash     []byte
 	fakeRecoveryCodeHash []byte
