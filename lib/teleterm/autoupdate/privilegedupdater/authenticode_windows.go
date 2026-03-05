@@ -20,11 +20,12 @@ package privilegedupdater
 
 //sys CryptMsgGetParam(msg windows.Handle, paramType uint32, index uint32, data *byte, dataLen *uint32) (err error) [failretval==0] = crypt32.CryptMsgGetParam
 //sys CryptMsgClose(msg windows.Handle) (err error) [failretval==0] = crypt32.CryptMsgClose
-//sys CertCompareCertificateName(encodingType uint32, name1 *windows.CertNameBlob, name2 *windows.CertNameBlob) (ok bool) = crypt32.CertCompareCertificateName
 
 import (
+	"crypto/x509"
 	"errors"
 	"os"
+	"slices"
 	"syscall"
 	"unsafe"
 
@@ -57,11 +58,10 @@ func verifySignature(updatePath string) error {
 		return trace.Wrap(err)
 	}
 
-	serviceCert, err := getCertContext(servicePathPtr)
+	serviceCert, err := getCert(servicePathPtr)
 	if err != nil {
 		return trace.Wrap(err, "getting service certificate")
 	}
-	defer windows.CertFreeCertificateContext(serviceCert)
 
 	updatePathPtr, err := windows.UTF16PtrFromString(updatePath)
 	if err != nil {
@@ -70,13 +70,12 @@ func verifySignature(updatePath string) error {
 	if err = verifyTrust(updatePathPtr); err != nil {
 		return trace.Wrap(err, "verifying update signature")
 	}
-	updateCert, err := getCertContext(updatePathPtr)
+	updateCert, err := getCert(updatePathPtr)
 	if err != nil {
 		return trace.Wrap(err, "getting update certificate")
 	}
-	defer windows.CertFreeCertificateContext(updateCert)
 
-	if !compareSubjects(serviceCert, updateCert) {
+	if !compareSubjectProperties(serviceCert, updateCert) {
 		return trace.BadParameter("signature verification failed: update and service subjects do not match")
 	}
 
@@ -107,9 +106,9 @@ func verifyTrust(path *uint16) error {
 	return trace.NewAggregate(err, closeErr)
 }
 
-// getCertContext extracts the certificate context from a signed file.
+// getCert extracts the certificate context from a signed file.
 // This function does not validate the chain of trust. Use verifyTrust for that.
-func getCertContext(path *uint16) (*windows.CertContext, error) {
+func getCert(path *uint16) (*x509.Certificate, error) {
 	var (
 		msgHandle, storeHandle windows.Handle
 		encoding               uint32
@@ -152,15 +151,45 @@ func getCertContext(path *uint16) (*windows.CertContext, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "signer certificate not found in store")
 	}
+	defer windows.CertFreeCertificateContext(certCtx)
 
-	// Caller is responsible for freeing certCtx.
-	return certCtx, nil
+	cert, err := extractX509Certificate(certCtx)
+	return cert, trace.Wrap(err)
 }
 
-func compareSubjects(ctx1, ctx2 *windows.CertContext) bool {
-	const encoding = windows.X509_ASN_ENCODING | windows.PKCS_7_ASN_ENCODING
+// compareSubjectProperties checks whether two certificates appear to belong to the same publisher by comparing a subset
+// of their X.509 Subject fields.
+// The cert validity must be checked first with verifyTrust.
+//
+// For Teleport's Windows signing certificate the subject typically looks like:
+// CN="Gravitational, Inc.", O="Gravitational, Inc.", L="Oakland", ST="California", C="US"
+//
+// Security notes:
+//   - This does NOT provide cryptographic authenticity guarantees. An attacker could theoretically obtain a certificate
+//     with identical subject fields, although doing so is non-trivial.
+//   - Teleport Managed Updates explicitly do not verify asset authenticity (see https://github.com/gravitational/teleport/blob/0bc64ebc163728ece7f9e7b874e6eb9b95736a01/rfd/0184-agent-auto-updates.md?plain=1#L1909-L1918),
+//     so this check acts as a best-effort, additional defense layer.
+//   - We intentionally avoid pinning a specific certificate in the updater so that certificate renewals or rotations
+//     do not accidentally break updates.
+//   - This logic should become unnecessary once proper authenticity verification is implemented (e.g., using The Update Framework)
+//     along with the supporting infrastructure.
+//
+// Similar approaches:
+//   - electron-updater compares DN attributes:
+//     https://github.com/electron-userland/electron-builder/blob/02e59ba8a3b02e1b3ab20035ff43f48ea20880b7/packages/electron-updater/src/windowsExecutableCodeSignatureVerifier.ts#L69-L85
+//   - Tailscale verifies only the CN:
+//     https://github.com/tailscale/tailscale/blob/3ec5be3f510f74738179c1023468343a62a7e00f/clientupdate/clientupdate_windows.go#L70-L74
+func compareSubjectProperties(cert1, cert2 *x509.Certificate) bool {
+	if cert1 == nil || cert2 == nil {
+		return false
+	}
 
-	return CertCompareCertificateName(encoding, &ctx1.CertInfo.Subject, &ctx2.CertInfo.Subject)
+	s1, s2 := cert1.Subject, cert2.Subject
+	return s1.CommonName == s2.CommonName &&
+		slices.Equal(s1.Organization, s2.Organization) &&
+		slices.Equal(s1.Locality, s2.Locality) &&
+		slices.Equal(s1.Province, s2.Province) &&
+		slices.Equal(s1.Country, s2.Country)
 }
 
 func getCertInfoBlob(handle windows.Handle) ([]byte, error) {
@@ -174,4 +203,17 @@ func getCertInfoBlob(handle windows.Handle) ([]byte, error) {
 		return nil, trace.Wrap(err, "failed to get CMSG_SIGNER_CERT_INFO_PARAM param data")
 	}
 	return buf, nil
+}
+
+func extractX509Certificate(ctx *windows.CertContext) (*x509.Certificate, error) {
+	if ctx == nil || ctx.EncodedCert == nil || ctx.Length == 0 {
+		return nil, trace.BadParameter("invalid certificate context")
+	}
+
+	der := unsafe.Slice(ctx.EncodedCert, int(ctx.Length))
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse x509 certificate")
+	}
+	return cert, nil
 }

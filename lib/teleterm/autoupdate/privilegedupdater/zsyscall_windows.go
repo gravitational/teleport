@@ -40,16 +40,9 @@ func errnoErr(e syscall.Errno) error {
 var (
 	modcrypt32 = windows.NewLazySystemDLL("crypt32.dll")
 
-	procCertCompareCertificateName = modcrypt32.NewProc("CertCompareCertificateName")
-	procCryptMsgClose              = modcrypt32.NewProc("CryptMsgClose")
-	procCryptMsgGetParam           = modcrypt32.NewProc("CryptMsgGetParam")
+	procCryptMsgClose    = modcrypt32.NewProc("CryptMsgClose")
+	procCryptMsgGetParam = modcrypt32.NewProc("CryptMsgGetParam")
 )
-
-func CertCompareCertificateName(encodingType uint32, name1 *windows.CertNameBlob, name2 *windows.CertNameBlob) (ok bool) {
-	r0, _, _ := syscall.SyscallN(procCertCompareCertificateName.Addr(), uintptr(encodingType), uintptr(unsafe.Pointer(name1)), uintptr(unsafe.Pointer(name2)))
-	ok = r0 != 0
-	return
-}
 
 func CryptMsgClose(msg windows.Handle) (err error) {
 	r1, _, e1 := syscall.SyscallN(procCryptMsgClose.Addr(), uintptr(msg))
