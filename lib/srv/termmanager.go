@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 )
@@ -96,7 +97,7 @@ func NewTermManager() *TermManager {
 // writeToClients writes to underlying clients
 func (g *TermManager) writeToClients(p []byte) {
 	g.lastWasBroadcast = false
-	g.history = truncateFront(append(g.history, p...), maxHistoryBytes)
+	g.history = extendAndTruncate(g.history, p, maxHistoryBytes)
 
 	atomic.AddUint64(&g.countWritten, uint64(len(p)))
 	var toDelete []struct {
@@ -120,7 +121,7 @@ func (g *TermManager) writeToClients(p []byte) {
 	}
 
 	// Let term manager decide how to handle broken party writers
-	if g.OnWriteError != nil {
+	if g.OnWriteError != nil && len(toDelete) > 0 {
 		// writeToClients is called with the lock held, so we need to release it
 		// before calling OnWriteError to avoid a deadlock if OnWriteError
 		// calls DeleteWriter/DeleteReader.
@@ -151,7 +152,7 @@ func (g *TermManager) Write(p []byte) (int, error) {
 	} else {
 		// Only keep the last maxPausedHistoryBytes of stdout/stderr while the session is paused.
 		// The alternative is flushing to disk but this should be a pretty rare occurrence and shouldn't be an issue in practice.
-		g.buffer = truncateFront(append(g.buffer, p...), maxPausedHistoryBytes)
+		g.buffer = extendAndTruncate(g.buffer, p, maxPausedHistoryBytes)
 	}
 
 	return len(p), nil
@@ -208,7 +209,9 @@ func (g *TermManager) On() {
 	case g.stateUpdate <- struct{}{}:
 	default:
 	}
-	g.writeToClients(g.buffer)
+	b := g.buffer
+	g.buffer = nil
+	g.writeToClients(b)
 }
 
 // Off buffers incoming writes and reads until turned on again.
@@ -328,15 +331,17 @@ func (g *TermManager) isClosed() bool {
 func (g *TermManager) GetRecentHistory() []byte {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	data := make([]byte, 0, len(g.history))
-	data = append(data, g.history...)
-	return data
+	return slices.Clone(g.history)
 }
 
-func truncateFront(slice []byte, max int) []byte {
-	if len(slice) > max {
-		return slice[len(slice)-max:]
+func extendAndTruncate(s []byte, t []byte, max int) []byte {
+	if len(s)+len(t) <= max {
+		return append(s, t...)
+	}
+	if len(t) >= max {
+		return append(s[:0], t[len(t)-max:]...)
 	}
 
-	return slice
+	s = s[:copy(s, s[len(s)-(max-len(t)):])]
+	return append(s, t...)
 }

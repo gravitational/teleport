@@ -22,7 +22,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
-	ggzip "google.golang.org/grpc/encoding/gzip"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types/events"
@@ -31,7 +30,7 @@ import (
 // createOrResumeAuditStream creates or resumes audit stream described in the request.
 func (c *Client) createOrResumeAuditStream(ctx context.Context, request proto.AuditStreamRequest) (events.Stream, error) {
 	closeCtx, cancel := context.WithCancel(ctx)
-	stream, err := c.grpc.CreateAuditStream(closeCtx, grpc.UseCompressor(ggzip.Name))
+	stream, err := c.grpc.CreateAuditStream(closeCtx, grpc.UseCompressor(c.c.AuditStreamGRPCCompressorName))
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)

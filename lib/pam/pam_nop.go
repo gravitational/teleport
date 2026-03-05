@@ -20,9 +20,7 @@
 
 package pam
 
-import "github.com/gravitational/teleport/lib/service/servicecfg"
-
-var buildHasPAM, systemHasPAM bool
+import "github.com/gravitational/teleport/lib/service/servicecfg/pamconfig"
 
 // PAM is used to create a PAM context and initiate PAM transactions to checks
 // the users account and open/close a session.
@@ -31,7 +29,7 @@ type PAM struct {
 
 // Open creates a PAM context and initiates a PAM transaction to check the
 // account and then opens a session.
-func Open(config *servicecfg.PAMConfig) (*PAM, error) {
+func Open(config *pamconfig.PAMConfig) (*PAM, error) {
 	return &PAM{}, nil
 }
 
@@ -50,10 +48,10 @@ func (p *PAM) Environment() []string {
 // BuildHasPAM returns true if the binary was build with support for PAM
 // compiled in.
 func BuildHasPAM() bool {
-	return buildHasPAM
+	return false
 }
 
 // SystemHasPAM returns true if the PAM library exists on the system.
 func SystemHasPAM() bool {
-	return systemHasPAM
+	return false
 }

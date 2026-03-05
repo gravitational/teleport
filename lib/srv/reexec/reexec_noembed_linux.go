@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux && !embed_sshd_helper
 
 /*
  * Teleport
@@ -18,14 +18,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package srv
+package reexec
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"syscall"
 
-	"github.com/gravitational/trace"
 	"golang.org/x/sys/unix"
 )
 
@@ -63,6 +63,10 @@ func init() {
 // reexecPath specifies a path to execute on reexec, overriding Path in the cmd
 // passed to reexecCommandOSTweaks, if not empty.
 var reexecPath string
+
+func CommandOSTweaks(cmd *exec.Cmd) {
+	reexecCommandOSTweaks(cmd)
+}
 
 func reexecCommandOSTweaks(cmd *exec.Cmd) {
 	if cmd.SysProcAttr == nil {
@@ -111,14 +115,14 @@ func setNeutralOOMScore() error {
 	// won't be used as os.O_WRONLY won't create the file.
 	f, err := os.OpenFile("/proc/self/oom_score_adj", os.O_WRONLY, 0)
 	if err != nil {
-		return trace.ConvertSystemError(err)
+		return (err)
 	}
 
 	if _, err := f.WriteString("0"); err != nil {
-		return trace.NewAggregate(err, f.Close())
+		return errors.Join(err, f.Close())
 	}
 
 	// Make sure to return errors from Close(),
 	// as sync error may be returned here.
-	return trace.Wrap(f.Close())
+	return (f.Close())
 }
