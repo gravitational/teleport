@@ -1,5 +1,19 @@
 # Changelog
 
+## 18.7.2 (03/05/26)
+
+* Added more helpful messages to `ssm.run` events when there's a failure in discovering EC2 instances. [#64273](https://github.com/gravitational/teleport/pull/64273)
+* Fixed an issue where the UI would display a white screen and no error when an error occurred. [#64246](https://github.com/gravitational/teleport/pull/64246)
+* Improve the layout of the web UI's message of the day. [#64213](https://github.com/gravitational/teleport/pull/64213)
+* Fixed an issue where VNet on Windows could fail to start after an update with the error: `The specified service does not exist as an installed service.`. [#64206](https://github.com/gravitational/teleport/pull/64206)
+* Add scoped tokens to tctl resource commands. [#64040](https://github.com/gravitational/teleport/pull/64040)
+* Fixed correct reporting of server discovery enrollment failures when the Proxy is not accessible from the target server. [#64007](https://github.com/gravitational/teleport/pull/64007)
+* Fixed an issue that caused Discovery Service to stop working for Discovery Configs, also affecting AWS OIDC resource enrollments created from the UI. [#63970](https://github.com/gravitational/teleport/pull/63970)
+* Added support for session summarizer resources to the Kubernetes operator. [#63884](https://github.com/gravitational/teleport/pull/63884)
+
+Enterprise:
+* Fix a potential panic in Auth service when getting a plugin an non-existing plugin without list permissions.
+
 ## 18.7.1 (02/24/26)
 
 * Fixed web app access in leaf clusters when VNet is enabled. [#63993](https://github.com/gravitational/teleport/pull/63993)
