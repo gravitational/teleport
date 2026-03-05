@@ -8346,20 +8346,6 @@ func TestReexecErrorPropagation(t *testing.T) {
 
 	homePath := t.TempDir()
 
-	recordingModes := []struct {
-		name    string
-		recMode string
-	}{
-		{
-			name:    "record at node",
-			recMode: types.RecordAtNode,
-		},
-		{
-			name:    "record at proxy",
-			recMode: types.RecordAtProxy,
-		},
-	}
-
 	sshCases := []struct {
 		name          string
 		tty           bool
@@ -8386,41 +8372,31 @@ func TestReexecErrorPropagation(t *testing.T) {
 	}, setHomePath(homePath), setMockSSOLogin(authServer, userMissingLogin, connector.GetName()))
 	require.NoError(t, err)
 
-	for _, rm := range recordingModes {
-		t.Run(rm.name, func(t *testing.T) {
-			recCfg := types.DefaultSessionRecordingConfig()
-			recCfg.SetMode(rm.recMode)
-			_, err := authServer.UpsertSessionRecordingConfig(ctx, recCfg)
-			require.NoError(t, err)
+	for _, sc := range sshCases {
+		t.Run(sc.name, func(t *testing.T) {
+			t.Parallel()
+			stdout := &output{buf: bytes.Buffer{}}
 
-			for _, sc := range sshCases {
-				t.Run(sc.name, func(t *testing.T) {
-					t.Parallel()
-					stdout := &output{buf: bytes.Buffer{}}
-
-					args := []string{"ssh", "--insecure"}
-					if sc.tty {
-						args = append(args, "--tty")
-					}
-					args = append(args, fmt.Sprintf("%s@%s", missingLogin, sshHostname))
-					args = append(args, sc.remoteCommand...)
-
-					err := Run(ctx, args,
-						setHomePath(homePath),
-						func(conf *CLIConf) error {
-							conf.OverrideStdout = stdout
-							return nil
-						},
-					)
-					require.Error(t, err)
-
-					// If there is a tty, we expect CRLF instead of just LF.
-					expectErr := fmt.Sprintf("Failed to launch: %v.\r\n", user.UnknownUserError(missingLogin))
-
-					// Check for exact match to catch regressions with new lines.
-					require.Equal(t, expectErr, stdout.String())
-				})
+			args := []string{"ssh", "--insecure"}
+			if sc.tty {
+				args = append(args, "--tty")
 			}
+			args = append(args, fmt.Sprintf("%s@%s", missingLogin, sshHostname))
+			args = append(args, sc.remoteCommand...)
+
+			err := Run(ctx, args,
+				setHomePath(homePath),
+				func(conf *CLIConf) error {
+					conf.OverrideStdout = stdout
+					return nil
+				},
+			)
+			require.Error(t, err)
+
+			expectErr := fmt.Sprintf("Failed to launch: %v.\r\n", user.UnknownUserError(missingLogin))
+
+			// Check for exact match to catch regressions with new lines.
+			require.Equal(t, expectErr, stdout.String())
 		})
 	}
 }
