@@ -253,6 +253,7 @@ metadata:
 scope: /staging
 spec:
   bot: staging-deployer
+  bot_scope: /staging
   assignments:
     - role: staging-ssh-access 
       scope: /staging
@@ -325,19 +326,26 @@ of a user.
 
 The `spec.bot` field will be mutually exclusive with the `spec.user` field.
 
+An additional `spec.bot_scope` field will also be added. This binds the role
+assignment to a scoped bot in a specific scope, and mitigates the potential for
+name reuse attacks. This field must be specified when `spec.bot` is set and 
+cannot be specified if `spec.bot` is unset.
+
 As per [Behaviour: Assigning the Scoped Bot privileges](#assigning-the-scoped-bot-privileges),
 new validation rules will be added to the Create/Update/Upsert RPCs for the 
 ScopedRoleAssignment to enforce the following when `spec.bot` is set:
 
 - That `spec.bot` references a bot that exists.
 - That `spec.bot` references a bot with a scope.
+- That `spec.bot_scope` is set and that this matches the scope of the referenced
+  bot.
 - That the scope of origin (`scope`) and scope of effect
   (`spec.assignments.*.scope`) of the role assignment are the same or descendent
   scopes of the bot's scope.
 
 This validation must only be performed on creation or update, and should not
 be enforced on read of existing role assignments - this avoids the risk of
-breaking reads/cache initialisation if the condition of the referenced bot
+breaking reads/cache initialization if the condition of the referenced bot
 changes.
 
 Instead, the privilege calculation mechanisms defined under
