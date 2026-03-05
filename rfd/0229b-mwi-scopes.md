@@ -447,14 +447,15 @@ We issue certificates for bot instances via three different paths:
 
 - `tbot` successfully calling of a Join RPC, we issue certificates for the bot's
   internal identity.
-- `tbot` calling the GenerateUserCerts RPC to generate impersonated identity
+- `tbot` calling the `GenerateUserCerts` RPC to generate impersonated identity
   certificates intended for services/outputs. This RPC is called using the bot's
   internal identity and the resulting certificate reflects the Bot's assigned
   roles via the role impersonation mechanism.
 - Special case - renewal for `token` join method bot instances. `tbot` calls the
-  GenerateUserCerts RPC using the bot's internal credentials with the intent of
-  producing internal credentials that expire at a later time than the current
-  credentials. This triggers a set of special renewal checks.
+  `GenerateUserCerts` RPC using the bot's internal credentials with the intent
+  of producing internal credentials that expire at a later time than the current
+  credentials. This triggers a set of special renewal checks (i.e. generation 
+  counters).
 
 Likely, all three of these paths will need to be modified in some way to support
 the scoping of bots. 
@@ -462,25 +463,43 @@ the scoping of bots.
 wip: Lightly remark on how scoped roles are encoded, and the meaning of this,
 wip: and how this clashes with the way role assumption works today.
 
-#### Calculating and encoding of authorization for scoped Bots
+#### Identity of scoped Bots
 
-This section sets out the process for calculating and encoding the authorization
-for scoped Bots into certificates. This should be followed when a scoped Bot
-joins, renews or requests certificates be issued for use in an output or
-service.
+This section sets out the process for calculating and encoding the identity
+for scoped Bots into certificates.
 
-wip: Re-iterate rules that must be followed when calculating the roles that
-wip: should be encoded for a bot.
+wip: firm out decision on whether internal bot certs should be scoped? I think
+wip: overwhelmingly I'm leaning towards "yes" because otherwise the binding to
+wip: scopedtoken seems very weak.
 
-#### GenerateUserCerts RPC
+Certificates generated for scoped Bots MUST always be scoped (i.e. contain a 
+ScopePin field) and the scope to which they are pinned MUST be the scope of the 
+Bot itself. This differs from the process for users where the scope to be pinned
+is user requestable.
 
-wip: GenerateUserCerts will need to be modified to ensure certificates issued to
-wip: scoped bots take into account SRAs, and, reject the use of role
-wip: impersonation. There may be hidden complexity here as GenerateUserCerts 
-wip: assumes that a Bot will be leveraging role impersonation for output
-wip: certificates, and, will treat unassumed GenerateUserCerts for Bots as an
-wip: attempt to perform a internal certificate renewal (which is only valid for
-wip: bots using the `token` join method...)
+Additionally, certificates generated for scoped Bots:
+
+- MUST NOT contain traits.
+- MUST NOT contain roles.
+
+Care must be taken to ensure that any existing RPCs that yield certificates will
+not permit invocation with a scoped Bot identity, or, that they propagate any
+scope pins into the resulting certificate.
+
+#### GenerateUserCerts/GenerateBotCerts RPC
+
+The `GenerateUserCerts` RPC is a critical RPC leveraged by many aspects of 
+Teleport. Today, it has already accumulated a significant degree of complexity.
+Extending this RPC with support for ScopedBots presents a high degree of risk of
+regression and will further reduce the maintainability of this RPC. For this
+reason, we will implement a new `GenerateBotCerts` RPC that is specifically
+designed around Bot use-cases.
+
+The `GenerateUserCerts` RPC will explicitly reject calls from scoped Bot
+identities. This mitigates the risk that this RPC could pose a potential vector
+for escape of scope constraints.
+
+wip: RPC/proto design for GenerateBotCerts?
 
 ### `tbot`
 
@@ -837,9 +856,10 @@ This implementation falls short in a number of ways:
 
 ### B.1 Sub-pinning of output credentials
 
-Whilst the credentials of a scoped Bot may be pinned to a specific scope or
-global, it may be useful for users to further constrain the access of these
-credentials by pinning them to a subset of what the Scoped Bot can access.
+The currently proposed design pins all credentials issued to the scoped Bot to
+the Bot's scope of origin. However, it may be beneficial to allow users to
+specify a descendent scope to be used for the credentials of a specific output
+or service.
 
 This provides an opportunity to reduce the blast radius by allowing users to
 produce credentials with the least privilege necessary for a given task.
@@ -862,9 +882,9 @@ services:
     path: /opt/machine-id
 ```
 
-The implementation of this would take the following form:
-
-- wip wip
+This would require modifications to the GenerateBotCerts RPC to accept an
+optional scope request, and appropriate validation to ensure that the requested
+scope is the same or a descendent scope of the Bot's scope of origin.
 
 ### B.2 Cross-scope privileges
 
