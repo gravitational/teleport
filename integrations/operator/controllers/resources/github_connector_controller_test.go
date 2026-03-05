@@ -130,17 +130,22 @@ func (g *githubTestingPrimitives) CompareTeleportAndKubernetesResource(tResource
 
 func TestGithubConnectorCreation(t *testing.T) {
 	test := &githubTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest[types.GithubConnector, *resourcesv3.TeleportGithubConnector](t, resources.NewGithubConnectorReconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewGithubConnectorReconciler, test)
+}
+
+func TestGithubConnectorDeletion(t *testing.T) {
+	test := &githubTestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewGithubConnectorReconciler, test)
 }
 
 func TestGithubConnectorDeletionDrift(t *testing.T) {
 	test := &githubTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest[types.GithubConnector, *resourcesv3.TeleportGithubConnector](t, resources.NewGithubConnectorReconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewGithubConnectorReconciler, test)
 }
 
 func TestGithubConnectorUpdate(t *testing.T) {
 	test := &githubTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous[types.GithubConnector, *resourcesv3.TeleportGithubConnector](t, resources.NewGithubConnectorReconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewGithubConnectorReconciler, test)
 }
 
 func TestGithubConnectorSecretLookup(t *testing.T) {

@@ -101,17 +101,25 @@ type Services struct {
 
 // MFAService defines the interface for managing MFA resources in the backend.
 type MFAService interface {
-	// CreateValidatedMFAChallenge stores a ValidatedMFAChallenge resource for a given username.
+	// CreateValidatedMFAChallenge stores a ValidatedMFAChallenge resource for a given target cluster.
 	CreateValidatedMFAChallenge(
 		ctx context.Context,
-		username string,
+		targetCluster string,
 		challenge *mfav1.ValidatedMFAChallenge,
 	) (*mfav1.ValidatedMFAChallenge, error)
 
-	// GetValidatedMFAChallenge retrieves a ValidatedMFAChallenge resource by username and challengeName.
+	// GetValidatedMFAChallenge retrieves a ValidatedMFAChallenge resource by target cluster and challenge name.
 	GetValidatedMFAChallenge(
 		ctx context.Context,
-		username string,
+		targetCluster string,
 		challengeName string,
 	) (*mfav1.ValidatedMFAChallenge, error)
+
+	// ListValidatedMFAChallenges lists ValidatedMFAChallenge resources for all users.
+	ListValidatedMFAChallenges(
+		ctx context.Context,
+		pageSize int32,
+		pageToken string,
+		targetCluster string,
+	) ([]*mfav1.ValidatedMFAChallenge, string, error)
 }

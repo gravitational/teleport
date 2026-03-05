@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -167,6 +168,7 @@ func testDatabaseLogin(t *testing.T) {
 				accessRequestorRole,
 				alice,
 			)
+			cfg.SSH.Enabled = false
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			// separate MySQL port with TLS routing.
 			// set the public address to be sure even on v2+, tsh clients will see the separate port.
@@ -551,7 +553,7 @@ func updateAccessRequestForDB(t *testing.T, s *suite, wantRequestReason, wantDBN
 			if accessRequest.GetRequestReason() != wantRequestReason {
 				continue
 			}
-			for _, resourceID := range accessRequest.GetRequestedResourceIDs() {
+			for _, resourceID := range types.RiskyExtractResourceIDs(accessRequest.GetAllRequestedResourceIDs()) {
 				if resourceID.Kind == types.KindDatabase &&
 					resourceID.Name == wantDBName {
 					accessRequestID = accessRequest.GetName()
@@ -709,6 +711,7 @@ func testListDatabase(t *testing.T) {
 			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
+			cfg.SSH.Enabled = false
 			cfg.Databases.Databases = []servicecfg.Database{{
 				Name:     fullName,
 				Protocol: defaults.ProtocolPostgres,
@@ -728,6 +731,7 @@ func testListDatabase(t *testing.T) {
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
+			cfg.SSH.Enabled = false
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{{
 				Name:     "leaf-postgres",
@@ -1599,6 +1603,7 @@ func testDatabaseSelection(t *testing.T) {
 			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, alice)
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
+			cfg.SSH.Enabled = false
 			cfg.Databases.Databases = []servicecfg.Database{
 				fooDB1, fooRDSDB, fooRDSCustomDB,
 				barRDSDB1, barRDSDB2,
@@ -2295,4 +2300,141 @@ func TestMongoDBSeparatePortCommandError(t *testing.T) {
 	}, setHomePath(tshHome), setCmdRunner(noopCmdRunner))
 	require.NoError(t, err)
 	require.True(t, cmdExecuted.Load(), "expected the MongoDB command to have executed")
+}
+
+func TestDatabaseListHeadless(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	aliceUsername := "alice@example.com"
+	alice, err := types.NewUser(aliceUsername)
+	require.NoError(t, err)
+	alice.SetDatabaseNames([]string{"postgres"})
+	alice.SetRoles([]string{"access"})
+
+	// Create a Teleport process with a database
+	server, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithClusterName("test-cluster"),
+		testserver.WithBootstrap(alice),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.Enabled = true
+			cfg.Proxy.Enabled = true
+			cfg.SSH.Enabled = false
+
+			cfg.Auth.Preference = &types.AuthPreferenceV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{types.OriginLabel: types.OriginConfigFile},
+				},
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "127.0.0.1",
+					},
+					AllowHeadless: types.NewBoolOption(true),
+				},
+			}
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+		require.NoError(t, server.Wait())
+	})
+
+	// Create database server manually. We do this to avoid creating it via cfg.Databases
+	// in NewTeleportProcess, which waits for the DatabasesReady event. In this test,
+	// DatabasesReady never fires because we aren't actually creating the the database
+	// that we are pointing the database service at.
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-db",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "test-db",
+	}, types.DatabaseServerSpecV3{
+		Version:  teleport.Version,
+		Hostname: "test-hostname",
+		HostID:   uuid.NewString(),
+		Database: database,
+	})
+	require.NoError(t, err)
+	_, err = server.GetAuthServer().UpsertDatabaseServer(ctx, dbServer)
+	require.NoError(t, err)
+
+	go func() {
+		// Ensure the context is canceled, so that Run calls don't block
+		defer cancel()
+		if err := approveAllAccessRequests(ctx, server.GetAuthServer()); err != nil {
+			assert.ErrorIs(t, err, context.Canceled, "unexpected error from approveAllAccessRequests")
+		}
+	}()
+
+	proxyAddr, err := server.ProxyWebAddr()
+	require.NoError(t, err)
+
+	captureStdout := &bytes.Buffer{}
+	err = Run(ctx, []string{
+		"db",
+		"ls",
+		"--proxy", proxyAddr.String(),
+		"--user", aliceUsername,
+		"--insecure",
+		"--headless",
+	},
+		setCopyStdout(captureStdout),
+		setHomePath(t.TempDir()),
+		func(cf *CLIConf) error {
+			cf.MockHeadlessLogin = mockHeadlessLogin(t, server.GetAuthServer(), alice)
+			return nil
+		},
+	)
+	require.NoError(t, err)
+	stdoutStr := captureStdout.String()
+	require.Contains(t, stdoutStr, "test-db", "database should appear in output")
+}
+
+func TestDatabaseListCLIFlags(t *testing.T) {
+	testCases := []struct {
+		Description string
+		Args        []string
+		ErrTestFunc func(e error) bool
+	}{
+		{
+			Description: "should return bad parameter error when --headless and --all are specified",
+			Args: []string{
+				"db",
+				"ls",
+				"--proxy", "test-proxy",
+				"--user", "test-user",
+				"--headless",
+				"--all",
+			},
+			ErrTestFunc: trace.IsBadParameter,
+		},
+		{
+			Description: "should return bad parameter error when --auth=headless and --all are specified",
+			Args: []string{
+				"db",
+				"ls",
+				"--proxy", "test-proxy",
+				"--user", "test-user",
+				"--auth", "headless",
+				"--all",
+			},
+			ErrTestFunc: trace.IsBadParameter,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Description, func(t *testing.T) {
+			err := Run(t.Context(), testCase.Args)
+			require.True(t, testCase.ErrTestFunc(err))
+		})
+	}
 }

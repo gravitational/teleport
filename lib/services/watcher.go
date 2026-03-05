@@ -525,7 +525,14 @@ func NewAppServersWatcher(ctx context.Context, cfg AppServersWatcherConfig) (*Ge
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.AppServer, readonly.AppServer]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindAppServer,
-		ResourceKey:           types.AppServer.GetName,
+		ResourceKey: func(resource types.AppServer) string {
+			// host IDs are guaranteed to not contain "/"
+			return resource.GetHostID() + "/" + resource.GetName()
+		},
+		DeleteKey: func(r types.Resource) string {
+			// the host ID is stored in metadata.description in app server delete events
+			return r.GetMetadata().Description + "/" + r.GetName()
+		},
 		ResourceGetter: func(ctx context.Context) ([]types.AppServer, error) {
 			return cfg.AppServersGetter.GetApplicationServers(ctx, apidefaults.Namespace)
 		},
@@ -534,6 +541,60 @@ func NewAppServersWatcher(ctx context.Context, cfg AppServersWatcherConfig) (*Ge
 		ReadOnlyFunc: func(resource types.AppServer) readonly.AppServer {
 			return resource
 		},
+	})
+
+	return w, trace.Wrap(err)
+}
+
+type DatabaseServerWatcherConfig struct {
+	DatabaseServersGetter
+	ResourceWatcherConfig
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *DatabaseServerWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if cfg.MaxStaleness == 0 {
+		const databaseServerMaxStaleness = time.Minute
+		cfg.MaxStaleness = databaseServerMaxStaleness
+	}
+
+	if cfg.DatabaseServersGetter == nil {
+		getter, ok := cfg.Client.(DatabaseServersGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter DatabaseServersGetter and Client not usable as DatabaseServersGetter")
+		}
+		cfg.DatabaseServersGetter = getter
+	}
+
+	return nil
+}
+
+func NewDatabaseServerWatcher(ctx context.Context, cfg DatabaseServerWatcherConfig) (*GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.DatabaseServer, readonly.DatabaseServer]{
+		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
+		ResourceKind:          types.KindDatabaseServer,
+		ResourceKey: func(r types.DatabaseServer) string {
+			// the host ID is guaranteed not to contain "/"
+			return r.GetHostID() + "/" + r.GetName()
+		},
+		DeleteKey: func(r types.Resource) string {
+			// database servers put the host ID in the description in delete events
+			return r.GetMetadata().Description + "/" + r.GetName()
+		},
+		ResourceGetter: func(ctx context.Context) ([]types.DatabaseServer, error) {
+			return cfg.DatabaseServersGetter.GetDatabaseServers(ctx, apidefaults.Namespace)
+		},
+		DisableUpdateBroadcast: true,
+		CloneFunc:              types.DatabaseServer.Copy,
+		ReadOnlyFunc:           readonly.NewDatabaseServer,
 	})
 
 	return w, trace.Wrap(err)
@@ -1483,7 +1544,7 @@ func (c *caCollector) processEventsAndUpdateCurrent(ctx context.Context, events 
 			}
 
 			authority, ok := c.cas[ca.GetType()][ca.GetName()]
-			if ok && CertAuthoritiesEquivalent(authority, ca) {
+			if ok && authority.IsEqual(ca) {
 				continue
 			}
 

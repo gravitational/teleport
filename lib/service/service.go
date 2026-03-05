@@ -61,6 +61,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 	libproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -731,7 +732,7 @@ type TeleportProcess struct {
 	//
 	// Both the metricsRegistry and the default global registry are gathered by
 	// Teleport's metric service.
-	metricsRegistry *prometheus.Registry
+	metricsRegistry *metrics.Registry
 
 	// We gather metrics both from the in-process registry (preferred metrics registration method)
 	// and the global registry (used by some Teleport services and many dependencies).
@@ -982,7 +983,7 @@ func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Ide
 	process.Lock()
 	defer process.Unlock()
 
-	i, err = process.storage.ReadIdentity(state.IdentityCurrent, role)
+	i, err = process.storage.ReadIdentity(process.GracefulExitContext(), state.IdentityCurrent, role)
 
 	if err == nil {
 		return i, nil
@@ -1017,7 +1018,7 @@ func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Ide
 		return nil, trace.Wrap(err)
 	}
 	process.logger.InfoContext(process.ExitContext(), "Found static identity, writing to disk.", "role", role)
-	if err = process.storage.WriteIdentity(state.IdentityCurrent, *i); err != nil {
+	if err = process.storage.WriteIdentity(process.GracefulExitContext(), state.IdentityCurrent, *i); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1124,21 +1125,22 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// We must create the registry in NewTeleport, as opposed to the config,
 	// because some tests are running multiple Teleport instances from the same
 	// config and reusing the same registry causes them to fail.
-	metricsRegistry := prometheus.NewRegistry()
-
-	// If FIPS mode was requested make sure binary is build against BoringCrypto.
-	if cfg.FIPS {
-		if !modules.GetModules().IsBoringBinary() {
-			return nil, trace.BadParameter("binary not compiled against BoringCrypto, check " +
-				"that Enterprise FIPS release was downloaded from " +
-				"a Teleport account https://teleport.sh")
-		}
+	rootMetricRegistry := prometheus.NewRegistry()
+	metricsRegistry, err := metrics.NewRegistry(rootMetricRegistry, teleport.MetricNamespace, "")
+	if err != nil {
+		return nil, trace.Wrap(err, "creating metrics registry")
 	}
 
-	if cfg.Auth.Preference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
-			return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
-		}
+	// If FIPS mode was requested make sure binary is build against BoringCrypto.
+	if cfg.FIPS && !cfg.Modules.IsBoringBinary() {
+		return nil, trace.BadParameter("binary not compiled against BoringCrypto, check " +
+			"that Enterprise FIPS release was downloaded from " +
+			"a Teleport account https://teleport.sh")
+
+	}
+
+	if cfg.Auth.Preference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && cfg.Modules.BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
 	// If SELinux support is enabled ensure we have a valid configuration,
@@ -1331,7 +1333,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
 		SyncGatherers: metrics.NewSyncGatherers(
-			metricsRegistry,
+			rootMetricRegistry,
 			prometheus.DefaultGatherer,
 		),
 	}
@@ -1517,8 +1519,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// Create a process wide key generator that will be shared. This is so the
 	// key generator can pre-generate keys and share these across services.
 	if cfg.Keygen == nil {
-		// TODO(tross): replace modules.GetModules with cfg.Modules
-		cfg.Keygen, err = keygen.New(keygen.Config{Now: cfg.Clock.Now, BuildType: modules.GetModules().BuildType()})
+		cfg.Keygen, err = keygen.New(keygen.Config{Now: cfg.Clock.Now, BuildType: cfg.Modules.BuildType()})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1768,14 +1769,14 @@ func (process *TeleportProcess) configureUpgraderExporter(kind string) error {
 
 // enterpriseServicesEnabled will return true if any enterprise services are enabled.
 func (process *TeleportProcess) enterpriseServicesEnabled() bool {
-	return modules.GetModules().BuildType() == modules.BuildEnterprise &&
+	return process.Config.Modules.BuildType() == modules.BuildEnterprise &&
 		(process.Config.Okta.Enabled || process.Config.Jamf.Enabled())
 }
 
 // enterpriseServicesEnabledWithCommunityBuild will return true if any
 // enterprise services are enabled with an OSS teleport build.
 func (process *TeleportProcess) enterpriseServicesEnabledWithCommunityBuild() bool {
-	return modules.GetModules().IsOSSBuild() &&
+	return process.Config.Modules.IsOSSBuild() &&
 		(process.Config.Okta.Enabled || process.Config.Jamf.Enabled())
 }
 
@@ -2213,7 +2214,7 @@ func (process *TeleportProcess) initAuthService() error {
 	process.backend = b
 
 	clusterName := cfg.Auth.ClusterName.GetClusterName()
-	ident, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleAdmin)
+	ident, err := process.storage.ReadIdentity(process.GracefulExitContext(), state.IdentityCurrent, types.RoleAdmin)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -2255,15 +2256,15 @@ func (process *TeleportProcess) initAuthService() error {
 
 	switch {
 	case cfg.Auth.KeyStore.PKCS11 != servicecfg.PKCS11Config{}:
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+		if !cfg.Modules.Features().GetEntitlement(entitlements.HSM).Enabled {
 			return trace.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
 		}
 	case cfg.Auth.KeyStore.GCPKMS != servicecfg.GCPKMSConfig{}:
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+		if !cfg.Modules.Features().GetEntitlement(entitlements.HSM).Enabled {
 			return trace.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
 		}
 	case cfg.Auth.KeyStore.AWSKMS != nil:
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+		if !cfg.Modules.Features().GetEntitlement(entitlements.HSM).Enabled {
 			return trace.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
 		}
 	}
@@ -2500,6 +2501,7 @@ func (process *TeleportProcess) initAuthService() error {
 				Inventory:          as.Services,
 				BotInstanceBackend: as.Services,
 				Logger:             process.logger.With(teleport.ComponentKey, "inventory.cache"),
+				MetricsRegistry:    process.metricsRegistry.Wrap("inventory_cache"),
 			})
 			if err != nil {
 				return trace.Wrap(err, "creating inventory cache")
@@ -2767,6 +2769,14 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	process.Supervisor.RegisterProcessStateCallback(func(healthy bool) {
+		if !healthy {
+			tlsServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_NOT_SERVING)
+			return
+		}
+		tlsServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+	})
+
 	process.RegisterCriticalFunc("auth.tls", func() error {
 		logger.InfoContext(process.ExitContext(), "Auth service is starting.", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", authAddr)
 
@@ -2850,9 +2860,9 @@ func (process *TeleportProcess) initAuthService() error {
 			return &srv, nil
 		},
 		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
-		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+		AnnouncePeriod:  apidefaults.AuthAnnounceTTL()/2 + utils.RandomDuration(apidefaults.AuthAnnounceTTL()/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
-		ServerTTL:       apidefaults.ServerAnnounceTTL,
+		ServerTTL:       apidefaults.AuthAnnounceTTL(),
 		OnHeartbeat:     process.OnHeartbeat(teleport.ComponentAuth),
 	})
 	if err != nil {
@@ -2933,7 +2943,6 @@ func (process *TeleportProcess) initAuthService() error {
 		),
 		Emitter:     authServer,
 		AccessPoint: authServer.Services,
-		Clock:       process.Clock,
 		HostID:      connector.HostUUID(),
 	})
 	if err != nil {
@@ -4661,7 +4670,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	}
 
 	if tunnelStrategy == types.ProxyPeering &&
-		modules.GetModules().BuildType() != modules.BuildEnterprise {
+		cfg.Modules.BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
@@ -4965,6 +4974,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	databaseServerWatcher, err := services.NewDatabaseServerWatcher(process.ExitContext(), services.DatabaseServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Logger:    process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),
+			Client:    accessPoint,
+		},
+		DatabaseServersGetter: accessPoint,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	serverTLSConfig, err := process.ServerTLSConfig(conn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -5237,6 +5258,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				NodeWatcher:             nodeWatcher,
 				AppServerWatcher:        appServerWatcher,
 				GitServerWatcher:        gitServerWatcher,
+				DatabaseServerWatcher:   databaseServerWatcher,
 				CertAuthorityWatcher:    caWatcher,
 				CircuitBreakerConfig:    process.Config.CircuitBreakerConfig,
 				LocalAuthAddresses:      utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
@@ -5401,6 +5423,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ConnectionMonitor: connMonitor,
 			CipherSuites:      cfg.CipherSuites,
 			ServiceComponent:  teleport.ComponentWebProxy,
+			LimiterConfig:     cfg.Apps.Limiter,
 			AWSConfigOptions: []awsconfig.OptionsFn{
 				awsconfig.WithOIDCIntegrationClient(conn.Client),
 				awsconfig.WithRolesAnywhereIntegrationClient(conn.Client),
@@ -5457,6 +5480,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			HostUUID:                  conn.HostUUID(),
 			Context:                   process.GracefulExitContext(),
 			StaticFS:                  fs,
+			Modules:                   cfg.Modules,
 			ClusterFeatures:           process.GetClusterFeatures(),
 			GetProxyClientCertificate: conn.ClientGetCertificate,
 			UI:                        cfg.Proxy.UI,
@@ -6801,6 +6825,7 @@ func (process *TeleportProcess) initApps() {
 			ConnectionMonitor: connMonitor,
 			ServiceComponent:  teleport.ComponentApp,
 			Logger:            logger,
+			LimiterConfig:     process.Config.Apps.Limiter,
 			MCPDemoServer:     process.Config.Apps.MCPDemoServer,
 		})
 		if err != nil {

@@ -21,10 +21,10 @@ package events_test
 import (
 	"context"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -34,6 +34,7 @@ import (
 
 func TestSearchEventsLimiter(t *testing.T) {
 	t.Parallel()
+
 	t.Run("emitting events happen without any limiting", func(t *testing.T) {
 		s, err := events.NewSearchEventLimiter(events.SearchEventsLimiterConfig{
 			RefillAmount: 1,
@@ -44,72 +45,72 @@ func TestSearchEventsLimiter(t *testing.T) {
 		})
 		require.NoError(t, err)
 		for range 20 {
-			require.NoError(t, s.EmitAuditEvent(context.Background(), &apievents.AccessRequestCreate{}))
+			require.NoError(t, s.EmitAuditEvent(t.Context(), &apievents.AccessRequestCreate{}))
 		}
 	})
 
 	t.Run("with limiter", func(t *testing.T) {
-		burst := 20
-		s, err := events.NewSearchEventLimiter(events.SearchEventsLimiterConfig{
-			RefillTime:   20 * time.Millisecond,
-			RefillAmount: 1,
-			Burst:        burst,
-			AuditLogger: &mockAuditLogger{
-				searchEventsRespFn: func() ([]apievents.AuditEvent, string, error) { return nil, "", nil },
-			},
-		})
-		require.NoError(t, err)
-
-		someDate := clockwork.NewFakeClock().Now().UTC()
-
-		ctx := context.Background()
-		for i := range burst {
-			var err error
-			// rate limit is shared between both search endpoints.
-			if i%2 == 0 {
-				_, _, err = s.SearchEvents(ctx, events.SearchEventsRequest{
-					From:  someDate,
-					To:    someDate,
-					Limit: 100,
-					Order: types.EventOrderAscending,
-				})
-			} else {
-				_, _, err = s.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-					From:  someDate,
-					To:    someDate,
-					Limit: 100,
-					Order: types.EventOrderAscending,
-				})
-			}
+		synctest.Test(t, func(t *testing.T) {
+			burst := 20
+			s, err := events.NewSearchEventLimiter(events.SearchEventsLimiterConfig{
+				RefillTime:   20 * time.Millisecond,
+				RefillAmount: 1,
+				Burst:        burst,
+				AuditLogger: &mockAuditLogger{
+					searchEventsRespFn: func() ([]apievents.AuditEvent, string, error) { return nil, "", nil },
+				},
+			})
 			require.NoError(t, err)
-		}
-		// Now all tokens from rate limit should be used
-		_, _, err = s.SearchEvents(ctx, events.SearchEventsRequest{
-			From:  someDate,
-			To:    someDate,
-			Limit: 100,
-			Order: types.EventOrderAscending,
-		})
-		require.True(t, trace.IsLimitExceeded(err))
-		// Also on SearchSessionEvents
-		_, _, err = s.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-			From:  someDate,
-			To:    someDate,
-			Limit: 100,
-			Order: types.EventOrderAscending,
-		})
-		require.True(t, trace.IsLimitExceeded(err))
 
-		// After 20ms 1 token should be added according to rate.
-		require.Eventually(t, func() bool {
-			_, _, err := s.SearchEvents(ctx, events.SearchEventsRequest{
+			someDate := time.Now().UTC()
+
+			for i := range burst {
+				var err error
+				// rate limit is shared between both search endpoints.
+				if i%2 == 0 {
+					_, _, err = s.SearchEvents(t.Context(), events.SearchEventsRequest{
+						From:  someDate,
+						To:    someDate,
+						Limit: 100,
+						Order: types.EventOrderAscending,
+					})
+				} else {
+					_, _, err = s.SearchSessionEvents(t.Context(), events.SearchSessionEventsRequest{
+						From:  someDate,
+						To:    someDate,
+						Limit: 100,
+						Order: types.EventOrderAscending,
+					})
+				}
+				require.NoError(t, err)
+			}
+			// Now all tokens from rate limit should be used
+			_, _, err = s.SearchEvents(t.Context(), events.SearchEventsRequest{
 				From:  someDate,
 				To:    someDate,
 				Limit: 100,
 				Order: types.EventOrderAscending,
 			})
-			return err == nil
-		}, 1*time.Second, 5*time.Millisecond)
+			require.True(t, trace.IsLimitExceeded(err), "expected limit exceeded error, got %v", err)
+			// Also on SearchSessionEvents
+			_, _, err = s.SearchSessionEvents(t.Context(), events.SearchSessionEventsRequest{
+				From:  someDate,
+				To:    someDate,
+				Limit: 100,
+				Order: types.EventOrderAscending,
+			})
+			require.True(t, trace.IsLimitExceeded(err), "expected limit exceeded error, got %v", err)
+
+			// After 20ms 1 token should be added according to rate.
+			time.Sleep(20 * time.Millisecond)
+			_, _, err = s.SearchEvents(t.Context(), events.SearchEventsRequest{
+				From:  someDate,
+				To:    someDate,
+				Limit: 100,
+				Order: types.EventOrderAscending,
+			})
+			require.NoError(t, err)
+		})
 	})
 }
 

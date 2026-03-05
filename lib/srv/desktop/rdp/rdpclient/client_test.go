@@ -21,13 +21,15 @@ package rdpclient
 
 import (
 	"bytes"
+	"io"
 	"log/slog"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 )
 
 type fakeConn struct {
@@ -54,63 +56,85 @@ func (f *fakeConn) AddMessage(message tdp.Message) error {
 
 func TestClientNew_EOF(t *testing.T) {
 	f := fakeConn{}
-	err := f.AddMessage(legacy.ClientUsername{Username: "user"})
-	require.NoError(t, err)
-	conn := tdp.NewConn(&f, legacy.Decode)
+	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive))
 
-	_, err = New(createConfig(conn))
-	require.EqualError(t, err, "EOF")
+	_, err := New(conn, createConfig())
+	require.ErrorIs(t, err, io.EOF)
 }
 
 func TestClientNew_NoKeyboardLayout(t *testing.T) {
 	f := fakeConn{}
-	err := f.AddMessage(legacy.ClientUsername{Username: "user"})
-	require.NoError(t, err)
-	err = f.AddMessage(legacy.ClientScreenSpec{
-		Width:  100,
-		Height: 100,
-	})
-	require.NoError(t, err)
-	err = f.AddMessage(legacy.ClientScreenSpec{
-		Width:  100,
-		Height: 100,
-	})
+	err := f.AddMessage(&tdpb.ClientHello{Username: "user"})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f, legacy.Decode)
+	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive))
 
-	_, err = New(createConfig(conn))
+	_, err = New(conn, createConfig())
 	require.NoError(t, err)
 }
 
 func TestClientNew_KeyboardLayout(t *testing.T) {
 	f := fakeConn{}
-	err := f.AddMessage(legacy.ClientUsername{Username: "user"})
-	require.NoError(t, err)
-	err = f.AddMessage(legacy.ClientScreenSpec{
-		Width:  100,
-		Height: 100,
-	})
-	require.NoError(t, err)
-	err = f.AddMessage(legacy.ClientKeyboardLayout{})
-	require.NoError(t, err)
-	err = f.AddMessage(legacy.ClientScreenSpec{
-		Width:  100,
-		Height: 100,
-	})
+	err := f.AddMessage(&tdpb.ClientHello{Username: "user", KeyboardLayout: 1})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f, legacy.Decode)
+	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive))
 
-	_, err = New(createConfig(conn))
+	_, err = New(conn, createConfig())
 	require.NoError(t, err)
+
 }
 
-func createConfig(conn *tdp.Conn) Config {
+func createConfig() Config {
 	return Config{
-		Addr:        "example.com",
-		AuthorizeFn: func(login string) error { return nil },
-		Conn:        conn,
-		Logger:      slog.Default(),
+		Addr:           "example.com",
+		AuthorizeFn:    func(login string) error { return nil },
+		Logger:         slog.Default(),
+		Width:          1,
+		Height:         1,
+		ClientProtocol: tdpb.ProtocolName,
 	}
+}
+
+func TestRDPClientID(t *testing.T) {
+	nilID := rdpClientID{}
+	// The MD5 hash of an empty string
+	emptyHash := rdpClientID([16]byte{0xD4, 0x1D, 0x8C, 0xD9, 0x8F, 0x00, 0xB2, 0x04, 0xE9, 0x80, 0x09, 0x98, 0xEC, 0xF8, 0x42, 0x7E})
+
+	invalidIDs := []rdpClientID{nilID, emptyHash}
+	t.Run("from uuid", func(t *testing.T) {
+		// We must continue to attempt to parse strings
+		// as UUIDs first.
+		newUUID := uuid.New()
+		id := newRDPClientID(newUUID.String())
+		parsed, err := uuid.FromBytes(id[:])
+		require.NoError(t, err)
+		// The rdpClientID should just be a UUID under the hood.
+		require.Equal(t, newUUID, parsed)
+	})
+
+	t.Run("from other string", func(t *testing.T) {
+		otherID := "some-other-identifier"
+		id := newRDPClientID(otherID)
+		// At make sure it's not nil or the empty hash.
+		require.NotContains(t, invalidIDs, id)
+	})
+
+	t.Run("empty string", func(t *testing.T) {
+		// Should match the empty hash.
+		require.Equal(t, newRDPClientID(""), emptyHash)
+	})
+
+	t.Run("uint32 conversion", func(t *testing.T) {
+		// The MD5 hash of an empty string is:
+		// d41d8cd9 8f00b204 e9800998 ecf8427e
+		// Then represent each 32-bit word as little endian and we get:
+		expected := [4]uint32{0xd98c1dd4, 0x04b2008f, 0x980980e9, 0x7e42f8ec}
+
+		// Our [4]uint32 representation of the rdpClientID should
+		// match the above. As a bonus, this will serve as a regression
+		// test to ensure that we don't switch hash algorithms by mistake.
+		got := rdpClientIDToUint32Array[uint32](newRDPClientID(""))
+		require.Equal(t, expected, got)
+	})
 }

@@ -1438,6 +1438,9 @@ func TestAuditEventsEmitted(t *testing.T) {
 			require.Empty(t, cmp.Diff(&mfaEnabledEvent, evt))
 
 			p.Spec.SecondFactor = constants.SecondFactorOTP
+			// Set AllowBrowserAuthentication back to nil as it has materialized as true
+			// from the previous authPref setup
+			p.Spec.AllowBrowserAuthentication = nil
 
 			_, err = env.UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: p})
 			require.NoError(t, err)

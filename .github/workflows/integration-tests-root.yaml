@@ -41,6 +41,7 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write # required for AWS credentials
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -60,3 +61,8 @@ jobs:
         timeout-minutes: 40
         run: |
           make integration-root RDPCLIENT_SKIP_BUILD=1
+
+      - name: Upload test metrics
+        if: always()
+        continue-on-error: true # Do not fail the workflow
+        uses: ./.github/actions/upload-test-metrics

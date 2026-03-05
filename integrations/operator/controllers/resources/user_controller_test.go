@@ -145,17 +145,22 @@ func (g *userTestingPrimitives) CompareTeleportAndKubernetesResource(tResource t
 
 func TestTeleportUserCreation(t *testing.T) {
 	test := &userTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest[types.User, *v2.TeleportUser](t, resources.NewUserReconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewUserReconciler, test)
+}
+
+func TestTeleportUserDeletion(t *testing.T) {
+	test := &userTestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewUserReconciler, test)
 }
 
 func TestTeleportUserDeletionDrift(t *testing.T) {
 	test := &userTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest[types.User, *v2.TeleportUser](t, resources.NewUserReconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewUserReconciler, test)
 }
 
 func TestTeleportUserUpdate(t *testing.T) {
 	test := &userTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous[types.User, *v2.TeleportUser](t, resources.NewUserReconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewUserReconciler, test)
 }
 
 func TestUserCreationFromYAML(t *testing.T) {
@@ -334,10 +339,13 @@ func TestUserUpdate(t *testing.T) {
 	// Wait for the user to enter the cache
 	testlib.FastEventually(t, func() bool {
 		tUser, err = setup.TeleportClient.GetUser(ctx, tUser.GetName(), false)
+		// Fail if we see an unknown error
+		if err != nil {
+			require.True(t, trace.IsNotFound(err))
+		}
 		return !trace.IsNotFound(err)
 	})
 	require.NoError(t, err)
-	oldRevision := tUser.GetRevision()
 
 	// The user is created in K8S
 	k8sUser := v2.TeleportUser{
@@ -367,14 +375,21 @@ func TestUserUpdate(t *testing.T) {
 	// In a real cluster we should receive the event of our own finalizer change
 	// and this wakes us for a second round.
 	_, err = reconciler.Reconcile(ctx, req)
+	if trace.IsCompareFailed(err) {
+		unexpectedUser, err := setup.TeleportClient.GetUser(ctx, tUser.GetName(), false)
+		require.NoError(t, err, "Retrieving the user after an unexpected conflict")
+		require.Failf(t, testlib.ConflictErrorMessage, cmp.Diff(tUser, unexpectedUser))
+	}
 	require.NoError(t, err)
+
+	var reconciledUser types.User
 
 	// Wait for the new user to enter the cache, else the next reconciliation will cause conflicts.
 	testlib.FastEventually(t, func() bool {
-		newUser, err := setup.TeleportClient.GetUser(ctx, tUser.GetName(), false)
+		reconciledUser, err = setup.TeleportClient.GetUser(ctx, tUser.GetName(), false)
 		assert.NoError(t, err)
 		// only proceed when the revision changes
-		return newUser.GetRevision() != oldRevision
+		return reconciledUser.GetRevision() != tUser.GetRevision()
 	})
 	require.NoError(t, err)
 
@@ -392,6 +407,11 @@ func TestUserUpdate(t *testing.T) {
 	require.NoError(t, setup.K8sClient.Update(ctx, &k8sUserNewVersion))
 
 	_, err = reconciler.Reconcile(ctx, req)
+	if trace.IsCompareFailed(err) {
+		unexpectedUser, err := setup.TeleportClient.GetUser(ctx, tUser.GetName(), false)
+		require.NoError(t, err, "Retrieving the user after an unexpected conflict")
+		require.Failf(t, testlib.ConflictErrorMessage, cmp.Diff(reconciledUser, unexpectedUser))
+	}
 	require.NoError(t, err)
 	require.Equal(t, setup.OperatorName, tUser.GetCreatedBy().User.Name, "createdBy has not been erased")
 }

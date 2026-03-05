@@ -115,7 +115,7 @@ impl<const S: usize> Card<S> {
         //
         // P1=04 and P2=00 means selection of DF (usually) application by name. Everything else not
         // supported.
-        if cmd.p1 != 0x04 && cmd.p2 != 0x00 {
+        if cmd.p1 != 0x04 || cmd.p2 != 0x00 {
             return Ok(Response::new(Status::NotFound));
         }
         if !PIV_AID.matches(cmd.data()) {
@@ -155,7 +155,7 @@ impl<const S: usize> Card<S> {
     fn handle_get_data(&mut self, cmd: Command<S>) -> PduResult<Response> {
         // See https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf section
         // 3.1.2.
-        if cmd.p1 != 0x3F && cmd.p2 != 0xFF {
+        if cmd.p1 != 0x3F || cmd.p2 != 0xFF {
             return Ok(Response::new(Status::NotFound));
         }
         let request_tlv = Tlv::from_bytes(cmd.data()).map_err(

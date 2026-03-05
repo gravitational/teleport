@@ -219,6 +219,7 @@ func (r resourceTeleportInferencePolicy) Update(ctx context.Context, req tfsdk.U
 	}
 	inferencePolicyResource := inferencePolicy
 
+	inferencePolicyResource.Kind = apitypes.KindInferencePolicy
 
 	
 	name := inferencePolicyResource.Metadata.Name

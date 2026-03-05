@@ -21,6 +21,7 @@ import 'whatwg-fetch';
 import crypto from 'node:crypto';
 import path from 'node:path';
 
+import { configure as configureTestingLibrary } from '@testing-library/react';
 import failOnConsole from 'jest-fail-on-console';
 import { configMocks } from 'jsdom-testing-mocks';
 import { act } from 'react';
@@ -43,6 +44,8 @@ try {
 Object.defineProperty(globalThis, 'crypto', {
   value: {
     randomUUID: () => crypto.randomUUID(),
+    getRandomValues: (arr =>
+      crypto.getRandomValues(arr)) as typeof crypto.getRandomValues,
   },
 });
 
@@ -73,3 +76,10 @@ failOnConsole({
       message.includes(allowedMessageFragment)
     ),
 });
+
+if (process.env.CI) {
+  configureTestingLibrary({
+    // Change the default waitFor timeout from 1s to 5s.
+    asyncUtilTimeout: 5000,
+  });
+}

@@ -19,7 +19,7 @@
 package web
 
 import (
-	"context"
+	"cmp"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -44,13 +44,6 @@ import (
 )
 
 func TestPing(t *testing.T) {
-	ctx := context.Background()
-	env := newWebPack(t, 1)
-	authServer := env.server.Auth()
-
-	clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
-	require.NoError(t, err)
-
 	tests := []struct {
 		name       string
 		buildType  string // defaults to modules.BuildOSS
@@ -213,13 +206,15 @@ func TestPing(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			buildType := test.buildType
-			if buildType == "" {
-				buildType = modules.BuildOSS
+			ctx := t.Context()
+			testModules := &modulestest.Modules{
+				TestBuildType: cmp.Or(test.buildType, modules.BuildOSS),
 			}
-			modulestest.SetTestModules(t, modulestest.Modules{
-				TestBuildType: buildType,
-			})
+			env := newWebPack(t, 1, withModules(testModules))
+			authServer := env.server.Auth()
+
+			clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
+			require.NoError(t, err)
 
 			cap, err := types.NewAuthPreference(*test.spec)
 			require.NoError(t, err)

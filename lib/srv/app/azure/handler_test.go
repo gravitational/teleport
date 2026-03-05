@@ -32,13 +32,10 @@ import (
 func TestForwarder_getToken(t *testing.T) {
 	t.Parallel()
 
-	testCaseContext, testCaseContextCancel := context.WithCancel(context.Background())
-
 	type testCase struct {
 		name string
 
-		getTokenContext context.Context
-		config          HandlerConfig
+		setup func(t *testing.T) (context.Context, HandlerConfig)
 
 		managedIdentity string
 		scope           string
@@ -47,22 +44,21 @@ func TestForwarder_getToken(t *testing.T) {
 		checkErr  require.ErrorAssertionFunc
 	}
 
-	var tests []testCase
-
-	tests = []testCase{
+	tests := []testCase{
 		{
-			name:            "base case",
-			getTokenContext: context.Background(),
-			config: HandlerConfig{
-				getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
-					if managedIdentity != "MY_IDENTITY" {
-						return nil, trace.BadParameter("wrong managedIdentity")
-					}
-					if scope != "MY_SCOPE" {
-						return nil, trace.BadParameter("wrong scope")
-					}
-					return &azcore.AccessToken{Token: "foobar"}, nil
-				},
+			name: "base case",
+			setup: func(t *testing.T) (context.Context, HandlerConfig) {
+				return t.Context(), HandlerConfig{
+					getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
+						if managedIdentity != "MY_IDENTITY" {
+							return nil, trace.BadParameter("wrong managedIdentity")
+						}
+						if scope != "MY_SCOPE" {
+							return nil, trace.BadParameter("wrong scope")
+						}
+						return &azcore.AccessToken{Token: "foobar"}, nil
+					},
+				}
 			},
 			managedIdentity: "MY_IDENTITY",
 			scope:           "MY_SCOPE",
@@ -70,32 +66,26 @@ func TestForwarder_getToken(t *testing.T) {
 			checkErr:        require.NoError,
 		},
 		{
-			name:            "timeout",
-			getTokenContext: context.Background(),
-			config: HandlerConfig{
-				Clock: clockwork.NewFakeClock(),
-				getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
-					// find the fake clock from above
-					var clock *clockwork.FakeClock
-					for _, test := range tests {
-						if test.name == "timeout" {
-							clock = test.config.Clock.(*clockwork.FakeClock)
-						}
-					}
+			name: "timeout",
+			setup: func(t *testing.T) (context.Context, HandlerConfig) {
+				clock := clockwork.NewFakeClock()
+				return t.Context(), HandlerConfig{
+					Clock: clock,
+					getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
+						// advance time by getTokenTimeout
+						clock.Advance(getTokenTimeout)
 
-					// advance time by getTokenTimeout
-					clock.Advance(getTokenTimeout)
+						// after the test is done unblock the sleep() below.
+						t.Cleanup(func() {
+							clock.Advance(getTokenTimeout * 2)
+						})
 
-					// after the test is done unblock the sleep() below.
-					t.Cleanup(func() {
-						clock.Advance(getTokenTimeout * 2)
-					})
+						// block for 2*getTokenTimeout; this call won't return before Cleanup() phase.
+						clock.Sleep(getTokenTimeout * 2)
 
-					// block for 2*getTokenTimeout; this call won't return before Cleanup() phase.
-					clock.Sleep(getTokenTimeout * 2)
-
-					return &azcore.AccessToken{Token: "foobar"}, nil
-				},
+						return &azcore.AccessToken{Token: "foobar"}, nil
+					},
+				}
 			},
 			checkErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "timeout waiting for access token for 5s")
@@ -103,12 +93,13 @@ func TestForwarder_getToken(t *testing.T) {
 			},
 		},
 		{
-			name:            "non-timeout error",
-			getTokenContext: context.Background(),
-			config: HandlerConfig{
-				getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
-					return nil, trace.BadParameter("bad param foo")
-				},
+			name: "non-timeout error",
+			setup: func(t *testing.T) (context.Context, HandlerConfig) {
+				return t.Context(), HandlerConfig{
+					getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
+						return nil, trace.BadParameter("bad param foo")
+					},
+				}
 			},
 			checkErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "bad param foo")
@@ -116,13 +107,25 @@ func TestForwarder_getToken(t *testing.T) {
 			},
 		},
 		{
-			name:            "context cancel",
-			getTokenContext: testCaseContext,
-			config: HandlerConfig{
-				getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
-					testCaseContextCancel()
-					return nil, trace.BadParameter("bad param foo")
-				},
+			name: "context cancel",
+			setup: func(t *testing.T) (context.Context, HandlerConfig) {
+				testCaseContext, testCaseContextCancel := context.WithCancel(t.Context())
+
+				return testCaseContext, HandlerConfig{
+					getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
+						testCaseContextCancel()
+
+						// Block until test completes to ensure ctx.Done() is selected.
+						// This prevents a race where both ctx.Done() and resultChan are ready
+						// simultaneously and select picks resultChan non-deterministically.
+						select {
+						case <-t.Context().Done():
+						case <-time.After(3 * time.Second):
+							// Timeout to prevent test hanging if getToken has a bug
+						}
+						return nil, trace.BadParameter("bad param foo")
+					},
+				}
 			},
 			checkErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, context.Canceled)
@@ -132,10 +135,12 @@ func TestForwarder_getToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hnd, err := newAzureHandler(context.Background(), tt.config)
+			ctx, config := tt.setup(t)
+
+			hnd, err := newAzureHandler(ctx, config)
 			require.NoError(t, err)
 
-			token, err := hnd.getToken(tt.getTokenContext, tt.managedIdentity, tt.scope)
+			token, err := hnd.getToken(ctx, tt.managedIdentity, tt.scope)
 
 			require.Equal(t, tt.wantToken, token)
 			tt.checkErr(t, err)
