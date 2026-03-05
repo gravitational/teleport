@@ -2414,6 +2414,13 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
+
+			// Reload the profile status to show updated active access requests and roles.
+			profile, profiles, err = cf.FullProfileStatus()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			// Print status to show information of the logged in user.
 			return trace.Wrap(printLoginInformation(cf, profile, profiles))
 
