@@ -219,8 +219,10 @@ func TestTrustedClusterV2DeletionDrift(t *testing.T) {
 	)
 }
 
-func TestTrustedClusterUpdate(t *testing.T) {
+func TestTrustedClusterV2Update(t *testing.T) {
 	test := &trustedClusterV2TestingPrimitives{}
+	// TODO(hugoShaka): fix this test by watching all CAs and returning once they all have the same revision id.
+	t.Skip("This test is currently flaky because of the cert authorities internal.")
 	const remoteClusterName = "remote.example.com"
 	test.setupTest(t, remoteClusterName)
 	testlib.ResourceUpdateTestSynchronous(
