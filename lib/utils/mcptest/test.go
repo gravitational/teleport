@@ -133,9 +133,9 @@ func CallServerTool(ctx context.Context, client *mcpclient.Client) (*mcp.CallToo
 	return callToolResult, trace.Wrap(err)
 }
 
-// CallRequestHeaders calls the "request-headers" tool and returns the HTTP
+// CallRequestHeadersTool calls the "request-headers" tool and returns the HTTP
 // headers the server received.
-func CallRequestHeaders(ctx context.Context, client *mcpclient.Client) (http.Header, error) {
+func CallRequestHeadersTool(ctx context.Context, client *mcpclient.Client) (http.Header, error) {
 	req := mcp.CallToolRequest{}
 	req.Params.Name = "request-headers"
 	result, err := client.CallTool(ctx, req)
@@ -159,11 +159,11 @@ func CallRequestHeaders(ctx context.Context, client *mcpclient.Client) (http.Hea
 	return headers, nil
 }
 
-// MustCallRequestHeaders calls the "request-headers" tool and asserts it
+// MustCallRequestHeadersTool calls the "request-headers" tool and asserts it
 // succeeds, returning the HTTP headers the server received.
-func MustCallRequestHeaders(t *testing.T, client *mcpclient.Client) http.Header {
+func MustCallRequestHeadersTool(t *testing.T, client *mcpclient.Client) http.Header {
 	t.Helper()
-	headers, err := CallRequestHeaders(t.Context(), client)
+	headers, err := CallRequestHeadersTool(t.Context(), client)
 	require.NoError(t, err)
 	return headers
 }

@@ -1096,7 +1096,7 @@ func TestMCPEndpoints(t *testing.T) {
 						})
 						mcptest.MustInitializeClient(t, clt)
 						mcptest.MustCallServerTool(t, clt)
-						headers := mcptest.MustCallRequestHeaders(t, clt)
+						headers := mcptest.MustCallRequestHeadersTool(t, clt)
 						require.Empty(t, headers.Get(header))
 						require.Equal(t, customHeaderValue, headers.Get(customHader))
 					})

@@ -105,7 +105,7 @@ func (h *Handler) withAppAuthConfig(handler handlerWithSessionFunc, extractFunc 
 		}
 
 		if !appFunc(appServer.GetApp()) {
-			return trace.NotFound("app not found")
+			return trace.BadParameter("unable to resolve requested app by name")
 		}
 
 		session, err := h.authenticateWithAppAuth(r.Context(), r, &withAppServer{
