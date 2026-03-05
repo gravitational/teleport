@@ -74,9 +74,17 @@ look at [Using OpenSSH Guide](enroll-resources/server-access/openssh/openssh-age
 
 ## Can I copy files from one Teleport node to another?
 
-Yes, Teleport supports [Headless Authentication](zero-trust-access/authentication/headless.mdx),
+Yes, Teleport supports node-to-node file transfers. Here is an example of copying from one 
+SSH server to another.
+
+```code
+$ tsh scp bob@foo:/path/1.txt bob@bar:/path/2.txt
+1.txt 100% |█████████████████████████████████████████████████████████████████| (779/779 B, 8.2 kB/s)
+```
+
+In addition Teleport supports [Headless Authentication](zero-trust-access/authentication/headless.mdx),
 which allows you to perform operations like `tsh ssh` or `tsh scp` from remote systems where you
-are not logged in to Teleport or may not have access to a browser.
+are not logged in to Teleport or may not have access to a browser to authenticate.
 
 ## `tsh` is very slow on Windows, what to do?
 

@@ -125,13 +125,11 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindCrownJewel:           rc.createCrownJewel,
 		types.KindPlugin:               rc.createPlugin,
 		types.KindHealthCheckConfig:    rc.createHealthCheckConfig,
-		types.KindInferencePolicy:      rc.createInferencePolicy,
 	}
 	rc.UpdateHandlers = map[string]ResourceCreateHandler{
 		types.KindCrownJewel:        rc.updateCrownJewel,
 		types.KindPlugin:            rc.updatePlugin,
 		types.KindHealthCheckConfig: rc.updateHealthCheckConfig,
-		types.KindInferencePolicy:   rc.updateInferencePolicy,
 	}
 	rc.config = config
 
@@ -795,8 +793,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		fmt.Printf("Security report %q has been deleted\n", rc.ref.Name)
 	case types.KindHealthCheckConfig:
 		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client))
-	case types.KindInferencePolicy:
-		return trace.Wrap(rc.deleteInferencePolicy(ctx, client))
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -1220,9 +1216,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &healthCheckConfigCollection{items: items}, nil
-	case types.KindInferencePolicy:
-		policies, err := rc.getInferencePolicies(ctx, client)
-		return policies, trace.Wrap(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

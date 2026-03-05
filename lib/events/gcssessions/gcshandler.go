@@ -37,7 +37,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
 )
@@ -332,14 +331,14 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 // Download downloads a session recording from a GCS bucket and writes the
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return trace.Wrap(h.downloadFile(ctx, h.recordingPath(sessionID), writer))
 }
 
 // DownloadSummary downloads a session summary from a GCS bucket and writes the
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
-func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	// Happy path: the final summary exists.
 	err := h.downloadFile(ctx, h.summaryPath(sessionID), writer)
 	if trace.IsNotFound(err) {
@@ -358,18 +357,18 @@ func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, wri
 // DownloadMetadata downloads a session's metadata from a GCS bucket and writes the
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
-func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return trace.Wrap(h.downloadFile(ctx, h.metadataPath(sessionID), writer))
 }
 
 // DownloadThumbnail downloads a session's thumbnail from a GCS bucket and writes the
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
-func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return trace.Wrap(h.downloadFile(ctx, h.thumbnailPath(sessionID), writer))
 }
 
-func (h *Handler) downloadFile(ctx context.Context, path string, writer events.RandomAccessWriter) error {
+func (h *Handler) downloadFile(ctx context.Context, path string, writer io.Writer) error {
 	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", path)
 	reader, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewReader(ctx)
 	if err != nil {
