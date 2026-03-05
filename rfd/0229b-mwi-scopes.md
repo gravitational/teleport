@@ -548,6 +548,7 @@ RFD:
   scoped Bot joining. 
 8. Implementation of support within `tbot`:
   7a. Support will initially focus on the `identity` service for SSH/tctl/terraform.
+9. Scoping of BotInstances and support of scoped RBAC for BotInstances.
 
 wip wip wip
 
