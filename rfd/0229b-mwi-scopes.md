@@ -502,7 +502,7 @@ RFD:
 6. Logic changes for calculating scoped roles for a Bot identity.
 7. Logic changes to JoinRPCs to support and enforce restrictions specific to
   scoped Bot joining. 
-7. Implementation of support within `tbot`:
+8. Implementation of support within `tbot`:
   7a. Support will initially focus on the `identity` service for SSH/tctl/terraform.
 
 wip wip wip
