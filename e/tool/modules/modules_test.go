@@ -2,29 +2,20 @@ package modules
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gravitational/license"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestSetModules_RecoveryCodes(t *testing.T) {
-	// Setting the env var cloud.EnvVarHostPort tells the cluster
-	// that it is running on a cloud environment.
-	t.Setenv(cloud.EnvVarHostPort, "cloud-hostport")
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			RecoveryCodes: false,
-			Cloud:         false,
-		},
-	})
+	t.Parallel()
 
 	licenseFile := &licensefile.LicenseFile{
 		KeyPair: &license.License{},
@@ -35,21 +26,30 @@ func TestSetModules_RecoveryCodes(t *testing.T) {
 		},
 	}
 
+	m := NewEnterpriseModules(EnterpriseModulesConfig{
+		Cloud:   true,
+		License: licenseFile,
+		Features: modules.Features{
+			RecoveryCodes: false,
+			Cloud:         false,
+		},
+	})
+
 	// assert recovery codes are always enabled on cloud envs
-	require.NoError(t, SetModules(licenseFile))
-	require.True(t, modules.GetModules().Features().RecoveryCodes)
+	require.True(t, m.Features().RecoveryCodes)
 
 	// Cleaning the env var will make it not a cloud env
-	t.Setenv(cloud.EnvVarHostPort, "")
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			RecoveryCodes: false,
+	m = NewEnterpriseModules(EnterpriseModulesConfig{
+		Cloud:   false,
+		License: licenseFile,
+		Features: modules.Features{
+			RecoveryCodes: true,
+			Cloud:         true,
 		},
 	})
 
 	// assert recovery codes are always disabled on non-cloud envs
-	require.NoError(t, SetModules(licenseFile))
-	require.False(t, modules.GetModules().Features().RecoveryCodes)
+	require.False(t, m.Features().RecoveryCodes)
 }
 
 func TestGetSelfHostedLicenseFeatures_LegacyLicenseFields(t *testing.T) {
@@ -352,39 +352,59 @@ func TestGetLicenseFeatures_Entitlements(t *testing.T) {
 func TestEnterpriseModules_SetFeatures(t *testing.T) {
 	tt := []struct {
 		name             string
-		initialFeatures  modules.Features
-		inputFeatures    modules.Features
+		initialConfig    EnterpriseModulesConfig
+		updatedFeatures  modules.Features
+		updatedLicense   *licensefile.LicenseFile
 		expectedFeatures modules.Features
 	}{
 		{
 			name: "overwrites fields except config-based ones",
-			initialFeatures: modules.Features{
-				RecoveryCodes:              true,
-				Plugins:                    true,
-				AccessGraph:                true,
-				AccessMonitoringConfigured: true,
+			initialConfig: EnterpriseModulesConfig{
+				HostedPluginsEnabled:     true,
+				Cloud:                    true,
+				AutomaticUpgradesEnabled: true,
+				Features: modules.Features{
+					RecoveryCodes:              true,
+					Plugins:                    true,
+					AccessGraph:                true,
+					AccessMonitoringConfigured: true,
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.AccessMonitoring: {Enabled: true},
+						entitlements.Policy:           {Enabled: true},
+					},
+				},
 			},
-			inputFeatures: modules.Features{
+			updatedFeatures: modules.Features{
 				RecoveryCodes:              false, // should NOT overwrite
 				Plugins:                    false, // should NOT overwrite
 				AccessGraph:                false, // should NOT overwrite
 				AccessMonitoringConfigured: false, // should NOT overwrite
-				Cloud:                      true,  // should overwrite
-				CustomTheme:                "dark",
+				AutomaticUpgrades:          false, // should NOT overwrite
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.AccessMonitoring: {Enabled: false}, // should NOT overwrite
+					entitlements.Policy:           {Enabled: false}, // should NOT overwrite
+				},
+				Cloud:       true,   // should overwrite
+				CustomTheme: "dark", // should overwrite
 			},
 			expectedFeatures: modules.Features{
 				RecoveryCodes:              true, // stays true
 				Plugins:                    true, // stays true
 				AccessGraph:                true, // stays true
 				AccessMonitoringConfigured: true, // stays true
+				AutomaticUpgrades:          true, // stays true
 				Cloud:                      true, // updated
 				CustomTheme:                "dark",
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.AccessMonitoring: {Enabled: false},
+					entitlements.Policy:           {Enabled: false},
+				},
 			},
 		},
 		{
-			name:            "no config-based features, only input values",
-			initialFeatures: modules.Features{},
-			inputFeatures: modules.Features{
+			name:          "no config-based features, only input values",
+			initialConfig: EnterpriseModulesConfig{},
+			updatedFeatures: modules.Features{
 				Cloud:       true,
 				CustomTheme: "light",
 			},
@@ -397,78 +417,88 @@ func TestEnterpriseModules_SetFeatures(t *testing.T) {
 				CustomTheme:                "light",
 			},
 		},
+		{
+			name: "updated license",
+			initialConfig: EnterpriseModulesConfig{
+				HostedPluginsEnabled:     true,
+				Cloud:                    true,
+				AutomaticUpgradesEnabled: true,
+				Features: modules.Features{
+					RecoveryCodes:              true,
+					Plugins:                    true,
+					AccessGraph:                true,
+					AccessMonitoringConfigured: true,
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.AccessMonitoring: {Enabled: true},
+						entitlements.Policy:           {Enabled: true},
+					},
+				},
+				License: &licensefile.LicenseFile{
+					License: &types.LicenseV3{
+						Metadata: types.Metadata{
+							Expires: func() *time.Time {
+								t := time.Now().Add(3 * time.Hour)
+								return &t
+							}(),
+						},
+					},
+				},
+			},
+			updatedFeatures: modules.Features{
+				RecoveryCodes:              false, // should NOT overwrite
+				Plugins:                    false, // should NOT overwrite
+				AccessGraph:                false, // should NOT overwrite
+				AccessMonitoringConfigured: false, // should NOT overwrite
+				AutomaticUpgrades:          false, // should NOT overwrite
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.AccessMonitoring: {Enabled: false}, // should NOT overwrite
+					entitlements.Policy:           {Enabled: false}, // should NOT overwrite
+				},
+				Cloud:       true,   // should overwrite
+				CustomTheme: "dark", // should overwrite
+			},
+			updatedLicense: &licensefile.LicenseFile{
+				License: &types.LicenseV3{
+					Metadata: types.Metadata{
+						Expires: func() *time.Time {
+							t := time.Now().Add(30 * time.Hour)
+							return &t
+						}(),
+					},
+				},
+			},
+			expectedFeatures: modules.Features{
+				RecoveryCodes:              true, // stays true
+				Plugins:                    true, // stays true
+				AccessGraph:                true, // stays true
+				AccessMonitoringConfigured: true, // stays true
+				AutomaticUpgrades:          true, // stays true
+				Cloud:                      true, // updated
+				CustomTheme:                "dark",
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.AccessMonitoring: {Enabled: false},
+					entitlements.Policy:           {Enabled: false},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			p := &enterpriseModules{
-				features: tc.initialFeatures,
+			p := NewEnterpriseModules(tc.initialConfig)
+
+			if tc.updatedLicense != nil {
+				p.UpdateModules(tc.updatedLicense, tc.updatedFeatures)
+			} else {
+				p.SetFeatures(tc.updatedFeatures)
 			}
-			p.SetFeatures(tc.inputFeatures)
-			require.Equal(t, tc.expectedFeatures, p.features)
-		})
-	}
-}
 
-func TestCopyConfigBasedFeatures(t *testing.T) {
-	tt := []struct {
-		name     string
-		src      modules.Features
-		dest     modules.Features
-		expected modules.Features
-	}{
-		{
-			name: "copies config-based fields",
-			src: modules.Features{
-				RecoveryCodes:              true,
-				Plugins:                    true,
-				AccessGraph:                true,
-				AccessMonitoringConfigured: true,
-			},
-			dest: modules.Features{
-				RecoveryCodes:              false,
-				Plugins:                    false,
-				AccessGraph:                false,
-				AccessMonitoringConfigured: false,
-				Cloud:                      true,
-			},
-			expected: modules.Features{
-				RecoveryCodes:              true,
-				Plugins:                    true,
-				AccessGraph:                true,
-				AccessMonitoringConfigured: true,
-				Cloud:                      true, // unchanged
-			},
-		},
-		{
-			name: "src false overwrites dest true",
-			src: modules.Features{
-				RecoveryCodes:              false,
-				Plugins:                    false,
-				AccessGraph:                false,
-				AccessMonitoringConfigured: false,
-			},
-			dest: modules.Features{
-				RecoveryCodes:              true,
-				Plugins:                    true,
-				AccessGraph:                true,
-				AccessMonitoringConfigured: true,
-				IsStripeManaged:            true,
-			},
-			expected: modules.Features{
-				RecoveryCodes:              false,
-				Plugins:                    false,
-				AccessGraph:                false,
-				AccessMonitoringConfigured: false,
-				IsStripeManaged:            true, // unchanged
-			},
-		},
-	}
-
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			copyConfigBasedFeatures(tc.src, &tc.dest)
-			require.Equal(t, tc.expected, tc.dest)
+			require.Equal(t, tc.expectedFeatures, p.Features())
+			if tc.updatedLicense != nil {
+				require.Equal(t, tc.updatedLicense.License.Expiry(), p.LicenseExpiry())
+			} else {
+				require.True(t, p.LicenseExpiry().IsZero())
+			}
 		})
 	}
 }

@@ -7,12 +7,12 @@ import (
 	"github.com/gravitational/teleport/e/lib/cloud"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/pro"
-	"github.com/gravitational/teleport/lib/modules"
+	emodules "github.com/gravitational/teleport/e/tool/modules"
 	"github.com/gravitational/teleport/lib/service"
 )
 
 // extendAuthServer extends the auth server with enterprise specific features.
-func extendAuthServer(process *service.TeleportProcess, licenseFile *licensefile.LicenseFile, authPlugin *auth.Plugin, licensePath string) (service.Process, error) {
+func extendAuthServer(process *service.TeleportProcess, licenseFile *licensefile.LicenseFile, authPlugin *auth.Plugin, licensePath string, enterpriseModules *emodules.EnterpriseModules) (service.Process, error) {
 	ctx := process.ExitContext()
 	process.Config.Logger.InfoContext(ctx, "Starting enterprise auth services")
 	cleanup, err := auth.StartServices(ctx, authPlugin)
@@ -29,7 +29,7 @@ func extendAuthServer(process *service.TeleportProcess, licenseFile *licensefile
 	})
 
 	// Initialize teleport cloud process
-	if modules.GetModules().Features().Cloud {
+	if enterpriseModules.Features().Cloud {
 		cloudProcess, err := cloud.NewTeleport(cloud.Config{
 			AuthPlugin:  authPlugin,
 			OSSProcess:  process,
@@ -48,6 +48,7 @@ func extendAuthServer(process *service.TeleportProcess, licenseFile *licensefile
 		OSSProcess:  process,
 		LicenseFile: licenseFile,
 		LicensePath: licensePath,
+		Modules:     enterpriseModules,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -802,7 +802,6 @@ func (p *Plugin) registerPluginsService() (*pluginsv1.Service, error) {
 	}
 
 	pluginspb.RegisterPluginServiceServer(grpcServer, service)
-	modules.GetModules().EnablePlugins()
 
 	return service, nil
 }

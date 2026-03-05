@@ -4,7 +4,9 @@ import (
 	"context"
 	"os"
 
+	emodules "github.com/gravitational/teleport/e/tool/modules"
 	"github.com/gravitational/teleport/e/tool/teleport/process"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
@@ -16,6 +18,12 @@ func init() {
 }
 
 func main() {
+	// Set the modules to a default [emodules.EnterpriseModules] so that commands like
+	// teleport version output the appropriate information. The modules will
+	// be specified appropriately and populated with licensing and feature
+	// entitlements by the start commands.
+	modules.SetModules(&emodules.EnterpriseModules{})
+
 	app, executedCommand, config := common.Run(common.Options{
 		Args:     os.Args[1:],
 		InitOnly: true,

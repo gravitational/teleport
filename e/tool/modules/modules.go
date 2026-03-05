@@ -4,12 +4,10 @@ import (
 	"context"
 	"crypto"
 	"fmt"
-	"log/slog"
 	"runtime"
 	"sync"
 	"time"
 
-	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -18,199 +16,154 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
-	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/accessrequest"
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	ehardwarekey "github.com/gravitational/teleport/e/lib/hardwarekey"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// eModuleComponent is the name of the component used for logging
-const eModuleComponent = "enterprise/modules"
+// EnterpriseModules implements pluggable enterprise teleport logic
+type EnterpriseModules struct {
+	licenseExpiry     time.Time
+	automaticUpgrades bool
+	accessMonitoring  bool
+	accessGraph       bool
+	recoveryCodes     bool
+	plugins           bool
 
-// cloudFeatureRequestTimeout is the timeout of requests to Teleport Cloud
-// when fetching features
-var cloudFeatureRequestTimeout = time.Second * 10
-
-func init() {
-	// Set the modules to Enterprise but with no license information.
-	modules.SetModules(&enterpriseModules{})
+	mu sync.RWMutex
+	// features is the feature set of the cluster
+	features modules.Features
 }
 
-// SetModules installs modules that provide custom behavior for the
-// enterprise compared to the open-source version
-func SetModules(licenseFile *licensefile.LicenseFile) error {
-	p := enterpriseModules{logger: slog.With(teleport.ComponentKey, eModuleComponent)}
-	if licenseFile == nil || licenseFile.License == nil {
-		modules.SetModules(&p)
-		return nil
+// EnterpriseModulesConfig contains dependencies required to create [EnterpriseModules].
+type EnterpriseModulesConfig struct {
+	License                  *licensefile.LicenseFile
+	Features                 modules.Features
+	HostedPluginsEnabled     bool
+	Cloud                    bool
+	AutomaticUpgradesEnabled bool
+}
+
+// NewEnterpriseModules creates an [EnterpriseModules] from the provided dependencies.
+func NewEnterpriseModules(cfg EnterpriseModulesConfig) *EnterpriseModules {
+	p := &EnterpriseModules{
+		features:          cfg.Features,
+		recoveryCodes:     cfg.Cloud,
+		plugins:           cfg.HostedPluginsEnabled,
+		automaticUpgrades: cfg.AutomaticUpgradesEnabled,
+		accessMonitoring:  cfg.Features.GetEntitlement(entitlements.AccessMonitoring).Enabled,
+		accessGraph:       cfg.Features.GetEntitlement(entitlements.Policy).Enabled,
 	}
 
-	p.licenseExpiry = licenseFile.License.Expiry()
-	features := GetSelfHostedLicenseFeatures(licenseFile.License)
+	if cfg.License != nil && cfg.License.License != nil {
+		p.licenseExpiry = cfg.License.License.Expiry()
+	}
 
-	// Fetch supported features from salescenter "subscriptions" db table for
-	// cloud based subscriptions:
-	//   - Team
-	//   - Enterprise Usage Based Cloud
-	//   - Legacy Enterprise Teleport Cloud (non-usage based but hosted by Teleport)
-	if licenseFile.License.GetCloud() {
-		p.logger.DebugContext(context.Background(), "fetching features from Cloud")
-		tlsConfig, err := liblicense.MakeTLSConfig(*licenseFile.KeyPair)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	return p
+}
 
-		client, err := cloud.NewClientFromTLSConfig(tlsConfig)
-		if err != nil {
-			p.logger.ErrorContext(context.Background(), "failed creating cloud client to fetch features", "error", err)
-			return trace.Wrap(err)
-		}
+// UpdateModules sets the module's features and license information. This is similar to
+// SetFeatures, but should be preferred when updating features and license information.
+func (p *EnterpriseModules) UpdateModules(licenseFile *licensefile.LicenseFile, features modules.Features) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-		ctx, cancel := context.WithTimeout(context.Background(), cloudFeatureRequestTimeout)
-		defer cancel()
-
-		f, err := feature.GetCloudFeatures(ctx, client)
-		if err != nil {
-			p.logger.ErrorContext(ctx, "failed fetching features from Cloud", "error", err)
-			return trace.Wrap(err)
-		}
-		p.logger.DebugContext(ctx, "successfully fetched features from Cloud", "features", f.ToProto())
-		features = *f
+	if licenseFile != nil && licenseFile.License != nil {
+		p.licenseExpiry = licenseFile.License.Expiry()
 	}
 
 	p.features = features
-
-	// copy config-based features from the previous modules
-	copyConfigBasedFeatures(modules.GetModules().Features(), &p.features)
-
-	// always enable recovery codes on cloud env
-	if cloud.IsCloudEnv() {
-		p.features.RecoveryCodes = true
-	}
-
-	modules.SetModules(&p)
-	return nil
-}
-
-// enterpriseModules implements pluggable enterprise teleport logic
-type enterpriseModules struct {
-	mu sync.RWMutex
-	// features is the feature set of the cluster
-	features          modules.Features
-	logger            *slog.Logger
-	licenseExpiry     time.Time
-	automaticUpgrades bool
-	loadDynamicValues sync.Once
 }
 
 // Features returns supported features
-func (p *enterpriseModules) Features() modules.Features {
+func (p *EnterpriseModules) Features() modules.Features {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	features := p.features
 
-	p.loadDynamicValues.Do(func() {
-		p.automaticUpgrades = automaticupgrades.IsEnabled()
-	})
-
 	features.AutomaticUpgrades = p.automaticUpgrades
+	// RecoveryCodes are enabled during startup when running on Cloud
+	features.RecoveryCodes = p.recoveryCodes
+	// Plugins are always enabled based on auth file config
+	features.Plugins = p.plugins
+	// AccessGraph is enabled at startup when the Entitlements Policy is enabled
+	features.AccessGraph = p.accessGraph
+	// AccessMonitoringConfigured is enabled at startup when
+	// the entitlement AccessMonitoring is enabled
+	features.AccessMonitoringConfigured = p.accessMonitoring
 	return features
 }
 
 // SetFeatures sets the module's features for cloud clusters.
 // The values of RecoveryCodes and Plugins will not be updated. Use
 // EnableRecoveryCodes or EnablePlugins to update these fields.
-func (p *enterpriseModules) SetFeatures(f modules.Features) {
+func (p *EnterpriseModules) SetFeatures(f modules.Features) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	copyConfigBasedFeatures(p.features, &f)
-
 	p.features = f
 }
 
-// copyConfigBasedFeatures copies config-based features from src into dest.
-// This features are usually setup at startup time based on other params, like
-// the environment, and shouldn't be updated via SetFeatures or SetModules.
-func copyConfigBasedFeatures(src modules.Features, dest *modules.Features) {
-	// RecoveryCodes are enabled during startup when running on Cloud
-	dest.RecoveryCodes = src.RecoveryCodes
-	// Plugins are enabled during startup when the plugin service is created
-	dest.Plugins = src.Plugins
-	// AccessGraph is enabled at startup when the Entitlements Policy is enabled
-	dest.AccessGraph = src.AccessGraph
-	// AccessMonitoringConfigured is enabled at startup when
-	// the entitlement AccessMonitoring is enabled
-	dest.AccessMonitoringConfigured = src.AccessMonitoringConfigured
-}
-
 // EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
-func (p *enterpriseModules) EnableRecoveryCodes() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.features.RecoveryCodes = true
-}
+// TODO(tross) remove once modules.Modules interface is updated.
+func (p *EnterpriseModules) EnableRecoveryCodes() {}
 
 // EnablePlugins enables the hosted plugins runtime.
-func (p *enterpriseModules) EnablePlugins() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.features.Plugins = true
-}
+// TODO(tross) remove once modules.Modules interface is updated.
+func (p *EnterpriseModules) EnablePlugins() {}
 
 // EnableAccessGraph enables the usage of access graph.
-func (p *enterpriseModules) EnableAccessGraph() {
+func (p *EnterpriseModules) EnableAccessGraph() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.features.AccessGraph = true
+	p.accessGraph = true
 }
 
 // EnableAccessMonitoring enables the usage of access monitoring.
-func (p *enterpriseModules) EnableAccessMonitoring() {
+func (p *EnterpriseModules) EnableAccessMonitoring() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.features.AccessMonitoringConfigured = true
+	p.accessMonitoring = true
 }
 
 // BuildType returns build type (OSS or Enterprise)
-func (p *enterpriseModules) BuildType() string {
+func (p *EnterpriseModules) BuildType() string {
 	return modules.BuildEnterprise
 }
 
 // IsEnterpriseBuild returns true for [enterpriseModules].
-func (p *enterpriseModules) IsEnterpriseBuild() bool {
+func (p *EnterpriseModules) IsEnterpriseBuild() bool {
 	return true
 }
 
 // IsOSSBuild returns false for [enterpriseModules].
-func (p *enterpriseModules) IsOSSBuild() bool {
+func (p *EnterpriseModules) IsOSSBuild() bool {
 	return false
 }
 
 // LicenseExpiry returns the expiry date of the enterprise license, if applicable.
-func (p *enterpriseModules) LicenseExpiry() time.Time {
+func (p *EnterpriseModules) LicenseExpiry() time.Time {
 	return p.licenseExpiry
 }
 
 // PrintVersion prints the Teleport version. For enterprise it includes
 // "Enterprise" in the output.
-func (p *enterpriseModules) PrintVersion() {
+func (p *EnterpriseModules) PrintVersion() {
 	fmt.Printf("Teleport Enterprise v%s git:%s %s\n", teleport.Version, teleport.Gitref, runtime.Version())
 }
 
 // IsBoringBinary checks if the binary was compiled with BoringCrypto.
-func (p *enterpriseModules) IsBoringBinary() bool {
+func (p *EnterpriseModules) IsBoringBinary() bool {
 	return modules.IsBoringBinary()
 }
 
 // AttestHardwareKey attests a hardware key, either with the given statement or
 // previously stored attestation data matching the given public key.
-func (p *enterpriseModules) AttestHardwareKey(ctx context.Context, serverI any, att *hardwarekey.AttestationStatement, pub crypto.PublicKey, sessionTTL time.Duration) (*keys.AttestationData, error) {
+func (p *EnterpriseModules) AttestHardwareKey(ctx context.Context, serverI any, att *hardwarekey.AttestationStatement, pub crypto.PublicKey, sessionTTL time.Duration) (*keys.AttestationData, error) {
 	// serverI is passed as a plain interface{} to make it more cryptic,
 	// and therefore difficult for OSS users to implement themselves 😈
 	server, ok := serverI.(ehardwarekey.AttestationServer)
@@ -220,15 +173,15 @@ func (p *enterpriseModules) AttestHardwareKey(ctx context.Context, serverI any, 
 	return ehardwarekey.AttestHardwareKey(ctx, server, att, pub, sessionTTL)
 }
 
-func (p *enterpriseModules) GenerateLongTermResourceGrouping(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error) {
+func (p *EnterpriseModules) GenerateLongTermResourceGrouping(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error) {
 	return accessrequest.GenerateLongTermResourceGrouping(ctx, clt, req)
 }
 
-func (p *enterpriseModules) GenerateAccessRequestPromotions(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessRequest types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+func (p *EnterpriseModules) GenerateAccessRequestPromotions(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessRequest types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return accessrequest.GenerateAccessRequestPromotions(ctx, accessListGetter, accessRequest)
 }
 
-func (p *enterpriseModules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt modules.AccessListSuggestionClient,
+func (p *EnterpriseModules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt modules.AccessListSuggestionClient,
 	accessListGetter modules.AccessListAndMembersGetter, requestID string,
 ) ([]*accesslist.AccessList, error) {
 	return accessrequest.GetSuggestedAccessLists(ctx, identity, clt, accessListGetter, requestID)

@@ -7,29 +7,31 @@ import (
 	"encoding/pem"
 	"errors"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/gravitational/license"
 	"github.com/gravitational/license/constants"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/licensefile"
+	emodules "github.com/gravitational/teleport/e/tool/modules"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 func TestNewService(t *testing.T) {
@@ -47,6 +49,7 @@ func TestNewService(t *testing.T) {
 				ServerID:    "ServerID",
 				LicenseFile: validLicenseFile,
 				LicensePath: "LicensePath",
+				Modules:     &emodules.EnterpriseModules{},
 			},
 			assert: func(t *testing.T, s *licenseUpdateService, err error) {
 				require.NoError(t, err)
@@ -61,6 +64,7 @@ func TestNewService(t *testing.T) {
 				ServerID:       "ServerID",
 				LicenseFile:    validLicenseFile,
 				LicensePath:    "LicensePath",
+				Modules:        &emodules.EnterpriseModules{},
 				RequestTimeout: time.Second,
 				Interval:       time.Second,
 			},
@@ -76,10 +80,10 @@ func TestNewService(t *testing.T) {
 			cfg: licenseUpdateServiceConfig{
 				LicenseFile: validLicenseFile,
 				LicensePath: "LicensePath",
+				Modules:     &emodules.EnterpriseModules{},
 			},
 			assert: func(t *testing.T, s *licenseUpdateService, err error) {
-				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err))
+				require.ErrorIs(t, err, trace.BadParameter("missing ServerID"))
 			},
 		},
 		{
@@ -87,21 +91,32 @@ func TestNewService(t *testing.T) {
 			cfg: licenseUpdateServiceConfig{
 				ServerID:    "ServerID",
 				LicensePath: "LicensePath",
+				Modules:     &emodules.EnterpriseModules{},
 			},
 			assert: func(t *testing.T, s *licenseUpdateService, err error) {
-				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err))
+				require.ErrorIs(t, err, trace.BadParameter("missing LicenseFile"))
 			},
 		},
 		{
 			name: "LicensePath is required",
 			cfg: licenseUpdateServiceConfig{
 				ServerID:    "ServerID",
-				LicensePath: "LicensePath",
+				LicenseFile: validLicenseFile,
+				Modules:     &emodules.EnterpriseModules{},
 			},
 			assert: func(t *testing.T, s *licenseUpdateService, err error) {
-				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err))
+				require.ErrorIs(t, err, trace.BadParameter("missing LicensePath"))
+			},
+		},
+		{
+			name: "Modules is required",
+			cfg: licenseUpdateServiceConfig{
+				ServerID:    "ServerID",
+				LicensePath: "LicensePath",
+				LicenseFile: validLicenseFile,
+			},
+			assert: func(t *testing.T, s *licenseUpdateService, err error) {
+				require.ErrorIs(t, err, trace.BadParameter("missing Modules"))
 			},
 		},
 	}
@@ -220,87 +235,66 @@ func TestAppendAnonymizationKey(t *testing.T) {
 }
 
 func TestLicenseUpdateServiceRun(t *testing.T) {
-	originalLicense, err := licensefile.NewLicenseFile(filepath.Join("testdata", "license.pem"))
-	require.NoError(t, err)
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		originalLicense, err := licensefile.NewLicenseFile(filepath.Join("testdata", "license.pem"))
+		require.NoError(t, err)
 
-	features := modules.Features{}
-	features.Entitlements = feature.GetLicenseEntitlements(originalLicense.License.GetEntitlements())
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: features,
-	})
-
-	fakeClock := clockwork.NewFakeClock()
-
-	// create the test license on disk
-	permissions := os.FileMode(0o644)
-	licensePath := path.Join(t.TempDir(), "license.cert")
-	require.NoError(t, utils.CopyFile(filepath.Join("testdata", "license.pem"), licensePath, permissions))
-
-	client := new(testClient)
-	// initially, client returns nothing
-	client.setMockGetUpdatedLicense(func(ctx context.Context, r *cloudapi.GetUpdatedLicenseRequest) (*cloudapi.GetUpdatedLicenseResponse, error) {
-		return &cloudapi.GetUpdatedLicenseResponse{}, nil
-	})
-
-	ctx := t.Context()
-
-	service, err := newLicenseUpdateService(licenseUpdateServiceConfig{
-		ServerID:    "ServerID",
-		LicenseFile: originalLicense,
-		LicensePath: licensePath,
-		Interval:    time.Second,
-		Clock:       fakeClock,
-		NewClientFromTLSConfig: func(c *tls.Config) (cloud.Client, error) {
-			return client, nil
-		},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, service)
-
-	go service.Run(ctx)
-	fakeClock.BlockUntil(1)
-
-	require.Equal(t, features, modules.GetModules().Features())
-
-	// update client to return a new license
-	newLicense, err := licensefile.NewLicenseFile(filepath.Join("testdata", "license-no-monitoring-or-identity.pem"))
-	require.NoError(t, err)
-
-	// The new license does not include an anonymization key because the server does not have one.
-	require.NoError(t, err)
-	newLicenseEntitlements := feature.GetLicenseEntitlements(newLicense.License.GetEntitlements())
-
-	client.setMockGetUpdatedLicense(func(ctx context.Context, r *cloudapi.GetUpdatedLicenseRequest) (*cloudapi.GetUpdatedLicenseResponse, error) {
-		content, err := os.ReadFile(filepath.Join("testdata", "license-no-monitoring-or-identity.pem"))
-		if err != nil {
-			return nil, trace.Wrap(err)
+		features := modules.Features{
+			AccessGraph:                true,
+			AccessMonitoringConfigured: true,
+			Entitlements:               feature.GetLicenseEntitlements(originalLicense.License.GetEntitlements()),
 		}
+		testModules := emodules.NewEnterpriseModules(emodules.EnterpriseModulesConfig{
+			License:  originalLicense,
+			Features: features,
+		})
 
-		return &cloudapi.GetUpdatedLicenseResponse{
-			Pem: string(content),
-		}, nil
-	})
+		// create the test license on disk
+		permissions := os.FileMode(0o644)
+		licensePath := path.Join(t.TempDir(), "license.cert")
+		require.NoError(t, utils.CopyFile(filepath.Join("testdata", "license.pem"), licensePath, permissions))
 
-	// assert that the entitlements, licensefile, anonymization key and disk license eventually match the new license
-	requireNewLicense(t, fakeClock, newLicenseEntitlements, originalLicense.License.GetAnonymizationKey(), permissions, newLicense, service.licensePath)
+		client := new(testClient)
+		// initially, client returns nothing
+		client.setMockGetUpdatedLicense(func(ctx context.Context, r *cloudapi.GetUpdatedLicenseRequest) (*cloudapi.GetUpdatedLicenseResponse, error) {
+			return &cloudapi.GetUpdatedLicenseResponse{}, nil
+		})
 
-	// test that the service won't crash if it receives an error
-	client.setMockGetUpdatedLicense(
-		func(ctx context.Context, r *cloudapi.GetUpdatedLicenseRequest) (*cloudapi.GetUpdatedLicenseResponse, error) {
-			return nil, errors.New("err fetching features")
-		},
-	)
-	// require the same license as before
-	requireNewLicense(t, fakeClock, newLicenseEntitlements, originalLicense.License.GetAnonymizationKey(), permissions, newLicense, service.licensePath)
+		ctx := t.Context()
 
-	// assert that the service is still running and able to download a new license after getting an error from the server
-	newLicense, err = licensefile.NewLicenseFile(filepath.Join("testdata", "license-no-app-or-db.pem"))
-	require.NoError(t, err)
+		service, err := newLicenseUpdateService(licenseUpdateServiceConfig{
+			Log:         slog.New(slog.DiscardHandler),
+			ServerID:    "ServerID",
+			LicenseFile: originalLicense,
+			LicensePath: licensePath,
+			Interval:    time.Second,
+			NewClientFromTLSConfig: func(c *tls.Config) (cloud.Client, error) {
+				return client, nil
+			},
+			Modules: testModules,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, service)
 
-	newLicenseEntitlements = feature.GetLicenseEntitlements(newLicense.License.GetEntitlements())
-	client.setMockGetUpdatedLicense(
-		func(ctx context.Context, r *cloudapi.GetUpdatedLicenseRequest) (*cloudapi.GetUpdatedLicenseResponse, error) {
-			content, err := os.ReadFile(filepath.Join("testdata", "license-no-app-or-db.pem"))
+		go service.Run(ctx)
+
+		time.Sleep(2 * time.Second)
+		synctest.Wait()
+
+		actual := testModules.Features()
+		require.Equal(t, features, actual)
+
+		// update client to return a new license
+		newLicense, err := licensefile.NewLicenseFile(filepath.Join("testdata", "license-no-monitoring-or-identity.pem"))
+		require.NoError(t, err)
+
+		// The new license does not include an anonymization key because the server does not have one.
+		require.NoError(t, err)
+		newLicenseEntitlements := feature.GetLicenseEntitlements(newLicense.License.GetEntitlements())
+
+		client.setMockGetUpdatedLicense(func(ctx context.Context, r *cloudapi.GetUpdatedLicenseRequest) (*cloudapi.GetUpdatedLicenseResponse, error) {
+			content, err := os.ReadFile(filepath.Join("testdata", "license-no-monitoring-or-identity.pem"))
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -308,40 +302,78 @@ func TestLicenseUpdateServiceRun(t *testing.T) {
 			return &cloudapi.GetUpdatedLicenseResponse{
 				Pem: string(content),
 			}, nil
-		},
-	)
-	requireNewLicense(t, fakeClock, newLicenseEntitlements, originalLicense.License.GetAnonymizationKey(), permissions, newLicense, service.licensePath)
+		})
+
+		synctest.Wait()
+		time.Sleep(2 * time.Second)
+
+		// assert that the entitlements, licensefile, anonymization key and disk license eventually match the new license
+		requireNewLicense(t, newLicenseEntitlements, originalLicense.License.GetAnonymizationKey(), permissions, newLicense, service.licensePath, testModules)
+
+		// test that the service won't crash if it receives an error
+		client.setMockGetUpdatedLicense(
+			func(ctx context.Context, r *cloudapi.GetUpdatedLicenseRequest) (*cloudapi.GetUpdatedLicenseResponse, error) {
+				return nil, errors.New("err fetching features")
+			},
+		)
+
+		synctest.Wait()
+		time.Sleep(2 * time.Second)
+
+		// require the same license as before
+		requireNewLicense(t, newLicenseEntitlements, originalLicense.License.GetAnonymizationKey(), permissions, newLicense, service.licensePath, testModules)
+
+		// assert that the service is still running and able to download a new license after getting an error from the server
+		newLicense, err = licensefile.NewLicenseFile(filepath.Join("testdata", "license-no-app-or-db.pem"))
+		require.NoError(t, err)
+
+		newLicenseEntitlements = feature.GetLicenseEntitlements(newLicense.License.GetEntitlements())
+		client.setMockGetUpdatedLicense(
+			func(ctx context.Context, r *cloudapi.GetUpdatedLicenseRequest) (*cloudapi.GetUpdatedLicenseResponse, error) {
+				content, err := os.ReadFile(filepath.Join("testdata", "license-no-app-or-db.pem"))
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				return &cloudapi.GetUpdatedLicenseResponse{
+					Pem: string(content),
+				}, nil
+			},
+		)
+
+		synctest.Wait()
+		time.Sleep(2 * time.Second)
+
+		requireNewLicense(t, newLicenseEntitlements, originalLicense.License.GetAnonymizationKey(), permissions, newLicense, service.licensePath, testModules)
+	})
 }
 
 // requireNewLicense is a helper function that advances the clock and checks that
 // the license is eventually the expected value
 func requireNewLicense(t *testing.T,
-	fakeClock clocki.FakeClock,
 	expectedEntitlements map[entitlements.EntitlementKind]modules.EntitlementInfo,
 	expectedAnonKey string,
 	expectedPerms os.FileMode,
 	newLicense *licensefile.LicenseFile,
 	licensePath string,
+	modules *emodules.EnterpriseModules,
 ) {
 	t.Helper()
-	fakeClock.Advance(time.Second * 2)
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// assert that features got updated and match the new license
-		require.Equal(t, expectedEntitlements, modules.GetModules().Features().Entitlements)
-		// assert that licensePath exists and matches the license
-		diskContent, err := os.ReadFile(licensePath)
-		require.NoError(t, err)
-		// the expected result is the new license full PEM encoded cert plus the anonymization block
-		expected := append(newLicense.GetKeyPair().CertPEM, newLicense.GetKeyPair().KeyPEM...)
-		expected, err = appendAnonymizationKey(expected, []byte(expectedAnonKey))
-		require.NoError(t, err)
-		require.Equal(t, expected, diskContent)
-		// assert that the permissions matches the expected value
-		info, err := os.Stat(licensePath)
-		require.NoError(t, err)
-		require.Equal(t, expectedPerms, info.Mode().Perm())
-	}, time.Second*10, time.Millisecond*100)
+	// assert that features got updated and match the new license
+	require.Equal(t, expectedEntitlements, modules.Features().Entitlements)
+	// assert that licensePath exists and matches the license
+	diskContent, err := os.ReadFile(licensePath)
+	require.NoError(t, err)
+	// the expected result is the new license full PEM encoded cert plus the anonymization block
+	expected := append(newLicense.GetKeyPair().CertPEM, newLicense.GetKeyPair().KeyPEM...)
+	expected, err = appendAnonymizationKey(expected, []byte(expectedAnonKey))
+	require.NoError(t, err)
+	require.Equal(t, expected, diskContent)
+	// assert that the permissions matches the expected value
+	info, err := os.Stat(licensePath)
+	require.NoError(t, err)
+	require.Equal(t, expectedPerms, info.Mode().Perm())
 }
 
 // testClient is a struct that implements cloud.Client with a
@@ -372,3 +404,81 @@ func (t *testClient) setMockGetUpdatedLicense(f func(ctx context.Context, r *clo
 
 // Implement cloud.Client interface for mocked client
 func (t *testClient) Close() error { return nil }
+
+func TestLoadFeatures(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		license          *licensefile.LicenseFile
+		expectedFeatures modules.Features
+		errAssertion     require.ErrorAssertionFunc
+	}{
+		{
+			name:         "no license file",
+			errAssertion: require.NoError,
+		},
+		{
+			name:         "no license",
+			license:      &licensefile.LicenseFile{},
+			errAssertion: require.NoError,
+		},
+		{
+			name:         "self-hosted license",
+			errAssertion: require.NoError,
+			license: &licensefile.LicenseFile{
+				License: &types.LicenseV3{
+					Spec: types.LicenseSpecV3{
+						CustomTheme: "test",
+						Entitlements: map[string]types.EntitlementInfo{
+							string(entitlements.Policy): {Enabled: true},
+							string(entitlements.K8s):    {Enabled: true},
+						},
+					},
+				},
+			},
+			expectedFeatures: modules.Features{
+				CustomTheme:             "test",
+				AccessControls:          true,
+				AdvancedAccessWorkflows: true,
+				SupportType:             proto.SupportType_SUPPORT_TYPE_PREMIUM,
+				Entitlements: func() map[entitlements.EntitlementKind]modules.EntitlementInfo {
+					out := make(map[entitlements.EntitlementKind]modules.EntitlementInfo, len(entitlements.AllEntitlements))
+					for _, e := range entitlements.AllEntitlements {
+						out[e] = modules.EntitlementInfo{}
+					}
+
+					out[entitlements.Policy] = modules.EntitlementInfo{Enabled: true}
+					out[entitlements.K8s] = modules.EntitlementInfo{Enabled: true}
+
+					return out
+				}(),
+			},
+		},
+		{
+			name:         "cloud license",
+			errAssertion: require.Error,
+			license: &licensefile.LicenseFile{
+				KeyPair: &license.License{},
+				License: &types.LicenseV3{
+					Spec: types.LicenseSpecV3{
+						Cloud: true,
+						Entitlements: map[string]types.EntitlementInfo{
+							string(entitlements.HSM):                    {Enabled: true},
+							string(entitlements.JoinActiveSessions):     {Enabled: true},
+							string(entitlements.MobileDeviceManagement): {Enabled: true},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			features, err := LoadFeatures(t.Context(), test.license)
+			test.errAssertion(t, err)
+			require.Equal(t, test.expectedFeatures, features)
+		})
+	}
+}

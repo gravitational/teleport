@@ -10,10 +10,9 @@ import (
 	"path/filepath"
 	"time"
 
-	liblicense "github.com/gravitational/license"
+	"github.com/gravitational/license"
 	"github.com/gravitational/license/constants"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -21,6 +20,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/e/api/cloud"
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
+	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	emodules "github.com/gravitational/teleport/e/tool/modules"
 	"github.com/gravitational/teleport/lib"
@@ -47,13 +47,13 @@ type licenseUpdateServiceConfig struct {
 	LicenseFile *licensefile.LicenseFile
 	// LicensePath is the path of the license on disk
 	LicensePath string
+	// Modules defines build time constraints and licensed features.
+	Modules *emodules.EnterpriseModules
 	// RequestTimeout is the timeout of the Cloud request
 	RequestTimeout time.Duration
 	// Interval is the interval Cloud should be queried for license updates.
 	// If empty, defaults to a jittered value between 5 and 10 minutes.
 	Interval time.Duration
-	// Clock is a clock for time-related operations
-	Clock clockwork.Clock
 	// NewClientFromTLSConfig is a factory function for creating a Cloud client
 	// from a TLS configuration. Defaults to the production implementation but
 	// can be replaced for testing purposes.
@@ -79,16 +79,16 @@ func (c *licenseUpdateServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing LicensePath")
 	}
 
+	if c.Modules == nil {
+		return trace.BadParameter("missing Modules")
+	}
+
 	if c.Interval <= 0 {
 		c.Interval = retryutils.HalfJitter(defaultLicenseQueryInterval * 2)
 	}
 
 	if c.RequestTimeout <= 0 {
 		c.RequestTimeout = defaultLicenseQueryTimeout
-	}
-
-	if c.Clock == nil {
-		c.Clock = clockwork.NewRealClock()
 	}
 
 	if c.Log == nil {
@@ -111,10 +111,10 @@ type licenseUpdateService struct {
 	licensePath            string
 	requestTimeout         time.Duration
 	interval               time.Duration
-	clock                  clockwork.Clock
 	client                 cloud.Client
 	newClientFromTLSConfig func(*tls.Config) (cloud.Client, error)
 	log                    *slog.Logger
+	modules                *emodules.EnterpriseModules
 }
 
 // newLicenseUpdateService returns a new LicenseUpdateService
@@ -123,7 +123,7 @@ func newLicenseUpdateService(cfg licenseUpdateServiceConfig) (*licenseUpdateServ
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig, err := liblicense.MakeTLSConfig(*cfg.LicenseFile.KeyPair)
+	tlsConfig, err := license.MakeTLSConfig(*cfg.LicenseFile.KeyPair)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -139,17 +139,17 @@ func newLicenseUpdateService(cfg licenseUpdateServiceConfig) (*licenseUpdateServ
 		licensePath:            cfg.LicensePath,
 		requestTimeout:         cfg.RequestTimeout,
 		interval:               cfg.Interval,
-		clock:                  cfg.Clock,
 		client:                 cloudClient,
 		newClientFromTLSConfig: cfg.NewClientFromTLSConfig,
 		log:                    cfg.Log,
+		modules:                cfg.Modules,
 	}, nil
 }
 
 // Run periodically queries and updates the license from Cloud's API
 func (s *licenseUpdateService) Run(ctx context.Context) {
 	s.log.InfoContext(ctx, "feature service started", "interval", s.interval)
-	ticker := s.clock.NewTicker(s.interval)
+	ticker := time.NewTicker(s.interval)
 
 	defer ticker.Stop()
 	defer s.client.Close()
@@ -163,7 +163,7 @@ func (s *licenseUpdateService) Run(ctx context.Context) {
 			s.log.WarnContext(ctx, "error updating license", "error", err)
 		}
 		select {
-		case <-ticker.Chan():
+		case <-ticker.C:
 		case <-ctx.Done():
 			s.log.DebugContext(ctx, "license update service has stopped")
 			return
@@ -210,10 +210,15 @@ func (s *licenseUpdateService) fetchAndUpdateLicense(ctx context.Context) error 
 	// set features
 	s.licenseFile = newLicense
 
-	err = emodules.SetModules(newLicense)
+	// TODO(tross): create the client a single time instead of in LoadFeatures
+	// and updateClientLicense and resuse it.
+	features, err := LoadFeatures(ctx, newLicense)
 	if err != nil {
-		return trace.Wrap(err, "error configuring modules from new license")
+		return trace.Wrap(err, "error loading features from new license")
 	}
+
+	s.modules.UpdateModules(newLicense, features)
+
 	s.log.InfoContext(ctx, "license updated",
 		"features", modules.GetModules().Features(),
 		"not_before", newLicense.KeyPair.Cert.NotBefore,
@@ -242,12 +247,51 @@ func (s *licenseUpdateService) fetchAndUpdateLicense(ctx context.Context) error 
 	return nil
 }
 
+// LoadFeatures consumes the license to determine which features are enabled. If
+// the process is running in a Cloud environment the features will be loaded via
+// an API call to Cloud.
+func LoadFeatures(ctx context.Context, licenseFile *licensefile.LicenseFile) (modules.Features, error) {
+	if licenseFile == nil || licenseFile.License == nil {
+		return modules.Features{}, nil
+	}
+
+	if !licenseFile.License.GetCloud() {
+		return emodules.GetSelfHostedLicenseFeatures(licenseFile.License), nil
+	}
+
+	slog.DebugContext(ctx, "fetching features from Cloud")
+	tlsConfig, err := license.MakeTLSConfig(*licenseFile.KeyPair)
+	if err != nil {
+		return modules.Features{}, trace.Wrap(err)
+	}
+
+	client, err := cloud.NewClientFromTLSConfig(tlsConfig)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed creating cloud client to fetch features", "error", err)
+		return modules.Features{}, trace.Wrap(err)
+	}
+	defer client.Close()
+
+	const cloudFeatureRequestTimeout = 10 * time.Second
+	ctx, cancel := context.WithTimeout(ctx, cloudFeatureRequestTimeout)
+	defer cancel()
+
+	f, err := feature.GetCloudFeatures(ctx, client)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed fetching features from Cloud", "error", err)
+		return modules.Features{}, trace.Wrap(err)
+	}
+
+	slog.DebugContext(ctx, "successfully fetched features from Cloud", "features", f.ToProto())
+	return *f, nil
+}
+
 // updateClientLicense refreshes the Cloud client by creating a new one with
 // the updated mTLS certificate from the latest license. This ensures that the
 // client uses the new license for secure communication.
 // The current client is closed before replacing it with the new client.
 func (s *licenseUpdateService) updateClientLicense(ctx context.Context) error {
-	tlsConfig, err := liblicense.MakeTLSConfig(*s.licenseFile.KeyPair)
+	tlsConfig, err := license.MakeTLSConfig(*s.licenseFile.KeyPair)
 	if err != nil {
 		return trace.Wrap(err)
 	}

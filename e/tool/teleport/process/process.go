@@ -7,15 +7,18 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/accessgraph"
 	"github.com/gravitational/teleport/e/lib/auth"
 	_ "github.com/gravitational/teleport/e/lib/backend/crdb"
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/db/oracle"
 	"github.com/gravitational/teleport/e/lib/licensefile"
+	"github.com/gravitational/teleport/e/lib/pro"
 	"github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/e/lib/web"
 	emodules "github.com/gravitational/teleport/e/tool/modules"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -40,7 +43,8 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := configureModules(license); err != nil {
+	features, err := pro.LoadFeatures(ctx, license)
+	if err != nil {
 		// despite the error, we should still try to load features from the backend.
 		// Features from the backend may be stale, so we should always prioritize
 		// using configureModules, and only use the backend features as a fallback in case
@@ -48,8 +52,18 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 		cfg.Logger.WarnContext(ctx, "failed configuring cluster modules", "error", err)
 		tryLoadingFeaturesFromBackend = cfg.Auth.Enabled
 	}
-	// TODO(tross): instantiate enterprise modules and inject them directly
-	cfg.Modules = modules.GetModules()
+
+	mod := emodules.NewEnterpriseModules(emodules.EnterpriseModulesConfig{
+		License:                  license,
+		Features:                 features,
+		HostedPluginsEnabled:     cfg.Auth.HostedPlugins.Enabled,
+		Cloud:                    cloud.IsCloudEnv(),
+		AutomaticUpgradesEnabled: automaticupgrades.IsEnabled(),
+	})
+	cfg.Modules = mod
+
+	// TODO(tross): delete once modules are injected everywhere.
+	modules.SetModules(mod)
 
 	webPlugin, authPlugin, err := addPlugins(cfg, license)
 	if err != nil {
@@ -69,22 +83,20 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 		f, err := feature.Load(ctx, ossProcess.GetBackend())
 		if err != nil {
 			// At this point, we couldn't get features from the Cloud API and the backend.
-			// To avoid failing to start the auth server, we can fallback to the license,
-			// since it includes the customer's features.
+			// To avoid failing to start the auth server, we continue with just the license features.
 			// This will only happen for Cloud clusters during the first time the auth service is started
 			// since subsequent starts will have backend features.
-			licenseFeatures := emodules.GetSelfHostedLicenseFeatures(license.License)
-			modules.GetModules().SetFeatures(licenseFeatures)
-			cfg.Logger.InfoContext(ctx, "feature loading from backend failed, loaded from license as fallback", "features", licenseFeatures)
+			mod.UpdateModules(license, emodules.GetSelfHostedLicenseFeatures(license.License))
+			cfg.Logger.InfoContext(ctx, "feature loading from backend failed, starting with license features", "features", mod.Features())
 		} else {
 			cfg.Logger.InfoContext(ctx, "successfully loaded features from backend", "features", f)
-			modules.GetModules().SetFeatures(*f)
+			mod.UpdateModules(license, *f)
 		}
 	}
 
 	// store cloud features for future restarts
 	if license != nil && license.License.GetCloud() {
-		if _, err := feature.Store(ctx, modules.GetModules().Features(), ossProcess.GetBackend()); err != nil {
+		if _, err := feature.Store(ctx, cfg.Modules.Features(), ossProcess.GetBackend()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -112,7 +124,7 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 	// This needs to be the last thing in NewTeleport because it needs to
 	// return an enterprise specific process.
 	if cfg.Auth.Enabled {
-		authProcess, err := extendAuthServer(ossProcess, license, authPlugin, cfg.Auth.LicenseFile)
+		authProcess, err := extendAuthServer(ossProcess, license, authPlugin, cfg.Auth.LicenseFile, mod)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

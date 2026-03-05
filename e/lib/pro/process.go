@@ -9,8 +9,8 @@ import (
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/prehog"
+	"github.com/gravitational/teleport/e/tool/modules"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -25,6 +25,8 @@ type Config struct {
 	AuthPlugin *auth.Plugin
 	// LicensePath is the path of the license on disk
 	LicensePath string
+	// Modules defines build time constraints and licensed features.
+	Modules *modules.EnterpriseModules
 }
 
 // CheckAndSetDefaults checks and sets default config values
@@ -43,6 +45,10 @@ func (c *Config) CheckAndSetDefaults() (err error) {
 
 	if c.AuthPlugin == nil {
 		return trace.BadParameter("missing AuthPlugin")
+	}
+
+	if c.Modules == nil {
+		return trace.BadParameter("missing Modules")
 	}
 
 	return nil
@@ -93,11 +99,12 @@ func NewTeleport(cfg Config) (*Process, error) {
 	go licensefile.RunLicenseChecker(process.ExitContext(), process.GetAuthServer(), process.LicenseFile)
 
 	// run the license auto update service if the entitlement is enabled
-	if info, ok := modules.GetModules().Features().Entitlements[entitlements.LicenseAutoUpdate]; ok && info.Enabled {
+	if info, ok := cfg.Modules.Features().Entitlements[entitlements.LicenseAutoUpdate]; ok && info.Enabled {
 		updateService, err := newLicenseUpdateService(licenseUpdateServiceConfig{
 			ServerID:    process.GetAuthServer().ServerID,
 			LicenseFile: process.LicenseFile,
 			LicensePath: cfg.LicensePath,
+			Modules:     cfg.Modules,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -8,7 +8,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/e/lib/licensefile"
-	emodules "github.com/gravitational/teleport/e/tool/modules"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
@@ -49,15 +48,6 @@ func configureLicense(cfg *servicecfg.Config) (*licensefile.LicenseFile, error) 
 
 	log.InfoContext(ctx, "Successfully loaded license.", "license", licenseFile.License)
 	return licenseFile, nil
-}
-
-// configureModules configures the modules based on the license
-func configureModules(licenseFile *licensefile.LicenseFile) error {
-	err := emodules.SetModules(licenseFile)
-	if err != nil {
-		return trace.Wrap(err, "error setting enterprise modules")
-	}
-	return nil
 }
 
 // servicesNeedLicense returns true if the configured services require a license.
