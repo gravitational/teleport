@@ -44,7 +44,5 @@ export async function signup(page: Page) {
   await page.getByRole('button', { name: 'Submit' }).click();
   await page.getByRole('button', { name: 'Go to Cluster' }).click();
 
-  await page.getByRole('button', { name: "I'll do that later" }).click();
-
   return { cleanup };
 }

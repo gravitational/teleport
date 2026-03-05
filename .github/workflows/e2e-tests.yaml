@@ -1,51 +1,110 @@
 name: E2E Tests
 run-name: E2E Tests
 on:
-  # Only allow manual triggers
-  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/e2e-tests.yaml'
+      - '**.go'
+      - 'e2e/**'
+      - 'web/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  push:
+    branches:
+      - master
+      - branch/**
 
 jobs:
   build:
-    name: Build binaries
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
-    runs-on: ubuntu-latest
+    name: Build Teleport
+    runs-on: ubuntu-22.04-32core
 
     permissions:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport19-amd64
-      env:
-        GOCACHE: /tmp/gocache
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
 
     steps:
-      - name: Checkout Teleport
-        uses: actions/checkout@v6 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
+      - name: Checkout
+        uses: actions/checkout@v6
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
 
-      - name: Run make
+      - name: Get cache paths
+        id: cache-paths
         run: |
-          make binaries
+          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+
+      - name: Cache Go
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.cache-paths.outputs.go-build }}
+            ${{ steps.cache-paths.outputs.go-mod }}
+          key: go-build-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: go-build-${{ runner.os }}-
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+            ~/.cargo/git/db
+            target
+            tool/fdpass-teleport/target
+          key: cargo-build-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'tool/fdpass-teleport/Cargo.lock') }}
+          restore-keys: cargo-build-${{ runner.os }}-
+
+      - name: Cache pnpm
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
+      - name: Build Teleport
+        run: make binaries
 
       - name: Upload binaries
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: build
-          path: ${{ github.workspace }}/build/
+          name: teleport-binaries
+          path: |
+            build/teleport
+            build/tctl
+            build/tsh
           retention-days: 1
 
   test:
     name: E2E Tests
     needs: build
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/setup-node@v4
         with:
-          name: build
+          node-version: 20
+
+      - name: Install pnpm
+        run: corepack enable
+
+      - name: Install e2e dependencies
+        working-directory: e2e
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: e2e
+        run: pnpm exec playwright install --with-deps chromium
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: teleport-binaries
           path: ${{ github.workspace }}/build/
 
       - name: Chmod binaries
@@ -54,9 +113,33 @@ jobs:
           chmod +x build/tctl
           chmod +x build/tsh
 
-      - name: Build Images
-        run: |
-          make -C e2e build
+      - name: Start Teleport
+        run: e2e/run.sh --with-ssh-node
+
       - name: Run Tests
-        run: |
-          make test-e2e
+        working-directory: e2e
+        run: pnpm test
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: test-results
+          path: e2e/test-results/
+          retention-days: 7
+
+      - name: Upload Teleport logs
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: teleport-logs
+          path: e2e/teleport.log
+          retention-days: 7

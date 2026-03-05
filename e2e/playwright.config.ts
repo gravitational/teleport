@@ -18,8 +18,7 @@
 
 import { defineConfig, devices } from '@playwright/test';
 
-// Default to localhost:3080/web/login if START_URL is not defined.
-const baseURL = process.env.START_URL || 'http://localhost:3080/web/login';
+const baseURL = process.env.START_URL || 'https://localhost:3080/web';
 
 export default defineConfig({
   testDir: './tests',
@@ -37,9 +36,19 @@ export default defineConfig({
   },
 
   projects: [
+    { name: 'setup', testMatch: /.*\.setup\.ts/ },
+
     {
       name: 'chromium',
+      use: { ...devices['Desktop Chrome'], storageState: '.auth/user.json' },
+      dependencies: ['setup'],
+      testIgnore: /signup\.spec\.ts/,
+    },
+
+    {
+      name: 'signup',
       use: { ...devices['Desktop Chrome'] },
+      testMatch: /signup\.spec\.ts/,
     },
   ],
 });

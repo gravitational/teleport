@@ -1,0 +1,36 @@
+version: v3
+teleport:
+  nodename: teleport-e2e
+  auth_token: foo
+  data_dir: /var/lib/teleport
+  log:
+    output: stderr
+    severity: TRACE
+    format:
+      output: text
+  auth_server: localhost:3025
+
+auth_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:3025
+  proxy_listener_mode: multiplex
+  cluster_name: teleport-e2e
+  tokens:
+    - "node,auth,proxy,db,trusted_cluster:foo"
+  authentication:
+    type: local
+    second_factors: ["webauthn"]
+    webauthn:
+      rp_id: "localhost"
+
+ssh_service:
+  enabled: "no"
+
+proxy_service:
+  enabled: "yes"
+  public_addr: localhost:3080
+  acme: {}
+  web_listen_addr: 0.0.0.0:3080
+  https_keypairs:
+    - key_file: /etc/teleport/certs/tls.key
+      cert_file: /etc/teleport/certs/tls.crt

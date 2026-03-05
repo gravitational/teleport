@@ -18,6 +18,12 @@
 
 import { Page } from '@playwright/test';
 
+// Private key for WebAuthn corresponding to the public key in state.yaml
+const privateKeyBase64 =
+  'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgbW9ja3dlYmF1dGhuLXByaXZhdGUta2V5LWZvci1lMmWhRANCAAQeOk06HOqxNf941IwptLmIktnJcvFg6zIuRBZodcIV8/OnXPbY6w+6v188xvJe8rd5h5XbuskLq8zNNpmivCYu';
+
+const credentialIdBase64 = 'ZTJlLXdlYmF1dGhuLWNyZWRlbnRpYWwtaWQtMDAwMQ==';
+
 // mockWebAuthn sets up a virtual webauthn authenticator on the page.
 export async function mockWebAuthn(page: Page) {
   const cdpSession = await page.context().newCDPSession(page);
@@ -35,6 +41,17 @@ export async function mockWebAuthn(page: Page) {
       },
     }
   );
+
+  await cdpSession.send('WebAuthn.addCredential', {
+    authenticatorId,
+    credential: {
+      credentialId: credentialIdBase64,
+      isResidentCredential: false,
+      rpId: 'localhost',
+      privateKey: privateKeyBase64,
+      signCount: 0,
+    },
+  });
 
   const cleanup = async () => {
     await cdpSession.send('WebAuthn.removeVirtualAuthenticator', {

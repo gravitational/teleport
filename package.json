@@ -2,6 +2,7 @@
   "name": "teleport-ui",
   "version": "1.0.0",
   "scripts": {
+    "e2e": "pnpm --filter=@gravitational/e2e test",
     "build-ui": "pnpm build-ui-oss && pnpm build-ui-e",
     "build-ui-oss": "pnpm --filter=@gravitational/teleport build",
     "build-ui-e": "pnpm --filter=@gravitational/teleport.e build",

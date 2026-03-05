@@ -18,13 +18,13 @@
 
 import { expect, test } from '@playwright/test';
 
-import { signup } from '../utils/signup';
+import { mockWebAuthn } from '../utils/mockWebAuthn';
 
 test('verify that a user can create and delete an auth connector', async ({
   page,
 }) => {
-  const { cleanup } = await signup(page);
-
+  await mockWebAuthn(page);
+  await page.goto('/');
   await page.getByRole('button', { name: 'Zero Trust Access' }).click();
   await page.getByRole('link', { name: 'Auth Connectors' }).click();
   await page.getByRole('button', { name: 'New GitHub Connector' }).click();
@@ -56,6 +56,4 @@ test('verify that a user can create and delete an auth connector', async ({
   await page.waitForTimeout(500);
 
   await expect(page.getByText('testconnector')).not.toBeVisible();
-
-  await cleanup();
 });
