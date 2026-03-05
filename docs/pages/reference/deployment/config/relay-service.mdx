@@ -1,0 +1,46 @@
+---
+title: "Relay Service Configuration Reference"
+description: "Reference for the relay_service section of teleport.yaml."
+sidebar_label: "relay_service"
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: fileconf.go */}
+{/* DO NOT EDIT */}
+
+The relay_service section of the Teleport config file.
+
+## Fields
+
+Example:
+
+```yaml
+relay_service:
+  enabled: true
+  relay_group: "string"
+  target_connection_count: 1
+  public_hostnames: 
+    - "string"
+    - "string"
+    - "string"
+  transport_listen_addr: "string"
+  transport_proxy_protocol: true
+  peer_listen_addr: "string"
+  peer_public_addr: "string"
+  tunnel_listen_addr: "string"
+  tunnel_proxy_protocol: true
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|enabled|Set if the relay service is enabled, defaults to false.|Boolean|
+|peer_listen_addr|The listen address for the peer listener, in addr:port format.|string|
+|peer_public_addr|, if set, is the public address for the peer listener, in host:port format.|string|
+|public_hostnames|The list of DNS names and IP addresses that the Relay service credentials should be authoritative for.|[]string|
+|relay_group|The Relay group name, required if the relay service is enabled.|string|
+|target_connection_count|The connection count that agents are supposed to maintain when connecting to the Relay group of this instance.|number|
+|transport_listen_addr|The listen address for the transport listener, in addr:port format.|string|
+|transport_proxy_protocol|Set if the transport listener should expect a PROXY protocol header in incoming connections.|Boolean|
+|tunnel_listen_addr|The listen address for the tunnel listener, in addr:port format.|string|
+|tunnel_proxy_protocol|Set if the tunnel listener should expect a PROXY protocol header in incoming connections.|Boolean|
+

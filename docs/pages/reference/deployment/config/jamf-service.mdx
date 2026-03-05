@@ -1,0 +1,70 @@
+---
+title: "Jamf Service Configuration Reference"
+description: "Reference for the jamf_service section of teleport.yaml."
+sidebar_label: "jamf_service"
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: fileconf.go */}
+{/* DO NOT EDIT */}
+
+The yaml representation of jamf_service. Corresponds to [types.JamfSpecV1].
+
+## Fields
+
+Example:
+
+```yaml
+jamf_service:
+  enabled: "string"
+  listen_addr: "string"
+  name: "string"
+  sync_delay: # See description
+  exit_on_sync: true
+  api_endpoint: "string"
+  username: "string"
+  password_file: "string"
+  client_id: "string"
+  client_secret_file: "string"
+  inventory: 
+    - # [...]
+    - # [...]
+    - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|api_endpoint|The Jamf Pro API endpoint. Example: "https://yourtenant.jamfcloud.com/api".|string|
+|client_id|The Jamf API Client ID.|string|
+|client_secret_file|A file containing the Jamf API client secret. A single trailing newline is trimmed, anything else is taken literally.|string|
+|enabled||string|
+|exit_on_sync|Tells the service to exit immediately after the first sync.|Boolean|
+|inventory|The entries for inventory sync.|[][Jamf Inventory Entry](#jamf-inventory-entry)|
+|listen_addr||string|
+|name|The name of the sync device source.|string|
+|password_file|A file containing the Jamf Pro API password. A single trailing newline is trimmed, anything else is taken literally.|string|
+|sync_delay|The initial sync delay. Zero means "server default", negative means "immediate".||
+|username|The Jamf Pro API username.|string|
+
+## Jamf Inventory Entry
+
+The yaml representation of a jamf_service.inventory entry. Corresponds to [types.JamfInventoryEntry].
+
+Example:
+
+```yaml
+filter_rsql: "string"
+sync_period_partial: # See description
+sync_period_full: # See description
+on_missing: "string"
+page_size: 1
+```
+|Field Name|Description|Type|
+|---|---|---|
+|filter_rsql|A Jamf Pro API RSQL filter string.|string|
+|on_missing|The trigger for devices missing from the MDM inventory view. See [types.JamfInventoryEntry.OnMissing].|string|
+|page_size|Custom page size for inventory queries. A server default is used if zeroed or negative.|number|
+|sync_period_full|The period for FULL syncs. Zero means "server default", negative means "disabled".||
+|sync_period_partial|The period for PARTIAL syncs. Zero means "server default", negative means "disabled".||
+
+

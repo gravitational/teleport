@@ -1,0 +1,161 @@
+---
+title: "Ssh Service Configuration Reference"
+description: "Reference for the ssh_service section of teleport.yaml."
+sidebar_label: "ssh_service"
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: fileconf.go */}
+{/* DO NOT EDIT */}
+
+'ssh_service' section of the config file
+
+## Fields
+
+Example:
+
+```yaml
+ssh_service:
+  enabled: "string"
+  listen_addr: "string"
+  namespace: "string"
+  labels: 
+    "string": "string"
+    "string": "string"
+    "string": "string"
+  commands: 
+    - # [...]
+    - # [...]
+    - # [...]
+  permit_user_env: true
+  pam: # [...]
+  public_addr: # See description
+  enhanced_recording: # [...]
+  restricted_session: # [...]
+  port_forwarding: true
+  x11: # [...]
+  ssh_file_copy: true
+  disable_create_host_user: true
+  force_listen: true
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|commands||[][Command Label](#command-label)|
+|disable_create_host_user|Disables automatic user provisioning on this SSH node.|Boolean|
+|enabled||string|
+|enhanced_recording|Used to configure BPF-based auditing for this node.|[BPF](#bpf)|
+|force_listen|Enables listening on the configured ListenAddress when connected to the cluster via a reverse tunnel. If no ListenAddress is configured, the default address is used.  This allows the service to be connectable by users with direct network access. All connections still require a valid user certificate to be presented and will not permit any additional access. This is intended to provide an optional connection path to reduce latency if the Proxy is not co-located with the user and service.|Boolean|
+|labels||map[string]string|
+|listen_addr||string|
+|namespace||string|
+|pam||[PAM](#pam)|
+|permit_user_env||Boolean|
+|port_forwarding|Enables or disables TCP port forwarding. We're using a pointer-to-bool here because the system default is to allow TCP forwarding, we need to distinguish between an unset value and a false value so we can an override unset value with `true`.  Don't read this value directly: call the AllowTCPForwarding method instead.|Boolean|
+|public_addr|Sets SSH host principals for SSH service||
+|restricted_session|Used to restrict access to kernel objects|[Restricted Session](#restricted-session)|
+|ssh_file_copy|Enables or disables remote file operations via SCP/SFTP. We're using a pointer-to-bool here because the system default is to allow SCP/SFTP, we need to distinguish between an unset value and a false value so we can an override unset value with `true`.  Don't read this value directly: call the SSHFileCopy method instead.|Boolean|
+|x11|Used to configure X11 forwarding settings|[X11](#x11)|
+
+## BPF
+
+Configuration for BPF-based auditing.
+
+Example:
+
+```yaml
+enabled: "string"
+command_buffer_size: 1
+disk_buffer_size: 1
+network_buffer_size: 1
+cgroup_path: "string"
+root_path: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|cgroup_path|Deprecated: CgroupPath is not consumed and only exists for backwards compatibility with existing config files that may have it specified.|string|
+|command_buffer_size|The size of the perf buffer for command events.|number|
+|disk_buffer_size|The size of the perf buffer for disk events.|number|
+|enabled|Enables or disables enhanced session recording for this node.|string|
+|network_buffer_size|The size of the perf buffer for network events.|number|
+|root_path|Deprecated: RootPath is not consumed and only exists for backwards compatibility with existing config files that may have it specified.|string|
+
+
+## Command Label
+
+`command` section of `ssh_service` in the config file
+
+Example:
+
+```yaml
+name: "string"
+command: 
+  - "string"
+  - "string"
+  - "string"
+period: # See description
+```
+|Field Name|Description|Type|
+|---|---|---|
+|command||[]string|
+|name||string|
+|period|||
+
+
+## PAM
+
+Configuration for Pluggable Authentication Modules (PAM).
+
+Example:
+
+```yaml
+enabled: "string"
+service_name: "string"
+use_pam_auth: true
+environment: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|enabled|Controls if PAM will be used or not.|string|
+|environment|Represents environment variables to pass to PAM. These may contain role-style interpolation syntax.|map[string]string|
+|service_name|The name of the PAM policy to apply.|string|
+|use_pam_auth|Specifies whether to trigger the "auth" PAM modules from the policy.|Boolean|
+
+
+## Restricted Session
+
+A configuration for limiting access to kernel objects
+
+Example:
+
+```yaml
+enabled: "string"
+events_buffer_size: 1
+```
+|Field Name|Description|Type|
+|---|---|---|
+|enabled|Enables or disables enforcement for this node.|string|
+|events_buffer_size|The size in bytes of the channel to report events from the kernel to us.|number|
+
+
+## X11
+
+A configuration for X11 forwarding
+
+Example:
+
+```yaml
+enabled: "string"
+display_offset: 1
+max_display: 1
+```
+|Field Name|Description|Type|
+|---|---|---|
+|display_offset|Tells the server what X11 display number to start from when searching for an open X11 unix socket for XServer proxies.|number|
+|enabled|Controls whether X11 forwarding requests can be granted by the server.|string|
+|max_display|Tells the server what X11 display number to stop at when searching for an open X11 unix socket for XServer proxies.|number|
+
+

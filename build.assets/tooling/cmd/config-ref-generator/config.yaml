@@ -1,0 +1,48 @@
+# Source directory to scan for Go type declarations.
+# The generator walks this directory recursively.
+source: "../../../../lib/config"
+
+# Path to the Go module root (where go.mod lives).
+module_root: "../../../../"
+
+# Go module import path prefix.
+module_prefix: "github.com/gravitational/teleport"
+
+# Directory where the generator writes MDX reference pages.
+destination: "../../../../docs/pages/reference/deployment/config"
+
+# The top-level config struct whose fields are enumerated to find services.
+entry_type: "FileConfig"
+
+# Only fields whose yaml tag ends with this suffix produce output pages.
+# Defaults to "_service" if omitted.
+service_suffix: "_service"
+
+# Strings to preserve intact when splitting camelCase type names into words.
+camel_case_exceptions:
+  - AWS
+  - CA
+  - CORS
+  - GCP
+  - GitHub
+  - HMAC
+  - HTTP
+  - HTTPS
+  - IAM
+  - ID
+  - IdP
+  - IP
+  - JWT
+  - KMS
+  - LDAP
+  - MFA
+  - OIDC
+  - PKCS
+  - SAML
+  - SDK
+  - SSH
+  - SSL
+  - SSO
+  - TLS
+  - URI
+  - URL

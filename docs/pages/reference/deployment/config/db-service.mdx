@@ -1,0 +1,676 @@
+---
+title: "Db Service Configuration Reference"
+description: "Reference for the db_service section of teleport.yaml."
+sidebar_label: "db_service"
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: fileconf.go */}
+{/* DO NOT EDIT */}
+
+Represents the database proxy service configuration.  In the configuration file this section will be "db_service".
+
+## Fields
+
+Example:
+
+```yaml
+db_service:
+  enabled: "string"
+  listen_addr: "string"
+  databases: 
+    - # [...]
+    - # [...]
+    - # [...]
+  resources: 
+    - # [...]
+    - # [...]
+    - # [...]
+  aws: 
+    - # [...]
+    - # [...]
+    - # [...]
+  azure: 
+    - # [...]
+    - # [...]
+    - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|aws|Match AWS-hosted databases.|[][AWS Matcher](#aws-matcher)|
+|azure|Match Azure hosted databases.|[][Azure Matcher](#azure-matcher)|
+|databases|A list of databases proxied by the service.|[][Database](#database)|
+|enabled||string|
+|listen_addr||string|
+|resources|Match cluster database resources.|[][Resource Matcher](#resource-matcher)|
+
+## AWS Matcher
+
+Matches AWS EC2 instances and AWS Databases
+
+Example:
+
+```yaml
+types: 
+  - "string"
+  - "string"
+  - "string"
+regions: 
+  - "string"
+  - "string"
+  - "string"
+assume_role_arn: "string"
+assume_role_name: "string"
+external_id: "string"
+tags: 
+  "string": # See description
+  "string": # See description
+  "string": # See description
+install: # [...]
+ssm: # [...]
+integration: "string"
+kube_app_discovery: true
+setup_access_for_arn: "string"
+organization: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|assume_role_arn|The AWS role to assume for database discovery.|string|
+|assume_role_name|The AWS role name to assume for discovery.|string|
+|external_id|The AWS external ID to use when assuming a role for database discovery in an external AWS account.|string|
+|install|Sets the join method when installing on discovered EC2 nodes|[Install Params](#install-params)|
+|integration|The integration name used to generate credentials to interact with AWS APIs. Environment credentials will not be used when this value is set.|string|
+|kube_app_discovery|Controls whether Kubernetes App Discovery will be enabled for agents running on discovered clusters, currently only affects AWS EKS discovery in integration mode.|Boolean|
+|organization|An AWS Organization matcher for discovering resources across multiple accounts under an Organization.|[AWS Organization Matcher](#aws-organization-matcher)|
+|regions|AWS regions to query for databases.|[]string|
+|setup_access_for_arn|The role that the discovery service should create EKS Access Entries for.|string|
+|ssm|Provides options to use when sending a document command to an EC2 node|[AWS SSM](#aws-ssm)|
+|tags|AWS tags to match.|map[string]|
+|types|AWS database types to match, "ec2", "rds", "redshift", "elasticache", or "memorydb".|[]string|
+
+
+## AWS Organization Matcher
+
+Specifies an Organization and rules for discovering accounts under that organization.
+
+Example:
+
+```yaml
+organization_id: "string"
+organizational_units: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|organization_id|The AWS Organization ID to match against. Required.|string|
+|organizational_units|Contains rules for matchings AWS accounts based on their Organizational Units.|[AWS Organization Units Matcher](#aws-organization-units-matcher)|
+
+
+## AWS Organization Units Matcher
+
+Contains rules for matching accounts under an Organization. Accounts that belong to an excluded Organizational Unit, and its children, will be excluded even if they were included.
+
+Example:
+
+```yaml
+include: 
+  - "string"
+  - "string"
+  - "string"
+exclude: 
+  - "string"
+  - "string"
+  - "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|exclude|A list of AWS Organizational Unit IDs and children OUs to exclude. Accounts that belong to these OUs, and their children, will be excluded, even if they were included. Only exact matches are supported. Optional. If empty, no OUs are excluded.|[]string|
+|include|A list of AWS Organizational Unit IDs and children OUs to include. Accounts that belong to these OUs, and their children, will be included. Only exact matches or wildcard (*) are supported. Required.|[]string|
+
+
+## AWS SSM
+
+Provides options to use when executing SSM documents
+
+Example:
+
+```yaml
+document_name: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|document_name|The name of the document to use when executing an SSM command|string|
+
+
+## Azure Install Params
+
+Azure is te set of installation parameters specific to Azure.
+
+Example:
+
+```yaml
+client_id: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|client_id|The client ID of the managed identity to use for installation.|string|
+
+
+## Azure Join Params
+
+Configures the parameters specific to the Azure join method.
+
+Example:
+
+```yaml
+client_id: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|client_id||string|
+
+
+## Azure Matcher
+
+Matches Azure resources.
+
+Example:
+
+```yaml
+subscriptions: 
+  - "string"
+  - "string"
+  - "string"
+resource_groups: 
+  - "string"
+  - "string"
+  - "string"
+types: 
+  - "string"
+  - "string"
+  - "string"
+regions: 
+  - "string"
+  - "string"
+  - "string"
+tags: 
+  "string": # See description
+  "string": # See description
+  "string": # See description
+integration: "string"
+install: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|install|Sets the join method when installing on discovered Azure nodes.|[Install Params](#install-params)|
+|integration|The Azure Integration name.|string|
+|regions|Azure locations to match for databases.|[]string|
+|resource_groups|Azure resource groups to query for resources.|[]string|
+|subscriptions|Azure subscriptions to query for resources.|[]string|
+|tags|Azure tags on resources to match.|map[string]|
+|types|Azure types to match: "mysql", "postgres", "aks", "vm"|[]string|
+
+
+## Command Label
+
+`command` section of `ssh_service` in the config file
+
+Example:
+
+```yaml
+name: "string"
+command: 
+  - "string"
+  - "string"
+  - "string"
+period: # See description
+```
+|Field Name|Description|Type|
+|---|---|---|
+|command||[]string|
+|name||string|
+|period|||
+
+
+## Database
+
+Represents a single database proxied by the service.
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+protocol: "string"
+uri: "string"
+ca_cert_file: "string"
+tls: # [...]
+mysql: # [...]
+static_labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+dynamic_labels: 
+  - # [...]
+  - # [...]
+  - # [...]
+aws: # [...]
+gcp: # [...]
+ad: # [...]
+azure: # [...]
+admin_user: # [...]
+oracle: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|ad|Contains Active Directory database configuration.|[DatabaseAD](#databasead)|
+|admin_user|Describes database privileged user for auto-provisioning.|[Database Admin User](#database-admin-user)|
+|aws|Contains AWS specific settings for AWS-hosted databases.|[Database AWS](#database-aws)|
+|azure|Contains Azure database configuration.|[Database Azure](#database-azure)|
+|ca_cert_file|An optional path to the database CA certificate. Deprecated in favor of TLS.CACertFile.|string|
+|description|An optional free-form database description.|string|
+|dynamic_labels|A list of database dynamic labels.|[][Command Label](#command-label)|
+|gcp|Contains GCP specific settings for Cloud SQL databases.|[Database GCP](#database-gcp)|
+|mysql|Additional database options.|[Database MySQL](#database-mysql)|
+|name|The name for the database proxy service.|string|
+|oracle|Database Oracle settings|[Database Oracle](#database-oracle)|
+|protocol|The database type e.g. postgres, mysql, etc.|string|
+|static_labels|A map of database static labels.|map[string]string|
+|tls|Keeps an optional TLS configuration options.|[Database TLS](#database-tls)|
+|uri|The database address to connect to.|string|
+
+
+## Database AWS
+
+Contains AWS specific settings for RDS/Aurora databases.
+
+Example:
+
+```yaml
+region: "string"
+redshift: # [...]
+rds: # [...]
+elasticache: # [...]
+elasticache_serverless: # [...]
+secret_store: # [...]
+memorydb: # [...]
+account_id: "string"
+assume_role_arn: "string"
+external_id: "string"
+redshift_serverless: # [...]
+session_tags: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|account_id|The AWS account ID.|string|
+|assume_role_arn|The AWS role to assume to before accessing the database.|string|
+|elasticache|Contains ElastiCache specific settings.|[Database AWS Elasti Cache](#database-aws-elasti-cache)|
+|elasticache_serverless|Contains ElastiCache Serverless specific settings.|[Database AWS Elasti Cache Serverless](#database-aws-elasti-cache-serverless)|
+|external_id|An optional AWS external ID used to enable assuming an AWS role across accounts.|string|
+|memorydb|Contains MemoryDB specific settings.|[Database AWS MemoryDB](#database-aws-memorydb)|
+|rds|Contains RDS specific settings.|[Database AWS RDS](#database-aws-rds)|
+|redshift|Contains Redshift specific settings.|[Database AWS Redshift](#database-aws-redshift)|
+|redshift_serverless|Contains RedshiftServerless specific settings.|[Database AWS Redshift Serverless](#database-aws-redshift-serverless)|
+|region|A cloud region for RDS/Aurora database endpoint.|string|
+|secret_store|Contains settings for managing secrets.|[Secret Store](#secret-store)|
+|session_tags|A list of AWS STS session tags.|map[string]string|
+
+
+## Database AWS Elasti Cache
+
+Contains settings for ElastiCache databases.
+
+Example:
+
+```yaml
+replication_group_id: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|replication_group_id|The ElastiCache replication group ID.|string|
+
+
+## Database AWS Elasti Cache Serverless
+
+Contains settings for ElastiCache Serverless databases.
+
+Example:
+
+```yaml
+cache_name: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|cache_name|The ElastiCache Serverless cache name.|string|
+
+
+## Database AWS MemoryDB
+
+Contains settings for MemoryDB databases.
+
+Example:
+
+```yaml
+cluster_name: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|cluster_name|The MemoryDB cluster name.|string|
+
+
+## Database AWS RDS
+
+Contains settings for RDS databases.
+
+Example:
+
+```yaml
+instance_id: "string"
+cluster_id: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|cluster_id|The RDS cluster (Aurora) identifier.|string|
+|instance_id|The RDS instance identifier.|string|
+
+
+## Database AWS Redshift
+
+Contains AWS Redshift specific settings.
+
+Example:
+
+```yaml
+cluster_id: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|cluster_id|The Redshift cluster identifier.|string|
+
+
+## Database AWS Redshift Serverless
+
+Contains AWS Redshift Serverless specific settings.
+
+Example:
+
+```yaml
+workgroup_name: "string"
+endpoint_name: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|endpoint_name|The Redshift Serverless VPC endpoint name.|string|
+|workgroup_name|The Redshift Serverless workgroup name.|string|
+
+
+## Database Admin User
+
+Describes database privileged user for auto-provisioning.
+
+Example:
+
+```yaml
+name: "string"
+default_database: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|default_database|The database that the admin user logs into by default.  Depending on the database type, this database may be used to store procedures or data for managing database users.|string|
+|name|The database admin username (e.g. "postgres").|string|
+
+
+## Database Azure
+
+Contains Azure database configuration.
+
+Example:
+
+```yaml
+resource_id: "string"
+is_flexi_server: true
+```
+|Field Name|Description|Type|
+|---|---|---|
+|is_flexi_server|True if the database is an Azure Flexible server.|Boolean|
+|resource_id|The Azure fully qualified ID for the resource.|string|
+
+
+## Database GCP
+
+Contains GCP specific settings for Cloud SQL databases.
+
+Example:
+
+```yaml
+project_id: "string"
+instance_id: "string"
+alloydb: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|alloydb|Contains AlloyDB specific settings.|[Database GCP AlloyDB](#database-gcp-alloydb)|
+|instance_id|The Cloud SQL database instance ID.|string|
+|project_id|The GCP project ID where the database is deployed.|string|
+
+
+## Database GCP AlloyDB
+
+Contains GCP specific settings for AlloyDB databases.
+
+Example:
+
+```yaml
+endpoint_type: "string"
+endpoint_override: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|endpoint_override|An override of endpoint address to use.|string|
+|endpoint_type|The database endpoint type to use. Available types are 'private', 'public' and 'psc'. 'private' is the default type.|string|
+
+
+## Database MySQL
+
+An additional MySQL database options.
+
+Example:
+
+```yaml
+server_version: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|server_version|The MySQL version reported by DB proxy instead of default Teleport string.|string|
+
+
+## Database Oracle
+
+An additional Oracle database options.
+
+Example:
+
+```yaml
+audit_user: "string"
+retry_count: 1
+shuffle_hostnames: true
+```
+|Field Name|Description|Type|
+|---|---|---|
+|audit_user|The name of the Oracle database user that should be used to access the internal audit trail.|string|
+|retry_count|The maximum number of times to retry connecting to a host upon failure.|number|
+|shuffle_hostnames|, when true, randomizes the order of hosts to connect to from the provided list.|Boolean|
+
+
+## Database TLS
+
+Keeps TLS settings used when connecting to database.
+
+Example:
+
+```yaml
+mode: "string"
+server_name: "string"
+ca_cert_file: "string"
+trust_system_cert_pool: true
+```
+|Field Name|Description|Type|
+|---|---|---|
+|ca_cert_file|An optional path to the database CA certificate.|string|
+|mode|A TLS verification mode. Available options are 'verify-full', 'verify-ca' or 'insecure', 'verify-full' is the default option.|string|
+|server_name|Allows providing custom server name. This name will override DNS name when validating certificate presented by the database.|string|
+|trust_system_cert_pool|Allows Teleport to trust certificate authorities available on the host system.|Boolean|
+
+
+## DatabaseAD
+
+Contains database Active Directory configuration.
+
+Example:
+
+```yaml
+keytab_file: "string"
+krb5_file: "string"
+domain: "string"
+spn: "string"
+ldap_cert: "string"
+kdc_host_name: "string"
+ldap_service_account_name: "string"
+ldap_service_account_sid: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|domain|The Active Directory domain the database resides in.|string|
+|kdc_host_name|The host name for a KDC for x509 Authentication.|string|
+|keytab_file|The path to the Kerberos keytab file.|string|
+|krb5_file|The path to the Kerberos configuration file. Defaults to /etc/krb5.conf.|string|
+|ldap_cert|A certificate from Windows LDAP/AD, optional; only for x509 Authentication.|string|
+|ldap_service_account_name|The name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.|string|
+|ldap_service_account_sid|The SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.|string|
+|spn|The service principal name for the database.|string|
+
+
+## HTTP Proxy Settings
+
+Configures HTTP proxy settings for the installation. When set, the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables will be set when executing the installation script.
+
+Example:
+
+```yaml
+http_proxy: "string"
+https_proxy: "string"
+no_proxy: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|http_proxy|The HTTP proxy URL.|string|
+|https_proxy|The HTTPS proxy URL.|string|
+|no_proxy|A comma-separated list of hosts that should be excluded from proxying.|string|
+
+
+## Install Params
+
+Sets join method to use on discovered nodes
+
+Example:
+
+```yaml
+join_params: # [...]
+script_name: "string"
+install_teleport: "string"
+sshd_config: "string"
+public_proxy_addr: "string"
+azure: # [...]
+enroll_mode: "string"
+suffix: "string"
+update_group: "string"
+http_proxy_settings: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|azure|Te set of installation parameters specific to Azure.|[Azure Install Params](#azure-install-params)|
+|enroll_mode|Indicates the mode used to enroll the node into Teleport. Valid values: script, eice. Optional.|string|
+|http_proxy_settings|Configures HTTP proxy settings for the installation.|[HTTP Proxy Settings](#http-proxy-settings)|
+|install_teleport|Disables agentless discovery|string|
+|join_params|Sets the token and method to use when generating config on cloud instances|[Join Params](#join-params)|
+|public_proxy_addr|The address of the proxy the discovered node should use to connect to the cluster.|string|
+|script_name|The name of the teleport installer script resource for the cloud instance to execute|string|
+|sshd_config|Provides the path to write sshd configuration changes|string|
+|suffix|Indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program.|string|
+|update_group|Indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program.|string|
+
+
+## Join Params
+
+Configures the parameters for Simplified Node Joining.
+
+Example:
+
+```yaml
+token_name: "string"
+token_secret: "string"
+method: # See description
+azure: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|azure||[Azure Join Params](#azure-join-params)|
+|method|||
+|token_name||string|
+|token_secret||string|
+
+
+## Resource Matcher
+
+Matches cluster resources.
+
+Example:
+
+```yaml
+labels: 
+  "string": # See description
+  "string": # See description
+  "string": # See description
+aws: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|aws|Contains AWS specific settings.|[Resource Matcher AWS](#resource-matcher-aws)|
+|labels|Match resource labels.|map[string]|
+
+
+## Resource Matcher AWS
+
+Contains AWS specific settings for resource matcher.
+
+Example:
+
+```yaml
+assume_role_arn: "string"
+external_id: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|assume_role_arn|The AWS role to assume to before accessing the database.|string|
+|external_id|An optional AWS external ID used to enable assuming an AWS role across accounts.|string|
+
+
+## Secret Store
+
+Contains settings for managing secrets.
+
+Example:
+
+```yaml
+key_prefix: "string"
+kms_key_id: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|key_prefix|Specifies the secret key prefix.|string|
+|kms_key_id|Specifies the KMS key used to encrypt and decrypt the secret.|string|
+
+

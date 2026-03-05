@@ -1,0 +1,46 @@
+---
+title: "{{ title .YAMLKey }} Configuration Reference"
+description: "Reference for the {{ .YAMLKey }} section of teleport.yaml."
+sidebar_label: "{{ .YAMLKey }}"
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: {{ .SourcePath }} */}
+{/* DO NOT EDIT */}
+
+{{ .Root.Description }}
+
+## Fields
+
+Example:
+
+```yaml
+{{ .YAMLKey }}:
+{{ indent .Root.YAMLExample "  " -}}
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+{{ range .Root.Fields -}}
+|{{ .Name }}|{{ .Description }}|{{ .Type }}|
+{{ end }}
+{{- range .SubSections }}
+## {{ .SectionName }}
+
+{{ .Description }}
+
+{{ if ne .YAMLExample "" -}}
+Example:
+
+```yaml
+{{ .YAMLExample -}}
+```
+{{ end -}}
+{{- if gt (len .Fields) 0 -}}
+|Field Name|Description|Type|
+|---|---|---|
+{{ range .Fields -}}
+|{{ .Name }}|{{ .Description }}|{{ .Type }}|
+{{ end }}
+{{ end -}}
+{{- end }}

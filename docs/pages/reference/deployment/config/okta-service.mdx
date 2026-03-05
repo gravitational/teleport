@@ -1,0 +1,66 @@
+---
+title: "Okta Service Configuration Reference"
+description: "Reference for the okta_service section of teleport.yaml."
+sidebar_label: "okta_service"
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: fileconf.go */}
+{/* DO NOT EDIT */}
+
+Represents an okta_service section in the config file.
+
+## Fields
+
+Example:
+
+```yaml
+okta_service:
+  enabled: "string"
+  listen_addr: "string"
+  api_endpoint: "string"
+  api_token_path: "string"
+  sync_period: # See description
+  sync: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|api_endpoint|The Okta API endpoint to use.|string|
+|api_token_path|The path to the Okta API token.|string|
+|enabled||string|
+|listen_addr||string|
+|sync|Import is the import settings for the Okta service.|[Okta Sync](#okta-sync)|
+|sync_period|The duration between synchronization calls for synchronizing Okta applications and groups.. Deprecated. Please use sync.app_group_sync_period instead.||
+
+## Okta Sync
+
+Represents the import subsection of the okta_service section in the config file.
+
+Example:
+
+```yaml
+app_group_sync_period: # See description
+sync_access_lists: "string"
+default_owners: 
+  - "string"
+  - "string"
+  - "string"
+group_filters: 
+  - "string"
+  - "string"
+  - "string"
+app_filters: 
+  - "string"
+  - "string"
+  - "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|app_filters|Filters for which Okta applications to synchronize as access lists. These are globs/regexes.|[]string|
+|app_group_sync_period|The duration between synchronization calls for synchronizing Okta applications and groups.||
+|default_owners|The default owners for all imported access lists.|[]string|
+|group_filters|Filters for which Okta groups to synchronize as access lists. These are globs/regexes.|[]string|
+|sync_access_lists|SyncAccessLists will enable or disable the Okta importing of access lists. Defaults to false.|string|
+
+

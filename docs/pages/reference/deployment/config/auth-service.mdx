@@ -1,0 +1,461 @@
+---
+title: "Auth Service Configuration Reference"
+description: "Reference for the auth_service section of teleport.yaml."
+sidebar_label: "auth_service"
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: fileconf.go */}
+{/* DO NOT EDIT */}
+
+'auth_service' section of the config file
+
+## Fields
+
+Example:
+
+```yaml
+auth_service:
+  enabled: "string"
+  listen_addr: "string"
+  proxy_protocol: "string"
+  cluster_name: # [...]
+  tokens: # [...]
+  scoped_tokens: # [...]
+  authentication: # [...]
+  session_recording: "string"
+  proxy_checks_host_keys: # See description
+  session_recording_config: # [...]
+  license_file: "string"
+  reverse_tunnels: 
+    - # [...]
+    - # [...]
+    - # [...]
+  public_addr: # See description
+  client_idle_timeout: # See description
+  disconnect_expired_cert: # See description
+  session_control_timeout: # See description
+  kubeconfig_file: "string"
+  keep_alive_interval: # See description
+  keep_alive_count_max: 1
+  client_idle_timeout_message: "string"
+  message_of_the_day: "string"
+  web_idle_timeout: # See description
+  ca_key_params: # [...]
+  proxy_listener_mode: # See description
+  routing_strategy: # See description
+  tunnel_strategy: # See description
+  proxy_ping_interval: # See description
+  case_insensitive_routing: true
+  ssh_dial_timeout: # See description
+  load_all_cas: true
+  hosted_plugins: # [...]
+  access_monitoring: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|access_monitoring|A set of options related to the Access Monitoring feature.||
+|authentication|Holds authentication configuration information like authentication type, second factor type, specific connector information, etc.|[Authentication Config](#authentication-config)|
+|ca_key_params|Configures how CA private keys will be created and stored.|[CA Key Params](#ca-key-params)|
+|case_insensitive_routing|Causes proxies to use case-insensitive hostname matching.|Boolean|
+|client_idle_timeout|Sets global cluster default setting for client idle timeouts||
+|client_idle_timeout_message|Sent to the client when the inactivity timeout expires. The empty string implies no message should be sent prior to disconnection.|string|
+|cluster_name|The name of the CA who manages this cluster|[Cluster Name](#cluster-name)|
+|disconnect_expired_cert|Provides disconnect expired certificate setting - if true, connections with expired client certificates will get disconnected||
+|enabled||string|
+|hosted_plugins|Configures the hosted plugins runtime. This is currently Cloud-specific.|[Hosted Plugins](#hosted-plugins)|
+|keep_alive_count_max|Set the number of keep-alive messages that can be missed before the server disconnects the client.|number|
+|keep_alive_interval|Set the keep-alive interval for server to client connections.||
+|kubeconfig_file|An optional path to kubeconfig file, if specified, teleport will use API server address and trusted certificate authority information from it|string|
+|license_file|A path to the license file. The path can be either absolute or relative to the global data dir|string|
+|listen_addr||string|
+|load_all_cas|Tells tsh to load the CAs for all clusters when trying to ssh into a node, instead of just the CA for the current cluster.|Boolean|
+|message_of_the_day|A banner that a user must acknowledge during a `tsh login`.|string|
+|proxy_checks_host_keys|Used when the proxy is in recording mode and determines if the proxy will check the host key of the client or not.||
+|proxy_listener_mode|A listener mode user by the proxy.||
+|proxy_ping_interval|Defines in which interval the TLS routing ping message should be sent. This is applicable only when using ping-wrapped connections, regular TLS routing connections are not affected.||
+|proxy_protocol|Controls support for HAProxy PROXY protocol. Possible values: - 'on': one PROXY header is accepted and required per incoming connection. - 'off': no PROXY headers are allows, otherwise connection is rejected. If unspecified - one PROXY header is allowed, but not required. Connection is marked with source port set to 0 and IP pinning will not be allowed. It is supposed to be used only as default mode for test setups. In production you should always explicitly set the mode based on your network setup - if you have L4 load balancer with enabled PROXY protocol in front of Teleport you should set it to 'on', if you don't have it, set it to 'off'|string|
+|public_addr|Sets SSH host principals and TLS DNS names to auth server certificates||
+|reverse_tunnels|FOR INTERNAL USE: ReverseTunnels is a list of SSH tunnels to 3rd party proxy services (used to talk to 3rd party auth servers we trust)|[][Reverse Tunnel](#reverse-tunnel)|
+|routing_strategy|Configures the routing strategy to nodes.||
+|scoped_tokens|Pre-defined, scoped host provisioning tokens supplied via config file for environments where paranoid security is not needed|[Static Scoped Tokens](#static-scoped-tokens)|
+|session_control_timeout|Specifies the maximum amount of time a node can be out of contact with the auth server before it starts terminating controlled sessions.||
+|session_recording|Determines where the session is recorded: node, node-sync, proxy, proxy-sync, or off.|string|
+|session_recording_config|Configures how session recording should be handled including things like encryption and key management.|[Session Recording Config](#session-recording-config)|
+|ssh_dial_timeout|The timeout value that should be used for SSH connections.||
+|tokens|Pre-defined host provisioning tokens supplied via config file for environments where paranoid security is not needed  Each token string has the following format: "role1,role2,..:token", for example: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"|[Static Tokens](#static-tokens)|
+|tunnel_strategy|Configures the tunnel strategy used by the cluster.||
+|web_idle_timeout|Sets global cluster default setting for WebUI client idle timeouts||
+
+## AWS KMS
+
+Configures AWS Key Management Service to to be used for all CA private key crypto operations.
+
+Example:
+
+```yaml
+account: "string"
+region: "string"
+multi_region: # See description
+tags: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|account|The AWS account to use.|string|
+|multi_region|Contains configuration for multi-region AWS KMS.||
+|region|The AWS region to use.|string|
+|tags|Key/value pairs used as AWS resource tags. The 'TeleportCluster' tag is added automatically if not specified in the set of tags. Changing tags after Teleport has already created KMS keys may require manually updating the tags of existing keys.|map[string]string|
+
+
+## Authentication Config
+
+Describes the auth_service/authentication section of teleport.yaml
+
+Example:
+
+```yaml
+type: "string"
+second_factor: # See description
+second_factors: 
+  - # See description
+  - # See description
+  - # See description
+connector_name: "string"
+u2f: # [...]
+webauthn: # [...]
+require_session_mfa: # See description
+locking_mode: # See description
+local_auth: # See description
+passwordless: # See description
+headless: # See description
+allow_browser_authentication: # See description
+device_trust: # [...]
+default_session_ttl: # See description
+piv_slot: # See description
+hardware_key: # [...]
+signature_algorithm_suite: # See description
+stable_unix_user_config: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|allow_browser_authentication|Enables/disables browser-based authentication. When set to false, authentication flows that require a browser will be disabled. Defaults to true.||
+|connector_name||string|
+|default_session_ttl|The default cluster max session ttl||
+|device_trust|Holds settings related to trusted device verification. Requires Teleport Enterprise.|[Device Trust](#device-trust)|
+|hardware_key|Holds settings related to hardware key support. Requires Teleport Enterprise.|[Hardware Key](#hardware-key)|
+|headless|Enables/disables headless support. Requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.||
+|local_auth|Controls if local authentication is allowed.||
+|locking_mode|||
+|passwordless|Enables/disables passwordless support. Requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.||
+|piv_slot|Deprecated. HardwareKey.PIVSlot should be used instead.||
+|require_session_mfa|||
+|second_factor|||
+|second_factors||[]|
+|signature_algorithm_suite|The configured signature algorithm suite for the cluster.||
+|stable_unix_user_config|[types.AuthPreferenceSpecV2.StableUnixUserConfig].|[StableUNIXUser Config](#stableunixuser-config)|
+|type||string|
+|u2f||[Universal Second Factor](#universal-second-factor)|
+|webauthn||[Webauthn](#webauthn)|
+
+
+## CA Key Params
+
+Configures how CA private keys will be created and stored.
+
+Example:
+
+```yaml
+pkcs11: # [...]
+gcp_kms: # [...]
+aws_kms: # [...]
+health_check: # See description
+```
+|Field Name|Description|Type|
+|---|---|---|
+|aws_kms|Configures AWS Key Management Service to to be used for all CA private key crypto operations.|[AWS KMS](#aws-kms)|
+|gcp_kms|Configures Google Cloud Key Management Service to to be used for all CA private key crypto operations.|[Google Cloud KMS](#google-cloud-kms)|
+|health_check|Contains configuration for keystore health checking.||
+|pkcs11|Configures a PKCS#11 HSM to be used for all CA private key generation and storage.|[PKCS 11](#pkcs-11)|
+
+
+## Cluster Name
+
+
+
+
+## Device Trust
+
+Holds settings related to trusted device verification. Requires Teleport Enterprise.
+
+Example:
+
+```yaml
+mode: "string"
+auto_enroll: "string"
+ekcert_allowed_cas: 
+  - "string"
+  - "string"
+  - "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|auto_enroll|The toggle for the device auto-enroll feature.|string|
+|ekcert_allowed_cas|An allow list of EKCert CAs. These may be specified as a PEM encoded certificate or as a path to a PEM encoded certificate.  If present, only TPM devices that present an EKCert that is signed by a CA specified here may be enrolled (existing enrollments are unchanged).  If not present, then the CA of TPM EKCerts will not be checked during enrollment, this allows any device to enroll.|[]string|
+|mode|The trusted device verification mode. Mirrors types.DeviceTrust.Mode.|string|
+
+
+## Google Cloud KMS
+
+Configures Google Cloud Key Management Service to to be used for all CA private key crypto operations.
+
+Example:
+
+```yaml
+keyring: "string"
+protection_level: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|keyring|The GCP key ring where all keys generated by this auth server should be held. This must be the fully qualified resource name of the key ring, including the project and location, e.g. projects/teleport-project/locations/us-west1/keyRings/teleport-keyring|string|
+|protection_level|Specifies how cryptographic operations are performed. For more information, see https://cloud.google.com/kms/docs/algorithms#protection_levels Supported options are "HSM" and "SOFTWARE".|string|
+
+
+## Hardware Key
+
+Holds settings related to hardware key support. Requires Teleport Enterprise.
+
+Example:
+
+```yaml
+piv_slot: # See description
+serial_number_validation: # [...]
+pin_cache_ttl: # See description
+```
+|Field Name|Description|Type|
+|---|---|---|
+|pin_cache_ttl|Specifies how long to cache the user's PIV PIN.||
+|piv_slot|A PIV slot that Teleport clients should use instead of the default based on private key policy. For example, "9a" or "9e".||
+|serial_number_validation|Contains optional settings for hardware key serial number validation, including whether it is enabled.|[Hardware Key Serial Number Validation](#hardware-key-serial-number-validation)|
+
+
+## Hardware Key Serial Number Validation
+
+Holds settings related to hardware key serial number validation. Requires Teleport Enterprise.
+
+Example:
+
+```yaml
+enabled: "string"
+serial_number_trait_name: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|enabled|Indicates whether hardware key serial number validation is enabled.|string|
+|serial_number_trait_name|An optional custom user trait name for hardware key serial numbers to replace the default: "hardware_key_serial_numbers".|string|
+
+
+## Hosted Plugins
+
+Defines 'auth_service/plugins' Enterprise extension
+
+Example:
+
+```yaml
+enabled: true
+oauth_providers: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|enabled||Boolean|
+|oauth_providers||[PluginOAuth Providers](#pluginoauth-providers)|
+
+
+## OAuth Client Credentials
+
+Holds paths from which to read client credentials for Teleport's OAuth app.
+
+Example:
+
+```yaml
+client_id: "string"
+client_secret: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|client_id|The path to the file containing the Client ID|string|
+|client_secret|The path to the file containing the Client Secret|string|
+
+
+## PKCS 11
+
+Configures a PKCS#11 HSM to be used for private key generation and storage.
+
+Example:
+
+```yaml
+module_path: "string"
+token_label: "string"
+slot_number: 1
+pin: "string"
+pin_path: "string"
+max_sessions: 1
+```
+|Field Name|Description|Type|
+|---|---|---|
+|max_sessions|The upper limit of sessions allowed by the HSM.|number|
+|module_path|The path to the PKCS#11 library.|string|
+|pin|The raw pin for connecting to the HSM. Set this or PINPath to set the pin.|string|
+|pin_path|A path to a file containing a pin for connecting to the HSM. Trailing newlines will be removed, other whitespace will be left. Set this or Pin to set the pin.|string|
+|slot_number|The slot number of the HSM token to use. Set this or TokenLabel to select a token.|number|
+|token_label|The CKA_LABEL of the HSM token to use. Set this or SlotNumber to select a token.|string|
+
+
+## PluginOAuth Providers
+
+Holds application credentials for each 3rd party API provider.
+
+Example:
+
+```yaml
+slack: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|slack||[OAuth Client Credentials](#oauth-client-credentials)|
+
+
+## Reverse Tunnel
+
+A SSH reverse tunnel maintained by one cluster's proxy to remote Teleport proxy
+
+Example:
+
+```yaml
+domain_name: "string"
+addresses: 
+  - "string"
+  - "string"
+  - "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|addresses||[]string|
+|domain_name||string|
+
+
+## Session Recording Config
+
+The session_recording_config section of the Teleport config file. It maps directly to [types.SessionRecordingConfigSpecV2]
+
+Example:
+
+```yaml
+mode: "string"
+proxy_checks_host_keys: # See description
+encryption: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|encryption||[Session Recording Encryption Config](#session-recording-encryption-config)|
+|mode||string|
+|proxy_checks_host_keys|||
+
+
+## Session Recording Encryption Config
+
+The session_recording_config.encryption section of the Teleport config file. It maps directly to [types.SessionRecordingEncryptionConfig]
+
+Example:
+
+```yaml
+enabled: true
+manual_key_management: # See description
+```
+|Field Name|Description|Type|
+|---|---|---|
+|enabled||Boolean|
+|manual_key_management|||
+
+
+## StableUNIXUser Config
+
+[types.StableUNIXUserConfig].
+
+Example:
+
+```yaml
+enabled: true
+first_uid: 1
+last_uid: 1
+```
+|Field Name|Description|Type|
+|---|---|---|
+|enabled|[types.StableUNIXUserConfig.Enabled].|Boolean|
+|first_uid|[types.StableUNIXUserConfig.FirstUid].|number|
+|last_uid|[types.StableUNIXUserConfig.LastUid].|number|
+
+
+## Static Scoped Tokens
+
+The list of [StaticScopedToken] configurations that should be used to generate the auth service's [joiningv1.StaticScopedTokens] resource.
+
+
+## Static Tokens
+
+
+
+
+## Universal Second Factor
+
+
+
+Example:
+
+```yaml
+app_id: "string"
+facets: 
+  - "string"
+  - "string"
+  - "string"
+device_attestation_cas: 
+  - "string"
+  - "string"
+  - "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|app_id||string|
+|device_attestation_cas||[]string|
+|facets|Kept only to avoid breakages during Teleport updates. Webauthn is now used instead of U2F.|[]string|
+
+
+## Webauthn
+
+
+
+Example:
+
+```yaml
+rp_id: "string"
+attestation_allowed_cas: 
+  - "string"
+  - "string"
+  - "string"
+attestation_denied_cas: 
+  - "string"
+  - "string"
+  - "string"
+disabled: true
+```
+|Field Name|Description|Type|
+|---|---|---|
+|attestation_allowed_cas||[]string|
+|attestation_denied_cas||[]string|
+|disabled|Deprecated: Disabled has no effect, it is kept solely to not break existing configurations.|Boolean|
+|rp_id||string|
+
+

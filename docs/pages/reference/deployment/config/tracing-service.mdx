@@ -1,0 +1,55 @@
+---
+title: "Tracing Service Configuration Reference"
+description: "Reference for the tracing_service section of teleport.yaml."
+sidebar_label: "tracing_service"
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: fileconf.go */}
+{/* DO NOT EDIT */}
+
+Contains configuration for the tracing_service.
+
+## Fields
+
+Example:
+
+```yaml
+tracing_service:
+  enabled: "string"
+  exporter_url: "string"
+  keypairs: 
+    - # [...]
+    - # [...]
+    - # [...]
+  ca_certs: 
+    - "string"
+    - "string"
+    - "string"
+  sampling_rate_per_million: 1
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|ca_certs|The exporter ca certs to use|[]string|
+|enabled|Enabled turns the tracing service role on or off for this process|string|
+|exporter_url|The OTLP exporter URL to send spans to|string|
+|keypairs|A list of x509 serving key pairs used for mTLS.|[][Key Pair](#key-pair)|
+|sampling_rate_per_million|The sampling rate for the exporter. 1_000_000 means all spans will be sampled and 0 means none are sampled.|number|
+
+## Key Pair
+
+Represents a path on disk to a private key and certificate.
+
+Example:
+
+```yaml
+key_file: "string"
+cert_file: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|cert_file|The path on disk to a PEM encoded x509 certificate.|string|
+|key_file|The path on disk to a PEM encoded private key,|string|
+
+

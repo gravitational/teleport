@@ -1,0 +1,104 @@
+---
+title: "Kubernetes Service Configuration Reference"
+description: "Reference for the kubernetes_service section of teleport.yaml."
+sidebar_label: "kubernetes_service"
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: fileconf.go */}
+{/* DO NOT EDIT */}
+
+A `kubernetes_service`
+
+## Fields
+
+Example:
+
+```yaml
+kubernetes_service:
+  enabled: "string"
+  listen_addr: "string"
+  public_addr: # See description
+  kubeconfig_file: "string"
+  kube_cluster_name: "string"
+  labels: 
+    "string": "string"
+    "string": "string"
+    "string": "string"
+  commands: 
+    - # [...]
+    - # [...]
+    - # [...]
+  resources: 
+    - # [...]
+    - # [...]
+    - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|commands|The dynamic labels for RBAC on kubernetes clusters.|[][Command Label](#command-label)|
+|enabled||string|
+|kube_cluster_name|The name of a kubernetes cluster this service is running in. If set, this proxy will handle kubernetes requests for the cluster.|string|
+|kubeconfig_file|An optional path to kubeconfig file, if specified, teleport will use API server address and trusted certificate authority information from it|string|
+|labels|The static labels for RBAC on kubernetes clusters.|map[string]string|
+|listen_addr||string|
+|public_addr|A publicly advertised address of the kubernetes service||
+|resources|Match cluster kube_cluster resources.|[][Resource Matcher](#resource-matcher)|
+
+## Command Label
+
+`command` section of `ssh_service` in the config file
+
+Example:
+
+```yaml
+name: "string"
+command: 
+  - "string"
+  - "string"
+  - "string"
+period: # See description
+```
+|Field Name|Description|Type|
+|---|---|---|
+|command||[]string|
+|name||string|
+|period|||
+
+
+## Resource Matcher
+
+Matches cluster resources.
+
+Example:
+
+```yaml
+labels: 
+  "string": # See description
+  "string": # See description
+  "string": # See description
+aws: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|aws|Contains AWS specific settings.|[Resource Matcher AWS](#resource-matcher-aws)|
+|labels|Match resource labels.|map[string]|
+
+
+## Resource Matcher AWS
+
+Contains AWS specific settings for resource matcher.
+
+Example:
+
+```yaml
+assume_role_arn: "string"
+external_id: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|assume_role_arn|The AWS role to assume to before accessing the database.|string|
+|external_id|An optional AWS external ID used to enable assuming an AWS role across accounts.|string|
+
+

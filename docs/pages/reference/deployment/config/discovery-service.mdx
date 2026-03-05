@@ -1,0 +1,456 @@
+---
+title: "Discovery Service Configuration Reference"
+description: "Reference for the discovery_service section of teleport.yaml."
+sidebar_label: "discovery_service"
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: fileconf.go */}
+{/* DO NOT EDIT */}
+
+Represents a discovery_service section in the config file.
+
+## Fields
+
+Example:
+
+```yaml
+discovery_service:
+  enabled: "string"
+  listen_addr: "string"
+  aws: 
+    - # [...]
+    - # [...]
+    - # [...]
+  azure: 
+    - # [...]
+    - # [...]
+    - # [...]
+  gcp: 
+    - # [...]
+    - # [...]
+    - # [...]
+  kubernetes: 
+    - # [...]
+    - # [...]
+    - # [...]
+  access_graph: # [...]
+  discovery_group: "string"
+  poll_interval: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|access_graph|Used to configure the cloud sync into AccessGraph.|[Access Graph Sync](#access-graph-sync)|
+|aws|Used to match EC2 instances|[][AWS Matcher](#aws-matcher)|
+|azure|Used to match Azure resources.|[][Azure Matcher](#azure-matcher)|
+|discovery_group|The name of the discovery group that the current discovery service is a part of. It is used to filter out discovered resources that belong to another discovery services. When running in high availability mode and the agents have access to the same cloud resources, this field value must be the same for all discovery services. If different agents are used to discover different sets of cloud resources, this field must be different for each set of agents.|string|
+|enabled||string|
+|gcp|Used to match GCP resources.|[][GCP Matcher](#gcp-matcher)|
+|kubernetes|Used to match services inside Kubernetes cluster for auto discovery|[][Kubernetes Matcher](#kubernetes-matcher)|
+|listen_addr||string|
+|poll_interval|The cadence at which the discovery server will run each of its discovery cycles. Default: [github.com/gravitational/teleport/lib/srv/discovery/common.DefaultDiscoveryPollInterval]||
+
+## AWS Matcher
+
+Matches AWS EC2 instances and AWS Databases
+
+Example:
+
+```yaml
+types: 
+  - "string"
+  - "string"
+  - "string"
+regions: 
+  - "string"
+  - "string"
+  - "string"
+assume_role_arn: "string"
+assume_role_name: "string"
+external_id: "string"
+tags: 
+  "string": # See description
+  "string": # See description
+  "string": # See description
+install: # [...]
+ssm: # [...]
+integration: "string"
+kube_app_discovery: true
+setup_access_for_arn: "string"
+organization: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|assume_role_arn|The AWS role to assume for database discovery.|string|
+|assume_role_name|The AWS role name to assume for discovery.|string|
+|external_id|The AWS external ID to use when assuming a role for database discovery in an external AWS account.|string|
+|install|Sets the join method when installing on discovered EC2 nodes|[Install Params](#install-params)|
+|integration|The integration name used to generate credentials to interact with AWS APIs. Environment credentials will not be used when this value is set.|string|
+|kube_app_discovery|Controls whether Kubernetes App Discovery will be enabled for agents running on discovered clusters, currently only affects AWS EKS discovery in integration mode.|Boolean|
+|organization|An AWS Organization matcher for discovering resources across multiple accounts under an Organization.|[AWS Organization Matcher](#aws-organization-matcher)|
+|regions|AWS regions to query for databases.|[]string|
+|setup_access_for_arn|The role that the discovery service should create EKS Access Entries for.|string|
+|ssm|Provides options to use when sending a document command to an EC2 node|[AWS SSM](#aws-ssm)|
+|tags|AWS tags to match.|map[string]|
+|types|AWS database types to match, "ec2", "rds", "redshift", "elasticache", or "memorydb".|[]string|
+
+
+## AWS Organization Matcher
+
+Specifies an Organization and rules for discovering accounts under that organization.
+
+Example:
+
+```yaml
+organization_id: "string"
+organizational_units: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|organization_id|The AWS Organization ID to match against. Required.|string|
+|organizational_units|Contains rules for matchings AWS accounts based on their Organizational Units.|[AWS Organization Units Matcher](#aws-organization-units-matcher)|
+
+
+## AWS Organization Units Matcher
+
+Contains rules for matching accounts under an Organization. Accounts that belong to an excluded Organizational Unit, and its children, will be excluded even if they were included.
+
+Example:
+
+```yaml
+include: 
+  - "string"
+  - "string"
+  - "string"
+exclude: 
+  - "string"
+  - "string"
+  - "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|exclude|A list of AWS Organizational Unit IDs and children OUs to exclude. Accounts that belong to these OUs, and their children, will be excluded, even if they were included. Only exact matches are supported. Optional. If empty, no OUs are excluded.|[]string|
+|include|A list of AWS Organizational Unit IDs and children OUs to include. Accounts that belong to these OUs, and their children, will be included. Only exact matches or wildcard (*) are supported. Required.|[]string|
+
+
+## AWS SSM
+
+Provides options to use when executing SSM documents
+
+Example:
+
+```yaml
+document_name: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|document_name|The name of the document to use when executing an SSM command|string|
+
+
+## Access Graph AWS Sync
+
+Represents the configuration for the AWS AccessGraph Sync service.
+
+Example:
+
+```yaml
+regions: 
+  - "string"
+  - "string"
+  - "string"
+assume_role_arn: "string"
+external_id: "string"
+cloud_trail_logs: # [...]
+eks_audit_logs: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|assume_role_arn|The AWS role to assume for database discovery.|string|
+|cloud_trail_logs|The configuration for the SQS queue to poll for CloudTrail logs.|[Access Graph AWS Sync Cloud Trail Logs](#access-graph-aws-sync-cloud-trail-logs)|
+|eks_audit_logs|The configuration for fetching audit logs for EKS clusters discovered.|[Access GraphEKSAudit Logs](#access-grapheksaudit-logs)|
+|external_id|The AWS external ID to use when assuming a role for database discovery in an external AWS account.|string|
+|regions|AWS regions to poll for resources.|[]string|
+
+
+## Access Graph AWS Sync Cloud Trail Logs
+
+Represents the configuration for the SQS queue to poll for CloudTrail notifications.
+
+Example:
+
+```yaml
+queue_url: "string"
+queue_region: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|queue_region|The AWS region of the SQS queue to poll for AWS resources.|string|
+|queue_url|The URL of the SQS queue to poll for AWS resources.|string|
+
+
+## Access Graph Azure Sync
+
+Represents the configuration for the Azure AccessGraph Sync service.
+
+Example:
+
+```yaml
+subscription_id: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|subscription_id|The Azure subscription ID configured for syncing|string|
+
+
+## Access Graph Sync
+
+Represents the configuration for the AccessGraph Sync service.
+
+Example:
+
+```yaml
+aws: 
+  - # [...]
+  - # [...]
+  - # [...]
+azure: 
+  - # [...]
+  - # [...]
+  - # [...]
+poll_interval: # See description
+```
+|Field Name|Description|Type|
+|---|---|---|
+|aws|The AWS configuration for the AccessGraph Sync service.|[][Access Graph AWS Sync](#access-graph-aws-sync)|
+|azure|The Azure configuration for the AccessGraph Sync service.|[][Access Graph Azure Sync](#access-graph-azure-sync)|
+|poll_interval|The frequency at which to poll for AWS resources||
+
+
+## Access GraphEKSAudit Logs
+
+The configuration for fetching audit logs from clusters discovered for access graph.
+
+Example:
+
+```yaml
+tags: 
+  "string": # See description
+  "string": # See description
+  "string": # See description
+```
+|Field Name|Description|Type|
+|---|---|---|
+|tags|AWS EKS tags to match. Clusters that have tags that match these will have their audit logs fetched and sent to Access Graph.|map[string]|
+
+
+## Azure Install Params
+
+Azure is te set of installation parameters specific to Azure.
+
+Example:
+
+```yaml
+client_id: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|client_id|The client ID of the managed identity to use for installation.|string|
+
+
+## Azure Join Params
+
+Configures the parameters specific to the Azure join method.
+
+Example:
+
+```yaml
+client_id: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|client_id||string|
+
+
+## Azure Matcher
+
+Matches Azure resources.
+
+Example:
+
+```yaml
+subscriptions: 
+  - "string"
+  - "string"
+  - "string"
+resource_groups: 
+  - "string"
+  - "string"
+  - "string"
+types: 
+  - "string"
+  - "string"
+  - "string"
+regions: 
+  - "string"
+  - "string"
+  - "string"
+tags: 
+  "string": # See description
+  "string": # See description
+  "string": # See description
+integration: "string"
+install: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|install|Sets the join method when installing on discovered Azure nodes.|[Install Params](#install-params)|
+|integration|The Azure Integration name.|string|
+|regions|Azure locations to match for databases.|[]string|
+|resource_groups|Azure resource groups to query for resources.|[]string|
+|subscriptions|Azure subscriptions to query for resources.|[]string|
+|tags|Azure tags on resources to match.|map[string]|
+|types|Azure types to match: "mysql", "postgres", "aks", "vm"|[]string|
+
+
+## GCP Matcher
+
+Matches GCP resources.
+
+Example:
+
+```yaml
+types: 
+  - "string"
+  - "string"
+  - "string"
+locations: 
+  - "string"
+  - "string"
+  - "string"
+labels: 
+  "string": # See description
+  "string": # See description
+  "string": # See description
+tags: 
+  "string": # See description
+  "string": # See description
+  "string": # See description
+project_ids: 
+  - "string"
+  - "string"
+  - "string"
+service_accounts: 
+  - "string"
+  - "string"
+  - "string"
+install: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|install|Sets the join method when installing on discovered GCP VMs.|[Install Params](#install-params)|
+|labels|GCP labels to match.|map[string]|
+|locations|GKE locations to search resources for.|[]string|
+|project_ids|The GCP project ID where the resources are deployed.|[]string|
+|service_accounts|The emails of service accounts attached to VMs.|[]string|
+|tags|An alias for Labels, for backwards compatibility.|map[string]|
+|types|GKE resource types to match: "gke", "gce".|[]string|
+
+
+## HTTP Proxy Settings
+
+Configures HTTP proxy settings for the installation. When set, the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables will be set when executing the installation script.
+
+Example:
+
+```yaml
+http_proxy: "string"
+https_proxy: "string"
+no_proxy: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|http_proxy|The HTTP proxy URL.|string|
+|https_proxy|The HTTPS proxy URL.|string|
+|no_proxy|A comma-separated list of hosts that should be excluded from proxying.|string|
+
+
+## Install Params
+
+Sets join method to use on discovered nodes
+
+Example:
+
+```yaml
+join_params: # [...]
+script_name: "string"
+install_teleport: "string"
+sshd_config: "string"
+public_proxy_addr: "string"
+azure: # [...]
+enroll_mode: "string"
+suffix: "string"
+update_group: "string"
+http_proxy_settings: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|azure|Te set of installation parameters specific to Azure.|[Azure Install Params](#azure-install-params)|
+|enroll_mode|Indicates the mode used to enroll the node into Teleport. Valid values: script, eice. Optional.|string|
+|http_proxy_settings|Configures HTTP proxy settings for the installation.|[HTTP Proxy Settings](#http-proxy-settings)|
+|install_teleport|Disables agentless discovery|string|
+|join_params|Sets the token and method to use when generating config on cloud instances|[Join Params](#join-params)|
+|public_proxy_addr|The address of the proxy the discovered node should use to connect to the cluster.|string|
+|script_name|The name of the teleport installer script resource for the cloud instance to execute|string|
+|sshd_config|Provides the path to write sshd configuration changes|string|
+|suffix|Indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program.|string|
+|update_group|Indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program.|string|
+
+
+## Join Params
+
+Configures the parameters for Simplified Node Joining.
+
+Example:
+
+```yaml
+token_name: "string"
+token_secret: "string"
+method: # See description
+azure: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|azure||[Azure Join Params](#azure-join-params)|
+|method|||
+|token_name||string|
+|token_secret||string|
+
+
+## Kubernetes Matcher
+
+Matches Kubernetes resources.
+
+Example:
+
+```yaml
+types: 
+  - "string"
+  - "string"
+  - "string"
+namespaces: 
+  - "string"
+  - "string"
+  - "string"
+labels: 
+  "string": # See description
+  "string": # See description
+  "string": # See description
+```
+|Field Name|Description|Type|
+|---|---|---|
+|labels|Kubernetes services labels to match.|map[string]|
+|namespaces|Kubernetes namespaces in which to discover services|[]string|
+|types|Kubernetes services types to match. Currently only 'app' is supported.|[]string|
+
+

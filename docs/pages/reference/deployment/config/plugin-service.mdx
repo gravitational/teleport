@@ -1,0 +1,30 @@
+---
+title: "Plugin Service Configuration Reference"
+description: "Reference for the plugin_service section of teleport.yaml."
+sidebar_label: "plugin_service"
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: fileconf.go */}
+{/* DO NOT EDIT */}
+
+Represents the configuration for the plugin service.
+
+## Fields
+
+Example:
+
+```yaml
+plugin_service:
+  enabled: true
+  plugins: 
+    "string": "string"
+    "string": "string"
+    "string": "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|enabled||Boolean|
+|plugins|A map of matchers for enabled plugin resources.|map[string]string|
+

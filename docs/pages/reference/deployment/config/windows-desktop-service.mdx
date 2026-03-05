@@ -1,0 +1,218 @@
+---
+title: "Windows Desktop Service Configuration Reference"
+description: "Reference for the windows_desktop_service section of teleport.yaml."
+sidebar_label: "windows_desktop_service"
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: fileconf.go */}
+{/* DO NOT EDIT */}
+
+Contains configuration for windows_desktop_service.
+
+## Fields
+
+Example:
+
+```yaml
+windows_desktop_service:
+  enabled: "string"
+  listen_addr: "string"
+  labels: 
+    "string": "string"
+    "string": "string"
+    "string": "string"
+  public_addr: # See description
+  show_desktop_wallpaper: true
+  ldap: # [...]
+  pki_domain: "string"
+  kdc_address: "string"
+  discovery: # [...]
+  discovery_configs: 
+    - # [...]
+    - # [...]
+    - # [...]
+  discovery_interval: # See description
+  publish_crl_interval: # See description
+  hosts: 
+    - "string"
+    - "string"
+    - "string"
+  non_ad_hosts: 
+    - "string"
+    - "string"
+    - "string"
+  static_hosts: 
+    - # [...]
+    - # [...]
+    - # [...]
+  host_labels: 
+    - # [...]
+    - # [...]
+    - # [...]
+  resources: 
+    - # [...]
+    - # [...]
+    - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|discovery|Configures desktop discovery via LDAP. New usages should prever DiscoveryConfigs instead, which allows for multiple searches.|[LDAP Discovery Config](#ldap-discovery-config)|
+|discovery_configs|Configures desktop discovery via LDAP.|[][LDAP Discovery Config](#ldap-discovery-config)|
+|discovery_interval|Controls how frequently the discovery process runs.||
+|enabled||string|
+|host_labels|Optionally applies labels to Windows hosts for RBAC. A host can match multiple rules and will get a union of all the matched labels.|[][Windows Host Label Rule](#windows-host-label-rule)|
+|hosts|A list of static, AD-connected Windows hosts. This gives users a way to specify AD-connected hosts that won't be found by the filters specified in `discovery` (or if `discovery` is omitted).  Deprecated: prefer StaticHosts instead.|[]string|
+|kdc_address|Optionally configures the address of the Kerberos Key Distribution Center, which is used to support RDP Network Level Authentication (NLA). If empty, the LDAP address will be used instead. Note: NLA is only supported in Active Directory environments - this field has no effect when connecting to desktops as local Windows users.|string|
+|labels|The configured windows deesktops service labels.|map[string]string|
+|ldap|The LDAP connection parameters.|[LDAP Config](#ldap-config)|
+|listen_addr||string|
+|non_ad_hosts|A list of standalone Windows hosts that are not jointed to an Active Directory domain.  Deprecated: prefer StaticHosts instead.|[]string|
+|pki_domain|Optionally configures a separate Active Directory domain for PKI operations. If empty, the domain from the LDAP config is used. This can be useful for cases where PKI is configured in a root domain but Teleport is used to provide access to users and computers in a child domain.|string|
+|public_addr|A list of advertised public addresses of this service.||
+|publish_crl_interval|Determines how frequently CRLs should be published.||
+|resources|Match dynamic Windows desktop resources.|[][Resource Matcher](#resource-matcher)|
+|show_desktop_wallpaper|Determines whether desktop sessions will show a user-selected wallpaper vs a system-default, single-color wallpaper.|Boolean|
+|static_hosts|A list of Windows hosts (both AD-connected and standalone). User can specify name for each host and labels specific to it.|[][Windows Host](#windows-host)|
+
+## LDAP Config
+
+The LDAP connection parameters.
+
+Example:
+
+```yaml
+addr: "string"
+domain: "string"
+username: "string"
+sid: "string"
+insecure_skip_verify: true
+server_name: "string"
+der_ca_file: "string"
+ldap_ca_cert: "string"
+enabled: true
+site: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|addr|The host:port of the LDAP server (typically port 389).|string|
+|der_ca_file|The filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).|string|
+|domain|The ActiveDirectory domain name.|string|
+|enabled|Will automatically locate the LDAP server using DNS SRV records. When enabled, Domain must be set, Addr will be ignored https://ldap.com/dns-srv-records-for-ldap/|Boolean|
+|insecure_skip_verify|Decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.|Boolean|
+|ldap_ca_cert|An optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).|string|
+|server_name|The name of the LDAP server for TLS.|string|
+|sid|The Security Identifier for the service account specified by Username.|string|
+|site|An LDAP site to locate servers from a specific logical site. https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/b645c125-a7da-4097-84a1-2fa7cea07714#gt_8abdc986-5679-42d9-ad76-b11eb5a0daba|string|
+|username|For LDAP authentication.|string|
+
+
+## LDAP Discovery Config
+
+LDAP discovery configuration for windows desktop discovery service.
+
+Example:
+
+```yaml
+base_dn: "string"
+filters: 
+  - "string"
+  - "string"
+  - "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+label_attributes: 
+  - "string"
+  - "string"
+  - "string"
+rdp_port: 1
+```
+|Field Name|Description|Type|
+|---|---|---|
+|base_dn|The base DN to search for desktops. Use the value '*' to search from the root of the domain, or leave blank to disable desktop discovery.|string|
+|filters|Additional LDAP filters to apply to the search. See: https://ldap.com/ldap-filters/|[]string|
+|label_attributes|LDAP attributes to apply to hosts discovered via LDAP. Teleport labels hosts by prefixing the attribute with "ldap/" - for example, a value of "location" here would result in discovered desktops having a label with key "ldap/location" and the value being the value of the "location" attribute.|[]string|
+|labels|Static labels applied to all hosts discovered via this policy.|map[string]string|
+|rdp_port|The port to use for RDP for hosts discovered with this configuration. Optional, defaults to 3389 if unspecified.|number|
+
+
+## Resource Matcher
+
+Matches cluster resources.
+
+Example:
+
+```yaml
+labels: 
+  "string": # See description
+  "string": # See description
+  "string": # See description
+aws: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|aws|Contains AWS specific settings.|[Resource Matcher AWS](#resource-matcher-aws)|
+|labels|Match resource labels.|map[string]|
+
+
+## Resource Matcher AWS
+
+Contains AWS specific settings for resource matcher.
+
+Example:
+
+```yaml
+assume_role_arn: "string"
+external_id: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|assume_role_arn|The AWS role to assume to before accessing the database.|string|
+|external_id|An optional AWS external ID used to enable assuming an AWS role across accounts.|string|
+
+
+## Windows Host
+
+Describes single host in configuration
+
+Example:
+
+```yaml
+name: "string"
+addr: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+ad: true
+```
+|Field Name|Description|Type|
+|---|---|---|
+|ad|Tells if host is part of Active Directory domain|Boolean|
+|addr|Of the host, with an optional port. 10.1.103.4 or 10.1.103.4:3389, for example.|string|
+|labels|The set of labels to apply to this host|map[string]string|
+|name|Of the host|string|
+
+
+## Windows Host Label Rule
+
+Describes how a set of labels should be applied to a Windows host.
+
+Example:
+
+```yaml
+match: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|labels|The set of labels to apply to hosts that match this rule.|map[string]string|
+|match|A regexp that is checked against the Windows host's DNS name. If the regexp matches, this rule's labels will be applied to the host.|string|
+
+

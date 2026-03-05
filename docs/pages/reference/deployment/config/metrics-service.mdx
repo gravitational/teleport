@@ -1,0 +1,57 @@
+---
+title: "Metrics Service Configuration Reference"
+description: "Reference for the metrics_service section of teleport.yaml."
+sidebar_label: "metrics_service"
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: fileconf.go */}
+{/* DO NOT EDIT */}
+
+A `metrics_service` section of the config file:
+
+## Fields
+
+Example:
+
+```yaml
+metrics_service:
+  enabled: "string"
+  listen_addr: "string"
+  keypairs: 
+    - # [...]
+    - # [...]
+    - # [...]
+  ca_certs: 
+    - "string"
+    - "string"
+    - "string"
+  grpc_server_latency: true
+  grpc_client_latency: true
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|ca_certs|A list of prometheus CA certificates to validate clients against. mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.|[]string|
+|enabled||string|
+|grpc_client_latency|GRPCServerLatency enables histogram metrics for each gRPC endpoint on the auth server|Boolean|
+|grpc_server_latency|Enables histogram metrics for each gRPC endpoint on the auth server|Boolean|
+|keypairs|A list of x509 serving key pairs used for securing the metrics endpoint with mTLS. mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.|[][Key Pair](#key-pair)|
+|listen_addr||string|
+
+## Key Pair
+
+Represents a path on disk to a private key and certificate.
+
+Example:
+
+```yaml
+key_file: "string"
+cert_file: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|cert_file|The path on disk to a PEM encoded x509 certificate.|string|
+|key_file|The path on disk to a PEM encoded private key,|string|
+
+
