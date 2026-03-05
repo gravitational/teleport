@@ -383,6 +383,8 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 // If the certificate is valid, this callback returns an empty ssh.Permissions object. If the certificate is invalid, it
 // returns a non-nil error to reject the auth attempt.
 func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+	ctx := context.Background()
+
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
 
 	log := h.log.With(
@@ -413,7 +415,7 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debug("Successfully validated certificate in PublicKeyCallback")
+	log.DebugContext(ctx, "Successfully passed preliminary certificate checks")
 
 	return &ssh.Permissions{}, nil
 }
