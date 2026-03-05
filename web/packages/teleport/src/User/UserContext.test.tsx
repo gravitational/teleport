@@ -29,10 +29,15 @@ import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import cfg from 'teleport/config';
 import { KeysEnum } from 'teleport/services/storageService';
+import { clearCachedPreferences } from 'teleport/services/userPreferences';
 import { UserContextProvider } from 'teleport/User';
 import { useUser } from 'teleport/User/UserContext';
 
 enableMswServer();
+
+beforeEach(() => {
+  clearCachedPreferences();
+});
 
 function ThemeName() {
   const { preferences } = useUser();

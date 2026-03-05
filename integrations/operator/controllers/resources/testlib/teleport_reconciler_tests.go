@@ -113,7 +113,6 @@ func ResourceUpdateTestSynchronous[T reconcilers.Resource, K reconcilers.Kuberne
 	require.NoError(t, err)
 
 	var reconciledResource T
-
 	// Test setup: Check if both Teleport and Kube resources are in-sync.
 	FastEventuallyWithT(t, func(t *assert.CollectT) {
 		reconciledResource, err = test.GetTeleportResource(ctx, resourceName)
@@ -125,6 +124,11 @@ func ResourceUpdateTestSynchronous[T reconcilers.Resource, K reconcilers.Kuberne
 		// Kubernetes and Teleport resources are in-sync
 		equal, diff := test.CompareTeleportAndKubernetesResource(reconciledResource, kubeResource)
 		require.True(t, equal, "Kubernetes and Teleport resources not sync-ed yet: %s", diff)
+		// Resources might be equal but this does not mean the update passed yet. We must wait for the revision to change.
+		// Note: some resources don't support revisions, this is a workaround.
+		if previousRevision, newRevision := test.GetResourceRevision(reconciledResource), test.GetResourceRevision(tResource); newRevision != "" && previousRevision != "" {
+			require.NotEqual(t, previousRevision, newRevision, "Teleport resource revision did not change.")
+		}
 	})
 
 	// Test execution: Induce a drift by updating the Kubernetes CR
@@ -159,12 +163,17 @@ func ResourceUpdateTestSynchronous[T reconcilers.Resource, K reconcilers.Kuberne
 		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
 		require.NoError(t, err)
 
-		tResource, err := test.GetTeleportResource(ctx, resourceName)
+		finalResource, err := test.GetTeleportResource(ctx, resourceName)
 		require.NoError(t, err)
 
 		// Kubernetes and Teleport resources are in-sync
-		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
+		equal, diff := test.CompareTeleportAndKubernetesResource(finalResource, kubeResource)
 		require.True(t, equal, "Kubernetes and Teleport resources not sync-ed yet: %s", diff)
+		// Resources might be equal but this does not mean the update passed yet. We must wait for the revision to change.
+		// Note: some resources don't support revisions, this is a workaround.
+		if previousRevision, newRevision := test.GetResourceRevision(reconciledResource), test.GetResourceRevision(finalResource); newRevision != "" && previousRevision != "" {
+			require.NotEqual(t, previousRevision, newRevision, "Teleport resource revision did not change.")
+		}
 	})
 	testPassed = true
 
