@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/secretlookup"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -168,14 +167,13 @@ func (r *trustedClusterV2TestingPrimitives) setupTest(t *testing.T, clusterName 
 	r.remoteCluster = remoteCluster
 
 	rcConf := servicecfg.MakeDefaultConfig()
+	rcConf.InsecureMode = true
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Version = "v2"
-
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+	rcConf.InsecureMode = true
 
 	require.NoError(t, remoteCluster.CreateEx(t, nil, rcConf))
 	require.NoError(t, remoteCluster.Start())
@@ -191,6 +189,7 @@ func TestTrustedClusterV2Creation(t *testing.T) {
 		resources.NewTrustedClusterV2Reconciler,
 		test,
 		testlib.WithResourceName(remoteClusterName),
+		testlib.WithInsecureMode(),
 	)
 }
 
@@ -203,6 +202,7 @@ func TestTrustedClusterV2Deletion(t *testing.T) {
 		resources.NewTrustedClusterV2Reconciler,
 		test,
 		testlib.WithResourceName(remoteClusterName),
+		testlib.WithInsecureMode(),
 	)
 }
 
@@ -215,6 +215,7 @@ func TestTrustedClusterV2DeletionDrift(t *testing.T) {
 		resources.NewTrustedClusterV2Reconciler,
 		test,
 		testlib.WithResourceName(remoteClusterName),
+		testlib.WithInsecureMode(),
 	)
 }
 
@@ -227,6 +228,7 @@ func TestTrustedClusterUpdate(t *testing.T) {
 		resources.NewTrustedClusterV2Reconciler,
 		test,
 		testlib.WithResourceName(remoteClusterName),
+		testlib.WithInsecureMode(),
 	)
 }
 
@@ -234,7 +236,7 @@ func TestTrustedClusterV2SecretLookup(t *testing.T) {
 	test := &trustedClusterV2TestingPrimitives{}
 	const remoteClusterName = "remote.example.com"
 	test.setupTest(t, remoteClusterName)
-	setup := testlib.SetupFakeKubeTestEnv(t)
+	setup := testlib.SetupFakeKubeTestEnv(t, testlib.WithInsecureMode())
 	test.Init(setup)
 	ctx := t.Context()
 	require.NoError(t, test.SetupTeleportFixtures(ctx))
