@@ -286,6 +286,237 @@ In the web UI after an access list has successfully deleted, a popup dialogue wi
 
 Since deleting a role that is used (e.g. a role assigned in another role) can lock a user out with "role not found" error, a warning banner will also be rendered on the delete dialogue to let users know that it is their responsibility to ensure that the roles that they are about to delete is unused.
 
+### Product Metrics
+
+To help gain insight into how the access list wizard is used, we will emit usage events throughout the access list creation flows. Once event data is being collected, it can be used to answer product questions about preset adoption, UX quality, and Okta integration interest.
+
+#### What we want to track
+
+In a wizard run, the same "session" id will be used to help correlate events.
+
+1. **Access List Creation Method Adoption**
+
+We want to understand the preference of creating access lists by tracking usage of the short-term wizard, long-term wizard, or the old method. Tracking usage can identify which method is most popular among admins.
+
+We also want to track the frequency of users opting to use the Terraform script over creating an access list via the web UI which tells us the popularity of Terraform.
+
+1. **Wizard Completion and Drop-off**
+
+We want to know what percentage of users who start the guided wizard complete it, and where users abandon the flow. This helps identify which step in the wizard causes friction for users.
+
+The funnel steps are (steps in [] are optional):
+
+started → [define access] → [define identities] → basic info → define owners → define members → completed
+
+Each step will emit an event capturing whether the user succeeded, skipped, errored (if applicable, e.g. if finishing the step triggers a fetch that failed), or aborted. Drop-off can be measured by the last step emitted by the wizard before the user abandoned the flow.
+
+1. **Time Spent in the Wizard per Step**
+
+We want to measure how long it takes a user to complete the wizard across different methods and how long a user takes to complete each step. Steps that take longer might indicate that the step is either very complex or confusing.
+
+Total method duration can be measured by the timestamp difference between the started and completed event. Per-step duration can be measured by the difference between consecutive step events.
+
+1. **Okta Integration Interest**
+
+We can measure interest in Okta by emitting an event when a user leaves the wizard mid-flow to either set up an Okta integration or enable apps and groups sync (which is required to sync user groups as Access Lists).
+
+#### Event Definitions
+
+```proto
+// AccessListStatus represents a access list outcome.
+enum AccessListStatus {
+  ACCESS_LIST_STATUS_UNSPECIFIED = 0;
+  // The user tried to complete the action and it succeeded.
+  // e.g. going to next step,
+  ACCESS_LIST_STATUS_SUCCESS = 1;
+  // The user skipped the action (some steps may be optional).
+  ACCESS_LIST_STATUS_SKIPPED = 2;
+  // The user tried to complete the action and it failed.
+  ACCESS_LIST_STATUS_ERROR = 3;
+  // The user did not complete the action and left the wizard.
+  ACCESS_LIST_STATUS_ABORTED = 4;
+}
+
+// AccessListPreset represents the access list preset type.
+enum AccessListPreset {
+  // Unspecified preset should be interpreted as using the "old method"
+  // of creating an access list (unguided).
+  ACCESS_LIST_PRESET_UNSPECIFIED = 0;
+  ACCESS_LIST_PRESET_SHORT_TERM = 1;
+  ACCESS_LIST_PRESET_LONG_TERM = 2;
+}
+
+// AccessListStepStatus contains fields that track a particular step outcome.
+message AccessListStepStatus {
+  // Indicates the step outcome.
+  AccessListStatus status = 1;
+  // Contains error details in case of Error Status.
+  string error = 2;
+}
+
+// AccessListMetadata contains common metadata for access list related events.
+message AccessListMetadata {
+  // Uniquely identifies access list wizard "session". Will allow to correlate
+  // events within the same access list wizard run.
+  string id = 1;
+  // anonymized
+  string user_name = 2;
+  // Describes the sessions preset.
+  AccessListPreset preset = 3;
+}
+
+```
+
+To emit events per step in a wizard:
+
+```proto
+// UIAccessListDefineAccessEvent is emitted when user is finished with the step
+// that defines access to resources.
+message UIAccessListDefineAccessEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineIdentitiesEvent is emitted when user is finished with the
+// step that defines resource identities/principals.
+message UIAccessListDefineIdentitiesEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListBasicInfoEvent is emitted when user is finished with the step
+// that defines basic info of an access list (title, desc, etc).
+message UIAccessListBasicInfoEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineMembersEvent is emitted when user is finished with the
+// step that defines access list members.
+message UIAccessListDefineMembersEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineOwnersEvent is emitted when user is finished with the
+// step that defines access list owners.
+message UIAccessListDefineOwnersEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+```
+
+To track how long the method took:
+
+```proto
+// UIAccessListStartedEvent is emitted when user is at the guide selection page
+// or when directed straight to the first step.
+message UIAccessListStartedEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+
+// UIAccessListCompletedEvent is emitted when user completes a wizard.
+message UIAccessListCompletedEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+  // True if the user completed wizard by choosing terraform script over
+  // creating access list via web UI.
+  bool preferred_terraform = 3;
+}
+```
+
+When user leaves the wizard mid-flow by clicking on a CTA button:
+
+```proto
+// AccessListIntegrate describes what integration user
+// was interested in.
+enum AccessListIntegrate {
+  ACCESS_LIST_INTEGRATE_UNSPECIFIED = 0;
+  // User wants to integrate Okta or is coming from Okta.
+  ACCESS_LIST_INTEGRATE_OKTA = 1;
+}
+
+// UIAccessListIntegrateEvent is emitted when a user leaves the wizard
+// to enroll an integration by clicking on a CTA button in the wizard.
+message UIAccessListIntegrateEvent {
+  AccessListMetadata metadata = 1;
+  AccessListIntegrate integrate = 2;
+}
+```
+
+#### Event Reference
+
+##### List of event names with common event properties
+
+| Event                                 | Description                                           |
+| :------------------------------------ | :---------------------------------------------------- |
+| `tp.ui.access_list.start`             | Emitted when the wizard (or old method) is started    |
+| `tp.ui.access_list.define.access`     | Emitted when user is done with define access step     |
+| `tp.ui.access_list.define.identities` | Emitted when user is done with define identities step |
+| `tp.ui.access_list.define.basicinfo`  | Emitted when user is done with basic info step        |
+| `tp.ui.access_list.define.members`    | Emitted when user is done with define members step    |
+| `tp.ui.access_list.define.owners`     | Emitted when user is done with define owners step     |
+
+Properties:
+
+- tp.access_list.metadata.id
+- tp.access_list.metadata.preset
+- tp.access_list.step.status
+- tp.access_list.step.error
+
+Note: To determine use of the old creation method, the tp.access_list.metadata.preset will be unspecified.
+
+##### tp.ui.access_list.complete
+
+Emitted when wizard (or old method) is completed. This is the event where we can tell if user opted for terraform or not.
+
+Properties:
+
+- tp.access_list.metadata.id
+- tp.access_list.metadata.preset
+- tp.access_list.preferred_terraform (true of false)
+
+##### tp.ui.access_list.integrate
+
+Emitted when user leaves wizard mid-flow to integrate with an integration (e.g. okta)
+
+Properties:
+
+- tp.access_list.metadata.id
+- tp.access_list.metadata.preset
+- tp.access_list.integrate
+
+#### tp.access_list.step.status
+
+The following status are available:
+
+```
+ACCESS_LIST_STATUS_SUCCESS: the step was completed successfully
+ACCESS_LIST_STATUS_SKIPPED: the step was skipped
+ACCESS_LIST_STATUS_ERROR: there was an error when the user tried to complete the step
+ACCESS_LIST_STATUS_ABORTED: the user left the step by closing the browser tab/window or leaving the wizard
+```
+
+#### tp.access_list.preset
+
+The following preset are available:
+
+```
+ACCESS_LIST_PRESET_UNSPECIFIED: for old creation method
+ACCESS_LIST_PRESET_SHORT_TERM
+ACCESS_LIST_PRESET_LONG_TERM
+```
+
+#### tp.access_list.integrate
+
+The following integration kind are available:
+
+```
+ACCESS_LIST_INTEGRATE_OKTA
+```
+
 ### Optimization Consideration
 
 For each access list created with a preset, about 3-4 roles are created for it. This can result in hundreds of roles related to access lists.
