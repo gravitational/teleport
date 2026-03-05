@@ -149,3 +149,69 @@ func TestStateMissingRecordings(t *testing.T) {
 	require.NoError(t, err)
 
 }
+
+func TestGetSessions(t *testing.T) {
+	config := newStartCmdConfig(t)
+	state, err := NewState(config, slog.Default())
+	require.NoError(t, err)
+
+	expected := make([]session, 0, 10)
+	expectedmap := make(map[string]int64, 10)
+	for i := 0; i < 10; i++ {
+		s := session{
+			ID:         strconv.Itoa(i),
+			Index:      int64(i),
+			UploadTime: time.Now().UTC(),
+		}
+		err := state.SetSessionIndex(s.ID, 0)
+		expected = append(expected, s)
+		expectedmap[s.ID] = 0
+		assert.NoError(t, err)
+	}
+
+	// List with GetSessions should work
+	// Iterating find all stored records and validate they match
+	// the original sessions.
+	sessions, err := state.GetSessions()
+	require.NoError(t, err)
+	assert.Equal(t, expectedmap, sessions)
+
+	// add bogus entry by writing a file called `session` to the directory
+	var b = make([]byte, 8)
+	err = state.dv.Write(sessionPrefix, b)
+	require.NoError(t, err)
+
+	// break real entry by writing a zero-byte file
+	b = make([]byte, 0)
+	p := sessionPrefix + strconv.Itoa(2)
+	err = state.dv.Write(p, b)
+	require.NoError(t, err)
+
+	// now with bogus empty file, try GetSessions again
+	sessions, err = state.GetSessions()
+	require.NoError(t, err)
+	assert.Equal(t, expectedmap, sessions)
+
+}
+
+func TestSetSessionIndex(t *testing.T) {
+	config := newStartCmdConfig(t)
+	state, err := NewState(config, slog.Default())
+	require.NoError(t, err)
+
+	s1 := session{
+		ID:         "61ab9b21-172e-40af-bf94-d95da60c94f1",
+		Index:      int64(0),
+		UploadTime: time.Now().UTC(),
+	}
+	err = state.SetSessionIndex(s1.ID, 0)
+	require.NoError(t, err)
+
+	s2 := session{
+		ID:         "",
+		Index:      int64(0),
+		UploadTime: time.Now().UTC(),
+	}
+	err = state.SetSessionIndex(s2.ID, 0)
+	require.Error(t, err, "Should refuse to set an empty Session ID")
+}
