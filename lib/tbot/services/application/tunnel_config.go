@@ -21,6 +21,7 @@ package application
 import (
 	"net"
 	"net/url"
+	"time"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -54,6 +55,10 @@ type TunnelConfig struct {
 	// Listener overrides "listen" and directly provides an opened listener to
 	// use.
 	Listener net.Listener `yaml:"-"`
+
+	// Leeway is a duration added to the current time when checking if the
+	// tunnel's internal certificate needs to be renewed.
+	Leeway *time.Duration `yaml:"leeway,omitempty"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -94,6 +99,14 @@ func (s *TunnelConfig) CheckAndSetDefaults() error {
 	if _, err := url.Parse(s.Listen); err != nil {
 		return trace.Wrap(err, "parsing listen")
 	}
+
+	// Leeway is a pointer to explicitly allow users to override this for zero
+	// leeway if desired.
+	if s.Leeway == nil {
+		v := time.Minute
+		s.Leeway = &v
+	}
+
 	return nil
 }
 

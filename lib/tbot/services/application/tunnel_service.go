@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -183,13 +184,21 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 	}
 	s.log.DebugContext(ctx, "Issued initial certificate for local proxy.")
 
+	var leeway time.Duration = 0
+	if l := s.cfg.Leeway; l != nil {
+		leeway = *l
+	}
+
 	middleware := internal.ALPNProxyMiddleware{
 		OnNewConnectionFunc: func(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 			ctx, span := tracer.Start(ctx, "TunnelService/OnNewConnection")
 			defer span.End()
 
-			if err := lp.CheckCertExpiry(ctx); err != nil {
-				s.log.InfoContext(ctx, "Certificate for tunnel needs reissuing.", "reason", err.Error())
+			if err := lp.CheckCertExpiryWithLeeway(ctx, leeway); err != nil {
+				s.log.InfoContext(ctx, "Certificate for tunnel needs reissuing.",
+					"reason", err.Error(),
+					"leeway", leeway,
+				)
 				cert, _, err := s.issueCert(ctx)
 				if err != nil {
 					return trace.Wrap(err, "issuing cert")
