@@ -199,8 +199,6 @@ New `teleport.yaml` section for `linux_desktop_service`:
 ```yaml
 linux_desktop_service:
   enabled: yes # default false
-  listen_addr: 0.0.0.0:3029
-  public_addr: linux.desktop.example.com:3080
   # optional, xsessions will provide regexes for filtering available sessions to present in UI
   xsessions:
     included: "^Xfce.*" # defaults to ^.*$
@@ -215,7 +213,9 @@ linux_desktop_service:
       period: 1h0m0s
 ```
 
-For an entry to be included and shown to the user, it has to match the `included` filter and must not be excluded by
+Only reverse tunnel connection to proxy will be supported, no direct dial will be available.
+
+For xsession entry to be included and shown to the user, it has to match the `included` filter and must not be excluded by
 `excluded`.
 
 ### CLI changes
