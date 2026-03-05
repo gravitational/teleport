@@ -619,25 +619,26 @@ This opens the door for a potential name reuse attack:
    called `bernard` in `/zap`. This bot now has the privileges in `bar` that 
    were intended for the original `bernard` bot.
 
-Potential mitigations:
-
-- Namespacing of scoped bots.
-- Require that role assignments are bound to both the scoped bot name and its 
-  scope of origin.
-- Require that role assignments reference a unique identifier of the bot that is 
-  not reusable (e.g. a UUID) instead of the bot's name.
-  - This would be very unlike the rest of the way Teleport behaves and presents
-    a significant UX challenge.
-
 Notably, this risk is introduced due to how role assignment works in classic
 RBAC vs scoped RBAC. In classic RBAC, role assignments are made as part of the
 definition of the bot itself. In scoped RBAC, role assignments are separate
 resources that reference the bot.
 
-This risk is a good argument for considering namespaces within the designed of
-Scoped RBAC (and Scoped MWI by extension). Whilst this is not currently the
-case, there are ongoing discussions about whether namespacing should be added
-to scopes.
+Potential mitigations:
+
+- Require that role assignments are bound to both the scoped bot name and its 
+  scope of origin.
+- Namespacing of scoped bots. This naturally implies that the role assignment
+  is bound to the scoped bot at a specific namespace.
+- Require that role assignments reference a unique identifier of the bot that is 
+  not reusable (e.g. a UUID) instead of the bot's name.
+  - This would be very unlike the rest of the way Teleport behaves and presents
+    a significant UX challenge.
+
+For now, we will proceed with requiring that role assignments are bound to the 
+scoped bot's name and scope of origin. As a future improvement, we will
+introduce namespacing of scoped resources, which naturally implies the binding
+of a role assignment to a specific scoped bot within a specific scope.
 
 ##### Confused Deputy Privilege Escalation
 
