@@ -491,6 +491,19 @@ wip: any changes in Certificate Issuance.
 wip: list of individual tickets we will create as part of epic, and rough order
 wip: of implementation
 
+### Testing
+
+Enumerating the entirety of the manual and automated testing within this RFD is
+not feasible. However, there are some areas which will require special
+attention:
+
+- Scoped bot field enumeration:
+  - Since the Bot resource will be scoped and unscoped, it's important that we
+    ensure that fields (current and future) are appropriately gated based on
+    whether the Bot is scoped or unscoped. As such, we should perform
+    fuzz/reflection based testing against an allow-list of fields for scoped vs
+    unscoped bots.
+
 ## Security Considerations
 
 The prime security consideration throughout this design and implementation is
