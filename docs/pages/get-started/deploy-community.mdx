@@ -302,6 +302,14 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
 
 1. Visit the provided URL in order to create your Teleport user.
 
+   The signup flow creates a local Teleport user with the `editor` and `access`
+   roles, allowing the user to perform administrative tasks in your cluster and
+   connect to any Teleport-protected resource.
+   
+   Since this user has almost total privileges, you should treat this identity
+   as a fallback after completing initial setup operations, and define other
+   roles and identities for day-to-day usage.
+
    <Admonition
      type="tip"
      title="OS User Mappings"
