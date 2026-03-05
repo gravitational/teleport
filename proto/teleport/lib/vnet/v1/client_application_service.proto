@@ -65,6 +65,13 @@ service ClientApplicationService {
   // ExchangeSSHKeys sends VNet's SSH host CA key to the client application and
   // returns the user public key.
   rpc ExchangeSSHKeys(ExchangeSSHKeysRequest) returns (ExchangeSSHKeysResponse);
+  // ReissueDBCert issues a new database certificate. The database protocol is
+  // looked up from the cluster and returned alongside the cert so the caller
+  // can configure the correct ALPN protocol for the local proxy.
+  rpc ReissueDBCert(ReissueDBCertRequest) returns (ReissueDBCertResponse);
+  // SignForDB issues a signature with the private key associated with a
+  // certificate previously issued by ReissueDBCert.
+  rpc SignForDB(SignForDBRequest) returns (SignForDBResponse);
 }
 
 // AuthenticateProcessRequest is a request for AuthenticateProcess.
@@ -123,6 +130,9 @@ message ResolveFQDNResponse {
     // match a subdomain of a proxy address. VNet will resolve the DNS query to
     // a handler that may later resolve the FQDN to an app or SSH server.
     MatchedCluster matched_cluster = 3;
+    // MatchedDatabase will be set when the query matched a database using the
+    // <db-user>.<db-service-name>.db.<proxy-addr> pattern.
+    MatchedDatabase matched_database = 4;
   }
 }
 
@@ -151,6 +161,44 @@ message MatchedCluster {
   // LeafCluster will be set only when the query matched a leaf cluster of
   // RootCluster, or else it will be empty.
   string leaf_cluster = 5;
+}
+
+// MatchedDatabase holds info about a database that matched a VNet DNS query.
+message MatchedDatabase {
+  // DbServiceName is the name of the database service parsed from the FQDN.
+  string db_service_name = 1;
+  // DbUser is the database user parsed from the FQDN.
+  string db_user = 2;
+  // Profile is the profile the matched cluster was found in.
+  string profile = 3;
+  // RootCluster is the name of the root cluster.
+  string root_cluster = 4;
+  // LeafCluster is the leaf cluster, or empty if the database is in the root cluster.
+  string leaf_cluster = 5;
+  // Ipv4CidrRange is the CIDR range from which an IPv4 address should be
+  // assigned for this database.
+  string ipv4_cidr_range = 6;
+  // DialOptions holds options for dialing the root cluster proxy.
+  DialOptions dial_options = 7;
+  // DbProtocol is the database protocol string (e.g. "postgres", "mysql").
+  // Populated at DNS resolution time so cert issuers don't need to re-query
+  // the cluster.
+  string db_protocol = 8;
+}
+
+// DBKey uniquely identifies a database session for certificate caching.
+message DBKey {
+  // Profile is the profile in which the database is found.
+  string profile = 1;
+  // LeafCluster is the leaf cluster, or empty for the root cluster.
+  string leaf_cluster = 2;
+  // DbServiceName is the name of the database service.
+  string db_service_name = 3;
+  // DbUser is the database user.
+  string db_user = 4;
+  // DbProtocol is the database protocol string (e.g. "postgres", "mysql").
+  // When set, cert issuers can skip a separate cluster lookup for the protocol.
+  string db_protocol = 5;
 }
 
 // AppInfo holds all necessary info for making connections to VNet TCP apps.
@@ -393,4 +441,36 @@ message ExchangeSSHKeysResponse {
   // UserPublicKey is the user key that should be trusted by VNet for incoming
   // connections from SSH clients. It is encoded in OpenSSH wire format.
   bytes user_public_key = 1;
+}
+
+// ReissueDBCertRequest is a request for ReissueDBCert.
+message ReissueDBCertRequest {
+  // DbKey identifies the database session.
+  DBKey db_key = 1;
+  // DbName is the database name to connect to. May be empty to use the
+  // server default.
+  string db_name = 2;
+}
+
+// ReissueDBCertResponse is a response for ReissueDBCert.
+message ReissueDBCertResponse {
+  // Cert is the issued database certificate in x509 DER format.
+  bytes cert = 1;
+  // DbProtocol is the database protocol (e.g. "postgres", "mysql") looked up
+  // from the cluster. The caller uses this to select the correct ALPN protocol.
+  string db_protocol = 2;
+}
+
+// SignForDBRequest is a request for SignForDB.
+message SignForDBRequest {
+  // DbKey identifies the database session whose cached signer should be used.
+  DBKey db_key = 1;
+  // Sign holds signature request details.
+  SignRequest sign = 2;
+}
+
+// SignForDBResponse is a response for SignForDB.
+message SignForDBResponse {
+  // Signature is the signature.
+  bytes signature = 1;
 }

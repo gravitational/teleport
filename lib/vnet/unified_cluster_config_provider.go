@@ -48,9 +48,19 @@ func (c *UnifiedClusterConfig) AppDNSZones() []string {
 	return utils.Deduplicate(slices.Concat(c.CustomDNSZones, c.ProxyPublicAddrs))
 }
 
+// DBDNSZones returns the DNS zones for database tunnel access.
+// Each zone follows the pattern "db.<proxy-public-addr>".
+func (c *UnifiedClusterConfig) DBDNSZones() []string {
+	zones := make([]string, 0, len(c.ProxyPublicAddrs))
+	for _, addr := range c.ProxyPublicAddrs {
+		zones = append(zones, "db."+addr)
+	}
+	return utils.Deduplicate(zones)
+}
+
 // AllDNSZones return all DNS suffixes VNet handles.
 func (c *UnifiedClusterConfig) AllDNSZones() []string {
-	return utils.Deduplicate(slices.Concat(c.CustomDNSZones, c.ProxyPublicAddrs, c.ClusterNames))
+	return utils.Deduplicate(slices.Concat(c.CustomDNSZones, c.ProxyPublicAddrs, c.ClusterNames, c.DBDNSZones()))
 }
 
 // UnifiedClusterConfigProvider fetches the [UnifiedClusterConfig].

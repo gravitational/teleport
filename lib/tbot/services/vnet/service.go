@@ -18,6 +18,7 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
@@ -304,6 +305,42 @@ func (s *applicationService) ResolveFQDN(ctx context.Context, req *vnetv1.Resolv
 		return nil, trace.NotFound("fqdn %q is not in beam allowlist")
 	}
 
+	// Check if this looks like a database FQDN: <db-user>.<db-service>.db.<proxy>.
+	dbZone := "db." + hostname(proxyAddr)
+	if strings.HasSuffix(fqdn, "."+fullyQualify(dbZone)) {
+		prefix := strings.TrimSuffix(fqdn, "."+fullyQualify(dbZone))
+		parts := strings.SplitN(prefix, ".", 2)
+		if len(parts) == 2 {
+			dbUser, dbServiceName := parts[0], parts[1]
+			db, err := s.getDatabase(ctx, dbServiceName)
+			if err != nil {
+				return nil, trace.Wrap(err, "looking up database %q", dbServiceName)
+			}
+			alpnRequired, err := s.alpnUpgradeCache.IsUpgradeRequired(ctx, proxyAddr, false)
+			if err != nil {
+				return nil, trace.Wrap(err, "determining if ALPN upgrade is required")
+			}
+			return &vnetv1.ResolveFQDNResponse{
+				Match: &vnetv1.ResolveFQDNResponse_MatchedDatabase{
+					MatchedDatabase: &vnetv1.MatchedDatabase{
+						DbServiceName: db.GetName(),
+						DbUser:        dbUser,
+						DbProtocol:    db.GetProtocol(),
+						Profile:       proxyAddr,
+						RootCluster:   s.botIdentity.Get().ClusterName,
+						Ipv4CidrRange: typesvnet.DefaultIPv4CIDRRange,
+						DialOptions: &vnetv1.DialOptions{
+							WebProxyAddr:            proxyAddr,
+							AlpnConnUpgradeRequired: alpnRequired,
+							Sni:                     hostname(proxyAddr),
+							InsecureSkipVerify:      true,
+						},
+					},
+				},
+			}, nil
+		}
+	}
+
 	// Search for apps with a matching public_addr.
 	expr := `resource.spec.public_addr == "` + strings.TrimSuffix(fqdn, ".") + `" || resource.spec.public_addr == "` + fqdn + `"`
 	resp, err := apiclient.GetResourcePage[types.AppServer](ctx, s.client, &proto.ListResourcesRequest{
@@ -369,9 +406,10 @@ func (s *applicationService) GetTargetOSConfiguration(ctx context.Context, in *v
 	}
 
 	// TODO: support configuring the CIDR ranges properly.
+	proxyHost := hostname(proxyAddr)
 	return &vnetv1.GetTargetOSConfigurationResponse{
 		TargetOsConfiguration: &vnetv1.TargetOSConfiguration{
-			DnsZones:       []string{hostname(proxyAddr)},
+			DnsZones:       []string{proxyHost, "db." + proxyHost},
 			Ipv4CidrRanges: []string{typesvnet.DefaultIPv4CIDRRange},
 		},
 	}, nil
@@ -394,6 +432,40 @@ func (s *applicationService) GetAppCert(ctx context.Context, req *vnetv1.Reissue
 
 func (s *applicationService) GetUserCert(ctx context.Context, req *vnetv1.UserTLSCertRequest) (*tls.Certificate, error) {
 	return s.botIdentity.Get().TLSCert, nil
+}
+
+func (s *applicationService) GetDBCert(ctx context.Context, req *vnetv1.ReissueDBCertRequest) (*tls.Certificate, error) {
+	dbKey := req.GetDbKey()
+	id, err := s.identityGenerator.Generate(ctx,
+		identity.WithLifetime(s.credentialLifetime.TTL, s.credentialLifetime.RenewalInterval),
+		identity.WithRouteToDatabase(proto.RouteToDatabase{
+			ServiceName: dbKey.GetDbServiceName(),
+			Protocol:    dbKey.GetDbProtocol(),
+			Username:    dbKey.GetDbUser(),
+			Database:    req.GetDbName(),
+		}),
+		identity.WithDelegation(s.delegationSessionID),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "issuing database certificate")
+	}
+	return id.TLSCert, nil
+}
+
+func (s *applicationService) getDatabase(ctx context.Context, name string) (types.Database, error) {
+	servers, err := apiclient.GetAllResources[types.DatabaseServer](ctx, s.client, &proto.ListResourcesRequest{
+		Namespace:           defaults.Namespace,
+		ResourceType:        types.KindDatabaseServer,
+		PredicateExpression: `resource.metadata.name == "` + name + `"`,
+		Limit:               1,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(servers) == 0 {
+		return nil, trace.NotFound("database %q not found", name)
+	}
+	return servers[0].GetDatabase(), nil
 }
 
 func (s *applicationService) proxyAddr(ctx context.Context) (string, error) {

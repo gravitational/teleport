@@ -75,6 +75,13 @@ func (r *fqdnResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.Re
 	case !errors.Is(err, errNoMatch):
 		return nil, err
 	}
+	resp, err = r.tryResolveDB(ctx, profileNames, fqdn)
+	switch {
+	case err == nil:
+		return resp, nil
+	case !errors.Is(err, errNoMatch):
+		return nil, err
+	}
 	resp, err = r.tryResolveSSH(ctx, profileNames, fqdn)
 	switch {
 	case err == nil:
@@ -226,6 +233,53 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 			},
 		},
 	}, nil
+}
+
+// tryResolveDB checks if fqdn matches the database tunnel pattern
+// <db-user>.<db-service-name>.db.<proxy-addr> for any known profile.
+func (r *fqdnResolver) tryResolveDB(ctx context.Context, profileNames []string, fqdn string) (*vnetv1.ResolveFQDNResponse, error) {
+	for _, profileName := range profileNames {
+		rootClient, err := r.cfg.clientApplication.GetCachedClient(ctx, profileName, "")
+		if err != nil {
+			log.ErrorContext(ctx, "Failed to get root cluster client, databases in this cluster will not be resolved", "profile", profileName, "error", err)
+			continue
+		}
+		clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, rootClient)
+		if err != nil {
+			log.ErrorContext(ctx, "Failed to get cluster config, databases in this cluster will not be resolved", "profile", profileName, "error", err)
+			continue
+		}
+		dbZone := "db." + clusterConfig.ProxyPublicAddr
+		if !isDescendantSubdomain(fqdn, dbZone) {
+			continue
+		}
+		// Strip the db zone suffix to get "<db-user>.<db-service-name>".
+		prefix := strings.TrimSuffix(fqdn, "."+fullyQualify(dbZone))
+		parts := strings.SplitN(prefix, ".", 2)
+		if len(parts) != 2 {
+			log.DebugContext(ctx, "Ignoring database FQDN with unexpected format", "fqdn", fqdn)
+			continue
+		}
+		dbUser, dbServiceName := parts[0], parts[1]
+		dialOpts, err := r.cfg.clientApplication.GetDialOptions(ctx, profileName)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting dial options for database")
+		}
+		log.InfoContext(ctx, "Query matched a database", "profile", profileName, "db_service", dbServiceName, "db_user", dbUser)
+		return &vnetv1.ResolveFQDNResponse{
+			Match: &vnetv1.ResolveFQDNResponse_MatchedDatabase{
+				MatchedDatabase: &vnetv1.MatchedDatabase{
+					DbServiceName: dbServiceName,
+					DbUser:        dbUser,
+					Profile:       profileName,
+					RootCluster:   rootClient.ClusterName(),
+					Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
+					DialOptions:   dialOpts,
+				},
+			},
+		}, nil
+	}
+	return nil, errNoMatch
 }
 
 // VNet SSH handles SSH hostnames matching "<hostname>.<cluster_name>.", where

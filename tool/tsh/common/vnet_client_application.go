@@ -27,7 +27,10 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
@@ -98,6 +101,66 @@ func (p *vnetClientApplication) ReissueAppCert(ctx context.Context, appInfo *vne
 		return trace.Wrap(err, "reissuing app cert")
 	})
 	return cert, trace.Wrap(err)
+}
+
+func (p *vnetClientApplication) ReissueDBCert(ctx context.Context, dbKey *vnetv1.DBKey, dbName string) (tls.Certificate, string, error) {
+	profileName := dbKey.GetProfile()
+	leafClusterName := dbKey.GetLeafCluster()
+
+	tc, err := p.newTeleportClient(ctx, profileName, leafClusterName)
+	if err != nil {
+		return tls.Certificate{}, "", trace.Wrap(err)
+	}
+
+	var cert tls.Certificate
+	var dbProtocol string
+
+	err = p.retryWithRelogin(ctx, tc, func() error {
+		clusterClient, err := p.clientCache.Get(ctx, profileName, leafClusterName)
+		if err != nil {
+			return trace.Wrap(err, "getting cached cluster client")
+		}
+
+		protocol := dbKey.GetDbProtocol()
+		if protocol == "" {
+			servers, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clusterClient.AuthClient, &proto.ListResourcesRequest{
+				Namespace:           defaults.Namespace,
+				ResourceType:        types.KindDatabaseServer,
+				PredicateExpression: fmt.Sprintf(`name == %q`, dbKey.GetDbServiceName()),
+				Limit:               1,
+			})
+			if err != nil {
+				return trace.Wrap(err, "looking up database %q", dbKey.GetDbServiceName())
+			}
+			if len(servers) == 0 {
+				return trace.NotFound("database %q not found", dbKey.GetDbServiceName())
+			}
+			protocol = servers[0].GetDatabase().GetProtocol()
+		}
+		dbProtocol = protocol
+
+		profile, err := tc.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err, "loading client profile")
+		}
+		result, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+			RouteToCluster: leafClusterName,
+			RouteToDatabase: proto.RouteToDatabase{
+				ServiceName: dbKey.GetDbServiceName(),
+				Protocol:    protocol,
+				Username:    dbKey.GetDbUser(),
+				Database:    dbName,
+			},
+			AccessRequests: profile.ActiveRequests,
+			RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
+		})
+		if err != nil {
+			return trace.Wrap(err, "issuing database cert")
+		}
+		cert, err = result.KeyRing.DBTLSCert(dbKey.GetDbServiceName())
+		return trace.Wrap(err, "getting DB TLS cert from key ring")
+	})
+	return cert, dbProtocol, trace.Wrap(err)
 }
 
 // UserTLSCert returns the user TLS certificate for the given profile.

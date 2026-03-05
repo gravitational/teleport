@@ -213,6 +213,29 @@ func (c *clientApplicationServiceClient) SignForSSHSession(ctx context.Context, 
 	return resp.GetSignature(), nil
 }
 
+// ReissueDBCert issues a new certificate for the requested database. Returns
+// the cert DER and the database protocol string.
+func (c *clientApplicationServiceClient) ReissueDBCert(ctx context.Context, dbKey *vnetv1.DBKey, dbName string) ([]byte, string, error) {
+	resp, err := c.clt.ReissueDBCert(ctx, &vnetv1.ReissueDBCertRequest{
+		DbKey:  dbKey,
+		DbName: dbName,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err, "calling ReissueDBCert rpc")
+	}
+	return resp.GetCert(), resp.GetDbProtocol(), nil
+}
+
+// SignForDB returns a cryptographic signature with the key associated with the
+// requested database. The key resides in the client application process.
+func (c *clientApplicationServiceClient) SignForDB(ctx context.Context, req *vnetv1.SignForDBRequest) ([]byte, error) {
+	resp, err := c.clt.SignForDB(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "calling SignForDB rpc")
+	}
+	return resp.GetSignature(), nil
+}
+
 // ExchangeSSHKeys sends hostPublicKey to the client application so that it
 // can write an OpenSSH-compatible configuration file. It returns the user
 // public key that should be trusted for incoming connections from third-party

@@ -66,6 +66,10 @@ type EmbeddedApplicationService interface {
 	// GetUserCert gets the user's TLS certificate. The result will be cached so
 	// that its private key can be used for signing.
 	GetUserCert(ctx context.Context, req *vnetv1.UserTLSCertRequest) (*tls.Certificate, error)
+
+	// GetDBCert issues a TLS certificate for the given database. The result
+	// will be cached so that its private key can be used for signing.
+	GetDBCert(ctx context.Context, req *vnetv1.ReissueDBCertRequest) (*tls.Certificate, error)
 }
 
 // EmbeddedVNetHostConfig is passed to EmbeddedVNetConfig.ConfigureHost to
@@ -116,6 +120,7 @@ func NewEmbeddedVNet(cfg EmbeddedVNetConfig) (*EmbeddedVNet, error) {
 			clt: &embeddedApplicationServiceClient{
 				service:    cfg.ApplicationService,
 				appSigners: make(map[appKey]crypto.Signer),
+				dbSigners:  make(map[dbEmbeddedKey]crypto.Signer),
 			},
 			closer: io.NopCloser(bytes.NewReader([]byte{})),
 		},
@@ -198,6 +203,24 @@ type embeddedApplicationServiceClient struct {
 	mu         sync.Mutex
 	userSigner crypto.Signer
 	appSigners map[appKey]crypto.Signer
+	dbSigners  map[dbEmbeddedKey]crypto.Signer
+}
+
+// dbEmbeddedKey identifies a database session for signer caching in embedded VNet.
+type dbEmbeddedKey struct {
+	profile       string
+	leafCluster   string
+	dbServiceName string
+	dbUser        string
+}
+
+func newDBEmbeddedKey(k *vnetv1.DBKey) dbEmbeddedKey {
+	return dbEmbeddedKey{
+		profile:       k.GetProfile(),
+		leafCluster:   k.GetLeafCluster(),
+		dbServiceName: k.GetDbServiceName(),
+		dbUser:        k.GetDbUser(),
+	}
 }
 
 func (e *embeddedApplicationServiceClient) AuthenticateProcess(_ context.Context, req *vnetv1.AuthenticateProcessRequest, _ ...grpc.CallOption) (*vnetv1.AuthenticateProcessResponse, error) {
@@ -327,6 +350,38 @@ func (*embeddedApplicationServiceClient) ExchangeSSHKeys(context.Context, *vnetv
 	return &vnetv1.ExchangeSSHKeysResponse{
 		UserPublicKey: signer.PublicKey().Marshal(),
 	}, nil
+}
+
+func (e *embeddedApplicationServiceClient) ReissueDBCert(ctx context.Context, req *vnetv1.ReissueDBCertRequest, _ ...grpc.CallOption) (*vnetv1.ReissueDBCertResponse, error) {
+	cert, err := e.service.GetDBCert(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key := newDBEmbeddedKey(req.GetDbKey())
+	e.mu.Lock()
+	e.dbSigners[key] = cert.PrivateKey.(crypto.Signer)
+	e.mu.Unlock()
+
+	return &vnetv1.ReissueDBCertResponse{Cert: cert.Certificate[0]}, nil
+}
+
+func (e *embeddedApplicationServiceClient) SignForDB(ctx context.Context, req *vnetv1.SignForDBRequest, _ ...grpc.CallOption) (*vnetv1.SignForDBResponse, error) {
+	key := newDBEmbeddedKey(req.GetDbKey())
+
+	e.mu.Lock()
+	signer, ok := e.dbSigners[key]
+	e.mu.Unlock()
+
+	if !ok {
+		return nil, trace.NotFound("no signer for database %v", key)
+	}
+
+	sig, err := sign(signer, req.GetSign())
+	if err != nil {
+		return nil, trace.Wrap(err, "signing for database %v", key)
+	}
+	return &vnetv1.SignForDBResponse{Signature: sig}, nil
 }
 
 var _ vnetv1.ClientApplicationServiceClient = (*embeddedApplicationServiceClient)(nil)

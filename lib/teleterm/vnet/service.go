@@ -474,6 +474,49 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 	return cert, nil
 }
 
+func (p *clientApplication) ReissueDBCert(ctx context.Context, dbKey *vnetv1.DBKey, dbName string) (tls.Certificate, string, error) {
+	profileName := dbKey.GetProfile()
+	leafClusterName := dbKey.GetLeafCluster()
+	clusterURI := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
+
+	var cert tls.Certificate
+	var dbProtocol string
+
+	reissueCert := func() error {
+		cluster, _, err := p.daemonService.ResolveClusterURI(clusterURI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		clusterClient, err := p.daemonService.GetCachedClient(ctx, clusterURI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		protocol := dbKey.GetDbProtocol()
+		if protocol == "" {
+			db, err := cluster.GetDatabase(ctx, clusterClient.AuthClient, clusterURI.AppendDB(dbKey.GetDbServiceName()))
+			if err != nil {
+				return trace.Wrap(err, "looking up database %q for protocol", dbKey.GetDbServiceName())
+			}
+			protocol = db.GetProtocol()
+		}
+		dbProtocol = protocol
+
+		cert, err = cluster.ReissueDBCert(ctx, clusterClient, dbKey.GetDbServiceName(), dbKey.GetDbUser(), dbName, protocol)
+		return trace.Wrap(err)
+	}
+
+	reloginReq := &apiteleterm.ReloginRequest{
+		RootClusterUri: clusterURI.GetRootClusterURI().String(),
+		Reason:         &apiteleterm.ReloginRequest_VnetCertExpired{VnetCertExpired: &apiteleterm.VnetCertExpired{}},
+	}
+	if err := p.daemonService.RetryWithRelogin(ctx, reloginReq, reissueCert); err != nil {
+		return tls.Certificate{}, "", trace.Wrap(err)
+	}
+	return cert, dbProtocol, nil
+}
+
 // UserTLSCert returns the user TLS certificate for the given profile.
 func (p *clientApplication) UserTLSCert(ctx context.Context, profileName string) (tls.Certificate, error) {
 	// We don't have easy access to the user TLS cert from here, the only way

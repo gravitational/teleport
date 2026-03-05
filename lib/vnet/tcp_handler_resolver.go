@@ -39,6 +39,7 @@ type tcpHandlerResolver struct {
 type tcpHandlerResolverConfig struct {
 	clt                      *clientApplicationServiceClient
 	appProvider              *appProvider
+	dbProvider               *dbProvider
 	sshProvider              *sshProvider
 	clock                    clockwork.Clock
 	alwaysTrustRootClusterCA bool
@@ -71,6 +72,17 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 			tcpHandler: newTCPAppHandler(&tcpAppHandlerConfig{
 				appInfo:                  appInfo,
 				appProvider:              r.cfg.appProvider,
+				clock:                    r.cfg.clock,
+				alwaysTrustRootClusterCA: r.cfg.alwaysTrustRootClusterCA,
+			}),
+		}, nil
+	}
+	if matchedDB := resp.GetMatchedDatabase(); matchedDB != nil {
+		return &tcpHandlerSpec{
+			ipv4CIDRRange: matchedDB.GetIpv4CidrRange(),
+			tcpHandler: newDBTunnelHandler(&dbTunnelHandlerConfig{
+				matchedDB:                matchedDB,
+				dbProvider:               r.cfg.dbProvider,
 				clock:                    r.cfg.clock,
 				alwaysTrustRootClusterCA: r.cfg.alwaysTrustRootClusterCA,
 			}),

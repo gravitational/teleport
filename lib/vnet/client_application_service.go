@@ -62,6 +62,12 @@ type clientApplicationService struct {
 	// one.
 	appSignerCache map[appKey]crypto.Signer
 
+	// dbSignerMu protects dbSignerCache.
+	dbSignerMu sync.Mutex
+	// dbSignerCache caches the crypto.Signer for each certificate issued by
+	// ReissueDBCert so that SignForDB can later use that signer.
+	dbSignerCache map[dbCacheKey]crypto.Signer
+
 	// sshSigners is a cache containing [crypto.Signer]s keyed by SSH session
 	// ID. This "session ID" is a concept only used here for retrieving a signer
 	// previously associated with the same session, it is not some Teleport
@@ -89,6 +95,7 @@ func newClientApplicationService(cfg *clientApplicationServiceConfig) (*clientAp
 		cfg:              cfg,
 		networkStackInfo: make(chan *vnetv1.NetworkStackInfo, 1),
 		appSignerCache:   make(map[appKey]crypto.Signer),
+		dbSignerCache:    make(map[dbCacheKey]crypto.Signer),
 		sshSigners:       sshSigners,
 	}, nil
 }
@@ -246,6 +253,58 @@ func newAppKey(protoAppKey *vnetv1.AppKey, port uint16) appKey {
 		app:         protoAppKey.GetName(),
 		port:        port,
 	}
+}
+
+// dbCacheKey is a map key for the dbSignerCache.
+type dbCacheKey struct {
+	profile, leafCluster, serviceName, dbUser string
+}
+
+func newDBCacheKey(dbKey *vnetv1.DBKey) dbCacheKey {
+	return dbCacheKey{
+		profile:     dbKey.GetProfile(),
+		leafCluster: dbKey.GetLeafCluster(),
+		serviceName: dbKey.GetDbServiceName(),
+		dbUser:      dbKey.GetDbUser(),
+	}
+}
+
+// ReissueDBCert implements [vnetv1.ClientApplicationServiceServer.ReissueDBCert].
+func (s *clientApplicationService) ReissueDBCert(ctx context.Context, req *vnetv1.ReissueDBCertRequest) (*vnetv1.ReissueDBCertResponse, error) {
+	dbKey := req.GetDbKey()
+	if dbKey == nil {
+		return nil, trace.BadParameter("missing DBKey")
+	}
+	cert, dbProtocol, err := s.cfg.clientApplication.ReissueDBCert(ctx, dbKey, req.GetDbName())
+	if err != nil {
+		return nil, trace.Wrap(err, "reissuing DB certificate")
+	}
+	s.dbSignerMu.Lock()
+	s.dbSignerCache[newDBCacheKey(dbKey)] = cert.PrivateKey.(crypto.Signer)
+	s.dbSignerMu.Unlock()
+	return &vnetv1.ReissueDBCertResponse{
+		Cert:       cert.Certificate[0],
+		DbProtocol: dbProtocol,
+	}, nil
+}
+
+// SignForDB implements [vnetv1.ClientApplicationServiceServer.SignForDB].
+func (s *clientApplicationService) SignForDB(ctx context.Context, req *vnetv1.SignForDBRequest) (*vnetv1.SignForDBResponse, error) {
+	dbKey := req.GetDbKey()
+	if dbKey == nil {
+		return nil, trace.BadParameter("missing DBKey")
+	}
+	s.dbSignerMu.Lock()
+	signer, ok := s.dbSignerCache[newDBCacheKey(dbKey)]
+	s.dbSignerMu.Unlock()
+	if !ok {
+		return nil, trace.BadParameter("no signer for database %v", dbKey.GetDbServiceName())
+	}
+	signature, err := sign(signer, req.GetSign())
+	if err != nil {
+		return nil, trace.Wrap(err, "signing for database %v", dbKey.GetDbServiceName())
+	}
+	return &vnetv1.SignForDBResponse{Signature: signature}, nil
 }
 
 // GetTargetOSConfiguration returns the configuration values that should be

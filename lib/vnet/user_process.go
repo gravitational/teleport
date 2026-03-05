@@ -46,6 +46,11 @@ type ClientApplication interface {
 	// ReissueAppCert issues a new cert for the target app.
 	ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) (tls.Certificate, error)
 
+	// ReissueDBCert issues a new certificate for the target database. It looks
+	// up the database spec to determine the protocol and returns both the cert
+	// and the database protocol string (e.g. "postgres", "mysql").
+	ReissueDBCert(ctx context.Context, dbKey *vnetv1.DBKey, dbName string) (tls.Certificate, string, error)
+
 	// UserTLSCert returns the user TLS certificate for the given profile.
 	UserTLSCert(ctx context.Context, profileName string) (tls.Certificate, error)
 
