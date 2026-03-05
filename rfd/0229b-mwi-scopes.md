@@ -119,8 +119,8 @@ These rules are as follows:
     constrains where it may be assigned.
 - RFD229-2: A Scoped Role Assignment's scope of effect must be the same or a
   descendent of its scope of origin.
-- RFD229B-1: The scope of origin and scope of effect of a Scoped Role Assignment
-  for a Scoped Bot must be the same scope or descendent scope of the Bot's scope.
+- RFD229B-1: The scope of effect of a Scoped Role Assignment for a Scoped Bot
+  must be the same scope or descendent scope of the Bot's scope.
   - nb: RFD229-2 constrains scope of effect to at most scope of origin for SRA.
 
 In practice, these rules mean that a Scoped Bot can only be assigned privileges
@@ -149,6 +149,7 @@ Worked Examples:
 | /a/b      | /a/b     | /a/b                | /a/b                | OK                           |
 | /a/b      | /a/b/c   | /a/b/c              | /a/b/c              | OK                           |
 | /a/b      | /a       | /a/b                | /a/b                | OK                           |
+| /a/b      | /a       | /a                  | /a/b                | OK                           |
 | /a/b      | /a/b     | /a/b/c              | /a/b/c              | OK                           |
 | /a/b      | /a/b     | /a/b                | /a/b/c              | OK                           |
 | /a/b      | /a/b     | /a                  | /a                  | NOT OK - RFD229-1            |
