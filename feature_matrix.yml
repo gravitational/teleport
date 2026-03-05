@@ -1,0 +1,264 @@
+version: 1
+
+legend:
+  depends_on: 'Hard prerequisite / underlying capability'
+  gated_by: 'Commonly controlled by RBAC/flags/config'
+  optionally_gated_by: 'May be enabled/required in some deployments'
+  emits: 'Produces audit events / recordings / notifications'
+  related_to: 'Often impacted together; test together'
+
+features:
+  - id: feat.identity
+    name: Identity & Authentication (baseline)
+    keywords: [authn, login, identity, users, sessions, sso, passwordless]
+    paths_hint: [auth_service, webapi, connectors, oidc, saml, github, login]
+    relevant_paths:
+      - lib/auth
+      - lib/auth/webauthn
+      - lib/auth/oidc
+      - lib/services/user.go
+      - tool/tsh
+    doc_refs:
+      - https://goteleport.com/docs/reference/access-controls/
+      - https://goteleport.com/docs/connect-your-client/teleport-clients/
+
+  - id: feat.rbac
+    name: Role-Based Access Control (RBAC)
+    depends_on: [feat.identity]
+    keywords: [role, allow, deny, labels, traits, permissions, access-controls]
+    paths_hint: [roles, rbac, allow, deny, labels, traits]
+    relevant_paths:
+      - api/types/role.go
+      - lib/services/role.go
+      - lib/services/local/access.go
+      - lib/services/useracl.go
+      - lib/services/presets.go
+    doc_refs:
+      - https://goteleport.com/docs/reference/access-controls/roles/
+
+  - id: feat.audit_events
+    name: Audit Events & Records
+    depends_on: [feat.identity]
+    keywords: [audit, events, export, siem, event-handler]
+    paths_hint: [audit, events, emitter, export, integration]
+    relevant_paths:
+      - lib/events
+      - lib/services/local/events.go
+      - lib/services/useracl.go
+    doc_refs:
+      - https://goteleport.com/docs/reference/deployment/monitoring/audit/
+      - https://goteleport.com/docs/reference/audit-events/
+
+  - id: feat.session_recording
+    name: Session Recording & Playback
+    depends_on: [feat.audit_events]
+    gated_by: [feat.rbac]
+    keywords: [recording, playback, sessions, proxy-recording, node-recording]
+    paths_hint: [session_recording, recording_mode, playback]
+    relevant_paths:
+      - lib/auth/recording_encryption/
+      - lib/events/gcssessions
+      - lib/events/filesessions
+      - lib/events/s3sessions
+      - lib/events/uploader.go
+      - lib/events/stream.go
+    doc_refs:
+      - https://goteleport.com/docs/reference/architecture/session-recording/
+      - https://goteleport.com/docs/reference/deployment/monitoring/audit/
+
+  - id: feat.access_requests
+    name: Just-in-time Access Requests
+    depends_on: [feat.identity, feat.rbac, feat.audit_events]
+    emits: [feat.audit_events]
+    keywords: [request, approve, review, ttl, reason, identity-governance]
+    paths_hint: [access_request, request-ttl, review, approval, plugins]
+    relevant_paths:
+      - lib/services/access_request.go
+      - lib/services/local/dynamic_access.go
+      - lib/services/useracl.go
+      - lib/services/presets.go
+    doc_refs:
+      - https://goteleport.com/docs/identity-governance/access-requests/
+      - https://goteleport.com/docs/identity-governance/access-requests/access-request-configuration/
+
+  - id: feat.access_monitoring_rules
+    name: Access Monitoring Rules (notification routing / auto review)
+    depends_on: [feat.access_requests, feat.audit_events]
+    emits: [feat.audit_events]
+    keywords:
+      [amr, routing, notifications, automatic-review, plugins, predicate]
+    paths_hint: [access_monitoring_rule, routing, auto_review, plugin]
+    relevant_paths:
+      - lib/services/access_monitoring_rules.go
+      - lib/services/local/access_monitoring_rules.go
+      - lib/accessmonitoring
+      - lib/services/useracl.go
+    doc_refs:
+      - https://goteleport.com/docs/reference/access-controls/access-monitoring-rules/
+      - https://goteleport.com/docs/identity-governance/access-request-plugins/notification-routing-rules/
+
+  - id: feat.access_lists
+    name: Access Lists (long-lived access + membership review)
+    depends_on: [feat.rbac, feat.audit_events]
+    emits: [feat.audit_events]
+    keywords: [access-lists, membership, review, owners, governance]
+    paths_hint: [access_list, membership, review, owners]
+    relevant_paths:
+      - lib/services/access_list.go
+      - lib/services/local/access_list.go
+      - lib/services/useracl.go
+    doc_refs:
+      - https://goteleport.com/docs/reference/access-controls/access-lists/
+      - https://goteleport.com/docs/identity-governance/access-lists/
+
+  - id: feat.ssh_access
+    name: SSH Access
+    depends_on:
+      [feat.identity, feat.rbac, feat.audit_events, feat.scoped_access]
+    related_to: [feat.session_recording]
+    keywords: [ssh, node, logins, labels, sessions]
+    paths_hint: [ssh_service, node, server, logins, labels]
+    relevant_paths:
+      - lib/srv/regular
+      - lib/srv/forward
+      - tool/tsh
+    doc_refs:
+      - https://goteleport.com/docs/enroll-resources/server-access/rbac/
+
+  - id: feat.scoped_access
+    name: Scoped Access
+    related_to: [feat.ssh_access, feat.k8s_access, feat.joining]
+    keywords: [scope, access, namespacem, joining]
+    paths_hint: [scope, scoped]
+    relevant_paths:
+      - lib/services/scoped.go
+      - lib/services/scoped_tokens.go
+      - lib/services/local/scoped_access.go
+      - lib/services/local/scoped_tokens.go
+      - lib/scopes/
+
+  - id: feat.joining
+    name: Joining
+    related_to: [feat.ssh_access, feat.k8s_access, feat.scoped_access]
+    keywords: [join, provision, token, access]
+    path_hint: [join, joining]
+    relevant_paths:
+      - lib/join
+      - lib/scopes/joining
+      - lib/auth/join
+
+  - id: feat.app_access
+    name: Application Access
+    depends_on: [feat.identity, feat.audit_events]
+    gated_by: [feat.rbac]
+    related_to: [feat.session_recording]
+    keywords: [app_service, jwt, proxy, webapp, labels]
+    paths_hint: [app_service, app_labels, jwt, proxy]
+    relevant_paths:
+      - lib/srv/app
+      - lib/srv/app/common
+      - lib/services/useracl.go
+      - tool/tsh
+    doc_refs:
+      - https://goteleport.com/docs/enroll-resources/application-access/
+      - https://goteleport.com/docs/enroll-resources/application-access/configuration/controls/
+
+  - id: feat.db_access
+    name: Database Access
+    depends_on: [feat.identity, feat.audit_events]
+    gated_by: [feat.rbac]
+    optionally_gated_by: [feat.access_requests]
+    related_to: [feat.session_recording]
+    keywords: [db_service, database, certs, rbac, audit]
+    paths_hint: [db_service, database, db_labels, db_users, db_names]
+    relevant_paths:
+      - lib/srv/db
+      - lib/srv/db/common
+      - lib/services/useracl.go
+      - tool/tsh
+    doc_refs:
+      - https://goteleport.com/docs/enroll-resources/database-access/
+      - https://goteleport.com/docs/enroll-resources/database-access/getting-started/
+
+  - id: feat.k8s_access
+    name: Kubernetes Access
+    depends_on: [feat.identity, feat.audit_events]
+    gated_by: [feat.rbac]
+    related_to: [feat.session_recording]
+    keywords: [kube, kubernetes_service, kubectl, groups, users]
+    paths_hint:
+      [kube_service, kubernetes_labels, kubernetes_groups, kubernetes_users]
+    relevant_paths:
+      - lib/kube
+      - lib/kube/proxy
+      - lib/services/useracl.go
+      - tool/tsh
+    doc_refs:
+      - https://goteleport.com/docs/enroll-resources/kubernetes-access/
+      - https://goteleport.com/docs/enroll-resources/kubernetes-access/manage-access/
+
+  - id: feat.desktop_access
+    name: Desktop Access
+    depends_on: [feat.identity, feat.audit_events]
+    gated_by: [feat.rbac]
+    related_to: [feat.session_recording]
+    keywords: [desktop, rdp, windows, playback, recording]
+    paths_hint: [desktop_service, rdp, desktop_sessions, recording]
+    relevant_paths:
+      - lib/srv/desktop
+      - lib/srv/desktop/rdp
+      - lib/srv/desktop/rdp/rdpclient
+      - lib/services/useracl.go
+    doc_refs:
+      - https://goteleport.com/docs/enroll-resources/desktop-access/reference/sessions/
+
+  - id: feat.device_trust
+    name: Device Trust
+    depends_on: [feat.identity, feat.audit_events]
+    gated_by: [feat.rbac] # role-based enforcement is a documented option
+    keywords: [device, enrollment, trusted, tpm, secure-enclave, enforcement]
+    paths_hint: [device_trust_mode, device_enrollment, device_inventory]
+    relevant_paths:
+      - lib/devicetrust
+      - lib/services/local/events.go
+      - lib/services/useracl.go
+    doc_refs:
+      - https://goteleport.com/docs/identity-governance/device-trust/
+      - https://goteleport.com/docs/reference/architecture/device-trust/
+
+  - id: feat.clients
+    name: Clients (tsh / Teleport Connect / Web UI)
+    depends_on: [feat.identity]
+    related_to:
+      [
+        feat.access_requests,
+        feat.ssh_access,
+        feat.app_access,
+        feat.db_access,
+        feat.k8s_access,
+      ]
+    keywords: [tsh, connect, web-ui, login, local-proxy]
+    paths_hint: [tsh, teleport-connect, web-ui, local-proxy]
+    relevant_paths:
+      - tool/tsh
+      - lib/client
+      - lib/auth
+    doc_refs:
+      - https://goteleport.com/docs/connect-your-client/teleport-clients/
+      - https://goteleport.com/docs/connect-your-client/teleport-clients/tsh/
+
+  - id: feat.mwi
+    name: Machine & Workload Identity (tbot)
+    depends_on: [feat.identity, feat.rbac, feat.audit_events]
+    related_to: [feat.ssh_access, feat.k8s_access, feat.db_access]
+    keywords: [tbot, bot, artifacts, renewal, short-lived, workload]
+    paths_hint: [tbot, bot, artifacts, output_services, renewal]
+    relevant_paths:
+      - tool/tbot
+      - lib/services/useracl.go
+      - lib/services/local/events.go
+      - lib/auth
+    doc_refs:
+      - https://goteleport.com/docs/machine-workload-identity/
+      - https://goteleport.com/docs/machine-workload-identity/introduction/
+      - https://goteleport.com/docs/reference/machine-workload-identity/configuration/
