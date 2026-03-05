@@ -372,16 +372,26 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 	return nil
 }
 
-// PublicKeyCallback validates a user key or certificate for SSH public key authentication before key possession has
-// been proven.
+// PublicKeyCallback performs a preliminary check to verify that the certificate was signed by a trusted authority and
+// is structurally valid.
 //
-// This method is to be used as the PublicKeyCallback in ssh.ServerConfig and performs a basic check to verify that the
-// certificate was signed by a trusted authority and that the certificate metadata is valid. It DOES NOT perform any
-// RBAC checks and is used as a preliminary step before the more in-depth VerifiedPublicKeyCallback, which performs RBAC
-// checks and is called only after the client proves possession of the key. If the certificate is valid, this callback
-// returns an empty ssh.Permissions object. If the certificate is invalid, it returns a non-nil error to reject the auth
-// attempt.
+// This method is intended to be used as the PublicKeyCallback in ssh.ServerConfig before the client proves key
+// possession. This preliminary check is intended to filter out obviously invalid certificates and should not be relied
+// on for final authentication and authorization decisions. It should be used in conjunction with
+// VerifiedPublicKeyCallback, which performs full certificate and RBAC checks after the client proves key possession.
+//
+// If the certificate is valid, this callback returns an empty ssh.Permissions object. If the certificate is invalid, it
+// returns a non-nil error to reject the auth attempt.
 func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
+
+	log := h.log.With(
+		"local_addr", conn.LocalAddr(),
+		"remote_addr", conn.RemoteAddr(),
+		"user", conn.User(),
+		"fingerprint", fingerprint,
+	)
+
 	checker := apisshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsUserAuthority: h.IsUserAuthority,
@@ -390,20 +400,33 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 		FIPS: h.c.FIPS,
 	}
 
-	if _, err := checker.Authenticate(conn, key); err != nil {
+	cert, ok := key.(*ssh.Certificate)
+	if !ok {
+		return nil, trace.BadParameter("unsupported key type: %v", fingerprint)
+	}
+
+	if len(cert.ValidPrincipals) == 0 {
+		return nil, trace.BadParameter("need a valid principal for key %v", fingerprint)
+	}
+
+	if err := checker.CheckCert(cert.ValidPrincipals[0], cert); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	log.Debug("Successfully validated certificate in PublicKeyCallback")
 
 	return &ssh.Permissions{}, nil
 }
 
-// VerifiedPublicKeyCallback performs full SSH user authentication and authorization after the client proves key
-// possession.
+// VerifiedPublicKeyCallback performs full validation of the client certificate, including RBAC checks.
 //
-// This method is to be used as the VerifiedPublicKeyCallback in ssh.ServerConfig and performs RBAC checks to
-// determine if the user is authorized to log in. If the user is authorized, this callback returns an ssh.Permissions
-// object that includes any relevant access permits encoded in the Extensions field, which can then be used by the rest
-// of the connection handling logic to determine what actions the user is authorized to perform in their session.
+// This method is intended to be used as the VerifiedPublicKeyCallback in ssh.ServerConfig after the client proves key
+// possession. This callback should be used in conjunction with PublicKeyCallback, which performs preliminary
+// certificate checks before key possession is proven.
+//
+// It performs full validation of the client certificate, including RBAC checks, and returns a populated ssh.Permissions
+// object if the certificate is valid and authorized. If the certificate is invalid or not authorized, it returns a
+// non-nil error to reject the auth attempt.
 func (h *AuthHandlers) VerifiedPublicKeyCallback(
 	conn ssh.ConnMetadata,
 	key ssh.PublicKey,

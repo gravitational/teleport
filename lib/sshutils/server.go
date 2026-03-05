@@ -803,16 +803,9 @@ func validateHostSigner(fips bool, signer ssh.Signer) error {
 }
 
 type (
-	PublicKeyFunc func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error)
-
-	VerifiedPublicKeyFunc func(
-		conn ssh.ConnMetadata,
-		key ssh.PublicKey,
-		permissions *ssh.Permissions,
-		signatureAlgorithm string,
-	) (*ssh.Permissions, error)
-
-	PasswordFunc func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
+	PublicKeyFunc         func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error)
+	VerifiedPublicKeyFunc func(conn ssh.ConnMetadata, key ssh.PublicKey, permissions *ssh.Permissions, signatureAlgorithm string) (*ssh.Permissions, error)
+	PasswordFunc          func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
 )
 
 // ClusterDetails specifies information about a cluster
