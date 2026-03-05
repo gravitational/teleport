@@ -616,12 +616,20 @@ static role, this risk does not exist.
 Potential mitigations:
 
 - Document this risk and encourage scope admins to avoid the use of role
-  templates.
+  templates. This seems unsuitable as a sole mitigation due to the potential
+  risk posed.
 - Ignore bot traits when evaluating roles outside the bot's scope of origin.
   Traits would function as expected within the bot's scope of origin. This
   does eliminate the risk of escalation, but is potentially confusing for 
   operators.
 - Do not allow traits to be set for scoped bots.
+
+At this time, the best path forward is to prohibit the use of traits with scoped
+bots. This keeps the scope of the work limited and avoids the risk of scope 
+isolation being compromised. In the future, we may consider relaxing this
+constraint either through a distinct ScopedTrait assignment resource or through
+other controls. This will provide ample opportunity to consider thoroughly the
+ramifications and most suitable model.
 
 ##### Name Reuse
 
