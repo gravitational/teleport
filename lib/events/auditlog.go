@@ -67,6 +67,11 @@ const (
 	// valuable info.
 	CorruptedSessionsDir = "corrupted"
 
+	// DelayedSessionsDir is a subdirectory of sessions (/var/lib/teleport/log/upload/delayed)
+	// where delayed session recordings are placed (i.e. uploading the session failed non-permanently
+	// and will be retried at a reduced frequency).
+	DelayedSessionsDir = "delayed"
+
 	// RecordsDir is an auth server subdirectory with session recordings that is used
 	// when the auth server is not configured for external cloud storage. It is not
 	// used by nodes, proxies, or other Teleport services.
