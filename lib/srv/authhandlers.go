@@ -372,9 +372,44 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 	return nil
 }
 
-// UserKeyAuth implements SSH client authentication using public keys and is
-// called by the server every time the client connects.
-func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (ppms *ssh.Permissions, rerr error) {
+// PublicKeyCallback validates a user key or certificate for SSH public key authentication before key possession has
+// been proven.
+//
+// This method is to be used as the PublicKeyCallback in ssh.ServerConfig and performs a basic check to verify that the
+// certificate was signed by a trusted authority and that the certificate metadata is valid. It DOES NOT perform any
+// RBAC checks and is used as a preliminary step before the more in-depth VerifiedPublicKeyCallback, which performs RBAC
+// checks and is called only after the client proves possession of the key. If the certificate is valid, this callback
+// returns an empty ssh.Permissions object. If the certificate is invalid, it returns a non-nil error to reject the auth
+// attempt.
+func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+	checker := apisshutils.CertChecker{
+		CertChecker: ssh.CertChecker{
+			IsUserAuthority: h.IsUserAuthority,
+			Clock:           h.c.Clock.Now,
+		},
+		FIPS: h.c.FIPS,
+	}
+
+	if _, err := checker.Authenticate(conn, key); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ssh.Permissions{}, nil
+}
+
+// VerifiedPublicKeyCallback performs full SSH user authentication and authorization after the client proves key
+// possession.
+//
+// This method is to be used as the VerifiedPublicKeyCallback in ssh.ServerConfig and performs RBAC checks to
+// determine if the user is authorized to log in. If the user is authorized, this callback returns an ssh.Permissions
+// object that includes any relevant access permits encoded in the Extensions field, which can then be used by the rest
+// of the connection handling logic to determine what actions the user is authorized to perform in their session.
+func (h *AuthHandlers) VerifiedPublicKeyCallback(
+	conn ssh.ConnMetadata,
+	key ssh.PublicKey,
+	_ *ssh.Permissions,
+	_ string,
+) (ppms *ssh.Permissions, rerr error) {
 	ctx := context.Background()
 
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))

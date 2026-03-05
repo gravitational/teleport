@@ -237,6 +237,7 @@ func NewServer(
 	}
 
 	s.cfg.PublicKeyCallback = ah.PublicKey
+	s.cfg.VerifiedPublicKeyCallback = ah.VerifiedPublicKey
 	s.cfg.PasswordCallback = ah.Password
 	s.cfg.NoClientAuth = ah.NoClient
 
@@ -723,9 +724,10 @@ func (f NewConnHandlerFunc) HandleNewConn(ctx context.Context, ccx *ConnectionCo
 }
 
 type AuthMethods struct {
-	PublicKey PublicKeyFunc
-	Password  PasswordFunc
-	NoClient  bool
+	PublicKey         PublicKeyFunc
+	VerifiedPublicKey VerifiedPublicKeyFunc
+	Password          PasswordFunc
+	NoClient          bool
 }
 
 // GetHostSignersFunc is an infallible function that returns host signers for
@@ -802,7 +804,15 @@ func validateHostSigner(fips bool, signer ssh.Signer) error {
 
 type (
 	PublicKeyFunc func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error)
-	PasswordFunc  func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
+
+	VerifiedPublicKeyFunc func(
+		conn ssh.ConnMetadata,
+		key ssh.PublicKey,
+		permissions *ssh.Permissions,
+		signatureAlgorithm string,
+	) (*ssh.Permissions, error)
+
+	PasswordFunc func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
 )
 
 // ClusterDetails specifies information about a cluster

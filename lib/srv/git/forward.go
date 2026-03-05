@@ -267,7 +267,8 @@ func (s *ForwardServer) Serve() {
 		sshutils.NewChanHandlerFunc(s.onChannel),
 		sshutils.StaticHostSigners(s.cfg.HostCertificate),
 		sshutils.AuthMethods{
-			PublicKey: s.userKeyAuth,
+			PublicKey:         s.publicKeyCallback,
+			VerifiedPublicKey: s.verifiedPublicKeyCallback,
 		},
 		sshutils.SetFIPS(s.cfg.FIPS),
 		sshutils.SetCiphers(s.cfg.Ciphers),
@@ -295,7 +296,7 @@ func (s *ForwardServer) close() {
 	}
 }
 
-func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+func checkAndSetGitUser(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.ConnMetadata, error) {
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		return nil, trace.BadParameter("unsupported key type")
@@ -319,9 +320,31 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 		conn = sshutils.NewSSHConnMetadataWithUser(conn, ident.Principals[0])
 	}
 
-	// Use auth.UserKeyAuth to verify user cert is signed by UserCA and to evaluate
-	// RBAC permissions.
-	permissions, err := s.auth.UserKeyAuth(conn, key)
+	return conn, nil
+}
+
+func (s *ForwardServer) publicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+	conn, err := checkAndSetGitUser(conn, key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	permissions, err := s.auth.PublicKeyCallback(conn, key)
+	if err != nil {
+		userKeyAuthFailureCounter.Inc()
+		return nil, trace.Wrap(err)
+	}
+
+	return permissions, nil
+}
+
+func (s *ForwardServer) verifiedPublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey, _ *ssh.Permissions, _ string) (*ssh.Permissions, error) {
+	conn, err := checkAndSetGitUser(conn, key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	permissions, err := s.auth.VerifiedPublicKeyCallback(conn, key, nil, "")
 	if err != nil {
 		userKeyAuthFailureCounter.Inc()
 		return nil, trace.Wrap(err)

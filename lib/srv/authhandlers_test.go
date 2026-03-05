@@ -294,7 +294,7 @@ func TestRBAC(t *testing.T) {
 			require.NoError(t, err)
 
 			// perform public key authentication
-			_, err = ah.UserKeyAuth(&mockConnMetadata{}, cert)
+			_, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, nil, "")
 			require.NoError(t, err)
 
 			tt.loginRBACCheck(t, lc.rbacChecked)
@@ -608,7 +608,7 @@ func TestScopedRBAC(t *testing.T) {
 			require.NoError(t, err)
 
 			// preform public key authentication
-			_, err = ah.UserKeyAuth(&mockConnMetadata{}, cert)
+			_, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, nil, "")
 			if tt.allowed {
 				require.NoError(t, err)
 			} else {
@@ -736,11 +736,11 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that authentication succeeds for local cert but is rejected categorically for remote
-	_, err = ah.UserKeyAuth(&mockConnMetadata{}, localCert)
+	_, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, localCert, nil, "")
 	require.NoError(t, err)
 	require.True(t, gc.rbacChecked)
 
-	_, err = ah.UserKeyAuth(&mockConnMetadata{}, remoteCert)
+	_, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, remoteCert, nil, "")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "cross-cluster git forwarding is not supported")
 }
@@ -1067,7 +1067,7 @@ func TestAuthAttemptAuditEvent(t *testing.T) {
 	require.NoError(t, err)
 
 	// perform public key authentication, should fail because no login checker set
-	_, err = ah.UserKeyAuth(&mockConnMetadata{}, cert)
+	_, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, nil, "")
 	require.Error(t, err)
 
 	// audit event (AuthAttempt) should include node's host id and hostname
