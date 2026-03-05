@@ -1,4 +1,4 @@
-.version: &version "17.7.19"
+.version: &version "17.7.20"
 
 apiVersion: v2
 name: teleport-plugin-event-handler

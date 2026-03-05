@@ -1,5 +1,19 @@
 # Changelog
 
+## 17.7.20 (03/05/06)
+
+* Fixed an issue where the UI would display a white screen and no error when an error occurred. [#64245](https://github.com/gravitational/teleport/pull/64245)
+* Improve the layout of the web UI's message of the day. [#64212](https://github.com/gravitational/teleport/pull/64212)
+* Fixed an issue where VNet on Windows could fail to start after an update with the error: `The specified service does not exist as an installed service.`. [#64207](https://github.com/gravitational/teleport/pull/64207)
+* Fixed db session page refresh redirecting to empty page. [#63988](https://github.com/gravitational/teleport/pull/63988)
+* Fixed out of sequent audit logs rendering in ui for same timestamp logs. [#63819](https://github.com/gravitational/teleport/pull/63819)
+* Fixed `tsh kubectl` failing when kubectl flags appear before positional arguments (e.g., `tsh kubectl -n default get pod`). [#63808](https://github.com/gravitational/teleport/pull/63808)
+* Added `tctl recordings download` command to download session recordings to local files without requiring direct access to the storage backend. [#63727](https://github.com/gravitational/teleport/pull/63727)
+* Fixed a bug that could cause Windows desktops discovered via LDAP to be removed in error. [#62472](https://github.com/gravitational/teleport/pull/62472)
+
+Enterprise:
+* Fix a potential panic in Auth service when getting a plugin an non-existing plugin without list permissions.
+
 ## 17.7.19 (02/10/26)
 
 Enterprise:
