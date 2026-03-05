@@ -18,7 +18,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	eui "github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/e/tests/common"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/slices"
@@ -65,10 +64,6 @@ func mustCreateTrustedCluster(ctx context.Context, t *testing.T, rootCluster, le
 		token.GetName(),
 		tcOptions.roleMap,
 	)
-
-	// disable cert verification for the time it takes the trusted cluster tunnel to initialize
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
 
 	leafAuth := leafCluster.Teleport.Process.GetAuthServer()
 	_, err = leafAuth.CreateTrustedCluster(ctx, trustedCluster)
@@ -149,7 +144,8 @@ func TestRemoteResourceAccessRequests(t *testing.T) {
 	// Set up a root cluster for the tests to interact with
 	rootCluster := common.InitSUT(t,
 		common.WithClusterName("root"),
-		common.WithLogger(slog.Default().With("cluster", "root")),
+		common.WithInsecure(),
+		common.WithLogger(slog.With("cluster", "root")),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithRole(t, "leaf-cluster-access", common.WithClusterLabel(types.Allow, "department", "ai-farm")),
 
@@ -178,7 +174,7 @@ func TestRemoteResourceAccessRequests(t *testing.T) {
 	// Set up a leaf cluster for the root cluster to delegate requests to
 	leafCluster := common.InitSUT(t,
 		common.WithClusterName("leaf"),
-		common.WithLogger(slog.Default().With("cluster", "leaf")),
+		common.WithLogger(slog.With("cluster", "leaf")),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithRole(t, "leaf-access-stable-ai", common.WithRoleNodeLabel(types.Allow, "stable", "yes")),
 		common.WithRole(t, "leaf-access-unstable-ai", common.WithRoleNodeLabel(types.Allow, "stable", "no")),
@@ -187,6 +183,7 @@ func TestRemoteResourceAccessRequests(t *testing.T) {
 		common.WithRole(t, "leaf-browse-unstable-ai", common.WithSearchAs(types.Allow, "leaf-access-unstable-ai")),
 		common.WithRole(t, "visitor"),
 		common.WithUser(t, "leaf-admin", "editor"),
+		common.WithInsecure(),
 	)
 	leafAuth := leafCluster.GetClusterClientForUser(t, "leaf-admin")
 

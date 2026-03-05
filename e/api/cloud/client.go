@@ -12,7 +12,6 @@ import (
 
 	"github.com/gravitational/teleport/api/trail"
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -90,7 +89,6 @@ func NewClientFromTLSConfig(cfg *tls.Config) (Client, error) {
 
 	tlsCfg := cfg.Clone()
 	tlsCfg.ServerName = apiServerAddr.Host()
-	tlsCfg.InsecureSkipVerify = lib.IsInsecureDevMode()
 
 	return NewClient(ClientConfig{
 		Hostname:  apiServerAddr.Addr,

@@ -64,6 +64,7 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 
 	serviceConfig := newTeleportConfig(t)
 
+	serviceConfig.InsecureMode = options.insecureMode
 	serviceConfig.Auth.BootstrapResources = options.resources
 	if options.license != "" {
 		serviceConfig.Auth.LicenseFile = options.license

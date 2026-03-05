@@ -21,9 +21,16 @@ type sutOptions struct {
 	clock         clockwork.Clock
 	logger        *slog.Logger
 	appConfig     servicecfg.AppsConfig
+	insecureMode  bool
 }
 
 type option func(*sutOptions)
+
+func WithInsecure() func(*sutOptions) {
+	return func(o *sutOptions) {
+		o.insecureMode = true
+	}
+}
 
 func WithClusterName(name string) func(*sutOptions) {
 	return func(o *sutOptions) {

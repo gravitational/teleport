@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	emodules "github.com/gravitational/teleport/e/tool/modules"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -54,6 +53,8 @@ type licenseUpdateServiceConfig struct {
 	// Interval is the interval Cloud should be queried for license updates.
 	// If empty, defaults to a jittered value between 5 and 10 minutes.
 	Interval time.Duration
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
 	// NewClientFromTLSConfig is a factory function for creating a Cloud client
 	// from a TLS configuration. Defaults to the production implementation but
 	// can be replaced for testing purposes.
@@ -113,6 +114,7 @@ type licenseUpdateService struct {
 	interval               time.Duration
 	client                 cloud.Client
 	newClientFromTLSConfig func(*tls.Config) (cloud.Client, error)
+	insecureMode           bool
 	log                    *slog.Logger
 	modules                *emodules.EnterpriseModules
 }
@@ -127,6 +129,7 @@ func newLicenseUpdateService(cfg licenseUpdateServiceConfig) (*licenseUpdateServ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tlsConfig.InsecureSkipVerify = cfg.InsecureMode
 
 	cloudClient, err := cfg.NewClientFromTLSConfig(tlsConfig)
 	if err != nil {
@@ -141,6 +144,7 @@ func newLicenseUpdateService(cfg licenseUpdateServiceConfig) (*licenseUpdateServ
 		interval:               cfg.Interval,
 		client:                 cloudClient,
 		newClientFromTLSConfig: cfg.NewClientFromTLSConfig,
+		insecureMode:           cfg.InsecureMode,
 		log:                    cfg.Log,
 		modules:                cfg.Modules,
 	}, nil
@@ -212,7 +216,7 @@ func (s *licenseUpdateService) fetchAndUpdateLicense(ctx context.Context) error 
 
 	// TODO(tross): create the client a single time instead of in LoadFeatures
 	// and updateClientLicense and resuse it.
-	features, err := LoadFeatures(ctx, newLicense)
+	features, err := LoadFeatures(ctx, newLicense, s.insecureMode)
 	if err != nil {
 		return trace.Wrap(err, "error loading features from new license")
 	}
@@ -250,7 +254,7 @@ func (s *licenseUpdateService) fetchAndUpdateLicense(ctx context.Context) error 
 // LoadFeatures consumes the license to determine which features are enabled. If
 // the process is running in a Cloud environment the features will be loaded via
 // an API call to Cloud.
-func LoadFeatures(ctx context.Context, licenseFile *licensefile.LicenseFile) (modules.Features, error) {
+func LoadFeatures(ctx context.Context, licenseFile *licensefile.LicenseFile, insecureMode bool) (modules.Features, error) {
 	if licenseFile == nil || licenseFile.License == nil {
 		return modules.Features{}, nil
 	}
@@ -264,6 +268,7 @@ func LoadFeatures(ctx context.Context, licenseFile *licensefile.LicenseFile) (mo
 	if err != nil {
 		return modules.Features{}, trace.Wrap(err)
 	}
+	tlsConfig.InsecureSkipVerify = insecureMode
 
 	client, err := cloud.NewClientFromTLSConfig(tlsConfig)
 	if err != nil {
@@ -295,6 +300,7 @@ func (s *licenseUpdateService) updateClientLicense(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	tlsConfig.InsecureSkipVerify = s.insecureMode
 	newClient, err := s.newClientFromTLSConfig(tlsConfig)
 	if err != nil {
 		return trace.Wrap(err)
@@ -389,7 +395,6 @@ func newClientFromTLSConfig(cfg *tls.Config) (cloud.Client, error) {
 
 	tlsCfg := cfg.Clone()
 	tlsCfg.ServerName = apiServerAddr.Host()
-	tlsCfg.InsecureSkipVerify = lib.IsInsecureDevMode()
 
 	return cloud.NewClient(cloud.ClientConfig{
 		Hostname:  apiServerAddr.Addr,

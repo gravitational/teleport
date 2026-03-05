@@ -82,6 +82,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 			return nil, trace.Wrap(err)
 		}
 
+		tlsConfig.InsecureSkipVerify = cfg.OSSProcess.Config.InsecureMode
 		cloudClient, err := cloud.NewClientFromTLSConfig(tlsConfig)
 		if err != nil {
 			return nil, trace.Wrap(err)

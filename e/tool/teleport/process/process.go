@@ -43,7 +43,7 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	features, err := pro.LoadFeatures(ctx, license)
+	features, err := pro.LoadFeatures(ctx, license, cfg.InsecureMode)
 	if err != nil {
 		// despite the error, we should still try to load features from the backend.
 		// Features from the backend may be stale, so we should always prioritize

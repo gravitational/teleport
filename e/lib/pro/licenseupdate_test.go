@@ -476,7 +476,7 @@ func TestLoadFeatures(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			features, err := LoadFeatures(t.Context(), test.license)
+			features, err := LoadFeatures(t.Context(), test.license, false)
 			test.errAssertion(t, err)
 			require.Equal(t, test.expectedFeatures, features)
 		})
