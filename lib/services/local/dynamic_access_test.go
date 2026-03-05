@@ -90,33 +90,35 @@ func Test_DynamicAccessService_ListExpiredAccessRequests(t *testing.T) {
 
 func Test_DynamicAccessService_range_boundary(t *testing.T) {
 	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		ctx := t.Context()
-		service, _ := setupDynamicAccessService(t)
+	synctest.Test(t, syncTest_DynamicAccessService_range_boundary)
+}
 
-		ongoingRequest := createAccessRequestWithExpiry(t, service, time.Now().Add(1))
-		expiredRequest := createAccessRequestWithExpiry(t, service, time.Now().Add(-1))
-		// Create some access requests outside the expected key range to validate they are
-		// not listed.
-		mustUpsertAccessRequestCustomKey(t, service, backend.NewKey("aaa", paramsPrefix), newAccessRequestWithExpiry(t, time.Now().Add(1)))
-		mustUpsertAccessRequestCustomKey(t, service, backend.NewKey("aaa", paramsPrefix), newAccessRequestWithExpiry(t, time.Now().Add(-1)))
-		mustUpsertAccessRequestCustomKey(t, service, backend.NewKey("zzz", paramsPrefix), newAccessRequestWithExpiry(t, time.Now().Add(1)))
-		mustUpsertAccessRequestCustomKey(t, service, backend.NewKey("zzz", paramsPrefix), newAccessRequestWithExpiry(t, time.Now().Add(-1)))
+func syncTest_DynamicAccessService_range_boundary(t *testing.T) {
+	ctx := t.Context()
+	service, _ := setupDynamicAccessService(t)
 
-		listAccessRequestsFn := func(ctx context.Context, limit int, pageToken string) ([]*types.AccessRequestV3, string, error) {
-			resp, err := service.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{Limit: int32(limit), StartKey: pageToken})
-			return resp.GetAccessRequests(), resp.GetNextKey(), err
-		}
-		allRequests, err := stream.Collect(clientutils.ResourcesWithPageSize(ctx, listAccessRequestsFn, 1))
-		require.NoError(t, err)
-		require.Len(t, allRequests, 2)
-		require.ElementsMatch(t, resourceNames(ongoingRequest, expiredRequest), resourceNames(allRequests...))
+	ongoingRequest := createAccessRequestWithExpiry(t, service, time.Now().Add(1))
+	expiredRequest := createAccessRequestWithExpiry(t, service, time.Now().Add(-1))
+	// Create some access requests outside the expected key range to validate they are
+	// not listed.
+	mustUpsertAccessRequestCustomKey(t, service, backend.NewKey("aaa", paramsPrefix), newAccessRequestWithExpiry(t, time.Now().Add(1)))
+	mustUpsertAccessRequestCustomKey(t, service, backend.NewKey("aaa", paramsPrefix), newAccessRequestWithExpiry(t, time.Now().Add(-1)))
+	mustUpsertAccessRequestCustomKey(t, service, backend.NewKey("zzz", paramsPrefix), newAccessRequestWithExpiry(t, time.Now().Add(1)))
+	mustUpsertAccessRequestCustomKey(t, service, backend.NewKey("zzz", paramsPrefix), newAccessRequestWithExpiry(t, time.Now().Add(-1)))
 
-		expiredRequests, err := stream.Collect(clientutils.ResourcesWithPageSize(ctx, service.ListExpiredAccessRequests, 1))
-		require.NoError(t, err)
-		require.Len(t, expiredRequests, 1)
-		require.Equal(t, expiredRequest.GetName(), expiredRequests[0].GetName())
-	})
+	listAccessRequestsFn := func(ctx context.Context, limit int, pageToken string) ([]*types.AccessRequestV3, string, error) {
+		resp, err := service.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{Limit: int32(limit), StartKey: pageToken})
+		return resp.GetAccessRequests(), resp.GetNextKey(), err
+	}
+	allRequests, err := stream.Collect(clientutils.ResourcesWithPageSize(ctx, listAccessRequestsFn, 1))
+	require.NoError(t, err)
+	require.Len(t, allRequests, 2)
+	require.ElementsMatch(t, resourceNames(ongoingRequest, expiredRequest), resourceNames(allRequests...))
+
+	expiredRequests, err := stream.Collect(clientutils.ResourcesWithPageSize(ctx, service.ListExpiredAccessRequests, 1))
+	require.NoError(t, err)
+	require.Len(t, expiredRequests, 1)
+	require.Equal(t, expiredRequest.GetName(), expiredRequests[0].GetName())
 }
 
 func setupDynamicAccessService(t *testing.T) (*DynamicAccessService, *memory.Memory) {
