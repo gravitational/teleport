@@ -211,7 +211,7 @@ const AdvancedRoles = ({
             <FieldSelect
               isMulti
               label="Database Roles"
-              toolTipContent="These roles are determined by your Teleport role permissions and are read only."
+              toolTipContent="These database roles are assigned by your Teleport administrator and are read only."
               value={databaseRoles.map(role => ({
                 value: role,
                 label: role,

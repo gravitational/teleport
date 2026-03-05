@@ -28,7 +28,6 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -44,13 +43,12 @@ var supportedResourceKinds = []string{
 	types.KindMCP,
 }
 
-type ProxyClusterClient interface {
-	CurrentCluster() authclient.ClientI
-	RootClusterName() string
+type AuthClient interface {
+	services.CurrentUserRoleGetter
+	apiclient.ListUnifiedResourcesClient
 }
 
-func List(ctx context.Context, cluster *clusters.Cluster, proxyClient ProxyClusterClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
-	client := proxyClient.CurrentCluster()
+func List(ctx context.Context, cluster *clusters.Cluster, authClient AuthClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
 	kinds := req.GetKinds()
 	if len(kinds) == 0 {
 		kinds = supportedResourceKinds
@@ -72,12 +70,12 @@ func List(ctx context.Context, cluster *clusters.Cluster, proxyClient ProxyClust
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
-		enrichedResources, nextKey, err = apiclient.GetUnifiedResourcePage(ctx, client, req)
+		enrichedResources, nextKey, err = apiclient.GetUnifiedResourcePage(ctx, authClient, req)
 		return err
 	})
 	g.Go(func() error {
 		var err error
-		accessChecker, err = cluster.NewAccessChecker(ctx, client)
+		accessChecker, err = cluster.NewAccessChecker(ctx, authClient)
 		return err
 	})
 	if err := g.Wait(); err != nil {

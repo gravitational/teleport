@@ -272,7 +272,7 @@ func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 }
 
 // NewAccessChecker creates a new access checker for the cluster.
-func (c *Cluster) NewAccessChecker(ctx context.Context, authClient authclient.ClientI) (services.AccessChecker, error) {
+func (c *Cluster) NewAccessChecker(ctx context.Context, authClient services.CurrentUserRoleGetter) (services.AccessChecker, error) {
 	return services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.Name, authClient)
 }
 

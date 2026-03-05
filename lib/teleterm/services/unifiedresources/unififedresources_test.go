@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -149,12 +148,9 @@ func TestUnifiedResourcesList(t *testing.T) {
 	}
 	mockedNextKey := "nextKey"
 
-	mockedClient := &mockProxyClient{
-		authClient: &mockClient{
-			paginatedResources: mockedResources,
-			nextKey:            mockedNextKey,
-		},
-		rootClusterName: cluster.Name,
+	mockedClient := &mockClient{
+		paginatedResources: mockedResources,
+		nextKey:            mockedNextKey,
 	}
 
 	response, err := List(ctx, cluster, mockedClient, &proto.ListUnifiedResourcesRequest{})
@@ -206,13 +202,10 @@ func TestUnifiedResourcesList(t *testing.T) {
 
 	require.Equal(t, mockedNextKey, response.NextKey)
 
-	leafResponse, err := List(ctx, leafCluster, &mockProxyClient{
-		authClient: &mockClient{
-			paginatedResources: []*proto.PaginatedResource{
-				{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: leafDatabase}},
-			},
+	leafResponse, err := List(ctx, leafCluster, &mockClient{
+		paginatedResources: []*proto.PaginatedResource{
+			{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: leafDatabase}},
 		},
-		rootClusterName: cluster.Name,
 	}, &proto.ListUnifiedResourcesRequest{})
 	require.NoError(t, err)
 	require.Len(t, leafResponse.Resources, 1)
@@ -225,16 +218,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 	}}, leafResponse.Resources[0])
 }
 
-type mockProxyClient struct {
-	authClient      *mockClient
-	rootClusterName string
-}
-
-func (m *mockProxyClient) CurrentCluster() authclient.ClientI { return m.authClient }
-func (m *mockProxyClient) RootClusterName() string            { return m.rootClusterName }
-
 type mockClient struct {
-	authclient.ClientI
 	paginatedResources []*proto.PaginatedResource
 	nextKey            string
 }
