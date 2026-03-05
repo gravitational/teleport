@@ -264,15 +264,17 @@ spec:
 
 ### Bot Resource
 
-**wip wip wip**
-
-wip: break this section up into sub-sections and add more detail where any
-wip: new fields will be added.?
-
 A new `scope` field will be added to the root of the Bot resource. When this 
 field is provided, the Bot is considered a scoped Bot. This determines the scope
 that the Bot exists within for the purposes of administration and the scope to
 which the Bot's credentials are pinned to limit its scope of effect.
+
+When the Bot is scoped, the following additional validation will be enforced:
+
+- The `spec.roles` field must not be set.
+- The `spec.traits` field must not be set.
+
+#### RPCs
 
 Creating, reading, updating and deleting scoped Bots will occur via the normal
 Bot RPCs (and hence `tctl` commands and IaC resources). However, there are a 
@@ -300,25 +302,46 @@ To mitigate this risk, we will not permit updates or upserts that change the
 rejected with a PermissionDenied error. In a future iteration, we may consider 
 relaxing this restriction with additional controls.
 
-wip wip wip.
-
-When the Bot is scoped, the following additional validation will be enforced:
-
-- The `spec.roles` field must not be set.
-- The `spec.traits` field must not be set.
-
-#### UX Changes
-
-tctl / UI. -- probably shift these into the UX section and out of implementation
-details.
-
 ### Bot Instances
 
-wip: we likely need to implement same rbac changes for Bot Instances as well.
-wip: we will need to propagate scope field into Bot Instance for the sake of
-wip: performance otherwise we'll need to look up bot for bot instance. also
-wip: probably some security repercussions here to consider. also ux for tctl
-wip: and ui needs to reflect scoped searching?
+When a `tbot` instance joins to the Auth Server, a Bot Instance ID is generated
+and encoded in the certificate and a BotInstance resource is created. This
+BotInstance resource tracks historical authentication metadata and health
+information submitted by `tbot` via heartbeats.
+
+The BotInstance resource provides this information to users for the purposes of
+observability, assisting in tasks like identifying `tbot` installations that
+require updates or that are running in an unhealthy state.
+
+The BotInstance resource is read-only - it cannot be created, updated or 
+deleted by end users.
+
+In order to provide a consistent experience with RBAC for scoped Bots, we will
+also need to implement scoped RBAC for reading/listing BotInstances. This will
+allow the ability to view BotInstances for Bots within a specific scope to be 
+granted to users.
+
+To support this, a `scope` field will be added to the BotInstance resource.
+When a BotInstance is created for a scoped Bot, this `scope` field will be set
+to the scope of the Bot. This provides two advantages over looking up the Bot to
+determine the scope of a BotInstance:
+
+- Performance: when listing BotInstances, directly recording the scope within
+  the BotInstance avoids the need to perform a lookup of the associated Bot for
+  each BotInstance. This will also enable efficient filtering of BotInstances
+  by scope for UI and CLI.
+- Security: this binds the BotInstance to a Bot within a specific scope. In 
+  particular, this mitigates a scenario where a Bot in `/foo` is destroyed and 
+  a Bot with the same name is created in `/bar`. If BotInstances only referenced
+  the Bot by name, then a scope admin in `/bar` would feasibly be able to view
+  the BotInstances for the Bot that had existed in `/foo`. The impact of this is
+  fairly low. However, it would be preferable to avoid any unintentional
+  information disclosure across scopes.
+
+When listing BotInstances, BotInstances for which the user does not have access
+will be filtered from the results. Additionally, in a later iteration the 
+List RPC should be extended to support filtering by exact or descendent scope to
+support scope-specific UIs and CLI.
 
 ### Scoped Role Assignments
 
