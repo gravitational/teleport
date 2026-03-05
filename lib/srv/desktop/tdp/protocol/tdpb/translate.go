@@ -271,6 +271,13 @@ func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
 			return nil, trace.WrapWithMessage(err, "Cannot parse uuid bytes from ping")
 		}
 		return []tdp.Message{legacy.Ping{UUID: id}}, nil
+	case *ServerHello:
+		return []tdp.Message{legacy.ConnectionActivated{
+			IOChannelID:   uint16(m.ActivationSpec.IoChannelId),
+			UserChannelID: uint16(m.ActivationSpec.UserChannelId),
+			ScreenWidth:   uint16(m.ActivationSpec.ScreenWidth),
+			ScreenHeight:  uint16(m.ActivationSpec.ScreenHeight),
+		}}, nil
 	default:
 		return nil, trace.Errorf("Could not translate to TDP. Encountered unexpected message type %T", m)
 	}
@@ -519,6 +526,7 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 	case legacy.SharedDirectoryListRequest:
 		return []tdp.Message{&SharedDirectoryRequest{
 			CompletionId: m.CompletionID,
+			DirectoryId:  m.DirectoryID,
 			Operation: &tdpbv1.SharedDirectoryRequest_List_{
 				List: &tdpbv1.SharedDirectoryRequest_List{
 					Path: m.Path,
@@ -550,6 +558,7 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 		return []tdp.Message{&SharedDirectoryResponse{
 			CompletionId: m.CompletionID,
 			ErrorCode:    m.ErrCode,
+			Operation:    &tdpbv1.SharedDirectoryResponse_Truncate_{},
 		}}, nil
 	default:
 		return nil, trace.Errorf("Could not translate to TDPB. Encountered unexpected message type %T", m)

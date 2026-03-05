@@ -25,10 +25,16 @@ Roles not [granting Kubernetes access](../../../enroll-resources/kubernetes-acce
 equivalent in the four versions.
 
 Roles v5 and v6 can only restrict actions on pods (e.g. executing in them).
-Role v7 supports restricting some common resource kinds (
-see [the `kubernetes_resource` documentation](../../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources)
-for a complete list).
-Role v8 supports restricting all resource kinds, including CRDs. It also changes the format of the `kind` field.
+Role v7 supports restricting some common resource kinds ( see [the
+`kubernetes_resource`
+documentation](../../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources)
+for a complete list). Role v8 supports restricting all resource kinds,
+including CRDs. It also changes the format of the `kind` field. 
+
+Role v8 is not compatible with Teleport v17 agents: if your a user has a v8
+role, a v17 agent running the Teleport Kubernetes Service may silently deny the
+user access, because the agent cannot interpret the fields specific to v8 roles.
+Upgrade all agents to v18 before using role v8.
 
 When no `kubernetes_resource` is set:
 - Roles v5, v7 and v8 grant all access by default

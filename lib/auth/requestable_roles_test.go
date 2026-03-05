@@ -36,6 +36,7 @@ import (
 
 // TestListRequestableRoles tests listing requestable roles with pagination.
 func TestListRequestableRoles(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	tlsServer := newTestTLSServer(t)
 	a := tlsServer.Auth()

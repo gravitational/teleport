@@ -132,6 +132,11 @@ type AuthPreference interface {
 	// SetAllowHeadless sets the value of the allow headless setting.
 	SetAllowHeadless(b bool)
 
+	// GetAllowBrowserAuthentication returns if browser authentication is allowed by cluster settings.
+	GetAllowBrowserAuthentication() bool
+	// SetAllowBrowserAuthentication sets the value of the allow browser authentication setting.
+	SetAllowBrowserAuthentication(b bool)
+
 	// SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
 	SetRequireMFAType(RequireMFAType)
 	// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
@@ -465,6 +470,22 @@ func (c *AuthPreferenceV2) GetAllowHeadless() bool {
 
 func (c *AuthPreferenceV2) SetAllowHeadless(b bool) {
 	c.Spec.AllowHeadless = NewBoolOption(b)
+}
+
+// GetAllowBrowserAuthentication returns whether browser authentication is
+// allowed. If it's not explicitly configured, it defaults to true when
+// WebAuthn is enabled as a second factor.
+func (c *AuthPreferenceV2) GetAllowBrowserAuthentication() bool {
+	if c.Spec.AllowBrowserAuthentication != nil {
+		return c.Spec.AllowBrowserAuthentication.Value
+	}
+
+	// Default to enabled when WebAuthn is enabled.
+	return c.IsSecondFactorWebauthnAllowed()
+}
+
+func (c *AuthPreferenceV2) SetAllowBrowserAuthentication(b bool) {
+	c.Spec.AllowBrowserAuthentication = NewBoolOption(b)
 }
 
 // SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
@@ -807,6 +828,11 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.Spec.AllowHeadless = NewBoolOption(hasWebauthn)
 	case !hasWebauthn && c.Spec.AllowHeadless.Value:
 		return trace.BadParameter("missing required Webauthn configuration for headless=true")
+	}
+
+	// Validate AllowBrowserAuthentication. WebAuthn is required for browser authentication.
+	if !hasWebauthn && c.Spec.AllowBrowserAuthentication != nil && c.Spec.AllowBrowserAuthentication.Value {
+		return trace.BadParameter("missing required Webauthn configuration for allow_browser_authentication=true")
 	}
 
 	// Prevent local lockout by disabling local second factor methods.

@@ -64,7 +64,7 @@ func (c *ScopedCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 
 	c.tokens.Initialize(scoped, config)
 
-	c.status = scoped.Command("status", "Show the status of scoped resources")
+	c.status = scoped.Command("status", "Show the status of scoped resources.")
 }
 
 // TryRun takes the CLI command as an argument (like "scoped tokens") and executes it.

@@ -134,7 +134,7 @@ func Run(args []string) int {
 	enableCmd.Flag("overwrite", "Allow existing installed binaries and services to be overwritten.").
 		Short('o').BoolVar(&ccfg.AllowOverwrite)
 	enableCmd.Flag("allow-proxy-conflict", "Allow proxy addresses in teleport.yaml and update.yaml to conflict.").
-		BoolVar(&ccfg.AllowProxyConflict)
+		Envar(common.AllowProxyConflictEnvVar).BoolVar(&ccfg.AllowProxyConflict)
 	enableCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Hidden().Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	enableCmd.Flag("force-flag", "Force the provided version flags instead of using the version flags provided by the Teleport cluster.").

@@ -26,7 +26,9 @@ jobs:
             changed:
               - '.github/workflows/integration-tests-win.yaml'
               - 'lib/autoupdate/tools/**.go'
+              - 'lib/teleterm/autoupdate/**.go'
               - 'lib/utils/packaging/**.go'
+              - 'integration/autoupdate/tools/**.go'
               - 'go.mod'
               - 'go.sum'
               - 'build.assets/Makefile'

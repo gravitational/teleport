@@ -210,6 +210,7 @@ computed_fields:
     # Auth preference
     - "AuthPreferenceV2.Spec.AllowPasswordless"
     - "AuthPreferenceV2.Spec.AllowHeadless"
+    - "AuthPreferenceV2.Spec.AllowBrowserAuthentication"
     - "AuthPreferenceV2.Spec.DisconnectExpiredCert"
     - "AuthPreferenceV2.Spec.AllowLocalAuth"
     - "AuthPreferenceV2.Spec.SecondFactor"

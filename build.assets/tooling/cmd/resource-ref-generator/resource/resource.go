@@ -26,6 +26,7 @@ import (
 	"go/token"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -35,8 +36,12 @@ import (
 // PackageInfo is used to look up a Go declaration in a map of declaration names
 // to resource data.
 type PackageInfo struct {
-	DeclName    string
-	PackageName string
+	// DeclName is the name of a Go declaration.
+	DeclName string
+	// PackagePath is the full path of a Go package containing the
+	// declaration, e.g.,
+	// "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	PackagePath string
 }
 
 // ReferenceEntry represents a section in the resource reference docs.
@@ -78,7 +83,10 @@ type SourceData struct {
 	TypeDecls map[PackageInfo]DeclarationInfo
 }
 
-func NewSourceData(rootPath string) (SourceData, error) {
+// NewSourceData extracts type declarations from the Go files rooted at
+// rootPath. Uses prefix, e.g., github.com/gravitational/teleport, to construct
+// package paths.
+func NewSourceData(prefix string, rootPath string) (SourceData, error) {
 	// All declarations within the source tree. We use this to extract
 	// information about dynamic resource fields, which we can look up by
 	// package and declaration name.
@@ -100,6 +108,17 @@ func NewSourceData(rootPath string) (SourceData, error) {
 		if filepath.Ext(info.Name()) != ".go" {
 			return nil
 		}
+
+		// Find the Go package path corresponding to the current file.
+		rel, err := filepath.Rel(rootPath, currentPath)
+		if err != nil {
+			return fmt.Errorf("unable to find a relative path between %v and %v: %w", rootPath, currentPath, err)
+		}
+		pkg := path.Join(
+			prefix,
+			filepath.Base(rootPath),
+			filepath.Dir(rel),
+		)
 
 		// Open the file so we can pass it to ParseFile. Otherwise,
 		// ParseFile always reads from the OS FS, not from fs.
@@ -142,11 +161,11 @@ func NewSourceData(rootPath string) (SourceData, error) {
 
 			typeDecls[PackageInfo{
 				DeclName:    spec.Name.Name,
-				PackageName: file.Name.Name,
+				PackagePath: pkg,
 			}] = DeclarationInfo{
 				Decl:         l,
 				FilePath:     relDeclPath,
-				PackageName:  file.Name.Name,
+				PackageName:  pkg,
 				NamedImports: pn,
 			}
 		}
@@ -564,7 +583,7 @@ func getYAMLTypeForExpr(exp ast.Expr, pkg string, allDecls map[PackageInfo]Decla
 		default:
 			info := PackageInfo{
 				DeclName:    t.Name,
-				PackageName: pkg,
+				PackagePath: pkg,
 			}
 			if _, ok := allDecls[info]; !ok {
 				return nonYAMLKind{}, nil
@@ -612,7 +631,7 @@ func getYAMLTypeForExpr(exp ast.Expr, pkg string, allDecls map[PackageInfo]Decla
 		}
 		info := PackageInfo{
 			DeclName:    t.Sel.Name,
-			PackageName: pkg,
+			PackagePath: pkg,
 		}
 		if _, ok := allDecls[info]; !ok {
 			return nonYAMLKind{}, nil
@@ -659,11 +678,20 @@ func makeRawField(field *ast.Field, packageName string, allDecls map[PackageInfo
 	s, ok := field.Type.(*ast.SelectorExpr)
 	if ok {
 		i, ok := s.X.(*ast.Ident)
-		if ok {
-			pkg = i.Name
+		// Not an identifier, so don't look up imports
+		if !ok {
+			goto assignTag
 		}
+
+		p, imp := namedImports[i.Name]
+		if !imp {
+			return rawField{}, fmt.Errorf("package %v does not include an import with name %v", packageName, i.Name)
+		}
+
+		pkg = p
 	}
 
+assignTag:
 	var tag string
 	if field.Tag != nil {
 		tag = field.Tag.Value
@@ -797,7 +825,7 @@ func allFieldsForDecl(decl DeclarationInfo, fld []rawField, allDecls map[Package
 		}
 		p := PackageInfo{
 			DeclName:    c.declarationInfo.DeclName,
-			PackageName: pkg,
+			PackagePath: pkg,
 		}
 
 		// We expect to find a declaration of the embedded struct.
@@ -828,28 +856,26 @@ func allFieldsForDecl(decl DeclarationInfo, fld []rawField, allDecls map[Package
 }
 
 // NamedImports creates a mapping from the provided name of each package import
-// to the original package path.
+// to the original package path. If the package does not have an explicit name,
+// map the full path to the final path segment instead.
 func NamedImports(file *ast.File) map[string]string {
 	m := make(map[string]string)
 	for _, i := range file.Imports {
+		pkgPath := strings.Trim(i.Path.Value, "\"")
 		if i.Name == nil {
-			continue
+			m[path.Base(pkgPath)] = pkgPath
+		} else {
+			m[i.Name.Name] = pkgPath
 		}
-		s := strings.Trim(i.Path.Value, "\"")
-		p := strings.Split(s, "/")
-		// Consumers check the named imports map against the final path
-		// segment of a package path.
-		if len(p) > 1 {
-			s = p[len(p)-1]
-		}
-		m[i.Name.Name] = s
 	}
 	return m
 }
 
 // ReferenceDataFromDeclaration gets data for the reference by examining decl.
-// Looks up decl's fields in allDecls and methods in allMethods.
+// Looks up decl's fields in allDecls and methods in allMethods. Uses prefix,
+// e.g., "github.com/gravitational/teleport", to construct package paths
 func ReferenceDataFromDeclaration(
+	prefix string,
 	decl DeclarationInfo,
 	allDecls map[PackageInfo]DeclarationInfo,
 	camelCaseExceptions []string,
@@ -885,7 +911,7 @@ func ReferenceDataFromDeclaration(
 	}
 	key := PackageInfo{
 		DeclName:    rs.name,
-		PackageName: decl.PackageName,
+		PackagePath: decl.PackageName,
 	}
 
 	fld, err := makeFieldTableInfo(fieldsToProcess, camelCaseExceptions)
@@ -913,12 +939,12 @@ func ReferenceDataFromDeclaration(
 		for _, d := range c {
 			// Find the package name to use to look up the declaration from
 			// its identifier.
-			i, ok := decl.NamedImports[d.PackageName]
+			i, ok := decl.NamedImports[d.PackagePath]
 			// The file that made the declaration provided a name for the
 			// package associated with the identifier, so find the full
 			// package path and use that to look up the declaration.
 			if ok {
-				d.PackageName = i
+				d.PackagePath = i
 			}
 
 			// Get information about the field type's declaration.
@@ -930,7 +956,7 @@ func ReferenceDataFromDeclaration(
 			if !ok {
 				continue
 			}
-			r, err := ReferenceDataFromDeclaration(gd, allDecls, camelCaseExceptions)
+			r, err := ReferenceDataFromDeclaration(prefix, gd, allDecls, camelCaseExceptions)
 			if errors.As(err, &NotAGenDeclError{}) {
 				continue
 			}
