@@ -1,13 +1,13 @@
 # Teleport Role resource
 
-resource "teleport_role" "example" {
+resource "teleport_role" "example2" {
   version = "v8"
   metadata = {
-    name        = "example"
+    name        = "example2"
     description = "Example Teleport Role"
     expires     = "2022-10-12T07:20:51Z"
     labels = {
-      example = "yes"
+      example2 = "yes"
     }
   }
 
@@ -31,7 +31,7 @@ resource "teleport_role" "example" {
     }
 
     allow = {
-      logins = ["example"]
+      logins = ["example2"]
 
       rules = [{
         resources = ["user", "role"]
@@ -39,16 +39,16 @@ resource "teleport_role" "example" {
       }]
 
       request = {
-        roles = ["example"]
+        roles = ["example2"]
         claims_to_roles = [{
-          claim = "example"
-          value = "example"
-          roles = ["example"]
+          claim = "example2"
+          value = "example2"
+          roles = ["example2"]
         }]
       }
 
       node_labels = {
-        example = ["yes"]
+        example2 = ["yes"]
       }
     }
 
