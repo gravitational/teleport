@@ -28,6 +28,54 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+func (s *TerraformSuiteOSS) TestSessionRecordingConfigDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	sessionRecordingConfig := &types.SessionRecordingConfigV2{
+		Spec: types.SessionRecordingConfigSpecV2{
+			Mode:                "node",
+			ProxyChecksHostKeys: types.NewBoolOption(true),
+		},
+	}
+	err := sessionRecordingConfig.CheckAndSetDefaults()
+	require.NoError(s.T(), err)
+
+	sessionRecordingConfigBefore, err := s.client.GetSessionRecordingConfig(ctx)
+	require.NoError(s.T(), err)
+
+	_, err = s.client.ClusterConfigClient().UpsertSessionRecordingConfig(ctx, &clusterconfigv1.UpsertSessionRecordingConfigRequest{
+		SessionRecordingConfig: sessionRecordingConfig,
+	})
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		sessionRecordingConfigCurrent, err := s.client.GetSessionRecordingConfig(ctx)
+		require.NoError(s.T(), err)
+
+		return sessionRecordingConfigBefore.GetRevision() != sessionRecordingConfigCurrent.GetRevision()
+	}, 5*time.Second, time.Second)
+
+	name := "data.teleport_session_recording_config.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("session_recording_config_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "session_recording_config"),
+					resource.TestCheckResourceAttr(name, "version", "v2"),
+					resource.TestCheckResourceAttr(name, "id", "session-recording-config"),
+					resource.TestCheckResourceAttr(name, "spec.mode", "node"),
+					resource.TestCheckResourceAttr(name, "spec.proxy_checks_host_keys", "true"),
+				),
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteOSS) TestSessionRecordingConfig() {
 	name := "teleport_session_recording_config.test"
 

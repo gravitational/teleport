@@ -32,6 +32,65 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+func (s *TerraformSuiteOSS) TestHealthCheckConfigDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	healthCfg, err := healthcheckconfig.NewHealthCheckConfig("test",
+		&healthcheckconfigv1.HealthCheckConfigSpec{
+			Interval:           durationpb.New(60 * time.Second),
+			Timeout:            durationpb.New(5 * time.Second),
+			HealthyThreshold:   3,
+			UnhealthyThreshold: 2,
+			Match: &healthcheckconfigv1.Matcher{
+				DbLabels: []*labelv1.Label{{
+					Name:   "env",
+					Values: []string{"foo", "bar"},
+				}},
+				DbLabelsExpression: "labels.foo == `bar`",
+			},
+		},
+	)
+	require.NoError(s.T(), err)
+
+	_, err = s.client.CreateHealthCheckConfig(ctx, healthCfg)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.GetHealthCheckConfig(ctx, healthCfg.GetMetadata().GetName())
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DeleteHealthCheckConfig(ctx, healthCfg.GetMetadata().GetName()))
+	})
+
+	name := "data.teleport_health_check_config.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("health_check_config_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "health_check_config"),
+					resource.TestCheckResourceAttr(name, "version", "v1"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
+					resource.TestCheckResourceAttr(name, "spec.interval", "1m0s"),
+					resource.TestCheckResourceAttr(name, "spec.timeout", "5s"),
+					resource.TestCheckResourceAttr(name, "spec.healthy_threshold", "3"),
+					resource.TestCheckResourceAttr(name, "spec.unhealthy_threshold", "2"),
+					resource.TestCheckResourceAttr(name, "spec.match.db_labels.0.name", "env"),
+					resource.TestCheckResourceAttr(name, "spec.match.db_labels.0.values.0", "foo"),
+					resource.TestCheckResourceAttr(name, "spec.match.db_labels.0.values.1", "bar"),
+					resource.TestCheckResourceAttr(name, "spec.match.db_labels_expression", "labels.foo == `bar`"),
+				),
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteOSS) TestHealthCheckConfig() {
 	t := s.T()
 	name := "teleport_health_check_config.test"

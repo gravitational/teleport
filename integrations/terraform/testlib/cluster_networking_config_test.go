@@ -28,6 +28,34 @@ import (
 )
 
 func (s *TerraformSuiteOSS) TestClusterNetworkingConfigDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	clusterNetworkingConfig := &types.ClusterNetworkingConfigV2{
+		Spec: types.ClusterNetworkingConfigSpecV2{
+			ClientIdleTimeout: types.Duration(30 * time.Minute),
+			KeepAliveInterval: types.Duration(15 * time.Second),
+			KeepAliveCountMax: 7,
+			ProxyListenerMode: types.ProxyListenerMode_Multiplex,
+			RoutingStrategy:   types.RoutingStrategy_MOST_RECENT,
+		},
+	}
+	err := clusterNetworkingConfig.CheckAndSetDefaults()
+	require.NoError(s.T(), err)
+
+	clusterNetworkConfigBefore, err := s.client.GetClusterNetworkingConfig(ctx)
+	require.NoError(s.T(), err)
+
+	_, err = s.client.UpsertClusterNetworkingConfig(ctx, clusterNetworkingConfig)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		clusterNetworkConfigCurrent, err := s.client.GetClusterNetworkingConfig(ctx)
+		require.NoError(s.T(), err)
+
+		return clusterNetworkConfigBefore.GetRevision() != clusterNetworkConfigCurrent.GetRevision()
+	}, 5*time.Second, time.Second)
+
 	name := "data.teleport_cluster_networking_config.test"
 
 	resource.Test(s.T(), resource.TestCase{
@@ -40,6 +68,11 @@ func (s *TerraformSuiteOSS) TestClusterNetworkingConfigDataSource() {
 					resource.TestCheckResourceAttr(name, "kind", "cluster_networking_config"),
 					resource.TestCheckResourceAttr(name, "version", "v2"),
 					resource.TestCheckResourceAttr(name, "id", "cluster-networking-config"),
+					resource.TestCheckResourceAttr(name, "spec.client_idle_timeout", "30m0s"),
+					resource.TestCheckResourceAttr(name, "spec.keep_alive_interval", "15s"),
+					resource.TestCheckResourceAttr(name, "spec.keep_alive_count_max", "7"),
+					resource.TestCheckResourceAttr(name, "spec.proxy_listener_mode", "1"),
+					resource.TestCheckResourceAttr(name, "spec.routing_strategy", "1"),
 				),
 			},
 		},

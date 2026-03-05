@@ -30,12 +30,94 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+func (s *TerraformSuiteOSS) TestAccessMonitoringRuleDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	amr := &accessmonitoringrules.AccessMonitoringRule{
+		Kind:    types.KindAccessMonitoringRule,
+		Version: types.V1,
+		Metadata: &v1.Metadata{
+			Name: "test",
+		},
+		Spec: &accessmonitoringrules.AccessMonitoringRuleSpec{
+			Subjects: []string{
+				types.KindAccessRequest,
+			},
+			Condition: "true",
+			Notification: &accessmonitoringrules.Notification{
+				Name:       "example-plugin",
+				Recipients: []string{"example-recipient"},
+			},
+			AutomaticReview: &accessmonitoringrules.AutomaticReview{
+				Integration: "example-integration",
+				Decision:    types.RequestState_APPROVED.String(),
+			},
+			DesiredState: types.AccessMonitoringRuleStateReviewed,
+			Schedules: map[string]*accessmonitoringrules.Schedule{
+				"default": {
+					Time: &accessmonitoringrules.TimeSchedule{
+						Timezone: "UTC",
+						Shifts: []*accessmonitoringrules.TimeSchedule_Shift{
+							{
+								Weekday: "Monday",
+								Start:   "00:00",
+								End:     "23:59",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	amr, err := s.client.AccessMonitoringRulesClient().CreateAccessMonitoringRule(ctx, amr)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.AccessMonitoringRulesClient().GetAccessMonitoringRule(ctx, amr.GetMetadata().GetName())
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, amr.GetMetadata().GetName()))
+	})
+
+	name := "data.teleport_access_monitoring_rule.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("access_monitoring_rule_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "access_monitoring_rule"),
+					resource.TestCheckResourceAttr(name, "version", "v1"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
+					resource.TestCheckResourceAttr(name, "spec.subjects.0", "access_request"),
+					resource.TestCheckResourceAttr(name, "spec.condition", "true"),
+					resource.TestCheckResourceAttr(name, "spec.notification.name", "example-plugin"),
+					resource.TestCheckResourceAttr(name, "spec.notification.recipients.0", "example-recipient"),
+					resource.TestCheckResourceAttr(name, "spec.automatic_review.integration", "example-integration"),
+					resource.TestCheckResourceAttr(name, "spec.automatic_review.decision", "APPROVED"),
+					resource.TestCheckResourceAttr(name, "spec.desired_state", "reviewed"),
+					resource.TestCheckResourceAttr(name, "spec.schedules.default.time.timezone", "UTC"),
+					resource.TestCheckResourceAttr(name, "spec.schedules.default.time.shifts.0.weekday", "Monday"),
+					resource.TestCheckResourceAttr(name, "spec.schedules.default.time.shifts.0.start", "00:00"),
+					resource.TestCheckResourceAttr(name, "spec.schedules.default.time.shifts.0.end", "23:59"),
+				),
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteOSS) TestAccessMonitoringRule() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
 	checkDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetApp(ctx, "test")
+		_, err := s.client.AccessMonitoringRulesClient().GetAccessMonitoringRule(ctx, "test")
 		if trace.IsNotFound(err) {
 			return nil
 		}

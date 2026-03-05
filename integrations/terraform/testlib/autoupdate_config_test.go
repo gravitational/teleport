@@ -28,6 +28,71 @@ import (
 	"github.com/gravitational/teleport/api/types/autoupdate"
 )
 
+func (s *TerraformSuiteOSS) TestAutoUpdateConfigDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	testMode := "enabled"
+	testStrategy := "halt-on-error"
+
+	config, err := autoupdate.NewAutoUpdateConfig(
+		&autoupdatev1pb.AutoUpdateConfigSpec{
+			Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+				Mode: testMode,
+			},
+			Agents: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     testMode,
+				Strategy: testStrategy,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: []*autoupdatev1pb.AgentAutoUpdateGroup{
+						{
+							Name:      "dev",
+							Days:      []string{"Mon"},
+							StartHour: 4,
+						},
+					},
+				},
+			},
+		},
+	)
+	require.NoError(s.T(), err)
+
+	_, err = s.client.CreateAutoUpdateConfig(ctx, config)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.GetAutoUpdateConfig(ctx)
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DeleteAutoUpdateConfig(ctx))
+	})
+
+	name := "data.teleport_autoupdate_config.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("autoupdate_config_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "autoupdate_config"),
+					resource.TestCheckResourceAttr(name, "version", "v1"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "autoupdate-config"),
+					resource.TestCheckResourceAttr(name, "spec.tools.mode", "enabled"),
+					resource.TestCheckResourceAttr(name, "spec.agents.mode", "enabled"),
+					resource.TestCheckResourceAttr(name, "spec.agents.strategy", "halt-on-error"),
+					resource.TestCheckResourceAttr(name, "spec.agents.schedules.regular.0.name", "dev"),
+					resource.TestCheckResourceAttr(name, "spec.agents.schedules.regular.0.days.0", "Mon"),
+					resource.TestCheckResourceAttr(name, "spec.agents.schedules.regular.0.start_hour", "4"),
+				),
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteOSS) TestAutoUpdateConfig() {
 	name := "teleport_autoupdate_config.test"
 
@@ -111,14 +176,12 @@ func (s *TerraformSuiteOSS) TestImportAutoUpdateConfig() {
 	)
 	require.NoError(s.T(), err)
 
-	autoUpdateConfig, err = s.client.CreateAutoUpdateConfig(ctx, autoUpdateConfig)
+	_, err = s.client.CreateAutoUpdateConfig(ctx, autoUpdateConfig)
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
-		autoUpdateConfigCurrent, err := s.client.GetAutoUpdateConfig(ctx)
-		require.NoError(s.T(), err)
-
-		return autoUpdateConfig.GetMetadata().GetRevision() != autoUpdateConfigCurrent.GetMetadata().GetName()
+		_, err := s.client.GetAutoUpdateConfig(ctx)
+		return err == nil
 	}, 5*time.Second, 200*time.Millisecond)
 
 	resource.Test(s.T(), resource.TestCase{

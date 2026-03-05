@@ -28,6 +28,66 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+func (s *TerraformSuiteOSS) TestAppDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	app := &types.AppV3{
+		Metadata: types.Metadata{
+			Name: "test",
+		},
+		Spec: types.AppSpecV3{
+			URI:        "localhost:3000",
+			PublicAddr: "example.teleport.sh:443",
+			Rewrite: &types.Rewrite{
+				Redirect: []string{"example.teleport.sh"},
+				Headers: []*types.Header{
+					{
+						Name:  "X-Custom-Header",
+						Value: "value",
+					},
+				},
+			},
+		},
+	}
+	err := app.CheckAndSetDefaults()
+	require.NoError(s.T(), err)
+
+	err = s.client.CreateApp(ctx, app)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.GetApp(ctx, app.GetName())
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DeleteApp(ctx, app.GetName()))
+	})
+
+	name := "data.teleport_app.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("app_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "app"),
+					resource.TestCheckResourceAttr(name, "version", "v3"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
+					resource.TestCheckResourceAttr(name, "spec.uri", "localhost:3000"),
+					resource.TestCheckResourceAttr(name, "spec.public_addr", "example.teleport.sh:443"),
+					resource.TestCheckResourceAttr(name, "spec.rewrite.redirect.0", "example.teleport.sh"),
+					resource.TestCheckResourceAttr(name, "spec.rewrite.headers.0.name", "X-Custom-Header"),
+					resource.TestCheckResourceAttr(name, "spec.rewrite.headers.0.value", "value"),
+				),
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteOSS) TestApp() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)

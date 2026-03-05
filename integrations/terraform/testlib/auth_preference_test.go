@@ -24,9 +24,79 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 )
+
+func (s *TerraformSuiteOSS) TestAuthPreferenceDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	authPreference := &types.AuthPreferenceV2{
+		Metadata: types.Metadata{
+			Name: "test",
+		},
+		Spec: types.AuthPreferenceSpecV2{
+			Type:                       constants.Local,
+			ConnectorName:              constants.LocalConnector,
+			SecondFactor:               constants.SecondFactorOTP,
+			AllowLocalAuth:             types.NewBoolOption(true),
+			AllowBrowserAuthentication: types.NewBoolOption(false),
+			MessageOfTheDay:            "test message",
+			LockingMode:                constants.LockingModeBestEffort,
+			IDP: &types.IdPOptions{
+				SAML: &types.IdPSAMLOptions{
+					Enabled: types.NewBoolOption(false),
+				},
+			},
+			Webauthn: &types.Webauthn{
+				RPID: "example.com",
+			},
+		},
+	}
+
+	err := authPreference.CheckAndSetDefaults()
+	require.NoError(s.T(), err)
+
+	authPreferencesBefore, err := s.client.GetAuthPreference(ctx)
+	require.NoError(s.T(), err)
+
+	_, err = s.client.ClusterConfigClient().UpsertAuthPreference(ctx, &clusterconfigv1.UpsertAuthPreferenceRequest{AuthPreference: authPreference})
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		authPreferencesCurrent, err := s.client.GetAuthPreference(ctx)
+		require.NoError(s.T(), err)
+
+		return authPreferencesBefore.GetMetadata().Revision != authPreferencesCurrent.GetMetadata().Revision
+	}, 5*time.Second, time.Second)
+
+	name := "data.teleport_auth_preference.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("auth_preference_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "cluster_auth_preference"),
+					resource.TestCheckResourceAttr(name, "version", "v2"),
+					resource.TestCheckResourceAttr(name, "spec.allow_local_auth", "true"),
+					resource.TestCheckResourceAttr(name, "spec.allow_browser_authentication", "false"),
+					resource.TestCheckResourceAttr(name, "spec.allow_headless", "false"),
+					resource.TestCheckResourceAttr(name, "spec.idp.saml.enabled", "false"),
+					resource.TestCheckResourceAttr(name, "spec.locking_mode", "best_effort"),
+					resource.TestCheckResourceAttr(name, "spec.message_of_the_day", "test message"),
+					resource.TestCheckResourceAttr(name, "spec.second_factor", "otp"),
+					resource.TestCheckResourceAttr(name, "spec.type", "local"),
+					resource.TestCheckResourceAttr(name, "spec.webauthn.rp_id", "example.com"),
+				),
+			},
+		},
+	})
+}
 
 func (s *TerraformSuiteOSS) TestAuthPreference() {
 	name := "teleport_auth_preference.test"

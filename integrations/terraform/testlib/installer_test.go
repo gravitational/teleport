@@ -20,11 +20,53 @@ package testlib
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
+
+func (s *TerraformSuiteOSS) TestInstallerDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	installer, err := types.NewInstallerV1("test", "example-script")
+	require.NoError(s.T(), err)
+
+	err = s.client.SetInstaller(ctx, installer)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.GetInstaller(ctx, installer.GetName())
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DeleteInstaller(ctx, installer.GetName()))
+	})
+
+	name := "data.teleport_installer.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("installer_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "installer"),
+					resource.TestCheckResourceAttr(name, "version", "v1"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
+					resource.TestCheckResourceAttr(name, "spec.script", "example-script"),
+				),
+			},
+		},
+	})
+}
 
 func (s *TerraformSuiteOSS) TestInstaller() {
 	ctx, cancel := context.WithCancel(context.Background())

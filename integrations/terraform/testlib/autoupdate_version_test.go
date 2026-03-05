@@ -28,6 +28,66 @@ import (
 	"github.com/gravitational/teleport/api/types/autoupdate"
 )
 
+func (s *TerraformSuiteOSS) TestAutoUpdateVersionDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	testToolsTargetVersion := "1.2.3"
+	testStartVersion := "1.2.3"
+	testTargetVersion := "1.2.4"
+	testSchedule := "regular"
+	testMode := "enabled"
+
+	version, err := autoupdate.NewAutoUpdateVersion(
+		&autoupdatev1pb.AutoUpdateVersionSpec{
+			Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+				TargetVersion: testToolsTargetVersion,
+			},
+			Agents: &autoupdatev1pb.AutoUpdateVersionSpecAgents{
+				StartVersion:  testStartVersion,
+				TargetVersion: testTargetVersion,
+				Schedule:      testSchedule,
+				Mode:          testMode,
+			},
+		},
+	)
+	require.NoError(s.T(), err)
+
+	_, err = s.client.CreateAutoUpdateVersion(ctx, version)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.GetAutoUpdateVersion(ctx)
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DeleteAutoUpdateVersion(ctx))
+	})
+
+	name := "data.teleport_autoupdate_version.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("autoupdate_version_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "autoupdate_version"),
+					resource.TestCheckResourceAttr(name, "version", "v1"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "autoupdate-version"),
+					resource.TestCheckResourceAttr(name, "spec.tools.target_version", testToolsTargetVersion),
+					resource.TestCheckResourceAttr(name, "spec.agents.start_version", testStartVersion),
+					resource.TestCheckResourceAttr(name, "spec.agents.target_version", testTargetVersion),
+					resource.TestCheckResourceAttr(name, "spec.agents.schedule", testSchedule),
+					resource.TestCheckResourceAttr(name, "spec.agents.mode", testMode),
+				),
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteOSS) TestAutoUpdateVersion() {
 	name := "teleport_autoupdate_version.test"
 
@@ -97,14 +157,12 @@ func (s *TerraformSuiteOSS) TestImportAutoUpdateVersion() {
 	)
 	require.NoError(s.T(), err)
 
-	autoUpdateVersion, err = s.client.CreateAutoUpdateVersion(ctx, autoUpdateVersion)
+	_, err = s.client.CreateAutoUpdateVersion(ctx, autoUpdateVersion)
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
-		autoUpdateVersionCurrent, err := s.client.GetAutoUpdateVersion(ctx)
-		require.NoError(s.T(), err)
-
-		return autoUpdateVersion.GetMetadata().GetRevision() != autoUpdateVersionCurrent.GetMetadata().GetName()
+		_, err := s.client.GetAutoUpdateVersion(ctx)
+		return err == nil
 	}, 5*time.Second, time.Second)
 
 	resource.Test(s.T(), resource.TestCase{
