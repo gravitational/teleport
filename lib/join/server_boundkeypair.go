@@ -190,10 +190,16 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		HostID:        req.JoinRequest.HostID,
 	}
 
-	// Only bot joining is supported at the moment - unique ID verification is
-	// required and this is currently only implemented for bots.
+	// Only bot joining is supported through the legacy join service adapter.
+	// Bound keypair requires secure host UUIDs which are only available in the
+	// new join service.
 	if req.JoinRequest.Role != types.RoleBot {
-		return nil, trace.BadParameter("bound keypair joining is only supported for bots")
+		return nil, trace.BadParameter("bound keypair joining for agents requires use of the new join service")
+	} else {
+		// Bots cannot have a HostID, so clear any ID present on the request.
+		// The bound keypair implementation depends on having a trustworthy ID
+		// which this value is not.
+		authCtx.HostID = ""
 	}
 
 	provisionToken, err := a.ValidateToken(ctx, req.JoinRequest.Token)

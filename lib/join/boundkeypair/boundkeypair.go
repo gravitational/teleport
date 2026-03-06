@@ -687,6 +687,9 @@ func HandleBoundKeypairJoin(
 	case hasIncomingBotInstance && hasIncomingHostID:
 		return nil, trace.AccessDenied("cannot join with invalid identity")
 	case systemRole == types.RoleBot && hasIncomingHostID:
+		// Note: this hasn't traditionally been enforced but bots have never
+		// self reported a host UUID. Given how new this join method is, it
+		// should be fairly safe to add this restriction.
 		fallthrough
 	case systemRole == types.RoleInstance && hasIncomingBotInstance:
 		return nil, trace.AccessDenied("cannot join with mismatched unique identifier")
