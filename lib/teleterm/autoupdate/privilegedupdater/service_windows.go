@@ -56,10 +56,11 @@ const (
 	serviceAccessFlags = windows.SERVICE_START | windows.SERVICE_QUERY_STATUS
 	serviceRunTimeout  = 30 * time.Second
 
-	// According to https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights
+	// SafePipeReadWriteAccess defines access for Authenticated Users (AU).
+	//According to https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights
 	// and https://stackoverflow.com/questions/29947524/c-let-user-process-write-to-local-system-named-pipe-custom-security-descrip
 	// the pipe should not set GENERIC_WRITE for standard users as it would allow them to create the pipe.
-	safePipeReadWriteAccess = windows.GENERIC_READ | windows.FILE_WRITE_DATA
+	SafePipeReadWriteAccess = windows.GENERIC_READ | windows.FILE_WRITE_DATA
 
 	updateDirSecurityDescriptor = "O:SY" + // Owner SYSTEM
 		"D:P" + // 'P' blocks permissions inheritance from the parent directory
@@ -67,11 +68,13 @@ const (
 		"(A;OICI;GA;;;BA)" // Allow Built-in Administrators Full Access
 )
 
-// Allow SYSTEM/Admins Full Control, Authenticated Users (safe) read/write, implicitly deny everyone else.
-var pipeServerSecurityDescriptor = "D:" + // DACL
-	"(A;;GA;;;SY)" + // Allow (A);; Generic All (GA);;; SYSTEM (SY)
-	"(A;;GA;;;BA)" + // Allow (A);; Generic All (GA);;; Built-in Admins (BA)
-	fmt.Sprintf("(A;;%#x;;;AU)", safePipeReadWriteAccess) // Allow (A);; safePipeReadWriteAccess ;;; Authenticated Users (AU)
+// makePipeServerSecurityDescriptor allows SYSTEM/Admins Full Control and grants Authenticated Users the passed access mask.
+func makePipeServerSecurityDescriptor(authenticatedUsersAccess uint32) string {
+	return "D:" + // DACL
+		"(A;;GA;;;SY)" + // Allow (A);; Generic All (GA);;; SYSTEM (SY)
+		"(A;;GA;;;BA)" + // Allow (A);; Generic All (GA);;; Built-in Admins (BA)
+		fmt.Sprintf("(A;;%#x;;;AU)", authenticatedUsersAccess) // Allow (A);; authenticatedUsersAccess ;;; Authenticated Users (AU)
+}
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "autoupdate")
 
@@ -86,6 +89,11 @@ type ServiceTestConfig struct {
 	PolicyToolsVersion string
 	// PolicyCDNBaseURL overrides CdnBaseUrl in HKLM\SOFTWARE\Policies\Teleport\TeleportConnect.
 	PolicyCDNBaseURL string
+	// HTTPClient overrides the client used for checksum download.
+	HTTPClient *http.Client
+	// PipeAuthenticatedUsersAccess overrides Authenticated Users access mask in
+	// the named pipe DACL. If zero, SafePipeReadWriteAccess is used.
+	PipeAuthenticatedUsersAccess uint32
 }
 
 // InstallService installs the Teleport Connect privileged update service.
@@ -166,7 +174,7 @@ func (h *handler) Execute(ctx context.Context, _ []string) (err error) {
 
 	// TODO(gzdunek): Add signature verification.
 
-	hash, err := downloadChecksum(ctx, updaterConfig.CDNBaseURL, updateMeta.Version)
+	hash, err := h.downloadChecksum(ctx, updaterConfig.CDNBaseURL, updateMeta.Version)
 	if err != nil {
 		return trace.Wrap(err, "downloading update checksum")
 	}
@@ -216,7 +224,12 @@ type acceptResult struct {
 }
 
 func (h *handler) readUpdateMeta(ctx context.Context) (_ *updateMetadata, _ string, err error) {
-	conn, err := waitForSingleClient(ctx)
+	pipeAuthenticatedUsersAccess := uint32(SafePipeReadWriteAccess)
+	if h.testCfg.PipeAuthenticatedUsersAccess != 0 {
+		pipeAuthenticatedUsersAccess = h.testCfg.PipeAuthenticatedUsersAccess
+	}
+
+	conn, err := waitForSingleClient(ctx, pipeAuthenticatedUsersAccess)
 	if err != nil {
 		return nil, "", trace.Wrap(err, "waiting for client")
 	}
@@ -242,9 +255,9 @@ func (h *handler) readUpdateMeta(ctx context.Context) (_ *updateMetadata, _ stri
 }
 
 // waitForSingleClient waits for the first client and then closes the listener.
-func waitForSingleClient(ctx context.Context) (net.Conn, error) {
+func waitForSingleClient(ctx context.Context, authenticatedUsersAccess uint32) (net.Conn, error) {
 	l, err := winio.ListenPipe(PipePath, &winio.PipeConfig{
-		SecurityDescriptor: pipeServerSecurityDescriptor,
+		SecurityDescriptor: makePipeServerSecurityDescriptor(authenticatedUsersAccess),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -441,7 +454,7 @@ func ensureIsUpgrade(updateVersion string) error {
 	return nil
 }
 
-func downloadChecksum(ctx context.Context, baseUrl string, version string) ([]byte, error) {
+func (h *handler) downloadChecksum(ctx context.Context, baseUrl string, version string) ([]byte, error) {
 	parsedBaseURL, err := url.Parse(baseUrl)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing base URL")
@@ -456,7 +469,11 @@ func downloadChecksum(ctx context.Context, baseUrl string, version string) ([]by
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	client := http.DefaultClient
+	if h.testCfg.HTTPClient != nil {
+		client = h.testCfg.HTTPClient
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
