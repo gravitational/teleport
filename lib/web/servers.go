@@ -481,5 +481,5 @@ func (h *Handler) handleNodeCreate(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	return webui.MakeServer(cluster.GetName(), server, logins, false /* requiresRequest */), nil
+	return webui.MakeServer(cluster.GetName(), server, logins, logins, false /* requiresRequest */, nil), nil
 }
