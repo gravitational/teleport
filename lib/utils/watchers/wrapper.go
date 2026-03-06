@@ -232,6 +232,7 @@ func (w *Wrapper) runEventsLoop(ctx context.Context, watcher types.Watcher) (abo
 					"sub_kind", e.Resource.GetSubKind(),
 					"name", e.Resource.GetName(),
 					"revision", e.Resource.GetRevision(),
+					"description", e.Resource.GetMetadata().Description,
 				)
 			}
 			eLog.DebugContext(ctx, "Received watcher event")
