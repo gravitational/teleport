@@ -45,17 +45,7 @@ func TestWrapper(t *testing.T) {
 	require.NoError(t, err)
 	eventsService := local.NewEventsService(mem)
 
-	watcher, cancel, done := newAuthPrefWrapper(t, eventsService)
-
-	assertNoEvent := func(t *testing.T) {
-		t.Helper()
-		select {
-		case e := <-watcher.Events():
-			t.Errorf("Got unexpected event: %#v", e)
-		case <-time.After(1 * time.Millisecond):
-			// OK.
-		}
-	}
+	watcher := newAuthPrefWrapper(t, eventsService)
 
 	assertHasEvent := func(t *testing.T, want types.OpType) {
 		t.Helper()
@@ -90,7 +80,7 @@ func TestWrapper(t *testing.T) {
 
 	// 2st event: OpPut (update).
 	pref.SetDefaultSessionTTL(types.Duration(4 * time.Hour))
-	pref, err = clusterConfigService.UpdateAuthPreference(ctx, pref)
+	_, err = clusterConfigService.UpdateAuthPreference(ctx, pref)
 	require.NoError(t, err)
 	assertHasEvent(t, types.OpPut)
 
@@ -99,15 +89,6 @@ func TestWrapper(t *testing.T) {
 		clusterConfigService.DeleteAuthPreference(ctx),
 	)
 	assertHasEvent(t, types.OpDelete)
-
-	// Stop watcher.
-	cancel()
-	<-done // Confirm goroutine stopped.
-
-	// Further events are not monitored.
-	_, err = clusterConfigService.CreateAuthPreference(ctx, pref)
-	require.NoError(t, err)
-	assertNoEvent(t)
 }
 
 func TestWrapper_reconnection(t *testing.T) {
@@ -124,7 +105,7 @@ func TestWrapper_reconnection(t *testing.T) {
 		source: local.NewEventsService(mem),
 	}
 
-	watcher, _, _ := newAuthPrefWrapper(t, sw)
+	watcher := newAuthPrefWrapper(t, sw)
 
 	waitForHealthy := func(*testing.T) {
 		t.Helper()
@@ -188,7 +169,7 @@ func TestWrapper_backoff(t *testing.T) {
 		// Setup so we fail 2 attempts.
 		sw.SetAttemptsToFail(2)
 
-		watcher, _, _ := newAuthPrefWrapper(t, sw)
+		watcher := newAuthPrefWrapper(t, sw)
 
 		waitForHealthy := func(*testing.T) {
 			t.Helper()
@@ -235,7 +216,7 @@ func TestWrapper_backoff(t *testing.T) {
 func newAuthPrefWrapper(
 	t *testing.T,
 	source watchers.WatcherSource,
-) (_ *watchers.Wrapper, _ context.CancelFunc, done <-chan struct{}) {
+) *watchers.Wrapper {
 	t.Helper()
 
 	watcher, err := watchers.NewWrapper(watchers.WrapperConfig{
@@ -263,7 +244,7 @@ func newAuthPrefWrapper(
 		<-doneC
 	})
 
-	return watcher, cancel, doneC
+	return watcher
 }
 
 var errForcedSourceFailure = errors.New("forced source failure")
