@@ -82,22 +82,23 @@ func CheckIDToken(
 		return nil, trace.Wrap(err)
 	}
 
-	token, ok := params.ProvisionToken.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter(
-			"kubernetes join method only supports ProvisionTokenV2, '%T' was provided",
-			params.ProvisionToken,
-		)
+	kubeConfig := params.ProvisionToken.GetKubernetes()
+	if kubeConfig == nil {
+		return nil, trace.BadParameter("kubernetes token configuration must be defined in order to join with a kubernetes ID token")
 	}
 
 	// Switch to join method subtype token validation.
 	var result *ValidationResult
 	var err error
-	switch token.Spec.Kubernetes.Type {
+	switch kubeConfig.Type {
 	case types.KubernetesJoinTypeStaticJWKS:
+		if kubeConfig.StaticJWKS == nil {
+			return nil, trace.BadParameter("static jwks configuration must provide a jwks string")
+		}
+
 		result, err = params.JWKSValidator(
 			params.Clock.Now(),
-			[]byte(token.Spec.Kubernetes.StaticJWKS.JWKS),
+			[]byte(kubeConfig.StaticJWKS.JWKS),
 			params.ClusterName,
 			string(params.IDToken),
 		)
@@ -105,9 +106,12 @@ func CheckIDToken(
 			return nil, trace.WrapWithMessage(err, "reviewing kubernetes token with static_jwks")
 		}
 	case types.KubernetesJoinTypeOIDC:
+		if kubeConfig.OIDC == nil {
+			return nil, trace.BadParameter("kubernetes OIDC joining must provide an OIDC configuration")
+		}
 		result, err = params.OIDCValidator.ValidateToken(
 			ctx,
-			token.Spec.Kubernetes.OIDC.Issuer,
+			kubeConfig.OIDC.Issuer,
 			params.ClusterName,
 			string(params.IDToken),
 		)
@@ -122,21 +126,21 @@ func CheckIDToken(
 	default:
 		return nil, trace.BadParameter(
 			"unsupported kubernetes join method type (%s)",
-			token.Spec.Kubernetes.Type,
+			kubeConfig.Type,
 		)
 	}
 
 	log.InfoContext(ctx, "Kubernetes workload trying to join cluster",
 		"validated_identity", result,
-		"token", token.GetName(),
+		"token", params.ProvisionToken.GetName(),
 	)
 
-	return result, trace.Wrap(checkKubernetesAllowRules(token, result))
+	return result, trace.Wrap(checkKubernetesAllowRules(kubeConfig.Allow, result))
 }
 
-func checkKubernetesAllowRules(pt *types.ProvisionTokenV2, got *ValidationResult) error {
+func checkKubernetesAllowRules(allow []*types.ProvisionTokenSpecV2Kubernetes_Rule, got *ValidationResult) error {
 	// If a single rule passes, accept the token
-	for _, rule := range pt.Spec.Kubernetes.Allow {
+	for _, rule := range allow {
 		wantUsername := fmt.Sprintf("%s:%s", ServiceAccountNamePrefix, rule.ServiceAccount)
 		if wantUsername != got.Username {
 			continue
