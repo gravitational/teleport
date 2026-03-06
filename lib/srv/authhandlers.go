@@ -443,7 +443,7 @@ func precondsFromPermissions(perms *ssh.Permissions) ([]*decisionpb.Precondition
 	}
 
 	permit := &decisionpb.SSHAccessPermit{}
-	if err := protojson.Unmarshal([]byte(rawPermit), permit); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(rawPermit), permit); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
