@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -982,6 +983,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Logins: []string{"login-a"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -993,6 +997,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa/bb",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa/bb"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Logins: []string{"login-b"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -1004,6 +1011,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa/bb/cc",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa/bb/cc"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Logins: []string{"login-c"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -1015,6 +1025,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/xx",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/xx"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Logins: []string{"login-x"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -1083,17 +1096,11 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	// verify that the expected scope pin is applied to ssh and tls certificates
 	expectedPin := &scopesv1.Pin{
 		Scope: "/aa/bb",
-		Assignments: map[string]*scopesv1.PinnedAssignments{
-			"/aa": {
-				Roles: []string{"role-a"},
-			},
-			"/aa/bb": {
-				Roles: []string{"role-b"},
-			},
-			"/aa/bb/cc": {
-				Roles: []string{"role-c"},
-			},
-		},
+		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+			"/aa":       {"/aa": {"role-a"}},
+			"/aa/bb":    {"/aa/bb": {"role-b"}},
+			"/aa/bb/cc": {"/aa/bb/cc": {"role-c"}},
+		}),
 	}
 
 	// parse and examine the ssh cert
@@ -1106,6 +1113,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	require.NotNil(t, sshIdent.ScopePin)
 	require.Empty(t, cmp.Diff(expectedPin, sshIdent.ScopePin, protocmp.Transform()))
 	require.Empty(t, sshIdent.Roles)
+	require.Equal(t, []string{"login-a", "login-b", "login-c", "-teleport-internal-join"}, sshIdent.Principals)
 
 	// parse and examine the tls cert
 	tlsCert, err := tlsca.ParseCertificatePEM(authrsp.TLSCert)

@@ -29,7 +29,31 @@ message Pin {
   // assignments encodes the scoped role assignments relevant to access-control decisions about the pinned identity. This may
   // include assignments to parents of the pinned scope as well as assignments to equivalent/child scopes. Effectively, this
   // means all assignments that are not orthogonal to the pinned scope.
-  map<string, PinnedAssignments> assignments = 2;
+  map<string, PinnedAssignments> assignments = 2 [deprecated = true];
+
+  // assignment_tree encodes the full tree of scoped privilege assignments, organized by *Scope of Origin*. Policies/privileges
+  // assigned from higher scopes of origin take precedence over those assigned from lower scopes of origin.
+  AssignmentNode assignment_tree = 3;
+}
+
+// AssignmentNode represents a node in the assignment tree. In addition to containing its own children as is standard for tree nodes,
+// each assignment node may also contain a role subtree. The assignment tree is organized by *Scope of Origin* (the scope from which
+// the assignment originates), while the role subtree is organized by *Scope of Effect* (i.e. the scope at which the roles apply).
+message AssignmentNode {
+  // children are the child assignment nodes, keyed by scope segment.
+  map<string, AssignmentNode> children = 1;
+
+  // role_tree is the subtree of roles assigned from this scope of origin, organized by *Scope of Effect*.
+  RoleNode role_tree = 2;
+}
+
+// RoleNode represents a node in the role tree. It encodes any roles assigned at the given scope level, as well as any child scopes
+// that have further role assignments. The role tree is organized by *Scope of Effect* (i.e. the scope at which the roles apply).
+message RoleNode {
+  // children are the child role nodes, keyed by scope segment.
+  map<string, RoleNode> children = 1;
+  // roles are the roles assigned at this scope level.
+  repeated string roles = 2;
 }
 
 // PinnedAssignments is a collection of scoped role assignments that are relevant to the pinned identity at the target scope.
