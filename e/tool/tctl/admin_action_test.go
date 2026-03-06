@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -481,7 +480,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
-	identity, err := storage.ReadLocalIdentity(filepath.Join(process.Config.DataDir, teleport.ComponentProcess), state.IdentityID{Role: types.RoleAdmin, HostUUID: authServer.ServerID})
+	identity, err := storage.ReadLocalIdentityForRole(t.Context(), filepath.Join(process.Config.DataDir, teleport.ComponentProcess), types.RoleAdmin)
 	require.NoError(t, err)
 	tlsConfig, err := identity.TLSConfig(nil)
 	require.NoError(t, err)
