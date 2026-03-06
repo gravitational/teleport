@@ -113,10 +113,7 @@ func updateScopedToken(ctx context.Context, client *authclient.Client, raw servi
 func getScopedToken(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
 	// If a specific token name is requested, filter the results
 	if ref.Name != "" {
-		token, err := client.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
-			Name:       ref.Name,
-			WithSecret: opts.WithSecrets,
-		})
+		token, err := client.GetScopedToken(ctx, ref.Name, opts.WithSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
