@@ -2601,6 +2601,7 @@ const mfaFlowTypeLabels: Record<number, string> = {
   2: 'IN_BAND',
 };
 
+// TODO(cthach): DELETE IN v20.0 once the only supported MFA flow_type is IN_BAND.
 function formatRawEventForUI(json: any): any {
   // For MFA events, convert the flow_type from a number to a human readable string.
   if (
