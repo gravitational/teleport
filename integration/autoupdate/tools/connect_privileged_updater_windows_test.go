@@ -305,7 +305,7 @@ func runPrivilegedUpdaterFlow(t *testing.T, update update, opts ...privilegedSer
 	}
 
 	checksumPath := "/Teleport Connect Setup-" + update.version + ".exe.sha256"
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != checksumPath {
 			http.NotFound(w, r)
 			return
