@@ -6072,8 +6072,17 @@ func (c *Client) CreateScopedToken(ctx context.Context, token *joiningv1.ScopedT
 	return res.GetToken(), trace.Wrap(err)
 }
 
+// UpsertScopedToken upserts a scoped token.
 func (c *Client) UpsertScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
 	res, err := c.grpc.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{
+		Token: token,
+	})
+	return res.GetToken(), trace.Wrap(err)
+}
+
+// UpdateScopedToken updates an existing scoped token.
+func (c *Client) UpdateScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+	res, err := c.grpc.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
 		Token: token,
 	})
 	return res.GetToken(), trace.Wrap(err)
