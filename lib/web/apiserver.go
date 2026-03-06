@@ -3511,11 +3511,31 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		case types.Server:
 			switch enriched.GetKind() {
 			case types.KindNode:
-				logins, err := client.CalculateSSHLogins(identity.Principals, enriched.Logins)
+				// allLogins is the full set of logins visible to the user (granted ∪ requestable)
+				// already computed by Auth w/ search_as_roles when applicable.
+				allLogins := enriched.Logins
+
+				var grantedLogins []string
+				if req.IncludeRequestable {
+					// Compute granted logins with the base accessChecker (w/out search_as_roles)
+					// so MakeServer can distinguish granted from requestable.
+					grantedLogins, err = accessChecker.GetAllowedLoginsForResource(r)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+				} else {
+					grantedLogins = allLogins
+				}
+
+				// Filter granted logins to those present in the user's current certificate principals.
+				// oOnly these can be used for an SSH connection right away.
+				grantedLogins, err = client.CalculateSSHLogins(identity.Principals, grantedLogins)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				unifiedResources = append(unifiedResources, ui.MakeServer(cluster.GetName(), r, logins, enriched.RequiresRequest))
+
+				nodeComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
+				unifiedResources = append(unifiedResources, ui.MakeServer(cluster.GetName(), r, allLogins, grantedLogins, enriched.RequiresRequest, nodeComponentFeatures))
 			case types.KindGitServer:
 				unifiedResources = append(unifiedResources, ui.MakeGitServer(cluster.GetName(), r, enriched.RequiresRequest))
 			}
@@ -3640,7 +3660,7 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 			return nil, trace.Wrap(err)
 		}
 
-		uiServers = append(uiServers, ui.MakeServer(cluster.GetName(), server, logins, false /* requiresRequest */))
+		uiServers = append(uiServers, ui.MakeServer(cluster.GetName(), server, logins, logins, false /* requiresRequest */, nil))
 	}
 
 	return listResourcesGetResponse{
