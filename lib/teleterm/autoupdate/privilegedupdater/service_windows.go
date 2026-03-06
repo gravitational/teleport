@@ -446,6 +446,10 @@ func downloadChecksum(ctx context.Context, baseUrl string, version string) ([]by
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing base URL")
 	}
+	// Keep updater policy aligned with Service.GetConfig RPC validation and reject non-TLS CDNs even if this path is called outside the UI flow.
+	if parsedBaseURL.Scheme != "https" {
+		return nil, trace.BadParameter("CDN base URL must be https")
+	}
 	filename := fmt.Sprintf("Teleport Connect Setup-%s.exe.sha256", version)
 	downloadURL := parsedBaseURL.JoinPath(filename)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL.String(), nil)
