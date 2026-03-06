@@ -1771,3 +1771,303 @@ func TestPromoteAccessRequest(t *testing.T) {
 	require.Equal(t, "promotion reason", promotedAccessReq.ResolveReason)
 	require.Equal(t, accessList.Spec.Title, promotedAccessReq.PromotedAccessListTitle)
 }
+
+func TestCreateAccessRequest_SuggestedReviewers(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			AdvancedAccessWorkflows: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+		GenerateAccessRequestSuggestedReviewersFn: accessrequest.GenerateAccessRequestSuggestedReviewers,
+		GenerateLongTermResourceGroupingFn:        accessrequest.GenerateLongTermResourceGrouping,
+	})
+
+	clock := clockwork.NewRealClock()
+	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond))
+
+	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
+	t.Cleanup(cancel)
+
+	authClient := s.newAdminAuthClient(ctx, t)
+	accessListClient := authClient.AccessListClient()
+
+	accessRole, err := authtest.CreateRole(ctx, authClient, "access-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{"*": []string{"*"}},
+		},
+	})
+	require.NoError(t, err)
+
+	requesterRole, err := authtest.CreateRole(ctx, authClient, "requester-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles:         []string{accessRole.GetName()},
+				SearchAsRoles: []string{accessRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	reviewerRole, err := authtest.CreateRole(ctx, authClient, "reviewer-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			ReviewRequests: &types.AccessReviewConditions{
+				Roles: []string{accessRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	ownerUser, err := types.NewUser("test-owner")
+	require.NoError(t, err)
+
+	_, err = authClient.UpsertUser(ctx, ownerUser)
+	require.NoError(t, err)
+
+	testAccessList, err := accesslist.NewAccessList(
+		header.Metadata{Name: "test-servers"},
+		accesslist.Spec{
+			Title:  "Test Servers",
+			Audit:  accesslist.Audit{NextAuditDate: s.clock.Now().Add(24 * time.Hour)},
+			Owners: []accesslist.Owner{{Name: ownerUser.GetName(), Description: "Owner of the list"}},
+			Grants: accesslist.Grants{
+				Roles: []string{requesterRole.GetName()},
+			},
+			OwnerGrants: accesslist.Grants{
+				Roles: []string{reviewerRole.GetName()},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = accessListClient.UpsertAccessList(ctx, testAccessList)
+	require.NoError(t, err)
+
+	node, err := types.NewServer(
+		"test-node",
+		types.KindNode,
+		types.ServerSpecV2{},
+	)
+	require.NoError(t, err)
+
+	_, err = authClient.UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	t.Run("user who is not a member gets no suggested reviewers", func(t *testing.T) {
+		requesterNonMemberUser, err := types.NewUser("test-requester-non-member")
+		require.NoError(t, err)
+
+		requesterNonMemberUser.SetRoles([]string{requesterRole.GetName()})
+
+		_, err = authClient.UpsertUser(ctx, requesterNonMemberUser)
+		require.NoError(t, err)
+
+		req, err := createAccessRequest(ctx, authClient, ui.AccessRequestParameters{
+			Reason:      "Request expecting membership reviewer NOT to be found",
+			RequestKind: types.AccessRequestKind_SHORT_TERM,
+			ResourceIDs: []ui.ResourceID{{Name: node.GetName(), Kind: types.KindNode}},
+			Roles:       []string{accessRole.GetName()},
+			DryRun:      true,
+		}, requesterNonMemberUser.GetName())
+
+		require.NoError(t, err)
+		require.Empty(t, req.SuggestedReviewers)
+	})
+
+	t.Run("user who is a member gets owner as suggested reviewer", func(t *testing.T) {
+		requesterMemberUser, err := types.NewUser("test-requester-member")
+		require.NoError(t, err)
+
+		_, err = authClient.UpsertUser(ctx, requesterMemberUser)
+		require.NoError(t, err)
+
+		requesterACLMember, err := accesslist.NewAccessListMember(
+			header.Metadata{Name: requesterMemberUser.GetName()},
+			accesslist.AccessListMemberSpec{
+				Name:           requesterMemberUser.GetName(),
+				AccessList:     testAccessList.GetName(),
+				MembershipKind: accesslist.MembershipKindUser,
+				Joined:         s.clock.Now().Add(-1 * time.Hour),
+				AddedBy:        ownerUser.GetName(),
+			},
+		)
+		require.NoError(t, err)
+
+		_, err = accessListClient.UpsertAccessListMember(ctx, requesterACLMember)
+		require.NoError(t, err)
+
+		// Applies UserLoginState (i.e. the granted roles from access list) to user.
+		err = s.testAuthServer.AuthServer.AuthServer.CallLoginHooks(ctx, requesterMemberUser)
+		require.NoError(t, err)
+
+		req, err := createAccessRequest(ctx, authClient, ui.AccessRequestParameters{
+			Reason:      "Request expecting membership reviewer to be found",
+			RequestKind: types.AccessRequestKind_SHORT_TERM,
+			ResourceIDs: []ui.ResourceID{{Name: node.GetName(), Kind: types.KindNode}},
+			Roles:       []string{accessRole.GetName()},
+			DryRun:      true,
+		}, requesterMemberUser.GetName())
+
+		require.NoError(t, err)
+		require.ElementsMatch(t, req.SuggestedReviewers, []string{ownerUser.GetName()})
+	})
+
+	t.Run("user who is a member of long-term access list gets owner suggested for long-term requests", func(t *testing.T) {
+		longTermOwnerUser, err := types.NewUser("test-long-term-owner")
+		require.NoError(t, err)
+
+		_, err = authClient.UpsertUser(ctx, longTermOwnerUser)
+		require.NoError(t, err)
+
+		longTermReviewerRole, err := authtest.CreateRole(ctx, authClient, "long-term-reviewer-role", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				ReviewRequests: &types.AccessReviewConditions{
+					Roles: []string{accessRole.GetName()},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = authClient.UpsertRole(ctx, longTermReviewerRole)
+		require.NoError(t, err)
+
+		longTermAccessList, err := accesslist.NewAccessList(
+			header.Metadata{Name: "long-term"},
+			accesslist.Spec{
+				Title:  "Long Term Test",
+				Audit:  accesslist.Audit{NextAuditDate: s.clock.Now().Add(24 * time.Hour)},
+				Owners: []accesslist.Owner{{Name: longTermOwnerUser.GetName()}},
+				Grants: accesslist.Grants{
+					Roles: []string{accessRole.GetName()},
+				},
+				OwnerGrants: accesslist.Grants{
+					Roles: []string{longTermReviewerRole.GetName()},
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		_, err = accessListClient.UpsertAccessList(ctx, longTermAccessList)
+		require.NoError(t, err)
+
+		longTermMemberUser, err := types.NewUser("test-long-term-member")
+		require.NoError(t, err)
+
+		longTermMemberUser.SetRoles([]string{requesterRole.GetName()})
+
+		_, err = authClient.UpsertUser(ctx, longTermMemberUser)
+		require.NoError(t, err)
+
+		shortTermMember, err := accesslist.NewAccessListMember(
+			header.Metadata{Name: longTermMemberUser.GetName()},
+			accesslist.AccessListMemberSpec{
+				Name:           longTermMemberUser.GetName(),
+				AccessList:     testAccessList.GetName(),
+				MembershipKind: accesslist.MembershipKindUser,
+				Joined:         s.clock.Now().Add(-1 * time.Hour),
+				AddedBy:        ownerUser.GetName(),
+			},
+		)
+		require.NoError(t, err)
+
+		_, err = accessListClient.UpsertAccessListMember(ctx, shortTermMember)
+		require.NoError(t, err)
+
+		longTermMember, err := accesslist.NewAccessListMember(
+			header.Metadata{Name: longTermMemberUser.GetName()},
+			accesslist.AccessListMemberSpec{
+				Name:           longTermMemberUser.GetName(),
+				AccessList:     longTermAccessList.GetName(),
+				MembershipKind: accesslist.MembershipKindUser,
+				Joined:         s.clock.Now().Add(-1 * time.Hour),
+				AddedBy:        longTermOwnerUser.GetName(),
+			},
+		)
+		require.NoError(t, err)
+
+		_, err = accessListClient.UpsertAccessListMember(ctx, longTermMember)
+		require.NoError(t, err)
+
+		req, err := createAccessRequest(ctx, authClient, ui.AccessRequestParameters{
+			Reason:      "Request expecting long term suggestion",
+			RequestKind: types.AccessRequestKind_LONG_TERM,
+			ResourceIDs: []ui.ResourceID{{Name: node.GetName(), Kind: types.KindNode}},
+			Roles:       []string{accessRole.GetName()},
+			DryRun:      true,
+		}, longTermMemberUser.GetName())
+
+		require.NoError(t, err)
+		require.ElementsMatch(t, req.SuggestedReviewers, []string{longTermOwnerUser.GetName()})
+	})
+
+	t.Run("user who is a member of long-term access list gets owner suggested for role-only requests", func(t *testing.T) {
+		longTermRoleOwner, err := types.NewUser("long-term-role-owner")
+		require.NoError(t, err)
+
+		_, err = authClient.UpsertUser(ctx, longTermRoleOwner)
+		require.NoError(t, err)
+
+		longTermRoleReviewerRole, err := authtest.CreateRole(ctx, authClient, "long-term-role-reviewer-role", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				ReviewRequests: &types.AccessReviewConditions{
+					Roles: []string{accessRole.GetName()},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		longTermAccessList, err := accesslist.NewAccessList(
+			header.Metadata{Name: "long-term-role"},
+			accesslist.Spec{
+				Title:  "Long term role request",
+				Audit:  accesslist.Audit{NextAuditDate: s.clock.Now().Add(24 * time.Hour)},
+				Owners: []accesslist.Owner{{Name: longTermRoleOwner.GetName()}},
+				Grants: accesslist.Grants{
+					Roles: []string{accessRole.GetName()},
+				},
+				OwnerGrants: accesslist.Grants{
+					Roles: []string{longTermRoleReviewerRole.GetName()},
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		_, err = accessListClient.UpsertAccessList(ctx, longTermAccessList)
+		require.NoError(t, err)
+
+		longTermMemberUser, err := types.NewUser("long-term-member-user")
+		require.NoError(t, err)
+
+		longTermMemberUser.SetRoles([]string{requesterRole.GetName()})
+
+		_, err = authClient.UpsertUser(ctx, longTermMemberUser)
+		require.NoError(t, err)
+
+		member, err := accesslist.NewAccessListMember(
+			header.Metadata{Name: longTermMemberUser.GetName()},
+			accesslist.AccessListMemberSpec{
+				Name:           longTermMemberUser.GetName(),
+				AccessList:     longTermAccessList.GetName(),
+				MembershipKind: accesslist.MembershipKindUser,
+				Joined:         s.clock.Now().Add(-1 * time.Hour),
+				AddedBy:        longTermRoleOwner.GetName(),
+			},
+		)
+		require.NoError(t, err)
+
+		_, err = accessListClient.UpsertAccessListMember(ctx, member)
+		require.NoError(t, err)
+
+		req, err := createAccessRequest(ctx, authClient, ui.AccessRequestParameters{
+			Reason:      "Request role-only expecting long-term suggestion",
+			RequestKind: types.AccessRequestKind_LONG_TERM,
+			Roles:       []string{accessRole.GetName()},
+			DryRun:      true,
+		}, longTermMemberUser.GetName())
+
+		require.NoError(t, err)
+		require.ElementsMatch(t, req.SuggestedReviewers, []string{longTermRoleOwner.GetName()})
+	})
+}

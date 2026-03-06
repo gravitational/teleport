@@ -13,11 +13,13 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 type userDataGetter interface {
@@ -466,11 +468,91 @@ type suggestionValidator struct {
 	dataGetter         userDataGetter
 	requester          types.User
 	requestedResources []types.ResourceWithLabels
+	requestedRoles     []string
+	requestKind        types.AccessRequestKind
 
 	clock clockwork.Clock
 }
 
-func (v *suggestionValidator) isValidSuggestion(ctx context.Context, list *accesslist.AccessList) (bool, error) {
+// isListOwnerValidSuggestedReviewer returns true if the owner of the access list is a valid suggestion
+// via either membership or promotion.
+func (v *suggestionValidator) isListOwnerValidSuggestedReviewer(ctx context.Context, list *accesslist.AccessList) bool {
+	validForCurrentMember, err := v.isValidForCurrentMember(ctx, list)
+	if err != nil {
+		slog.Log(ctx, logutils.TraceLevel, "Failed to validate access list membership", "error", err)
+	}
+	if validForCurrentMember {
+		return true
+	}
+
+	validPromotionSuggestion, err := v.isValidPromotionSuggestion(ctx, list)
+	if err != nil {
+		slog.Log(ctx, logutils.TraceLevel, "Failed to validate access list promotion", "error", err)
+		return false
+	}
+
+	return validPromotionSuggestion
+}
+
+// isValidForCurrentMember returns true when the requester is a member of the given access list, where member grants allow requesting
+// and owner grants allow reviewing.
+func (v *suggestionValidator) isValidForCurrentMember(ctx context.Context, list *accesslist.AccessList) (bool, error) {
+	_, err := accesslists.IsAccessListMember(ctx, v.requester, list, v.dataGetter, nil, v.clock)
+	if trace.IsAccessDenied(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return v.memberGrantsAllowRequesting(ctx, list) && v.ownerGrantsAllowReviewing(ctx, list), nil
+}
+
+func (v *suggestionValidator) memberGrantsAllowRequesting(ctx context.Context, list *accesslist.AccessList) bool {
+	if v.requestKind.IsLongTerm() {
+		return slices.ContainsFunc(list.GetGrants().Roles, func(role string) bool {
+			return slices.Contains(v.requestedRoles, role)
+		})
+	}
+
+	// Deny conditions not checked. If a role denies requesting then the user wouldn't even be able to make the request.
+	for _, roleName := range list.GetGrants().Roles {
+		role, err := v.dataGetter.GetRole(ctx, roleName)
+		if err != nil {
+			slog.DebugContext(ctx, "Failed to get role from grants role name", "role_name", roleName, "error", err)
+		} else if anyRoleMatches(ctx, role.GetAccessRequestConditions(types.Allow).Roles, v.requestedRoles) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (v *suggestionValidator) ownerGrantsAllowReviewing(ctx context.Context, list *accesslist.AccessList) bool {
+	allowed := false
+
+	for _, roleName := range list.GetOwnerGrants().Roles {
+		role, err := v.dataGetter.GetRole(ctx, roleName)
+		if err != nil {
+			slog.DebugContext(ctx, "Failed to get role from owner grants role name", "role_name", roleName, "error", err)
+			continue
+		}
+		if anyRoleMatches(ctx, role.GetAccessReviewConditions(types.Deny).Roles, v.requestedRoles) {
+			return false
+		}
+		if anyRoleMatches(ctx, role.GetAccessReviewConditions(types.Allow).Roles, v.requestedRoles) {
+			allowed = true
+		}
+	}
+
+	return allowed
+}
+
+func (v *suggestionValidator) isValidPromotionSuggestion(ctx context.Context, list *accesslist.AccessList) (bool, error) {
+	// Promotions are only available for resource-based access requests.
+	if len(v.requestedResources) == 0 {
+		return false, nil
+	}
 	// If the user is already a member, or doesn't meet the requirements to be assigned to the access list,
 	// then the access list is not a valid suggestion.
 	//
@@ -546,10 +628,81 @@ func computeAccessListRelevancy(requestRoles []string, list *accesslist.AccessLi
 // Access List.
 func GenerateAccessRequestPromotions(ctx context.Context, resourceGetter modules.AccessResourcesGetter, accessRequest types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	if len(accessRequest.GetAllRequestedResourceIDs()) == 0 {
-		// Suggestions are only available for resource-based access requests.
-		return types.NewAccessRequestAllowedPromotions(nil), nil
+		// Promotions are only available for resource-based access requests.
+		// Return early and avoid constructing the validator if we already know it's invalid.
+		return &types.AccessRequestAllowedPromotions{}, nil
 	}
 
+	validator, err := newSuggestionValidator(ctx, resourceGetter, accessRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	allowedPromotions := &types.AccessRequestAllowedPromotions{}
+
+	for accessList, err := range clientutils.Resources(ctx, resourceGetter.ListAccessLists) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		validPromotionSuggestion, err := validator.isValidPromotionSuggestion(ctx, accessList)
+		if err != nil {
+			slog.Log(ctx, logutils.TraceLevel, "Failed to validate access list promotion", "error", err)
+			continue
+		}
+
+		if validPromotionSuggestion {
+			allowedPromotions.Promotions = append(allowedPromotions.Promotions, &types.AccessRequestAllowedPromotion{
+				AccessListName: accessList.GetName(),
+			})
+		}
+	}
+
+	return allowedPromotions, nil
+}
+
+// GenerateAccessRequestSuggestedReviewers returns a list of suggested reviewers for an access request.
+// Suggested reviewers are owners of access lists determined via two paths:
+//
+// Promotion: the requester is not a member of the access list, but the list grants access to the requested resources and its owners have review permissions for the requested roles.
+// Only applicable to resource-based requests.
+//
+// Membership: the requester is a current member of the access list, and:
+//
+// - For short-term requests: the list grants a role that allows requesting the requested role, and its owners have review permissions for those roles.
+//
+// - For long-term requests: the list directly grants one of the requested roles, and its owners have review permissions for those roles.
+func GenerateAccessRequestSuggestedReviewers(ctx context.Context, resourceGetter modules.AccessResourcesGetter, accessRequest types.AccessRequest) ([]string, error) {
+	validator, err := newSuggestionValidator(ctx, resourceGetter, accessRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var suggestedReviewers []string
+
+	for accessList, err := range clientutils.Resources(ctx, resourceGetter.ListAccessLists) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if validator.isListOwnerValidSuggestedReviewer(ctx, accessList) {
+			allOwners, err := resourceGetter.GetAccessListOwners(ctx, accessList.GetName())
+			if err != nil {
+				slog.WarnContext(ctx, "Failed to get nested access list owners, skipping access list", "error", err, "access_list", accessList.GetName())
+				// Continue with remaining lists so we add all we can.
+				continue
+			}
+
+			for _, owner := range allOwners {
+				suggestedReviewers = append(suggestedReviewers, owner.Name)
+			}
+		}
+	}
+
+	return suggestedReviewers, nil
+}
+
+func newSuggestionValidator(ctx context.Context, resourceGetter modules.AccessResourcesGetter, accessRequest types.AccessRequest) (*suggestionValidator, error) {
 	requester, err := resourceGetter.GetUser(ctx, accessRequest.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -564,35 +717,25 @@ func GenerateAccessRequestPromotions(ctx context.Context, resourceGetter modules
 		return nil, trace.Wrap(err)
 	}
 
-	allowedPromotions := types.NewAccessRequestAllowedPromotions(nil)
-
-	validator := suggestionValidator{
+	return &suggestionValidator{
 		dataGetter:         resourceGetter,
 		requester:          requester,
 		requestedResources: resources,
+		requestedRoles:     accessRequest.GetRoles(),
+		requestKind:        accessRequest.GetRequestKind(),
 		clock:              clockwork.NewRealClock(),
-	}
+	}, nil
+}
 
-	allAccessLists, err := resourceGetter.GetAccessLists(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	for _, accessList := range allAccessLists {
-		valid, err := validator.isValidSuggestion(ctx, accessList)
+func anyRoleMatches(ctx context.Context, patterns, targets []string) bool {
+	for _, pattern := range patterns {
+		m, err := parse.NewMatcher(pattern)
 		if err != nil {
-			slog.Log(ctx, logutils.TraceLevel, "failed to validate access list suggestion", "error", err)
-			continue
+			slog.DebugContext(ctx, "Failed to parse matcher expression", "pattern", pattern, "error", err)
+		} else if slices.ContainsFunc(targets, m.Match) {
+			return true
 		}
-
-		if !valid {
-			continue
-		}
-
-		allowedPromotions.Promotions = append(allowedPromotions.Promotions, &types.AccessRequestAllowedPromotion{
-			AccessListName: accessList.GetName(),
-		})
 	}
 
-	return allowedPromotions, nil
+	return false
 }

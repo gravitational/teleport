@@ -181,6 +181,11 @@ func (p *EnterpriseModules) GenerateAccessRequestPromotions(ctx context.Context,
 	return accessrequest.GenerateAccessRequestPromotions(ctx, accessListGetter, accessRequest)
 }
 
+// GenerateAccessRequestSuggestedReviewers returns a list of suggested reviewers for a given access request.
+func (p *EnterpriseModules) GenerateAccessRequestSuggestedReviewers(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessRequest types.AccessRequest) ([]string, error) {
+	return accessrequest.GenerateAccessRequestSuggestedReviewers(ctx, accessListGetter, accessRequest)
+}
+
 func (p *EnterpriseModules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt modules.AccessListSuggestionClient,
 	accessListGetter modules.AccessListAndMembersGetter, requestID string,
 ) ([]*accesslist.AccessList, error) {

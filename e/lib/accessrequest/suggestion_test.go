@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 func TestScoreRelevance(t *testing.T) {
@@ -287,6 +288,403 @@ func TestGenerateAccessRequestPromotions(t *testing.T) {
 
 }
 
+func TestGenerateAccessRequestSuggestedReviewers(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                       string
+		currentResources           []testNodeDesc
+		currentRoles               []testRoleDesc
+		currentUsers               []testUserDesc
+		currentAccessLists         []testAccessListDesc
+		accessRequest              testAccessRequestDesc
+		expectedSuggestedReviewers []string
+	}{
+		{
+			name:         "access list owner is not suggested for role-based requests",
+			currentUsers: []testUserDesc{{name: "user1"}},
+			currentAccessLists: []testAccessListDesc{
+				{
+					name:         "access-list1",
+					owners:       []string{"test-owner"},
+					grantedRoles: []string{"server1-access"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name:             "test-access-request",
+				user:             "user1",
+				requestedRoles:   []string{"server1-access"},
+				requestedServers: []string{},
+			},
+			expectedSuggestedReviewers: []string{},
+		},
+		{
+			name: "access list owner is suggested when user is a member and grants allow requesting and reviewing",
+			currentResources: []testNodeDesc{
+				{name: "server1", labels: map[string]string{"server": "1"}},
+			},
+			currentRoles: []testRoleDesc{
+				{
+					name: "access-list1-member",
+					accessRequestConditions: types.AccessRequestConditions{
+						Roles: []string{"server1-access"},
+					},
+				},
+				{
+					name: "access-list1-owner",
+					accessReviewConditions: types.AccessReviewConditions{
+						Roles: []string{"server1-access"},
+					},
+				},
+			},
+			currentUsers: []testUserDesc{{name: "user1"}},
+			currentAccessLists: []testAccessListDesc{
+				{
+					name:              "access-list1",
+					owners:            []string{"test-owner"},
+					members:           []string{"user1"},
+					grantedRoles:      []string{"access-list1-member"},
+					ownerGrantedRoles: []string{"access-list1-owner"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name:             "test-access-request",
+				user:             "user1",
+				requestedServers: []string{"server1"},
+				requestedRoles:   []string{"server1-access"},
+			},
+			expectedSuggestedReviewers: []string{"test-owner"},
+		},
+		{
+			name: "access list owner is not suggested when user is not a member",
+			currentResources: []testNodeDesc{
+				{name: "server1", labels: map[string]string{"server": "1"}},
+			},
+			currentRoles: []testRoleDesc{
+				{
+					name: "access-list1-member",
+					accessRequestConditions: types.AccessRequestConditions{
+						Roles: []string{"server1-access"},
+					},
+				},
+				{
+					name: "access-list1-owner",
+					accessReviewConditions: types.AccessReviewConditions{
+						Roles: []string{"server1-access"},
+					},
+				},
+			},
+			currentUsers: []testUserDesc{{name: "user1"}},
+			currentAccessLists: []testAccessListDesc{
+				{
+					name:              "access-list1",
+					owners:            []string{"test-owner"},
+					members:           []string{},
+					grantedRoles:      []string{"access-list1-member"},
+					ownerGrantedRoles: []string{"access-list1-owner"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name:             "test-access-request",
+				user:             "user1",
+				requestedServers: []string{"server1"},
+				requestedRoles:   []string{"server1-access"},
+			},
+			expectedSuggestedReviewers: []string{},
+		},
+		{
+			name: "access list owner is not suggested when member grants do not allow requesting the role",
+			currentResources: []testNodeDesc{
+				{name: "server1", labels: map[string]string{"server": "1"}},
+			},
+			currentRoles: []testRoleDesc{
+				{
+					name: "access-list1-member",
+					// No access request conditions.
+				},
+				{
+					name: "access-list1-owner",
+					accessReviewConditions: types.AccessReviewConditions{
+						Roles: []string{"server1-access"},
+					},
+				},
+			},
+			currentUsers: []testUserDesc{{name: "user1"}},
+			currentAccessLists: []testAccessListDesc{
+				{
+					name:              "access-list1",
+					owners:            []string{"test-owner"},
+					members:           []string{"user1"},
+					grantedRoles:      []string{"access-list1-member"},
+					ownerGrantedRoles: []string{"access-list1-owner"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name:             "test-access-request",
+				user:             "user1",
+				requestedServers: []string{"server1"},
+				requestedRoles:   []string{"server1-access"},
+			},
+			expectedSuggestedReviewers: []string{},
+		},
+		{
+			name: "access list owner is not suggested when owner grants do not allow reviewing the role",
+			currentResources: []testNodeDesc{
+				{name: "server1", labels: map[string]string{"server": "1"}},
+			},
+			currentRoles: []testRoleDesc{
+				{
+					name: "access-list1-member",
+					accessRequestConditions: types.AccessRequestConditions{
+						Roles: []string{"server1-access"},
+					},
+				},
+				{
+					name: "access-list1-owner",
+					// No access review conditions.
+				},
+			},
+			currentUsers: []testUserDesc{{name: "user1"}},
+			currentAccessLists: []testAccessListDesc{
+				{
+					name:              "access-list1",
+					owners:            []string{"test-owner"},
+					members:           []string{"user1"},
+					grantedRoles:      []string{"access-list1-member"},
+					ownerGrantedRoles: []string{"access-list1-owner"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name:             "test-access-request",
+				user:             "user1",
+				requestedServers: []string{"server1"},
+				requestedRoles:   []string{"server1-access"},
+			},
+			expectedSuggestedReviewers: []string{},
+		},
+		{
+			name: "only owners of access lists matching all conditions are suggested",
+			currentResources: []testNodeDesc{
+				{name: "server1", labels: map[string]string{"server": "1"}},
+			},
+			currentRoles: []testRoleDesc{
+				{
+					name: "access-list1-member",
+					accessRequestConditions: types.AccessRequestConditions{
+						Roles: []string{"server1-access"},
+					},
+				},
+				{
+					name: "access-list1-owner",
+					accessReviewConditions: types.AccessReviewConditions{
+						Roles: []string{"server1-access"},
+					},
+				},
+				{
+					name: "access-list2-member",
+					accessRequestConditions: types.AccessRequestConditions{
+						Roles: []string{"server1-access"},
+					},
+				},
+				{
+					name: "access-list2-owner",
+					// No access review conditions.
+				},
+			},
+			currentUsers: []testUserDesc{{name: "user1"}},
+			currentAccessLists: []testAccessListDesc{
+				{
+					name:              "access-list1",
+					owners:            []string{"test-owner-1"},
+					members:           []string{"user1"},
+					grantedRoles:      []string{"access-list1-member"},
+					ownerGrantedRoles: []string{"access-list1-owner"},
+				},
+				{
+					name:              "access-list2",
+					owners:            []string{"test-owner-2"},
+					members:           []string{"user1"},
+					grantedRoles:      []string{"access-list2-member"},
+					ownerGrantedRoles: []string{"access-list2-owner"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name:             "test-access-request",
+				user:             "user1",
+				requestedServers: []string{"server1"},
+				requestedRoles:   []string{"server1-access"},
+			},
+			expectedSuggestedReviewers: []string{"test-owner-1"},
+		},
+		{
+			name: "access list owner is suggested when member and owner grants use wildcard patterns",
+			currentResources: []testNodeDesc{
+				{name: "server1", labels: map[string]string{"server": "1"}},
+			},
+			currentRoles: []testRoleDesc{
+				{
+					name: "access-list1-member",
+					accessRequestConditions: types.AccessRequestConditions{
+						Roles: []string{"server*"},
+					},
+				},
+				{
+					name: "access-list1-owner",
+					accessReviewConditions: types.AccessReviewConditions{
+						Roles: []string{"server*"},
+					},
+				},
+			},
+			currentUsers: []testUserDesc{{name: "user1"}},
+			currentAccessLists: []testAccessListDesc{
+				{
+					name:              "access-list1",
+					owners:            []string{"test-owner"},
+					members:           []string{"user1"},
+					grantedRoles:      []string{"access-list1-member"},
+					ownerGrantedRoles: []string{"access-list1-owner"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name:             "test-access-request",
+				user:             "user1",
+				requestedServers: []string{"server1"},
+				requestedRoles:   []string{"server1-access"},
+			},
+			expectedSuggestedReviewers: []string{"test-owner"},
+		},
+		{
+			name: "access list owner is not suggested when role denies reviewing",
+			currentResources: []testNodeDesc{
+				{name: "server1", labels: map[string]string{"server": "1"}},
+			},
+			currentRoles: []testRoleDesc{
+				{
+					name: "access-list1-member",
+					accessRequestConditions: types.AccessRequestConditions{
+						Roles: []string{"server1-access"},
+					},
+				},
+				{
+					name: "access-list1-owner-allow",
+					accessReviewConditions: types.AccessReviewConditions{
+						Roles: []string{"server1-access"},
+					},
+				},
+				{
+					name: "access-list1-owner-deny",
+					denyAccessReviewConditions: types.AccessReviewConditions{
+						Roles: []string{"server1-access"},
+					},
+				},
+			},
+			currentUsers: []testUserDesc{{name: "user1"}},
+			currentAccessLists: []testAccessListDesc{
+				{
+					name:              "access-list1",
+					owners:            []string{"test-owner"},
+					members:           []string{"user1"},
+					grantedRoles:      []string{"access-list1-member"},
+					ownerGrantedRoles: []string{"access-list1-owner-allow", "access-list1-owner-deny"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name:             "test-access-request",
+				user:             "user1",
+				requestedServers: []string{"server1"},
+				requestedRoles:   []string{"server1-access"},
+			},
+			expectedSuggestedReviewers: []string{},
+		},
+		{
+			name: "access list owner is not suggested when wildcard pattern does not match",
+			currentResources: []testNodeDesc{
+				{name: "server1", labels: map[string]string{"server": "1"}},
+			},
+			currentRoles: []testRoleDesc{
+				{
+					name: "access-list1-member",
+					accessRequestConditions: types.AccessRequestConditions{
+						Roles: []string{"database*"},
+					},
+				},
+				{
+					name: "access-list1-owner",
+					accessReviewConditions: types.AccessReviewConditions{
+						Roles: []string{"server*"},
+					},
+				},
+			},
+			currentUsers: []testUserDesc{{name: "user1"}},
+			currentAccessLists: []testAccessListDesc{
+				{
+					name:              "access-list1",
+					owners:            []string{"test-owner"},
+					members:           []string{"user1"},
+					grantedRoles:      []string{"access-list1-member"},
+					ownerGrantedRoles: []string{"access-list1-owner"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name:             "test-access-request",
+				user:             "user1",
+				requestedServers: []string{"server1"},
+				requestedRoles:   []string{"server1-access"},
+			},
+			expectedSuggestedReviewers: []string{},
+		},
+		{
+			name: "access list owner is suggested via promotion when membership suggestion fails",
+			currentResources: []testNodeDesc{
+				{name: "server1", labels: map[string]string{"server": "1"}},
+			},
+			currentRoles: []testRoleDesc{
+				{
+					name:  "access-list1-member",
+					allow: types.RoleConditions{NodeLabels: types.Labels{"server": []string{"1"}}},
+				},
+			},
+			currentUsers: []testUserDesc{{name: "user1"}},
+			currentAccessLists: []testAccessListDesc{
+				{
+					name:         "access-list1",
+					owners:       []string{"test-owner"},
+					members:      []string{}, // user1 is not a member
+					grantedRoles: []string{"access-list1-member"},
+					// No ownerGrantedRoles.
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name:             "test-access-request",
+				user:             "user1",
+				requestedServers: []string{"server1"},
+				requestedRoles:   []string{"server1-access"},
+			},
+			expectedSuggestedReviewers: []string{"test-owner"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+
+			g := &mockAccessResourcesGetter{}
+			testSetupNodes(t, g, tc.currentResources)
+			testSetupRoles(t, g, tc.currentRoles)
+			testSetupUsers(t, g, tc.currentUsers)
+			testSetupAccessListsWithMembers(t, g, tc.currentAccessLists)
+
+			ar := testNewAccessRequest(t, tc.accessRequest)
+			reviewers, err := GenerateAccessRequestSuggestedReviewers(ctx, g, ar)
+			require.NoError(t, err)
+
+			require.ElementsMatch(t, tc.expectedSuggestedReviewers, reviewers)
+		})
+	}
+}
+
 const testClusterName = "test-cluster"
 
 func TestGenerateLongTermResourceGrouping(t *testing.T) {
@@ -470,6 +868,7 @@ type testAccessRequestDesc struct {
 	name             string
 	user             string
 	requestedServers []string
+	requestedRoles   []string
 }
 
 func testNewAccessRequest(t *testing.T, desc testAccessRequestDesc) types.AccessRequest {
@@ -484,7 +883,7 @@ func testNewAccessRequest(t *testing.T, desc testAccessRequestDesc) types.Access
 		}
 		resourcesIDs = append(resourcesIDs, id)
 	}
-	ar, err := types.NewAccessRequestWithResources(desc.name, desc.user, []string{}, types.ResourceIDsToResourceAccessIDs(resourcesIDs))
+	ar, err := types.NewAccessRequestWithResources(desc.name, desc.user, desc.requestedRoles, types.ResourceIDsToResourceAccessIDs(resourcesIDs))
 	require.NoError(t, err, "types.NewAccessRequest")
 
 	return ar
@@ -539,8 +938,11 @@ func testSetupNodes(t *testing.T, g *mockAccessResourcesGetter, descs []testNode
 }
 
 type testRoleDesc struct {
-	name  string
-	allow types.RoleConditions
+	name                       string
+	allow                      types.RoleConditions
+	accessRequestConditions    types.AccessRequestConditions
+	accessReviewConditions     types.AccessReviewConditions
+	denyAccessReviewConditions types.AccessReviewConditions
 }
 
 func testSetupRole(t *testing.T, g *mockAccessResourcesGetter, desc testRoleDesc) {
@@ -558,6 +960,10 @@ func testSetupRole(t *testing.T, g *mockAccessResourcesGetter, desc testRoleDesc
 	)
 	require.NoError(t, err, "types.NewRole")
 
+	r.SetAccessRequestConditions(types.Allow, desc.accessRequestConditions)
+	r.SetAccessReviewConditions(types.Allow, desc.accessReviewConditions)
+	r.SetAccessReviewConditions(types.Deny, desc.denyAccessReviewConditions)
+
 	g.roles[r.GetName()] = r
 }
 
@@ -569,10 +975,11 @@ func testSetupRoles(t *testing.T, g *mockAccessResourcesGetter, descs []testRole
 }
 
 type testAccessListDesc struct {
-	name         string
-	owners       []string
-	members      []string
-	grantedRoles []string
+	name              string
+	owners            []string
+	members           []string
+	grantedRoles      []string
+	ownerGrantedRoles []string
 }
 
 func testSetupAccessListWithMembers(t *testing.T, g *mockAccessResourcesGetter, desc testAccessListDesc) {
@@ -594,9 +1001,10 @@ func testSetupAccessListWithMembers(t *testing.T, g *mockAccessResourcesGetter, 
 			Name: desc.name,
 		},
 		accesslist.Spec{
-			Title:  desc.name,
-			Owners: owners,
-			Grants: accesslist.Grants{Roles: desc.grantedRoles},
+			Title:       desc.name,
+			Owners:      owners,
+			Grants:      accesslist.Grants{Roles: desc.grantedRoles},
+			OwnerGrants: accesslist.Grants{Roles: desc.ownerGrantedRoles},
 		},
 	)
 	require.NoError(t, err, "accesslist.NewAccessList")
@@ -693,6 +1101,15 @@ func (g *mockAccessResourcesGetter) GetAccessListMember(_ context.Context, acces
 	}
 	v2, err := getMockValue(memberName, v1)
 	return v2, trace.Wrap(err)
+}
+
+func (g *mockAccessResourcesGetter) GetAccessListOwners(_ context.Context, accessList string) ([]*accesslist.Owner, error) {
+	v, err := getMockValue(accessList, g.accessLists)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sliceutils.ToPointers(v.Spec.Owners), nil
 }
 
 func (g *mockAccessResourcesGetter) GetUser(_ context.Context, userName string, withSecrets bool) (types.User, error) {
