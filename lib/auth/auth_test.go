@@ -5009,9 +5009,17 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 
 			testTLSServer.AuthServer.AuthServer.SetLicense(tt.license)
 
-			got, err := testTLSServer.AuthServer.AuthServer.GetAnonymizationKey(context.Background())
+			err = testTLSServer.AuthServer.AuthServer.InitializeAnonymizationKey()
+			require.NoError(t, err)
+
+			got := testTLSServer.AuthServer.AuthServer.GetAnonymizationKey()
 			tt.errCheck(t, err)
-			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.want, string(got))
+
+			testTLSServer.AuthServer.AuthServer.SetAnonymizationKey([]byte("somethingelse"))
+			got = testTLSServer.AuthServer.AuthServer.GetAnonymizationKey()
+			tt.errCheck(t, err)
+			require.Equal(t, "somethingelse", string(got))
 		})
 	}
 }
