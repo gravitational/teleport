@@ -316,8 +316,8 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 			// Turn on the enterprise features which impact the endpoint registration.
 			Cloud:         true,
 			RecoveryCodes: true,
-			Policy: &proto.PolicyFeature{
-				Enabled: true,
+			Entitlements: map[string]*proto.EntitlementInfo{
+				"Policy": {Enabled: true},
 			},
 		},
 		IntegrationAppHandler: &mockIntegrationAppHandler{},

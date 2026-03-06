@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -78,7 +79,9 @@ func (p *Plugin) accessGraphHandler(h *web.Handler) httprouter.Handle {
 // queryAccessGraph is a handler for the /v1/accessgraph/query endpoint.
 // It queries the access graph and returns the results.
 func (p *Plugin) queryAccessGraph(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, webCtx *web.SessionContext) (any, error) {
-	if !p.h.GetClusterFeatures().Policy.Enabled {
+	features := p.h.GetClusterFeatures()
+	policy := modules.GetProtoEntitlement(&features, entitlements.Policy)
+	if !policy.Enabled {
 		return nil, trace.AccessDenied("not authorized to use access graph")
 	}
 	query := r.URL.Query().Get("query")
@@ -124,7 +127,8 @@ var demoModePaths = map[string]struct{}{
 // If Policy is enabled, proceed as usual. Otherwise, check if Demo Mode is enabled and update
 // the Demo Mode state on subsequent requests to skip redundant checks.
 func (p *Plugin) canUseAccessGraph(ctx context.Context, requestedPath string) (bool, error) {
-	policyEnabled := p.h.GetClusterFeatures().Policy.Enabled
+	features := p.h.GetClusterFeatures()
+	policyEnabled := modules.GetProtoEntitlement(&features, entitlements.Policy).Enabled
 
 	if policyEnabled {
 		return true, nil
@@ -353,9 +357,12 @@ func (p *Plugin) submitUsageReport(usageReport *usageeventsv1.TAGExecuteQueryEve
 // listIntegrations is a handler to list all the integrations that are available
 // and enabled for the access graph.
 func (p *Plugin) listIntegrations(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, webCtx *web.SessionContext) (any, error) {
-	if !p.h.GetClusterFeatures().Policy.Enabled {
+	features := p.h.GetClusterFeatures()
+	policy := modules.GetProtoEntitlement(&features, entitlements.Policy)
+	if !policy.Enabled {
 		return nil, trace.AccessDenied("not authorized to use access graph")
 	}
+
 	cl, err := webCtx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -22,22 +22,9 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	accessgraphui "github.com/gravitational/teleport/e/lib/web/ui/access_graph"
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestGetAccessGraph(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-				entitlements.Policy:   {Enabled: true},
-			},
-		},
-	}
-	modulestest.SetTestModules(t, *testModules)
-
 	const teleportUsername = "foo"
 
 	tests := []struct {
@@ -120,11 +107,7 @@ func TestGetAccessGraph(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			s := newWebSuite(t,
-				withAccessGraphFeatures(test.features),
-				withAccessGraphValidation(test.accessGraphHTTPHandlerValidation),
-				withModules(testModules),
-			)
+			s := newWebSuite(t, withAccessGraphFeatures(test.features), withAccessGraphValidation(test.accessGraphHTTPHandlerValidation))
 			var opts []webSuiteOpts
 			if test.grantAccessToTag {
 				opts = append(opts, withExtraRules(types.Rule{
@@ -153,17 +136,7 @@ func TestGetAccessGraph(t *testing.T) {
 var expectedListIntegrationsResponse string
 
 func TestGetAccessGraphIntegrations(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-				entitlements.Policy:   {Enabled: true},
-			},
-		},
-	}
-	modulestest.SetTestModules(t, *testModules)
-
-	s := newWebSuite(t, withModules(testModules))
+	s := newWebSuite(t)
 	webPack := s.newAuthWebPack(t, "foo")
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
@@ -345,16 +318,6 @@ func TestGetAccessGraphIntegrations(t *testing.T) {
 }
 
 func TestAccessGraphSettings(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-				entitlements.Policy:   {Enabled: true},
-			},
-		},
-	}
-	modulestest.SetTestModules(t, *testModules)
-
 	unmarshal := func(t require.TestingT, resp *roundtrip.Response) accessgraphui.AccessGraphSettings {
 		var got accessgraphui.AccessGraphSettings
 		require.NoError(t, json.Unmarshal(resp.Bytes(), &got))
@@ -424,7 +387,7 @@ func TestAccessGraphSettings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := newWebSuite(t, withModules(testModules))
+			s := newWebSuite(t)
 			_, err := s.testAuthServer.Auth().UpsertAccessGraphSettings(s.ctx, &clusterconfigpb.AccessGraphSettings{
 				Kind:    types.KindAccessGraphSettings,
 				Version: types.V1,
@@ -473,16 +436,6 @@ func TestAccessGraphSettings(t *testing.T) {
 }
 
 func TestAccessGraphEndpoints(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-				entitlements.Policy:   {Enabled: true},
-			},
-		},
-	}
-	modulestest.SetTestModules(t, *testModules)
-
 	tests := []struct {
 		name        string
 		rbacVerbs   []string
@@ -604,7 +557,7 @@ func TestAccessGraphEndpoints(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := newWebSuite(t, withAccessGraphFeatures(features), withModules(testModules))
+			s := newWebSuite(t, withAccessGraphFeatures(features))
 			webPack := s.newAuthWebPack(t, "foo", withExtraRules(types.Rule{
 				Resources: []string{types.KindAccessGraph},
 				Verbs:     tt.rbacVerbs,
