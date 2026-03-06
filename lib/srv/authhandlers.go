@@ -438,7 +438,7 @@ func precondsFromPermissions(perms *ssh.Permissions) ([]*decisionpb.Precondition
 	}
 
 	// Access preconditions are only set in the SSH access permit. For all other permit types, it is expected for this
-	// map entry to not be set and we should return nil to signal that there is no additional precondition checks to do.
+	// entry to not be set and we should return nil to signal that there are no additional precondition checks to do.
 	rawPermit, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]
 	if !ok {
 		return nil, nil
