@@ -323,6 +323,18 @@ auth_service:
     - 'proxy,node:xxxxx'
     - 'auth:yyyy'
 
+  # Determines where the session is recorded. Possible values are "node"
+  # (default), "node-sync", "proxy", "proxy-sync", or "off". Cannot be set
+  # at the same time as session_recording_config; prefer
+  # session_recording_config.mode.
+  session_recording: "node"
+
+  # Determines whether the Teleport Proxy Service performs strict host key
+  # checks. Only applicable when session_recording=proxy. Cannot be set at
+  # the same time as session_recording_config; prefer
+  # session_recording_config.proxy_checks_host_keys.
+  proxy_checks_host_keys: yes
+
   # Optional configuration for session recording.
   session_recording_config:
     # Recording mode that should be use for session recordings. Possible
@@ -335,16 +347,20 @@ auth_service:
     #                  disk at all.
     #    "proxy"     : sessions will be recorded on the Teleport Proxy Service
     #                  and periodically cleaned up after they are uploaded to
-    #                  the storage service.
+    #                  the storage service. Required for OpenSSH server support.
     #    "proxy-sync : session recordings will be streamed from
     #                  proxy -> auth -> storage service without being stored on
     #                  disk at all.
     #    "off"   : session recording is turned off
     #
     mode: 'node'
-    # This setting determines if a Teleport Proxy Service instance performs
-    # strict host key checks.
-    # Only applicable if session_recording=proxy
+    # Determines whether the Teleport Proxy Service performs strict host key
+    # checks. Only applicable when mode=proxy.
+    # When enabled, the Proxy Service requires that the host certificate of any
+    # node it connects to is signed by the Teleport CA. If the node presents a
+    # key or a certificate signed by a different CA, the connection is rejected.
+    # Disabling this setting opens the possibility of person-in-the-middle
+    # attacks and is not recommended.
     proxy_checks_host_keys: yes
     # Optional configuration for encrypting session recordings.
     encryption:

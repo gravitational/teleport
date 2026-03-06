@@ -152,7 +152,7 @@ level for two reasons:
 - It grants additional privileges to the Teleport Proxy Service. When recording takes place at the Teleport SSH Service, the Proxy Service stores no secrets and cannot "see" the decrypted data. This makes a Proxy Service instance less critical to the security of the overall cluster. But if an attacker gains physical access to a Proxy Server running in Recording Proxy Mode, they will be able to see the decrypted traffic and client keys stored in the Proxy Server's process memory.
 - It requires the use of SSH Agent Forwarding (for Teleport Nodes and legacy OpenSSH server support).
 
-See the [reference](../deployment/monitoring/audit.mdx) to learn how to
+See the [reference](../../get-started/audit.mdx) to learn how to
 turn on Recording Proxy Mode. Note that the recording mode is configured on the
 Auth Service.
 
@@ -348,7 +348,6 @@ viewed using the Teleport web app.
 ## Related reading
 
 - [RBAC for session recordings](../access-controls/roles.mdx#rbac-for-session-recordings)
-- [SSH recording modes](../deployment/monitoring/audit.mdx)
 - [Session recording for desktops](../../enroll-resources/desktop-access/reference/sessions.mdx)
 - [Encrypted Session Recordings](../../enroll-resources/server-access/guides/encrypted-session-recordings/encrypted-session-recordings.mdx)
 - [Session recording summaries](../../identity-security/session-summaries.mdx)

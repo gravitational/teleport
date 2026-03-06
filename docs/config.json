@@ -1832,7 +1832,7 @@
     },
     {
       "source": "/reference/monitoring/audit/",
-      "destination": "/reference/deployment/monitoring/audit/",
+      "destination": "/reference/audit-events/",
       "permanent": true
     },
     {
@@ -3518,6 +3518,11 @@
     {
       "source": "/enroll-resources/database-access/guides/ha/",
       "destination": "/enroll-resources/agents/high-availability/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/deployment/monitoring/audit/",
+      "destination": "/reference/audit-events/",
       "permanent": true
     }
   ]
