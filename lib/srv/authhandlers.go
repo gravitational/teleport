@@ -401,7 +401,7 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 	perms *ssh.Permissions,
 	_ string,
 ) (*ssh.Permissions, error) {
-	preconditions, err := preconditionsFromPermissions(perms)
+	preconditions, err := precondsFromPermissions(perms)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -432,14 +432,14 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 	)
 }
 
-func preconditionsFromPermissions(perms *ssh.Permissions) ([]*decisionpb.Precondition, error) {
+func precondsFromPermissions(perms *ssh.Permissions) ([]*decisionpb.Precondition, error) {
 	if perms == nil {
 		return nil, trace.BadParameter("missing permissions from PublicKeyCallback (this is a bug)")
 	}
 
 	rawPermit, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]
 	if !ok {
-		return nil, nil
+		return nil, trace.BadParameter("missing access permit in permissions extensions (this is a bug)")
 	}
 
 	permit := &decisionpb.SSHAccessPermit{}
