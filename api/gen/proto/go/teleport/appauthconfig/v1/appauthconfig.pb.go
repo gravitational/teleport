@@ -300,13 +300,13 @@ type isAppAuthConfigJWTSpec_KeysSource interface {
 
 type AppAuthConfigJWTSpec_JwksUrl struct {
 	// JwksUrl is the JSON Web Key Set (JWKS) URL used to fetch signing keys.
-	JwksUrl string `protobuf:"bytes,4,opt,name=jwks_url,json=jwksUrl,proto3,oneof"`
+	JwksUrl string `protobuf:"bytes,5,opt,name=jwks_url,json=jwksUrl,proto3,oneof"`
 }
 
 type AppAuthConfigJWTSpec_StaticJwks struct {
 	// StaticJwks is the JSON Web Key Set (JWKS) formatted public keys of the
 	// token issuer in JSON format.
-	StaticJwks string `protobuf:"bytes,5,opt,name=static_jwks,json=staticJwks,proto3,oneof"`
+	StaticJwks string `protobuf:"bytes,6,opt,name=static_jwks,json=staticJwks,proto3,oneof"`
 }
 
 func (*AppAuthConfigJWTSpec_JwksUrl) isAppAuthConfigJWTSpec_KeysSource() {}
@@ -328,15 +328,15 @@ const file_teleport_appauthconfig_v1_appauthconfig_proto_rawDesc = "" +
 	"\n" +
 	"app_labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\tappLabels\x12C\n" +
 	"\x03jwt\x18\x02 \x01(\v2/.teleport.appauthconfig.v1.AppAuthConfigJWTSpecH\x00R\x03jwtB\x0f\n" +
-	"\rsub_kind_spec\"\xc0\x01\n" +
+	"\rsub_kind_spec\"\xdc\x01\n" +
 	"\x14AppAuthConfigJWTSpec\x12\x16\n" +
 	"\x06issuer\x18\x01 \x01(\tR\x06issuer\x12\x1a\n" +
 	"\baudience\x18\x02 \x01(\tR\baudience\x12%\n" +
 	"\x0eusername_claim\x18\x03 \x01(\tR\rusernameClaim\x12\x1b\n" +
-	"\bjwks_url\x18\x04 \x01(\tH\x00R\ajwksUrl\x12!\n" +
-	"\vstatic_jwks\x18\x05 \x01(\tH\x00R\n" +
+	"\bjwks_url\x18\x05 \x01(\tH\x00R\ajwksUrl\x12!\n" +
+	"\vstatic_jwks\x18\x06 \x01(\tH\x00R\n" +
 	"staticJwksB\r\n" +
-	"\vkeys_sourceB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1;appauthconfigv1b\x06proto3"
+	"\vkeys_sourceJ\x04\b\x04\x10\x05R\x14authorization_headerB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1;appauthconfigv1b\x06proto3"
 
 var (
 	file_teleport_appauthconfig_v1_appauthconfig_proto_rawDescOnce sync.Once

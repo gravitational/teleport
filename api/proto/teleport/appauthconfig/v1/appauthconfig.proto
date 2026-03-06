@@ -50,6 +50,9 @@ message AppAuthConfigSpec {
 
 // AppAuthConfigJWTSpec contains the spec for JWT authentication config.
 message AppAuthConfigJWTSpec {
+  reserved 4;
+  reserved "authorization_header";
+
   // Issuer is the JWT token issuer name. This value is used to verify the token.
   string issuer = 1;
   // Audience is the expected token audience. It will usually be a OAuth
@@ -61,9 +64,9 @@ message AppAuthConfigJWTSpec {
 
   oneof keys_source {
     // JwksUrl is the JSON Web Key Set (JWKS) URL used to fetch signing keys.
-    string jwks_url = 4;
+    string jwks_url = 5;
     // StaticJwks is the JSON Web Key Set (JWKS) formatted public keys of the
     // token issuer in JSON format.
-    string static_jwks = 5;
+    string static_jwks = 6;
   }
 }
