@@ -241,7 +241,7 @@ func TestWriteAWSConfig(t *testing.T) {
 	app1, err := types.NewAppV3(types.Metadata{
 		Name: "app1",
 		Labels: map[string]string{
-			"teleport.dev/account-name": "dev",
+			types.AWSAccountNameLabel: "dev",
 		},
 	}, types.AppSpecV3{
 		URI: "https://d-123.awsapps.com/start/#/",
@@ -322,8 +322,8 @@ func TestWriteAWSConfig_RegionFromLabel(t *testing.T) {
 	app1, err := types.NewAppV3(types.Metadata{
 		Name: "app1",
 		Labels: map[string]string{
-			"teleport.dev/account-name":   "dev",
-			"teleport.dev/aws-sso-region": "eu-west-1",
+			types.AWSAccountNameLabel: "dev",
+			types.AWSSSORegionLabel:   "eu-west-1",
 		},
 	}, types.AppSpecV3{
 		URI: "https://d-123.awsapps.com/start/#/",
@@ -352,8 +352,8 @@ func TestWriteAWSConfig_RegionFlagOverridesLabel(t *testing.T) {
 	app1, err := types.NewAppV3(types.Metadata{
 		Name: "app1",
 		Labels: map[string]string{
-			"teleport.dev/account-name":   "dev",
-			"teleport.dev/aws-sso-region": "eu-west-1",
+			types.AWSAccountNameLabel: "dev",
+			types.AWSSSORegionLabel:   "eu-west-1",
 		},
 	}, types.AppSpecV3{
 		URI: "https://d-123.awsapps.com/start/#/",
@@ -402,7 +402,7 @@ region = us-east-1
 	// Now write config for a set of apps that doesn't include the stale one.
 	app1, err := types.NewAppV3(types.Metadata{
 		Name:   "aws-ic-new",
-		Labels: map[string]string{"teleport.dev/account-name": "production"},
+		Labels: map[string]string{types.AWSAccountNameLabel: "production"},
 	}, types.AppSpecV3{
 		URI: "https://production.awsapps.com/start/#/console",
 		IdentityCenter: &types.AppIdentityCenter{
