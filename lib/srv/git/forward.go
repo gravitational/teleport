@@ -338,23 +338,28 @@ func (s *ForwardServer) publicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicK
 	return permissions, nil
 }
 
-func (s *ForwardServer) verifiedPublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey, _ *ssh.Permissions, _ string) (*ssh.Permissions, error) {
+func (s *ForwardServer) verifiedPublicKeyCallback(
+	conn ssh.ConnMetadata,
+	key ssh.PublicKey,
+	perms *ssh.Permissions,
+	signatureAlgorithm string,
+) (*ssh.Permissions, error) {
 	conn, err := checkAndSetGitUser(conn, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	permissions, err := s.auth.VerifiedPublicKeyCallback(conn, key, nil, "")
+	perms, err = s.auth.VerifiedPublicKeyCallback(conn, key, perms, signatureAlgorithm)
 	if err != nil {
 		userKeyAuthFailureCounter.Inc()
 		return nil, trace.Wrap(err)
 	}
 
-	if _, ok := permissions.Extensions[utils.ExtIntGitForwardingPermit]; !ok {
+	if _, ok := perms.Extensions[utils.ExtIntGitForwardingPermit]; !ok {
 		return nil, trace.Errorf("missing git forwarding permit (this is a bug)")
 	}
 
-	return permissions, nil
+	return perms, nil
 }
 
 // onRBACFailure is a callback invoked by the auth handler when auth fails specifically due to an RBAC

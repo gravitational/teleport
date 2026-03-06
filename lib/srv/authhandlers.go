@@ -372,69 +372,85 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 	return nil
 }
 
-// PublicKeyCallback performs a preliminary check to verify that the certificate was signed by a trusted authority and
-// is structurally valid.
+// PublicKeyCallback performs full certificate and RBAC checks for a proposed SSH public key.
 //
 // This method is intended to be used as the PublicKeyCallback in ssh.ServerConfig before the client proves key
-// possession. This preliminary check is intended to filter out obviously invalid certificates and should not be relied
-// on for final authentication and authorization decisions. It should be used in conjunction with
-// VerifiedPublicKeyCallback, which performs full certificate and RBAC checks after the client proves key possession.
+// possession. It decides whether the offered key could be accepted once ownership is proven.
 //
-// If the certificate is valid, this callback returns an empty ssh.Permissions object. If the certificate is invalid, it
-// returns a non-nil error to reject the auth attempt.
+// If the certificate is valid and authorized, this callback returns permissions that will be passed through to
+// VerifiedPublicKeyCallback. If the certificate is invalid or unauthorized, it returns a non-nil error.
 func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-	ctx := context.Background()
+	permissions, err := h.checkUserPublicKey(conn, key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return permissions, nil
+}
+
+// VerifiedPublicKeyCallback performs post-verification auth steering for an already-authorized key.
+//
+// This method is intended to be used as the VerifiedPublicKeyCallback in ssh.ServerConfig after the client proves key
+// possession. Key acceptance decisions are performed in PublicKeyCallback.
+//
+// This callback must not reject keys that PublicKeyCallback accepted. It can require additional auth methods, such as
+// in-band MFA, by returning ssh.PartialSuccessError.
+func (h *AuthHandlers) VerifiedPublicKeyCallback(
+	_ ssh.ConnMetadata,
+	key ssh.PublicKey,
+	perms *ssh.Permissions,
+	_ string,
+) (*ssh.Permissions, error) {
+	preconditions, err := preconditionsFromPermissions(perms)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If there are no preconditions, return the permissions as-is. This means that the certificate was valid and
+	// authorized, and no additional authentication steps are required.
+	if len(preconditions) == 0 {
+		return perms, nil
+	}
 
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
-
-	log := h.log.With(
-		"local_addr", conn.LocalAddr(),
-		"remote_addr", conn.RemoteAddr(),
-		"user", conn.User(),
-		"fingerprint", fingerprint,
-	)
-
-	checker := apisshutils.CertChecker{
-		CertChecker: ssh.CertChecker{
-			IsUserAuthority: h.IsUserAuthority,
-			Clock:           h.c.Clock.Now,
-		},
-		FIPS: h.c.FIPS,
-	}
 
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		return nil, trace.BadParameter("unsupported key type: %v", fingerprint)
 	}
 
-	if len(cert.ValidPrincipals) == 0 {
-		return nil, trace.BadParameter("need a valid principal for key %v", fingerprint)
+	ident, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v", fingerprint)
 	}
 
-	if err := checker.CheckCert(cert.ValidPrincipals[0], cert); err != nil {
+	return h.KeyboardInteractiveAuth(
+		context.Background(),
+		preconditions,
+		ident,
+		perms,
+	)
+}
+
+func preconditionsFromPermissions(perms *ssh.Permissions) ([]*decisionpb.Precondition, error) {
+	if perms == nil {
+		return nil, trace.BadParameter("missing permissions from PublicKeyCallback (this is a bug)")
+	}
+
+	rawPermit, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]
+	if !ok {
+		return nil, nil
+	}
+
+	permit := &decisionpb.SSHAccessPermit{}
+	if err := protojson.Unmarshal([]byte(rawPermit), permit); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	log.DebugContext(ctx, "Successfully passed preliminary certificate checks")
-
-	return &ssh.Permissions{}, nil
+	return permit.GetPreconditions(), nil
 }
 
-// VerifiedPublicKeyCallback performs full validation of the client certificate, including RBAC checks.
-//
-// This method is intended to be used as the VerifiedPublicKeyCallback in ssh.ServerConfig after the client proves key
-// possession. This callback should be used in conjunction with PublicKeyCallback, which performs preliminary
-// certificate checks before key possession is proven.
-//
-// It performs full validation of the client certificate, including RBAC checks, and returns a populated ssh.Permissions
-// object if the certificate is valid and authorized. If the certificate is invalid or not authorized, it returns a
-// non-nil error to reject the auth attempt.
-func (h *AuthHandlers) VerifiedPublicKeyCallback(
-	conn ssh.ConnMetadata,
-	key ssh.PublicKey,
-	_ *ssh.Permissions,
-	_ string,
-) (ppms *ssh.Permissions, rerr error) {
+func (h *AuthHandlers) checkUserPublicKey(conn ssh.ConnMetadata, key ssh.PublicKey) (ppms *ssh.Permissions, rerr error) {
 	ctx := context.Background()
 
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
@@ -766,8 +782,7 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 		"git_forwarding_permit", gitForwardingPermit,
 	)
 
-	// Proceed to keyboard-interactive auth to ensure all preconditions are met.
-	return h.KeyboardInteractiveAuth(ctx, accessPermit.GetPreconditions(), ident, outputPermissions)
+	return outputPermissions, nil
 }
 
 func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
@@ -958,7 +973,7 @@ func (a *ahLoginChecker) evaluateGitForwarding(ident *sshca.Identity, ca types.C
 	ctx := a.c.Server.Context()
 
 	if clusterName != ca.GetClusterName() {
-		// we don't currently support cross-cluster git forwarding (see comments in UserKeyAuth for details).
+		// we don't currently support cross-cluster git forwarding (see comments in checkUserPublicKey for details).
 		return nil, trace.BadParameter("evaluateGitForwarding called with non-local identity (this is a bug)")
 	}
 

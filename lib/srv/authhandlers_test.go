@@ -294,7 +294,7 @@ func TestRBAC(t *testing.T) {
 			require.NoError(t, err)
 
 			// perform public key authentication
-			_, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, nil, "")
+			_, err = runPublicKeyCallbacks(ah, &mockConnMetadata{}, cert)
 			require.NoError(t, err)
 
 			tt.loginRBACCheck(t, lc.rbacChecked)
@@ -607,8 +607,8 @@ func TestScopedRBAC(t *testing.T) {
 			cert, err := sshutils.ParseCertificate(c)
 			require.NoError(t, err)
 
-			// preform public key authentication
-			_, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, nil, "")
+			// perform public key authentication
+			_, err = runPublicKeyCallbacks(ah, &mockConnMetadata{}, cert)
 			if tt.allowed {
 				require.NoError(t, err)
 			} else {
@@ -620,7 +620,7 @@ func TestScopedRBAC(t *testing.T) {
 }
 
 // TestForwardingGitLocalOnly verifies that remote identities are categorically rejected
-// by UserKeyAuth when the auth handler is running as a ForwardingGit component.
+// during public key callback evaluation when the auth handler is running as a ForwardingGit component.
 func TestForwardingGitLocalOnly(t *testing.T) {
 	t.Parallel()
 
@@ -736,11 +736,11 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that authentication succeeds for local cert but is rejected categorically for remote
-	_, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, localCert, nil, "")
+	_, err = runPublicKeyCallbacks(ah, &mockConnMetadata{}, localCert)
 	require.NoError(t, err)
 	require.True(t, gc.rbacChecked)
 
-	_, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, remoteCert, nil, "")
+	_, err = runPublicKeyCallbacks(ah, &mockConnMetadata{}, remoteCert)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "cross-cluster git forwarding is not supported")
 }
@@ -1066,8 +1066,8 @@ func TestAuthAttemptAuditEvent(t *testing.T) {
 	cert, err := sshutils.ParseCertificate(c)
 	require.NoError(t, err)
 
-	// perform public key authentication, should fail because no login checker set
-	_, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, nil, "")
+	// perform public key authentication, should fail because no login checker is set
+	_, err = runPublicKeyCallbacks(ah, &mockConnMetadata{}, cert)
 	require.Error(t, err)
 
 	// audit event (AuthAttempt) should include node's host id and hostname
@@ -1078,4 +1078,25 @@ func TestAuthAttemptAuditEvent(t *testing.T) {
 
 type mockMFAServiceClient struct {
 	mfav1.MFAServiceClient
+}
+
+// runPublicKeyCallbacks runs the auth handler's public key callbacks in sequence and returns the resulting permissions
+// or error. This emulates the flow of public key authentication in a real SSH server and allows tests to verify the
+// behavior of both the PublicKeyCallback and VerifiedPublicKeyCallback together.
+func runPublicKeyCallbacks(
+	ah *AuthHandlers,
+	conn ssh.ConnMetadata,
+	key ssh.PublicKey,
+) (*ssh.Permissions, error) {
+	perms, err := ah.PublicKeyCallback(conn, key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	perms, err = ah.VerifiedPublicKeyCallback(conn, key, perms, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return perms, nil
 }
