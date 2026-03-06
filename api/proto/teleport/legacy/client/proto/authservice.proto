@@ -2505,6 +2505,9 @@ message PresenceMFAChallengeRequest {
   // ProxyAddress is the address of the proxy the client is connected to, used
   // to select a redirect URL for connectors that have more than one.
   string ProxyAddress = 3 [(gogoproto.jsontag) = "proxy_address,omitempty"];
+  // BrowserMFATSHRedirectURL should be supplied if the client supports Browser MFA.
+  // If unset, the server will only return non-Browser MFA challenges.
+  string BrowserMFATSHRedirectURL = 4 [(gogoproto.jsontag) = "browser_mfa_tsh_redirect_url,omitempty"];
 }
 
 // PresenceMFAChallengeSend is a presence challenge request or response.
