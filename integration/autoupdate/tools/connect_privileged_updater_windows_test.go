@@ -231,8 +231,10 @@ func TestPrivilegedUpdateServiceCorrectsUpdateBaseDirACL(t *testing.T) {
 
 func TestPrivilegedUpdateServiceAllowOnlyOneClientConnection(t *testing.T) {
 	serviceErr := make(chan error, 1)
+	cfg := getDefaultConfig(t)
+
 	go func() {
-		serviceErr <- privilegedupdater.RunServiceTest(t.Context(), &privilegedupdater.ServiceTestConfig{})
+		serviceErr <- privilegedupdater.RunServiceTest(t.Context(), cfg)
 	}()
 
 	// First client connects and keeps the pipe open. This blocks the service in readUpdate.
@@ -241,7 +243,7 @@ func TestPrivilegedUpdateServiceAllowOnlyOneClientConnection(t *testing.T) {
 	// Second client should fail because waitForSingleClient closes the listener after first accept.
 	clientCtx2, cancel2 := context.WithTimeout(t.Context(), 2*time.Second)
 	t.Cleanup(cancel2)
-	secondConn, err := winio.DialPipeContext(clientCtx2, privilegedupdater.PipePath)
+	secondConn, err := winio.DialPipeAccess(clientCtx2, privilegedupdater.PipePath, privilegedupdater.SafePipeReadWriteAccess)
 	if secondConn != nil {
 		_ = secondConn.Close()
 	}
@@ -295,10 +297,7 @@ func runPrivilegedUpdaterFlow(t *testing.T, update update, opts ...privilegedSer
 
 	defaultCfg := getDefaultConfig(t)
 	cfg := &serviceConfig{
-		ServiceTestConfig: privilegedupdater.ServiceTestConfig{
-			UpdateDirSecurityDescriptor: defaultCfg.UpdateDirSecurityDescriptor,
-			UpdateBaseDir:               defaultCfg.UpdateBaseDir,
-		},
+		ServiceTestConfig: *defaultCfg,
 	}
 	for _, opt := range opts {
 		opt(cfg)
@@ -327,10 +326,12 @@ func runPrivilegedUpdaterFlow(t *testing.T, update update, opts ...privilegedSer
 	installUpdateFromClientErr := make(chan error, 1)
 	go func() {
 		err := privilegedupdater.RunServiceTest(t.Context(), &privilegedupdater.ServiceTestConfig{
-			UpdateDirSecurityDescriptor: cfg.UpdateDirSecurityDescriptor,
-			UpdateBaseDir:               cfg.UpdateBaseDir,
-			PolicyToolsVersion:          cfg.PolicyToolsVersion,
-			PolicyCDNBaseURL:            server.URL,
+			UpdateDirSecurityDescriptor:  cfg.UpdateDirSecurityDescriptor,
+			UpdateBaseDir:                cfg.UpdateBaseDir,
+			PolicyToolsVersion:           cfg.PolicyToolsVersion,
+			PolicyCDNBaseURL:             server.URL,
+			HTTPClient:                   server.Client(),
+			PipeAuthenticatedUsersAccess: cfg.PipeAuthenticatedUsersAccess,
 		})
 		// We are attempting to run a non-exe file.
 		// It will fail, so we check if we ran the correct file.
@@ -373,7 +374,7 @@ func dialUpdaterPipe(t *testing.T, timeout time.Duration) net.Conn {
 
 	var conn net.Conn
 	err := retryutils.RetryStaticFor(timeout, 25*time.Millisecond, func() error {
-		c, err := winio.DialPipeContext(t.Context(), privilegedupdater.PipePath)
+		c, err := winio.DialPipeAccess(t.Context(), privilegedupdater.PipePath, privilegedupdater.SafePipeReadWriteAccess)
 		if err != nil {
 			return err
 		}
@@ -406,6 +407,8 @@ func getDefaultConfig(t *testing.T) *privilegedupdater.ServiceTestConfig {
 	return &privilegedupdater.ServiceTestConfig{
 		UpdateDirSecurityDescriptor: descriptor,
 		UpdateBaseDir:               t.TempDir(),
+		// Allow Authenticated Users to create the pipe in tests.
+		PipeAuthenticatedUsersAccess: windows.GENERIC_READ | windows.GENERIC_WRITE,
 	}
 }
 
