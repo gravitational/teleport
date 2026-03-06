@@ -48,8 +48,13 @@ import (
 	"github.com/gravitational/teleport/lib/windowsservice"
 )
 
+// ServiceCommand is the tsh subcommand that the Windows service manager invokes when starting the
+// updater service.
+var ServiceCommand = []string{"connect-updater", ServiceSubCommand}
+
 const (
-	ServiceCommand     = "connect-updater-service"
+	// ServiceSubCommand is the tsh subcommand under "connect-updater" that runs the updater service.
+	ServiceSubCommand  = "service"
 	serviceName        = "TeleportConnectUpdater"
 	serviceDescription = "Installs Teleport Connect updates without requiring administrator privileges."
 	eventSource        = "connect-updater"
@@ -172,7 +177,9 @@ func (h *handler) Execute(ctx context.Context, _ []string) (err error) {
 		return trace.Wrap(err, "checking if update is upgrade")
 	}
 
-	// TODO(gzdunek): Add signature verification.
+	if err = verifySignature(updatePath); err != nil {
+		return trace.Wrap(err, "verifying update signature")
+	}
 
 	hash, err := h.downloadChecksum(ctx, updaterConfig.CDNBaseURL, updateMeta.Version)
 	if err != nil {

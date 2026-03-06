@@ -25,6 +25,32 @@
   LangString forAll ${LANG_ENGLISH} "Anyone who uses this computer (&all users). Includes VNet support."
 !macroend
 
+# Migration from one-click -> assisted multi-user.
+# In non-silent updater runs without an explicit mode flag (now set by NsisDualModeUpdater), elevated launches can wait
+# on the install-mode page without a visible UI. To prevent this, enforce a mode when the installer is run with --update but no install mode flag is provided.
+#
+# Mode decision (only when neither /allusers nor /currentuser is present):
+# - If the application is installed per-machine (HKLM), enforce an all-users installation.
+# - Otherwise, fall back to a current-user installation (this scenario should not occur, as automatic updates were not available for per-user installs).
+#
+# /allusers and /currentuser map to ${isForAllUsers} / ${isForCurrentUser}.
+# These are command-line flags and are different from $installMode (resolved installer state).
+!macro customInstallMode
+  ${if} ${isUpdated}
+  ${AndIfNot} ${isForAllUsers}
+  ${AndIfNot} ${isForCurrentUser}
+
+    # Keep legacy machine-only installs machine-wide.
+    ${if} $hasPerMachineInstallation == "1"
+      StrCpy $isForceMachineInstall "1"
+    ${else}
+      # Fallback to per-user for all other cases.
+      StrCpy $isForceCurrentInstall "1"
+    ${endif}
+
+  ${endif}
+!macroend
+
 !macro customInstall
   ${If} $installMode == "all"
     # Make EnVar define system env vars when the app is installed per-machine.
@@ -41,6 +67,14 @@
     ${If} $0 != 0
         MessageBox MB_ICONSTOP \
             "tsh.exe vnet-install-service failed with exit code $0. The installer is going to continue. Output: $1"
+    ${Endif}
+
+    nsExec::ExecToStack '"$INSTDIR\resources\bin\tsh.exe" connect-updater install-service'
+    Pop $0 # ExitCode
+    Pop $1 # Output
+    ${If} $0 != 0
+        MessageBox MB_ICONSTOP \
+            "tsh.exe connect-updater install-service failed with exit code $0. The installer is going to continue. Output: $1"
     ${Endif}
 
   ${Else}
@@ -70,6 +104,15 @@
         MessageBox MB_ICONSTOP \
             "tsh.exe vnet-uninstall-service failed with exit code $0. The uninstaller is going to continue. Output: $1"
     ${Endif}
+
+    nsExec::ExecToStack '"$INSTDIR\resources\bin\tsh.exe" connect-updater uninstall-service'
+    Pop $0 # ExitCode
+    Pop $1 # Output
+    ${If} $0 != 0
+        MessageBox MB_ICONSTOP \
+            "tsh.exe connect-updater uninstall-service failed with exit code $0. The uninstaller is going to continue. Output: $1"
+    ${Endif}
+
   ${Else}
     EnVar::SetHKCU
     EnVar::DeleteValue "Path" "$INSTDIR\resources\bin"
