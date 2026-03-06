@@ -146,6 +146,10 @@ function Buttons(props: StoryProps) {
         <Database />
       </Box>
       <Box>
+        <Text>Database (auto-user provisioning)</Text>
+        <DatabaseAutoUserProvisioning />
+      </Box>
+      <Box>
         <Text>Kube</Text>
         <Kube />
       </Box>{' '}
@@ -323,6 +327,17 @@ function Database() {
     <ConnectDatabaseActionButton
       database={makeDatabase({
         uri: `${testCluster.uri}/dbs/bar`,
+      })}
+    />
+  );
+}
+
+function DatabaseAutoUserProvisioning() {
+  return (
+    <ConnectDatabaseActionButton
+      database={makeDatabase({
+        uri: `${testCluster.uri}/dbs/bar`,
+        autoUserProvisioning: { databaseRoles: ['reader', 'writer'] },
       })}
     />
   );
