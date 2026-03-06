@@ -18,15 +18,15 @@ package watchers
 
 // WaitUntilHealthy waits until the next healthy state is communicated.
 //
-// The wrapper is considered healthy after receiving the watcher init event.
+// The Watcher is considered healthy after receiving the init event.
 //
 // The healthy state is not sticky - once received the channel will be emptied,
 // and will only be filled again if the underlying watcher connection closes and
 // is reestablished.
 //
-// Useful to avoid an initial race between test and wrapper, or for testing
+// Useful to avoid an initial race between test and Watcher, or for testing
 // reconnection scenarios, but should not be relied on to test the ongoing
 // health of the watcher.
-func (w *Wrapper) WaitUntilHealthy() <-chan struct{} {
+func (w *Watcher) WaitUntilHealthy() <-chan struct{} {
 	return w.healthyC
 }

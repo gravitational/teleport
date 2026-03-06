@@ -161,7 +161,7 @@ type WindowsService struct {
 	ldapTLSConfigMu        sync.Mutex
 
 	// CA watcher for the CRL update loop (see runCRLUpdateLoop).
-	caWatcher *watchers.Wrapper
+	caWatcher *watchers.Watcher
 
 	closeCtx context.Context
 	close    func()
@@ -1399,7 +1399,7 @@ func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
 
 func (s *WindowsService) initCAWatcher() error {
 	var err error
-	s.caWatcher, err = watchers.NewWrapper(watchers.WrapperConfig{
+	s.caWatcher, err = watchers.NewWatcher(watchers.WatcherConfig{
 		Logger:            s.cfg.Logger,
 		Source:            s.cfg.AccessPoint,
 		EventsChannelSize: 1,

@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/watchers"
 )
 
-func TestWrapper(t *testing.T) {
+func TestWatcher(t *testing.T) {
 	t.Parallel()
 
 	mem, err := memory.New(memory.Config{})
@@ -45,7 +45,7 @@ func TestWrapper(t *testing.T) {
 	require.NoError(t, err)
 	eventsService := local.NewEventsService(mem)
 
-	watcher := newAuthPrefWrapper(t, eventsService)
+	watcher := newAuthPrefWatcher(t, eventsService)
 
 	assertHasEvent := func(t *testing.T, wantOP types.OpType, wantRevision string) {
 		t.Helper()
@@ -92,7 +92,7 @@ func TestWrapper(t *testing.T) {
 	assertHasEvent(t, types.OpDelete, "" /* wantRevision */)
 }
 
-func TestWrapper_reconnection(t *testing.T) {
+func TestWatcher_reconnection(t *testing.T) {
 	t.Parallel()
 
 	mem, err := memory.New(memory.Config{})
@@ -106,7 +106,7 @@ func TestWrapper_reconnection(t *testing.T) {
 		source: local.NewEventsService(mem),
 	}
 
-	watcher := newAuthPrefWrapper(t, sw)
+	watcher := newAuthPrefWatcher(t, sw)
 
 	waitForHealthy := func(*testing.T) {
 		t.Helper()
@@ -157,7 +157,7 @@ func TestWrapper_reconnection(t *testing.T) {
 	assertHasEvent(t, types.OpDelete)
 }
 
-func TestWrapper_backoff(t *testing.T) {
+func TestWatcher_backoff(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -170,7 +170,7 @@ func TestWrapper_backoff(t *testing.T) {
 		// Setup so we fail 2 attempts.
 		sw.SetAttemptsToFail(2)
 
-		watcher := newAuthPrefWrapper(t, sw)
+		watcher := newAuthPrefWatcher(t, sw)
 
 		waitForHealthy := func(*testing.T) {
 			t.Helper()
@@ -214,13 +214,13 @@ func TestWrapper_backoff(t *testing.T) {
 	})
 }
 
-func newAuthPrefWrapper(
+func newAuthPrefWatcher(
 	t *testing.T,
 	source watchers.WatcherSource,
-) *watchers.Wrapper {
+) *watchers.Watcher {
 	t.Helper()
 
-	watcher, err := watchers.NewWrapper(watchers.WrapperConfig{
+	watcher, err := watchers.NewWatcher(watchers.WatcherConfig{
 		Source:            source,
 		EventsChannelSize: 1, // arbitrary
 		Watch: &types.Watch{

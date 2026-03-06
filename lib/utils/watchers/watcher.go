@@ -44,15 +44,15 @@ type Retrier interface {
 	NextDelay() time.Duration
 }
 
-// WrapperConfig holds creation parameters for Wrapper.
-type WrapperConfig struct {
-	// Logger used by the Wrapper.
+// WatcherConfig holds creation parameters for Watcher.
+type WatcherConfig struct {
+	// Logger used by the Watcher.
 	// Defaults to slog.Default().
 	Logger *slog.Logger
 	// Source used to create Watchers.
 	// Required.
 	Source WatcherSource
-	// EventsChannelSize is the size of the Wrapper's events channel.
+	// EventsChannelSize is the size of the Watcher's events channel.
 	// Defaults to zero/unbuffered.
 	EventsChannelSize int
 	// Retrier is the retry/backoff strategy for re-creating failed/closed watchers.
@@ -64,15 +64,15 @@ type WrapperConfig struct {
 	Watch *types.Watch
 }
 
-// Wrapper is a wrapper over [types.Watcher] that automatically handles Watcher
+// Watcher is a resilient wrapper over [types.Watcher] that automatically handles
 // initialization, disconnection and failures.
 //
-// Wrapper automatically reconnects to the upstream watcher, spacing attempts
+// Watcher automatically reconnects to the upstream watcher, spacing attempts
 // according to a user-supplied Retrier.
 //
-// Users of Wrapper can concern themselves simply with handling events.
-// See [Wrapper.Run] and [Wrapper.Events].
-type Wrapper struct {
+// Users of Watcher can concern themselves simply with handling events.
+// See [Watcher.Run] and [Watcher.Events].
+type Watcher struct {
 	logger   *slog.Logger
 	source   WatcherSource
 	watch    *types.Watch
@@ -85,8 +85,8 @@ type Wrapper struct {
 	logNextSuccess bool
 }
 
-// NewWrapper creates a new Watcher wrapper using the given config.
-func NewWrapper(cfg WrapperConfig) (*Wrapper, error) {
+// NewWatcher creates a new Watcher using the given config.
+func NewWatcher(cfg WatcherConfig) (*Watcher, error) {
 	switch {
 	case cfg.Source == nil:
 		return nil, trace.BadParameter("source required")
@@ -108,7 +108,7 @@ func NewWrapper(cfg WrapperConfig) (*Wrapper, error) {
 		retrier = newDefaultRetrier()
 	}
 
-	w := &Wrapper{
+	w := &Watcher{
 		logger:   logger,
 		source:   cfg.Source,
 		watch:    &watchShallowCopy,
@@ -120,24 +120,24 @@ func NewWrapper(cfg WrapperConfig) (*Wrapper, error) {
 	return w, nil
 }
 
-// Events returns the Wrapper events channel.
+// Events returns the Watcher events channel.
 //
 // Callers should consume the channel in a timely manner, and/or specify an
 // appropriate buffer size via config.
 //
-// The OpInit event is swallowed by Wrapper, so it won't be seen in the returned
+// The OpInit event is swallowed by Watcher, so it won't be seen in the returned
 // channel.
-func (w *Wrapper) Events() <-chan types.Event {
+func (w *Watcher) Events() <-chan types.Event {
 	return w.events
 }
 
-// Run executes the Wrapper watch loop. It runs indefinitely, reconnecting to
+// Run executes the Watcher watch loop. It runs indefinitely, reconnecting to
 // the upstream Watcher on failures.
 //
 // Run only stops if ctx is closed. Returns the context error.
 //
-// A Wrapper may only Run once.
-func (w *Wrapper) Run(ctx context.Context) error {
+// A Watcher may only Run once.
+func (w *Watcher) Run(ctx context.Context) error {
 	if !w.running.CompareAndSwap(false, true) {
 		return trace.Wrap(errors.New("method Run already called"))
 	}
@@ -187,7 +187,7 @@ func (w *Wrapper) Run(ctx context.Context) error {
 // first event).
 //
 // Returns nil if the Watcher should reconnect, non-nil if it should abort.
-func (w *Wrapper) runEventsLoop(ctx context.Context, watcher types.Watcher) (abortErr error) {
+func (w *Watcher) runEventsLoop(ctx context.Context, watcher types.Watcher) (abortErr error) {
 	// The first event MUST be an OpInit event, as dictated by the secret
 	// rules of watchers. If it's not then we must fail.
 	//
@@ -247,7 +247,7 @@ func (w *Wrapper) runEventsLoop(ctx context.Context, watcher types.Watcher) (abo
 	}
 }
 
-func (w *Wrapper) markHealthyForTesting() {
+func (w *Watcher) markHealthyForTesting() {
 	select {
 	case w.healthyC <- struct{}{}:
 	default:
