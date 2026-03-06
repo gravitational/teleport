@@ -22,18 +22,12 @@ import { typography } from 'design/system';
 
 import Flex from './../Flex';
 
-export default function DialogHeader(props) {
-  return (
-    <StyledDialogHeader
-      minHeight="32px"
-      mb="3"
-      alignItems="center"
-      flexShrink="0"
-      {...props}
-    />
-  );
-}
-
-const StyledDialogHeader = styled(Flex)`
+export const DialogHeader = styled(Flex).attrs(props => ({
+  minHeight: '32px',
+  mb: 3,
+  alignItems: 'center',
+  flexShrink: 0,
+  ...props,
+}))`
   ${typography}
 `;
