@@ -2620,7 +2620,6 @@ export default function makeEvent(json: any): Event {
   // lookup event formatter by code
   const formatter = formatters[json.code as EventCode] || unknownFormatter;
 
-  // format raw event for UI
   const raw = formatRawEventForUI(json);
 
   return {
