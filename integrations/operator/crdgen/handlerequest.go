@@ -267,6 +267,14 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 				withVersionInKindOverride(),
 			},
 		},
+		{
+			name: "ScopedToken",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withVersionInKindOverride(),
+				withAdditionalRootFields([]string{"scope"}),
+			},
+		},
 	}
 
 	for _, resource := range resources {
