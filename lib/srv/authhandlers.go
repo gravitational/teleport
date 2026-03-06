@@ -392,23 +392,27 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 //
 // This method is intended to be used as the VerifiedPublicKeyCallback in ssh.ServerConfig after the client proves key
 // possession. Key acceptance decisions are performed in PublicKeyCallback.
-//
-// This callback must not reject keys that PublicKeyCallback accepted. It can require additional auth methods, such as
-// in-band MFA, by returning ssh.PartialSuccessError.
 func (h *AuthHandlers) VerifiedPublicKeyCallback(
 	_ ssh.ConnMetadata,
 	key ssh.PublicKey,
 	perms *ssh.Permissions,
 	_ string,
 ) (*ssh.Permissions, error) {
-	preconditions, err := precondsFromPermissions(perms)
-	if err != nil {
+	// Access preconditions are only set in the SSH access permit. For all other permit types, it is expected for this
+	// entry to not be unset and we should return nil to signal that there are no additional precondition checks to do.
+	rawPermit, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]
+	if !ok {
+		return nil, nil
+	}
+
+	permit := &decisionpb.SSHAccessPermit{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(rawPermit), permit); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// If there are no preconditions, return the permissions as-is. This means that the certificate was valid and
 	// authorized, and no additional authentication steps are required.
-	if len(preconditions) == 0 {
+	if len(permit.GetPreconditions()) == 0 {
 		return perms, nil
 	}
 
@@ -424,32 +428,13 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v", fingerprint)
 	}
 
+	// Proceed to keyboard-interactive auth to ensure all preconditions are met.
 	return h.KeyboardInteractiveAuth(
 		context.Background(),
-		preconditions,
+		permit.GetPreconditions(),
 		ident,
 		perms,
 	)
-}
-
-func precondsFromPermissions(perms *ssh.Permissions) ([]*decisionpb.Precondition, error) {
-	if perms == nil {
-		return nil, trace.BadParameter("missing permissions from PublicKeyCallback (this is a bug)")
-	}
-
-	// Access preconditions are only set in the SSH access permit. For all other permit types, it is expected for this
-	// entry to not be set and we should return nil to signal that there are no additional precondition checks to do.
-	rawPermit, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]
-	if !ok {
-		return nil, nil
-	}
-
-	permit := &decisionpb.SSHAccessPermit{}
-	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(rawPermit), permit); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return permit.GetPreconditions(), nil
 }
 
 func (h *AuthHandlers) checkUserPublicKey(conn ssh.ConnMetadata, key ssh.PublicKey) (ppms *ssh.Permissions, rerr error) {
