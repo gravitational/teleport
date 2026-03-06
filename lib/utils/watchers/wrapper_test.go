@@ -47,12 +47,13 @@ func TestWrapper(t *testing.T) {
 
 	watcher := newAuthPrefWrapper(t, eventsService)
 
-	assertHasEvent := func(t *testing.T, want types.OpType) {
+	assertHasEvent := func(t *testing.T, wantOP types.OpType, wantRevision string) {
 		t.Helper()
 
 		select {
 		case e := <-watcher.Events():
-			assert.Equal(t, want, e.Type, "Event type mismatch")
+			assert.Equal(t, wantOP, e.Type, "Event type mismatch")
+			assert.Equal(t, wantRevision, e.Resource.GetRevision(), "Event revision mismatch")
 		case <-time.After(2 * time.Second):
 			t.Error("Timed out waiting for event")
 		}
@@ -76,19 +77,19 @@ func TestWrapper(t *testing.T) {
 	require.NoError(t, err)
 	pref, err = clusterConfigService.CreateAuthPreference(ctx, pref)
 	require.NoError(t, err)
-	assertHasEvent(t, types.OpPut)
+	assertHasEvent(t, types.OpPut, pref.GetRevision())
 
 	// 2st event: OpPut (update).
 	pref.SetDefaultSessionTTL(types.Duration(4 * time.Hour))
-	_, err = clusterConfigService.UpdateAuthPreference(ctx, pref)
+	pref, err = clusterConfigService.UpdateAuthPreference(ctx, pref)
 	require.NoError(t, err)
-	assertHasEvent(t, types.OpPut)
+	assertHasEvent(t, types.OpPut, pref.GetRevision())
 
 	// 3rd event: OpDelete.
 	require.NoError(t,
 		clusterConfigService.DeleteAuthPreference(ctx),
 	)
-	assertHasEvent(t, types.OpDelete)
+	assertHasEvent(t, types.OpDelete, "" /* wantRevision */)
 }
 
 func TestWrapper_reconnection(t *testing.T) {
