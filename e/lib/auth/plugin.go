@@ -616,27 +616,41 @@ func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *aut
 
 func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC grpc.ServiceRegistrar) error {
 	if p.AccessMonitoring == nil || !p.AccessMonitoring.Enabled {
-		secreportsv1pb.RegisterSecReportsServiceServer(serviceGRPC, secreportsv1.NotImplementedService{})
+		secreportsv1pb.RegisterSecReportsServiceServer(serviceGRPC, secreportsv1.NotImplementedService{
+			CustomError: &trace.AccessDeniedError{
+				Message: "Security Reports are unavailable because Access Monitoring is not enabled in Auth service configuration",
+			},
+		})
 		return nil
 	}
-	logger.InfoContext(ctx, "Access Monitoring Enabled")
+
+	var disabledReasons []string
+
 	auditConf, err := p.authServer.AuthServer.GetClusterAuditConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	athenaURI, ok := athena.GetAthenaURI(auditConf.AuditEventsURIs())
 	if !ok {
-		logger.WarnContext(ctx, "Access Monitoring Enabled but Athena backend is not configured")
-		secreportsv1pb.RegisterSecReportsServiceServer(serviceGRPC, secreportsv1.NotImplementedService{})
-		return nil
+		disabledReasons = append(disabledReasons, "the Athena audit backend is not configured")
 	}
 
 	features := modules.GetModules().Features()
 	if !features.GetEntitlement(entitlements.AccessMonitoring).Enabled {
-		logger.WarnContext(ctx, "Access Monitoring specified in config, but the subscription does not include Access Monitoring, Access Monitoring will not be enabled")
-		secreportsv1pb.RegisterSecReportsServiceServer(serviceGRPC, secreportsv1.NotImplementedService{})
+		disabledReasons = append(disabledReasons, "the subscription does not include Access Monitoring")
+	}
+
+	if len(disabledReasons) > 0 {
+		logger.WarnContext(ctx, "Access Monitoring is disabled", "reasons", disabledReasons)
+		reasonsStr := strings.Join(disabledReasons, ", ")
+		secreportsv1pb.RegisterSecReportsServiceServer(serviceGRPC, secreportsv1.NotImplementedService{
+			CustomError: &trace.AccessDeniedError{
+				Message: "Security Reports are unavailable for the following reason(s): " + reasonsStr,
+			},
+		})
 		return nil
 	}
+	logger.InfoContext(ctx, "Access Monitoring enabled")
 
 	modules.GetModules().EnableAccessMonitoring()
 
