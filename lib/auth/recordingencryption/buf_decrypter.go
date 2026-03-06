@@ -19,10 +19,17 @@ package recordingencryption
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 
 	"github.com/gravitational/trace"
 )
+
+// readCloser combines an io.Reader with the Close method of a separate io.Closer.
+type readCloser struct {
+	io.Reader
+	io.Closer
+}
 
 // ageEncryptionPrefix is the prefix used to identify age-encrypted data.
 // age always uses "age-encryption.org/v1" as the prefix for its encrypted files.
@@ -67,4 +74,43 @@ func DecryptBufferIfEncrypted(ctx context.Context, buf []byte, decrypter Decrypt
 	}
 
 	return decryptedBuf.Bytes(), nil
+}
+
+// DecryptReaderIfEncrypted checks whether the provided reader contains
+// age-encrypted data and decrypts it if necessary.
+//
+// The function reads the first few bytes to look for the standard age
+// encryption header prefix. If not encrypted, it returns a reader that
+// replays those bytes followed by the rest of the original reader.
+//
+// If the data is encrypted, a Decrypter must be provided. If none is
+// configured, an error is returned.
+func DecryptReaderIfEncrypted(ctx context.Context, reader io.ReadCloser, decrypter Decrypter) (io.ReadCloser, error) {
+	prefix := make([]byte, len(ageEncryptionPrefixBytes))
+	n, err := io.ReadFull(reader, prefix)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		return nil, trace.Wrap(err, "reading recording prefix")
+	}
+	prefix = prefix[:n]
+
+	if !bytes.HasPrefix(prefix, ageEncryptionPrefixBytes) {
+		return &readCloser{
+			Reader: io.MultiReader(bytes.NewReader(prefix), reader),
+			Closer: reader,
+		}, nil
+	}
+
+	if decrypter == nil {
+		return nil, trace.BadParameter("recording decrypter is not configured")
+	}
+
+	decryptedReader, err := decrypter.WithDecryption(ctx, io.MultiReader(bytes.NewReader(prefix), reader))
+	if err != nil {
+		return nil, trace.Wrap(err, "decrypting recording")
+	}
+
+	return &readCloser{
+		Reader: decryptedReader,
+		Closer: reader,
+	}, nil
 }

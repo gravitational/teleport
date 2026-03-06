@@ -860,20 +860,26 @@ func (m *mockUploadHandler) UploadThumbnail(ctx context.Context, sessionID sessi
 	return path, nil
 }
 
-func (m *mockUploadHandler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return nil
+func (m *mockUploadHandler) Download(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return io.NopCloser(bytes.NewReader(nil)), nil
 }
 
-func (m *mockUploadHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return nil
+func (m *mockUploadHandler) DownloadSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return io.NopCloser(bytes.NewReader(nil)), nil
 }
 
-func (m *mockUploadHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return nil
+func (m *mockUploadHandler) DownloadMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	data := m.metadata[string(sessionID)]
+	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
-func (m *mockUploadHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return nil
+func (m *mockUploadHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	data := m.thumbnails[string(sessionID)]
+	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
 func (m *mockUploadHandler) Complete(ctx context.Context, upload events.StreamUpload) error {
