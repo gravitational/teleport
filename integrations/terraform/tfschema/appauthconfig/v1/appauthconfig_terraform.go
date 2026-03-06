@@ -127,11 +127,6 @@ func GenSchemaAppAuthConfig(ctx context.Context) (github_com_hashicorp_terraform
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"authorization_header": {
-							Description: "AuthorizationHeader is the HTTP header name that will contain the token. Defaults to `Authorization`.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-						},
 						"issuer": {
 							Description: "Issuer is the JWT token issuer name. This value is used to verify the token.",
 							Optional:    true,
@@ -498,23 +493,6 @@ func CopyAppAuthConfigFromTerraform(_ context.Context, tf github_com_hashicorp_t
 													t = string(v.Value)
 												}
 												obj.UsernameClaim = t
-											}
-										}
-									}
-									{
-										a, ok := tf.Attrs["authorization_header"]
-										if !ok {
-											diags.Append(attrReadMissingDiag{"AppAuthConfig.spec.jwt.authorization_header"})
-										} else {
-											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"AppAuthConfig.spec.jwt.authorization_header", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											} else {
-												var t string
-												if !v.Null && !v.Unknown {
-													t = string(v.Value)
-												}
-												obj.AuthorizationHeader = t
 											}
 										}
 									}
@@ -1073,28 +1051,6 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 											v.Value = string(obj.UsernameClaim)
 											v.Unknown = false
 											tf.Attrs["username_claim"] = v
-										}
-									}
-									{
-										t, ok := tf.AttrTypes["authorization_header"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"AppAuthConfig.spec.jwt.authorization_header"})
-										} else {
-											v, ok := tf.Attrs["authorization_header"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"AppAuthConfig.spec.jwt.authorization_header", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.spec.jwt.authorization_header", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-												v.Null = string(obj.AuthorizationHeader) == ""
-											}
-											v.Value = string(obj.AuthorizationHeader)
-											v.Unknown = false
-											tf.Attrs["authorization_header"] = v
 										}
 									}
 									{
