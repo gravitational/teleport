@@ -18,7 +18,6 @@ package autoupdate
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 
@@ -26,6 +25,7 @@ import (
 	"golang.org/x/sys/windows/registry"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1"
+	"github.com/gravitational/teleport/lib/teleterm/autoupdate/common"
 )
 
 const (
@@ -33,10 +33,6 @@ const (
 	teleportConnectGUID          = "22539266-67e8-54a3-83b9-dfdca7b33ee1"
 	teleportConnectKeyPath       = `SOFTWARE\` + teleportConnectGUID
 	registryValueInstallLocation = "InstallLocation"
-
-	teleportConnectPoliciesKeyPath = `SOFTWARE\Policies\Teleport\TeleportConnect`
-	registryValueToolsVersion      = "ToolsVersion"
-	registryValueCDNBaseURL        = "CdnBaseUrl"
 )
 
 // GetInstallationMetadata returns installation metadata of the currently running app instance.
@@ -56,40 +52,40 @@ func platformGetConfig() (*api.GetConfigResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	machineValues, err := readRegistryPolicyValues(registry.LOCAL_MACHINE)
+	machineValues, err := common.ReadRegistryPolicyValues(registry.LOCAL_MACHINE)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	config := &api.GetConfigResponse{
 		CdnBaseUrl: &api.ConfigValue{
-			Value:  machineValues.cdnBaseURL,
+			Value:  machineValues.CDNBaseURL,
 			Source: api.ConfigSource_CONFIG_SOURCE_POLICY,
 		},
 		ToolsVersion: &api.ConfigValue{
-			Value:  machineValues.version,
+			Value:  machineValues.Version,
 			Source: api.ConfigSource_CONFIG_SOURCE_POLICY,
 		},
 	}
 
 	// If per-machine config is fully set, there's no need to check other sources.
-	perMachineConfigFullySet := machineValues.cdnBaseURL != "" && machineValues.version != ""
+	perMachineConfigFullySet := machineValues.CDNBaseURL != "" && machineValues.Version != ""
 	if perMachineConfigFullySet {
 		return config, nil
 	}
 
 	if !perMachine {
-		userValues, err := readRegistryPolicyValues(registry.CURRENT_USER)
+		userValues, err := common.ReadRegistryPolicyValues(registry.CURRENT_USER)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if machineValues.cdnBaseURL == "" {
-			config.CdnBaseUrl.Value = userValues.cdnBaseURL
+		if machineValues.CDNBaseURL == "" {
+			config.CdnBaseUrl.Value = userValues.CDNBaseURL
 		}
 
-		if machineValues.version == "" {
-			config.ToolsVersion.Value = userValues.version
+		if machineValues.Version == "" {
+			config.ToolsVersion.Value = userValues.Version
 		}
 	}
 
@@ -111,7 +107,7 @@ func platformGetConfig() (*api.GetConfigResponse, error) {
 }
 
 func isPerMachineInstall() (bool, error) {
-	perMachineLocation, err := readRegistryValue(registry.LOCAL_MACHINE, teleportConnectKeyPath, registryValueInstallLocation)
+	perMachineLocation, err := common.ReadRegistryValue(registry.LOCAL_MACHINE, teleportConnectKeyPath, registryValueInstallLocation)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return false, nil
@@ -128,52 +124,4 @@ func isPerMachineInstall() (bool, error) {
 	exePathInPerMachineLocation := filepath.Join(perMachineLocation, "resources", "bin", "tsh.exe")
 
 	return exePath == exePathInPerMachineLocation, nil
-}
-
-type policyValue struct {
-	cdnBaseURL string
-	version    string
-}
-
-func readRegistryPolicyValues(key registry.Key) (*policyValue, error) {
-	version, err := readRegistryValue(key, teleportConnectPoliciesKeyPath, registryValueToolsVersion)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	url, err := readRegistryValue(key, teleportConnectPoliciesKeyPath, registryValueCDNBaseURL)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	return &policyValue{
-		cdnBaseURL: url,
-		version:    version,
-	}, nil
-}
-
-func readRegistryValue(hive registry.Key, pathName string, valueName string) (path string, err error) {
-	key, err := registry.OpenKey(hive, pathName, registry.READ)
-	if err != nil {
-		if errors.Is(err, registry.ErrNotExist) {
-			return "", trace.NotFound("registry key %s not found", pathName)
-		}
-		return "", trace.Wrap(err, "opening registry key %s", pathName)
-	}
-
-	defer func() {
-		if closeErr := key.Close(); closeErr != nil && err == nil {
-			err = trace.Wrap(closeErr, "closing registry key %s", pathName)
-		}
-	}()
-
-	path, _, err = key.GetStringValue(valueName)
-	if err != nil {
-		if errors.Is(err, registry.ErrNotExist) {
-			return "", trace.NotFound("registry value %s not found in %s", valueName, pathName)
-		}
-		return "", trace.Wrap(err, "reading registry value %s from %s", valueName, pathName)
-	}
-
-	return path, nil
 }
