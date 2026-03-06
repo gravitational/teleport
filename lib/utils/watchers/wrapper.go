@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -47,9 +46,6 @@ type Retrier interface {
 
 // WrapperConfig holds creation parameters for Wrapper.
 type WrapperConfig struct {
-	// Clock used by the Wrapper.
-	// Defaults to a real clock.
-	Clock clockwork.Clock
 	// Logger used by the Wrapper.
 	// Defaults to slog.Default().
 	Logger *slog.Logger
@@ -77,7 +73,6 @@ type WrapperConfig struct {
 // Users of Wrapper can concern themselves simply with handling events.
 // See [Wrapper.Run] and [Wrapper.Events].
 type Wrapper struct {
-	clock    clockwork.Clock
 	logger   *slog.Logger
 	source   WatcherSource
 	watch    *types.Watch
@@ -101,11 +96,6 @@ func NewWrapper(cfg WrapperConfig) (*Wrapper, error) {
 		return nil, trace.BadParameter("watch specification required")
 	}
 
-	clock := cfg.Clock
-	if clock == nil {
-		clock = clockwork.NewRealClock()
-	}
-
 	logger := cfg.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -119,7 +109,6 @@ func NewWrapper(cfg WrapperConfig) (*Wrapper, error) {
 	}
 
 	w := &Wrapper{
-		clock:    clock,
 		logger:   logger,
 		source:   cfg.Source,
 		watch:    &watchShallowCopy,
@@ -156,7 +145,7 @@ func (w *Wrapper) Run(ctx context.Context) error {
 	var timer <-chan time.Time
 	for {
 		d := w.retrier.NextDelay()
-		timer = w.clock.After(d)
+		timer = time.After(d)
 
 		select {
 		case <-ctx.Done():
