@@ -209,9 +209,6 @@ type AppAuthConfigJWTSpec struct {
 	// UsernameClaim specifies which token claim name's value will be used as the
 	// username. Defaults to `email`.
 	UsernameClaim string `protobuf:"bytes,3,opt,name=username_claim,json=usernameClaim,proto3" json:"username_claim,omitempty"`
-	// AuthorizationHeader is the HTTP header name that will contain the token.
-	// Defaults to `Authorization`.
-	AuthorizationHeader string `protobuf:"bytes,4,opt,name=authorization_header,json=authorizationHeader,proto3" json:"authorization_header,omitempty"`
 	// Types that are valid to be assigned to KeysSource:
 	//
 	//	*AppAuthConfigJWTSpec_JwksUrl
@@ -268,13 +265,6 @@ func (x *AppAuthConfigJWTSpec) GetAudience() string {
 func (x *AppAuthConfigJWTSpec) GetUsernameClaim() string {
 	if x != nil {
 		return x.UsernameClaim
-	}
-	return ""
-}
-
-func (x *AppAuthConfigJWTSpec) GetAuthorizationHeader() string {
-	if x != nil {
-		return x.AuthorizationHeader
 	}
 	return ""
 }
@@ -338,16 +328,15 @@ const file_teleport_appauthconfig_v1_appauthconfig_proto_rawDesc = "" +
 	"\n" +
 	"app_labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\tappLabels\x12C\n" +
 	"\x03jwt\x18\x02 \x01(\v2/.teleport.appauthconfig.v1.AppAuthConfigJWTSpecH\x00R\x03jwtB\x0f\n" +
-	"\rsub_kind_spec\"\xf3\x01\n" +
+	"\rsub_kind_spec\"\xdc\x01\n" +
 	"\x14AppAuthConfigJWTSpec\x12\x16\n" +
 	"\x06issuer\x18\x01 \x01(\tR\x06issuer\x12\x1a\n" +
 	"\baudience\x18\x02 \x01(\tR\baudience\x12%\n" +
-	"\x0eusername_claim\x18\x03 \x01(\tR\rusernameClaim\x121\n" +
-	"\x14authorization_header\x18\x04 \x01(\tR\x13authorizationHeader\x12\x1b\n" +
+	"\x0eusername_claim\x18\x03 \x01(\tR\rusernameClaim\x12\x1b\n" +
 	"\bjwks_url\x18\x05 \x01(\tH\x00R\ajwksUrl\x12!\n" +
 	"\vstatic_jwks\x18\x06 \x01(\tH\x00R\n" +
 	"staticJwksB\r\n" +
-	"\vkeys_sourceB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1;appauthconfigv1b\x06proto3"
+	"\vkeys_sourceJ\x04\b\x04\x10\x05R\x14authorization_headerB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1;appauthconfigv1b\x06proto3"
 
 var (
 	file_teleport_appauthconfig_v1_appauthconfig_proto_rawDescOnce sync.Once
