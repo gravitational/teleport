@@ -71,9 +71,11 @@ func TestTeleterm(t *testing.T) {
 		dbhelpers.WithListenerSetupDatabaseTest(helpers.SingleProxyPortSetup),
 		dbhelpers.WithLeafConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			config.InsecureMode = true
 		}),
 		dbhelpers.WithRootConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			config.InsecureMode = true
 		}),
 	)
 	pack.WaitForLeaf(t)

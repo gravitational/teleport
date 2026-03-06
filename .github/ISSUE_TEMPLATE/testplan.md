@@ -1130,7 +1130,7 @@ tsh ssh node-that-requires-device-trust
 
     Linux users need read/write permissions to /dev/tpmrm0. The simplest way is
     to assign yourself to the `tss` group. See
-    https://goteleport.com/docs/identity-governance/device-trust/device-management/#troubleshooting.
+    https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#troubleshooting.
 
   - [ ] Verify device extensions on TLS certificate
 
@@ -1169,7 +1169,7 @@ tsh ssh node-that-requires-device-trust
 
     Confirm that it works by failing first. Most protocols can be tested using
     device_trust.mode="required". App Access and Desktop Access require a custom
-    role (see [enforcing device trust](https://goteleport.com/docs/identity-governance/device-trust/enforcing-device-trust/#web-application-support)).
+    role (see [enforcing device trust](https://goteleport.com/docs/zero-trust-access/device-trust/enforcing-device-trust/#web-application-support)).
 
     For SSO users confirm that device web authentication happens successfully.
 

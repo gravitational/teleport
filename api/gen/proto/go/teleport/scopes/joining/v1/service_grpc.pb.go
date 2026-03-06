@@ -38,6 +38,7 @@ const (
 	ScopedJoiningService_CreateScopedToken_FullMethodName = "/teleport.scopes.joining.v1.ScopedJoiningService/CreateScopedToken"
 	ScopedJoiningService_UpsertScopedToken_FullMethodName = "/teleport.scopes.joining.v1.ScopedJoiningService/UpsertScopedToken"
 	ScopedJoiningService_DeleteScopedToken_FullMethodName = "/teleport.scopes.joining.v1.ScopedJoiningService/DeleteScopedToken"
+	ScopedJoiningService_UpdateScopedToken_FullMethodName = "/teleport.scopes.joining.v1.ScopedJoiningService/UpdateScopedToken"
 )
 
 // ScopedJoiningServiceClient is the client API for ScopedJoiningService service.
@@ -56,6 +57,8 @@ type ScopedJoiningServiceClient interface {
 	UpsertScopedToken(ctx context.Context, in *UpsertScopedTokenRequest, opts ...grpc.CallOption) (*UpsertScopedTokenResponse, error)
 	// DeleteScopedToken deletes a scoped token.
 	DeleteScopedToken(ctx context.Context, in *DeleteScopedTokenRequest, opts ...grpc.CallOption) (*DeleteScopedTokenResponse, error)
+	// UpdateScopedToken updates a scoped token.
+	UpdateScopedToken(ctx context.Context, in *UpdateScopedTokenRequest, opts ...grpc.CallOption) (*UpdateScopedTokenResponse, error)
 }
 
 type scopedJoiningServiceClient struct {
@@ -116,6 +119,16 @@ func (c *scopedJoiningServiceClient) DeleteScopedToken(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *scopedJoiningServiceClient) UpdateScopedToken(ctx context.Context, in *UpdateScopedTokenRequest, opts ...grpc.CallOption) (*UpdateScopedTokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateScopedTokenResponse)
+	err := c.cc.Invoke(ctx, ScopedJoiningService_UpdateScopedToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ScopedJoiningServiceServer is the server API for ScopedJoiningService service.
 // All implementations must embed UnimplementedScopedJoiningServiceServer
 // for forward compatibility.
@@ -132,6 +145,8 @@ type ScopedJoiningServiceServer interface {
 	UpsertScopedToken(context.Context, *UpsertScopedTokenRequest) (*UpsertScopedTokenResponse, error)
 	// DeleteScopedToken deletes a scoped token.
 	DeleteScopedToken(context.Context, *DeleteScopedTokenRequest) (*DeleteScopedTokenResponse, error)
+	// UpdateScopedToken updates a scoped token.
+	UpdateScopedToken(context.Context, *UpdateScopedTokenRequest) (*UpdateScopedTokenResponse, error)
 	mustEmbedUnimplementedScopedJoiningServiceServer()
 }
 
@@ -156,6 +171,9 @@ func (UnimplementedScopedJoiningServiceServer) UpsertScopedToken(context.Context
 }
 func (UnimplementedScopedJoiningServiceServer) DeleteScopedToken(context.Context, *DeleteScopedTokenRequest) (*DeleteScopedTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteScopedToken not implemented")
+}
+func (UnimplementedScopedJoiningServiceServer) UpdateScopedToken(context.Context, *UpdateScopedTokenRequest) (*UpdateScopedTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateScopedToken not implemented")
 }
 func (UnimplementedScopedJoiningServiceServer) mustEmbedUnimplementedScopedJoiningServiceServer() {}
 func (UnimplementedScopedJoiningServiceServer) testEmbeddedByValue()                              {}
@@ -268,6 +286,24 @@ func _ScopedJoiningService_DeleteScopedToken_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ScopedJoiningService_UpdateScopedToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateScopedTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScopedJoiningServiceServer).UpdateScopedToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScopedJoiningService_UpdateScopedToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScopedJoiningServiceServer).UpdateScopedToken(ctx, req.(*UpdateScopedTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ScopedJoiningService_ServiceDesc is the grpc.ServiceDesc for ScopedJoiningService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -294,6 +330,10 @@ var ScopedJoiningService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteScopedToken",
 			Handler:    _ScopedJoiningService_DeleteScopedToken_Handler,
+		},
+		{
+			MethodName: "UpdateScopedToken",
+			Handler:    _ScopedJoiningService_UpdateScopedToken_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
