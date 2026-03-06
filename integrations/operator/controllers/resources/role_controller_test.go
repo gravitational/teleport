@@ -301,15 +301,20 @@ func (g *roleTestingPrimitives) CompareTeleportAndKubernetesResource(tResource t
 
 func TestTeleportRoleCreation(t *testing.T) {
 	test := &roleTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest[types.Role, *resourcesv5.TeleportRole](t, resources.NewRoleReconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewRoleReconciler, test)
+}
+
+func TestTeleportRoleDeletion(t *testing.T) {
+	test := &roleTestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewRoleReconciler, test)
 }
 
 func TestTeleportRoleDeletionDrift(t *testing.T) {
 	test := &roleTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest[types.Role, *resourcesv5.TeleportRole](t, resources.NewRoleReconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewRoleReconciler, test)
 }
 
 func TestTeleportRoleUpdate(t *testing.T) {
 	test := &roleTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous[types.Role, *resourcesv5.TeleportRole](t, resources.NewRoleReconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewRoleReconciler, test)
 }

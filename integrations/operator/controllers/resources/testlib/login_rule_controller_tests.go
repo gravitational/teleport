@@ -147,7 +147,17 @@ func (l *loginRuleTestingPrimitives) CompareTeleportAndKubernetesResource(
 
 func LoginRuleCreationTest(t *testing.T, clt *client.Client) {
 	test := &loginRuleTestingPrimitives{}
-	ResourceCreationSynchronousTest[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](
+	ResourceCreationSynchronousTest(
+		t,
+		resources.NewLoginRuleReconciler,
+		test,
+		WithTeleportClient(clt),
+	)
+}
+
+func LoginRuleDeletionTest(t *testing.T, clt *client.Client) {
+	test := &loginRuleTestingPrimitives{}
+	ResourceDeletionSynchronousTest(
 		t,
 		resources.NewLoginRuleReconciler,
 		test,
@@ -157,7 +167,7 @@ func LoginRuleCreationTest(t *testing.T, clt *client.Client) {
 
 func LoginRuleDeletionDriftTest(t *testing.T, clt *client.Client) {
 	test := &loginRuleTestingPrimitives{}
-	ResourceDeletionDriftSynchronousTest[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](
+	ResourceDeletionDriftSynchronousTest(
 		t,
 		resources.NewLoginRuleReconciler,
 		test,
@@ -167,7 +177,7 @@ func LoginRuleDeletionDriftTest(t *testing.T, clt *client.Client) {
 
 func LoginRuleUpdateTest(t *testing.T, clt *client.Client) {
 	test := &loginRuleTestingPrimitives{}
-	ResourceUpdateTestSynchronous[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](
+	ResourceUpdateTestSynchronous(
 		t,
 		resources.NewLoginRuleReconciler,
 		test,
