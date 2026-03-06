@@ -3132,7 +3132,7 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	h.logger.WarnContext(context.Background(), "MFA login begin request", "req", req)
 	mfaReq := &proto.CreateAuthenticateChallengeRequest{}
 	if req.Passwordless {
 		mfaReq.Request = &proto.CreateAuthenticateChallengeRequest_Passwordless{

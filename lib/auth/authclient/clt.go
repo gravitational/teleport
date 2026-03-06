@@ -1417,8 +1417,6 @@ type AuthenticateUserRequest struct {
 	Webauthn *wantypes.CredentialAssertionResponse `json:"webauthn,omitempty"`
 	// OTP is a password and second factor, used for MFA authentication
 	OTP *OTPCreds `json:"otp,omitempty"`
-	// SSO is an SSO MFA response
-	SSO *proto.SSOResponse `json:"sso,omitempty"`
 	// Browser is a Browser MFA response
 	Browser *proto.BrowserMFAResponse `json:"browser,omitempty"`
 	// Session is a web session credential used to authenticate web sessions

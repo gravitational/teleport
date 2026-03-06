@@ -56,7 +56,7 @@ type GlobalCLIFlags struct {
 	// Insecure, when set, skips validation of server TLS certificate when
 	// connecting through a proxy (specified in AuthServerAddr).
 	Insecure bool
-	// MFAMode is the preferred mode for MFA/Passwordless assertions.
+	// MFAMode is the preferred mode for MFA.
 	MFAMode string
 }
 

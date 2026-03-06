@@ -4472,7 +4472,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		a.logger.ErrorContext(ctx, "failed to create MFA challenge", "error", err)
 		return nil, trace.AccessDenied("unable to create MFA challenges")
 	}
-
+	a.logger.WarnContext(ctx, "Returning challenges", "chal", challenges)
 	return challenges, nil
 }
 

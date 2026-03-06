@@ -984,12 +984,6 @@ func (s *sessionCache) AuthenticateSSHUser(
 			Token:    c.TOTPCode,
 		}
 	}
-	if c.SSOResponse != nil {
-		authReq.SSO = &proto.SSOResponse{
-			RequestId: c.SSOResponse.RequestID,
-			Token:     c.SSOResponse.Token,
-		}
-	}
 	if c.BrowserMFAResponse != nil {
 		authReq.Browser = &proto.BrowserMFAResponse{
 			RequestId:        c.BrowserMFAResponse.RequestID,
