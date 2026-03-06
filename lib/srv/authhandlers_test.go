@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 )
@@ -492,11 +493,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "basic allow",
 			pin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/west": {
-						Roles: []string{"staging-west-red"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"staging-west-red"}},
+				}),
 			},
 			allowed: true,
 		},
@@ -504,11 +503,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "too narrow scope",
 			pin: &scopesv1.Pin{
 				Scope: "/staging/west/narrow",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/west": {
-						Roles: []string{"staging-west-red"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"staging-west-red"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -516,11 +513,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "label mismatch",
 			pin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/west": {
-						Roles: []string{"staging-west-blue"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"staging-west-blue"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -528,11 +523,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "scope permission mismatch",
 			pin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/east": {
-						Roles: []string{"staging-east-red"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/east": {"/staging/east": {"staging-east-red"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -540,11 +533,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "orthogonal scope",
 			pin: &scopesv1.Pin{
 				Scope: "/prod",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/prod/west": {
-						Roles: []string{"prod-west-red"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/prod/west": {"/prod/west": {"prod-west-red"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -552,11 +543,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "no labels",
 			pin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/west": {
-						Roles: []string{"staging-west-no-labels"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"staging-west-no-labels"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -564,11 +553,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "wrong login",
 			pin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/west": {
-						Roles: []string{"staging-west-wrong-login"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"staging-west-wrong-login"}},
+				}),
 			},
 			allowed: false,
 		},
