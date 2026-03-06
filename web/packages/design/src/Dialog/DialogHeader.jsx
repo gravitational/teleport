@@ -28,6 +28,7 @@ export default function DialogHeader(props) {
       minHeight="32px"
       mb="3"
       alignItems="center"
+      flexShrink="0"
       {...props}
     />
   );
