@@ -1,18 +1,6 @@
 // package fixtures provides common fixtures for tests
 package fixtures
 
-import (
-	liblicense "github.com/gravitational/license"
-	check "gopkg.in/check.v1"
-)
-
-// TestLicenseKeyPair returns license key pair used in tests
-func TestLicenseKeyPair(c *check.C) *liblicense.License {
-	licenseKeyPair, err := liblicense.ParseLicensePEM([]byte(TestLicenseData))
-	c.Assert(err, check.IsNil)
-	return licenseKeyPair
-}
-
 // TestLicenseData contains test license data
 const TestLicenseData = `-----BEGIN CERTIFICATE-----
 MIIDpDCCAoygAwIBAgIUUD6WS/1zgUMRMkt5rfruU0yNhlEwDQYJKoZIhvcNAQEL
