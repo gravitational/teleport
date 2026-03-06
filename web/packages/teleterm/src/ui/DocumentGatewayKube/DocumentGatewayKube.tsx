@@ -75,7 +75,6 @@ export const DocumentGatewayKube = (props: {
         createGateway();
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 

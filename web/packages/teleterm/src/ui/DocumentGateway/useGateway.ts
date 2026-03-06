@@ -192,7 +192,6 @@ export function useGateway(doc: DocumentGateway) {
         createGateway({ localPort: doc.port });
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 

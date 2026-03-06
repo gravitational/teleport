@@ -61,7 +61,6 @@ export function ParameterPicker(props: ParameterPickerProps) {
     getSuggestions();
     // We want to get suggestions only once on mount.
     // useAsync already handles cleanup and calling the hook twice.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const matchingSuggestionsAttempt = mapAttempt(

@@ -38,7 +38,6 @@ afterAll(() => {
 });
 
 describe('HealthTab', () => {
-  // eslint-disable-next-line jest/expect-expect
   it('renders', async () => {
     renderComponent();
 
