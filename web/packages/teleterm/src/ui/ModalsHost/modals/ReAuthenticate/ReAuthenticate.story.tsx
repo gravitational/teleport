@@ -159,7 +159,8 @@ export const MultilineTitle = () => (
         ...loginMfaRequest,
         webauthn: true,
         totp: true,
-        clusterUri: '/clusters/lorem.cloud.gravitational.io',
+        clusterUri:
+          '/clusters/ipsum.cloud.gravitational.io/leaves/lorem.cloud.gravitational.io',
       }}
       onSsoContinue={() => {}}
       onCancel={() => {}}
