@@ -150,6 +150,8 @@
     "MDAs",
     "MGET",
     "MODIFYCLUSTERSETTING",
+    "MREC",
+    "MRSC",
     "MYDNS",
     "MYELB",
     "MYHOSTNAME",
