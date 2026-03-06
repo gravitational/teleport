@@ -427,6 +427,7 @@ Optional:
 Optional:
 
 - `bound_bot_instance_id` (String) BoundBotInstanceID is the ID of the currently associated bot instance. A new bot instance is issued on each join; the new bot instance will have a `previous_bot_instance` set to this value, if any.
+- `bound_host_id` (String) BoundHostID is the agent UUID bound to this keypair. This field is left empty if bound to a bot, or if no agent has joined yet. It is mutually exclusive with BoundBotInstanceID but otherwise behaves identically.
 - `bound_public_key` (String) BoundPublicKey contains the currently bound public key. If `.spec.bound_keypair.onboarding.initial_public_key` is set, that value will be copied here on creation, otherwise it will be populated as part of public key registration process. This value will be updated over time if keypair rotation takes place, and will always reflect the currently trusted public key. This value is written in SSH authorized_keys format.
 - `last_recovered_at` (String) LastRecoveredAt contains a timestamp of the last successful recovery attempt. Note that normal renewals with valid client certificates do not count as a recovery attempt, however the initial join during onboarding does. This corresponds with the last time `bound_bot_instance_id` was updated.
 - `last_rotated_at` (String) LastRotatedAt contains a timestamp of the last time the keypair was rotated, if any. This is not set at initial join.

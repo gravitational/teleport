@@ -2264,6 +2264,11 @@ message ProvisionTokenStatusV2BoundKeypair {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "last_rotated_at,omitempty"
   ];
+
+  // BoundHostID is the agent UUID bound to this keypair. This field is left
+  // empty if bound to a bot, or if no agent has joined yet. It is mutually
+  // exclusive with BoundBotInstanceID but otherwise behaves identically.
+  string BoundHostID = 7 [(gogoproto.jsontag) = "bound_host_id"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
