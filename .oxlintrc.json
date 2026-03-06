@@ -21,7 +21,8 @@
     "**/*_pb.*",
     "**/tshd/**/*_pb.js",
     "**/ironrdp/pkg/**",
-    "web/packages/teleterm/build"
+    "web/packages/teleterm/build",
+    "web/.storybook/public/mockServiceWorker.js"
   ],
   "globals": {
     "expect": "readonly",
