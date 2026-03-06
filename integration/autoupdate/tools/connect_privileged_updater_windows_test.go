@@ -296,10 +296,9 @@ func runPrivilegedUpdaterFlow(t *testing.T, update update, opts ...privilegedSer
 	defaultCfg := getDefaultConfig(t)
 	cfg := &serviceConfig{
 		ServiceTestConfig: privilegedupdater.ServiceTestConfig{
-			UpdateDirSecurityDescriptor: defaultCfg.UpdateDirSecurityDescriptor,
-			UpdateBaseDir:               defaultCfg.UpdateBaseDir,
-			// Allow Authenticated Users to create the pipe (windows.FILE_APPEND_DATA) in tests.
-			PipeAuthenticatedUsersAccess: privilegedupdater.SafePipeReadWriteAccess | windows.FILE_APPEND_DATA,
+			UpdateDirSecurityDescriptor:  defaultCfg.UpdateDirSecurityDescriptor,
+			UpdateBaseDir:                defaultCfg.UpdateBaseDir,
+			PipeAuthenticatedUsersAccess: defaultCfg.PipeAuthenticatedUsersAccess,
 		},
 	}
 	for _, opt := range opts {
@@ -410,6 +409,8 @@ func getDefaultConfig(t *testing.T) *privilegedupdater.ServiceTestConfig {
 	return &privilegedupdater.ServiceTestConfig{
 		UpdateDirSecurityDescriptor: descriptor,
 		UpdateBaseDir:               t.TempDir(),
+		// Allow Authenticated Users to create the pipe (windows.FILE_APPEND_DATA) in tests.
+		PipeAuthenticatedUsersAccess: privilegedupdater.SafePipeReadWriteAccess | windows.FILE_APPEND_DATA,
 	}
 }
 
