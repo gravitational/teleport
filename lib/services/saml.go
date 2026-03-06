@@ -458,3 +458,20 @@ func FillSAMLSigningKeyFromExisting(ctx context.Context, connector types.SAMLCon
 	connector.SetSigningKeyPair(existingSkp)
 	return nil
 }
+
+// CheckSAMLSigningKeyExpiry returns true if any signing keys for the connector have expired or will expire
+// within the given timeframe.
+func CheckSAMLSigningKeyExpiry(connector types.SAMLConnector, timeframe time.Duration) (bool, error) {
+	certs, err := CheckSAMLEntityDescriptor(connector.GetEntityDescriptor())
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	for _, cert := range certs {
+		if time.Until(cert.NotAfter) <= timeframe {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}

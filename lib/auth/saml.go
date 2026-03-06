@@ -76,6 +76,10 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 		return nil, trace.BadParameter("unknown SAMLConnector type, expected *types.SAMLConnectorV2 got %T", connector)
 	}
 
+	if err := a.checkSAMLSigningKeyExpiry(ctx); err != nil {
+		a.logger.WarnContext(ctx, "Failed to check SAML connector signing key expiry", "error", err)
+	}
+
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorCreate{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLConnectorCreatedEvent,
@@ -122,6 +126,10 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 		return nil, trace.BadParameter("unknown SAMLConnector type, expected *types.SAMLConnectorV2 got %T", connector)
 	}
 
+	if err := a.checkSAMLSigningKeyExpiry(ctx); err != nil {
+		a.logger.WarnContext(ctx, "Failed to check SAML connector signing key expiry", "error", err)
+	}
+
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLConnectorUpdatedEvent,
@@ -164,6 +172,10 @@ func (a *Server) CreateSAMLConnector(ctx context.Context, connector types.SAMLCo
 		return nil, trace.BadParameter("unknown SAMLConnector type, expected *types.SAMLConnectorV2 got %T", connector)
 	}
 
+	if err := a.checkSAMLSigningKeyExpiry(ctx); err != nil {
+		a.logger.WarnContext(ctx, "Failed to check SAML connector signing key expiry", "error", err)
+	}
+
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorCreate{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLConnectorCreatedEvent,
@@ -197,6 +209,10 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorID string) er
 		},
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit SAML connector delete event", "error", err)
+	}
+
+	if err := a.checkSAMLSigningKeyExpiry(ctx); err != nil {
+		a.logger.WarnContext(ctx, "Failed to check SAML connector signing key expiry", "error", err)
 	}
 
 	return nil

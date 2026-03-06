@@ -2937,6 +2937,10 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(authServer.MonitorSystemTime(process.GracefulExitContext()))
 	})
 
+	process.RegisterFunc("auth.saml.signing-key-expiry-monitor", func() error {
+		return trace.Wrap(authServer.MonitorSAMLSigningKeyExpiry(process.GracefulExitContext()))
+	})
+
 	expiry, err := expiry.New(&expiry.Config{
 		Log: logger.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, "expiry_service"),
