@@ -81,6 +81,10 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		if len(token.GetSpec().GetOracle().GetAllow()) == 0 {
 			return trace.BadParameter("oracle configuration must be defined for a scoped token when using the oracle join method")
 		}
+	case types.JoinMethodKubernetes:
+		if token.GetSpec().GetKubernetes() == nil {
+			return trace.BadParameter("kubernetes configuration must be defined for a scoped token when using the kubernetes join method")
+		}
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
@@ -436,6 +440,38 @@ func (t *Token) GetOracle() *types.ProvisionTokenSpecV2Oracle {
 
 	return &types.ProvisionTokenSpecV2Oracle{
 		Allow: allow,
+	}
+}
+
+// GetKubernetes returns the Kubernetes-specific configuration for this token.
+func (t *Token) GetKubernetes() *types.ProvisionTokenSpecV2Kubernetes {
+	allow := make([]*types.ProvisionTokenSpecV2Kubernetes_Rule, len(t.scoped.GetSpec().GetKubernetes().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetKubernetes().GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2Kubernetes_Rule{
+			ServiceAccount: rule.GetServiceAccount(),
+		}
+	}
+
+	var staticJWKS *types.ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig
+	if jwks := t.scoped.GetSpec().GetKubernetes().GetStaticJwks().GetJwks(); jwks != "" {
+		staticJWKS = &types.ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig{
+			JWKS: jwks,
+		}
+	}
+
+	var oidcConfig *types.ProvisionTokenSpecV2Kubernetes_OIDCConfig
+	if oidc := t.scoped.GetSpec().GetKubernetes().GetOidc(); oidc != nil {
+		oidcConfig = &types.ProvisionTokenSpecV2Kubernetes_OIDCConfig{
+			Issuer:                  oidc.GetIssuer(),
+			InsecureAllowHTTPIssuer: oidc.GetInsecureAllowHttpIssuer(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2Kubernetes{
+		Allow:      allow,
+		Type:       types.KubernetesJoinType(t.scoped.GetSpec().GetKubernetes().GetType()),
+		StaticJWKS: staticJWKS,
+		OIDC:       oidcConfig,
 	}
 }
 

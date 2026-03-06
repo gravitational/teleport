@@ -26,12 +26,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/jointest"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
 type mockK8STokenReviewValidator struct {
@@ -125,6 +129,24 @@ func TestJoinKubernetes(t *testing.T) {
 	require.NoError(t, auth.CreateToken(ctx, implicitInClusterPT))
 	require.NoError(t, auth.CreateToken(ctx, explicitInClusterPT))
 	require.NoError(t, auth.CreateToken(ctx, staticJWKSPT))
+
+	for _, pt := range []types.ProvisionToken{implicitInClusterPT, explicitInClusterPT, staticJWKSPT} {
+		ptv2, ok := pt.(*types.ProvisionTokenV2)
+		require.True(t, ok, "expected provision token to be types.ProvisionTokenSpecV2")
+		scoped, err := jointest.ScopedTokenFromProvisionTokenSpec(ptv2.Spec, &joiningv1.ScopedToken{
+			Scope: "/test",
+			Metadata: &headerv1.Metadata{
+				Name: "scoped_" + pt.GetName(),
+			},
+			Spec: &joiningv1.ScopedTokenSpec{
+				AssignedScope: "/test/one",
+				UsageMode:     string(joining.TokenUsageModeUnlimited),
+			},
+		})
+		require.NoError(t, err)
+		_, err = auth.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{Token: scoped})
+		require.NoError(t, err)
+	}
 
 	// Building a joinRequest builder
 	sshPrivateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
@@ -238,6 +260,20 @@ func TestJoinKubernetes(t *testing.T) {
 			t.Run("new joinclient", func(t *testing.T) {
 				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
 					Token:      tt.provisionToken.GetName(),
+					JoinMethod: types.JoinMethodKubernetes,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance, // RoleNode is not allowed
+						NodeName: "testnode",
+					},
+					IDToken:    tt.kubeToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+			})
+
+			t.Run("scoped join", func(t *testing.T) {
+				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      "scoped_" + tt.provisionToken.GetName(),
 					JoinMethod: types.JoinMethodKubernetes,
 					ID: state.IdentityID{
 						Role:     types.RoleInstance, // RoleNode is not allowed
