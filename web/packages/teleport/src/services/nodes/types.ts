@@ -17,10 +17,17 @@
  */
 
 import { NodeSubKind } from 'shared/services';
+import { ComponentFeatureID } from 'shared/utils/componentFeatures';
 
 import { ResourceLabel } from 'teleport/services/agents';
 
 import { Regions } from '../integrations';
+
+/** Describes an SSH login available on a server. */
+export type SSHLogin = {
+  login: string;
+  requiresRequest?: boolean;
+};
 
 export interface Node {
   kind: 'node';
@@ -31,9 +38,13 @@ export interface Node {
   addr: string;
   tunnel: boolean;
   subKind: NodeSubKind;
+  /** Plain login names. Always present for backwards compatibility with older proxies. */
   sshLogins: string[];
+  /** Per-login metadata (granted vs requestable). Only present from newer proxies. */
+  sshLoginDetails?: SSHLogin[];
   awsMetadata?: AwsMetadata;
   requiresRequest?: boolean;
+  supportedFeatureIds?: ComponentFeatureID[];
 }
 
 export interface BashCommand {
