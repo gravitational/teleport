@@ -167,7 +167,8 @@ func getCert(path *uint16) (*x509.Certificate, error) {
 //
 // Security notes:
 //   - This does NOT provide cryptographic authenticity guarantees. An attacker could theoretically obtain a certificate
-//     with identical subject fields, although doing so is non-trivial.
+//     with identical subject fields. However, obtaining such a certificate from a CA trusted by Windows is non-trivial
+//     (the cert must first pass the WinVerifyTrust check).
 //   - Teleport Managed Updates explicitly do not verify asset authenticity (see https://github.com/gravitational/teleport/blob/0bc64ebc163728ece7f9e7b874e6eb9b95736a01/rfd/0184-agent-auto-updates.md?plain=1#L1909-L1918),
 //     so this check acts as a best-effort, additional defense layer.
 //   - We intentionally avoid pinning a specific certificate in the updater so that certificate renewals or rotations
