@@ -57,9 +57,7 @@ jest.mock('shared/components/FieldSelect/FieldSelectCreatable', () => {
       defaultOptions?: unknown;
     }) => {
       const {
-        // eslint-disable-next-line unused-imports/no-unused-vars
         loadOptions,
-        // eslint-disable-next-line unused-imports/no-unused-vars
         defaultOptions,
         ...rest
       } = props;

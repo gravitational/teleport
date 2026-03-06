@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-
 import { enableMapSet, produce, Producer } from 'immer';
 
 import stateLogger from 'shared/libs/stores/logger';
