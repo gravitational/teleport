@@ -20,6 +20,7 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"log/slog"
 	"net"
 	"strconv"
@@ -36,9 +37,10 @@ import (
 )
 
 type tcpServer struct {
-	emitter apievents.Emitter
-	hostID  string
-	log     *slog.Logger
+	emitter      apievents.Emitter
+	hostID       string
+	log          *slog.Logger
+	cipherSuites []uint16
 }
 
 // handleConnection handles connection from a TCP application.
@@ -58,9 +60,28 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serverConn, err := dialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
-	if err != nil {
-		return trace.Wrap(err)
+
+	var serverConn net.Conn
+	appTLS := app.GetTLS()
+	if appTLS.IsEmpty() {
+		serverConn, err = dialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		tlsConfig, err := loadMTLSConfig(s.cipherSuites, appTLS)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		tlsDialer := tls.Dialer{
+			NetDialer: &dialer,
+			Config:    tlsConfig,
+		}
+		serverConn, err = tlsDialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	audit, err := common.NewAudit(common.AuditConfig{

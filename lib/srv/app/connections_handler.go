@@ -402,9 +402,10 @@ func (c *ConnectionsHandler) sessionStartTime(ctx context.Context) time.Time {
 // newTCPServer creates a server that proxies TCP applications.
 func (c *ConnectionsHandler) newTCPServer() (*tcpServer, error) {
 	return &tcpServer{
-		emitter: c.cfg.Emitter,
-		hostID:  c.cfg.HostID,
-		log:     c.log,
+		emitter:      c.cfg.Emitter,
+		hostID:       c.cfg.HostID,
+		log:          c.log,
+		cipherSuites: c.cfg.CipherSuites,
 	}, nil
 }
 

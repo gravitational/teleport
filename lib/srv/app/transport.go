@@ -21,13 +21,11 @@ package app
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"slices"
 	"strings"
@@ -317,70 +315,6 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 	// the --insecure flag, or 'insecure_skip_verify' was specifically requested in
 	// the application config.
 	tlsConfig.InsecureSkipVerify = (lib.IsInsecureDevMode() || c.app.GetInsecureSkipVerify())
-
-	return tlsConfig, nil
-}
-
-// loadMTLSConfig loads mTLS configuration from disk.
-func loadMTLSConfig(cipherSuites []uint16, appTLS types.AppTLS) (*tls.Config, error) {
-	switch appTLS.Mode {
-	case types.AppTLS_MODE_VERIFY_CA:
-		return mtlsConfigVerifyCA(cipherSuites, appTLS)
-	case types.AppTLS_MODE_INSECURE:
-		return mtlsConfigInsecure(cipherSuites, appTLS)
-	default:
-		return mtlsConfigFull(cipherSuites, appTLS)
-	}
-}
-
-func mtlsConfigFull(cipherSuites []uint16, appTLS types.AppTLS) (*tls.Config, error) {
-	tlsConfig := utils.TLSConfig(cipherSuites)
-	clientCert, err := tls.LoadX509KeyPair(appTLS.CertPath, appTLS.KeyPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ca, err := os.ReadFile(appTLS.CaPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	caPool := x509.NewCertPool()
-	if ok := caPool.AppendCertsFromPEM(ca); !ok {
-		return nil, trace.BadParameter("unable to load provided CA")
-	}
-
-	tlsConfig.Certificates = []tls.Certificate{clientCert}
-	tlsConfig.RootCAs = caPool
-	return tlsConfig, nil
-}
-
-func mtlsConfigVerifyCA(cipherSuites []uint16, appTLS types.AppTLS) (*tls.Config, error) {
-	tlsConfig, err := mtlsConfigFull(cipherSuites, appTLS)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Base on https://github.com/golang/go/blob/master/src/crypto/tls/example_test.go#L193-L208
-	// Set InsecureSkipVerify to skip the default validation we are
-	// replacing. This will not disable VerifyConnection.
-	tlsConfig.InsecureSkipVerify = true
-	tlsConfig.VerifyConnection = utils.VerifyConnectionIgnoreServerName(time.Now, func() (*x509.CertPool, error) {
-		return tlsConfig.RootCAs, nil
-	})
-	// ServerName is irrelevant in this case. Set it to default value to make
-	// it explicit.
-	tlsConfig.ServerName = ""
-	return tlsConfig, trace.Wrap(err)
-}
-
-func mtlsConfigInsecure(cipherSuites []uint16, appTLS types.AppTLS) (*tls.Config, error) {
-	tlsConfig, err := mtlsConfigFull(cipherSuites, appTLS)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Accept any certificate provided by database.
-	tlsConfig.InsecureSkipVerify = true
-	// Remove certificate validation if set.
-	tlsConfig.VerifyConnection = nil
 
 	return tlsConfig, nil
 }
