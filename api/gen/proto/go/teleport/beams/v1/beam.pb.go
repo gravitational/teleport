@@ -183,9 +183,9 @@ type BeamStatus struct {
 	// SSHAddr is the `host:port` address on which Teleport proxies can dial the
 	// beam's OpenSSH server.
 	SshAddr string `protobuf:"bytes,2,opt,name=ssh_addr,json=sshAddr,proto3" json:"ssh_addr,omitempty"`
-	// AppAddr is the `host:port` address on which the application service can
-	// dial the beam's application Envoy proxy.
-	AppAddr string `protobuf:"bytes,3,opt,name=app_addr,json=appAddr,proto3" json:"app_addr,omitempty"`
+	// AppAddrHTTP is the `host:port` address on which the application service can
+	// dial the beam's application Envoy proxy for HTTP applications.
+	AppAddrHttp string `protobuf:"bytes,3,opt,name=app_addr_http,json=appAddrHttp,proto3" json:"app_addr_http,omitempty"`
 	// BotName is the name of the beam's bot identity.
 	BotName string `protobuf:"bytes,4,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
 	// JoinTokenName is the name of the beam's bound-keypair join token.
@@ -201,7 +201,10 @@ type BeamStatus struct {
 	NodeId string `protobuf:"bytes,8,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
 	// AppName is the name of the app resource that can be used to access the
 	// application exposed by the beam.
-	AppName       string `protobuf:"bytes,9,opt,name=app_name,json=appName,proto3" json:"app_name,omitempty"`
+	AppName string `protobuf:"bytes,9,opt,name=app_name,json=appName,proto3" json:"app_name,omitempty"`
+	// AppAddrTCP is the `host:port` address on which the application service can
+	// dial the beam's application Envoy proxy for TCP applications.
+	AppAddrTcp    string `protobuf:"bytes,10,opt,name=app_addr_tcp,json=appAddrTcp,proto3" json:"app_addr_tcp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -250,9 +253,9 @@ func (x *BeamStatus) GetSshAddr() string {
 	return ""
 }
 
-func (x *BeamStatus) GetAppAddr() string {
+func (x *BeamStatus) GetAppAddrHttp() string {
 	if x != nil {
-		return x.AppAddr
+		return x.AppAddrHttp
 	}
 	return ""
 }
@@ -299,6 +302,13 @@ func (x *BeamStatus) GetAppName() string {
 	return ""
 }
 
+func (x *BeamStatus) GetAppAddrTcp() string {
+	if x != nil {
+		return x.AppAddrTcp
+	}
+	return ""
+}
+
 var File_teleport_beams_v1_beam_proto protoreflect.FileDescriptor
 
 const file_teleport_beams_v1_beam_proto_rawDesc = "" +
@@ -312,18 +322,21 @@ const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	"\x04spec\x18\x05 \x01(\v2\x1b.teleport.beams.v1.BeamSpecR\x04spec\x125\n" +
 	"\x06status\x18\x06 \x01(\v2\x1d.teleport.beams.v1.BeamStatusR\x06status\"3\n" +
 	"\bBeamSpec\x12'\n" +
-	"\x0fallowed_domains\x18\x01 \x03(\tR\x0eallowedDomains\"\xb7\x02\n" +
+	"\x0fallowed_domains\x18\x01 \x03(\tR\x0eallowedDomains\"\xe2\x02\n" +
 	"\n" +
 	"BeamStatus\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12\x19\n" +
-	"\bssh_addr\x18\x02 \x01(\tR\asshAddr\x12\x19\n" +
-	"\bapp_addr\x18\x03 \x01(\tR\aappAddr\x12\x19\n" +
+	"\bssh_addr\x18\x02 \x01(\tR\asshAddr\x12\"\n" +
+	"\rapp_addr_http\x18\x03 \x01(\tR\vappAddrHttp\x12\x19\n" +
 	"\bbot_name\x18\x04 \x01(\tR\abotName\x12&\n" +
 	"\x0fjoin_token_name\x18\x05 \x01(\tR\rjoinTokenName\x122\n" +
 	"\x15delegation_session_id\x18\x06 \x01(\tR\x13delegationSessionId\x124\n" +
 	"\x16workload_identity_name\x18\a \x01(\tR\x14workloadIdentityName\x12\x17\n" +
 	"\anode_id\x18\b \x01(\tR\x06nodeId\x12\x19\n" +
-	"\bapp_name\x18\t \x01(\tR\aappNameBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
+	"\bapp_name\x18\t \x01(\tR\aappName\x12 \n" +
+	"\fapp_addr_tcp\x18\n" +
+	" \x01(\tR\n" +
+	"appAddrTcpBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
 
 var (
 	file_teleport_beams_v1_beam_proto_rawDescOnce sync.Once

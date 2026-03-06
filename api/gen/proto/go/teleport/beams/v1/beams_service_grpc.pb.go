@@ -37,6 +37,7 @@ const (
 	BeamsService_CreateBeam_FullMethodName  = "/teleport.beams.v1.BeamsService/CreateBeam"
 	BeamsService_WatchBeam_FullMethodName   = "/teleport.beams.v1.BeamsService/WatchBeam"
 	BeamsService_AllowDomain_FullMethodName = "/teleport.beams.v1.BeamsService/AllowDomain"
+	BeamsService_Publish_FullMethodName     = "/teleport.beams.v1.BeamsService/Publish"
 )
 
 // BeamsServiceClient is the client API for BeamsService service.
@@ -56,6 +57,8 @@ type BeamsServiceClient interface {
 	// AllowDomain adds a domain to the beam's network allow-list, creating a
 	// application for it if one does not already exist.
 	AllowDomain(ctx context.Context, in *AllowDomainRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Publish a TCP port exposed by the as an application.
+	Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*PublishResponse, error)
 }
 
 type beamsServiceClient struct {
@@ -105,6 +108,16 @@ func (c *beamsServiceClient) AllowDomain(ctx context.Context, in *AllowDomainReq
 	return out, nil
 }
 
+func (c *beamsServiceClient) Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*PublishResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PublishResponse)
+	err := c.cc.Invoke(ctx, BeamsService_Publish_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BeamsServiceServer is the server API for BeamsService service.
 // All implementations must embed UnimplementedBeamsServiceServer
 // for forward compatibility.
@@ -122,6 +135,8 @@ type BeamsServiceServer interface {
 	// AllowDomain adds a domain to the beam's network allow-list, creating a
 	// application for it if one does not already exist.
 	AllowDomain(context.Context, *AllowDomainRequest) (*emptypb.Empty, error)
+	// Publish a TCP port exposed by the as an application.
+	Publish(context.Context, *PublishRequest) (*PublishResponse, error)
 	mustEmbedUnimplementedBeamsServiceServer()
 }
 
@@ -140,6 +155,9 @@ func (UnimplementedBeamsServiceServer) WatchBeam(*WatchBeamRequest, grpc.ServerS
 }
 func (UnimplementedBeamsServiceServer) AllowDomain(context.Context, *AllowDomainRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AllowDomain not implemented")
+}
+func (UnimplementedBeamsServiceServer) Publish(context.Context, *PublishRequest) (*PublishResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Publish not implemented")
 }
 func (UnimplementedBeamsServiceServer) mustEmbedUnimplementedBeamsServiceServer() {}
 func (UnimplementedBeamsServiceServer) testEmbeddedByValue()                      {}
@@ -209,6 +227,24 @@ func _BeamsService_AllowDomain_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BeamsService_Publish_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PublishRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BeamsServiceServer).Publish(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BeamsService_Publish_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BeamsServiceServer).Publish(ctx, req.(*PublishRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BeamsService_ServiceDesc is the grpc.ServiceDesc for BeamsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -223,6 +259,10 @@ var BeamsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AllowDomain",
 			Handler:    _BeamsService_AllowDomain_Handler,
+		},
+		{
+			MethodName: "Publish",
+			Handler:    _BeamsService_Publish_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -36,6 +36,59 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Protocol of the app that will be published.
+type Protocol int32
+
+const (
+	// PROTOCOL_UNSPECIFIED is the enum zero value.
+	Protocol_PROTOCOL_UNSPECIFIED Protocol = 0
+	// PROTOCOL_TCP indicates a plain TCP app.
+	Protocol_PROTOCOL_TCP Protocol = 1
+	// PROTOCOL_HTTP indicates an HTTP app.
+	Protocol_PROTOCOL_HTTP Protocol = 2
+)
+
+// Enum value maps for Protocol.
+var (
+	Protocol_name = map[int32]string{
+		0: "PROTOCOL_UNSPECIFIED",
+		1: "PROTOCOL_TCP",
+		2: "PROTOCOL_HTTP",
+	}
+	Protocol_value = map[string]int32{
+		"PROTOCOL_UNSPECIFIED": 0,
+		"PROTOCOL_TCP":         1,
+		"PROTOCOL_HTTP":        2,
+	}
+)
+
+func (x Protocol) Enum() *Protocol {
+	p := new(Protocol)
+	*p = x
+	return p
+}
+
+func (x Protocol) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Protocol) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_beams_v1_beams_service_proto_enumTypes[0].Descriptor()
+}
+
+func (Protocol) Type() protoreflect.EnumType {
+	return &file_teleport_beams_v1_beams_service_proto_enumTypes[0]
+}
+
+func (x Protocol) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Protocol.Descriptor instead.
+func (Protocol) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{0}
+}
+
 // CreateBeamRequest contains the parameters to CreateBeam.
 type CreateBeamRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -175,6 +228,122 @@ func (x *AllowDomainRequest) GetFqdns() []string {
 	return nil
 }
 
+// PublishRequest contains the parameters to Publish.
+type PublishRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// BeamID identifies which beam's allow-list will be updated.
+	BeamId string `protobuf:"bytes,1,opt,name=beam_id,json=beamId,proto3" json:"beam_id,omitempty"`
+	// Port is the TCP port that will be publish. Only 8080 is currently supported.
+	Port int32 `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
+	// Protocol of the app that will be published.
+	//
+	// If PROTOCOL_HTTP is provided, the app will be available to web browsers
+	// without running a local tunnel or VNet, with a TLS certificate.
+	//
+	// PROTOCOL_TCP is not currently supported, but will enable beams to expose
+	// non-HTTP applications that can be accessed using a local tunnel or VNet.
+	Protocol      Protocol `protobuf:"varint,3,opt,name=protocol,proto3,enum=teleport.beams.v1.Protocol" json:"protocol,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublishRequest) Reset() {
+	*x = PublishRequest{}
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublishRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublishRequest) ProtoMessage() {}
+
+func (x *PublishRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublishRequest.ProtoReflect.Descriptor instead.
+func (*PublishRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *PublishRequest) GetBeamId() string {
+	if x != nil {
+		return x.BeamId
+	}
+	return ""
+}
+
+func (x *PublishRequest) GetPort() int32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *PublishRequest) GetProtocol() Protocol {
+	if x != nil {
+		return x.Protocol
+	}
+	return Protocol_PROTOCOL_UNSPECIFIED
+}
+
+// PublishResponse is the result of publishing a beam port.
+type PublishResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Addr is the address at which the beam port can be reached.
+	Addr          string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublishResponse) Reset() {
+	*x = PublishResponse{}
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublishResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublishResponse) ProtoMessage() {}
+
+func (x *PublishResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublishResponse.ProtoReflect.Descriptor instead.
+func (*PublishResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *PublishResponse) GetAddr() string {
+	if x != nil {
+		return x.Addr
+	}
+	return ""
+}
+
 var File_teleport_beams_v1_beams_service_proto protoreflect.FileDescriptor
 
 const file_teleport_beams_v1_beams_service_proto_rawDesc = "" +
@@ -185,12 +354,23 @@ const file_teleport_beams_v1_beams_service_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"C\n" +
 	"\x12AllowDomainRequest\x12\x17\n" +
 	"\abeam_id\x18\x01 \x01(\tR\x06beamId\x12\x14\n" +
-	"\x05fqdns\x18\x02 \x03(\tR\x05fqdns2\xf6\x01\n" +
+	"\x05fqdns\x18\x02 \x03(\tR\x05fqdns\"v\n" +
+	"\x0ePublishRequest\x12\x17\n" +
+	"\abeam_id\x18\x01 \x01(\tR\x06beamId\x12\x12\n" +
+	"\x04port\x18\x02 \x01(\x05R\x04port\x127\n" +
+	"\bprotocol\x18\x03 \x01(\x0e2\x1b.teleport.beams.v1.ProtocolR\bprotocol\"%\n" +
+	"\x0fPublishResponse\x12\x12\n" +
+	"\x04addr\x18\x01 \x01(\tR\x04addr*I\n" +
+	"\bProtocol\x12\x18\n" +
+	"\x14PROTOCOL_UNSPECIFIED\x10\x00\x12\x10\n" +
+	"\fPROTOCOL_TCP\x10\x01\x12\x11\n" +
+	"\rPROTOCOL_HTTP\x10\x022\xc8\x02\n" +
 	"\fBeamsService\x12K\n" +
 	"\n" +
 	"CreateBeam\x12$.teleport.beams.v1.CreateBeamRequest\x1a\x17.teleport.beams.v1.Beam\x12K\n" +
 	"\tWatchBeam\x12#.teleport.beams.v1.WatchBeamRequest\x1a\x17.teleport.beams.v1.Beam0\x01\x12L\n" +
-	"\vAllowDomain\x12%.teleport.beams.v1.AllowDomainRequest\x1a\x16.google.protobuf.EmptyBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
+	"\vAllowDomain\x12%.teleport.beams.v1.AllowDomainRequest\x1a\x16.google.protobuf.Empty\x12P\n" +
+	"\aPublish\x12!.teleport.beams.v1.PublishRequest\x1a\".teleport.beams.v1.PublishResponseBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
 
 var (
 	file_teleport_beams_v1_beams_service_proto_rawDescOnce sync.Once
@@ -204,26 +384,33 @@ func file_teleport_beams_v1_beams_service_proto_rawDescGZIP() []byte {
 	return file_teleport_beams_v1_beams_service_proto_rawDescData
 }
 
-var file_teleport_beams_v1_beams_service_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_teleport_beams_v1_beams_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_teleport_beams_v1_beams_service_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_beams_v1_beams_service_proto_goTypes = []any{
-	(*CreateBeamRequest)(nil),  // 0: teleport.beams.v1.CreateBeamRequest
-	(*WatchBeamRequest)(nil),   // 1: teleport.beams.v1.WatchBeamRequest
-	(*AllowDomainRequest)(nil), // 2: teleport.beams.v1.AllowDomainRequest
-	(*Beam)(nil),               // 3: teleport.beams.v1.Beam
-	(*emptypb.Empty)(nil),      // 4: google.protobuf.Empty
+	(Protocol)(0),              // 0: teleport.beams.v1.Protocol
+	(*CreateBeamRequest)(nil),  // 1: teleport.beams.v1.CreateBeamRequest
+	(*WatchBeamRequest)(nil),   // 2: teleport.beams.v1.WatchBeamRequest
+	(*AllowDomainRequest)(nil), // 3: teleport.beams.v1.AllowDomainRequest
+	(*PublishRequest)(nil),     // 4: teleport.beams.v1.PublishRequest
+	(*PublishResponse)(nil),    // 5: teleport.beams.v1.PublishResponse
+	(*Beam)(nil),               // 6: teleport.beams.v1.Beam
+	(*emptypb.Empty)(nil),      // 7: google.protobuf.Empty
 }
 var file_teleport_beams_v1_beams_service_proto_depIdxs = []int32{
-	0, // 0: teleport.beams.v1.BeamsService.CreateBeam:input_type -> teleport.beams.v1.CreateBeamRequest
-	1, // 1: teleport.beams.v1.BeamsService.WatchBeam:input_type -> teleport.beams.v1.WatchBeamRequest
-	2, // 2: teleport.beams.v1.BeamsService.AllowDomain:input_type -> teleport.beams.v1.AllowDomainRequest
-	3, // 3: teleport.beams.v1.BeamsService.CreateBeam:output_type -> teleport.beams.v1.Beam
-	3, // 4: teleport.beams.v1.BeamsService.WatchBeam:output_type -> teleport.beams.v1.Beam
-	4, // 5: teleport.beams.v1.BeamsService.AllowDomain:output_type -> google.protobuf.Empty
-	3, // [3:6] is the sub-list for method output_type
-	0, // [0:3] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0, // 0: teleport.beams.v1.PublishRequest.protocol:type_name -> teleport.beams.v1.Protocol
+	1, // 1: teleport.beams.v1.BeamsService.CreateBeam:input_type -> teleport.beams.v1.CreateBeamRequest
+	2, // 2: teleport.beams.v1.BeamsService.WatchBeam:input_type -> teleport.beams.v1.WatchBeamRequest
+	3, // 3: teleport.beams.v1.BeamsService.AllowDomain:input_type -> teleport.beams.v1.AllowDomainRequest
+	4, // 4: teleport.beams.v1.BeamsService.Publish:input_type -> teleport.beams.v1.PublishRequest
+	6, // 5: teleport.beams.v1.BeamsService.CreateBeam:output_type -> teleport.beams.v1.Beam
+	6, // 6: teleport.beams.v1.BeamsService.WatchBeam:output_type -> teleport.beams.v1.Beam
+	7, // 7: teleport.beams.v1.BeamsService.AllowDomain:output_type -> google.protobuf.Empty
+	5, // 8: teleport.beams.v1.BeamsService.Publish:output_type -> teleport.beams.v1.PublishResponse
+	5, // [5:9] is the sub-list for method output_type
+	1, // [1:5] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_teleport_beams_v1_beams_service_proto_init() }
@@ -237,13 +424,14 @@ func file_teleport_beams_v1_beams_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beams_service_proto_rawDesc), len(file_teleport_beams_v1_beams_service_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   3,
+			NumEnums:      1,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_teleport_beams_v1_beams_service_proto_goTypes,
 		DependencyIndexes: file_teleport_beams_v1_beams_service_proto_depIdxs,
+		EnumInfos:         file_teleport_beams_v1_beams_service_proto_enumTypes,
 		MessageInfos:      file_teleport_beams_v1_beams_service_proto_msgTypes,
 	}.Build()
 	File_teleport_beams_v1_beams_service_proto = out.File

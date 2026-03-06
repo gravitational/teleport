@@ -97,9 +97,12 @@ type ProvisionBeamResponse struct {
 	// SSHAddr is the host:port pair that can be used to connect to the beam's
 	// OpenSSH server.
 	SshAddr string `protobuf:"bytes,1,opt,name=ssh_addr,json=sshAddr,proto3" json:"ssh_addr,omitempty"`
-	// AppAddr is the host:port pair that can be used to connect to the beam's
-	// Envoy mTLS application proxy.
-	AppAddr       string `protobuf:"bytes,2,opt,name=app_addr,json=appAddr,proto3" json:"app_addr,omitempty"`
+	// AppAddrHTTP is the host:port pair that can be used to connect to the beam's
+	// Envoy mTLS application proxy for HTTP applications.
+	AppAddrHttp string `protobuf:"bytes,2,opt,name=app_addr_http,json=appAddrHttp,proto3" json:"app_addr_http,omitempty"`
+	// AppAddrTCP is the host:port pair that can be used to connect to the beam's
+	// Envoy mTLS application proxy for TCP applications.
+	AppAddrTcp    string `protobuf:"bytes,3,opt,name=app_addr_tcp,json=appAddrTcp,proto3" json:"app_addr_tcp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -141,9 +144,16 @@ func (x *ProvisionBeamResponse) GetSshAddr() string {
 	return ""
 }
 
-func (x *ProvisionBeamResponse) GetAppAddr() string {
+func (x *ProvisionBeamResponse) GetAppAddrHttp() string {
 	if x != nil {
-		return x.AppAddr
+		return x.AppAddrHttp
+	}
+	return ""
+}
+
+func (x *ProvisionBeamResponse) GetAppAddrTcp() string {
+	if x != nil {
+		return x.AppAddrTcp
 	}
 	return ""
 }
@@ -285,10 +295,12 @@ const file_teleport_beams_v1_beams_orchestrator_service_proto_rawDesc = "" +
 	"2teleport/beams/v1/beams_orchestrator_service.proto\x12\x11teleport.beams.v1\x1a\x1bgoogle/protobuf/empty.proto\"b\n" +
 	"\x14ProvisionBeamRequest\x12\x17\n" +
 	"\abeam_id\x18\x01 \x01(\tR\x06beamId\x121\n" +
-	"\x04tbot\x18\x02 \x01(\v2\x1d.teleport.beams.v1.TbotConfigR\x04tbot\"M\n" +
+	"\x04tbot\x18\x02 \x01(\v2\x1d.teleport.beams.v1.TbotConfigR\x04tbot\"x\n" +
 	"\x15ProvisionBeamResponse\x12\x19\n" +
-	"\bssh_addr\x18\x01 \x01(\tR\asshAddr\x12\x19\n" +
-	"\bapp_addr\x18\x02 \x01(\tR\aappAddr\"\xdf\x01\n" +
+	"\bssh_addr\x18\x01 \x01(\tR\asshAddr\x12\"\n" +
+	"\rapp_addr_http\x18\x02 \x01(\tR\vappAddrHttp\x12 \n" +
+	"\fapp_addr_tcp\x18\x03 \x01(\tR\n" +
+	"appAddrTcp\"\xdf\x01\n" +
 	"\n" +
 	"TbotConfig\x12\x1d\n" +
 	"\n" +

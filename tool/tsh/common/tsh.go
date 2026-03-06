@@ -276,6 +276,8 @@ type CLIConf struct {
 	BeamID string
 	// BeamDomain is the domain passed to "tsh beams allow --domain".
 	BeamDomain string
+	// BeamTCP switches "tsh beams publish" from HTTP to TCP protocol.
+	BeamTCP bool
 	// Interactive sessions will allocate a PTY and create interactive "shell"
 	// sessions.
 	Interactive bool
@@ -1050,6 +1052,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beamsAllow := beams.Command("allow", "Allow a domain for an existing beam.")
 	beamsAllow.Arg("beam-id", "Beam ID to update.").Required().StringVar(&cf.BeamID)
 	beamsAllow.Flag("domain", "FQDN to allow for the beam (for example, api.example.com).").Required().StringVar(&cf.BeamDomain)
+	beamsPublish := beams.Command("publish", "Publish a beam application.")
+	beamsPublish.Arg("beam-id", "Beam ID to publish.").Required().StringVar(&cf.BeamID)
+	beamsPublish.Flag("tcp", "Publish as a TCP app instead of an HTTP app.").BoolVar(&cf.BeamTCP)
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
@@ -1811,6 +1816,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onBeamsAdd(&cf)
 	case beamsAllow.FullCommand():
 		err = onBeamsAllow(&cf)
+	case beamsPublish.FullCommand():
+		err = onBeamsPublish(&cf)
 	case lsRecordings.FullCommand():
 		err = onRecordings(&cf)
 	case exportRecordings.FullCommand():

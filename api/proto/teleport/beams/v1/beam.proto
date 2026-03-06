@@ -58,9 +58,9 @@ message BeamStatus {
   // beam's OpenSSH server.
   string ssh_addr = 2;
 
-  // AppAddr is the `host:port` address on which the application service can
-  // dial the beam's application Envoy proxy.
-  string app_addr = 3;
+  // AppAddrHTTP is the `host:port` address on which the application service can
+  // dial the beam's application Envoy proxy for HTTP applications.
+  string app_addr_http = 3;
 
   // BotName is the name of the beam's bot identity.
   string bot_name = 4;
@@ -83,4 +83,8 @@ message BeamStatus {
   // AppName is the name of the app resource that can be used to access the
   // application exposed by the beam.
   string app_name = 9;
+
+  // AppAddrTCP is the `host:port` address on which the application service can
+  // dial the beam's application Envoy proxy for TCP applications.
+  string app_addr_tcp = 10;
 }

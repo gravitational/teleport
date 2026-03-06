@@ -133,6 +133,46 @@ func onBeamsAllow(cf *CLIConf) error {
 	return nil
 }
 
+func onBeamsPublish(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc.AllowHeadless = true
+
+	protocol := beamsv1.Protocol_PROTOCOL_HTTP
+	if cf.BeamTCP {
+		protocol = beamsv1.Protocol_PROTOCOL_TCP
+	}
+
+	var addr string
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		resp, err := clusterClient.AuthClient.BeamsServiceClient().Publish(cf.Context, &beamsv1.PublishRequest{
+			BeamId:   cf.BeamID,
+			Port:     8080,
+			Protocol: protocol,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		addr = resp.GetAddr()
+		return nil
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintln(cf.Stdout(), addr)
+	return nil
+}
+
 // startBeamSpinner prints an animated braille spinner with msg to w.
 // Call the returned stop function with a finalLine to replace the spinner
 // line in-place. Pass an empty string to just clear the line. stop blocks

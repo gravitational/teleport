@@ -42,9 +42,13 @@ message ProvisionBeamResponse {
   // OpenSSH server.
   string ssh_addr = 1;
 
-  // AppAddr is the host:port pair that can be used to connect to the beam's
-  // Envoy mTLS application proxy.
-  string app_addr = 2;
+  // AppAddrHTTP is the host:port pair that can be used to connect to the beam's
+  // Envoy mTLS application proxy for HTTP applications.
+  string app_addr_http = 2;
+
+  // AppAddrTCP is the host:port pair that can be used to connect to the beam's
+  // Envoy mTLS application proxy for TCP applications.
+  string app_addr_tcp = 3;
 }
 
 // TbotConfig contains tbot configuration used during provisioning.

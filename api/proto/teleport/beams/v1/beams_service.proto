@@ -36,6 +36,9 @@ service BeamsService {
   // AllowDomain adds a domain to the beam's network allow-list, creating a
   // application for it if one does not already exist.
   rpc AllowDomain(AllowDomainRequest) returns (google.protobuf.Empty);
+
+  // Publish a TCP port exposed by the as an application.
+  rpc Publish(PublishRequest) returns (PublishResponse);
 }
 
 // CreateBeamRequest contains the parameters to CreateBeam.
@@ -55,4 +58,40 @@ message AllowDomainRequest {
   // FQDNs are the fully-qualified domain names that the beam will be allowed to
   // access (in addition to any other domains previously allowed).
   repeated string fqdns = 2;
+}
+
+// PublishRequest contains the parameters to Publish.
+message PublishRequest {
+  // BeamID identifies which beam's allow-list will be updated.
+  string beam_id = 1;
+
+  // Port is the TCP port that will be publish. Only 8080 is currently supported.
+  int32 port = 2;
+
+  // Protocol of the app that will be published.
+  //
+  // If PROTOCOL_HTTP is provided, the app will be available to web browsers
+  // without running a local tunnel or VNet, with a TLS certificate.
+  //
+  // PROTOCOL_TCP is not currently supported, but will enable beams to expose
+  // non-HTTP applications that can be accessed using a local tunnel or VNet.
+  Protocol protocol = 3;
+}
+
+// Protocol of the app that will be published.
+enum Protocol {
+  // PROTOCOL_UNSPECIFIED is the enum zero value.
+  PROTOCOL_UNSPECIFIED = 0;
+
+  // PROTOCOL_TCP indicates a plain TCP app.
+  PROTOCOL_TCP = 1;
+
+  // PROTOCOL_HTTP indicates an HTTP app.
+  PROTOCOL_HTTP = 2;
+}
+
+// PublishResponse is the result of publishing a beam port.
+message PublishResponse {
+  // Addr is the address at which the beam port can be reached.
+  string addr = 1;
 }
