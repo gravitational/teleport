@@ -34,23 +34,26 @@ import {
   type UpdateUserVariables,
 } from './types';
 
-const cache = {
-  userContext: null as UserContext,
+const cache: { pendingUserContext: Promise<UserContext> | null } = {
+  pendingUserContext: null,
 };
 
 const service = {
   fetchUserContext(fromCache = true) {
-    if (fromCache && cache['userContext']) {
-      return Promise.resolve(cache['userContext']);
+    if (fromCache && cache.pendingUserContext) {
+      return cache.pendingUserContext;
     }
 
-    return api
+    // Keep track of any in-flight fetch so that we don't make this request multiple times.
+    cache.pendingUserContext = api
       .get(cfg.getUserContextUrl())
       .then(makeUserContext)
-      .then(userContext => {
-        cache['userContext'] = userContext;
-        return cache['userContext'];
+      .catch(err => {
+        cache.pendingUserContext = null;
+        throw err;
       });
+
+    return cache.pendingUserContext;
   },
 
   fetchAccessGraphFeatures(): Promise<object> {
