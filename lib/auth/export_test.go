@@ -70,6 +70,9 @@ const (
 
 	MaxUserAgentLen = maxUserAgentLen
 	ForwardedTag    = forwardedTag
+
+	SAMLCertExpiryTimeframe = samlCertExpiryTimeframe
+	SAMLCertExpiryAlertName = samlCertExpiryAlertName
 )
 
 var (
@@ -203,6 +206,10 @@ func (a *Server) RefreshULS(ctx context.Context, user types.User, ulsService ser
 
 func (a *Server) CreateGithubUser(ctx context.Context, p *CreateUserParams, dryRun bool) (types.User, error) {
 	return a.createGithubUser(ctx, p, dryRun)
+}
+
+func (a *Server) CheckSAMLCertExpiry(ctx context.Context) error {
+	return a.checkSAMLCertExpiry(ctx)
 }
 
 func BuildAPIEndpoint(apiEndpointURLStr string) (string, error) {

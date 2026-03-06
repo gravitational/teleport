@@ -21,6 +21,9 @@ package services
 import (
 	"context"
 	"crypto/x509/pkix"
+	"encoding/base64"
+	"encoding/pem"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -310,4 +313,105 @@ func Test_ValidateSAMLConnector(t *testing.T) {
 
 		require.Equal(t, tc.expectedSsoUrl, connector.GetSSO())
 	}
+}
+
+func TestCheckSAMLCertExpiry(t *testing.T) {
+	testCases := []struct {
+		name         string
+		timeframe    time.Duration
+		ttls         []time.Duration
+		assertResult bool
+		assertErr    require.ErrorAssertionFunc
+	}{
+		{
+			name:         "cert not expiring within timeframe",
+			timeframe:    30 * 24 * time.Hour,
+			ttls:         []time.Duration{45 * 24 * time.Hour},
+			assertResult: false,
+			assertErr:    require.NoError,
+		},
+		{
+			name:         "cert expiring within timeframe",
+			timeframe:    30 * 24 * time.Hour,
+			ttls:         []time.Duration{15 * 24 * time.Hour},
+			assertResult: true,
+			assertErr:    require.NoError,
+		},
+		{
+			name:         "cert already expired",
+			timeframe:    30 * 24 * time.Hour,
+			ttls:         []time.Duration{-24 * time.Hour},
+			assertResult: true,
+			assertErr:    require.NoError,
+		},
+		{
+			name:      "multiple certs with one expiring",
+			timeframe: 30 * 24 * time.Hour,
+			ttls: []time.Duration{
+				45 * 24 * time.Hour,
+				15 * 24 * time.Hour,
+				60 * 24 * time.Hour,
+			},
+			assertResult: true,
+			assertErr:    require.NoError,
+		},
+		{
+			name:         "empty entity descriptor",
+			timeframe:    30 * 24 * time.Hour,
+			ttls:         []time.Duration{},
+			assertResult: false,
+			assertErr:    require.NoError,
+		},
+		{
+			name:         "invalid entity descriptor",
+			timeframe:    30 * 24 * time.Hour,
+			ttls:         nil, // Absence of ttls is used to generate an invalid entity descriptor.
+			assertResult: false,
+			assertErr:    require.Error,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var entityDescriptor string
+			// Absence of ttls signals to generate an invalid entity descriptor.
+			if tc.ttls != nil {
+				entityDescriptor = createTestEntityDescriptor(t, tc.ttls)
+			} else {
+				entityDescriptor = "invalid entity descriptor"
+			}
+
+			connector, err := types.NewSAMLConnector("test-connector", types.SAMLConnectorSpecV2{
+				AssertionConsumerService: "http://localhost:65535/acs", // Not called.
+				EntityDescriptor:         entityDescriptor,
+			})
+			require.NoError(t, err)
+
+			result, err := CheckSAMLCertExpiry(connector, tc.timeframe)
+			require.Equal(t, tc.assertResult, result)
+			tc.assertErr(t, err)
+		})
+	}
+}
+
+func createTestEntityDescriptor(t *testing.T, ttls []time.Duration) string {
+	t.Helper()
+
+	var certs []string
+
+	for _, ttl := range ttls {
+		_, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{}, nil, ttl)
+		require.NoError(t, err)
+
+		block, _ := pem.Decode(certPEM)
+		certs = append(certs, fmt.Sprintf(
+			`<md:KeyDescriptor use="signing"><ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:X509Data><ds:X509Certificate>%s</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>`,
+			base64.StdEncoding.EncodeToString(block.Bytes),
+		))
+	}
+
+	return fmt.Sprintf(
+		`<?xml version="1.0"?><md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="test"><md:IDPSSODescriptor>%s</md:IDPSSODescriptor></md:EntityDescriptor>`,
+		strings.Join(certs, ""),
+	)
 }
