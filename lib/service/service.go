@@ -4937,6 +4937,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	appServerWatcher, err := services.NewAppServersWatcher(process.ExitContext(), services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Logger:    process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),
+			Client:    accessPoint,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	alpnRouter, reverseTunnelALPNRouter := setupALPNRouter(listeners, serverTLSConfig, cfg)
 	alpnAddr := ""
 	if listeners.alpn != nil {
@@ -5210,6 +5222,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				LocalAuthAddresses:    utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
 				IngressReporter:       ingressReporter,
 				PROXYSigner:           proxySigner,
+				AppServerWatcher:      appServerWatcher,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5376,17 +5389,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 		connectionsHandler.SetApplicationsProvider(func(ctx context.Context, publicAddr string) (types.Application, error) {
-			allAppServers, err := accessPoint.GetApplicationServers(ctx, apidefaults.Namespace)
+			allAppServers, err := appServerWatcher.CurrentResourcesWithFilter(ctx, webapp.MatchPublicAddr(publicAddr))
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			publicAddressMatches := webapp.MatchPublicAddr(publicAddr)
-			for _, a := range allAppServers {
-				if publicAddressMatches(ctx, a) {
-					return a.GetApp(), nil
-				}
+			if len(allAppServers) == 0 {
+				return nil, trace.NotFound("no app found for endpoint %q", publicAddr)
 			}
-			return nil, trace.NotFound("no app found for endpoint %q", publicAddr)
+			// TODO(okraport): determine if we should shuffle app servers here.
+			return allAppServers[0].GetApp(), nil
 		})
 
 		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
@@ -5441,6 +5452,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}),
 			PROXYSigner:               proxySigner,
 			NodeWatcher:               nodeWatcher,
+			AppServerWatcher:          appServerWatcher,
 			AccessGraphAddr:           accessGraphAddr,
 			TracerProvider:            process.TracingProvider,
 			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
@@ -6260,7 +6272,6 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		}
 		hostChecker, err := newHostPolicyChecker(hostPolicyCheckerConfig{
 			publicAddrs:   process.Config.Proxy.PublicAddrs,
-			clt:           conn.Client,
 			clusterGetter: tsrv,
 			clusterName:   conn.ClusterName(),
 		})

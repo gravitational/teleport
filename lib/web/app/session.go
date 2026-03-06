@@ -21,13 +21,13 @@ package app
 import (
 	"context"
 	"math/rand/v2"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -60,22 +60,29 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessPoint, err := clusterClient.CachingAccessPoint()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	servers, err := MatchUnshuffled(
 		ctx,
-		accessPoint,
-		appServerMatcher(h.c.ClusterGetter, identity.RouteToApp.PublicAddr, identity.RouteToApp.ClusterName),
+		clusterClient,
+		MatchPublicAddr(identity.RouteToApp.PublicAddr),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if len(servers) == 0 {
 		return nil, trace.NotFound("failed to match applications")
+	}
+
+	// Match healthy servers. Having a list of only healthy
+	// servers helps the transport fail before the request is forwarded to a
+	// server (in cases where there are no healthy servers). This process might
+	// take an additional time to execute, but since it is cached, only a few
+	// requests need to perform it.
+	servers = slices.DeleteFunc(servers, func(appServer types.AppServer) bool {
+		return !isAppServerDialable(ctx, clusterClient, appServer)
+	})
+	if len(servers) == 0 {
+		return nil, trace.NotFound("all app servers unheatlhy")
 	}
 
 	rand.Shuffle(len(servers), func(i, j int) {
@@ -121,20 +128,4 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		ws:  ws,
 		tr:  transport,
 	}, nil
-}
-
-// appServerMatcher returns a Matcher function used to find which AppServer can
-// handle the application requests.
-func appServerMatcher(clusterGetter reversetunnelclient.ClusterGetter, publicAddr string, clusterName string) Matcher {
-	// Match healthy and PublicAddr servers. Having a list of only healthy
-	// servers helps the transport fail before the request is forwarded to a
-	// server (in cases where there are no healthy servers). This process might
-	// take an additional time to execute, but since it is cached, only a few
-	// requests need to perform it.
-	return MatchAll(
-		MatchPublicAddr(publicAddr),
-		// NOTE: Try to leave this matcher as the last one to dial only the
-		// application servers that match the requested application.
-		MatchHealthy(clusterGetter, clusterName),
-	)
 }
