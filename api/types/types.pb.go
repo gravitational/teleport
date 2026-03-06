@@ -6892,8 +6892,8 @@ type ProvisionTokenStatusV2BoundKeypair struct {
 	// LastRotatedAt contains a timestamp of the last time the keypair was
 	// rotated, if any. This is not set at initial join.
 	LastRotatedAt *time.Time `protobuf:"bytes,6,opt,name=LastRotatedAt,proto3,stdtime" json:"last_rotated_at,omitempty"`
-	// BoundHostID is the node or agent UUID bound to this keypair. This field is
-	// left empty if bound to a bot, or if no agent has joined yet. It is mutually
+	// BoundHostID is the agent UUID bound to this keypair. This field is left
+	// empty if bound to a bot, or if no agent has joined yet. It is mutually
 	// exclusive with BoundBotInstanceID but otherwise behaves identically.
 	BoundHostID          string   `protobuf:"bytes,7,opt,name=BoundHostID,proto3" json:"bound_host_id"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`

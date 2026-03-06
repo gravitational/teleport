@@ -1950,7 +1950,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					},
 					"bound_host_id": {
-						Description: "BoundHostID is the node or agent UUID bound to this keypair. This field is left empty if bound to a bot, or if no agent has joined yet. It is mutually exclusive with BoundBotInstanceID but otherwise behaves identically.",
+						Description: "BoundHostID is the agent UUID bound to this keypair. This field is left empty if bound to a bot, or if no agent has joined yet. It is mutually exclusive with BoundBotInstanceID but otherwise behaves identically.",
 						Optional:    true,
 						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					},
