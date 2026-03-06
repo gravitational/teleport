@@ -283,7 +283,7 @@
           "error",
           {
             "patterns": [
-              { "group": ["teleport/*", "e-teleport/*", "teleterm/*"] }
+              { "group": ["teleport/**", "e-teleport/**", "teleterm/**"] }
             ],
             "paths": [
               {
@@ -307,7 +307,7 @@
         "no-restricted-imports": [
           "error",
           {
-            "patterns": [{ "group": ["e-teleport/*", "teleterm/*"] }],
+            "patterns": [{ "group": ["e-teleport/**", "teleterm/**"] }],
             "paths": [
               {
                 "name": "usehooks-ts",
@@ -330,7 +330,7 @@
         "no-restricted-imports": [
           "error",
           {
-            "patterns": [{ "group": ["teleterm/*"] }],
+            "patterns": [{ "group": ["teleterm/**"] }],
             "paths": [
               {
                 "name": "usehooks-ts",
@@ -353,7 +353,7 @@
         "no-restricted-imports": [
           "error",
           {
-            "patterns": [{ "group": ["teleport/*", "e-teleport/*"] }],
+            "patterns": [{ "group": ["teleport/**", "e-teleport/**"] }],
             "paths": [
               {
                 "name": "usehooks-ts",
