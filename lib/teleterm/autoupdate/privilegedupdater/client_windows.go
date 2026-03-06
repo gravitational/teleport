@@ -95,7 +95,7 @@ func dialPipeWithRetry(ctx context.Context, path string) (net.Conn, error) {
 
 	var conn net.Conn
 	err = linearRetry.For(ctx, func() error {
-		conn, err = winio.DialPipeAccess(ctx, path, uint32(safePipeReadWriteAccess))
+		conn, err = winio.DialPipeAccess(ctx, path, uint32(SafePipeReadWriteAccess))
 		if err != nil && !isRetryError(err) {
 			return retryutils.PermanentRetryError(trace.Wrap(err))
 		}
