@@ -267,13 +267,9 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 
 // Download downloads recorded session from GCS bucket and writes the results into writer
 // return trace.NotFound error is object is not found
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	path := h.path(sessionID)
 	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", path)
-	writer, ok := writerAt.(io.Writer)
-	if !ok {
-		return trace.BadParameter("the provided writerAt is %T which does not implement io.Writer", writerAt)
-	}
 	reader, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewReader(ctx)
 	if err != nil {
 		return convertGCSError(err)

@@ -365,7 +365,7 @@ func (c *ErrorCountingSessionHandler) Upload(ctx context.Context, sessionID sess
 }
 
 // Download calls [c.wrapped.Download] and counts the error or success.
-func (c *ErrorCountingSessionHandler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (c *ErrorCountingSessionHandler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	err := c.wrapped.Download(ctx, sessionID, writer)
 	c.downloads.observe(err)
 	return err
