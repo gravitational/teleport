@@ -1688,6 +1688,14 @@ manualy testing.
   - [ ] Postgres
   - [ ] Redshift
   - [ ] CockroachDB
+  - [ ] Verify Teleport MCP servers can be configured and function correctly across various clients
+   - [ ]`tsh mcp db config`
+    - [ ] Claude Desktop
+    - [ ] VSCode
+    - [ ] Cursor
+    - [ ] `claude`
+    - [ ] `codex`
+   - [ ] Dev testing via MCP inspector
 
 ## Git Proxy
 - [ ] [GitHub proxy](https://goteleport.com/docs/admin-guides/management/guides/github-integration/)
@@ -2325,14 +2333,22 @@ The following should work with SSO MFA, automatically opening the SSO MFA redire
   - [ ] Verify egress auth with JWT token (e.g. Grafana that trust's Teleport JWT)
   - [ ] Verify egress auth with OpenID token (e.g. AWS AgentCore MCP Gateway)
  - [ ] SSE (deprecated but still in-use)
-- [ ] Verify Teleport MCP servers can be installed and used by various clients
- - [ ] Claude Desktop
- - [ ] VSCode
- - [ ] Cursor
- - [ ] `claude`
- - [ ] `codex`
- - [ ] MCP inspector
+- [ ] Verify Teleport MCP servers can be configured and function correctly across various clients
+ - [ ] `tsh mcp config`
+  - [ ] Claude Desktop
+  - [ ] VSCode
+  - [ ] Cursor
+  - [ ] `claude`
+  - [ ] `codex`
+ - [ ] Web UI deep links
+  - [ ] VSCode
+  - [ ] Cursor
+ - [ ] Dev testing via MCP inspector
 - [ ] Verify Teleport MCP servers hint on "tsh login" when tsh session is expired (via chat/prompt)
+- [ ] RBAC
+ - [ ] Verify users can only see MCP servers allowed by `allow.app_labels`
+ - [ ] Verify MCP client can only see allowed tools
+ - [ ] Verify `deny.mcp.tools` is greedy (deny overrides allow)
 
 ## Resources
 
