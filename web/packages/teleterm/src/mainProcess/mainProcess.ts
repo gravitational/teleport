@@ -190,6 +190,7 @@ export default class MainProcess {
     this.initIpc();
 
     this.appUpdater = new AppUpdater(
+      this.settings.tshd.binaryPath,
       makeAppUpdaterStorage(this.appStateFileStorage),
       {
         getConfig: async () => {

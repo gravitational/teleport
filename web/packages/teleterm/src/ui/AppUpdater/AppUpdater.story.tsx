@@ -36,6 +36,7 @@ import {
   makeCheckingForUpdateEvent,
   makeDownloadProgressEvent,
   makeErrorEvent,
+  makeInstallingEvent,
   makeUpdateAvailableEvent,
   makeUpdateDownloadedEvent,
   makeUpdateInfo,
@@ -50,7 +51,8 @@ export interface StoryProps {
     | 'Update available'
     | 'Download progress'
     | 'Error'
-    | 'Update downloaded';
+    | 'Update downloaded'
+    | 'Installing';
   updateSource: string;
   configToolsVersion: 'Set to "off"' | 'Set to version - v15' | 'Unset';
   platform: Platform;
@@ -116,6 +118,7 @@ const meta: Meta<StoryProps> = {
         'Download progress',
         'Error',
         'Update downloaded',
+        'Installing',
       ],
       description: 'Updating process step',
     },
@@ -282,6 +285,11 @@ async function resolveEvent(storyProps: StoryProps): Promise<AppUpdateEvent> {
     case 'Error':
       if (status.enabled) {
         return makeErrorEvent(updateInfo, status);
+      }
+      return;
+    case 'Installing':
+      if (status.enabled) {
+        return makeInstallingEvent(updateInfo, status);
       }
       return;
   }

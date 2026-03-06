@@ -117,3 +117,14 @@ export function makeUpdateDownloadedEvent(
     autoUpdatesStatus: status,
   };
 }
+
+export function makeInstallingEvent(
+  updateInfo: UpdateInfo,
+  status: AutoUpdatesEnabled
+): AppUpdateEvent {
+  return {
+    kind: 'installing',
+    update: updateInfo,
+    autoUpdatesStatus: status,
+  };
+}
