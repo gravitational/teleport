@@ -187,10 +187,10 @@ to do it:
      in Teleport configuration file.
    - `certs/client-key.pem` which will be referenced by the `tls_key_file`
      option in Teleport configuration file.
-   
+
    Upload these files to the corresponding Auth Service instance, along with
    `certs/ca.pem`.
- 
+
 After generating all the keys and certificates, run etcd using some variation
 of this command, replacing <Var name="etcd-host"/> with your etcd hostname:
 
@@ -945,6 +945,12 @@ backend management.
 
 DynamoDB cannot store the recorded sessions. You are advised to use AWS S3 for
 that as shown above.
+
+<Admonition type="warning">
+
+Teleport supports single-region DynamoDB tables for storage. Using a global table for audit log events is untested and unsupported, and using a global table for the cluster state from multiple regions at once can result in concurrency problems and potential data loss, even when using multi-region strong consistency (MRSC). Using a global table just for replication between regions in multi-region eventual consistency (MREC) mode is also not recommended, due to potential read throttling in streams when running more than one replica of the Teleport Auth service in the one active region.
+
+</Admonition>
 
 ### Authenticating to AWS
 
