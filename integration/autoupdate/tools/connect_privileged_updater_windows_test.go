@@ -231,8 +231,10 @@ func TestPrivilegedUpdateServiceCorrectsUpdateBaseDirACL(t *testing.T) {
 
 func TestPrivilegedUpdateServiceAllowOnlyOneClientConnection(t *testing.T) {
 	serviceErr := make(chan error, 1)
+	cfg := getDefaultConfig(t)
+
 	go func() {
-		serviceErr <- privilegedupdater.RunServiceTest(t.Context(), &privilegedupdater.ServiceTestConfig{})
+		serviceErr <- privilegedupdater.RunServiceTest(t.Context(), cfg)
 	}()
 
 	// First client connects and keeps the pipe open. This blocks the service in readUpdate.
