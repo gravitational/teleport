@@ -97,3 +97,31 @@ export const toggleAWSConsoleConstraint = <T extends PendingListItem>(
   };
   set(key, newRc.aws_console.role_arns.length ? newRc : undefined);
 };
+
+/**
+ * Toggles an SSH constraint by removing the specified login from the current constraints.
+ * If no logins remain after removal, it clears the constraint.
+ */
+export const toggleSSHConstraint = <T extends PendingListItem>(
+  item: WithResourceConstraints<
+    'ssh',
+    Pick<T, 'id' | 'kind' | 'clusterName'>
+  >,
+  login: string,
+  set: (
+    key: ResourceIDString,
+    constraints: ResourceConstraints | undefined
+  ) => void
+) => {
+  const key = getResourceIDString({
+    name: item.id,
+    kind: item.kind,
+    cluster: item.clusterName,
+  });
+  const newRc = {
+    ssh: {
+      logins: item.constraints.ssh.logins.filter(l => l !== login),
+    },
+  };
+  set(key, newRc.ssh.logins.length ? newRc : undefined);
+};
