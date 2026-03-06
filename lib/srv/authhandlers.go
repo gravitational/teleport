@@ -399,10 +399,10 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 	_ string,
 ) (*ssh.Permissions, error) {
 	// Access preconditions are only set in the SSH access permit. For all other permit types, it is expected for this
-	// entry to not be unset and we should return nil to signal that there are no additional precondition checks to do.
+	// entry to be unset, so return the input permissions to grant access.
 	rawPermit, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]
 	if !ok {
-		return nil, nil
+		return perms, nil
 	}
 
 	permit := &decisionpb.SSHAccessPermit{}
@@ -410,8 +410,8 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 		return nil, trace.Wrap(err)
 	}
 
-	// If there are no preconditions, return the permissions as-is. This means that the certificate was valid and
-	// authorized, and no additional authentication steps are required.
+	// If there are no preconditions, it means no additional checks are required for access, so return the input
+	// permissions to grant access.
 	if len(permit.GetPreconditions()) == 0 {
 		return perms, nil
 	}
