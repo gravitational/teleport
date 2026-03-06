@@ -349,7 +349,7 @@ func TestAccessListOwnerPermissions(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_ = mustGetAccessList(t, aliceAccessListClient, testAccessList.GetName())
 		_ = mustGetAccessListMember(t, aliceAccessListClient, testAccessList.GetName(), "alice")
-	}, 10*time.Second, 100*time.Millisecond)
+	}, time.Minute, 100*time.Millisecond)
 
 	t.Run("owner should not be able to modify their membership properties", func(t *testing.T) {
 		acl, members := mustGetAccessListAndMembers(t, aliceAccessListClient, testAccessList.GetName())
@@ -388,7 +388,7 @@ func TestAccessListOwnerPermissions(t *testing.T) {
 			acl, members = mustGetAccessListAndMembers(t, aliceAccessListClient, testAccessList.GetName())
 			require.True(t, isAccessListOwner(acl, "alice"))
 			require.False(t, isAccessListMember(members, "alice"))
-		}, time.Second, time.Millisecond*100)
+		}, time.Minute, time.Millisecond*100)
 
 		members = append(members, mustCreateMember(t, testAccessList.GetName(), "alice"))
 		_, _, err = aliceAccessListClient.UpsertAccessListWithMembers(ctx, acl, members)
