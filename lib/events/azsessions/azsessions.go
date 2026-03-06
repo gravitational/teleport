@@ -380,13 +380,13 @@ func (h *Handler) uploadBlob(
 }
 
 // Download implements [events.UploadHandler] and downloads a session recording.
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return trace.Wrap(h.downloadBlob(ctx, sessionID, h.sessionBlob(sessionID), writer))
 }
 
 // DownloadSummary implements [events.UploadHandler] and downloads a final
 // session summary.
-func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	// Happy path: the final summary exists.
 	err := h.downloadBlob(ctx, sessionID, h.summaryBlob(sessionID), writer)
 	if trace.IsNotFound(err) {
@@ -403,16 +403,16 @@ func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, wri
 }
 
 // DownloadMetadata implements [events.UploadHandler] and downloads a session's metadata.
-func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return trace.Wrap(h.downloadBlob(ctx, sessionID, h.metadataBlob(sessionID), writer))
 }
 
 // DownloadThumbnail implements [events.UploadHandler] and downloads a session's thumbnail.
-func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return trace.Wrap(h.downloadBlob(ctx, sessionID, h.thumbnailBlob(sessionID), writer))
 }
 
-func (h *Handler) downloadBlob(ctx context.Context, sessionID session.ID, blob *blockblob.Client, writer events.RandomAccessWriter) error {
+func (h *Handler) downloadBlob(ctx context.Context, sessionID session.ID, blob *blockblob.Client, writer io.Writer) error {
 	resp, err := cErr(blob.DownloadStream(ctx, nil))
 	if err != nil {
 		return trace.Wrap(err)
