@@ -42,6 +42,7 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write # required for AWS credentials
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -77,3 +78,8 @@ jobs:
         run: |
           make -C "${GITHUB_WORKSPACE}/e/" -j test TPMSIMULATOR_TEST_TAG=tpmsimulator
           cd "${GITHUB_WORKSPACE}/e"; go test -run=IGNOREME -bench=. -benchtime=1x ./...
+
+      - name: Upload test metrics
+        if: always()
+        continue-on-error: true # Do not fail the workflow
+        uses: ./e/.github/actions/upload-test-metrics

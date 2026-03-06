@@ -5,6 +5,8 @@ SHELL := /bin/bash -o pipefail
 endif
 BUILDDIR ?= build
 RELEASE_DIR ?= $(BUILDDIR)/artifacts
+TEST_LOG_DIR ?= ${abspath ./test-logs}
+
 TELEPORT_DEBUG ?= false
 CGOFLAG ?= CGO_ENABLED=1
 GITTAG ?= v$(VERSION)
@@ -555,6 +557,8 @@ lint-test-symbols: ensure-goda
 		exit 1; \
 	fi
 
+$(TEST_LOG_DIR):
+	mkdir $(TEST_LOG_DIR)
 
 #
 # test runs teleport enterprise tests
@@ -573,16 +577,16 @@ test-go-all:
 # subject directory. Use `SUBJECT=./...` to run all tests. If the
 # subject is empty, no tests will be run.
 #
-test-go:
+test-go: | $(TEST_LOG_DIR)
 ifneq ("$(SUBJECT)", "")
-	$(GOTESTSUM) --junitfile unit-tests.xml --jsonfile unit-tests.json -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG) enablesynctest" $(ADDFLAGS)
+	$(GOTESTSUM) --junitfile  $(TEST_LOG_DIR)/unit-tests.xml --jsonfile  $(TEST_LOG_DIR)/unit-tests.json -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG) enablesynctest" $(ADDFLAGS)
 endif
 
 # test-operator runs tests for the k8s operator with enterprise-only resource
 # types that must be tested with an enterprise Teleport cluster.
 .PHONY: test-operator
-test-operator:
-	$(GOTESTSUM) --junitfile unit-tests-operator.xml --jsonfile unit-tests-operator.json -- ./lib/operatortest -race -shuffle on
+test-operator: | $(TEST_LOG_DIR)
+	$(GOTESTSUM) --junitfile  $(TEST_LOG_DIR)/unit-tests-operator.xml --jsonfile  $(TEST_LOG_DIR)/unit-tests-operator.json -- ./lib/operatortest -race -shuffle on
 
 # test-crdb runs crdb backend tests.
 .PHONY: test-crdb
@@ -694,11 +698,10 @@ INTEGRATION_TEST_TIMEOUT ?= 10m
 .PHONY: test-go-integration
 test-go-integration: FLAGS ?= -race -shuffle on
 test-go-integration: SUBJECT ?= ./tests/integration/...
-test-go-integration:
+test-go-integration: | $(TEST_LOG_DIR)
 	@if [ -n "$(SUBJECT)" ]; then \
 		$(CGOFLAG) go test -timeout=$(INTEGRATION_TEST_TIMEOUT) -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-			| tee $(TEST_LOG_DIR)/unit.json \
-			| $(GOTESTSUM) --junitfile unit-tests-integration.xml --jsonfile unit-tests-integration.json --raw-command -- cat; \
+			| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-integration.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration.json --raw-command -- cat; \
 	fi
 
 # All developers should run this upon cloning the repo. Unfortunately this

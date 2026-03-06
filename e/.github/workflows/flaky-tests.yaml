@@ -17,6 +17,7 @@ jobs:
     permissions:
       contents: read
       packages: read
+      id-token: write # required for AWS credentials
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -56,3 +57,8 @@ jobs:
           target: test-go
           path: .
           directory: e
+
+      - name: Upload test metrics
+        if: always()
+        continue-on-error: true # Do not fail the workflow
+        uses: ./e/.github/actions/upload-test-metrics
