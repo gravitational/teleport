@@ -1,5 +1,6 @@
 const { env, platform } = require('process');
 const fs = require('fs');
+const path = require('path');
 const { spawn } = require('child_process');
 const isMac = platform === 'darwin';
 const isWindows = platform === 'win32';
@@ -86,9 +87,9 @@ module.exports = {
       return;
     }
 
-    const path = `${packed.appOutDir}/Teleport Connect.app/Contents/MacOS/tsh.app/Contents/Info.plist`;
+    const plistPath = `${packed.appOutDir}/Teleport Connect.app/Contents/MacOS/tsh.app/Contents/Info.plist`;
     if (packed.appOutDir.endsWith('mac-universal-x64-temp')) {
-      tshAppPlist = fs.readFileSync(path);
+      tshAppPlist = fs.readFileSync(plistPath);
     }
     if (packed.appOutDir.endsWith('mac-universal')) {
       if (!tshAppPlist) {
@@ -96,7 +97,7 @@ module.exports = {
           'Failed to copy tsh.app Info.plist file from the x64 build. Check if the path "mac-universal-x64-temp" was not changed by electron-builder.'
         );
       }
-      fs.writeFileSync(path, tshAppPlist);
+      fs.writeFileSync(plistPath, tshAppPlist);
     }
   },
   files: ['build/app'],
@@ -258,6 +259,34 @@ module.exports = {
       env.CONNECT_TSH_BIN_PATH && {
         from: env.CONNECT_TSH_BIN_PATH,
         to: './bin/tsh',
+      },
+      {
+        from: path.resolve(
+          __dirname,
+          '../../../examples/systemd/vnet/polkit/org.teleport.vnet1.policy'
+        ),
+        to: './vnet/polkit/org.teleport.vnet1.policy',
+      },
+      {
+        from: path.resolve(
+          __dirname,
+          '../../../examples/systemd/vnet/dbus/org.teleport.vnet1.conf'
+        ),
+        to: './vnet/dbus/org.teleport.vnet1.conf',
+      },
+      {
+        from: path.resolve(
+          __dirname,
+          '../../../examples/systemd/vnet/dbus/org.teleport.vnet1.service'
+        ),
+        to: './vnet/dbus/org.teleport.vnet1.service',
+      },
+      {
+        from: path.resolve(
+          __dirname,
+          '../../../examples/systemd/vnet/teleport-vnet.service'
+        ),
+        to: './vnet/teleport-vnet.service',
       },
       {
         from: 'build_resources/linux/apparmor-profile',
