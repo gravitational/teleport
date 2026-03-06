@@ -543,6 +543,7 @@ func (p *cliModules) SetFeatures(f modules.Features) {
 func NewDefaultAuthClient(process *service.TeleportProcess) (*authclient.Client, error) {
 	cfg := process.Config
 	identity, err := storage.ReadLocalIdentityForRole(
+		process.GracefulExitContext(),
 		filepath.Join(cfg.DataDir, teleport.ComponentProcess),
 		types.RoleAdmin,
 	)

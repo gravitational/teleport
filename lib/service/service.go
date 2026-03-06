@@ -60,6 +60,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 	libproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -981,7 +982,7 @@ func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Ide
 	process.Lock()
 	defer process.Unlock()
 
-	i, err = process.storage.ReadIdentity(state.IdentityCurrent, role)
+	i, err = process.storage.ReadIdentity(process.GracefulExitContext(), state.IdentityCurrent, role)
 
 	if err == nil {
 		return i, nil
@@ -1016,7 +1017,7 @@ func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Ide
 		return nil, trace.Wrap(err)
 	}
 	process.logger.InfoContext(process.ExitContext(), "Found static identity, writing to disk.", "role", role)
-	if err = process.storage.WriteIdentity(state.IdentityCurrent, *i); err != nil {
+	if err = process.storage.WriteIdentity(process.GracefulExitContext(), state.IdentityCurrent, *i); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2204,7 +2205,7 @@ func (process *TeleportProcess) initAuthService() error {
 	process.backend = b
 
 	clusterName := cfg.Auth.ClusterName.GetClusterName()
-	ident, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleAdmin)
+	ident, err := process.storage.ReadIdentity(process.GracefulExitContext(), state.IdentityCurrent, types.RoleAdmin)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -2756,6 +2757,14 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	process.Supervisor.RegisterProcessStateCallback(func(healthy bool) {
+		if !healthy {
+			tlsServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_NOT_SERVING)
+			return
+		}
+		tlsServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+	})
 
 	process.RegisterCriticalFunc("auth.tls", func() error {
 		logger.InfoContext(process.ExitContext(), "Auth service is starting.", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", authAddr)

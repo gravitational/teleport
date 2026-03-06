@@ -92,9 +92,9 @@ const Teleport: React.FC<Props> = props => {
   }, []);
 
   return (
-    <CatchError>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <CatchError>
           <LayoutContextProvider>
             <Router history={history}>
               <Suspense fallback={null}>
@@ -121,9 +121,9 @@ const Teleport: React.FC<Props> = props => {
               </Suspense>
             </Router>
           </LayoutContextProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </CatchError>
+        </CatchError>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 };
 
