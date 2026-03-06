@@ -322,7 +322,7 @@ func TestClientStore(t *testing.T) {
 				require.Equal(t, expectOtherStatus, currentStatus)
 				require.Len(t, otherStatuses, 1)
 				require.Equal(t, expectStatus, otherStatuses[0])
-				require.Equal(t, currentStatus.Scope, expectOtherStatus.Scope)
+				require.Equal(t, currentStatus.ScopePin, expectOtherStatus.ScopePin)
 			})
 		})
 	}
@@ -345,7 +345,7 @@ func TestPartialProfileStatusScope(t *testing.T) {
 			// No key ring saved — ReadProfileStatus should return partial status.
 			status, err := clientStore.ReadProfileStatus(p.Name())
 			require.NoError(t, err)
-			require.Empty(t, status.Scope)
+			require.Nil(t, status.ScopePin)
 		})
 	})
 
@@ -363,8 +363,8 @@ func TestPartialProfileStatusScope(t *testing.T) {
 
 			status, err := clientStore.ReadProfileStatus(p.Name())
 			require.NoError(t, err)
-			require.NotNil(t, status.Scope)
-			require.Equal(t, "/production", status.Scope)
+			require.NotNil(t, status.ScopePin)
+			require.Equal(t, "/production", status.ScopePin.Scope)
 		})
 	})
 }
