@@ -96,12 +96,19 @@ func ConvertOktaOrgUser(args ConvertOktaUserArgs[*oktasdk.User]) (types.User, er
 }
 
 type NewTeleportUserArgs struct {
-	Clock              clockwork.Clock
-	SAMLConnectorName  string
-	OktaOrgURL         string
-	OktaLogin          string
-	OktaID             string
-	OktaStatus         string
+	Clock             clockwork.Clock
+	SAMLConnectorName string
+	OktaOrgURL        string
+	OktaLogin         string
+	// OktaID is the value of the created user's teleport.internal/okta-user-id label.
+	OktaID string
+	// IgnoreOktaID when true, causes to ignore the OktaID value and does not set the
+	// teleport.internal/okta-user-id label on the created user.
+	IgnoreOktaID bool
+	// OktaStatus is the value of the created user's teleport.internal/okta-user-status label.
+	OktaStatus string
+	// IgnoreOktaStatus when true, causes to ignore the OktaStatus value and does not set the
+	// teleport.internal/okta-user-status label.
 	IgnoreOktaStatus   bool
 	OktaProfile        map[string]any
 	AssignDefaultRoles bool
@@ -120,7 +127,7 @@ func (args *NewTeleportUserArgs) CheckAndSetDefaults() error {
 	if args.OktaLogin == "" {
 		return trace.BadParameter("missing Okta user login")
 	}
-	if args.OktaID == "" {
+	if !args.IgnoreOktaID && args.OktaID == "" {
 		return trace.BadParameter("missing Okta user ID")
 	}
 	if !args.IgnoreOktaStatus && args.OktaStatus == "" {
@@ -156,7 +163,9 @@ func NewTeleportUser(args NewTeleportUserArgs) (types.User, error) {
 	staticLabels := map[string]string{
 		types.OriginLabel:         types.OriginOkta,
 		eteleport.OktaOrgURLLabel: args.OktaOrgURL,
-		eteleport.OktaUserIDLabel: args.OktaID,
+	}
+	if !args.IgnoreOktaID {
+		staticLabels[eteleport.OktaUserIDLabel] = args.OktaID
 	}
 	if !args.IgnoreOktaStatus {
 		staticLabels[eteleport.OktaUserStatusLabel] = args.OktaStatus

@@ -14,7 +14,7 @@ import (
 	libokta "github.com/gravitational/teleport/e/lib/okta"
 	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
-	"github.com/gravitational/teleport/e/lib/teleport"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
 )
@@ -98,18 +98,18 @@ func testSCIMCRUD(t *testing.T, fakeOkta *fakeOktaServer, client scimsdk.Client)
 	ctx := t.Context()
 	scimUserName := "test-user+001@example.com"
 	scimUserExternalID := "test-user-001"
-	scimUserExtraAttrs := scimsdk.AttributeSet{
+	startingAttrs := scimsdk.AttributeSet{
 		"arbitrary_attr_name":   []any{"value"},
 		"arbitrary_attr_number": float64(8),
 	}
-	scimUser := &scimsdk.User{ExternalID: scimUserExternalID, UserName: scimUserName, Active: true, Attributes: scimUserExtraAttrs}
+	scimUser := &scimsdk.User{ExternalID: scimUserExternalID, UserName: scimUserName, Active: true, Attributes: startingAttrs}
 
 	t.Run("Create SCIM User", func(t *testing.T) {
 		createdUser, err := client.CreateUser(ctx, scimUser)
 		require.NoError(t, err)
 		require.NotNil(t, createdUser)
 		assertSCIMUserSchema(t, createdUser)
-		require.Equal(t, scimUserExtraAttrs, createdUser.Attributes)
+		require.Equal(t, startingAttrs, createdUser.Attributes)
 	})
 
 	t.Run("Create SCIM User that already exists is an error", func(t *testing.T) {
@@ -123,7 +123,7 @@ func testSCIMCRUD(t *testing.T, fakeOkta *fakeOktaServer, client scimsdk.Client)
 		require.NoError(t, err)
 		require.Equal(t, scimUserName, user.UserName)
 		assertSCIMUserSchema(t, user)
-		require.Equal(t, scimUserExtraAttrs, user.Attributes)
+		require.Equal(t, startingAttrs, user.Attributes)
 	})
 
 	t.Run("Update SCIM User", func(t *testing.T) {
@@ -134,24 +134,25 @@ func testSCIMCRUD(t *testing.T, fakeOkta *fakeOktaServer, client scimsdk.Client)
 		updatedUser, err := client.UpdateUser(ctx, user)
 		require.NoError(t, err)
 		require.NotNil(t, updatedUser)
-		require.Equal(t, scimUserExtraAttrs, updatedUser.Attributes)
+		require.Equal(t, startingAttrs, updatedUser.Attributes)
 
 		// attribute addition
 		const additionalAttr = "additional_attr"
-		updatedUser.Attributes[additionalAttr] = "additional_value"
-		extendedAttrs := updatedUser.Attributes
+		extendedAttrs := copyWithExtraVal(startingAttrs, additionalAttr, "additional_value")
+
+		updatedUser.Attributes = extendedAttrs
 		updatedUser, err = client.UpdateUser(ctx, updatedUser)
 		require.NoError(t, err)
 		require.NotNil(t, updatedUser)
-		require.NotEqual(t, scimUserExtraAttrs, updatedUser.Attributes)
-		require.Equal(t, extendedAttrs, updatedUser.Attributes)
+		require.NotEqual(t, startingAttrs, updatedUser.Attributes)
+		require.Equal(t, extendedAttrs, map[string]any(updatedUser.Attributes))
 
 		// attribute removal
 		delete(updatedUser.Attributes, additionalAttr)
 		updatedUser, err = client.UpdateUser(ctx, updatedUser)
 		require.NoError(t, err)
 		require.NotNil(t, updatedUser)
-		require.Equal(t, scimUserExtraAttrs, updatedUser.Attributes)
+		require.Equal(t, startingAttrs, updatedUser.Attributes)
 
 		t.Run("should handle nil values", func(t *testing.T) {
 			user, err = client.GetUser(ctx, scimUserName)
@@ -297,6 +298,206 @@ func TestSCIMUserOktaProvisioningWithoutAccessListSyncDisabled(t *testing.T) {
 	testUserDeactivationActivation(t, ctx, sut, scimClient, scimUsers[0].ID)
 }
 
+// TestJITSAMLUserProvisioning verifies that JIT SAML users which don't have Okta user ID set, can
+// be provisioned. During the first SCIM PUT request Okta doesn't sent the "externalId" attribute
+// in the request.
+func TestJITSAMLUserProvisioning(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
+	)
+
+	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta)
+	scimClient := createSCIMClient(t, sut, scimToken)
+
+	// Create a user as it was created by the SAML connector.
+	const aliceOktaName = "alice@okta.test"
+	alice := mustNewSAMLLikeUser(t, aliceOktaName, idp.TestOktaSAMLConnectorName)
+	alice, err := sut.Teleport.Process.GetAuthServer().CreateUser(ctx, alice)
+	require.NoError(t, err)
+
+	// The JIT SAML connector doesn't have Okta ID set.
+	_, ok := alice.GetStaticLabels()[eteleport.OktaUserIDLabel]
+	require.False(t, ok)
+
+	// This is an equivalent of Okta PUT request like:
+	// NOTE: There is no "externalId" attribute in this request and we need to handle it.
+	// {"id":"alice@okta.test","meta":{"created":"2026-02-13T13:36:18.443895Z","location":"/Users/alice@okta.test","resourceType":"User","version":"W/\"09954edc-f927-4c16-9750-99e045fdb225\""},"schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],"userName":"alice@okta.test","active":true}
+	// Such request comes right after clicking **Provision User** after the SCIM integration is set up.
+	_, err = scimClient.UpdateUser(ctx, &scimsdk.User{
+		ID: alice.GetName(),
+		Meta: &scimsdk.Metadata{
+			Version: `W/"` + alice.GetRevision() + `"`,
+		},
+		UserName: alice.GetName(),
+		Active:   true,
+	})
+	require.NoError(t, err)
+}
+
+// TestSyncedUserProvisioning verifies it is possible to update freshly Okta-synced user with SCIM.
+func TestSyncedUserProvisioning(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withUserCount(3),
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
+	for _, user := range fakeOkta.provisionedUsers {
+		require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, user.Id))
+	}
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
+	)
+
+	authServer := sut.Teleport.Process.GetAuthServer()
+
+	startTime := time.Now()
+	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta, withEnableFullSync())
+	scimClient := createSCIMClient(t, sut, scimToken)
+
+	waitForOktaSync(t, sut, withTimePoint(startTime))
+
+	users := mustListOktaUsers(t, authServer)
+	require.Len(t, users, 3)
+
+	// Take a random Okta-synced user from the backend and update it with SCIM client.
+	user1 := users[1]
+
+	// Memorize the okta-user-id label value.
+	user1ID := mustGetUserIDLabelValue(t, user1)
+
+	// This is an equivalent of Okta PUT request like:
+	// NOTE: There is no "externalId" attribute in this request and we need to handle it.
+	// {"id":"alice@okta.test","meta":{"created":"2026-02-13T13:36:18.443895Z","location":"/Users/alice@okta.test","resourceType":"User","version":"W/\"09954edc-f927-4c16-9750-99e045fdb225\""},"schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],"userName":"alice@okta.test","active":true}
+	// Such request comes right after clicking **Provision User** after the SCIM integration is set up.
+	scimUpdatedUser, err := scimClient.UpdateUser(ctx, &scimsdk.User{
+		ID: user1.GetName(),
+		Meta: &scimsdk.Metadata{
+			Version: `W/"` + user1.GetRevision() + `"`,
+		},
+		UserName: user1.GetName(),
+		Active:   true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, user1ID, scimUpdatedUser.ExternalID)
+	require.NotEqual(t, user1.GetRevision(), scimUpdatedUser.Meta.Version)
+
+	backendUpdatedUser := mustGetUser(t, authServer, user1.GetName())
+	require.Equal(t, user1ID, mustGetUserIDLabelValue(t, backendUpdatedUser))
+}
+
+// TestUserProvisioningNoExternalID tests SCIM user creation when the externalId attribute (okta
+// user ID) is not provided with the request.
+func TestUserProvisioningNoExternalID(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
+	)
+
+	authServer := sut.Teleport.Process.GetAuthServer()
+
+	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta)
+	scimClient := createSCIMClient(t, sut, scimToken)
+
+	const alice, bob, bobOktaID = "alice", "bob", "bob_okta_id"
+
+	requireUserNotExists(t, authServer, alice)
+	requireUserNotExists(t, authServer, bob)
+
+	// alice with no externalId
+	_, err := scimClient.CreateUser(ctx, &scimsdk.User{
+		ID:       alice,
+		Meta:     &scimsdk.Metadata{},
+		UserName: alice,
+		Active:   true,
+	})
+	require.NoError(t, err)
+
+	// bob with an externalId
+	_, err = scimClient.CreateUser(ctx, &scimsdk.User{
+		ID:         bob,
+		ExternalID: bobOktaID,
+		Meta:       &scimsdk.Metadata{},
+		UserName:   bob,
+		Active:     true,
+	})
+	require.NoError(t, err)
+
+	aliceUser := mustGetUser(t, authServer, alice)
+	bobUser := mustGetUser(t, authServer, bob)
+
+	require.Empty(t, aliceUser.GetStaticLabels()[eteleport.OktaUserIDLabel])
+	require.Equal(t, bobOktaID, bobUser.GetStaticLabels()[eteleport.OktaUserIDLabel])
+}
+
+func TestNonProvisionedUsersAreMarkedActive(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
+	)
+
+	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta)
+	scimClient := createSCIMClient(t, sut, scimToken)
+
+	// Create a user as it was created by the SAML connector.
+	const aliceOktaName = "alice@okta.test"
+	alice := mustNewSAMLLikeUser(t, aliceOktaName, idp.TestOktaSAMLConnectorName)
+	_, err := sut.Teleport.Process.GetAuthServer().CreateUser(ctx, alice)
+	require.NoError(t, err)
+
+	// Make sure the user's "active" attribute is set to true even if the user was not
+	// provisioned yet. This is so future PUT requests can work and not interpret the user as
+	// inactive, resulting in error like:
+	//
+	//	Automatic provisioning of user Alice to app Teleport failed: User account is inactive
+	//
+	aliceSCIM, err := scimClient.GetUser(ctx, aliceOktaName)
+	require.NoError(t, err)
+	require.True(t, aliceSCIM.Active)
+}
+
 func TestSCIMOktaGroupProvisioning(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -391,7 +592,7 @@ func testUserDeactivationActivation(t *testing.T, ctx context.Context, sut *comm
 		require.Len(t, userLocks, 1)
 
 		require.Equal(t, types.OriginOkta, userLocks[0].Origin())
-		require.Equal(t, libokta.LockReasonDeactivated, userLocks[0].GetAllLabels()[teleport.OktaLockReasonLabel])
+		require.Equal(t, libokta.LockReasonDeactivated, userLocks[0].GetAllLabels()[eteleport.OktaLockReasonLabel])
 	}, time.Second, time.Millisecond*40)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {

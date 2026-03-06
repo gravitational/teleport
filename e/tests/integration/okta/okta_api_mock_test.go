@@ -2,6 +2,7 @@ package okta
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -134,33 +135,33 @@ func (f *fakeOktaServer) routes() http.Handler {
 	mux.HandleFunc(http.MethodGet+" /api/v1/users", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(f.ListUsers()); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			f.error(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	})
 
 	mux.HandleFunc(http.MethodGet+" /api/v1/users/{userID}", func(w http.ResponseWriter, r *http.Request) {
 		user, err := f.GetUser(r.PathValue("userID"))
 		if err != nil {
-			http.Error(w, "user does not exist", http.StatusNotFound)
+			f.error(w, r, "user does not exist", http.StatusNotFound)
 			return
 		}
 		w.Header().Add("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(user); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			f.error(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	})
 
 	mux.HandleFunc(http.MethodGet+" /api/v1/users/{userID}/groups", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(f.ListUserGroups(r.PathValue("userID"))); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			f.error(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	})
 
 	mux.HandleFunc(http.MethodGet+" /api/v1/groups", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(f.ListGroups()); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			f.error(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	})
 
@@ -177,34 +178,34 @@ func (f *fakeOktaServer) routes() http.Handler {
 	mux.HandleFunc(http.MethodGet+" /api/v1/groups/{groupID}", func(w http.ResponseWriter, r *http.Request) {
 		group, found := f.GetGroup(r.PathValue("groupID"))
 		if !found {
-			http.Error(w, "group does not exist", http.StatusNotFound)
+			f.error(w, r, "group does not exist", http.StatusNotFound)
 			return
 		}
 
 		w.Header().Add("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(group); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			f.error(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	})
 
 	mux.HandleFunc(http.MethodGet+" /api/v1/groups/{groupID}/users", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(f.ListGroupUsers(r.PathValue("groupID"))); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			f.error(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	})
 
 	mux.HandleFunc(http.MethodGet+" /api/v1/apps", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(f.ListApplications(r.URL.Query().Get("q"))); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			f.error(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	})
 
 	mux.HandleFunc(http.MethodGet+" /api/v1/apps/{appID}/users", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(f.ListApplicationUsers(r.PathValue("appID"))); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			f.error(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	})
 
@@ -214,18 +215,43 @@ func (f *fakeOktaServer) routes() http.Handler {
 		defer r.Body.Close()
 		var user okta.User
 		if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			f.error(w, r, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		if err := json.NewEncoder(w).Encode(f.AssignUserToApplication(r.PathValue("appID"), user.Id)); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			f.error(w, r, err.Error(), http.StatusInternalServerError)
+		}
+	})
+
+	mux.HandleFunc(http.MethodGet+" /api/v1/apps/{appID}/users/{userID}", func(w http.ResponseWriter, r *http.Request) {
+		appID, userID := r.PathValue("appID"), r.PathValue("userID")
+		if appID == "" {
+			f.error(w, r, "appID path segment cannot be empty", http.StatusBadRequest)
+			return
+		}
+		if userID == "" {
+			f.error(w, r, "userID path segment cannot be empty", http.StatusBadRequest)
+			return
+		}
+		user, err := f.GetAppUser(appID, userID)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				f.error(w, r, err.Error(), http.StatusNotFound)
+				return
+			}
+			f.error(w, r, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Add("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(user); err != nil {
+			f.error(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	})
 
 	mux.HandleFunc(http.MethodDelete+" /api/v1/apps/{appID}/users/{userID}", func(w http.ResponseWriter, r *http.Request) {
 		if err := f.UnassignUserFromApplication(r.PathValue("appID"), r.PathValue("userID")); err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			f.error(w, r, err.Error(), http.StatusNotFound)
 			return
 		}
 	})
@@ -233,7 +259,7 @@ func (f *fakeOktaServer) routes() http.Handler {
 	mux.HandleFunc(http.MethodGet+" /api/v1/apps/{appID}/groups", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(f.ListApplicationGroupAssignments(r.PathValue("appID"))); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			f.error(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	})
 
@@ -248,7 +274,7 @@ func (f *fakeOktaServer) routes() http.Handler {
 			AccessToken: "test-123",
 			Scope:       strings.Join(f.scopes, " "),
 		}); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			f.error(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	})
 
@@ -269,14 +295,33 @@ func (f *fakeOktaServer) routes() http.Handler {
 
 		connector, err := services.UnmarshalSAMLConnector(raw.Raw)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			f.error(w, r, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		w.Write([]byte(connector.GetEntityDescriptor()))
 	})
 
+	// Catch-all route for easier debugging.
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		f.error(w, r, "404 page not found", http.StatusNotFound)
+	})
+
 	return mux
+}
+
+func (*fakeOktaServer) error(w http.ResponseWriter, r *http.Request, msg string, statusCode int) {
+	type Error struct {
+		ErrorDescription string `json:"error_description"`
+	}
+	e := Error{
+		ErrorDescription: fmt.Sprintf("(*fakeOktaServer) handling %s [%d]: %s", r.URL, statusCode, msg),
+	}
+	encodedErr, err := json.Marshal(e)
+	if err != nil {
+		encodedErr = []byte(e.ErrorDescription)
+	}
+	http.Error(w, string(encodedErr), statusCode)
 }
 
 func (f *fakeOktaServer) Stop() {
@@ -602,6 +647,24 @@ func (f *fakeOktaServer) GetUser(userID string) (*okta.User, error) {
 	return user, nil
 }
 
+func (f *fakeOktaServer) GetAppUser(appID, userID string) (*okta.AppUser, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	appUsers, ok := f.appUserAssignments[appID]
+	if !ok {
+		return nil, trace.NotFound("app not found")
+	}
+	user, ok := f.users[userID]
+	if !ok {
+		return nil, trace.NotFound("user not found")
+	}
+	if _, ok := appUsers[userID]; !ok {
+		return nil, trace.NotFound("user not assigned to the app")
+	}
+	return oktaUserToOktaAppUser(user), nil
+}
+
 // ListUsers will return the list of users.
 func (f *fakeOktaServer) ListUsers() []*okta.User {
 	f.mu.Lock()
@@ -670,13 +733,7 @@ func (f *fakeOktaServer) ListApplicationUsers(appID string) []*okta.AppUser {
 		if u.Status == "DEPROVISIONED" {
 			continue
 		}
-		appUsers = append(appUsers, &okta.AppUser{
-			Id:          u.Id,
-			Credentials: &okta.AppUserCredentials{},
-			Status:      u.Status,
-			Profile:     map[string]any(*u.Profile),
-			Scope:       string(oktaapi.UserScope),
-		})
+		appUsers = append(appUsers, oktaUserToOktaAppUser(u))
 	}
 
 	return appUsers
@@ -731,5 +788,15 @@ func (f *fakeOktaServer) DeleteApplicationUser(appID string, userID string) {
 
 	if f.appUserAssignments[appID] != nil {
 		delete(f.appUserAssignments[appID], userID)
+	}
+}
+
+func oktaUserToOktaAppUser(u *okta.User) *okta.AppUser {
+	return &okta.AppUser{
+		Id:          u.Id,
+		Credentials: &okta.AppUserCredentials{},
+		Status:      u.Status,
+		Profile:     map[string]any(*u.Profile),
+		Scope:       string(oktaapi.UserScope),
 	}
 }

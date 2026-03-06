@@ -109,6 +109,16 @@ func (s *oktaShim) userCreatedByOktaConnector(user types.User) bool {
 
 // UserToResource converts a Teleport user to an Okta SCIM resource. The
 func (s *oktaShim) UserToResource(_ context.Context, user types.User) (*scimpb.Resource, error) {
+	// When a JIT SAML user is created and *after* that SCIM is enabled the user doesn't have
+	// any attributes and the SCIM response to Okta wouldn't contain `"active": true`.
+	// If that happens SCIM provisioning on the Okta side fails with something like:
+	//
+	//	Automatic provisioning of user Alice to app Teleport failed: User account is inactive
+	//
+	if _, ok := user.GetLabel(eteleport.SCIMAttrsLabel); !ok {
+		user = user.Clone()
+		setLabel(user, eteleport.SCIMAttrsLabel, `{"active":true}`)
+	}
 	u, err := conv.UserToResource(
 		user,
 		conv.WithExternalIDFunc(getOktaUserExternalID),
@@ -184,6 +194,14 @@ func (s *oktaShim) OnCreatingUser(ctx context.Context, createdUser types.User, r
 }
 
 func (s *oktaShim) evaluateSAMLConnector(ctx context.Context, user types.User) error {
+	oktaUserID, ok := user.GetLabel(eteleport.OktaUserIDLabel)
+	if !ok {
+		// If the user doesn't have okta-user-id label set, then user traits to role
+		// mapping is not possible because we can't tell for which user we should fetch
+		// groups from Okta.
+		return nil
+	}
+
 	client, err := s.oktaClient(ctx)
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -195,10 +213,6 @@ func (s *oktaShim) evaluateSAMLConnector(ctx context.Context, user types.User) e
 		return trace.Wrap(err)
 	}
 
-	oktaUserID, ok := user.GetLabel(eteleport.OktaUserIDLabel)
-	if !ok {
-		return trace.BadParameter("missing Okta user ID")
-	}
 	// Okta groups are not directly available during user SCIM push so we need to fetch them from API.
 	groups, _, err := client.User.ListUserGroups(ctx, oktaUserID)
 	if err != nil {
@@ -281,9 +295,18 @@ func (s *oktaShim) OnUpdatingUser(ctx context.Context, teleportUser types.User, 
 			}
 			needsUpdate = false // The user is deleted so no update.
 		}
-
 	}
 
+	// If the PUT (update) request doesn't contain the "externalId" attribute fall back to the
+	// value of teleport.internal/okta-user-id label. If both values are empty it is OK, we'll
+	// update the user without the label.
+	// Such situation may happen e.g. when Provision User button is clicked after SCIM
+	// provisioning is enabled in the Okta SAML app.
+	if res.ExternalId == "" {
+		if oktaUserID, ok := teleportUser.GetLabel(eteleport.OktaUserIDLabel); ok {
+			res.ExternalId = oktaUserID
+		}
+	}
 	newUser, err := s.ResourceToUser(ctx, res)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
@@ -332,11 +355,17 @@ func (s *oktaShim) createUserFromSCIMResource(res *scimpb.Resource) (types.User,
 	}
 
 	user, err := oktaconvert.NewTeleportUser(oktaconvert.NewTeleportUserArgs{
-		Clock:              s.Clock,
-		SAMLConnectorName:  s.syncSettings().SsoConnectorId,
-		OktaOrgURL:         s.oktaOrgURL(),
-		OktaLogin:          username,
-		OktaID:             res.GetExternalId(),
+		Clock:             s.Clock,
+		SAMLConnectorName: s.syncSettings().SsoConnectorId,
+		OktaOrgURL:        s.oktaOrgURL(),
+		OktaLogin:         username,
+		OktaID:            res.GetExternalId(),
+		// In some cases, e.g. when Provision User is clicked after enabling SCIM in the
+		// Okta SAML app, Okta sends a PUT request without "externalId" attribute. We try
+		// to fallback to the value of the okta-user-id label, but if the label is not set
+		// (e.g. for a SAML ephemeral user) and the value is not provided in the request,
+		// we need to be able to handle this case and ignore the empty value here.
+		IgnoreOktaID:       res.GetExternalId() == "",
 		IgnoreOktaStatus:   true,
 		OktaProfile:        make(map[string]any, 0),
 		AssignDefaultRoles: s.syncSettings().GetAssignDefaultRoles(),
@@ -512,4 +541,14 @@ func getOktaUserExternalID(u types.User) string {
 		return id
 	}
 	return ""
+}
+
+func setLabel(r types.ResourceWithLabels, k, v string) {
+	labels := r.GetStaticLabels()
+	if labels == nil {
+		labels = map[string]string{k: v}
+	} else {
+		labels[k] = v
+	}
+	r.SetStaticLabels(labels)
 }

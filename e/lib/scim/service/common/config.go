@@ -40,13 +40,13 @@ type Config struct {
 	JWTSignerGetter JWTSignerGetter
 	// LocksService is used to manage locks.
 	LocksService LocksService
-	// HTTPClient is used to make HTTP requests.
+	// AuthorityGetter is used to get authority information.
 	AuthorityGetter services.AuthorityGetter
-	// IdentityService is used to manage identity providers.
+	// Clock is a clock.
 	Clock clockwork.Clock
 	// IdentityService is used to manage identity providers.
 	IdentityService IdentityService
-	// UserGetter is used to get user information.
+	// HTTPClient is used to make HTTP requests.
 	HTTPClient *http.Client
 	// UserGetter is used to get user information.
 	UserGetter services.UserGetter

@@ -253,6 +253,10 @@ version: v2`, orgURL)
 }
 
 const (
+	// TestOktaSAMLConnectorName is the name of the connector created with [TestOktaSAMLConnector] or
+	// [SAMLConnector].
+	TestOktaSAMLConnectorName = "okta-pre-created-test"
+
 	SAMLConnector = `
 kind: saml
 metadata:
