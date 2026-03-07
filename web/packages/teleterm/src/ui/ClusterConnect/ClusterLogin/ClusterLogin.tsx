@@ -33,7 +33,6 @@ import { DialogContent, DialogHeader } from 'design/Dialog';
 import * as Icons from 'design/Icon';
 import { ArrowBack } from 'design/Icon';
 import type { StepComponentProps } from 'design/StepSlider';
-import { Motd } from './Motd';
 import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import { PrimaryAuthType } from 'shared/services';
 
@@ -44,6 +43,7 @@ import { ClusterConnectReason } from 'teleterm/ui/services/modals';
 
 import { outermostPadding } from '../spacing';
 import LoginForm from './FormLogin';
+import { Motd } from './Motd';
 import { Props, State, useClusterLogin } from './useClusterLogin';
 
 export function ClusterLogin(props: Props & { reason: ClusterConnectReason }) {

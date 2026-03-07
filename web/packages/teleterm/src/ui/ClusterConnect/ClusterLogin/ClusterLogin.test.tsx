@@ -238,13 +238,9 @@ it('shows the MOTD before the login form when has_message_of_the_day is true', a
   );
 
   expect(
-    await screen.findByText(
-      'Welcome to Acme Corp. All activity is monitored.'
-    )
+    await screen.findByText('Welcome to Acme Corp. All activity is monitored.')
   ).toBeVisible();
-  expect(
-    screen.getByRole('button', { name: 'Acknowledge' })
-  ).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Acknowledge' })).toBeVisible();
   expect(screen.queryByLabelText('Username')).not.toBeInTheDocument();
 });
 
@@ -278,6 +274,8 @@ it('shows the login form after the user acknowledges the MOTD', async () => {
 
   await user.click(await screen.findByRole('button', { name: 'Acknowledge' }));
 
-  expect(screen.queryByText('Welcome to Acme Corp. All activity is monitored.')).not.toBeInTheDocument();
+  expect(
+    screen.queryByText('Welcome to Acme Corp. All activity is monitored.')
+  ).not.toBeInTheDocument();
   expect(screen.getByLabelText('Username')).toBeInTheDocument();
 });
