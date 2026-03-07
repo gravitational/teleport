@@ -40,6 +40,21 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 )
 
+// GetMOTD fetches the Message Of The Day for this cluster.
+// Returns an empty string when no MOTD is configured.
+func (c *Cluster) GetMOTD(ctx context.Context) (string, error) {
+	motd, err := webclient.GetMOTD(
+		&webclient.Config{
+			Context:   ctx,
+			ProxyAddr: c.clusterClient.WebProxyAddr,
+			Insecure:  c.clusterClient.InsecureSkipVerify,
+		})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return motd.Text, nil
+}
+
 // SyncAuthPreference fetches Teleport auth preferences and stores it in the cluster profile
 func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigAuthSettings, *webclient.PingResponse, error) {
 	pingResponse, err := c.clusterClient.Ping(ctx)

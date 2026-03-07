@@ -49,6 +49,9 @@ message AuthSettings {
   // against the version of the server.
   ClientVersionStatus client_version_status = 9;
   Versions versions = 10;
+  // motd is the message of the day text to display to the user before login.
+  // Only populated when has_message_of_the_day is true.
+  string motd = 11;
 }
 
 // AuthProvider describes a way of authentication that is supported by the server. Auth provider is

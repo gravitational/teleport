@@ -33,6 +33,7 @@ import { DialogContent, DialogHeader } from 'design/Dialog';
 import * as Icons from 'design/Icon';
 import { ArrowBack } from 'design/Icon';
 import type { StepComponentProps } from 'design/StepSlider';
+import { Motd } from './Motd';
 import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import { PrimaryAuthType } from 'shared/services';
 
@@ -98,6 +99,9 @@ function ClusterLoginForm({
   quitAndInstallAppUpdate,
   downloadAppUpdate,
   checkForAppUpdates,
+  showMotd,
+  motd,
+  acknowledgeMotd,
 }: ClusterLoginPresentationProps & StepComponentProps) {
   return (
     <Flex ref={refCallback} flexDirection="column">
@@ -138,7 +142,14 @@ function ClusterLoginForm({
             <Indicator delay="none" />
           </Box>
         )}
-        {initAttempt.status === 'success' && (
+        {initAttempt.status === 'success' && showMotd && (
+          <Motd
+            message={motd}
+            onAcknowledge={acknowledgeMotd}
+            px={outermostPadding}
+          />
+        )}
+        {initAttempt.status === 'success' && !showMotd && (
           <LoginForm
             authSettings={initAttempt.data}
             primaryAuthType={getPrimaryAuthType(initAttempt.data)}

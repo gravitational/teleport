@@ -86,6 +86,9 @@ export function makeProps(
     downloadAppUpdate: async () => {},
     quitAndInstallAppUpdate: async () => {},
     cancelAppUpdateDownload: async () => {},
+    showMotd: false,
+    motd: '',
+    acknowledgeMotd: () => null,
     appUpdateEvent: {
       kind: 'update-not-available',
       autoUpdatesStatus: {

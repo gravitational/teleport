@@ -140,6 +140,17 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 		AuthType:           preferences.AuthType,
 		AllowPasswordless:  preferences.AllowPasswordless,
 		LocalConnectorName: preferences.LocalConnectorName,
+		HasMessageOfTheDay: pr.Auth.HasMessageOfTheDay,
+	}
+
+	if pr.Auth.HasMessageOfTheDay {
+		motd, err := cluster.GetMOTD(ctx)
+		if err != nil {
+			// Non-fatal: log and continue without MOTD text.
+			log.WarnContext(ctx, "Failed to fetch MOTD", "error", err)
+		} else {
+			result.Motd = motd
+		}
 	}
 
 	for _, provider := range preferences.Providers {

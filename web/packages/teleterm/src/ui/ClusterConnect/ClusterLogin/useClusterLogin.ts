@@ -63,6 +63,8 @@ export function useClusterLogin(props: Props) {
   const [passwordlessLoginState, setPasswordlessLoginState] =
     useState<PasswordlessLoginState>();
 
+  const [motdAcknowledged, setMotdAcknowledged] = useState(false);
+
   const [initAttempt, init] = useAsync(() => {
     return Promise.all([
       tshd.getAuthSettings({ clusterUri }).then(({ response }) => response),
@@ -71,6 +73,10 @@ export function useClusterLogin(props: Props) {
       mainProcessClient.checkForAppUpdates(),
     ]).then(([authSettings]) => authSettings);
   });
+
+  const acknowledgeMotd = () => {
+    setMotdAcknowledged(true);
+  };
 
   const [loginAttempt, login, setAttempt] = useAsync(
     async (params: LoginParams) => {
@@ -192,6 +198,11 @@ export function useClusterLogin(props: Props) {
     [mainProcessClient]
   );
 
+  const showMotd =
+    initAttempt.status === 'success' &&
+    initAttempt.data.hasMessageOfTheDay &&
+    !motdAcknowledged;
+
   return {
     ssoPrompt,
     passwordlessLoginState,
@@ -217,6 +228,9 @@ export function useClusterLogin(props: Props) {
     quitAndInstallAppUpdate: mainProcessClient.quitAndInstallAppUpdate,
     changeAppUpdatesManagingCluster:
       mainProcessClient.changeAppUpdatesManagingCluster,
+    showMotd,
+    motd: initAttempt.status === 'success' ? initAttempt.data.motd : '',
+    acknowledgeMotd,
   };
 }
 

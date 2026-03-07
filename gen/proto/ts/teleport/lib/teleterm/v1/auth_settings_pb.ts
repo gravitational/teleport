@@ -85,6 +85,13 @@ export interface AuthSettings {
      * @generated from protobuf field: teleport.lib.teleterm.v1.Versions versions = 10;
      */
     versions?: Versions;
+    /**
+     * motd is the message of the day text to display to the user before login.
+     * Only populated when has_message_of_the_day is true.
+     *
+     * @generated from protobuf field: string motd = 11;
+     */
+    motd: string;
 }
 /**
  * AuthProvider describes a way of authentication that is supported by the server. Auth provider is
@@ -183,7 +190,8 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
             { no: 7, name: "allow_passwordless", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 8, name: "local_connector_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 9, name: "client_version_status", kind: "enum", T: () => ["teleport.lib.teleterm.v1.ClientVersionStatus", ClientVersionStatus, "CLIENT_VERSION_STATUS_"] },
-            { no: 10, name: "versions", kind: "message", T: () => Versions }
+            { no: 10, name: "versions", kind: "message", T: () => Versions },
+            { no: 11, name: "motd", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AuthSettings>): AuthSettings {
@@ -195,6 +203,7 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
         message.allowPasswordless = false;
         message.localConnectorName = "";
         message.clientVersionStatus = 0;
+        message.motd = "";
         if (value !== undefined)
             reflectionMergePartial<AuthSettings>(this, message, value);
         return message;
@@ -227,6 +236,9 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
                     break;
                 case /* teleport.lib.teleterm.v1.Versions versions */ 10:
                     message.versions = Versions.internalBinaryRead(reader, reader.uint32(), options, message.versions);
+                    break;
+                case /* string motd */ 11:
+                    message.motd = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -264,6 +276,9 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
         /* teleport.lib.teleterm.v1.Versions versions = 10; */
         if (message.versions)
             Versions.internalBinaryWrite(message.versions, writer.tag(10, WireType.LengthDelimited).fork(), options).join();
+        /* string motd = 11; */
+        if (message.motd !== "")
+            writer.tag(11, WireType.LengthDelimited).string(message.motd);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

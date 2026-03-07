@@ -84,6 +84,7 @@ it('shows go to updates button in compatibility warning if there are clusters pr
       authType: 'local',
       allowPasswordless: false,
       localConnectorName: '',
+      motd: '',
       clientVersionStatus: ClientVersionStatus.TOO_NEW,
       versions: {
         minClient: '16.0.0-aa',
@@ -207,4 +208,76 @@ it('shows two separate prompt texts during SSO login', async () => {
     // Resolve the promise to avoid leaving a hanging promise around.
     resolveSyncClusterPromise();
   });
+});
+
+it('shows the MOTD before the login form when has_message_of_the_day is true', async () => {
+  const cluster = makeRootCluster();
+  const appContext = new MockAppContext();
+  appContext.addRootCluster(cluster);
+
+  jest.spyOn(appContext.tshd, 'getAuthSettings').mockReturnValue(
+    new MockedUnaryCall(
+      makeAuthSettings({
+        hasMessageOfTheDay: true,
+        motd: 'Welcome to Acme Corp. All activity is monitored.',
+      })
+    )
+  );
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <AppUpdaterContextProvider>
+        <ClusterLogin
+          clusterUri={cluster.uri}
+          onCancel={() => {}}
+          prefill={{ username: '' }}
+          reason={undefined}
+        />
+      </AppUpdaterContextProvider>
+    </MockAppContextProvider>
+  );
+
+  expect(
+    await screen.findByText(
+      'Welcome to Acme Corp. All activity is monitored.'
+    )
+  ).toBeVisible();
+  expect(
+    screen.getByRole('button', { name: 'Acknowledge' })
+  ).toBeVisible();
+  expect(screen.queryByLabelText('Username')).not.toBeInTheDocument();
+});
+
+it('shows the login form after the user acknowledges the MOTD', async () => {
+  const user = userEvent.setup();
+  const cluster = makeRootCluster();
+  const appContext = new MockAppContext();
+  appContext.addRootCluster(cluster);
+
+  jest.spyOn(appContext.tshd, 'getAuthSettings').mockReturnValue(
+    new MockedUnaryCall(
+      makeAuthSettings({
+        hasMessageOfTheDay: true,
+        motd: 'Welcome to Acme Corp. All activity is monitored.',
+      })
+    )
+  );
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <AppUpdaterContextProvider>
+        <ClusterLogin
+          clusterUri={cluster.uri}
+          onCancel={() => {}}
+          prefill={{ username: '' }}
+          reason={undefined}
+        />
+      </AppUpdaterContextProvider>
+    </MockAppContextProvider>
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Acknowledge' }));
+
+  expect(screen.queryByText('Welcome to Acme Corp. All activity is monitored.')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Username')).toBeInTheDocument();
 });

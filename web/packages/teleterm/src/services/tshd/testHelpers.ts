@@ -380,6 +380,7 @@ export const makeAuthSettings = (
   allowPasswordless: false,
   localConnectorName: '',
   clientVersionStatus: ClientVersionStatus.OK,
+  motd: '',
   ...props,
 });
 
