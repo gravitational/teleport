@@ -185,10 +185,19 @@ const props: RequestCheckoutWithSliderProps = {
 
 test('renders SSH constraint logins for a node resource', () => {
   const pendingAccessRequests = [
-    { kind: 'node' as const, id: 'test-node', name: 'test-node', clusterName: 'cluster' },
+    {
+      kind: 'node' as const,
+      id: 'test-node',
+      name: 'test-node',
+      clusterName: 'cluster',
+    },
   ];
   const addedResourceConstraints = {
-    [getResourceIDString({ kind: 'node', name: 'test-node', cluster: 'cluster' })]: {
+    [getResourceIDString({
+      kind: 'node',
+      name: 'test-node',
+      cluster: 'cluster',
+    })]: {
       ssh: { logins: ['root', 'ubuntu'] },
     },
   } satisfies ResourceConstraintsMap;
@@ -212,10 +221,19 @@ test('renders SSH constraint logins for a node resource', () => {
 
 test('renders AWS Console constraint ARNs for an app resource', () => {
   const pendingAccessRequests = [
-    { kind: 'app' as const, id: 'aws-console', name: 'aws-console', clusterName: 'cluster' },
+    {
+      kind: 'app' as const,
+      id: 'aws-console',
+      name: 'aws-console',
+      clusterName: 'cluster',
+    },
   ];
   const addedResourceConstraints = {
-    [getResourceIDString({ kind: 'app', name: 'aws-console', cluster: 'cluster' })]: {
+    [getResourceIDString({
+      kind: 'app',
+      name: 'aws-console',
+      cluster: 'cluster',
+    })]: {
       aws_console: { role_arns: ['arn:aws:iam::123456789012:role/Admin'] },
     },
   } satisfies ResourceConstraintsMap;
