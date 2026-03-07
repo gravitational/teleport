@@ -21,9 +21,9 @@ package application
 import (
 	"net"
 	"net/url"
-	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -56,9 +56,13 @@ type TunnelConfig struct {
 	// use.
 	Listener net.Listener `yaml:"-"`
 
-	// Leeway is a duration added to the current time when checking if the
-	// tunnel's internal certificate needs to be renewed.
-	Leeway time.Duration `yaml:"leeway,omitempty"`
+	// Clock is a clock. If unset, the standard system clock is used. Used in
+	// tests.
+	clock clockwork.Clock `yaml:"-"`
+
+	// certIssuedHook is an optional hook called when the tunnel requests a new
+	// certificate. Used in tests.
+	certIssuedHook func() `yaml:"-"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -99,9 +103,8 @@ func (s *TunnelConfig) CheckAndSetDefaults() error {
 	if _, err := url.Parse(s.Listen); err != nil {
 		return trace.Wrap(err, "parsing listen")
 	}
-
-	if s.Leeway == 0 {
-		s.Leeway = time.Minute
+	if s.clock == nil {
+		s.clock = clockwork.NewRealClock()
 	}
 
 	return nil

@@ -63,6 +63,7 @@ type Config struct {
 
 	TTL             time.Duration
 	RenewalInterval time.Duration
+	Leeway          time.Duration
 
 	FIPS bool
 
@@ -547,9 +548,12 @@ func renewIdentity(
 	// solution to determine when to discard an existing identity: the client
 	// could have severe clock drift, or there could be non-expiry related
 	// reasons that an identity should be thrown out. We may improve this
-	// discard logic in the future if we determine we're still creating  excess
+	// discard logic in the future if we determine we're still creating excess
 	// bot instances.
-	now := time.Now()
+	// To allow users to manually compensate for clock drift if e.g. using very
+	// tight renewal/TTL values, we expose a configurable leeway to trigger
+	// modestly early renewal.
+	now := time.Now().Add(cfg.Leeway)
 	if expiry, ok := facade.Expiry(); !ok || now.After(expiry) {
 		slog.WarnContext(
 			ctx,
@@ -564,6 +568,7 @@ func renewIdentity(
 			"expiry", expiry,
 			"ttl", cfg.TTL,
 			"renewal_interval", cfg.RenewalInterval,
+			"leeway", cfg.Leeway,
 		)
 
 		newIdentity, err := botIdentityFromToken(ctx, log, cfg, nil)

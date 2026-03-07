@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -44,6 +45,7 @@ func TunnelServiceBuilder(
 	cfg *TunnelConfig,
 	connCfg connection.Config,
 	defaultCredentialLifetime bot.CredentialLifetime,
+	leeway time.Duration,
 ) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -52,6 +54,7 @@ func TunnelServiceBuilder(
 		svc := &TunnelService{
 			connCfg:                   connCfg,
 			defaultCredentialLifetime: defaultCredentialLifetime,
+			leeway:                    leeway,
 			getBotIdentity:            deps.BotIdentity,
 			botIdentityReadyCh:        deps.BotIdentityReadyCh,
 			proxyPinger:               deps.ProxyPinger,
@@ -74,6 +77,7 @@ func TunnelServiceBuilder(
 type TunnelService struct {
 	connCfg                   connection.Config
 	defaultCredentialLifetime bot.CredentialLifetime
+	leeway                    time.Duration
 	cfg                       *TunnelConfig
 	proxyPinger               connection.ProxyPinger
 	log                       *slog.Logger
@@ -183,7 +187,7 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 	}
 	s.log.DebugContext(ctx, "Issued initial certificate for local proxy.")
 
-	leeway := s.cfg.Leeway
+	leeway := s.leeway
 	if leeway >= s.defaultCredentialLifetime.TTL {
 		s.log.WarnContext(ctx,
 			"leeway is greater than the credential lifetime and will be "+
@@ -222,6 +226,7 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 		Protocols:          []common.Protocol{alpnProtocolForApp(app)},
 		Cert:               *appCert,
 		InsecureSkipVerify: s.connCfg.Insecure,
+		Clock:              s.cfg.clock,
 	}
 	if apiclient.IsALPNConnUpgradeRequired(
 		ctx,
@@ -277,6 +282,11 @@ func (s *TunnelService) issueCert(
 		return nil, nil, trace.Wrap(err)
 	}
 	s.log.InfoContext(ctx, "Certificate issued for tunnel proxy.")
+
+	// In tests, notify the test that a cert has been issued.
+	if s.cfg.certIssuedHook != nil {
+		s.cfg.certIssuedHook()
+	}
 
 	return routedIdent.TLSCert, app, nil
 }

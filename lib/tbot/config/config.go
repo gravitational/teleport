@@ -57,6 +57,7 @@ import (
 const (
 	DefaultCertificateTTL = 60 * time.Minute
 	DefaultRenewInterval  = 20 * time.Minute
+	DefaultLeeway         = 1 * time.Minute
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
@@ -88,7 +89,15 @@ type BotConfig struct {
 	JoinURI string `yaml:"join_uri,omitempty"`
 
 	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
-	Oneshot            bool                   `yaml:"oneshot"`
+
+	// Leeway is a duration added to local system time when checking for expired
+	// certificates in certain cases, particularly with app and database
+	// tunnels. It can be useful to account for clock drift, or if a negative
+	// duration is provided, to simulate clock drift.
+	Leeway time.Duration `yaml:"leeway,omitempty"`
+
+	Oneshot bool `yaml:"oneshot"`
+
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
 	// regulations. This means the bot should:
 	// - Refuse to run if not compiled with boringcrypto
@@ -258,6 +267,10 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 
 	if conf.CredentialLifetime.RenewalInterval == 0 {
 		conf.CredentialLifetime.RenewalInterval = DefaultRenewInterval
+	}
+
+	if conf.Leeway == 0 {
+		conf.Leeway = DefaultLeeway
 	}
 
 	// We require the join method for `configure` and `start` but not for `init`
