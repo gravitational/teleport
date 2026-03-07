@@ -244,7 +244,7 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 		return isAppServerDialable(ctx, clusterClient, appServer)
 	})
 	if i < 0 {
-		return trace.NotFound("all app servers unheatlhy")
+		return trace.NotFound("all app servers unhealthy")
 	}
 
 	return nil
