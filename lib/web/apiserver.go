@@ -3429,6 +3429,63 @@ type loginGetter interface {
 	GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error)
 }
 
+// calculateSSHLoginsOpts contains opts for calculateSSHLogins.
+type calculateSSHLoginsOpts struct {
+	// CertPrincipals are the principals from the user's current certificate.
+	CertPrincipals []string
+	// EnrichedLogins are the logins returned by Auth.
+	EnrichedLogins []string
+	// Server is the SSH node to compute logins for.
+	Server services.AccessCheckable
+	// AccessChecker is the user's base access checker.
+	AccessChecker loginGetter
+	// UseSearchAsRoles indicates the request was made with search_as_roles
+	UseSearchAsRoles bool
+	// IncludeRequestable indicates the response should include resources that
+	// require an access request alongside already-granted ones.
+	IncludeRequestable bool
+}
+
+// calculateSSHLogins computes allLogins and grantedLogins slices for an SSH
+// node resource.
+//
+// When search_as_roles is active (UseSearchAsRoles or IncludeRequestable),
+// EnrichedLogins may contain requestable logins that aren't in the user's
+// certificate. These are returned as-is since they're for display or
+// access-request purposes, not direct SSH connections.
+//
+// When IncludeRequestable is set, grantedLogins is additionally computed
+// using the base access checker and filtered to cert principals, so the
+// caller can tell which logins work immediately vs require a request.
+//
+// In the default mode (neither flag set), all logins are filtered to cert
+// principals so the connect menu only offers logins that will work.
+func calculateSSHLogins(req calculateSSHLoginsOpts) (allLogins, grantedLogins []string, err error) {
+	if req.UseSearchAsRoles || req.IncludeRequestable {
+		allLogins = req.EnrichedLogins
+
+		if req.IncludeRequestable {
+			grantedLogins, err = req.AccessChecker.GetAllowedLoginsForResource(req.Server)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			grantedLogins, err = client.CalculateSSHLogins(req.CertPrincipals, grantedLogins)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+		} else {
+			grantedLogins = allLogins
+		}
+		return allLogins, grantedLogins, nil
+	}
+
+	allLogins, err = client.CalculateSSHLogins(req.CertPrincipals, req.EnrichedLogins)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return allLogins, allLogins, nil
+}
+
 // calculateAppLogins determines the app logins allowed for the provided
 // resource.
 //
@@ -3511,25 +3568,14 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		case types.Server:
 			switch enriched.GetKind() {
 			case types.KindNode:
-				// allLogins is the full set of logins visible to the user (granted ∪ requestable)
-				// already computed by Auth w/ search_as_roles when applicable.
-				allLogins := enriched.Logins
-
-				var grantedLogins []string
-				if req.IncludeRequestable {
-					// Compute granted logins with the base accessChecker (w/out search_as_roles)
-					// so MakeServer can distinguish granted from requestable.
-					grantedLogins, err = accessChecker.GetAllowedLoginsForResource(r)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-				} else {
-					grantedLogins = allLogins
-				}
-
-				// Filter granted logins to those present in the user's current certificate principals.
-				// oOnly these can be used for an SSH connection right away.
-				grantedLogins, err = client.CalculateSSHLogins(identity.Principals, grantedLogins)
+				allLogins, grantedLogins, err := calculateSSHLogins(calculateSSHLoginsOpts{
+					CertPrincipals:     identity.Principals,
+					EnrichedLogins:     enriched.Logins,
+					Server:             r,
+					AccessChecker:      accessChecker,
+					UseSearchAsRoles:   req.UseSearchAsRoles,
+					IncludeRequestable: req.IncludeRequestable,
+				})
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
