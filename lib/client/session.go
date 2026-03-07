@@ -97,6 +97,9 @@ type NodeSession struct {
 	// x11RefuseTime is an optional time at which X11 channel
 	// requests using the xauth cookie will be rejected.
 	x11RefuseTime time.Time
+	// stderrCopyDone signals when the stderr copy goroutine has completed to
+	// avoid race conditions on read after the session exits.
+	stderrCopyDone chan struct{}
 }
 
 // newSession creates a new Teleport session with the given remote node
@@ -194,10 +197,16 @@ func (ns *NodeSession) regularSession(ctx context.Context, sessionParams *traces
 	)
 	defer span.End()
 
-	session, err := ns.createServerSession(ctx, nil)
+	session, err := ns.nodeClient.Client.NewSessionWithParams(ctx, sessionParams)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer session.Close()
+
+	if err := ns.setupSession(ctx, session); err != nil {
+		return trace.Wrap(err)
+	}
+
 	session.Stdout = ns.terminal.Stdout()
 	session.Stdin = ns.terminal.Stdin()
 	return trace.Wrap(sessionCallback(session))
@@ -205,7 +214,7 @@ func (ns *NodeSession) regularSession(ctx context.Context, sessionParams *traces
 
 type interactiveCallback func(serverSession *tracessh.Session, shell io.ReadWriteCloser) error
 
-func (ns *NodeSession) createServerSession(ctx context.Context, sessionParams *tracessh.SessionParams) (*tracessh.Session, error) {
+func (ns *NodeSession) setupSession(ctx context.Context, sess *tracessh.Session) error {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/createServerSession",
@@ -213,36 +222,17 @@ func (ns *NodeSession) createServerSession(ctx context.Context, sessionParams *t
 	)
 	defer span.End()
 
-	sess, err := ns.nodeClient.Client.NewSessionWithParams(ctx, sessionParams)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Start copying stderr immediately after the session is created so out-of-band
-	// request failures are not delayed until after PTY setup.
-	stderr, err := sess.StderrPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// request failures are not delayed until after PTY setup / session start.
+	if err := ns.startStderrCopyLoop(ctx, sess); err != nil {
+		return trace.Wrap(err)
 	}
-	stderrWriter := ns.terminal.Stderr()
-	if ns.terminal.IsAttached() {
-		// Reexec launch errors arrive over SSH extended stderr data, not the PTY
-		// stream. For attached terminals, convert LF line endings to CRLF for
-		// display compatibility.
-		stderrWriter = &terminalCRLFWriter{writer: stderrWriter}
-	}
-	go func() {
-		if _, err := io.Copy(stderrWriter, stderr); err != nil {
-			log.DebugContext(ctx, "Error reading remote STDERR", "error", err)
-		}
-	}()
 
-	// If X11 forwading is requested and the server accepts,
+	// If X11 forwarding is requested and the server accepts,
 	// X11 channel requests from the server will be accepted.
 	// Otherwise, all X11 channel requests must be rejected.
 	if err := ns.handleX11Forwarding(ctx, sess); err != nil {
-		_ = sess.Close()
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	envs := map[string]string{}
@@ -268,19 +258,41 @@ func (ns *NodeSession) createServerSession(ctx context.Context, sessionParams *t
 
 	if targetAgent != nil {
 		log.DebugContext(ctx, "Forwarding Selected Key Agent")
-		err = sshagent.ServeChannelRequests(ctx, ns.nodeClient.Client.Client, targetAgent)
-		if err != nil {
-			_ = sess.Close()
-			return nil, trace.Wrap(err)
+		if err := sshagent.ServeChannelRequests(ctx, ns.nodeClient.Client.Client, targetAgent); err != nil {
+			return trace.Wrap(err)
 		}
-		err = sshagent.RequestAgentForwarding(ctx, sess)
-		if err != nil {
-			_ = sess.Close()
-			return nil, trace.Wrap(err)
+		if err := sshagent.RequestAgentForwarding(ctx, sess); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
-	return sess, nil
+	return nil
+}
+
+func (ns *NodeSession) startStderrCopyLoop(ctx context.Context, sess *tracessh.Session) error {
+	stderr, err := sess.StderrPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ns.stderrCopyDone = make(chan struct{})
+	go func() {
+		defer close(ns.stderrCopyDone)
+
+		stderrWriter := ns.terminal.Stderr()
+		if ns.terminal.IsAttached() {
+			// Reexec launch errors arrive over SSH extended stderr data, not the PTY
+			// stream. For attached terminals, convert LF line endings to CRLF for
+			// display compatibility.
+			stderrWriter = &terminalCRLFWriter{writer: ns.terminal.Stderr()}
+		}
+
+		if _, err := io.Copy(stderrWriter, stderr); err != nil {
+			log.DebugContext(ctx, "Error reading remote STDERR", "error", err)
+		}
+	}()
+
+	return nil
 }
 
 // selectKeyAgent picks the appropriate key agent for forwarding to the
@@ -314,11 +326,18 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, sessionParams *tr
 	if termType == "" {
 		termType = teleport.SafeTerminalType
 	}
-	// create the server-side session:
-	sess, err := ns.createServerSession(ctx, sessionParams)
+
+	// create the server-side sess:
+	sess, err := ns.nodeClient.Client.NewSessionWithParams(ctx, sessionParams)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer sess.Close()
+
+	if err := ns.setupSession(ctx, sess); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// allocate terminal on the server:
 	remoteTerm, err := ns.allocateTerminal(ctx, termType, sess)
 	if err != nil {
@@ -818,6 +837,9 @@ func (ns *NodeSession) Close() error {
 	}
 	if ns.closeWait != nil {
 		ns.closeWait.Wait()
+	}
+	if ns.stderrCopyDone != nil {
+		<-ns.stderrCopyDone
 	}
 	return nil
 }
