@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"testing"
 	"time"
@@ -221,11 +222,7 @@ func TestCreateAccessRequest_LongTerm(t *testing.T) {
 	_, err = authClient.UpsertNode(ctx, node2)
 	require.NoError(t, err)
 
-	user, err := types.NewUser("testuser")
-	require.NoError(t, err)
-	user.SetRoles([]string{"requester"})
-	_, err = authClient.UpsertUser(ctx, user)
-	require.NoError(t, err)
+	createUserWithOpts(t, s, "testuser", withRoles("requester"))
 
 	tests := []struct {
 		name         string
@@ -416,11 +413,7 @@ func TestCreateAccessRequest_LongTerm_ValidationErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	// user with limited access
-	user, err := types.NewUser("limiteduser")
-	require.NoError(t, err)
-	user.SetRoles([]string{"limited-requester"})
-	_, err = authClient.UpsertUser(ctx, user)
-	require.NoError(t, err)
+	createUserWithOpts(t, s, "limiteduser", withRoles("limited-requester"))
 
 	// access list that grants the no-access role (which can't access our node)
 	noAccessList, err := accesslist.NewAccessList(
@@ -564,11 +557,7 @@ func TestCreateAccessRequest_LongTerm_ConflictingResources(t *testing.T) {
 	_, err = authClient.UpsertNode(ctx, devNode)
 	require.NoError(t, err)
 
-	user, err := types.NewUser("multiuser")
-	require.NoError(t, err)
-	user.SetRoles([]string{"multi-requester"})
-	_, err = authClient.UpsertUser(ctx, user)
-	require.NoError(t, err)
+	createUserWithOpts(t, s, "multiuser", withRoles("multi-requester"))
 
 	prodOnlyList, err := accesslist.NewAccessList(
 		header.Metadata{Name: "prod-only-list"},
@@ -699,11 +688,7 @@ func TestCreateAccessRequest_LongTerm_OptimalSelection(t *testing.T) {
 	_, err = authClient.UpsertNode(ctx, dbNode)
 	require.NoError(t, err)
 
-	user, err := types.NewUser("stackuser")
-	require.NoError(t, err)
-	user.SetRoles([]string{"stack-requester"})
-	_, err = authClient.UpsertUser(ctx, user)
-	require.NoError(t, err)
+	createUserWithOpts(t, s, "stackuser", withRoles("stack-requester"))
 
 	// list that only grants web access
 	webOnlyList, err := accesslist.NewAccessList(
@@ -857,11 +842,7 @@ func TestCreateAccessRequest_LongTerm_InheritedAccessListMembership(t *testing.T
 	_, err = authClient.UpsertNode(ctx, node)
 	require.NoError(t, err)
 
-	user, err := types.NewUser("test-user")
-	require.NoError(t, err)
-	user.SetRoles([]string{"requester"})
-	_, err = authClient.UpsertUser(ctx, user)
-	require.NoError(t, err)
+	createUserWithOpts(t, s, "test-user", withRoles("requester"))
 
 	// parent list that grants trait required for role
 	parentList, err := accesslist.NewAccessList(
@@ -1495,14 +1476,7 @@ func TestSuggestAccessLists(t *testing.T) {
 	require.NoError(t, err)
 
 	// assign the admin role and preferred_drink=fanta to reviewer
-	user, err := types.NewUser("reviewer")
-	require.NoError(t, err)
-	user.SetRoles([]string{requesterRoleName})
-	user.SetTraits(trait.Traits{"preferred_drink": []string{"fanta"}})
-	_, err = authServer.UpsertUser(ctx, user)
-	require.NoError(t, err)
-	err = authServer.UpsertPassword(user.GetName(), []byte(s.testPassword()))
-	require.NoError(t, err)
+	createUserWithOpts(t, s, "reviewer", withRoles(requesterRoleName), withTraits(trait.Traits{"preferred_drink": []string{"fanta"}}), withPassword())
 
 	webPack := s.newAuthWebPack(t, "reviewer", skipUserCreation())
 
@@ -1716,21 +1690,9 @@ func TestPromoteAccessRequest(t *testing.T) {
 		},
 	})
 
-	createUserWithRole := func(username string, role string) {
-		user, err := types.NewUser(username)
-		require.NoError(t, err)
-		user.SetRoles([]string{role})
-		_, err = authServer.Services.UpsertUser(ctx, user)
-		require.NoError(t, err)
-
-		// Create password, so we can log in as the user
-		err = authServer.UpsertPassword(username, []byte(s.testPassword()))
-		require.NoError(t, err)
-	}
-
 	// create users with required roles
-	createUserWithRole("reviewer", "reviewerRole")
-	createUserWithRole("requester", "requesterRole")
+	createUserWithOpts(t, s, "reviewer", withRoles("reviewerRole"), withPassword())
+	createUserWithOpts(t, s, "requester", withRoles("requesterRole"), withPassword())
 
 	accessList := createAccessList()
 	accessListNoAccess := createAccessListNoAccess()
@@ -1773,7 +1735,7 @@ func TestPromoteAccessRequest(t *testing.T) {
 }
 
 func TestCreateAccessRequest_SuggestedReviewers(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			AdvancedAccessWorkflows: true,
@@ -1783,10 +1745,11 @@ func TestCreateAccessRequest_SuggestedReviewers(t *testing.T) {
 		},
 		GenerateAccessRequestSuggestedReviewersFn: accessrequest.GenerateAccessRequestSuggestedReviewers,
 		GenerateLongTermResourceGroupingFn:        accessrequest.GenerateLongTermResourceGrouping,
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	clock := clockwork.NewRealClock()
-	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond))
+	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond), withModules(testModules))
 
 	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
 	t.Cleanup(cancel)
@@ -2069,5 +2032,174 @@ func TestCreateAccessRequest_SuggestedReviewers(t *testing.T) {
 
 		require.NoError(t, err)
 		require.ElementsMatch(t, req.SuggestedReviewers, []string{longTermRoleOwner.GetName()})
+	})
+}
+
+func TestPromoteAccessRequest_NoMemberOnFailure(t *testing.T) {
+	testModules := &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			AdvancedAccessWorkflows: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+		GenerateAccessRequestPromotionsFn: accessrequest.GenerateAccessRequestPromotions,
+	}
+	modulestest.SetTestModules(t, *testModules)
+
+	ctx := t.Context()
+	s := newWebSuite(t,
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+		withModules(testModules),
+	)
+
+	authServer := s.testAuthServer.AuthServer.AuthServer
+	authClient := s.newAdminAuthClient(s.ctx, t)
+	accessListClient := authClient.AccessListClient()
+
+	const (
+		requesterUserName       = "requester"
+		ownerWithReviewUserName = "owner-with-review"
+		ownerNoReviewUserName   = "owner-no-review"
+		nodeName                = "node"
+	)
+
+	// create a node for requesting
+	node, err := types.NewServerWithLabels(
+		nodeName,
+		types.KindNode,
+		types.ServerSpecV2{},
+		map[string]string{"name": nodeName},
+	)
+	require.NoError(t, err)
+	_, err = authServer.UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	upsertRole := func(roleName string, allow types.RoleConditions) {
+		_, err := authtest.CreateRole(context.Background(), authServer, roleName, types.RoleSpecV6{
+			Allow: allow,
+		})
+		require.NoError(t, err)
+	}
+
+	// role granting access to node
+	upsertRole("access", types.RoleConditions{
+		NodeLabels: types.Labels{
+			"name": []string{nodeName},
+		},
+	})
+	// role for requester
+	upsertRole("requesterRole", types.RoleConditions{
+		Request: &types.AccessRequestConditions{
+			SearchAsRoles: []string{"access"},
+		},
+	})
+	// role for owner who can review requests
+	upsertRole("ownerWithReviewRole", types.RoleConditions{
+		ReviewRequests: &types.AccessReviewConditions{
+			Roles: []string{"access"},
+		},
+	})
+	// role for owner who can't review requests
+	upsertRole("ownerNoReviewRole", types.RoleConditions{})
+
+	createUserWithOpts(t, s, requesterUserName, withRoles("requesterRole"), withPassword())
+	createUserWithOpts(t, s, ownerWithReviewUserName, withRoles("ownerWithReviewRole"), withPassword())
+	createUserWithOpts(t, s, ownerNoReviewUserName, withRoles("ownerNoReviewRole"), withPassword())
+
+	// access list owned by both owner users
+	accessList, err := accesslist.NewAccessList(
+		header.Metadata{Name: "test-access-list"},
+		accesslist.Spec{
+			Title: "Test Access List",
+			Audit: accesslist.Audit{NextAuditDate: s.clock.Now()},
+			Owners: []accesslist.Owner{
+				{Name: ownerWithReviewUserName, Description: "owner with review perms"},
+				{Name: ownerNoReviewUserName, Description: "owner without review perms"},
+			},
+			MembershipRequires: accesslist.Requires{},
+			Grants:             accesslist.Grants{Roles: []string{"access"}},
+		})
+	require.NoError(t, err)
+	accessList, err = accessListClient.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
+	createPendingAccessRequest := func(t *testing.T, username string) types.AccessRequest {
+		t.Helper()
+		accessRequest, err := services.NewAccessRequestWithResources(username, []string{"access"}, []types.ResourceAccessID{
+			{Id: types.ResourceID{Name: nodeName, Kind: types.KindNode}},
+		})
+		require.NoError(t, err)
+		accessRequest, err = authClient.CreateAccessRequestV2(ctx, accessRequest)
+		require.NoError(t, err)
+		return accessRequest
+	}
+
+	ownerWithReviewWebPack := s.newAuthWebPack(t, ownerWithReviewUserName, skipUserCreation())
+	ownerNoReviewWebPack := s.newAuthWebPack(t, ownerNoReviewUserName, skipUserCreation())
+
+	t.Run("owner with reviewer permission should add member on success", func(t *testing.T) {
+		accessRequest := createPendingAccessRequest(t, requesterUserName)
+
+		// promotion should succeed
+		endpoint := ownerWithReviewWebPack.clt.Endpoint("enterprise", "accessrequest", accessRequest.GetName(), "promote")
+		_, err = ownerWithReviewWebPack.clt.PostJSON(s.ctx, endpoint, &accessRequestPromoteParameters{
+			Reason:         "promotion reason",
+			AccessListName: accessList.GetName(),
+		})
+		require.NoError(t, err)
+
+		// verify requester was added
+		_, err = accessListClient.GetAccessListMember(ctx, accessList.GetName(), requesterUserName)
+		require.NoError(t, err)
+
+		t.Cleanup(func() {
+			err = accessListClient.DeleteAccessListMember(ctx, accessList.GetName(), requesterUserName)
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("owner without reviewer permission should not add member on failure", func(t *testing.T) {
+		accessRequest := createPendingAccessRequest(t, "requester")
+
+		// attempt to promote should fail because user lacks reviewer permission
+		endpoint := ownerNoReviewWebPack.clt.Endpoint("enterprise", "accessrequest", accessRequest.GetName(), "promote")
+		_, err = ownerNoReviewWebPack.clt.PostJSON(s.ctx, endpoint, &accessRequestPromoteParameters{
+			Reason:         "promotion reason",
+			AccessListName: accessList.GetName(),
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "cannot submit reviews")
+
+		// verify requester was not added
+		_, err = accessListClient.GetAccessListMember(ctx, accessList.GetName(), requesterUserName)
+		require.True(t, trace.IsNotFound(err), "member should not have been added when promotion failed, got error: %v", err)
+	})
+
+	t.Run("denied access request should not add member on failure", func(t *testing.T) {
+		accessRequest := createPendingAccessRequest(t, requesterUserName)
+
+		// deny request using a reviewer
+		reviewEndpoint := ownerWithReviewWebPack.clt.Endpoint("enterprise", "accessrequest")
+		_, err = ownerWithReviewWebPack.clt.PutJSON(s.ctx, reviewEndpoint, &ui.AccessRequestParameters{
+			ID:     accessRequest.GetName(),
+			State:  "DENIED",
+			Reason: "denied for testing",
+		})
+		require.NoError(t, err)
+
+		// try to promote the denied request, should fail
+		promoteEndpoint := ownerWithReviewWebPack.clt.Endpoint("enterprise", "accessrequest", accessRequest.GetName(), "promote")
+		_, err = ownerWithReviewWebPack.clt.PostJSON(s.ctx, promoteEndpoint, &accessRequestPromoteParameters{
+			Reason:         "promotion reason",
+			AccessListName: accessList.GetName(),
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, fmt.Sprintf("user %q has already reviewed this request", ownerWithReviewUserName))
+
+		// verify requester was not added
+		_, err = accessListClient.GetAccessListMember(ctx, accessList.GetName(), requesterUserName)
+		require.True(t, trace.IsNotFound(err), "member should not have been added when promotion of denied request failed, got error: %v", err)
 	})
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/trait"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
@@ -675,4 +676,59 @@ func (f *fakeAccessGraphServer) GetFile(_ context.Context, req *accessgraphv1alp
 	return &accessgraphv1alpha.GetFileResponse{
 		Data: []byte(f.features),
 	}, nil
+}
+
+type createUserOpts struct {
+	roles        []string
+	traits       trait.Traits
+	withPassword bool
+}
+
+type createUserOpt func(*createUserOpts)
+
+func withRoles(roles ...string) createUserOpt {
+	return func(opts *createUserOpts) {
+		opts.roles = roles
+	}
+}
+
+func withTraits(traits trait.Traits) createUserOpt {
+	return func(opts *createUserOpts) {
+		opts.traits = traits
+	}
+}
+
+func withPassword() createUserOpt {
+	return func(opts *createUserOpts) {
+		opts.withPassword = true
+	}
+}
+
+// createUserWithOpts creates a user with the specified options.
+func createUserWithOpts(t *testing.T, s *webSuite, username string, opts ...createUserOpt) types.User {
+	t.Helper()
+
+	u, err := types.NewUser(username)
+	require.NoError(t, err)
+
+	userOpts := createUserOpts{}
+	for _, opt := range opts {
+		opt(&userOpts)
+	}
+	if len(userOpts.roles) > 0 {
+		u.SetRoles(userOpts.roles)
+	}
+	if len(userOpts.traits) > 0 {
+		u.SetTraits(userOpts.traits)
+	}
+
+	u, err = s.testAuthServer.Auth().Services.UpsertUser(t.Context(), u)
+	require.NoError(t, err)
+
+	if userOpts.withPassword {
+		err = s.testAuthServer.Auth().UpsertPassword(username, []byte(s.testPassword()))
+		require.NoError(t, err)
+	}
+
+	return u
 }

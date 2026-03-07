@@ -1923,6 +1923,7 @@ func (s *Service) isOwnerOfAccessList(ctx context.Context, authCtx *authz.Contex
 
 // AccessRequestPromote promotes an access request to an access list.
 func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
+	// Ensure current user is either owner or has permission to add members to the provided ACL.
 	accessList, authCtx, err := s.authOrIsOwnerWithAccessList(ctx, req.AccessListName, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1949,6 +1950,8 @@ func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.Ac
 		accessReviewSubmission.Review.Author = authCtx.User.GetName()
 	}
 
+	// TODO(kiosion): Owners of a target list should be able to Promote (not approve/deny otherwise) to that list,
+	// regardless of ReviewPermissionChecker's HasAllowDirectives
 	if err := auth.AuthorizeAccessReviewRequest(*authCtx, accessReviewSubmission); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1979,6 +1982,15 @@ func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.Ac
 
 	memberName := accessReq.GetUser()
 
+	// Submit review first; this validates that
+	// a) the user can review this request, and
+	// b) that the request is in a valid state for review.
+	promotedAccessReq, err := s.authServer.SubmitAccessReview(ctx, accessReviewSubmission)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Add ACL member after review submission.
 	_, _, _, err = s.runAccessListMemberOp(ctx, authCtx, &accesslist.AccessListMember{
 		ResourceHeader: header.ResourceHeader{
 			Kind:    types.KindAccessListMember,
@@ -1993,11 +2005,6 @@ func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.Ac
 			AddedBy:    authCtx.User.GetName(),
 		},
 	}, s.accessLists.UpsertAccessListMember)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	promotedAccessReq, err := s.authServer.SubmitAccessReview(ctx, accessReviewSubmission)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
