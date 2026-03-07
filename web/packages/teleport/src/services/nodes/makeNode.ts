@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AwsMetadata, Node, SSHLogin } from './types';
+import { AwsMetadata, Node } from './types';
 
 export default function makeNode(json: any): Node {
   json = json ?? {};
@@ -45,32 +45,12 @@ export default function makeNode(json: any): Node {
     addr,
     tunnel,
     requiresRequest,
-    sshLogins: makeSSHLoginStrings(sshLogins),
-    sshLoginDetails: makeSSHLoginDetails(sshLoginDetails),
+    sshLogins: sshLogins ?? [],
+    sshLoginDetails: sshLoginDetails ?? [],
     awsMetadata: aws ? makeAwsMetadata(aws) : undefined,
     supportedFeatureIds,
   };
 }
-
-function makeSSHLoginStrings(raw: any): string[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-  return raw.map((item: any) =>
-    typeof item === 'string' ? item : String(item)
-  );
-}
-
-function makeSSHLoginDetails(raw: any): SSHLogin[] | undefined {
-  if (!Array.isArray(raw)) {
-    return undefined;
-  }
-  return raw.map((item: any) => ({
-    login: item.login ?? '',
-    requiresRequest: item.requiresRequest,
-  }));
-}
-
 function makeAwsMetadata(json: any): AwsMetadata {
   json = json ?? {};
   const { accountId, instanceId, region, vpcId, integration, subnetId } = json;
