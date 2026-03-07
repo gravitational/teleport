@@ -1697,10 +1697,10 @@ manualy testing.
 
 ## Proxy listener mode
 
-Since `multiplex` is the default `proxy_listener_mode` for new clusters and
-Teleport Cloud, most basic TLS routing routes are covered by other test
-sections. This section now focuses on non-default setups that require dedicated
-testing.
+Since `multiplex` is the default `proxy_listener_mode` for Teleport Cloud and
+is recommended for new self-hosted clusters, most basic TLS routing routes are
+covered by other test sections. This section focuses on non-default setups that
+require dedicated testing.
 
 ### `multiplex` mode behind L7 load balancer
 - [ ] Agent can join through Proxy and maintain reverse tunnel
@@ -1746,6 +1746,11 @@ proxy_service:
   - [ ] MySQL via dedicated port
   - [ ] MongoDB via dedicated port
   - [ ] Redis via web port (no dedicated listener)
+- [ ] Teleport Connect
+  - [ ] SSH access
+  - [ ] Kubernetes access
+  - [ ] Database access
+  - [ ] VNet for app access
 
 ## Desktop Access
 
