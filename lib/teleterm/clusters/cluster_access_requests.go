@@ -81,7 +81,7 @@ func (c *Cluster) GetAccessRequest(ctx context.Context, rootAuthClient authclien
 	}, nil
 }
 
-// Returns all access requests available to the user.
+// GetAccessRequests returns all access requests available to the user.
 func (c *Cluster) GetAccessRequests(ctx context.Context, rootAuthClient authclient.ClientI, req types.AccessRequestFilter) ([]AccessRequest, error) {
 	var (
 		requests []types.AccessRequest
@@ -95,15 +95,72 @@ func (c *Cluster) GetAccessRequests(ctx context.Context, rootAuthClient authclie
 		return nil, trace.Wrap(err)
 	}
 
-	results := []AccessRequest{}
+	// Batch-fetch resource details (e.g. node hostnames) for all requests.
+	// Errors are silently ignored so that a permission issue does not prevent
+	// the list from loading; the UUIDs will be shown as a fallback.
+	allResourceDetails := getResourceDetailsForRequests(ctx, requests, rootAuthClient)
+
+	results := make([]AccessRequest, 0, len(requests))
 	for _, request := range requests {
 		results = append(results, AccessRequest{
-			URI:           c.URI.AppendAccessRequest(request.GetName()),
-			AccessRequest: request,
+			URI:             c.URI.AppendAccessRequest(request.GetName()),
+			AccessRequest:   request,
+			ResourceDetails: allResourceDetails[request.GetName()],
 		})
 	}
 
 	return results, nil
+}
+
+// getResourceDetailsForRequests batch-fetches resource details for all
+// resources across a slice of access requests. The returned map is keyed by
+// access request name, then by the resource ID string.
+func getResourceDetailsForRequests(ctx context.Context, requests []types.AccessRequest, rootAuthClient authclient.ClientI) map[string]map[string]ResourceDetails {
+	// Collect unique resource IDs across all requests, grouped by cluster.
+	resourceIDsByCluster := make(map[string][]types.ResourceID)
+	seen := make(map[string]bool)
+	for _, req := range requests {
+		for clusterName, resourceIDs := range accessrequest.GetResourceIDsByCluster(req) {
+			for _, id := range resourceIDs {
+				key := types.ResourceIDToString(id)
+				if !seen[key] {
+					seen[key] = true
+					resourceIDsByCluster[clusterName] = append(resourceIDsByCluster[clusterName], id)
+				}
+			}
+		}
+	}
+
+	// Fetch details for all resource IDs, one batch per cluster.
+	allDetails := make(map[string]ResourceDetails)
+	for clusterName, resourceIDs := range resourceIDsByCluster {
+		details, err := accessrequest.GetResourceDetails(ctx, clusterName, rootAuthClient, resourceIDs)
+		if err != nil {
+			continue
+		}
+		for id, d := range details {
+			allDetails[id] = ResourceDetails{FriendlyName: d.FriendlyName}
+		}
+	}
+
+	// Map the fetched details back to each request.
+	result := make(map[string]map[string]ResourceDetails)
+	for _, req := range requests {
+		requestDetails := make(map[string]ResourceDetails)
+		for _, resourceIDs := range accessrequest.GetResourceIDsByCluster(req) {
+			for _, id := range resourceIDs {
+				key := types.ResourceIDToString(id)
+				if d, ok := allDetails[key]; ok {
+					requestDetails[key] = d
+				}
+			}
+		}
+		if len(requestDetails) > 0 {
+			result[req.GetName()] = requestDetails
+		}
+	}
+
+	return result
 }
 
 // Creates an access request.
