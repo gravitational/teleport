@@ -1707,76 +1707,62 @@ manualy testing.
   - [ ] Test Git commands like `git fetch`, `git push`, in repos configured with Teleport
   - [ ] Verify audit events for each Git command proxied through Teleport.
 
-## TLS Routing
+## Proxy listener mode
 
-- [ ] Verify that teleport proxy `v2` configuration starts only a single listener for proxy service, in contrast with `v1` configuration.
-  Given configuration:
-  ```
-  version: v2
-  proxy_service:
-    enabled: "yes"
-    public_addr: ['root.example.com']
-    web_listen_addr: 0.0.0.0:3080
-  ```
-  There should be total of three listeners, with only `*:3080` for proxy service. Given the configuration above, 3022 and 3025 will be opened for other services.
-  ```
-  lsof -i -P | grep teleport | grep LISTEN
-    teleport  ...  TCP *:3022 (LISTEN)
-    teleport  ...  TCP *:3025 (LISTEN)
-    teleport  ...  TCP *:3080 (LISTEN) # <-- proxy service
-  ```
-  In contrast for the same configuration with version `v1`, there should be additional ports 3023 and 3024.
-  ```
-  lsof -i -P | grep teleport | grep LISTEN
-    teleport  ...  TCP *:3022 (LISTEN)
-    teleport  ...  TCP *:3025 (LISTEN)
-    teleport  ...  TCP *:3023 (LISTEN) # <-- extra proxy service port
-    teleport  ...  TCP *:3024 (LISTEN) # <-- extra proxy service port
-    teleport  ...  TCP *:3080 (LISTEN) # <-- proxy service
-  ```
-- [ ] Run Teleport Proxy in `multiplex` mode `auth_service.proxy_listener_mode: "multiplex"`
-  - [ ] Trusted cluster
-    - [ ] Setup trusted clusters using single port setup `web_proxy_addr == tunnel_addr`
-    ```
-    kind: trusted_cluster
-    spec:
-      ...
-      web_proxy_addr: root.example.com:443
-      tunnel_addr: root.example.com:443
-      ...
-    ```
-- [ ] Database Access
-  - [ ] Verify that `tsh db connect` works through proxy running in `multiplex` mode
-    - [ ] Postgres
-    - [ ] MySQL
-    - [ ] MariaDB
-    - [ ] MongoDB
-    - [ ] CockroachDB
-    - [ ] Redis
-    - [ ] MSSQL
-    - [ ] Snowflake
-    - [ ] Elasticsearch.
-    - [ ] OpenSearch.
-    - [ ] Cassandra/ScyllaDB.
-    - [ ] Oracle.
-  - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh proxy db` with a GUI client.
-  - [ ] Verify connecting to a database through Teleport Connect.
-- [ ] Application Access
-  - [ ] Verify app access through proxy running in `multiplex` mode
-- [ ] SSH Access
-  - [ ] Connect to a OpenSSH server through a local ssh proxy `ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh" user@host.example.com`
-  - [ ] Connect to a OpenSSH server on leaf-cluster through a local ssh proxy`ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh --user=%r --cluster=leaf-cluster %h:%p" user@node.foo.com`
-  - [ ] Verify `tsh ssh` access through proxy running in multiplex mode
-- [ ] Kubernetes access:
-  - [ ] Verify kubernetes access through proxy running in `multiplex` mode, using `tsh`
-  - [ ] Verify kubernetes access through Teleport Connect
-- [ ] Teleport Proxy single port `multiplex` mode behind L7 load balancer
-  - [ ] Agent can join through Proxy and maintain reverse tunnel
-  - [ ] `tsh login` and `tctl`
-  - [ ] SSH Access: `tsh ssh` and `tsh config`
-  - [ ] Database Access: `tsh proxy db` and `tsh db connect`
-  - [ ] Application Access: `tsh proxy app` and `tsh aws`
-  - [ ] Kubernetes Access: `tsh proxy kube`
+Since `multiplex` is the default `proxy_listener_mode` for Teleport Cloud and
+is recommended for new self-hosted clusters, most basic TLS routing routes are
+covered by other test sections. This section focuses on non-default setups that
+require dedicated testing.
+
+### `multiplex` mode behind L7 load balancer
+- [ ] Agent can join through Proxy and maintain reverse tunnel
+- [ ] `tsh login` and `tctl`
+- [ ] SSH Access: `tsh ssh` and `tsh config`
+- [ ] Database Access: `tsh proxy db` and `tsh db connect`
+- [ ] Application Access: `tsh proxy app` and `tsh aws`
+- [ ] Kubernetes Access: `tsh proxy kube`
+
+### `separate` port mode
+
+Example config:
+```yaml
+version: v3
+auth_service:
+  enabled: true
+  proxy_listener_mode: separate
+
+proxy_service:
+  enabled: true
+  web_listen_addr:      "0.0.0.0:3080"
+  listen_addr:          "0.0.0.0:3023"
+  tunnel_listen_addr:   "0.0.0.0:3024"
+  kube_listen_addr:     "0.0.0.0:3026"
+  mysql_listen_addr:    "0.0.0.0:3036"
+  postgres_listen_addr: "0.0.0.0:5432"
+  mongo_listen_addr:    "0.0.0.0:27017"
+```
+
+- [ ] Verify all expected listeners are open. E.g. `lsof -i -P | grep teleport | grep LISTEN`
+- [ ] Agent can join and maintain reverse tunnel
+- [ ] Trusted cluster can join and maintain reverse tunnel
+- [ ] SSH access
+  - [ ] `tsh ssh`
+  - [ ] `tsh config` then `ssh`
+- [ ] Kubernetes access via `tsh`
+- [ ] Application access
+  - [ ] HTTP app
+  - [ ] `tsh aws`
+  - [ ] TCP app via `tsh proxy app`
+- [ ] Database access
+  - [ ] PostgreSQL via dedicated port
+  - [ ] MySQL via dedicated port
+  - [ ] MongoDB via dedicated port
+  - [ ] Redis via web port (no dedicated listener)
+- [ ] Teleport Connect
+  - [ ] SSH access
+  - [ ] Kubernetes access
+  - [ ] Database access
+  - [ ] VNet for app access
 
 ## Desktop Access
 
