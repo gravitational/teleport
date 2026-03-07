@@ -71,6 +71,7 @@ export class MockTshClient implements TshdClient {
       allowPasswordless: false,
       localConnectorName: '',
       clientVersionStatus: ClientVersionStatus.OK,
+      motd: '',
     });
   login = () => new MockedUnaryCall({});
   loginPasswordless = undefined;
