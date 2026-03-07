@@ -103,10 +103,7 @@ export const toggleAWSConsoleConstraint = <T extends PendingListItem>(
  * If no logins remain after removal, it clears the constraint.
  */
 export const toggleSSHConstraint = <T extends PendingListItem>(
-  item: WithResourceConstraints<
-    'ssh',
-    Pick<T, 'id' | 'kind' | 'clusterName'>
-  >,
+  item: WithResourceConstraints<'ssh', Pick<T, 'id' | 'kind' | 'clusterName'>>,
   login: string,
   set: (
     key: ResourceIDString,

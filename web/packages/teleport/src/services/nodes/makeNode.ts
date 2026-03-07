@@ -56,7 +56,9 @@ function makeSSHLoginStrings(raw: any): string[] {
   if (!Array.isArray(raw)) {
     return [];
   }
-  return raw.map((item: any) => (typeof item === 'string' ? item : String(item)));
+  return raw.map((item: any) =>
+    typeof item === 'string' ? item : String(item)
+  );
 }
 
 function makeSSHLoginDetails(raw: any): SSHLogin[] | undefined {
