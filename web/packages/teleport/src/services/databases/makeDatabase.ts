@@ -53,6 +53,9 @@ export function makeDatabase(json: any): Database {
     names: json.database_names || [],
     users: json.database_users || [],
     roles: json.database_roles || [],
+    databaseUserDetails: json.databaseUserDetails,
+    databaseNameDetails: json.databaseNameDetails,
+    databaseRoleDetails: json.databaseRoleDetails,
     hostname: json.hostname,
     aws: madeAws,
     requiresRequest,
@@ -63,6 +66,7 @@ export function makeDatabase(json: any): Database {
       error: targetHealth.transition_error,
       message: targetHealth.message,
     },
+    supportedFeatureIds: json.supportedFeatureIds,
   };
 }
 

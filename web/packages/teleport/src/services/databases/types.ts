@@ -18,6 +18,7 @@
 
 import { ResourceTargetHealth } from 'shared/components/UnifiedResources';
 import { DbProtocol } from 'shared/services/databases';
+import { ComponentFeatureID } from 'shared/utils/componentFeatures';
 
 import { ResourceLabel } from 'teleport/services/agents';
 
@@ -50,6 +51,12 @@ export interface Database {
   names?: string[];
   users?: string[];
   roles?: string[];
+  /** Per-user metadata including whether an access request is required. */
+  databaseUserDetails?: DatabaseUserDetail[];
+  /** Per-name metadata including whether an access request is required. */
+  databaseNameDetails?: DatabaseNameDetail[];
+  /** Per-role metadata including whether an access request is required. */
+  databaseRoleDetails?: DatabaseRoleDetail[];
   hostname: string;
   aws?: Aws;
   requiresRequest?: boolean;
@@ -67,6 +74,11 @@ export interface Database {
    * - webapi/sites/:site/resources (unified resources)
    */
   targetHealth?: ResourceTargetHealth;
+  /**
+   * supportedFeatureIds contains component feature IDs supported by
+   * both the Database and all required back-end components.
+   */
+  supportedFeatureIds?: ComponentFeatureID[];
 }
 
 export type DatabasesResponse = {
@@ -121,4 +133,19 @@ export type DatabaseServer = {
   hostname: string;
   hostId: string;
   targetHealth?: ResourceTargetHealth;
+};
+
+export type DatabaseUserDetail = {
+  user: string;
+  requiresRequest?: boolean;
+};
+
+export type DatabaseNameDetail = {
+  name: string;
+  requiresRequest?: boolean;
+};
+
+export type DatabaseRoleDetail = {
+  role: string;
+  requiresRequest?: boolean;
 };

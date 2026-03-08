@@ -210,6 +210,42 @@ export const LoadedResourceRequestWithSSHConstraints = () => {
   );
 };
 
+export const LoadedResourceRequestWithDatabaseConstraints = () => {
+  const pendingAccessRequests = [
+    {
+      kind: 'db',
+      id: 'prod-postgres',
+      name: 'prod-postgres',
+      clusterName: 'localhost',
+    },
+  ] satisfies RequestCheckoutWithSliderProps['pendingAccessRequests'];
+  const addedResourceConstraints = {
+    [getResourceIDString({
+      kind: 'db',
+      name: 'prod-postgres',
+      cluster: 'localhost',
+    })]: {
+      database: {
+        users: ['readonly', 'admin'],
+        names: ['analytics', 'production'],
+      },
+    },
+  } satisfies ResourceConstraintsMap;
+
+  return (
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        isResourceRequest={true}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        pendingAccessRequests={pendingAccessRequests}
+        addedResourceConstraints={addedResourceConstraints}
+        setResourceConstraints={() => {}}
+      />
+    </MemoryRouter>
+  );
+};
+
 export const LoadedLongTermRequest = () => {
   const dryRunResponseWithLongTerm = {
     ...dryRunResponse,

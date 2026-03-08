@@ -508,6 +508,48 @@ const SshConstraintsList = <R extends object>({
   );
 };
 
+const DatabaseConstraintsList = <R extends object>({
+  resource,
+}: {
+  resource: WithResourceConstraints<'database', R>;
+}) => {
+  const db = resource.constraints.database;
+  return (
+    <Flex flexDirection="column" gap={2} mt={2}>
+      {db.users && db.users.length > 0 && (
+        <>
+          <Text bold>Database Users</Text>
+          <Flex flexDirection="row" gap={2} flexWrap="wrap">
+            {db.users.map(user => (
+              <AWSConstraintChip key={user} label={user} />
+            ))}
+          </Flex>
+        </>
+      )}
+      {db.names && db.names.length > 0 && (
+        <>
+          <Text bold>Database Names</Text>
+          <Flex flexDirection="row" gap={2} flexWrap="wrap">
+            {db.names.map(name => (
+              <AWSConstraintChip key={name} label={name} />
+            ))}
+          </Flex>
+        </>
+      )}
+      {db.roles && db.roles.length > 0 && (
+        <>
+          <Text bold>Database Roles</Text>
+          <Flex flexDirection="row" gap={2} flexWrap="wrap">
+            {db.roles.map(role => (
+              <AWSConstraintChip key={role} label={role} />
+            ))}
+          </Flex>
+        </>
+      )}
+    </Flex>
+  );
+};
+
 function Comment({
   author,
   comment,
@@ -532,6 +574,9 @@ function Comment({
     }
     if (hasResourceConstraints(r, 'ssh')) {
       return <SshConstraintsList resource={r} />;
+    }
+    if (hasResourceConstraints(r, 'database')) {
+      return <DatabaseConstraintsList resource={r} />;
     }
     return null;
   };

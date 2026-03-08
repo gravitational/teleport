@@ -26,6 +26,7 @@ import {
 import {
   requestResourceApprovedWithConstraints,
   requestResourcePendingWithConstraints,
+  requestResourcePendingWithDatabaseConstraints,
   requestResourceWithConstraintsSuggestedAccessLists,
   requestRoleApproved,
   requestRoleApprovedWithStartTime,
@@ -123,6 +124,23 @@ export const LoadedResourcePendingWithConstraints = () => {
       )}
       fetchSuggestedAccessListsAttempt={makeSuccessAttempt(
         requestResourceWithConstraintsSuggestedAccessLists
+      )}
+      getFlags={() => flags}
+    />
+  );
+};
+
+export const LoadedResourcePendingWithDatabaseConstraints = () => {
+  const flags = {
+    ...sampleFlags,
+    canReview: true,
+    canDelete: true,
+  };
+  return (
+    <RequestView
+      {...sample}
+      fetchRequestAttempt={makeSuccessAttempt(
+        requestResourcePendingWithDatabaseConstraints
       )}
       getFlags={() => flags}
     />
