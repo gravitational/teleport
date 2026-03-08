@@ -140,6 +140,17 @@ type ResourceWithLabels interface {
 	MatchSearch(searchValues []string) bool
 }
 
+// DatabaseRolePrincipals holds the database principals granted by a single
+// Teleport role for a specific database.
+type DatabaseRolePrincipals struct {
+	// Users is the list of database users this role grants.
+	Users []string
+	// Names is the list of database names this role grants.
+	Names []string
+	// Roles is the list of database roles this role grants (for auto-user provisioning).
+	Roles []string
+}
+
 // EnrichedResource is a [ResourceWithLabels] wrapped with
 // additional user-specific information.
 type EnrichedResource struct {
@@ -151,6 +162,10 @@ type EnrichedResource struct {
 	// an access request to access. This is done during `ListUnifiedResources` when
 	// searchAsRoles is true
 	RequiresRequest bool
+	// DatabasePrincipalsByRole maps Teleport role names to the database principals
+	// each role grants for a database resource. Only populated for database resources
+	// when IncludeLogins is true.
+	DatabasePrincipalsByRole map[string]DatabaseRolePrincipals
 }
 
 // EnrichedResources is a wrapper of []*EnrichedResource.

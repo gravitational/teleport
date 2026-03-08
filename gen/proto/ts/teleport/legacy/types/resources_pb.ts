@@ -98,6 +98,15 @@ export interface ResourceConstraints {
          */
         ssh: SSHResourceConstraints;
     } | {
+        oneofKind: "database";
+        /**
+         * database scopes a database to a subset of database users and/or
+         * database names the requester is allowed to use.
+         *
+         * @generated from protobuf field: types.DatabaseResourceConstraints database = 12;
+         */
+        database: DatabaseResourceConstraints;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -124,6 +133,33 @@ export interface SSHResourceConstraints {
      * @generated from protobuf field: repeated string logins = 1;
      */
     logins: string[];
+}
+/**
+ * DatabaseResourceConstraints scopes a database to a subset of database
+ * users, database names, and/or database roles the requester is allowed to use.
+ * At least one of users, names, or roles must be specified.
+ *
+ * @generated from protobuf message types.DatabaseResourceConstraints
+ */
+export interface DatabaseResourceConstraints {
+    /**
+     * users is the list of database users the requester is allowed to connect as.
+     *
+     * @generated from protobuf field: repeated string users = 1;
+     */
+    users: string[];
+    /**
+     * names is the list of database names the requester is allowed to connect to.
+     *
+     * @generated from protobuf field: repeated string names = 2;
+     */
+    names: string[];
+    /**
+     * roles is the list of database roles for auto-provisioned users.
+     *
+     * @generated from protobuf field: repeated string roles = 3;
+     */
+    roles: string[];
 }
 /**
  * ResourceAccessID represents a ResourceID in an Access Request-related context,
@@ -229,7 +265,8 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
         super("types.ResourceConstraints", [
             { no: 1, name: "version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 10, name: "aws_console", kind: "message", oneof: "details", T: () => AWSConsoleResourceConstraints },
-            { no: 11, name: "ssh", kind: "message", oneof: "details", T: () => SSHResourceConstraints }
+            { no: 11, name: "ssh", kind: "message", oneof: "details", T: () => SSHResourceConstraints },
+            { no: 12, name: "database", kind: "message", oneof: "details", T: () => DatabaseResourceConstraints }
         ]);
     }
     create(value?: PartialMessage<ResourceConstraints>): ResourceConstraints {
@@ -260,6 +297,12 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
                         ssh: SSHResourceConstraints.internalBinaryRead(reader, reader.uint32(), options, (message.details as any).ssh)
                     };
                     break;
+                case /* types.DatabaseResourceConstraints database */ 12:
+                    message.details = {
+                        oneofKind: "database",
+                        database: DatabaseResourceConstraints.internalBinaryRead(reader, reader.uint32(), options, (message.details as any).database)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -281,6 +324,9 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
         /* types.SSHResourceConstraints ssh = 11; */
         if (message.details.oneofKind === "ssh")
             SSHResourceConstraints.internalBinaryWrite(message.details.ssh, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* types.DatabaseResourceConstraints database = 12; */
+        if (message.details.oneofKind === "database")
+            DatabaseResourceConstraints.internalBinaryWrite(message.details.database, writer.tag(12, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -385,6 +431,69 @@ class SSHResourceConstraints$Type extends MessageType<SSHResourceConstraints> {
  * @generated MessageType for protobuf message types.SSHResourceConstraints
  */
 export const SSHResourceConstraints = new SSHResourceConstraints$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DatabaseResourceConstraints$Type extends MessageType<DatabaseResourceConstraints> {
+    constructor() {
+        super("types.DatabaseResourceConstraints", [
+            { no: 1, name: "users", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "names", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<DatabaseResourceConstraints>): DatabaseResourceConstraints {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.users = [];
+        message.names = [];
+        message.roles = [];
+        if (value !== undefined)
+            reflectionMergePartial<DatabaseResourceConstraints>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DatabaseResourceConstraints): DatabaseResourceConstraints {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string users */ 1:
+                    message.users.push(reader.string());
+                    break;
+                case /* repeated string names */ 2:
+                    message.names.push(reader.string());
+                    break;
+                case /* repeated string roles */ 3:
+                    message.roles.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DatabaseResourceConstraints, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string users = 1; */
+        for (let i = 0; i < message.users.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.users[i]);
+        /* repeated string names = 2; */
+        for (let i = 0; i < message.names.length; i++)
+            writer.tag(2, WireType.LengthDelimited).string(message.names[i]);
+        /* repeated string roles = 3; */
+        for (let i = 0; i < message.roles.length; i++)
+            writer.tag(3, WireType.LengthDelimited).string(message.roles[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message types.DatabaseResourceConstraints
+ */
+export const DatabaseResourceConstraints = new DatabaseResourceConstraints$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ResourceAccessID$Type extends MessageType<ResourceAccessID> {
     constructor() {

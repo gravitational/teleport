@@ -41,6 +41,15 @@ func deriveTeleportEqualSSHResourceConstraints(this, that *SSHResourceConstraint
 			deriveTeleportEqual_2(this.Logins, that.Logins)
 }
 
+// deriveTeleportEqualDatabaseResourceConstraints returns whether this and that are equal.
+func deriveTeleportEqualDatabaseResourceConstraints(this, that *DatabaseResourceConstraints) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			deriveTeleportEqual_2(this.Users, that.Users) &&
+			deriveTeleportEqual_2(this.Names, that.Names) &&
+			deriveTeleportEqual_2(this.Roles, that.Roles)
+}
+
 // deriveTeleportEqualAccessReviewThreshold returns whether this and that are equal.
 func deriveTeleportEqualAccessReviewThreshold(this, that *AccessReviewThreshold) bool {
 	return (this == nil && that == nil) ||
