@@ -151,6 +151,15 @@ type EnrichedResource struct {
 	// an access request to access. This is done during `ListUnifiedResources` when
 	// searchAsRoles is true
 	RequiresRequest bool
+	// DatabaseUsers is the list of database users visible to the user (including requestable).
+	// Only populated for database servers when IncludeRequestable is true.
+	DatabaseUsers []string
+	// DatabaseNames is the list of database names visible to the user (including requestable).
+	// Only populated for database servers when IncludeRequestable is true.
+	DatabaseNames []string
+	// DatabaseRoles is the list of database roles visible to the user (including requestable).
+	// Only populated for database servers when IncludeRequestable is true.
+	DatabaseRoles []string
 }
 
 // EnrichedResources is a wrapper of []*EnrichedResource.

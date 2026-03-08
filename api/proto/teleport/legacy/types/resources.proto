@@ -53,6 +53,9 @@ message ResourceConstraints {
     // ssh scopes an SSH node to a subset of logins the requester is
     // allowed to use.
     SSHResourceConstraints ssh = 11;
+    // database scopes a database to a subset of database users and/or
+    // database names the requester is allowed to use.
+    DatabaseResourceConstraints database = 12;
   }
 }
 
@@ -66,6 +69,18 @@ message AWSConsoleResourceConstraints {
 // requester is allowed to use.
 message SSHResourceConstraints {
   repeated string logins = 1;
+}
+
+// DatabaseResourceConstraints scopes a database to a subset of database
+// users, database names, and/or database roles the requester is allowed to use.
+// At least one of users, names, or roles must be specified.
+message DatabaseResourceConstraints {
+  // users is the list of database users the requester is allowed to connect as.
+  repeated string users = 1;
+  // names is the list of database names the requester is allowed to connect to.
+  repeated string names = 2;
+  // roles is the list of database roles for auto-provisioned users.
+  repeated string roles = 3;
 }
 
 // ResourceAccessID represents a ResourceID in an Access Request-related context,

@@ -2210,6 +2210,16 @@ message PaginatedResource {
   // that IncludeRequestable.
   bool RequiresRequest = 14 [(gogoproto.jsontag) = "requires_request,omitempty"];
 
+  // DatabaseUsers is the list of database users visible to the user for this database resource.
+  // Populated for database servers when IncludeRequestable is true, using search_as_roles.
+  repeated string DatabaseUsers = 17 [(gogoproto.jsontag) = "database_users,omitempty"];
+  // DatabaseNames is the list of database names visible to the user for this database resource.
+  // Populated for database servers when IncludeRequestable is true, using search_as_roles.
+  repeated string DatabaseNames = 18 [(gogoproto.jsontag) = "database_names,omitempty"];
+  // DatabaseRoles is the list of database roles visible to the user for this database resource.
+  // Populated for database servers when IncludeRequestable is true, using search_as_roles.
+  repeated string DatabaseRoles = 19 [(gogoproto.jsontag) = "database_roles,omitempty"];
+
   reserved 4;
   reserved "KubeService";
   reserved 11;

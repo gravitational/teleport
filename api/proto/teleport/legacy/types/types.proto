@@ -225,6 +225,9 @@ message DatabaseServerSpecV3 {
   string relay_group = 14;
   // the list of Relay host IDs that the server is connected to
   repeated string relay_ids = 15;
+
+  // component_features contains features supported by this database server.
+  teleport.componentfeatures.v1.ComponentFeatures component_features = 16;
 }
 
 // DatabaseServerStatusV3 is the database server status.
