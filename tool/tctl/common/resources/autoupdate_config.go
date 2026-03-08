@@ -20,8 +20,10 @@ package resources
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -78,7 +80,11 @@ func getAutoUpdateConfig(ctx context.Context, client *authclient.Client, ref ser
 }
 
 func createAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
-	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw, services.DisallowUnknown())
+	rawJSON, err := normalizeAutoUpdateConfigDurations(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](rawJSON, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -104,7 +110,11 @@ func createAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw 
 }
 
 func updateAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
-	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw, services.DisallowUnknown())
+	rawJSON, err := normalizeAutoUpdateConfigDurations(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](rawJSON, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -129,4 +139,53 @@ func deleteAutoUpdateConfig(ctx context.Context, client *authclient.Client, ref 
 	}
 	fmt.Printf("AutoUpdateConfig has been deleted\n")
 	return nil
+}
+
+// normalizeAutoUpdateConfigDurations rewrites human-friendly duration strings
+// (e.g. "2h") into protobuf JSON duration strings (e.g. "7200s") for fields
+// that are defined as google.protobuf.Duration.
+//
+// This is needed for spec.agents.maintenance_window_duration because users
+// commonly provide Go-style values like "1h" as shown in the documentation,
+// but protojson expects the "7200s" format.
+func normalizeAutoUpdateConfigDurations(rawJSON []byte) ([]byte, error) {
+	var doc map[string]any
+	if err := json.Unmarshal(rawJSON, &doc); err != nil {
+		// If JSON doesn't parse, return as-is and let protojson report the error.
+		return rawJSON, nil
+	}
+
+	spec, _ := doc["spec"].(map[string]any)
+	agents, _ := spec["agents"].(map[string]any)
+	if agents == nil {
+		return rawJSON, nil
+	}
+
+	val, ok := agents["maintenance_window_duration"]
+	if !ok {
+		return rawJSON, nil
+	}
+	str, ok := val.(string)
+	if !ok || str == "" {
+		return rawJSON, nil
+	}
+
+	d, err := time.ParseDuration(str)
+	if err != nil {
+		// Not a valid Go duration; leave it for protojson to handle.
+		return rawJSON, nil
+	}
+
+	seconds := d.Seconds()
+	if seconds == float64(int64(seconds)) {
+		agents["maintenance_window_duration"] = fmt.Sprintf("%ds", int64(seconds))
+	} else {
+		agents["maintenance_window_duration"] = fmt.Sprintf("%gs", seconds)
+	}
+
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return rawJSON, nil
+	}
+	return out, nil
 }

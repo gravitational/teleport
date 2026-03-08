@@ -97,3 +97,10 @@ func TestRoundTripProtoResource153(t *testing.T) {
 	_, err = services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw)
 	require.Error(t, err)
 }
+
+func TestNormalizeAutoUpdateConfigDurations(t *testing.T) {
+	in := []byte(`{"kind":"autoupdate_config","version":"v1","metadata":{"name":"autoupdate-config"},"spec":{"agents":{"mode":"enabled","strategy":"time-based","maintenance_window_duration":"2h"}}}`)
+	out, err := normalizeAutoUpdateConfigDurations(in)
+	require.NoError(t, err)
+	require.Contains(t, string(out), `"maintenance_window_duration":"7200s"`)
+}
