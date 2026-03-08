@@ -46,3 +46,12 @@ func ForAppServer(g appServerInfoGetter) *componentfeaturesv1.ComponentFeatures 
 
 	return New(FeatureResourceConstraintsV1)
 }
+
+type databaseServerInfoGetter interface {
+	GetDatabase() types.Database
+}
+
+// ForDatabaseServer returns features that a Database server can support/participate in.
+func ForDatabaseServer(g databaseServerInfoGetter) *componentfeaturesv1.ComponentFeatures {
+	return New(FeatureResourceConstraintsV1)
+}

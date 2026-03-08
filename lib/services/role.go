@@ -2407,6 +2407,26 @@ func (m *DatabaseNameMatcher) String() string {
 	return fmt.Sprintf("DatabaseNameMatcher(Name=%v)", m.Name)
 }
 
+// DatabaseRoleMatcher matches a role against database role.
+type DatabaseRoleMatcher struct {
+	Role string
+}
+
+// Match matches database role against provided role and condition.
+func (m *DatabaseRoleMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	for _, dbRole := range role.GetDatabaseRoles(condition) {
+		if dbRole == m.Role {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// String returns the matcher's string representation.
+func (m *DatabaseRoleMatcher) String() string {
+	return fmt.Sprintf("DatabaseRoleMatcher(Role=%v)", m.Role)
+}
+
 type loginMatcher struct {
 	login string
 }

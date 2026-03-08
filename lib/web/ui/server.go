@@ -40,6 +40,30 @@ type SSHLogin struct {
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
+// DatabaseUserDetail describes a database user with request metadata.
+type DatabaseUserDetail struct {
+	// User is the database user name.
+	User string `json:"user"`
+	// RequiresRequest indicates whether this user requires an access request to be used.
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
+}
+
+// DatabaseNameDetail describes a database name with request metadata.
+type DatabaseNameDetail struct {
+	// Name is the database name.
+	Name string `json:"name"`
+	// RequiresRequest indicates whether this name requires an access request to be used.
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
+}
+
+// DatabaseRoleDetail describes a database role with request metadata.
+type DatabaseRoleDetail struct {
+	// Role is the database role.
+	Role string `json:"role"`
+	// RequiresRequest indicates whether this role requires an access request to be used.
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
+}
+
 // Server describes a server for webapp
 type Server struct {
 	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
@@ -131,6 +155,54 @@ func buildSshLoginDetails(allLogins, grantedLogins []string) []SSHLogin {
 		_, isGranted := grantedSet[login]
 		out = append(out, SSHLogin{
 			Login:           login,
+			RequiresRequest: !isGranted,
+		})
+	}
+	return out
+}
+
+func BuildDatabaseUserDetails(allUsers, grantedUsers []string) []DatabaseUserDetail {
+	grantedSet := make(map[string]struct{}, len(grantedUsers))
+	for _, u := range grantedUsers {
+		grantedSet[u] = struct{}{}
+	}
+	out := make([]DatabaseUserDetail, 0, len(allUsers))
+	for _, u := range allUsers {
+		_, isGranted := grantedSet[u]
+		out = append(out, DatabaseUserDetail{
+			User:            u,
+			RequiresRequest: !isGranted,
+		})
+	}
+	return out
+}
+
+func BuildDatabaseNameDetails(allNames, grantedNames []string) []DatabaseNameDetail {
+	grantedSet := make(map[string]struct{}, len(grantedNames))
+	for _, n := range grantedNames {
+		grantedSet[n] = struct{}{}
+	}
+	out := make([]DatabaseNameDetail, 0, len(allNames))
+	for _, n := range allNames {
+		_, isGranted := grantedSet[n]
+		out = append(out, DatabaseNameDetail{
+			Name:            n,
+			RequiresRequest: !isGranted,
+		})
+	}
+	return out
+}
+
+func BuildDatabaseRoleDetails(allRoles, grantedRoles []string) []DatabaseRoleDetail {
+	grantedSet := make(map[string]struct{}, len(grantedRoles))
+	for _, r := range grantedRoles {
+		grantedSet[r] = struct{}{}
+	}
+	out := make([]DatabaseRoleDetail, 0, len(allRoles))
+	for _, r := range allRoles {
+		_, isGranted := grantedSet[r]
+		out = append(out, DatabaseRoleDetail{
+			Role:            r,
 			RequiresRequest: !isGranted,
 		})
 	}
@@ -349,6 +421,15 @@ type Database struct {
 	DatabaseNames []string `json:"database_names,omitempty"`
 	// DatabaseRoles is the list of allowed Database RBAC roles that the user can login.
 	DatabaseRoles []string `json:"database_roles,omitempty"`
+	// DatabaseUserDetails provides per-user metadata (e.g. whether a user requires an access request).
+	// Only populated when the handler has requestable principal info.
+	DatabaseUserDetails []DatabaseUserDetail `json:"databaseUserDetails,omitempty"`
+	// DatabaseNameDetails provides per-name metadata (e.g. whether a name requires an access request).
+	// Only populated when the handler has requestable principal info.
+	DatabaseNameDetails []DatabaseNameDetail `json:"databaseNameDetails,omitempty"`
+	// DatabaseRoleDetails provides per-role metadata (e.g. whether a role requires an access request).
+	// Only populated when the handler has requestable principal info.
+	DatabaseRoleDetails []DatabaseRoleDetail `json:"databaseRoleDetails,omitempty"`
 	// AWS contains AWS specific fields.
 	AWS *AWS `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
@@ -369,6 +450,8 @@ type Database struct {
 	// - webapi/sites/:site/databases/:database (singular)
 	// - webapi/sites/:site/resources (unified resources)
 	TargetHealth types.TargetHealth `json:"targetHealth,omitzero"`
+	// SupportedFeatureIDs contains ComponentFeatures supported by this Database and all other involved components.
+	SupportedFeatureIDs []int `json:"supportedFeatureIds,omitempty"`
 }
 
 // AWS contains AWS specific fields.
@@ -447,9 +530,18 @@ func MakeDatabase(database types.Database, accessChecker services.AccessChecker,
 }
 
 // MakeDatabaseFromDatabaseServer creates a database object with db_server target health info.
-func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
+// If intersectedFeatures is provided, it is used instead of the server's own component features
+// (e.g. after intersecting with cluster-level auth/proxy features).
+func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool, intersectedFeatures ...*componentfeaturesv1.ComponentFeatures) Database {
 	db := MakeDatabase(dbServer.GetDatabase(), accessChecker, interactiveChecker, requiresRequest)
 	db.TargetHealth = dbServer.GetTargetHealth()
+	cf := dbServer.GetComponentFeatures()
+	if len(intersectedFeatures) > 0 && intersectedFeatures[0] != nil {
+		cf = intersectedFeatures[0]
+	}
+	if cf != nil {
+		db.SupportedFeatureIDs = componentfeatures.ToIntegers(cf)
+	}
 	return db
 }
 

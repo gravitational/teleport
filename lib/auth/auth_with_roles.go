@@ -1339,6 +1339,39 @@ func (l *unifiedResourceLister) getAllowedLogins(resource services.AccessCheckab
 	}
 }
 
+// getEnrichedDatabasePrincipals returns the full set of database users, names, and roles
+// visible to the user (including requestable principals via search_as_roles).
+// It uses the requestable access checker if available, falling back to the base checker.
+func (l *unifiedResourceLister) getEnrichedDatabasePrincipals(database types.Database) (users, names, roles []string) {
+	checker := l.getAccessChecker()
+	if checker == nil {
+		return nil, nil, nil
+	}
+
+	if res, err := checker.EnumerateDatabaseUsers(database); err == nil {
+		users, _ = res.ToEntities()
+	}
+	namesResult := checker.EnumerateDatabaseNames(database)
+	names, _ = namesResult.ToEntities()
+	if r, err := checker.CheckDatabaseRoles(database, nil); err == nil && len(r) > 0 {
+		roles = r
+	}
+	return users, names, roles
+}
+
+// getAccessChecker returns the services.AccessChecker from the most-privileged
+// resource checker (requestable if available, else base).
+func (l *unifiedResourceLister) getAccessChecker() services.AccessChecker {
+	rc := l.requestableAccessChecker
+	if rc == nil {
+		rc = l.accessChecker
+	}
+	if checker, ok := rc.(*resourceChecker); ok {
+		return checker.AccessChecker
+	}
+	return nil
+}
+
 func (a *ServerWithRoles) checkAction(namespace, resourceKind string, verb string, extraVerbs ...string) error {
 	switch resourceKind {
 	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
@@ -1537,6 +1570,11 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					continue
 				}
 				r.Logins = logins
+			} else if d := r.GetDatabaseServer(); d != nil {
+				users, dbNames, dbRoles := resourceLister.getEnrichedDatabasePrincipals(d.GetDatabase())
+				r.DatabaseUsers = users
+				r.DatabaseNames = dbNames
+				r.DatabaseRoles = dbRoles
 			} else if d := r.GetAppServer(); d != nil {
 				// Apps representing an Identity Center Account have a collection of Permission Sets
 				// that can be thought of as individually-addressable sub-resources. To present a consitent

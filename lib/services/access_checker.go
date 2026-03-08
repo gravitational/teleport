@@ -765,12 +765,61 @@ func (a *accessChecker) CheckDatabaseRoles(database types.Database, userRequeste
 				return nil, trace.AccessDenied("access to database role %q denied", requestedRole)
 			}
 		}
-		return userRequestedRoles, nil
+		return a.filterByConstrainedDatabaseRoles(database, userRequestedRoles), nil
 
 	// If user does not provide any roles, use all allowed roles from roleset.
 	default:
-		return result.allowedRoles(), nil
+		return a.filterByConstrainedDatabaseRoles(database, result.allowedRoles()), nil
 	}
+}
+
+// filterByConstrainedDatabaseRoles filters the given database roles against
+// any ResourceConstraints present on the identity for the given database.
+// If no constraints or no role constraints exist, the input is returned as-is.
+func (a *accessChecker) filterByConstrainedDatabaseRoles(database types.Database, roles []string) []string {
+	constrainedRoles := a.getConstrainedDatabaseRoles(database)
+	if constrainedRoles == nil {
+		return roles
+	}
+	filtered := make([]string, 0, len(roles))
+	for _, role := range roles {
+		if _, ok := constrainedRoles[role]; ok {
+			filtered = append(filtered, role)
+		}
+	}
+	return filtered
+}
+
+// getConstrainedDatabaseRoles looks up database role constraints from the
+// identity's AllowedResourceAccessIDs for the given database. Returns nil if
+// no matching constraints or no role constraints are found.
+func (a *accessChecker) getConstrainedDatabaseRoles(database types.Database) map[string]struct{} {
+	if len(a.info.AllowedResourceAccessIDs) == 0 {
+		return nil
+	}
+	for _, rid := range a.info.AllowedResourceAccessIDs {
+		id := rid.GetResourceID()
+		if id.ClusterName != a.localCluster {
+			continue
+		}
+		if id.Kind != types.KindDatabase || id.Name != database.GetName() {
+			continue
+		}
+		rc := rid.GetConstraints()
+		if rc == nil {
+			continue
+		}
+		dbConstraints, ok := rc.Details.(*types.ResourceConstraints_Database)
+		if !ok || dbConstraints.Database == nil || len(dbConstraints.Database.Roles) == 0 {
+			continue
+		}
+		allowed := make(map[string]struct{}, len(dbConstraints.Database.Roles))
+		for _, r := range dbConstraints.Database.Roles {
+			allowed[r] = struct{}{}
+		}
+		return allowed
+	}
+	return nil
 }
 
 type checkDatabaseRolesResult struct {

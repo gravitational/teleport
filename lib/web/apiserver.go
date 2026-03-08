@@ -3482,7 +3482,21 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				unifiedResources = append(unifiedResources, ui.MakeGitServer(cluster.GetName(), r, enriched.RequiresRequest))
 			}
 		case types.DatabaseServer:
-			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
+			databaseComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
+			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest, databaseComponentFeatures)
+			// When enriched database principals are available (from search_as_roles),
+			// populate per-principal detail objects with requiresRequest metadata.
+			// The base accessChecker's results (db.DatabaseUsers/Names/Roles) are the granted set;
+			// enriched.DatabaseUsers/Names/Roles are the full set (granted + requestable).
+			if len(enriched.DatabaseUsers) > 0 || len(enriched.DatabaseNames) > 0 || len(enriched.DatabaseRoles) > 0 {
+				db.DatabaseUserDetails = ui.BuildDatabaseUserDetails(enriched.DatabaseUsers, db.DatabaseUsers)
+				db.DatabaseNameDetails = ui.BuildDatabaseNameDetails(enriched.DatabaseNames, db.DatabaseNames)
+				db.DatabaseRoleDetails = ui.BuildDatabaseRoleDetails(enriched.DatabaseRoles, db.DatabaseRoles)
+				// Update the flat lists to the full (enriched) set for backwards compat.
+				db.DatabaseUsers = enriched.DatabaseUsers
+				db.DatabaseNames = enriched.DatabaseNames
+				db.DatabaseRoles = enriched.DatabaseRoles
+			}
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
 			// Get all (granted ∪ requestable) logins
