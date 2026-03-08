@@ -4573,7 +4573,7 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 	if r := resource.GetNode(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, Principals: resourcePrincipalSets(resource.Principals), RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetDatabaseServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Principals: resourcePrincipalSets(resource.Principals), RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetDatabaseService(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {

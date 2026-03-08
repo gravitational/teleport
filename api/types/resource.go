@@ -188,6 +188,12 @@ const (
 	PrincipalKindLogins = "logins"
 	// PrincipalKindRoleARNs is AWS role ARNs on AWS console apps.
 	PrincipalKindRoleARNs = "role_arns"
+	// PrincipalKindDBUsers is database users on databases.
+	PrincipalKindDBUsers = "db_users"
+	// PrincipalKindDBNames is database names on databases.
+	PrincipalKindDBNames = "db_names"
+	// PrincipalKindDBRoles is database roles on databases.
+	PrincipalKindDBRoles = "db_roles"
 )
 
 // EnrichedResources is a wrapper of []*EnrichedResource.

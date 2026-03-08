@@ -1101,6 +1101,51 @@ func clientAccessRequest(name, user string) *types.AccessRequestV3 {
 	}
 }
 
+func TestConvertEnrichedResourceDatabasePrincipals(t *testing.T) {
+	t.Parallel()
+
+	enriched, err := convertEnrichedResource(&proto.PaginatedResource{
+		Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: &types.DatabaseServerV3{}},
+		Principals: []*proto.ResourcePrincipalSet{
+			{
+				Kind:        types.PrincipalKindDBUsers,
+				Granted:     []string{"reader"},
+				Requestable: []string{"admin"},
+				ByRole: []*proto.RolePrincipalValues{
+					{Role: "db-read", Values: []string{"reader"}},
+					{Role: "db-admin", RequiresRequest: true, Values: []string{"admin"}},
+				},
+			},
+			{
+				Kind:    types.PrincipalKindDBNames,
+				Granted: []string{"reports"},
+				ByRole: []*proto.RolePrincipalValues{
+					{Role: "db-read", Values: []string{"reports"}},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []types.ResourcePrincipalSet{
+		{
+			Kind:        types.PrincipalKindDBUsers,
+			Granted:     []string{"reader"},
+			Requestable: []string{"admin"},
+			ByRole: []types.RolePrincipalValues{
+				{Role: "db-read", Values: []string{"reader"}},
+				{Role: "db-admin", RequiresRequest: true, Values: []string{"admin"}},
+			},
+		},
+		{
+			Kind:    types.PrincipalKindDBNames,
+			Granted: []string{"reports"},
+			ByRole: []types.RolePrincipalValues{
+				{Role: "db-read", Values: []string{"reports"}},
+			},
+		},
+	}, enriched.Principals)
+}
+
 func TestWindowsCAFallback(t *testing.T) {
 	t.Parallel()
 

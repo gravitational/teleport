@@ -42,6 +42,10 @@ func (rc *ResourceConstraints) CheckAndSetDefaults() error {
 		if err := d.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *ResourceConstraints_Database:
+		if err := d.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unsupported Details type %T", d)
 	}
@@ -83,6 +87,17 @@ func (awsc *ResourceConstraints_AwsConsole) Validate() error {
 func (sshc *ResourceConstraints_Ssh) Validate() error {
 	if sshc == nil || sshc.Ssh == nil || len(sshc.Ssh.Logins) == 0 {
 		return trace.BadParameter("ssh constraints require logins, none provided")
+	}
+	return nil
+}
+
+// Validate ensures at least one of Users, Names, or Roles is non-empty.
+func (dbc *ResourceConstraints_Database) Validate() error {
+	if dbc == nil || dbc.Database == nil {
+		return trace.BadParameter("database constraints require at least one of users, names, or roles")
+	}
+	if len(dbc.Database.Users) == 0 && len(dbc.Database.Names) == 0 && len(dbc.Database.Roles) == 0 {
+		return trace.BadParameter("database constraints require at least one of users, names, or roles")
 	}
 	return nil
 }
