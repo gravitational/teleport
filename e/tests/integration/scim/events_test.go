@@ -52,15 +52,15 @@ func TestAuditEvents(t *testing.T) {
 
 		t.Run("Users", func(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
-				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				eventLog := common.NewLogScope[*apievents.SCIMListingEvent](sut)
 				_, err := goodScimClient.ListUsers(ctx)
 				require.NoError(t, err)
-				eventLog.requireEvent(t, events.SCIMListingEvent,
+				eventLog.RequireEvent(t, events.SCIMListingEvent,
 					withListingMetadata(
-						withEventCode(events.SCIMListResourcesSuccessCode)),
+						common.WithEventCode(events.SCIMListResourcesSuccessCode)),
 					withListingStatus(
-						withSuccess(true),
-						withNoError),
+						common.WithSuccess(true),
+						common.WithNoError),
 					withListingCommonData(
 						withIntegration("generic"),
 						withResourceType("Users")),
@@ -69,24 +69,24 @@ func TestAuditEvents(t *testing.T) {
 			})
 
 			t.Run("OnAccessDenied", func(t *testing.T) {
-				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				eventLog := common.NewLogScope[*apievents.SCIMListingEvent](sut)
 				_, err := badScimClient.ListUsers(ctx)
 				require.Error(t, err)
-				eventLog.requireNoEvent(t, events.SCIMListingEvent)
+				eventLog.RequireNoEvent(t, events.SCIMListingEvent)
 			})
 		})
 
 		t.Run("Groups", func(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
-				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				eventLog := common.NewLogScope[*apievents.SCIMListingEvent](sut)
 				_, err := goodScimClient.ListGroups(ctx)
 				require.NoError(t, err)
-				eventLog.requireEvent(t, events.SCIMListingEvent,
+				eventLog.RequireEvent(t, events.SCIMListingEvent,
 					withListingMetadata(
-						withEventCode(events.SCIMListResourcesSuccessCode)),
+						common.WithEventCode(events.SCIMListResourcesSuccessCode)),
 					withListingStatus(
-						withSuccess(true),
-						withNoError),
+						common.WithSuccess(true),
+						common.WithNoError),
 					withListingCommonData(
 						withIntegration("generic"),
 						withResourceType("Groups")),
@@ -113,15 +113,15 @@ func TestAuditEvents(t *testing.T) {
 
 		t.Run("Users", func(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
-				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				eventLog := common.NewLogScope[*apievents.SCIMListingEvent](sut)
 				_, err := goodScimClient.ListUsers(ctx, scimsdk.WithFilter(`userName eq "user-003"`))
 				require.NoError(t, err)
-				eventLog.requireEvent(t, events.SCIMListingEvent,
+				eventLog.RequireEvent(t, events.SCIMListingEvent,
 					withListingMetadata(
-						withEventCode(events.SCIMListResourcesSuccessCode)),
+						common.WithEventCode(events.SCIMListResourcesSuccessCode)),
 					withListingStatus(
-						withSuccess(true),
-						withNoError),
+						common.WithSuccess(true),
+						common.WithNoError),
 					withListingCommonData(
 						withIntegration("generic"),
 						withResourceType("Users")),
@@ -130,15 +130,15 @@ func TestAuditEvents(t *testing.T) {
 			})
 
 			t.Run("OnEmptyResponse", func(t *testing.T) {
-				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				eventLog := common.NewLogScope[*apievents.SCIMListingEvent](sut)
 				_, err := goodScimClient.ListUsers(ctx, scimsdk.WithFilter(`userName eq "no-such-user"`))
 				require.NoError(t, err)
-				eventLog.requireEvent(t, events.SCIMListingEvent,
+				eventLog.RequireEvent(t, events.SCIMListingEvent,
 					withListingMetadata(
-						withEventCode(events.SCIMListResourcesSuccessCode)),
+						common.WithEventCode(events.SCIMListResourcesSuccessCode)),
 					withListingStatus(
-						withSuccess(true),
-						withNoError),
+						common.WithSuccess(true),
+						common.WithNoError),
 					withListingCommonData(
 						withIntegration("generic"),
 						withResourceType("Users")),
@@ -147,31 +147,31 @@ func TestAuditEvents(t *testing.T) {
 			})
 
 			t.Run("OnBadFilter", func(t *testing.T) {
-				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				eventLog := common.NewLogScope[*apievents.SCIMListingEvent](sut)
 				_, err := goodScimClient.ListUsers(ctx, scimsdk.WithFilter("i'm a potato"))
 				require.Error(t, err)
-				eventLog.requireNoEvent(t, events.SCIMListingEvent)
+				eventLog.RequireNoEvent(t, events.SCIMListingEvent)
 			})
 
 			t.Run("OnAccessDenied", func(t *testing.T) {
-				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				eventLog := common.NewLogScope[*apievents.SCIMListingEvent](sut)
 				_, err := badScimClient.GetUserByUserName(ctx, "user-003")
 				require.Error(t, err)
-				eventLog.requireNoEvent(t, events.SCIMListingEvent)
+				eventLog.RequireNoEvent(t, events.SCIMListingEvent)
 			})
 		})
 
 		t.Run("Groups", func(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
-				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				eventLog := common.NewLogScope[*apievents.SCIMListingEvent](sut)
 				_, err := goodScimClient.ListGroups(ctx, scimsdk.WithFilter(`displayName eq "test-group-001"`))
 				require.NoError(t, err)
-				eventLog.requireEvent(t, events.SCIMListingEvent,
+				eventLog.RequireEvent(t, events.SCIMListingEvent,
 					withListingMetadata(
-						withEventCode(events.SCIMListResourcesSuccessCode)),
+						common.WithEventCode(events.SCIMListResourcesSuccessCode)),
 					withListingStatus(
-						withSuccess(true),
-						withNoError),
+						common.WithSuccess(true),
+						common.WithNoError),
 					withListingCommonData(
 						withIntegration("generic"),
 						withResourceType("Groups")),
@@ -184,19 +184,19 @@ func TestAuditEvents(t *testing.T) {
 	t.Run("Create", func(t *testing.T) {
 		t.Run("Users", func(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				scimUser := newSCIMUser("create-test-user")
 				_, err := goodScimClient.CreateUser(ctx, scimUser)
 				require.NoError(t, err)
 				t.Cleanup(func() {
 					require.NoError(t, auth.DeleteUser(ctx, scimUser.UserName))
 				})
-				auditLog.requireEvent(t, events.SCIMCreateEvent,
+				auditLog.RequireEvent(t, events.SCIMCreateEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMResourceCreateSuccessCode)),
+						common.WithEventCode(events.SCIMResourceCreateSuccessCode)),
 					withResourceStatus(
-						withSuccess(true),
-						withNoError),
+						common.WithSuccess(true),
+						common.WithNoError),
 					withResourceCommonData(
 						withIntegration("generic"),
 						withResourceType("Users")),
@@ -211,16 +211,16 @@ func TestAuditEvents(t *testing.T) {
 			})
 
 			t.Run("OnInvalidUsername", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				scimUser := newSCIMUser("Gráinne-O'Malley")
 				_, err := goodScimClient.CreateUser(ctx, scimUser)
 				require.Error(t, err)
-				auditLog.requireEvent(t, events.SCIMCreateEvent,
+				auditLog.RequireEvent(t, events.SCIMCreateEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMResourceCreateFailureCode)),
+						common.WithEventCode(events.SCIMResourceCreateFailureCode)),
 					withResourceStatus(
-						withSuccess(false),
-						withErrorMatching(`.*special characters are not allowed.*`)),
+						common.WithSuccess(false),
+						common.WithErrorMatching(`.*special characters are not allowed.*`)),
 					withExternalID(scimUser.ExternalID),
 					withTeleportID(""),
 					withNoResponse,
@@ -228,11 +228,11 @@ func TestAuditEvents(t *testing.T) {
 			})
 
 			t.Run("OnAccessDenied", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				scimUser := newSCIMUser("create-test-user")
 				_, err := badScimClient.CreateUser(ctx, scimUser)
 				require.Error(t, err)
-				auditLog.requireNoEvent(t, events.SCIMCreateEvent)
+				auditLog.RequireNoEvent(t, events.SCIMCreateEvent)
 			})
 		})
 
@@ -249,17 +249,17 @@ func TestAuditEvents(t *testing.T) {
 				common.WithGrants(accesslist.Grants{Roles: []string{"access"}}))
 
 			t.Run("OnSuccess", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				scimGroup, err := goodScimClient.CreateGroup(ctx, &scimsdk.Group{
 					DisplayName: "Test Group #01",
 				})
 				require.NoError(t, err)
-				auditLog.requireEvent(t, events.SCIMCreateEvent,
+				auditLog.RequireEvent(t, events.SCIMCreateEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMResourceCreateSuccessCode)),
+						common.WithEventCode(events.SCIMResourceCreateSuccessCode)),
 					withResourceStatus(
-						withSuccess(true),
-						withNoError),
+						common.WithSuccess(true),
+						common.WithNoError),
 					withResourceCommonData(
 						withIntegration("generic"),
 						withResourceType("Groups")),
@@ -276,7 +276,7 @@ func TestAuditEvents(t *testing.T) {
 			})
 
 			t.Run("OnNoSuchGroup", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 
 				// When I try to create a group that does not have a pre-existing
 				// Access List to back it...
@@ -285,12 +285,12 @@ func TestAuditEvents(t *testing.T) {
 				})
 				require.Error(t, err)
 
-				auditLog.requireEvent(t, events.SCIMCreateEvent,
+				auditLog.RequireEvent(t, events.SCIMCreateEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMResourceCreateFailureCode)),
+						common.WithEventCode(events.SCIMResourceCreateFailureCode)),
 					withResourceStatus(
-						withSuccess(false),
-						withErrorMatching("does not exist")),
+						common.WithSuccess(false),
+						common.WithErrorMatching("does not exist")),
 					withResourceCommonData(
 						withIntegration("generic"),
 						withResourceType("Groups")),
@@ -320,15 +320,15 @@ func TestAuditEvents(t *testing.T) {
 
 		t.Run("Users", func(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				_, err := goodScimClient.GetUser(ctx, "user-002")
 				require.NoError(t, err)
-				auditLog.requireEvent(t, events.SCIMGetEvent,
+				auditLog.RequireEvent(t, events.SCIMGetEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMGetResourceSuccessCode)),
+						common.WithEventCode(events.SCIMGetResourceSuccessCode)),
 					withResourceStatus(
-						withSuccess(true),
-						withNoError),
+						common.WithSuccess(true),
+						common.WithNoError),
 					withResourceCommonData(
 						withIntegration("generic"),
 						withResourceType("Users")),
@@ -338,15 +338,15 @@ func TestAuditEvents(t *testing.T) {
 			})
 
 			t.Run("OnNoSuchResource", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				_, err := goodScimClient.GetUser(ctx, "no-such-user")
 				require.Error(t, err)
-				auditLog.requireEvent(t, events.SCIMGetEvent,
+				auditLog.RequireEvent(t, events.SCIMGetEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMGetResourceFailureCode)),
+						common.WithEventCode(events.SCIMGetResourceFailureCode)),
 					withResourceStatus(
-						withSuccess(false),
-						withError),
+						common.WithSuccess(false),
+						common.WithError),
 					withResourceCommonData(
 						withIntegration("generic"),
 						withResourceType("Users")),
@@ -356,24 +356,24 @@ func TestAuditEvents(t *testing.T) {
 			})
 
 			t.Run("OnUnauthorized", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				_, err := badScimClient.GetUser(ctx, "no-such-user")
 				require.Error(t, err)
-				auditLog.requireNoEvent(t, events.SCIMGetEvent)
+				auditLog.RequireNoEvent(t, events.SCIMGetEvent)
 			})
 		})
 
 		t.Run("Groups", func(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				_, err := goodScimClient.GetGroup(ctx, accessList.GetName())
 				require.NoError(t, err)
-				auditLog.requireEvent(t, events.SCIMGetEvent,
+				auditLog.RequireEvent(t, events.SCIMGetEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMGetResourceSuccessCode)),
+						common.WithEventCode(events.SCIMGetResourceSuccessCode)),
 					withResourceStatus(
-						withSuccess(true),
-						withNoError),
+						common.WithSuccess(true),
+						common.WithNoError),
 					withResourceCommonData(
 						withIntegration("generic"),
 						withResourceType("Groups")),
@@ -389,7 +389,7 @@ func TestAuditEvents(t *testing.T) {
 			mustCreateSCIMUser(t, sut, "update-test-user")
 
 			t.Run("OnSuccess", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				_, err := goodScimClient.UpdateUser(ctx, &scimsdk.User{
 					ID:         "update-test-user",
 					ExternalID: "update-test-user-external-id",
@@ -397,12 +397,12 @@ func TestAuditEvents(t *testing.T) {
 					Active:     false,
 				})
 				require.NoError(t, err)
-				auditLog.requireEvent(t, events.SCIMUpdateEvent,
+				auditLog.RequireEvent(t, events.SCIMUpdateEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMResourceUpdateSuccessCode)),
+						common.WithEventCode(events.SCIMResourceUpdateSuccessCode)),
 					withResourceStatus(
-						withSuccess(true),
-						withNoError),
+						common.WithSuccess(true),
+						common.WithNoError),
 					withResourceCommonData(
 						withIntegration("generic"),
 						withResourceType("Users")),
@@ -416,7 +416,7 @@ func TestAuditEvents(t *testing.T) {
 			})
 
 			t.Run("OnNoSuchResource", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				_, err := goodScimClient.UpdateUser(ctx, &scimsdk.User{
 					ID:         "no-such-user-to-update",
 					ExternalID: "no-such-user-to-update-external-id",
@@ -424,12 +424,12 @@ func TestAuditEvents(t *testing.T) {
 					Active:     true,
 				})
 				require.Error(t, err)
-				auditLog.requireEvent(t, events.SCIMUpdateEvent,
+				auditLog.RequireEvent(t, events.SCIMUpdateEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMResourceUpdateFailureCode)),
+						common.WithEventCode(events.SCIMResourceUpdateFailureCode)),
 					withResourceStatus(
-						withSuccess(false),
-						withError),
+						common.WithSuccess(false),
+						common.WithError),
 					withResourceCommonData(
 						withIntegration("generic"),
 						withResourceType("Users")),
@@ -439,7 +439,7 @@ func TestAuditEvents(t *testing.T) {
 			})
 
 			t.Run("OnUnauthorized", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				_, err := badScimClient.UpdateUser(ctx, &scimsdk.User{
 					ID:         "update-test-user",
 					ExternalID: "update-test-user-external-id",
@@ -447,7 +447,7 @@ func TestAuditEvents(t *testing.T) {
 					Active:     false,
 				})
 				require.Error(t, err)
-				auditLog.requireNoEvent(t, events.SCIMUpdateEvent)
+				auditLog.RequireNoEvent(t, events.SCIMUpdateEvent)
 			})
 		})
 
@@ -461,18 +461,18 @@ func TestAuditEvents(t *testing.T) {
 				common.WithGrants(accesslist.Grants{Roles: []string{"access"}}))
 
 			t.Run("OnSuccess", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				_, err := goodScimClient.UpdateGroup(ctx, &scimsdk.Group{
 					ID:          accessList.GetName(),
 					DisplayName: "Updated Access List!",
 				})
 				require.NoError(t, err)
-				auditLog.requireEvent(t, events.SCIMUpdateEvent,
+				auditLog.RequireEvent(t, events.SCIMUpdateEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMResourceUpdateSuccessCode)),
+						common.WithEventCode(events.SCIMResourceUpdateSuccessCode)),
 					withResourceStatus(
-						withSuccess(true),
-						withNoError),
+						common.WithSuccess(true),
+						common.WithNoError),
 					withResourceCommonData(
 						withIntegration("generic"),
 						withResourceType("Groups")),
@@ -504,18 +504,18 @@ func TestAuditEvents(t *testing.T) {
 			}
 
 			t.Run("OnSuccess", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 
 				resp := mustPatchSCIMResource(t, httpClient, baseURL, "Users", targetUser.GetName(), patch)
 				require.NoError(t, resp.Body.Close())
 				require.Equal(t, http.StatusOK, resp.StatusCode)
 
-				auditLog.requireEvent(t, events.SCIMPatchEvent,
+				auditLog.RequireEvent(t, events.SCIMPatchEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMResourcePatchSuccessCode)),
+						common.WithEventCode(events.SCIMResourcePatchSuccessCode)),
 					withResourceStatus(
-						withSuccess(true),
-						withNoError),
+						common.WithSuccess(true),
+						common.WithNoError),
 					withResourceCommonData(
 						withIntegration("generic"),
 						withResourceType("Users")),
@@ -530,18 +530,18 @@ func TestAuditEvents(t *testing.T) {
 			})
 
 			t.Run("OnNoSuchResource", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 
 				resp := mustPatchSCIMResource(t, httpClient, baseURL, "Users", "no-such-user-to-patch", patch)
 				require.NoError(t, resp.Body.Close())
 				require.Equal(t, http.StatusNotFound, resp.StatusCode)
 
-				auditLog.requireEvent(t, events.SCIMPatchEvent,
+				auditLog.RequireEvent(t, events.SCIMPatchEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMResourcePatchFailureCode)),
+						common.WithEventCode(events.SCIMResourcePatchFailureCode)),
 					withResourceStatus(
-						withSuccess(false),
-						withError),
+						common.WithSuccess(false),
+						common.WithError),
 					withResourceCommonData(
 						withIntegration("generic"),
 						withResourceType("Users")),
@@ -552,14 +552,14 @@ func TestAuditEvents(t *testing.T) {
 			})
 
 			t.Run("OnUnauthorized", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 
 				resp := mustPatchSCIMResource(t, newBearerClient("this-is-a-bad-token"),
 					baseURL, "Users", "no-such-user-to-patch", patch)
 				require.NoError(t, resp.Body.Close())
 				require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 
-				auditLog.requireNoEvent(t, events.SCIMPatchEvent)
+				auditLog.RequireNoEvent(t, events.SCIMPatchEvent)
 			})
 		})
 
@@ -584,18 +584,18 @@ func TestAuditEvents(t *testing.T) {
 			}
 
 			t.Run("OnSuccess", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 
 				resp := mustPatchSCIMResource(t, httpClient, baseURL, "Groups", accessList.GetName(), patch)
 				require.NoError(t, resp.Body.Close())
 				require.Equal(t, http.StatusOK, resp.StatusCode)
 
-				auditLog.requireEvent(t, events.SCIMPatchEvent,
+				auditLog.RequireEvent(t, events.SCIMPatchEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMResourcePatchSuccessCode)),
+						common.WithEventCode(events.SCIMResourcePatchSuccessCode)),
 					withResourceStatus(
-						withSuccess(true),
-						withNoError),
+						common.WithSuccess(true),
+						common.WithNoError),
 					withResourceCommonData(
 						withIntegration("generic"),
 						withResourceType("Groups")),
@@ -616,16 +616,16 @@ func TestAuditEvents(t *testing.T) {
 	t.Run("DeleteResource", func(t *testing.T) {
 		t.Run("Users", func(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				scimUser := mustCreateSCIMUser(t, sut, "delete-test-user")
 				err := goodScimClient.DeleteUser(ctx, scimUser.GetName())
 				require.NoError(t, err)
-				auditLog.requireEvent(t, events.SCIMDeleteEvent,
+				auditLog.RequireEvent(t, events.SCIMDeleteEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMResourceDeleteSuccessCode)),
+						common.WithEventCode(events.SCIMResourceDeleteSuccessCode)),
 					withResourceStatus(
-						withSuccess(true),
-						withNoError),
+						common.WithSuccess(true),
+						common.WithNoError),
 					withResourceCommonData(
 						withIntegration("generic"),
 						withResourceType("Users")),
@@ -635,15 +635,15 @@ func TestAuditEvents(t *testing.T) {
 			})
 
 			t.Run("OnNoSuchResource", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				err := goodScimClient.DeleteUser(ctx, "no-such-user")
 				require.Error(t, err)
-				auditLog.requireEvent(t, events.SCIMDeleteEvent,
+				auditLog.RequireEvent(t, events.SCIMDeleteEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMResourceDeleteFailureCode)),
+						common.WithEventCode(events.SCIMResourceDeleteFailureCode)),
 					withResourceStatus(
-						withSuccess(false),
-						withError),
+						common.WithSuccess(false),
+						common.WithError),
 					withResourceCommonData(
 						withIntegration("generic"),
 						withResourceType("Users")),
@@ -653,10 +653,10 @@ func TestAuditEvents(t *testing.T) {
 			})
 
 			t.Run("OnUnauthorized", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				err := badScimClient.DeleteUser(ctx, "delete-test-user")
 				require.Error(t, err)
-				auditLog.requireNoEvent(t, events.SCIMDeleteEvent)
+				auditLog.RequireNoEvent(t, events.SCIMDeleteEvent)
 			})
 		})
 
@@ -670,15 +670,15 @@ func TestAuditEvents(t *testing.T) {
 				common.WithGrants(accesslist.Grants{Roles: []string{"access"}}))
 
 			t.Run("OnSuccess", func(t *testing.T) {
-				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				auditLog := common.NewLogScope[*apievents.SCIMResourceEvent](sut)
 				err := goodScimClient.DeleteGroup(ctx, accessList.GetName())
 				require.NoError(t, err)
-				auditLog.requireEvent(t, events.SCIMDeleteEvent,
+				auditLog.RequireEvent(t, events.SCIMDeleteEvent,
 					withResourceMetadata(
-						withEventCode(events.SCIMResourceDeleteSuccessCode)),
+						common.WithEventCode(events.SCIMResourceDeleteSuccessCode)),
 					withResourceStatus(
-						withSuccess(true),
-						withNoError),
+						common.WithSuccess(true),
+						common.WithNoError),
 					withResourceCommonData(
 						withIntegration("generic"),
 						withResourceType("Groups")),

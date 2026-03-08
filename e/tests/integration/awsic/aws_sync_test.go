@@ -12,11 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
+	"github.com/gravitational/teleport/lib/events"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
@@ -74,7 +76,7 @@ func requireTestClusterWithIdentityCenter(t *testing.T) (*common.SUT, *ictest.Un
 
 func TestAWSResourceSyncHandlesRenamedAccounts(t *testing.T) {
 	ctx := t.Context()
-	setAWSSyncInterval(t, 5*time.Second)
+	setAWSSyncInterval(t, time.Second)
 
 	// GIVEN a running Teleport Cluster with a running Identity Center
 	// integration...
@@ -90,6 +92,7 @@ func TestAWSResourceSyncHandlesRenamedAccounts(t *testing.T) {
 	oldRoles := makeAccountRoleNames(mockIC.PermissionSets, &originalAWSAccount)
 	newRoles := makeAccountRoleNames(mockIC.PermissionSets, modifiedAWSAccount)
 	auth := sut.Teleport.Process.GetAuthServer()
+	logScope := common.NewLogScope[*apievents.AWSICResourceSync](sut)
 
 	require.EventuallyWithT(t,
 		func(t *assert.CollectT) {
@@ -111,6 +114,40 @@ func TestAWSResourceSyncHandlesRenamedAccounts(t *testing.T) {
 			}
 		},
 		10*time.Second, 250*time.Millisecond)
+
+	logScope.RequireEvent(t, events.AWSICResourceSyncSuccessEvent)
+
+	// WHEN a previously-renamed AWS Account gets renamed back to its original
+	// name
+	logScope.Reset()
+	mockIC.Mu.Lock()
+	mockIC.Accounts[1].Name = originalAWSAccount.Name
+	mockIC.Mu.Unlock()
+
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			// EXPECT that the account name change is eventually propagated to
+			// Teleport
+			requireICAccount(ctx, t, auth.IdentityCenter, modifiedAWSAccount.ID,
+				withAccountName(originalAWSAccount.Name))
+
+			// EXPECT that roles referencing the original account name have been
+			// re-adopted
+			for _, oldRole := range oldRoles {
+				requireRole(ctx, t, auth.Access, oldRole,
+					withRoleSubkind(types.KindIdentityCenter))
+			}
+
+			// EXPECT that the roles referencing the modified account name have
+			// been deprecated
+			for i, newRole := range newRoles {
+				requireRole(ctx, t, auth.Access, newRole,
+					withRoleSubkind(""),
+					withRoleLabel("teleport.internal/replaced_with", oldRoles[i]))
+			}
+		},
+		10*time.Second, 250*time.Millisecond)
+	logScope.RequireEvent(t, events.AWSICResourceSyncSuccessEvent)
 }
 
 func TestAWSResourceSyncHandlesRenamedPermissionSets(t *testing.T) {
