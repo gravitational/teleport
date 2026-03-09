@@ -564,6 +564,9 @@ attention:
     whether the Bot is scoped or unscoped. As such, we should perform
     fuzz/reflection based testing against an allow-list of fields for scoped vs
     unscoped bots.
+- Thorough testing of joining and certificate generation for scoped Bots.
+  - Key invariants to ensure here is that the resulting certificates are always
+    pinned to the bot's scope, and that they do not contain roles or traits.
 
 ## Security Considerations
 
