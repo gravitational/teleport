@@ -143,13 +143,13 @@ func checkResourceShape(_ context.Context, rw check.ResponseWriter, _ check.Requ
 			if field.Cardinality() != protoreflect.Optional {
 				rw.AddAnnotation(
 					check.WithDescriptor(field),
-					check.WithMessagef("ResourceHeader field %+q must not be repeated or required", field.Name()),
+					check.WithMessagef("ResourceHeader field %+q in resource %+q must not be repeated or required", field.Name(), m.FullName()),
 				)
 			}
 			if hasKind || hasSubKind || hasVersion || hasMetadata {
 				rw.AddAnnotation(
 					check.WithDescriptor(field),
-					check.WithMessagef("ResourceHeader field %+q must not be used with duplicated fields", field.Name()),
+					check.WithMessagef("ResourceHeader field %+q in resource %+q must not be used with duplicated fields", field.Name(), m.FullName()),
 				)
 			}
 			hasKind = true
@@ -168,7 +168,7 @@ func checkResourceShape(_ context.Context, rw check.ResponseWriter, _ check.Requ
 			default:
 				rw.AddAnnotation(
 					check.WithDescriptor(field),
-					check.WithMessagef("unexpected top-level field %+q in resource", field.Name()),
+					check.WithMessagef("unexpected top-level field %+q in resource %+q", field.Name(), m.FullName()),
 				)
 			}
 		}
@@ -181,7 +181,7 @@ func checkResourceShape(_ context.Context, rw check.ResponseWriter, _ check.Requ
 			if field.Kind() != protoreflect.StringKind || field.Cardinality() != protoreflect.Optional || field.HasOptionalKeyword() || field.HasPresence() {
 				rw.AddAnnotation(
 					check.WithDescriptor(field),
-					check.WithMessagef("%+q field must be an implicitly present string", lowercase),
+					check.WithMessagef("%+q field in resource %+q must be an implicitly present string", lowercase, m.FullName()),
 				)
 			}
 
@@ -189,19 +189,19 @@ func checkResourceShape(_ context.Context, rw check.ResponseWriter, _ check.Requ
 			if string(field.Name()) == lowercase && hasJT && jt != lowercase && jt != lowercase+",omitempty" {
 				rw.AddAnnotation(
 					check.WithDescriptor(field),
-					check.WithMessagef("%+q field should not have gogoproto.jsontag", lowercase),
+					check.WithMessagef("%+q field in resource %+q should not have gogoproto.jsontag", lowercase, m.FullName()),
 				)
 			} else if string(field.Name()) != lowercase && jt != lowercase && jt != lowercase+",omitempty" {
 				rw.AddAnnotation(
 					check.WithDescriptor(field),
-					check.WithMessagef("%+q field should be lowercase (or should set gogoproto.jsontag)", lowercase),
+					check.WithMessagef("%+q field in resource %+q should be lowercase (or should set gogoproto.jsontag)", lowercase, m.FullName()),
 				)
 			}
 
 			if *presence {
 				rw.AddAnnotation(
 					check.WithDescriptor(field),
-					check.WithMessagef("duplicated %+q field", lowercase),
+					check.WithMessagef("duplicated %+q field in resource %+q", lowercase, m.FullName()),
 				)
 			}
 			*presence = true
@@ -219,14 +219,14 @@ func checkResourceShape(_ context.Context, rw check.ResponseWriter, _ check.Requ
 			if field.Kind() != protoreflect.MessageKind || field.Cardinality() != protoreflect.Optional || field.HasOptionalKeyword() {
 				rw.AddAnnotation(
 					check.WithDescriptor(field),
-					check.WithMessagef("%+q field must be an implicitly present message", lowercase),
+					check.WithMessagef("%+q field in resource %+q must be an implicitly present message", lowercase, m.FullName()),
 				)
 			}
 
 			if len(allowedTypes) > 0 && !slices.Contains(allowedTypes, string(field.Message().FullName())) {
 				rw.AddAnnotation(
 					check.WithDescriptor(field),
-					check.WithMessagef("%+q field must have the correct type", lowercase),
+					check.WithMessagef("%+q field in resource %+q must have the correct type", lowercase, m.FullName()),
 				)
 			}
 
@@ -234,19 +234,19 @@ func checkResourceShape(_ context.Context, rw check.ResponseWriter, _ check.Requ
 			if string(field.Name()) == lowercase && hasJT && jt != lowercase && jt != lowercase+",omitempty" {
 				rw.AddAnnotation(
 					check.WithDescriptor(field),
-					check.WithMessagef("%+q field should not have gogoproto.jsontag", lowercase),
+					check.WithMessagef("%+q field in resource %+q should not have gogoproto.jsontag", lowercase, m.FullName()),
 				)
 			} else if string(field.Name()) != lowercase && jt != lowercase && jt != lowercase+",omitempty" {
 				rw.AddAnnotation(
 					check.WithDescriptor(field),
-					check.WithMessagef("%+q field should be lowercase (or should set gogoproto.jsontag)", lowercase),
+					check.WithMessagef("%+q field in resource %+q should be lowercase (or should set gogoproto.jsontag)", lowercase, m.FullName()),
 				)
 			}
 
 			if *presence {
 				rw.AddAnnotation(
 					check.WithDescriptor(field),
-					check.WithMessagef("duplicated %+q field", lowercase),
+					check.WithMessagef("duplicated %+q field in resource %+q", lowercase, m.FullName()),
 				)
 			}
 			*presence = true
@@ -262,7 +262,7 @@ func checkResourceShape(_ context.Context, rw check.ResponseWriter, _ check.Requ
 		}
 		rw.AddAnnotation(
 			check.WithDescriptor(m),
-			check.WithMessagef("missing %+q field in resource", lowercase),
+			check.WithMessagef("missing %+q field in resource %+q", lowercase, m.FullName()),
 		)
 	}
 	validatePresentField("kind", hasKind)
