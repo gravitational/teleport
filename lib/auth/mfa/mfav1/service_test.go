@@ -859,12 +859,12 @@ func TestListValidatedMFAChallenges_FilterByTargetCluster(t *testing.T) {
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleProxy).I)
 
+	selectedCluster := targetCluster
+
 	req := &mfav1.ListValidatedMFAChallengesRequest{
 		PageSize: 10,
 		Filter: &mfav1.ListValidatedMFAChallengesFilter{
-			XTargetCluster: &mfav1.ListValidatedMFAChallengesFilter_TargetCluster{
-				TargetCluster: targetCluster,
-			},
+			TargetCluster: &selectedCluster,
 		},
 	}
 
