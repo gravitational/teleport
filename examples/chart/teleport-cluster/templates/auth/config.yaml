@@ -101,6 +101,14 @@ data:
               - update
               - delete
           - resources:
+              - saml_idp_service_provider
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
               - login_rule
             verbs:
               - list

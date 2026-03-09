@@ -24,11 +24,12 @@ import { Alert } from 'design/Alert/Alert';
 import Box, { BoxProps } from 'design/Box/Box';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button/Button';
 import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
-import { Dialog } from 'design/Dialog/Dialog';
-import DialogContent from 'design/Dialog/DialogContent';
-import DialogFooter from 'design/Dialog/DialogFooter';
-import DialogHeader from 'design/Dialog/DialogHeader';
-import DialogTitle from 'design/Dialog/DialogTitle';
+import Dialog, {
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from 'design/Dialog';
 import Flex from 'design/Flex/Flex';
 import { CheckThick } from 'design/Icon/Icons/CheckThick';
 import { Cross } from 'design/Icon/Icons/Cross';

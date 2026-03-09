@@ -240,6 +240,10 @@ type Config struct {
 	// FIPS mode means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	FIPS bool
+
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
+
 	// Modules define the build type, entitlements and licensed features.
 	Modules modules.Modules
 

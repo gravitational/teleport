@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -89,6 +88,7 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 		testserver.WithTestApp("root-app-mfa", rootAppMFAServer.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = false
+			cfg.InsecureMode = true
 			cfg.Auth.Preference = &types.AuthPreferenceV2{
 				Metadata: types.Metadata{
 					Labels: map[string]string{types.OriginLabel: types.OriginConfigFile},
@@ -125,6 +125,7 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 		testserver.WithTestApp("leaf-app-mfa", leafAppMFAServer.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = false
+			cfg.InsecureMode = true
 		}),
 	)
 	require.NoError(t, err)
@@ -291,11 +292,6 @@ func RegisterPasswordlessDeviceForUser(t *testing.T, server *service.TeleportPro
 }
 
 func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServer *service.TeleportProcess, additionalRoleMappings ...types.RoleMapping) {
-	// Use insecure mode so that the trusted cluster can establish trust over reverse tunnel.
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(isInsecure) })
-
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 	rootProxyTunnelAddr, err := rootServer.ProxyTunnelAddr()

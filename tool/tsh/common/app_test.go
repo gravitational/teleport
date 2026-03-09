@@ -114,6 +114,7 @@ func TestAppCommands(t *testing.T) {
 		testserver.WithTestApp("rootapp", rootApp.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.InsecureMode = true
 		}),
 	}
 	rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
@@ -141,6 +142,7 @@ func TestAppCommands(t *testing.T) {
 		testserver.WithTestApp("leafapp", leafApp.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.InsecureMode = true
 		}),
 	}
 	leafServer, err := testserver.NewTeleportProcess(t.TempDir(), leafServerOpts...)

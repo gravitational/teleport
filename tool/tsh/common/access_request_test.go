@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -48,8 +47,6 @@ func TestAccessRequestSearch(t *testing.T) {
 		},
 	},
 	)
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 	ctx := context.Background()
 	const (
 		rootClusterName = "root-cluster"
@@ -59,6 +56,7 @@ func TestAccessRequestSearch(t *testing.T) {
 	)
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
 			cfg.Auth.ClusterName.SetClusterName(rootClusterName)
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Kube.Enabled = true
@@ -69,6 +67,7 @@ func TestAccessRequestSearch(t *testing.T) {
 		withLeafCluster(),
 		withLeafConfigFunc(
 			func(cfg *servicecfg.Config) {
+				cfg.InsecureMode = true
 				cfg.Auth.ClusterName.SetClusterName(leafClusterName)
 				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				cfg.Kube.Enabled = true

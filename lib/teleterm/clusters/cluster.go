@@ -271,6 +271,11 @@ func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 	return roles, nil
 }
 
+// NewAccessChecker creates a new access checker for the cluster.
+func (c *Cluster) NewAccessChecker(ctx context.Context, authClient services.CurrentUserRoleGetter) (services.AccessChecker, error) {
+	return services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.Name, authClient)
+}
+
 // GetRequestableRoles returns the requestable roles for the currently logged-in user
 func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest, authClient authclient.ClientI) (*types.AccessCapabilities, error) {
 	var (
