@@ -295,7 +295,7 @@ const getTargetDesc = (reason: ClusterConnectReason): React.ReactNode => {
   }
 };
 
-function LoginHeader(props: { cluster: string; onClose: () => void }) {
+function LoginHeader(props: { cluster: string; onClose(): void }) {
   return (
     <DialogHeader px={outermostPadding}>
       <H2>
