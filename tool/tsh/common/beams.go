@@ -78,6 +78,10 @@ func onBeamsAdd(cf *CLIConf) error {
 	diamondStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
 	stopCreating(fmt.Sprintf("%s created %s", diamondStyle.Render("◆"), idStyle.Render(beamID)))
 
+	if cf.BeamNoConsole {
+		return nil
+	}
+
 	clusterClient, err := tc.ConnectToCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)

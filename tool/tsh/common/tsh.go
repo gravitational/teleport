@@ -276,6 +276,8 @@ type CLIConf struct {
 	BeamID string
 	// BeamDomain is the domain passed to "tsh beams allow --domain".
 	BeamDomain string
+	// BeamNoConsole causes "tsh beams add" to return after creation without SSHing into the beam.
+	BeamNoConsole bool
 	// BeamTCP switches "tsh beams publish" from HTTP to TCP protocol.
 	BeamTCP bool
 	// Interactive sessions will allocate a PTY and create interactive "shell"
@@ -1049,6 +1051,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beams := app.Command("beams", "Create and connect to beam environments.")
 	beams.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	beamsAdd := beams.Command("add", "Create a beam and connect to it over SSH.")
+	beamsAdd.Flag("no-console", "Do not connect to the beam.").BoolVar(&cf.BeamNoConsole)
 	beamsLS := beams.Command("ls", "List your beams.")
 	beamsAllow := beams.Command("allow", "Allow a domain for an existing beam.")
 	beamsAllow.Arg("beam-id", "Beam ID to update.").Required().StringVar(&cf.BeamID)
