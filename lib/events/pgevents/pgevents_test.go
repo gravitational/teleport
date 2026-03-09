@@ -37,6 +37,7 @@ import (
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -86,11 +87,51 @@ func TestPostgresEvents(t *testing.T) {
 func TestLog_nonStandardSessionID(t *testing.T) {
 	// Don't t.Parallel(), relies on the database backed by urlEnvVar.
 	eventsLog := newLogForTesting(t)
-
-	// Example app event. Only the session ID matters for the test, everything
-	// else is realistic but irrelevant here.
 	eventTime := time.Now()
-	appStartEvent := &apievents.AppSessionStart{
+
+	// IMPORTANT: not an UUID in both cases!
+	for i, tc := range []struct {
+		name string
+		sid  string
+	}{
+		{"regular session", "f8571503d72f35938ce5001b792baebcce3183719ae947fde1ed685f7848facc"},
+		{"app auth config session", services.GenerateAppSessionIDFromAuthValue("random-auth-value")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			// To prevent events from appearing in each other’s search results, space them by an hour.
+			eventTime = time.Now().Add(time.Hour * time.Duration(i+1))
+			appStartEvent := newAppSessionStartEvent(eventTime, tc.sid)
+
+			// Emit event with non-standard session ID.
+			require.NoError(t,
+				eventsLog.EmitAuditEvent(ctx, appStartEvent),
+				"emit audit event",
+			)
+
+			// Search event by the same (non-standard) session ID.
+			// SearchSessionEvents has a hard-coded list of eventTypes that excludes App
+			// events, so we must use searchEvents instead.
+			before := eventTime.Add(-1 * time.Second)
+			after := eventTime.Add(1 * time.Second)
+			appEvents, _, err := eventsLog.SearchEvents(ctx, events.SearchEventsRequest{
+				From:       before,
+				To:         after,
+				EventTypes: []string{appStartEvent.Metadata.Type},
+				Limit:      2,
+				Order:      types.EventOrderAscending,
+			})
+			require.NoError(t, err, "search session events")
+			want := []apievents.AuditEvent{appStartEvent}
+			require.Empty(t, cmp.Diff(want, appEvents, protocmp.Transform()))
+		})
+	}
+}
+
+// newAppSessionStartEvent returns an app session start event. Only the session
+// ID matters for the test, everything else is realistic but irrelevant here.
+func newAppSessionStartEvent(eventTime time.Time, sessionID string) *apievents.AppSessionStart {
+	return &apievents.AppSessionStart{
 		Metadata: apievents.Metadata{
 			Type:        events.AppSessionStartEvent,
 			Code:        events.AppSessionStartCode,
@@ -103,8 +144,7 @@ func TestLog_nonStandardSessionID(t *testing.T) {
 			ServerNamespace: apidefaults.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
-			// IMPORTANT: not an UUID!
-			SessionID: "f8571503d72f35938ce5001b792baebcce3183719ae947fde1ed685f7848facc",
+			SessionID: sessionID,
 		},
 		UserMetadata: apievents.UserMetadata{
 			User:     "alpaca",
@@ -116,35 +156,6 @@ func TestLog_nonStandardSessionID(t *testing.T) {
 			AppPublicAddr: "dumper.zarq.dev",
 			AppName:       "dumper",
 		},
-	}
-
-	ctx := context.Background()
-
-	// Emit event with non-standard session ID.
-	require.NoError(t,
-		eventsLog.EmitAuditEvent(ctx, appStartEvent),
-		"emit audit event",
-	)
-
-	// Search event by the same (non-standard) session ID.
-	// SearchSessionEvents has a hard-coded list of eventTypes that excludes App
-	// events, so we must use searchEvents instead.
-	before := eventTime.Add(-1 * time.Second)
-	after := eventTime.Add(1 * time.Second)
-	appEvents, _, err := eventsLog.searchEvents(ctx,
-		before,                                // fromTime
-		after,                                 // toTime
-		[]string{appStartEvent.Metadata.Type}, // eventTypes
-		nil,                                   // cond
-		appStartEvent.SessionID,
-		2, // limit
-		types.EventOrderAscending,
-		"", // startKey
-	)
-	require.NoError(t, err, "search session events")
-	want := []apievents.AuditEvent{appStartEvent}
-	if diff := cmp.Diff(want, appEvents, protocmp.Transform()); diff != "" {
-		t.Errorf("searchEvents mismatch (-want +got)\n%s", diff)
 	}
 }
 

@@ -61,8 +61,8 @@ type CreateAppSessionForAppAuthRequest struct {
 	Traits map[string][]string
 	// TTL is the session validity period.
 	TTL time.Duration
-	// SuggestedSessionID is the session ID suggested by the requester.
-	SuggestedSessionID string
+	// SessionID is the session ID set by the request.
+	SessionID string
 	// AppName is the name of the app.
 	AppName string
 	// AppURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
@@ -159,7 +159,7 @@ func (s *SessionsService) CreateAppSessionWithJWT(ctx context.Context, req *appa
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 
-	sid := services.GenerateAppSessionIDFromJWT(req.Jwt)
+	sid := services.GenerateAppSessionIDFromAuthValue(req.Jwt)
 	if err := validateCreateAppSessionWithJWTRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -190,16 +190,16 @@ func (s *SessionsService) CreateAppSessionWithJWT(ctx context.Context, req *appa
 	}
 
 	ws, err := s.sessions.CreateAppSessionForAppAuth(ctx, &CreateAppSessionForAppAuthRequest{
-		Username:           username,
-		ClusterName:        req.App.ClusterName,
-		AppName:            req.App.AppName,
-		AppURI:             req.App.Uri,
-		AppPublicAddr:      req.App.PublicAddr,
-		LoginIP:            req.RemoteAddr,
-		Roles:              user.GetRoles(),
-		Traits:             user.GetTraits(),
-		TTL:                time.Until(tokenTTL),
-		SuggestedSessionID: sid,
+		Username:      username,
+		ClusterName:   req.App.ClusterName,
+		AppName:       req.App.AppName,
+		AppURI:        req.App.Uri,
+		AppPublicAddr: req.App.PublicAddr,
+		LoginIP:       req.RemoteAddr,
+		Roles:         user.GetRoles(),
+		Traits:        user.GetTraits(),
+		TTL:           time.Until(tokenTTL),
+		SessionID:     sid,
 	})
 	if err != nil {
 		s.logger.WarnContext(ctx, "failed to create a web session from jwt token", "error", err)

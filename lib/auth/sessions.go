@@ -449,8 +449,9 @@ type NewAppSessionRequest struct {
 	Identity tlsca.Identity
 	// ClientAddr is a client (user's) address.
 	ClientAddr string
-	// SuggestedSessionID is a session ID suggested by the requester.
-	SuggestedSessionID string
+	// SessionID is used to define a custom session ID for the new session. If
+	// empty the server will generate a session ID.
+	SessionID string
 
 	// BotName is the name of the bot that is creating this session.
 	// Empty if not a bot.
@@ -557,7 +558,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	sessionID := req.SuggestedSessionID
+	sessionID := req.SessionID
 	if sessionID == "" {
 		// Create services.WebSession for this session.
 		sessionID, err = utils.CryptoRandomHex(defaults.SessionTokenBytes)
@@ -875,11 +876,11 @@ func (a *Server) CreateAppSessionForAppAuth(ctx context.Context, req *appauthcon
 			// auth and proxy instances.
 			AttestWebSession: true,
 		},
-		ClusterName:        req.ClusterName,
-		AppName:            req.AppName,
-		AppURI:             req.AppURI,
-		PublicAddr:         req.AppPublicAddr,
-		SuggestedSessionID: req.SuggestedSessionID,
+		ClusterName: req.ClusterName,
+		AppName:     req.AppName,
+		AppURI:      req.AppURI,
+		PublicAddr:  req.AppPublicAddr,
+		SessionID:   req.SessionID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

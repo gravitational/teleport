@@ -17,14 +17,21 @@
 package services
 
 import (
+	"encoding/hex"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/stretchr/testify/require"
 
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 func TestValidatAppAuthConfig(t *testing.T) {
@@ -171,4 +178,45 @@ func TestValidatAppAuthConfig(t *testing.T) {
 			})
 		}
 	})
+}
+
+// FuzzGenerateAppAuthConfigSessionID ensures the generated session ID is within
+// size and is deterministic.
+func FuzzGenerateAppAuthConfigSessionID(f *testing.F) {
+	jwtToken := generateSignedJWT(f)
+	f.Add("")
+	f.Add(jwtToken)
+	f.Add("$%^&*()")
+	f.Add("random-auth-header")
+
+	f.Fuzz(func(t *testing.T, authValue string) {
+		sid := GenerateAppSessionIDFromAuthValue(authValue)
+		require.Len(t, sid, hex.EncodedLen(defaults.SessionTokenBytes))
+		require.True(t, strings.HasPrefix(sid, appAuthConfigSessionIDPrefix), "expected value %q to contain prefix %q", sid, appAuthConfigSessionIDPrefix)
+		require.Equal(t, sid, GenerateAppSessionIDFromAuthValue(authValue))
+	})
+}
+
+func generateSignedJWT(t testing.TB) string {
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	signer, err := jose.NewSigner(
+		jose.SigningKey{Algorithm: jose.ES256, Key: privateKey},
+		(&jose.SignerOptions{}).WithType("JWT"),
+	)
+	require.NoError(t, err)
+
+	token, err := jwt.Signed(signer).Claims(jwt.Claims{
+		Issuer:   "https://issuer",
+		Audience: jwt.Audience{"teleport"},
+		IssuedAt: jwt.NewNumericDate(time.Now()),
+		Expiry:   jwt.NewNumericDate(time.Now().Add(time.Hour)),
+	}).Claims(
+		struct {
+			Email string `json:"email"`
+		}{Email: "example@example.com"},
+	).Serialize()
+	require.NoError(t, err)
+
+	return token
 }

@@ -107,8 +107,15 @@ func validateJWTAppAuthConfig(s *appauthconfigv1.AppAuthConfigJWTSpec) error {
 	return nil
 }
 
-// GenerateAppSessionIDFromJWT generates a app session id based on JWT token.
-func GenerateAppSessionIDFromJWT(jwtToken string) string {
-	jwtHash := sha256.Sum256([]byte(jwtToken))
-	return hex.EncodeToString(jwtHash[:])
+// GenerateAppSessionIDFromAuthValue generates a app session id based on JWT
+// token.
+func GenerateAppSessionIDFromAuthValue(authValue string) string {
+	jwtHash := sha256.Sum256([]byte(authValue))
+	sid := hex.EncodeToString(jwtHash[:])
+	return appAuthConfigSessionIDPrefix + sid[:len(sid)-len(appAuthConfigSessionIDPrefix)]
 }
+
+// appAuthConfigSessionIDPrefix is a prefix added to app auth config session
+// IDs. The prefix includes a non-hex character ("u") so that it will never
+// conflict with regular app session ID (which are hex values).
+const appAuthConfigSessionIDPrefix = "auth"
