@@ -4,7 +4,9 @@ run-name: Benchmarks Smoketest (Go) - ${{ github.run_id }} - @${{ github.actor }
 
 on:
   pull_request:
-
+  push:
+    branches:
+      - okraport/backport-63100-branch/v17-testing
 jobs:
   changes:
     name: Check for relevant changes
