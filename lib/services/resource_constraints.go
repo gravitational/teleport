@@ -122,17 +122,11 @@ func buildStringConstraintTransform(
 }
 
 // buildDatabaseConstraintTransform builds a MatcherTransform for database
-// constraints. Unlike single-dimension constraints (AWS ARNs, SSH logins),
-// databases have multiple independent principal dimensions (users, names, roles).
-// Each non-empty dimension is scoped independently: a databaseUserMatcher is
-// checked against the users list, a DatabaseNameMatcher against the names list.
-// If a dimension is empty in the constraint, matchers of that type pass through.
-//
-// Note: db_roles follow a different enforcement path than db_users/db_names.
-// At connection time, db_users and db_names are checked via matchers passed to
-// CheckAccess (and thus WithConstraints), but db_roles bypass CheckAccess
-// entirely — they are enforced via CheckDatabaseRoles, which applies constraints
-// through filterByConstrainedDatabaseRoles in access_checker.go.
+// constraints. Each non-empty dimension is scoped independently: a
+// databaseUserMatcher is checked against the users list, a DatabaseNameMatcher
+// against the names list. If a dimension is empty, matchers of that type pass
+// through. db_roles are not handled here — they bypass CheckAccess and are
+// enforced via filterByConstrainedDatabaseRoles in access_checker.go.
 func buildDatabaseConstraintTransform(d *types.ResourceConstraints_Database) MatcherTransform {
 	if err := d.Validate(); err != nil {
 		return func(m RoleMatcher) RoleMatcher {
@@ -228,16 +222,9 @@ func MatcherFromConstraints(rc *types.ResourceConstraints) (RoleMatcher, error) 
 	}
 }
 
-// matcherFromDatabaseConstraints builds a RoleMatcher that checks whether a
-// role qualifies for a database with the given constraints. Each non-empty
-// dimension (users, names, roles) produces an AnyOf matcher (the role must
-// allow at least one of the specified values), and all dimensions are combined
-// with AllOf (the role must satisfy every specified dimension).
-//
-// This is used during access request expansion/validation (MatcherFromConstraints),
-// NOT during connection-time authorization. For db_roles specifically, this is
-// the only matcher-based check — at connection time, db_roles are enforced
-// separately via CheckDatabaseRoles/filterByConstrainedDatabaseRoles.
+// matcherFromDatabaseConstraints builds a RoleMatcher for request
+// expansion/validation. Each non-empty dimension (users, names, roles)
+// produces an AnyOf matcher, and all dimensions are combined with AllOf.
 func matcherFromDatabaseConstraints(dbc *types.DatabaseResourceConstraints) RoleMatcher {
 	var dimensionMatchers []RoleMatcher
 

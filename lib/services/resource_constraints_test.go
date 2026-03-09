@@ -253,8 +253,13 @@ func TestWithConstraints_Database_ScopesUserMatcher(t *testing.T) {
 	}
 	guard := WithConstraints(rc)
 
-	adminMatcher := &simpleDatabaseUserMatcher{user: "admin"}
-	roMatcher := &simpleDatabaseUserMatcher{user: "readonly"}
+	db, err := types.NewDatabaseV3(types.Metadata{Name: "test-db"}, types.DatabaseSpecV3{
+		Protocol: "postgres", URI: "localhost:5432",
+	})
+	require.NoError(t, err)
+
+	adminMatcher := NewDatabaseUserMatcher(db, "admin")
+	roMatcher := NewDatabaseUserMatcher(db, "readonly")
 
 	ok, err := guard(adminMatcher).Match(role, types.Allow)
 	require.NoError(t, err)
@@ -806,12 +811,12 @@ func TestDatabaseConstraints_EndToEnd(t *testing.T) {
 	// -- db_users enforcement via CheckAccess + WithConstraints --
 
 	t.Run("db_user in constraints is allowed", func(t *testing.T) {
-		err := checker.CheckAccess(database, state, &simpleDatabaseUserMatcher{user: "readonly"})
+		err := checker.CheckAccess(database, state, NewDatabaseUserMatcher(database, "readonly"))
 		require.NoError(t, err)
 	})
 
 	t.Run("db_user NOT in constraints is denied", func(t *testing.T) {
-		err := checker.CheckAccess(database, state, &simpleDatabaseUserMatcher{user: "admin"})
+		err := checker.CheckAccess(database, state, NewDatabaseUserMatcher(database, "admin"))
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 	})
@@ -859,7 +864,7 @@ func TestDatabaseConstraints_EndToEnd(t *testing.T) {
 	}, "cluster", RoleSet{role})
 
 	t.Run("unconstrained db_user is allowed", func(t *testing.T) {
-		err := unconstrained.CheckAccess(database, state, &simpleDatabaseUserMatcher{user: "admin"})
+		err := unconstrained.CheckAccess(database, state, NewDatabaseUserMatcher(database, "admin"))
 		require.NoError(t, err)
 	})
 
