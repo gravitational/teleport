@@ -49,7 +49,7 @@ func StrongValidate(pin *scopesv1.Pin) error {
 	}
 
 	if len(pin.GetAssignments()) != 0 { //nolint:staticcheck // SA1019.
-		return trace.BadParameter("scope pin uses outdated format, plase ensure all teleport components are upgraded and relogin")
+		return trace.BadParameter("scope pin uses outdated format, please ensure all teleport components are upgraded and relogin")
 	}
 
 	// Validate all assignments in the tree by enumerating them
