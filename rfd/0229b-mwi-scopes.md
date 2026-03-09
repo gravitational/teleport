@@ -483,27 +483,34 @@ We issue certificates for bot instances via three different paths:
 Likely, all three of these paths will need to be modified in some way to support
 the scoping of bots. 
 
-wip: Lightly remark on how scoped roles are encoded, and the meaning of this,
-wip: and how this clashes with the way role assumption works today.
-
 #### Identity of scoped Bots
 
-This section sets out the process for calculating and encoding the identity
-for scoped Bots into certificates.
+Scoped bots will not leverage role impersonation mechanisms in the same way as
+unscoped bots. Instead, the certificates issued to `tbot` as the result of the
+joining process will directly encode the scoped roles that have been assigned to
+the bot. Notably, this means that the internal certificates issued to `tbot` 
+will no longer hold the Bot Role.
 
-wip: firm out decision on whether internal bot certs should be scoped? I think
-wip: overwhelmingly I'm leaning towards "yes" because otherwise the binding to
-wip: scopedtoken seems very weak.
+`tbot` will still invoke the generation of separate certificates for
+outputs/services. The requirement for this is two-fold:
+
+- Usually, certificates that are used for access (i.e. Kubernetes / Database / 
+  Application) require the encoding of attributes specific to that kind of 
+  access (i.e RouteToApp).
+- Certificates output by `tbot` are not inherently bound to the same TTL and
+  renewal cycle as the internal identity certificates.
 
 Certificates generated for scoped Bots MUST always be scoped (i.e. contain a 
 ScopePin field) and the scope to which they are pinned MUST be the scope of the 
 Bot itself. This differs from the process for users where the scope to be pinned
-is user requestable.
+is user requestable. This is a key control for ensuring that the scope of the 
+Bot's access is constrained to its scope of origin.
 
-Additionally, certificates generated for scoped Bots:
-
-- MUST NOT contain traits.
-- MUST NOT contain roles.
+Additionally, certificates generated for scoped Bots must not contain any roles
+or traits. Support for scoped traits may be added in a future iteration and
+omitting support for traits in their entirety in the initial iteration provides
+us with the greatest flexibility with designing and implementing scoped traits
+at a later date.
 
 Care must be taken to ensure that any existing RPCs that yield certificates will
 not permit invocation with a scoped Bot identity, or, that they propagate any
