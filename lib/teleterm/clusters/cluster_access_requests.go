@@ -116,47 +116,38 @@ func (c *Cluster) GetAccessRequests(ctx context.Context, rootAuthClient authclie
 // resources across a slice of access requests. The returned map is keyed by
 // access request name, then by the resource ID string.
 func getResourceDetailsForRequests(ctx context.Context, requests []types.AccessRequest, rootAuthClient authclient.ClientI) map[string]map[string]ResourceDetails {
-	// Collect unique resource IDs across all requests, grouped by cluster.
+	// Collect unique resource IDs per cluster and build a reverse index from
+	// resource key to the request names that include it. keyToRequests doubles
+	// as the seen set: a key absent from it has not yet been added to resourceIDsByCluster.
 	resourceIDsByCluster := make(map[string][]types.ResourceID)
-	seen := make(map[string]bool)
+	keyToRequests := make(map[string][]string)
 	for _, req := range requests {
 		for clusterName, resourceIDs := range accessrequest.GetResourceIDsByCluster(req) {
 			for _, id := range resourceIDs {
 				key := types.ResourceIDToString(id)
-				if !seen[key] {
-					seen[key] = true
+				if _, seen := keyToRequests[key]; !seen {
 					resourceIDsByCluster[clusterName] = append(resourceIDsByCluster[clusterName], id)
 				}
+				keyToRequests[key] = append(keyToRequests[key], req.GetName())
 			}
 		}
 	}
 
-	// Fetch details for all resource IDs, one batch per cluster.
-	allDetails := make(map[string]ResourceDetails)
-	for clusterName, resourceIDs := range resourceIDsByCluster {
-		details, err := accessrequest.GetResourceDetails(ctx, clusterName, rootAuthClient, resourceIDs)
+	// Fetch details per cluster and populate the result directly via the reverse index.
+	result := make(map[string]map[string]ResourceDetails)
+	for clusterName, ids := range resourceIDsByCluster {
+		details, err := accessrequest.GetResourceDetails(ctx, clusterName, rootAuthClient, ids)
 		if err != nil {
 			continue
 		}
-		for id, d := range details {
-			allDetails[id] = ResourceDetails{FriendlyName: d.FriendlyName}
-		}
-	}
-
-	// Map the fetched details back to each request.
-	result := make(map[string]map[string]ResourceDetails)
-	for _, req := range requests {
-		requestDetails := make(map[string]ResourceDetails)
-		for _, resourceIDs := range accessrequest.GetResourceIDsByCluster(req) {
-			for _, id := range resourceIDs {
-				key := types.ResourceIDToString(id)
-				if d, ok := allDetails[key]; ok {
-					requestDetails[key] = d
+		for key, d := range details {
+			rd := ResourceDetails{FriendlyName: d.FriendlyName}
+			for _, reqName := range keyToRequests[key] {
+				if result[reqName] == nil {
+					result[reqName] = make(map[string]ResourceDetails)
 				}
+				result[reqName][key] = rd
 			}
-		}
-		if len(requestDetails) > 0 {
-			result[req.GetName()] = requestDetails
 		}
 	}
 
