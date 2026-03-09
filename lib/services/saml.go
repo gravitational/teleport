@@ -467,11 +467,7 @@ func CheckSAMLSigningKeyExpiry(connector types.SAMLConnector, timeframe time.Dur
 		return false, trace.Wrap(err)
 	}
 
-	for _, cert := range certs {
-		if time.Until(cert.NotAfter) <= timeframe {
-			return true, nil
-		}
-	}
-
-	return false, nil
+	return slices.ContainsFunc(certs, func(c *x509.Certificate) bool {
+		return time.Until(c.NotAfter) <= timeframe
+	}), nil
 }

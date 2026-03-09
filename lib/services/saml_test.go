@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
@@ -389,7 +388,7 @@ func TestCheckSAMLSigningKeyExpiry(t *testing.T) {
 			require.NoError(t, err)
 
 			result, err := CheckSAMLSigningKeyExpiry(connector, tc.timeframe)
-			assert.Equal(t, tc.assertResult, result)
+			require.Equal(t, tc.assertResult, result)
 			tc.assertErr(t, err)
 		})
 	}

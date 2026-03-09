@@ -76,10 +76,12 @@ func (a *Server) checkSAMLSigningKeyExpiry(ctx context.Context) error {
 		if err := upsertSAMLSigningKeyExpiryNotification(ctx, a.Services, title, message); err != nil {
 			slog.ErrorContext(ctx, "Failed to upsert SAML signing key expiry notification", "error", err)
 		}
-	} else {
-		if err := a.Services.DeleteGlobalNotification(ctx, samlSigningKeyExpiryNotificationName); err != nil && !trace.IsNotFound(err) {
-			slog.ErrorContext(ctx, "Failed to delete SAML signing key expiry notification", "error", err)
-		}
+
+		return nil
+	}
+
+	if err := a.Services.DeleteGlobalNotification(ctx, samlSigningKeyExpiryNotificationName); err != nil && !trace.IsNotFound(err) {
+		slog.ErrorContext(ctx, "Failed to delete SAML signing key expiry notification", "error", err)
 	}
 
 	return nil
@@ -95,7 +97,6 @@ func upsertSAMLSigningKeyExpiryNotification(ctx context.Context, notification se
 		Spec: &notificationsv1.GlobalNotificationSpec{
 			Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
 				ByPermissions: &notificationsv1.ByPermissions{
-					// TODO: Determine who should see notification.
 					RoleConditions: []*types.RoleConditions{
 						{Rules: []types.Rule{{Resources: []string{types.KindSAML}, Verbs: services.RW()}}},
 					},
