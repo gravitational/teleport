@@ -23,9 +23,11 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -146,19 +148,13 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 			Username:      user.GetName(),
 		},
 	}
-
 	require.Empty(
 		t,
 		cmp.Diff(
 			wantedChallenge,
 			gotChallenge,
-			cmp.FilterPath(
-				// Ignore expiration time in comparison.
-				func(p cmp.Path) bool {
-					return p.String() == "Metadata.Expires"
-				},
-				cmp.Ignore(),
-			),
+			protocmp.Transform(),
+			ignoreExpires,
 		),
 		"GetValidatedMFAChallenge(%s, %s) mismatch (-want +got)", targetCluster, challengeResp.GetMfaChallenge().GetName(),
 	)
@@ -266,13 +262,8 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 	diff := cmp.Diff(
 		wantedChallenge,
 		gotChallenge,
-		cmp.FilterPath(
-			// Ignore expiration time in comparison.
-			func(p cmp.Path) bool {
-				return p.String() == "Metadata.Expires"
-			},
-			cmp.Ignore(),
-		),
+		protocmp.Transform(),
+		ignoreExpires,
 	)
 	require.Empty(t, diff, "GetValidatedMFAChallenge(%s, %s) mismatch (-want +got):\n%s", targetCluster, challengeResp.GetMfaChallenge().GetName(), diff)
 }
@@ -768,6 +759,7 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 		cmp.Diff(
 			wantResp,
 			resp,
+			protocmp.Transform(),
 		), "ListValidatedMFAChallenges mismatch (-want +got)")
 }
 
@@ -914,13 +906,8 @@ func TestReplicateValidatedMFAChallenge_Success(t *testing.T) {
 		cmp.Diff(
 			wantedResp,
 			gotResp,
-			cmp.FilterPath(
-				// Ignore expiration time in comparison.
-				func(p cmp.Path) bool {
-					return p.String() == "ReplicatedChallenge.Metadata.Expires"
-				},
-				cmp.Ignore(),
-			),
+			protocmp.Transform(),
+			ignoreExpires,
 		),
 		"ReplicateValidatedMFAChallenge(%s) mismatch (-want +got)", chalName,
 	)
@@ -972,12 +959,14 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
 
-	validReq := &mfav1.ReplicateValidatedMFAChallengeRequest{
-		Name:          chalName,
-		Payload:       payload,
-		SourceCluster: sourceCluster,
-		TargetCluster: targetCluster,
-		Username:      "test-user",
+	newValidReq := func() *mfav1.ReplicateValidatedMFAChallengeRequest {
+		return &mfav1.ReplicateValidatedMFAChallengeRequest{
+			Name:          chalName,
+			Payload:       payload,
+			SourceCluster: sourceCluster,
+			TargetCluster: targetCluster,
+			Username:      "test-user",
+		}
 	}
 
 	for _, testCase := range []struct {
@@ -988,58 +977,58 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 		{
 			name: "missing Name",
 			req: func() *mfav1.ReplicateValidatedMFAChallengeRequest {
-				req := *validReq
+				req := newValidReq()
 				req.Name = ""
-				return &req
+				return req
 			}(),
 			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest name"),
 		},
 		{
 			name: "missing Payload",
 			req: func() *mfav1.ReplicateValidatedMFAChallengeRequest {
-				req := *validReq
+				req := newValidReq()
 				req.Payload = nil
-				return &req
+				return req
 			}(),
 			expectedError: trace.NotImplemented("missing or unsupported SessionIdentifyingPayload in request"),
 		},
 		{
 			name: "missing SourceCluster",
 			req: func() *mfav1.ReplicateValidatedMFAChallengeRequest {
-				req := *validReq
+				req := newValidReq()
 				req.SourceCluster = ""
-				return &req
+				return req
 			}(),
 			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest source_cluster"),
 		},
 		{
 			name: "missing TargetCluster",
 			req: func() *mfav1.ReplicateValidatedMFAChallengeRequest {
-				req := *validReq
+				req := newValidReq()
 				req.TargetCluster = ""
-				return &req
+				return req
 			}(),
 			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest target_cluster"),
 		},
 		{
 			name: "missing Username",
 			req: func() *mfav1.ReplicateValidatedMFAChallengeRequest {
-				req := *validReq
+				req := newValidReq()
 				req.Username = ""
-				return &req
+				return req
 			}(),
 			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest username"),
 		},
 		{
 			name: "empty SshSessionId in Payload",
 			req: func() *mfav1.ReplicateValidatedMFAChallengeRequest {
-				req := *validReq
+				req := newValidReq()
 				req.Payload = &mfav1.SessionIdentifyingPayload{
 					Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
 						SshSessionId: []byte{},
 					},
 				}
-				return &req
+				return req
 			}(),
 			expectedError: trace.BadParameter("empty SshSessionId in payload"),
 		},
@@ -1346,3 +1335,7 @@ func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer,
 
 	return authServer, service, emitter, user
 }
+
+var ignoreExpires = cmpopts.IgnoreMapEntries(func(k string, _ any) bool {
+	return k == "Expires"
+})

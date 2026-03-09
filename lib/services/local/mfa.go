@@ -17,13 +17,12 @@
 package local
 
 import (
-	"bytes"
 	"context"
 	"log/slog"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed because mfav1.ValidatedMFAChallenge uses gogoproto
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -161,31 +160,30 @@ func (r *validatedMFAChallenge) GetMetadata() *headerv1.Metadata {
 // MarshalValidatedMFAChallenge marshals a ValidatedMFAChallenge resource into JSON. Marshal options are currently
 // unsupported.
 func MarshalValidatedMFAChallenge(chal *validatedMFAChallenge, _ ...services.MarshalOption) ([]byte, error) {
-	marshaler := &jsonpb.Marshaler{
-		EnumsAsInts: true,
+	marshaler := protojson.MarshalOptions{
+		UseEnumNumbers: true,
 	}
-
-	buf := &bytes.Buffer{}
 
 	challenge := (*mfav1.ValidatedMFAChallenge)(chal)
 
-	if err := marshaler.Marshal(buf, challenge); err != nil {
+	b, err := marshaler.Marshal(challenge)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return buf.Bytes(), nil
+	return b, nil
 }
 
 // UnmarshalValidatedMFAChallenge unmarshals a ValidatedMFAChallenge resource from JSON. Unmarshal options are currently
 // unsupported.
 func UnmarshalValidatedMFAChallenge(b []byte, _ ...services.MarshalOption) (*validatedMFAChallenge, error) {
-	unmarshaler := &jsonpb.Unmarshaler{
-		AllowUnknownFields: true,
+	unmarshaler := protojson.UnmarshalOptions{
+		DiscardUnknown: true,
 	}
 
 	challenge := &mfav1.ValidatedMFAChallenge{}
 
-	if err := unmarshaler.Unmarshal(bytes.NewReader(b), challenge); err != nil {
+	if err := unmarshaler.Unmarshal(b, challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

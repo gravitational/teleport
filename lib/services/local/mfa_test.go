@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -60,8 +61,8 @@ func TestMFAService_CRUD(t *testing.T) {
 		cmp.Diff(
 			want,
 			created,
-			// Ignore expiration time in comparison.
-			cmpopts.IgnoreFields(types.Metadata{}, "Expires"),
+			protocmp.Transform(),
+			ignoreExpires,
 		),
 		"CreateValidatedMFAChallenge mismatch (-want +got)",
 	)
@@ -74,7 +75,11 @@ func TestMFAService_CRUD(t *testing.T) {
 
 	require.Empty(
 		t,
-		cmp.Diff(created, got),
+		cmp.Diff(
+			created,
+			got,
+			protocmp.Transform(),
+		),
 		"GetValidatedMFAChallenge mismatch (-want +got)",
 	)
 
@@ -82,7 +87,14 @@ func TestMFAService_CRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextPageToken)
 	require.Len(t, challenges, 1)
-	require.Empty(t, cmp.Diff(created, challenges[0]))
+	require.Empty(
+		t,
+		cmp.Diff(
+			created,
+			challenges[0],
+			protocmp.Transform(),
+		),
+	)
 }
 
 func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
@@ -296,6 +308,7 @@ func TestMFAService_ListValidatedMFAChallenges_Success(t *testing.T) {
 	require.Empty(t, cmp.Diff(
 		want,
 		gotResp,
+		protocmp.Transform(),
 	), "ListValidatedMFAChallenges mismatch (-want +got)")
 
 }
@@ -375,3 +388,7 @@ func newValidatedMFAChallenge() *mfav1.ValidatedMFAChallenge {
 		},
 	}
 }
+
+var ignoreExpires = cmpopts.IgnoreMapEntries(func(k string, _ any) bool {
+	return k == "Expires"
+})
