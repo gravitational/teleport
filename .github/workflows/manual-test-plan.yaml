@@ -2,6 +2,10 @@ name: Manual Test Plan Check
 run-name: Manual Test Plan Check - ${{ github.run_id }} - @${{ github.actor }}
 on:
   pull_request:
+  pull_request_review:
+    type: [edited]
+  pull_request_target:
+    types: [labeled, unlabeled]
 
 jobs:
   changes:
@@ -26,7 +30,7 @@ jobs:
               - '!(docs|rfd)/**'
 
   build:
-    name: Validate Manual Test Plan 
+    name: Validate Manual Test Plan
     needs: changes
     if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-22.04-16core
@@ -37,7 +41,7 @@ jobs:
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
 
-    steps:     
+    steps:
       - name: Checkout shared-workflows
         uses: actions/checkout@v6
         with:
