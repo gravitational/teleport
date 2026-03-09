@@ -18,6 +18,7 @@ resource "azurerm_role_definition" "teleport_discovery" {
       "Microsoft.Compute/virtualMachines/runCommands/delete",
       "Microsoft.Compute/virtualMachines/runCommands/read",
       "Microsoft.Compute/virtualMachines/runCommands/write",
+      "Microsoft.Resources/subscriptions/read",
     ]
     not_actions = []
   }
