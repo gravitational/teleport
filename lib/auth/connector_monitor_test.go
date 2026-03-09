@@ -146,10 +146,16 @@ func TestCheckSAMLSigningKeyExpiry(t *testing.T) {
 			return n.GetMetadata().GetName() == auth.SAMLSigningKeyExpiryNotificationName
 		})
 		require.NotEqual(t, -1, notificationIndex)
-		require.Equal(t, types.NotificationDefaultWarningSubKind, notifications[notificationIndex].GetSpec().GetNotification().GetSubKind())
+
+		notification := notifications[notificationIndex]
+
+		require.Equal(t, types.NotificationDefaultWarningSubKind, notification.GetSpec().GetNotification().GetSubKind())
+
 		require.Equal(t, []*types.RoleConditions{
 			{Rules: []types.Rule{{Resources: []string{types.KindSAML}, Verbs: services.RW()}}},
-		}, notifications[notificationIndex].GetSpec().GetByPermissions().GetRoleConditions())
+		}, notification.GetSpec().GetByPermissions().GetRoleConditions())
+
+		require.Contains(t, notification.GetSpec().GetNotification().GetMetadata().GetLabels()[types.NotificationTextContentLabel], createdConnector.GetName())
 
 		createdConnector.SetEntityDescriptor(createTestEntityDescriptor(t, []time.Duration{rotatedTTL}))
 
