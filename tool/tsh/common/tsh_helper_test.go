@@ -97,6 +97,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := servicecfg.MakeDefaultConfig()
+	cfg.InsecureMode = true
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Logger = logtest.NewLogger()
 	err := config.ApplyFileConfig(fileConfig, cfg)
@@ -196,6 +197,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := servicecfg.MakeDefaultConfig()
+	cfg.InsecureMode = true
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Logger = logtest.NewLogger()
 	err := config.ApplyFileConfig(fileConfig, cfg)

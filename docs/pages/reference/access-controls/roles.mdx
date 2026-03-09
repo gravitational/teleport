@@ -110,10 +110,10 @@ Role v7 added support for more `kind` values in the `kubernetes_resources` field
 
 Role v8 added support for Kubernetes CRDs and introduced changes in how
 `kubernetes_resources` behave and are defined. Role v8 is not compatible with
-Teleport v17 agents: if your a user has a v8 role, a v17 agent running the
+Teleport v17 agents: if your user has a v8 role, a v17 agent running the
 Teleport Kubernetes Service may silently deny the user access, because the agent
-cannot interpret the fields specific to v8 roles. Upgrade all agents to v18 before using
-role v8.
+cannot interpret the fields specific to v8 roles. Upgrade all agents to v18
+before using role v8.
 
 See [Kubernetes Resources](../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources) for more details about the difference between versions.
 

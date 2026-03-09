@@ -40,6 +40,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -1017,7 +1018,7 @@ func (s *WindowsService) recordEvent(ctx context.Context, t time.Time, delay int
 		DelayMilliseconds: delay,
 	}
 
-	if len(data) > libevents.MaxProtoMessageSizeBytes {
+	if len(data) > constants.MaxProtoMessageSizeBytes {
 		// Technically a PNG frame is unbounded and could be too big for a single protobuf.
 		// In practice though, Windows limits RDP bitmaps to 64x64 pixels, and we compress
 		// the PNGs before they get here, so most PNG frames are under 500 bytes. The largest

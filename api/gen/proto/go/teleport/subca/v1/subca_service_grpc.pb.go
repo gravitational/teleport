@@ -120,6 +120,10 @@ type SubCAServiceClient interface {
 	// consequence of this RPC, then the entire CertAuthorityOverride resource is
 	// removed by the server, as if DeleteCertAuthorityOverride was called.
 	//
+	// Removals, like Deletes, are not idempotent and will fail if either the
+	// CertificateOverride (FailedPrecondition) or the CertAuthorityOverride
+	// (NotFound) are not found.
+	//
 	// Removals are only allowed for disabled overrides, or overrides that target
 	// removed certificates. See
 	// RemoveCertificateOverrideRequest.force_immediate_delete.
@@ -318,6 +322,10 @@ type SubCAServiceServer interface {
 	// If the last CertificateOverride of a CertAuthorityOverride is removed as a
 	// consequence of this RPC, then the entire CertAuthorityOverride resource is
 	// removed by the server, as if DeleteCertAuthorityOverride was called.
+	//
+	// Removals, like Deletes, are not idempotent and will fail if either the
+	// CertificateOverride (FailedPrecondition) or the CertAuthorityOverride
+	// (NotFound) are not found.
 	//
 	// Removals are only allowed for disabled overrides, or overrides that target
 	// removed certificates. See

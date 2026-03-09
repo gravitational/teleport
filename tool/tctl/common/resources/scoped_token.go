@@ -63,6 +63,7 @@ func scopedTokenHandler() Handler {
 		getHandler:    getScopedToken,
 		createHandler: createScopedToken,
 		deleteHandler: deleteScopedToken,
+		updateHandler: updateScopedToken,
 		description:   "Scoped invitation tokens that can be used to provision resources at a limited scope",
 	}
 }
@@ -95,13 +96,24 @@ func createScopedToken(ctx context.Context, client *authclient.Client, raw servi
 	return nil
 }
 
+func updateScopedToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
+	token, err := services.UnmarshalProtoResource[*joiningv1.ScopedToken](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := client.UpdateScopedToken(ctx, token); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("%v %q has been updated\n", types.KindScopedToken, token.GetMetadata().GetName())
+	return nil
+}
+
 func getScopedToken(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
 	// If a specific token name is requested, filter the results
 	if ref.Name != "" {
-		token, err := client.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
-			Name:       ref.Name,
-			WithSecret: opts.WithSecrets,
-		})
+		token, err := client.GetScopedToken(ctx, ref.Name, opts.WithSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

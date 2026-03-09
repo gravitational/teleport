@@ -41,7 +41,7 @@ func InstallService(ctx context.Context) error {
 	return trace.Wrap(windowsservice.Install(ctx, &windowsservice.InstallConfig{
 		Name:              serviceName,
 		Description:       serviceDescription,
-		Command:           ServiceCommand,
+		Command:           []string{ServiceCommand},
 		EventSourceName:   eventSource,
 		AccessPermissions: windows.SERVICE_QUERY_STATUS | windows.SERVICE_START | windows.SERVICE_STOP,
 	}))

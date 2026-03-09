@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/trace"
 
 	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
@@ -126,9 +125,6 @@ func onIntegrationConfEKSIAM(ctx context.Context, params config.IntegrationConfE
 }
 
 func onIntegrationConfAWSOIDCIdP(ctx context.Context, clf config.CommandLineFlags) error {
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
@@ -144,6 +140,7 @@ func onIntegrationConfAWSOIDCIdP(ctx context.Context, clf config.CommandLineFlag
 		ProxyPublicAddress:      clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
 		IntegrationPolicyPreset: awsoidc.PolicyPreset(clf.IntegrationConfAWSOIDCIdPArguments.PolicyPreset),
 		AutoConfirm:             clf.IntegrationConfAWSOIDCIdPArguments.AutoConfirm,
+		Insecure:                clf.InsecureMode,
 	}
 	return trace.Wrap(awsoidc.ConfigureIdPIAM(ctx, iamClient, confReq))
 }
@@ -294,9 +291,6 @@ func onIntegrationConfSAMLIdPGCPWorkforce(ctx context.Context, params samlidpcon
 }
 
 func onIntegrationConfAWSRATrustAnchor(ctx context.Context, clf config.CommandLineFlags) error {
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
