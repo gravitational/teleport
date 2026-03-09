@@ -1052,6 +1052,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beams.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	beamsAdd := beams.Command("add", "Create a beam and connect to it over SSH.")
 	beamsAdd.Flag("no-console", "Do not connect to the beam.").BoolVar(&cf.BeamNoConsole)
+	beamsConsole := beams.Command("console", "Connect to an existing beam over SSH.")
+	beamsConsole.Arg("beam-id", "Beam ID to connect to.").Required().StringVar(&cf.BeamID)
 	beamsLS := beams.Command("ls", "List your beams.")
 	beamsAllow := beams.Command("allow", "Allow a domain for an existing beam.")
 	beamsAllow.Arg("beam-id", "Beam ID to update.").Required().StringVar(&cf.BeamID)
@@ -1818,6 +1820,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onApps(&cf)
 	case beamsAdd.FullCommand():
 		err = onBeamsAdd(&cf)
+	case beamsConsole.FullCommand():
+		err = onBeamsConsole(&cf)
 	case beamsLS.FullCommand():
 		err = onBeamsList(&cf)
 	case beamsAllow.FullCommand():

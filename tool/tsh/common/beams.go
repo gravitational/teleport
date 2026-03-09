@@ -82,35 +82,17 @@ func onBeamsAdd(cf *CLIConf) error {
 		return nil
 	}
 
-	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	return trace.Wrap(connectToBeamConsole(cf, tc, beamID))
+}
+
+func onBeamsConsole(cf *CLIConf) error {
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer clusterClient.Close()
 
-	tc.Host = ""
-	tc.Labels = nil
-	tc.SearchKeywords = nil
-	tc.PredicateExpression = fmt.Sprintf(`labels["teleport.internal/beam/id"]==%q`, beamID)
-	tc.HostLogin = cmp.Or(cf.NodeLogin, "root")
-
-	stopConnecting := startBeamSpinner(cf.Stdout(), "connecting...")
-	target, err := waitForBeamNode(cf.Context, tc, clusterClient.AuthClient)
-	if err != nil {
-		stopConnecting("")
-		return trace.Wrap(err)
-	}
-	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
-	stopConnecting(fmt.Sprintf("%s ready", arrowStyle.Render("↳")))
-
-	tc.Stdin = cf.Stdin()
-	sshFunc := func() error {
-		return tc.SSH(cf.Context, nil, client.WithHostAddress(target.Addr))
-	}
-	if !cf.Relogin {
-		return trace.Wrap(sshFunc())
-	}
-	return trace.Wrap(client.RetryWithRelogin(cf.Context, tc, sshFunc))
+	tc.AllowHeadless = true
+	return trace.Wrap(connectToBeamConsole(cf, tc, cf.BeamID))
 }
 
 func onBeamsList(cf *CLIConf) error {
@@ -212,6 +194,38 @@ func onBeamsPublish(cf *CLIConf) error {
 
 	fmt.Fprintln(cf.Stdout(), addr)
 	return nil
+}
+
+func connectToBeamConsole(cf *CLIConf, tc *client.TeleportClient, beamID string) error {
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	tc.Host = ""
+	tc.Labels = nil
+	tc.SearchKeywords = nil
+	tc.PredicateExpression = fmt.Sprintf(`labels["teleport.internal/beam/id"]==%q`, beamID)
+	tc.HostLogin = cmp.Or(cf.NodeLogin, "root")
+
+	stopConnecting := startBeamSpinner(cf.Stdout(), "connecting...")
+	target, err := waitForBeamNode(cf.Context, tc, clusterClient.AuthClient)
+	if err != nil {
+		stopConnecting("")
+		return trace.Wrap(err)
+	}
+	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
+	stopConnecting(fmt.Sprintf("%s ready", arrowStyle.Render("↳")))
+
+	tc.Stdin = cf.Stdin()
+	sshFunc := func() error {
+		return tc.SSH(cf.Context, nil, client.WithHostAddress(target.Addr))
+	}
+	if !cf.Relogin {
+		return trace.Wrap(sshFunc())
+	}
+	return trace.Wrap(client.RetryWithRelogin(cf.Context, tc, sshFunc))
 }
 
 func renderBeamsTable(beams []*beamsv1.Beam, proxyHost string) string {
