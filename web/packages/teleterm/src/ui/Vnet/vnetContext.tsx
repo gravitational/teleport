@@ -643,6 +643,17 @@ function makeInstallTimeRequirements(
       },
     };
   }
+  if (
+    statusOneOfIsWindowsServiceStatus(status) &&
+    status.windowsServiceStatus === WindowsServiceStatus.VERSION_MISMATCH
+  ) {
+    return {
+      status: 'failed',
+      reason: {
+        kind: 'windows-service-version-mismatch',
+      },
+    };
+  }
 
   return { status: 'success' };
 }
@@ -659,6 +670,9 @@ type InstallTimeRequirementsCheck =
       reason:
         | {
             kind: 'missing-windows-service';
+          }
+        | {
+            kind: 'windows-service-version-mismatch';
           }
         | {
             kind: 'error';
