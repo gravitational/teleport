@@ -311,10 +311,7 @@ func messageIsResource(m protoreflect.MessageDescriptor) bool {
 			count++
 		}
 	}
-	if count >= 3 {
-		return true
-	}
-	return false
+	return count >= 3
 }
 
 // checkPaginationMethod implements MethodRuleHandler for RuleSpec
