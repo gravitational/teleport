@@ -26,8 +26,8 @@ export function MessageOfTheDay(props: {
 }) {
   return (
     <>
-      {/* minHeight=0 makes the internal container scrollable, so that the acknowledge button is always visible. */}
-      <Box mb={3} minHeight={0} maxHeight="400px" overflow="auto">
+      {/* Make the internal container scrollable, so that the acknowledge button is always visible. */}
+      <Box mb={3} maxHeight="400px" overflow="auto">
         <P2 whiteSpace="pre-wrap" px={outermostPadding}>
           {props.message}
         </P2>
