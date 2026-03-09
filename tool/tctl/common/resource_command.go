@@ -3850,10 +3850,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	case scopedaccess.KindScopedToken:
 		// If a specific token name is requested, filter the results
 		if rc.ref.Name != "" {
-			token, err := client.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
-				Name:       rc.ref.Name,
-				WithSecret: rc.withSecrets,
-			})
+			token, err := client.GetScopedToken(ctx, rc.ref.Name, rc.withSecrets)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
