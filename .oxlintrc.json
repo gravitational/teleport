@@ -149,7 +149,7 @@
     "react/no-unknown-property": "warn",
     "react/no-did-mount-set-state": "warn",
     // allowExpressions allows single expressions in a fragment eg: <>{children}</>
-    // https://github.com/jsx-eslint/eslint-plugin-react/blob/f83b38869c7fc2c6a84ef8c2639ac190b8fef74f/docs/rules/jsx-no-useless-fragment.md#allowexpressions
+    // https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-no-useless-fragment.html#allowexpressions
     "react/jsx-no-useless-fragment": ["error", { "allowExpressions": true }],
     "react/display-name": "off",
     "react/prop-types": "off",
