@@ -19,6 +19,7 @@ package vnet
 import (
 	"context"
 	"log/slog"
+	"os"
 	"syscall"
 	"time"
 
@@ -158,8 +159,8 @@ func (w *handler) Execute(ctx context.Context, args []string) error {
 	return nil
 }
 
-// VerifyServiceInstalled returns nil if the service is installed and an error otherwise.
-func VerifyServiceInstalled() error {
+// VerifyServiceInstalledAndMatchesClient returns nil if the service is installed and matches the client version.
+func VerifyServiceInstalledAndMatchesClient() error {
 	// Avoid [mgr.Connect] because it requests elevated permissions.
 	scManager, err := windows.OpenSCManager(nil /*machine*/, nil /*database*/, windows.SC_MANAGER_CONNECT)
 	if err != nil {
@@ -170,6 +171,36 @@ func VerifyServiceInstalled() error {
 	if err != nil {
 		return trace.Wrap(err, "converting service name to UTF16")
 	}
-	_, err = windows.OpenService(scManager, serviceNamePtr, serviceAccessFlags)
-	return trace.Wrap(err, "opening Windows service %v", serviceName)
+	serviceHandle, err := windows.OpenService(scManager, serviceNamePtr, windows.SERVICE_QUERY_CONFIG)
+	if err != nil {
+		return trace.Wrap(err, "opening Windows service %v", serviceName)
+	}
+	service := &mgr.Service{
+		Name:   serviceName,
+		Handle: serviceHandle,
+	}
+	defer service.Close()
+
+	config, err := service.Config()
+	if err != nil {
+		return trace.Wrap(err, "getting service config")
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err, "getting executable path")
+	}
+	serviceArgs, err := windows.DecomposeCommandLine(config.BinaryPathName)
+	if err != nil {
+		return trace.Wrap(err, "parsing Windows service binary command line")
+	}
+	if len(serviceArgs) == 0 {
+		return trace.BadParameter("Windows service has empty binary command line")
+	}
+
+	// Require exact binary match between the client and service.
+	// Hash comparison is enough here because same binary means same version.
+	if err = compareFiles(exe, serviceArgs[0]); err != nil {
+		return trace.Wrap(err, "comparing tsh.exe executable with service executable")
+	}
+	return nil
 }

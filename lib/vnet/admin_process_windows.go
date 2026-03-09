@@ -210,6 +210,8 @@ func compareFiles(p1, p2 string) error {
 		return trace.Wrap(err)
 	}
 	if !bytes.Equal(h1, h2) {
+		// Used by lib/teleterm/vnet.(*Service).CheckInstallTimeRequirements:
+		// trace.CompareFailed => WINDOWS_SERVICE_STATUS_VERSION_MISMATCH.
 		return trace.CompareFailed("files %s and %s are not equal", p1, p2)
 	}
 	return nil
