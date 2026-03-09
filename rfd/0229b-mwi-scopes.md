@@ -526,9 +526,42 @@ wip: RPC/proto design for GenerateBotCerts?
 
 ### `tbot`
 
-wip: `tbot`'s mechanism for requesting credentials will need to be aware of its
-wip: scoped status and avoid using role impersonation plus take into account
-wip: any changes in Certificate Issuance.
+At a global level within `tbot`, a `scoped`/`--scoped` configuration attribute
+will be introduced. This must be specified by the user when they expect `tbot`
+to authenticate as a scoped Bot.
+
+Whilst the scopedness of the linked Bot could be determined at join time,
+making this an explicit configuration flag allows for a better configuration UX.
+Without explicit configuration-time indication of scopedness, we would delay
+providing the user feedback on the validity of their configuration until `tbot`
+had successfully joined.
+
+Upon joining, if `tbot` receives scoped certificates and the explicit scoped
+configuration flag is not set, then `tbot` should exit with a fatal error.
+Equally, if `tbot` receives unscoped certificates and the explicit scoped 
+configuration flag is set, then `tbot` should also exit as a fatal error. This
+ensures that run-time behavior matches the user's configuration-time
+expectations.
+
+Rather than introduce explicit outputs/services for scoped RBAC, support for 
+running in scoped mode will be added to the existing outputs/services. In
+the initial iteration, only the `identity` service will be supported.
+
+When running a service in scoped mode, it will not be possible to request a 
+subset of the Bot's assigned roles as is possible in unscoped mode. This 
+functionality is partially deprecated in unscoped Bots today and introduces
+significant complexity in implementation and the security model. This 
+"down-stepping" of a Bot's privileges for a specific output will be more 
+properly implemented by down-pinning of the Bot's scope rather than the dropping
+of roles.
+
+The actual tweaks required to services for scoped mode are fairly trivial. In 
+most cases, services will be tweaked to call an alternative RPC for certificate
+generation that is scope-aware. However, as part of this work, we're also
+likely to encounter RPCs that are used to fetch configuration generation 
+information that will need to be updated to be scope-aware. Hence, the
+conversion of a service to be scope-aware will be a good opportunity to QA 
+elements of other parts of Teleport for scoped functioning with Bots.
 
 ### Implementation Phases
 
