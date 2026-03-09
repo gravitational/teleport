@@ -13,11 +13,6 @@ output "azure_managed_identity_principal_id" {
   value       = one(azurerm_user_assigned_identity.teleport_discovery_service[*].principal_id)
 }
 
-output "azure_role_assignment_id" {
-  description = "ID of the role assignment granting discovery permissions."
-  value       = one(azurerm_role_assignment.teleport_discovery[*].id)
-}
-
 output "azure_role_definition_id" {
   description = "ID of the discovery role definition."
   value       = one(azurerm_role_definition.teleport_discovery[*].role_definition_resource_id)
