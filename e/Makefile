@@ -558,7 +558,7 @@ lint-test-symbols: ensure-goda
 	fi
 
 $(TEST_LOG_DIR):
-	mkdir $(TEST_LOG_DIR)
+	mkdir -p $(TEST_LOG_DIR)
 
 #
 # test runs teleport enterprise tests
