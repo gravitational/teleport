@@ -427,6 +427,7 @@ func (s *Service) Run(ctx context.Context) error {
 
 			if err := s.renew(ctx, storageDestination); err == nil {
 				s.unblockWaiters()
+				s.cfg.StatusReporter.Report(readyz.Healthy)
 				break
 			}
 		}
