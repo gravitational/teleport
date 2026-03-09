@@ -8,7 +8,7 @@
     "config:recommended",
     ":disableDependencyDashboard"
   ],
-  "prCreation": "approval",
+  "prCreation": "status-success",
   "enabledManagers": [
     "custom.regex"
   ],
