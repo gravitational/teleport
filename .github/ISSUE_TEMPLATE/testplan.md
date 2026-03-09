@@ -1130,7 +1130,7 @@ tsh ssh node-that-requires-device-trust
 
     Linux users need read/write permissions to /dev/tpmrm0. The simplest way is
     to assign yourself to the `tss` group. See
-    https://goteleport.com/docs/identity-governance/device-trust/device-management/#troubleshooting.
+    https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#troubleshooting.
 
   - [ ] Verify device extensions on TLS certificate
 
@@ -1169,7 +1169,7 @@ tsh ssh node-that-requires-device-trust
 
     Confirm that it works by failing first. Most protocols can be tested using
     device_trust.mode="required". App Access and Desktop Access require a custom
-    role (see [enforcing device trust](https://goteleport.com/docs/identity-governance/device-trust/enforcing-device-trust/#web-application-support)).
+    role (see [enforcing device trust](https://goteleport.com/docs/zero-trust-access/device-trust/enforcing-device-trust/#web-application-support)).
 
     For SSO users confirm that device web authentication happens successfully.
 
@@ -1684,6 +1684,18 @@ manualy testing.
     Configure a database agent with a database that has an unreachable URI (e.g. localhost:5432).
     - [ ] The web UI resource page shows an warning indicator for that database with error details.
     - [ ] Without restarting the agent, make the database endpoint reachable and observe that the indicator in the web UI resources page disappears after some time.
+- [ ] Verify [database access via MCP](https://goteleport.com/docs/connect-your-client/model-context-protocol/database-access/)
+  - [ ] Postgres
+  - [ ] Redshift
+  - [ ] CockroachDB
+  - [ ] Verify Teleport MCP servers can be configured and function correctly across various clients
+   - [ ]`tsh mcp db config`
+    - [ ] Claude Desktop
+    - [ ] VSCode
+    - [ ] Cursor
+    - [ ] `claude`
+    - [ ] `codex`
+   - [ ] Dev testing via MCP inspector
 
 ## Git Proxy
 - [ ] [GitHub proxy](https://goteleport.com/docs/admin-guides/management/guides/github-integration/)
@@ -1695,76 +1707,62 @@ manualy testing.
   - [ ] Test Git commands like `git fetch`, `git push`, in repos configured with Teleport
   - [ ] Verify audit events for each Git command proxied through Teleport.
 
-## TLS Routing
+## Proxy listener mode
 
-- [ ] Verify that teleport proxy `v2` configuration starts only a single listener for proxy service, in contrast with `v1` configuration.
-  Given configuration:
-  ```
-  version: v2
-  proxy_service:
-    enabled: "yes"
-    public_addr: ['root.example.com']
-    web_listen_addr: 0.0.0.0:3080
-  ```
-  There should be total of three listeners, with only `*:3080` for proxy service. Given the configuration above, 3022 and 3025 will be opened for other services.
-  ```
-  lsof -i -P | grep teleport | grep LISTEN
-    teleport  ...  TCP *:3022 (LISTEN)
-    teleport  ...  TCP *:3025 (LISTEN)
-    teleport  ...  TCP *:3080 (LISTEN) # <-- proxy service
-  ```
-  In contrast for the same configuration with version `v1`, there should be additional ports 3023 and 3024.
-  ```
-  lsof -i -P | grep teleport | grep LISTEN
-    teleport  ...  TCP *:3022 (LISTEN)
-    teleport  ...  TCP *:3025 (LISTEN)
-    teleport  ...  TCP *:3023 (LISTEN) # <-- extra proxy service port
-    teleport  ...  TCP *:3024 (LISTEN) # <-- extra proxy service port
-    teleport  ...  TCP *:3080 (LISTEN) # <-- proxy service
-  ```
-- [ ] Run Teleport Proxy in `multiplex` mode `auth_service.proxy_listener_mode: "multiplex"`
-  - [ ] Trusted cluster
-    - [ ] Setup trusted clusters using single port setup `web_proxy_addr == tunnel_addr`
-    ```
-    kind: trusted_cluster
-    spec:
-      ...
-      web_proxy_addr: root.example.com:443
-      tunnel_addr: root.example.com:443
-      ...
-    ```
-- [ ] Database Access
-  - [ ] Verify that `tsh db connect` works through proxy running in `multiplex` mode
-    - [ ] Postgres
-    - [ ] MySQL
-    - [ ] MariaDB
-    - [ ] MongoDB
-    - [ ] CockroachDB
-    - [ ] Redis
-    - [ ] MSSQL
-    - [ ] Snowflake
-    - [ ] Elasticsearch.
-    - [ ] OpenSearch.
-    - [ ] Cassandra/ScyllaDB.
-    - [ ] Oracle.
-  - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh proxy db` with a GUI client.
-  - [ ] Verify connecting to a database through Teleport Connect.
-- [ ] Application Access
-  - [ ] Verify app access through proxy running in `multiplex` mode
-- [ ] SSH Access
-  - [ ] Connect to a OpenSSH server through a local ssh proxy `ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh" user@host.example.com`
-  - [ ] Connect to a OpenSSH server on leaf-cluster through a local ssh proxy`ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh --user=%r --cluster=leaf-cluster %h:%p" user@node.foo.com`
-  - [ ] Verify `tsh ssh` access through proxy running in multiplex mode
-- [ ] Kubernetes access:
-  - [ ] Verify kubernetes access through proxy running in `multiplex` mode, using `tsh`
-  - [ ] Verify kubernetes access through Teleport Connect
-- [ ] Teleport Proxy single port `multiplex` mode behind L7 load balancer
-  - [ ] Agent can join through Proxy and maintain reverse tunnel
-  - [ ] `tsh login` and `tctl`
-  - [ ] SSH Access: `tsh ssh` and `tsh config`
-  - [ ] Database Access: `tsh proxy db` and `tsh db connect`
-  - [ ] Application Access: `tsh proxy app` and `tsh aws`
-  - [ ] Kubernetes Access: `tsh proxy kube`
+Since `multiplex` is the default `proxy_listener_mode` for Teleport Cloud and
+is recommended for new self-hosted clusters, most basic TLS routing routes are
+covered by other test sections. This section focuses on non-default setups that
+require dedicated testing.
+
+### `multiplex` mode behind L7 load balancer
+- [ ] Agent can join through Proxy and maintain reverse tunnel
+- [ ] `tsh login` and `tctl`
+- [ ] SSH Access: `tsh ssh` and `tsh config`
+- [ ] Database Access: `tsh proxy db` and `tsh db connect`
+- [ ] Application Access: `tsh proxy app` and `tsh aws`
+- [ ] Kubernetes Access: `tsh proxy kube`
+
+### `separate` port mode
+
+Example config:
+```yaml
+version: v3
+auth_service:
+  enabled: true
+  proxy_listener_mode: separate
+
+proxy_service:
+  enabled: true
+  web_listen_addr:      "0.0.0.0:3080"
+  listen_addr:          "0.0.0.0:3023"
+  tunnel_listen_addr:   "0.0.0.0:3024"
+  kube_listen_addr:     "0.0.0.0:3026"
+  mysql_listen_addr:    "0.0.0.0:3036"
+  postgres_listen_addr: "0.0.0.0:5432"
+  mongo_listen_addr:    "0.0.0.0:27017"
+```
+
+- [ ] Verify all expected listeners are open. E.g. `lsof -i -P | grep teleport | grep LISTEN`
+- [ ] Agent can join and maintain reverse tunnel
+- [ ] Trusted cluster can join and maintain reverse tunnel
+- [ ] SSH access
+  - [ ] `tsh ssh`
+  - [ ] `tsh config` then `ssh`
+- [ ] Kubernetes access via `tsh`
+- [ ] Application access
+  - [ ] HTTP app
+  - [ ] `tsh aws`
+  - [ ] TCP app via `tsh proxy app`
+- [ ] Database access
+  - [ ] PostgreSQL via dedicated port
+  - [ ] MySQL via dedicated port
+  - [ ] MongoDB via dedicated port
+  - [ ] Redis via web port (no dedicated listener)
+- [ ] Teleport Connect
+  - [ ] SSH access
+  - [ ] Kubernetes access
+  - [ ] Database access
+  - [ ] VNet for app access
 
 ## Desktop Access
 
@@ -2305,6 +2303,38 @@ The following should work with SSO MFA, automatically opening the SSO MFA redire
   - [ ] Database Access
   - [ ] Desktop Access
 - [ ] Headless (`tsh ls --headless`)
+
+## MCP Access
+- [ ] Verify Teleport supports MCP servers in various transports
+ - [ ] Teleport demo server (special in-memory MCP)
+ - [ ] stdio
+  - [ ] Verify Teleport/tsh can automatically reconnect if client connection is disrupted
+  - [ ] Verify the MCP process (node, python, etc.) is stopped after session is done
+  - [ ] Verify docker containers are removed after session is done for docker-based MCPs.
+  - [ ] Verify `run_as_host_user` with a different user than caller.
+ - [ ] streamable-HTTP
+  - [ ] Verify custom headers can be set via `app.rewrite.headers`
+  - [ ] Verify Teleport can passthrough custom headers from client side (e.g. github PAT via `tsh db connect --header`)
+  - [ ] Verify Teleport can passthrough 3rd party OAuth flow (e.g. Cloudflare OAuth)
+  - [ ] Verify egress auth with JWT token (e.g. Grafana that trust's Teleport JWT)
+  - [ ] Verify egress auth with OpenID token (e.g. AWS AgentCore MCP Gateway)
+ - [ ] SSE (deprecated but still in-use)
+- [ ] Verify Teleport MCP servers can be configured and function correctly across various clients
+ - [ ] `tsh mcp config`
+  - [ ] Claude Desktop
+  - [ ] VSCode
+  - [ ] Cursor
+  - [ ] `claude`
+  - [ ] `codex`
+ - [ ] Web UI deep links
+  - [ ] VSCode
+  - [ ] Cursor
+ - [ ] Dev testing via MCP inspector
+- [ ] Verify Teleport MCP servers hint on "tsh login" when tsh session is expired (via chat/prompt)
+- [ ] RBAC
+ - [ ] Verify users can only see MCP servers allowed by `allow.app_labels`
+ - [ ] Verify MCP client can only see allowed tools
+ - [ ] Verify `deny.mcp.tools` is greedy (deny overrides allow)
 
 ## Resources
 

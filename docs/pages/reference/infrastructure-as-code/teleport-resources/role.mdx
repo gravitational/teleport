@@ -31,9 +31,9 @@ documentation](../../../enroll-resources/kubernetes-access/controls.mdx#kubernet
 for a complete list). Role v8 supports restricting all resource kinds,
 including CRDs. It also changes the format of the `kind` field. 
 
-Role v8 is not compatible with Teleport v17 agents: if your a user has a v8
-role, a v17 agent running the Teleport Kubernetes Service may silently deny the
-user access, because the agent cannot interpret the fields specific to v8 roles.
+Role v8 is not compatible with Teleport v17 agents: if your user has a v8 role,
+a v17 agent running the Teleport Kubernetes Service may silently deny the user
+access, because the agent cannot interpret the fields specific to v8 roles.
 Upgrade all agents to v18 before using role v8.
 
 When no `kubernetes_resource` is set:

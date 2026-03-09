@@ -2594,9 +2594,35 @@ const unknownFormatter = {
   format: () => 'Unknown',
 };
 
+// MFA flow types are defined in api/proto/teleport/legacy/types/events/events.proto.
+const mfaFlowTypeLabels: Record<number, string> = {
+  0: 'UNSPECIFIED',
+  1: 'PER_SESSION_CERTIFICATE',
+  2: 'IN_BAND',
+};
+
+// TODO(cthach): DELETE IN v20.0 once the only supported MFA flow_type is IN_BAND.
+function formatRawEventForUI(json: any): any {
+  // For MFA events, convert the flow_type from a number to a human readable string.
+  if (
+    json?.code == eventCodes.CREATE_MFA_AUTH_CHALLENGE ||
+    json?.code == eventCodes.VALIDATE_MFA_AUTH_RESPONSE
+  ) {
+    return {
+      ...json,
+      flow_type: mfaFlowTypeLabels[json.flow_type] ?? json.flow_type,
+    };
+  }
+
+  return json;
+}
+
 export default function makeEvent(json: any): Event {
   // lookup event formatter by code
   const formatter = formatters[json.code as EventCode] || unknownFormatter;
+
+  const raw = formatRawEventForUI(json);
+
   return {
     codeDesc:
       typeof formatter.desc === 'function'
@@ -2607,7 +2633,7 @@ export default function makeEvent(json: any): Event {
     code: json.code,
     user: json.user,
     time: new Date(json.time),
-    raw: json,
+    raw: raw,
   };
 }
 

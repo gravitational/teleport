@@ -36,7 +36,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -130,6 +129,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	conf := servicecfg.MakeDefaultConfig()
 	conf.DataDir = filepath.Join(t.TempDir(), pack.name)
 	conf.SetToken("static-token-value")
+	conf.InsecureMode = true
 
 	conf.SetAuthServerAddress(utils.NetAddr{
 		AddrNetwork: "tcp",
@@ -256,7 +256,6 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	// Some global setup.
 	tracer := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tracer.Stop() })
-	lib.SetInsecureDevMode(true)
 	log := logtest.NewLogger()
 
 	// Generate keypair.
@@ -297,6 +296,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 
 	// Make root cluster config.
 	rcConf := servicecfg.MakeDefaultConfig()
+	rcConf.InsecureMode = true
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.Clock = p.clock
@@ -304,6 +304,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Clock = p.clock
+	rcConf.InsecureMode = true
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
@@ -312,12 +313,14 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	// Make leaf cluster config.
 	lcConf := servicecfg.MakeDefaultConfig()
 	lcConf.DataDir = t.TempDir()
+	lcConf.InsecureMode = true
 	lcConf.Auth.Enabled = true
 	lcConf.Auth.Clock = p.clock
 	lcConf.Auth.Preference.SetSecondFactor("off")
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.Clock = p.clock
+	lcConf.InsecureMode = true
 	lcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.leafConfig != nil {
 		opts.leafConfig(lcConf)
@@ -456,6 +459,7 @@ func (p *DatabasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 	conf.Databases.Databases = params.databases
 	conf.Databases.ResourceMatchers = params.resourceMatchers
 	conf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	conf.InsecureMode = true
 
 	server, authClient, hostUUID, err := p.Root.Cluster.StartDatabase(conf)
 	require.NoError(t, err)

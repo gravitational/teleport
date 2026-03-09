@@ -74,7 +74,6 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
@@ -811,13 +810,12 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		Logger:      suite.log,
 	})
 
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
-
+	mainConf.InsecureMode = true
 	mainConf.Proxy.Kube.Enabled = true
 	err = main.CreateEx(t, nil, mainConf)
 	require.NoError(t, err)
 
+	auxConf.InsecureMode = true
 	err = aux.CreateEx(t, nil, auxConf)
 	require.NoError(t, err)
 
@@ -1084,9 +1082,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		Logger:      suite.log,
 	})
 
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
-
+	mainConf.InsecureMode = true
 	// route all the traffic to the aux cluster
 	mainConf.Proxy.Kube.Enabled = true
 	// ClusterOverride forces connection to be routed
@@ -1095,6 +1091,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	err = main.CreateEx(t, nil, mainConf)
 	require.NoError(t, err)
 
+	auxConf.InsecureMode = true
 	err = aux.CreateEx(t, nil, auxConf)
 	require.NoError(t, err)
 

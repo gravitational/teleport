@@ -91,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	libplayer "github.com/gravitational/teleport/lib/player"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -4041,7 +4042,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	}
 
 	if ident.ScopePin != nil {
-		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.Scope, "assignments", ident.ScopePin.Assignments)
+		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.Scope, "assignments", pinning.AssignmentTreeIntoMap(ident.ScopePin.AssignmentTree))
 	}
 
 	return keyRing, nil

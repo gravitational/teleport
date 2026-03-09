@@ -89,6 +89,15 @@ export interface ResourceConstraints {
          */
         awsConsole: AWSConsoleResourceConstraints;
     } | {
+        oneofKind: "ssh";
+        /**
+         * ssh scopes an SSH node to a subset of logins the requester is
+         * allowed to use.
+         *
+         * @generated from protobuf field: types.SSHResourceConstraints ssh = 11;
+         */
+        ssh: SSHResourceConstraints;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -103,6 +112,18 @@ export interface AWSConsoleResourceConstraints {
      * @generated from protobuf field: repeated string role_arns = 1;
      */
     roleArns: string[];
+}
+/**
+ * SSHResourceConstraints scopes an SSH node to a subset of logins the
+ * requester is allowed to use.
+ *
+ * @generated from protobuf message types.SSHResourceConstraints
+ */
+export interface SSHResourceConstraints {
+    /**
+     * @generated from protobuf field: repeated string logins = 1;
+     */
+    logins: string[];
 }
 /**
  * ResourceAccessID represents a ResourceID in an Access Request-related context,
@@ -207,7 +228,8 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
     constructor() {
         super("types.ResourceConstraints", [
             { no: 1, name: "version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 10, name: "aws_console", kind: "message", oneof: "details", T: () => AWSConsoleResourceConstraints }
+            { no: 10, name: "aws_console", kind: "message", oneof: "details", T: () => AWSConsoleResourceConstraints },
+            { no: 11, name: "ssh", kind: "message", oneof: "details", T: () => SSHResourceConstraints }
         ]);
     }
     create(value?: PartialMessage<ResourceConstraints>): ResourceConstraints {
@@ -232,6 +254,12 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
                         awsConsole: AWSConsoleResourceConstraints.internalBinaryRead(reader, reader.uint32(), options, (message.details as any).awsConsole)
                     };
                     break;
+                case /* types.SSHResourceConstraints ssh */ 11:
+                    message.details = {
+                        oneofKind: "ssh",
+                        ssh: SSHResourceConstraints.internalBinaryRead(reader, reader.uint32(), options, (message.details as any).ssh)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -250,6 +278,9 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
         /* types.AWSConsoleResourceConstraints aws_console = 10; */
         if (message.details.oneofKind === "awsConsole")
             AWSConsoleResourceConstraints.internalBinaryWrite(message.details.awsConsole, writer.tag(10, WireType.LengthDelimited).fork(), options).join();
+        /* types.SSHResourceConstraints ssh = 11; */
+        if (message.details.oneofKind === "ssh")
+            SSHResourceConstraints.internalBinaryWrite(message.details.ssh, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -307,6 +338,53 @@ class AWSConsoleResourceConstraints$Type extends MessageType<AWSConsoleResourceC
  * @generated MessageType for protobuf message types.AWSConsoleResourceConstraints
  */
 export const AWSConsoleResourceConstraints = new AWSConsoleResourceConstraints$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SSHResourceConstraints$Type extends MessageType<SSHResourceConstraints> {
+    constructor() {
+        super("types.SSHResourceConstraints", [
+            { no: 1, name: "logins", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SSHResourceConstraints>): SSHResourceConstraints {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.logins = [];
+        if (value !== undefined)
+            reflectionMergePartial<SSHResourceConstraints>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SSHResourceConstraints): SSHResourceConstraints {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string logins */ 1:
+                    message.logins.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SSHResourceConstraints, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string logins = 1; */
+        for (let i = 0; i < message.logins.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.logins[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message types.SSHResourceConstraints
+ */
+export const SSHResourceConstraints = new SSHResourceConstraints$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ResourceAccessID$Type extends MessageType<ResourceAccessID> {
     constructor() {

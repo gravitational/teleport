@@ -907,6 +907,28 @@ var (
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindInferencePolicy",
 	}
+	scopedToken = payload{
+		Name:                  "ScopedToken",
+		TypeName:              "ScopedToken",
+		VarName:               "scopedToken",
+		GetMethod:             "GetScopedToken",
+		CreateMethod:          "CreateScopedToken",
+		UpdateMethod:          "UpsertScopedToken",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "DeleteScopedToken",
+		ID:                    "scopedToken.Metadata.Name",
+		Kind:                  "scoped_token",
+		WithSecrets:           "true",
+		HasStaticID:           false,
+		ProtoPackage:          "joiningv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/joining/v1",
+		TerraformResourceType: "teleport_scoped_token",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind:          "apitypes.KindScopedToken",
+	}
 
 	/*
 		//
@@ -1015,6 +1037,8 @@ func genTFSchema() {
 	generateDataSource(inferenceSecret, pluralDataSource)
 	generateResource(inferencePolicy, pluralResource)
 	generateDataSource(inferencePolicy, pluralDataSource)
+	generateResource(scopedToken, pluralResource)
+	generateDataSource(scopedToken, pluralDataSource)
 	// Add resources here, use the singular resource for singletons and the plural resource for regular resources.
 }
 

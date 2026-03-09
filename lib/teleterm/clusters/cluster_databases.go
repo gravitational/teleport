@@ -33,11 +33,16 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
-	"github.com/gravitational/teleport/lib/services"
 	dbrole "github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+// AutoUserProvisioning contains auto-user provisioning information.
+type AutoUserProvisioning struct {
+	// DatabaseRoles is the list of database roles that will be assigned to the auto-provisioned user.
+	DatabaseRoles []string
+}
 
 // Database describes database
 type Database struct {
@@ -47,6 +52,8 @@ type Database struct {
 	// TargetHealth describes the health status of network connectivity
 	// reported from an agent (db_service) that is proxying this database.
 	TargetHealth types.TargetHealth
+	// AutoUserProvisioning contains auto-user provisioning information.
+	AutoUserProvisioning *AutoUserProvisioning
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal
@@ -117,7 +124,7 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, authClient authcl
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.clusterClient.SiteName, authClient)
+	accessChecker, err := c.NewAccessChecker(ctx, authClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
