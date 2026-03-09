@@ -282,6 +282,9 @@ func messageIsResource(m protoreflect.MessageDescriptor) bool {
 	case "proto.Event":
 		// contains a types.ResourceHeader in a oneof
 		return false
+	case "types.WatchKind":
+		// happens to have kind, subkind and version but is not a resource
+		return false
 	case "accessgraph.v1alpha.ResourceHeaderList":
 		// uses a repeated types.ResourceHeader to specify a list of resources
 		// to be deleted
