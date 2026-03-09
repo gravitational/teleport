@@ -24,11 +24,9 @@ import (
 
 	"buf.build/go/bufplugin/check"
 	"buf.build/go/bufplugin/check/checkutil"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
-
-	"github.com/gravitational/teleport/build.assets/tooling/cmd/buf-plugin-linters/gogoprotopb/gogoproto"
 )
 
 const (
@@ -103,6 +101,34 @@ func fieldsFromFieldDescriptors(fds protoreflect.FieldDescriptors) iter.Seq[prot
 	}
 }
 
+func getGogoJsonTag(m protoreflect.ProtoMessage) (string, bool) {
+	unk := m.ProtoReflect().GetUnknown()
+	for len(unk) > 0 {
+		num, typ, n := protowire.ConsumeTag(unk)
+		if n < 0 {
+			panic(protowire.ParseError(n))
+		}
+		unk = unk[n:]
+		if num != 65005 {
+			n := protowire.ConsumeFieldValue(num, typ, unk)
+			if n < 0 {
+				panic(protowire.ParseError(n))
+			}
+			unk = unk[n:]
+			continue
+		}
+		if typ != protowire.BytesType {
+			panic(typ)
+		}
+		v, n := protowire.ConsumeBytes(unk)
+		if n < 0 {
+			panic(protowire.ParseError(n))
+		}
+		return string(v), true
+	}
+	return "", false
+}
+
 func checkResourceShape(_ context.Context, rw check.ResponseWriter, _ check.Request, m protoreflect.MessageDescriptor) error {
 	if !messageIsResource(m) {
 		return nil
@@ -159,17 +185,11 @@ func checkResourceShape(_ context.Context, rw check.ResponseWriter, _ check.Requ
 				)
 			}
 
-			var jt string
-			if proto.HasExtension(field.Options(), gogoproto.E_Jsontag) {
-				jt = proto.GetExtension(field.Options(), gogoproto.E_Jsontag).(string)
-				if jt == "" {
-					jt = "(unset)"
-				}
-			}
-			if string(field.Name()) == lowercase && jt != "" && jt != lowercase {
+			jt, hasJT := getGogoJsonTag(field.Options())
+			if string(field.Name()) == lowercase && hasJT && jt != lowercase && jt != lowercase+",omitempty" {
 				rw.AddAnnotation(
 					check.WithDescriptor(field),
-					check.WithMessagef("%+q field should not have gogoproto.jsontag %+q", lowercase, jt),
+					check.WithMessagef("%+q field should not have gogoproto.jsontag", lowercase),
 				)
 			} else if string(field.Name()) != lowercase && jt != lowercase && jt != lowercase+",omitempty" {
 				rw.AddAnnotation(
@@ -210,17 +230,11 @@ func checkResourceShape(_ context.Context, rw check.ResponseWriter, _ check.Requ
 				)
 			}
 
-			var jt string
-			if proto.HasExtension(field.Options(), gogoproto.E_Jsontag) {
-				jt = proto.GetExtension(field.Options(), gogoproto.E_Jsontag).(string)
-				if jt == "" {
-					jt = "(unset)"
-				}
-			}
-			if string(field.Name()) == lowercase && jt != "" && jt != lowercase {
+			jt, hasJT := getGogoJsonTag(field.Options())
+			if string(field.Name()) == lowercase && hasJT && jt != lowercase && jt != lowercase+",omitempty" {
 				rw.AddAnnotation(
 					check.WithDescriptor(field),
-					check.WithMessagef("%+q field should not have gogoproto.jsontag %+q", lowercase, jt),
+					check.WithMessagef("%+q field should not have gogoproto.jsontag", lowercase),
 				)
 			} else if string(field.Name()) != lowercase && jt != lowercase && jt != lowercase+",omitempty" {
 				rw.AddAnnotation(
