@@ -56,6 +56,14 @@ jobs:
               - 'go.sum'
               - 'api/proto/**'
               - 'proto/**'
+              # proto codegen infra
+              - 'buf.yaml'
+              - 'buf.lock'
+              - 'buf-legacy.yaml'
+              - 'buf-*.gen.yaml'
+              - 'build.assets/tooling/cmd/buf-plugin-linters/**'
+              - 'build.assets/tooling/go.mod'
+              - 'build.assets/tooling/go.sum'
               # operator protoc generator change
               - 'integrations/operator/crdgen'
               # terraform protoc generator changes
