@@ -292,14 +292,6 @@ func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, key *types.RDPLicen
 	return license.Data, nil
 }
 
-// ReadLocalIdentity reads, parses and returns the given pub/pri key + cert from the
-// key storage (dataDir).
-//
-// TODO(nklaassen): delete this after ref has been removed from teleport.e
-func ReadLocalIdentity(dataDir string, id state.IdentityID) (*state.Identity, error) {
-	return ReadLocalIdentityForRole(context.TODO(), dataDir, id.Role)
-}
-
 // ReadLocalIdentityForRole reads, parses and returns the given pub/pri key +
 // cert from the key storage (dataDir).
 func ReadLocalIdentityForRole(ctx context.Context, dataDir string, role types.SystemRole) (*state.Identity, error) {
