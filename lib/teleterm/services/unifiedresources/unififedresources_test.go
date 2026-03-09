@@ -168,6 +168,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 		AutoUserProvisioning: &clusters.AutoUserProvisioning{
 			DatabaseRoles: []string{},
 		},
+		Users: []string{"testUser"},
 	}}, response.Resources[1])
 
 	require.Equal(t, UnifiedResource{Kube: &clusters.Kube{
@@ -215,6 +216,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 		AutoUserProvisioning: &clusters.AutoUserProvisioning{
 			DatabaseRoles: []string{},
 		},
+		Users: []string{"testUser"},
 	}}, leafResponse.Resources[0])
 }
 

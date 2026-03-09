@@ -215,6 +215,14 @@ export function ConnectDatabaseActionButton(props: {
 }): React.JSX.Element {
   const appContext = useAppContext();
 
+  const serverUsers = props.database.users;
+  const loginItems = serverUsers
+    ? serverUsers
+        .filter(user => user !== '*')
+        .map(user => ({ login: user, url: '' }))
+    : [];
+  const hasWildcardUsers = hasWildcard(serverUsers ?? []);
+
   function connect(dbUser: string): void {
     const { uri, name, protocol, gcpProjectId, autoUserProvisioning } =
       props.database;
@@ -238,11 +246,11 @@ export function ConnectDatabaseActionButton(props: {
       <ButtonBorder
         size="small"
         onClick={async () => {
-          const dbUsers = await getDatabaseUsers(
-            appContext,
-            props.database.uri
-          );
-          const autoProvisionedDbUser = dbUsers[0].login;
+          // TODO: Remove this once we have servers on a new version of Teleport.
+          const dbUsers = serverUsers
+            ? loginItems
+            : await getDatabaseUsers(appContext, props.database.uri);
+          const autoProvisionedDbUser = dbUsers?.[0]?.login ?? '';
           connect(autoProvisionedDbUser);
         }}
         textTransform="none"
@@ -256,12 +264,24 @@ export function ConnectDatabaseActionButton(props: {
   return (
     <MenuLogin
       {...getDatabaseMenuLoginOptions(
-        props.database.protocol as GatewayProtocol
+        props.database.protocol as GatewayProtocol,
+        serverUsers
       )}
+      inputType={
+        loginItems.length > 0 && !hasWildcardUsers
+          ? MenuInputType.FILTER
+          : MenuInputType.INPUT
+      }
       textTransform="none"
       width="195px"
       buttonWidth={buttonWidth}
-      getLoginItems={() => getDatabaseUsers(appContext, props.database.uri)}
+      getLoginItems={() => {
+        if (serverUsers) {
+          return loginItems;
+        }
+        // TODO: Remove this once we have servers on a new version of Teleport.
+        return getDatabaseUsers(appContext, props.database.uri);
+      }}
       onSelect={(_, user) => {
         connect(user);
       }}
@@ -277,8 +297,13 @@ export function ConnectDatabaseActionButton(props: {
   );
 }
 
+function hasWildcard(users: string[]): boolean {
+  return users.includes('*');
+}
+
 function getDatabaseMenuLoginOptions(
-  protocol: GatewayProtocol
+  protocol: GatewayProtocol,
+  users: string[]
 ): Pick<MenuLoginProps, 'placeholder' | 'required'> {
   if (protocol === 'redis') {
     return {
@@ -287,10 +312,11 @@ function getDatabaseMenuLoginOptions(
     };
   }
 
-  return {
-    placeholder: 'Enter username',
-    required: true,
-  };
+  const placeholder =
+    users.length > 0 && !hasWildcard(users)
+      ? 'Search by username'
+      : 'Enter username';
+  return { placeholder, required: true };
 }
 
 async function getDatabaseUsers(appContext: IAppContext, dbUri: DatabaseUri) {

@@ -54,6 +54,8 @@ type Database struct {
 	TargetHealth types.TargetHealth
 	// AutoUserProvisioning contains auto-user provisioning information.
 	AutoUserProvisioning *AutoUserProvisioning
+	// Users is a list of database users
+	Users []string
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal

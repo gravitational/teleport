@@ -49,6 +49,8 @@ message Database {
   string gcp_project_id = 10;
   // auto_user_provisioning contains database auto-user provisioning information.
   AutoUserProvisioning auto_user_provisioning = 11;
+  // users is a list of database users
+  repeated string users = 12;
 }
 
 // AutoUserProvisioning contains database auto-user provisioning information.

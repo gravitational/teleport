@@ -146,6 +146,14 @@ function Buttons(props: StoryProps) {
         <Database />
       </Box>
       <Box>
+        <Text>Database (known users, filter mode)</Text>
+        <DatabaseWithKnownUsers />
+      </Box>
+      <Box>
+        <Text>Database (wildcard users, input mode)</Text>
+        <DatabaseWithWildcardUsers />
+      </Box>
+      <Box>
         <Text>Database (auto-user provisioning)</Text>
         <DatabaseAutoUserProvisioning />
       </Box>
@@ -327,6 +335,28 @@ function Database() {
     <ConnectDatabaseActionButton
       database={makeDatabase({
         uri: `${testCluster.uri}/dbs/bar`,
+      })}
+    />
+  );
+}
+
+function DatabaseWithKnownUsers() {
+  return (
+    <ConnectDatabaseActionButton
+      database={makeDatabase({
+        uri: `${testCluster.uri}/dbs/bar`,
+        users: ['alice', 'bob', 'charlie'],
+      })}
+    />
+  );
+}
+
+function DatabaseWithWildcardUsers() {
+  return (
+    <ConnectDatabaseActionButton
+      database={makeDatabase({
+        uri: `${testCluster.uri}/dbs/bar`,
+        users: ['alice', 'bob', '*'],
       })}
     />
   );

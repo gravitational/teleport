@@ -104,6 +104,12 @@ export interface Database {
      * @generated from protobuf field: teleport.lib.teleterm.v1.AutoUserProvisioning auto_user_provisioning = 11;
      */
     autoUserProvisioning?: AutoUserProvisioning;
+    /**
+     * users is a list of database users
+     *
+     * @generated from protobuf field: repeated string users = 12;
+     */
+    users: string[];
 }
 /**
  * AutoUserProvisioning contains database auto-user provisioning information.
@@ -157,7 +163,8 @@ class Database$Type extends MessageType<Database> {
             { no: 8, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
             { no: 9, name: "target_health", kind: "message", T: () => TargetHealth },
             { no: 10, name: "gcp_project_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 11, name: "auto_user_provisioning", kind: "message", T: () => AutoUserProvisioning }
+            { no: 11, name: "auto_user_provisioning", kind: "message", T: () => AutoUserProvisioning },
+            { no: 12, name: "users", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Database>): Database {
@@ -171,6 +178,7 @@ class Database$Type extends MessageType<Database> {
         message.addr = "";
         message.labels = [];
         message.gcpProjectId = "";
+        message.users = [];
         if (value !== undefined)
             reflectionMergePartial<Database>(this, message, value);
         return message;
@@ -212,6 +220,9 @@ class Database$Type extends MessageType<Database> {
                     break;
                 case /* teleport.lib.teleterm.v1.AutoUserProvisioning auto_user_provisioning */ 11:
                     message.autoUserProvisioning = AutoUserProvisioning.internalBinaryRead(reader, reader.uint32(), options, message.autoUserProvisioning);
+                    break;
+                case /* repeated string users */ 12:
+                    message.users.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -258,6 +269,9 @@ class Database$Type extends MessageType<Database> {
         /* teleport.lib.teleterm.v1.AutoUserProvisioning auto_user_provisioning = 11; */
         if (message.autoUserProvisioning)
             AutoUserProvisioning.internalBinaryWrite(message.autoUserProvisioning, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* repeated string users = 12; */
+        for (let i = 0; i < message.users.length; i++)
+            writer.tag(12, WireType.LengthDelimited).string(message.users[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

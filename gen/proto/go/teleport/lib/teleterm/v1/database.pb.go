@@ -63,8 +63,10 @@ type Database struct {
 	GcpProjectId string `protobuf:"bytes,10,opt,name=gcp_project_id,json=gcpProjectId,proto3" json:"gcp_project_id,omitempty"`
 	// auto_user_provisioning contains database auto-user provisioning information.
 	AutoUserProvisioning *AutoUserProvisioning `protobuf:"bytes,11,opt,name=auto_user_provisioning,json=autoUserProvisioning,proto3" json:"auto_user_provisioning,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// users is a list of database users
+	Users         []string `protobuf:"bytes,12,rep,name=users,proto3" json:"users,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Database) Reset() {
@@ -170,6 +172,13 @@ func (x *Database) GetGcpProjectId() string {
 func (x *Database) GetAutoUserProvisioning() *AutoUserProvisioning {
 	if x != nil {
 		return x.AutoUserProvisioning
+	}
+	return nil
+}
+
+func (x *Database) GetUsers() []string {
+	if x != nil {
+		return x.Users
 	}
 	return nil
 }
@@ -295,7 +304,7 @@ var File_teleport_lib_teleterm_v1_database_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/lib/teleterm/v1/database.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\x1a,teleport/lib/teleterm/v1/target_health.proto\"\xb6\x03\n" +
+	"'teleport/lib/teleterm/v1/database.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\x1a,teleport/lib/teleterm/v1/target_health.proto\"\xcc\x03\n" +
 	"\bDatabase\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -308,7 +317,8 @@ const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
 	"\rtarget_health\x18\t \x01(\v2&.teleport.lib.teleterm.v1.TargetHealthR\ftargetHealth\x12$\n" +
 	"\x0egcp_project_id\x18\n" +
 	" \x01(\tR\fgcpProjectId\x12d\n" +
-	"\x16auto_user_provisioning\x18\v \x01(\v2..teleport.lib.teleterm.v1.AutoUserProvisioningR\x14autoUserProvisioning\"=\n" +
+	"\x16auto_user_provisioning\x18\v \x01(\v2..teleport.lib.teleterm.v1.AutoUserProvisioningR\x14autoUserProvisioning\x12\x14\n" +
+	"\x05users\x18\f \x03(\tR\x05users\"=\n" +
 	"\x14AutoUserProvisioning\x12%\n" +
 	"\x0edatabase_roles\x18\x02 \x03(\tR\rdatabaseRoles\"\xa4\x01\n" +
 	"\x0eDatabaseServer\x12\x10\n" +
