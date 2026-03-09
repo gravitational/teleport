@@ -25,6 +25,7 @@ import {
   Flex,
   H2,
   Indicator,
+  P2,
   StepSlider,
   Text,
 } from 'design';
@@ -43,7 +44,6 @@ import { ClusterConnectReason } from 'teleterm/ui/services/modals';
 
 import { outermostPadding } from '../spacing';
 import LoginForm from './FormLogin';
-import { MessageOfTheDay } from './MessageOfTheDay';
 import { Props, State, useClusterLogin } from './useClusterLogin';
 
 export function ClusterLogin(props: Props & { reason: ClusterConnectReason }) {
@@ -305,5 +305,26 @@ function LoginHeader(props: { cluster: string; onClose: () => void }) {
         <Icons.Cross size="medium" />
       </ButtonIcon>
     </DialogHeader>
+  );
+}
+
+function MessageOfTheDay(props: { message: string; onAcknowledge(): void }) {
+  return (
+    <>
+      {/* Make the internal container scrollable, so that the acknowledge button is always visible. */}
+      <Box mb={3} maxHeight="400px" overflow="auto">
+        <P2 whiteSpace="pre-wrap" px={outermostPadding}>
+          {props.message}
+        </P2>
+      </Box>
+      <ButtonPrimary
+        size="large"
+        mx={outermostPadding}
+        autoFocus
+        onClick={props.onAcknowledge}
+      >
+        Acknowledge
+      </ButtonPrimary>
+    </>
   );
 }
