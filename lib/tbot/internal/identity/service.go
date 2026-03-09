@@ -429,6 +429,8 @@ func (s *Service) Run(ctx context.Context) error {
 				s.unblockWaiters()
 				s.cfg.StatusReporter.Report(readyz.Healthy)
 				break
+			} else {
+				s.log.ErrorContext(ctx, "Failed to renew bot identity", "error", err)
 			}
 		}
 	}
