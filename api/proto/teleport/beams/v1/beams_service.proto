@@ -27,6 +27,9 @@ service BeamsService {
   // CreateBeam creates a new beam.
   rpc CreateBeam(CreateBeamRequest) returns (Beam);
 
+  // ListBeams returns a page of beams.
+  rpc ListBeams(ListBeamsRequest) returns (ListBeamsResponse);
+
   // WatchBeam returns the current state of the beam, and streams changes (e.g.
   // domains being allowed/denied).
   //
@@ -43,6 +46,27 @@ service BeamsService {
 
 // CreateBeamRequest contains the parameters to CreateBeam.
 message CreateBeamRequest {}
+
+// ListBeamsRequest contains the parameters to ListBeams.
+message ListBeamsRequest {
+  // PageSize is the maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+
+  // PageToken is the next_page_token value returned from a previous List
+  // request, if any.
+  string page_token = 2;
+}
+
+// ListBeamsResponse is the result of ListBeams.
+message ListBeamsResponse {
+  // Beams is the page of beams that matched the request.
+  repeated Beam beams = 1;
+
+  // NextPageToken is the token to retrieve the next page of results, or empty
+  // if there are no more results in the list.
+  string next_page_token = 2;
+}
 
 // WatchBeamRequest contains the parameters to WatchBeam.
 message WatchBeamRequest {

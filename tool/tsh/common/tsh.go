@@ -1049,6 +1049,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beams := app.Command("beams", "Create and connect to beam environments.")
 	beams.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	beamsAdd := beams.Command("add", "Create a beam and connect to it over SSH.")
+	beamsLS := beams.Command("ls", "List your beams.")
 	beamsAllow := beams.Command("allow", "Allow a domain for an existing beam.")
 	beamsAllow.Arg("beam-id", "Beam ID to update.").Required().StringVar(&cf.BeamID)
 	beamsAllow.Flag("domain", "FQDN to allow for the beam (for example, api.example.com).").Required().StringVar(&cf.BeamDomain)
@@ -1814,6 +1815,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onApps(&cf)
 	case beamsAdd.FullCommand():
 		err = onBeamsAdd(&cf)
+	case beamsLS.FullCommand():
+		err = onBeamsList(&cf)
 	case beamsAllow.FullCommand():
 		err = onBeamsAllow(&cf)
 	case beamsPublish.FullCommand():

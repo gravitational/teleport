@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -33,8 +34,11 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 const (
@@ -105,6 +109,39 @@ func onBeamsAdd(cf *CLIConf) error {
 	return trace.Wrap(client.RetryWithRelogin(cf.Context, tc, sshFunc))
 }
 
+func onBeamsList(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc.AllowHeadless = true
+
+	var beams []*beamsv1.Beam
+	if err := tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
+		beams, err = stream.Collect(clientutils.Resources(cf.Context, func(ctx context.Context, pageSize int, pageToken string) ([]*beamsv1.Beam, string, error) {
+			resp, err := clt.BeamsServiceClient().ListBeams(ctx, &beamsv1.ListBeamsRequest{
+				PageSize:  int32(pageSize),
+				PageToken: pageToken,
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return resp.GetBeams(), resp.GetNextPageToken(), nil
+		}))
+		return trace.Wrap(err)
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	slices.SortFunc(beams, func(a, b *beamsv1.Beam) int {
+		return strings.Compare(a.GetMetadata().GetName(), b.GetMetadata().GetName())
+	})
+
+	fmt.Fprint(cf.Stdout(), renderBeamsTable(beams, tc.WebProxyHost()))
+	return nil
+}
+
 func onBeamsAllow(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
@@ -171,6 +208,29 @@ func onBeamsPublish(cf *CLIConf) error {
 
 	fmt.Fprintln(cf.Stdout(), addr)
 	return nil
+}
+
+func renderBeamsTable(beams []*beamsv1.Beam, proxyHost string) string {
+	table := asciitable.MakeTable([]string{"Name", "Expiry"})
+	for _, beam := range beams {
+		table.AddRow([]string{
+			beam.GetMetadata().GetName(),
+			beamExpiry(beam),
+		})
+	}
+	return table.AsBuffer().String()
+}
+
+func beamExpiry(beam *beamsv1.Beam) string {
+	expires := beam.GetMetadata().GetExpires()
+	if expires == nil {
+		return ""
+	}
+	t := expires.AsTime()
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
 }
 
 // startBeamSpinner prints an animated braille spinner with msg to w.
