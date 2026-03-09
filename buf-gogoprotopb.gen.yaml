@@ -1,0 +1,24 @@
+version: v2
+
+inputs:
+  - module: buf.build/gogo/protobuf
+    types:
+      - gogoproto.jsontag
+
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/gravitational/teleport/build.assets/tooling/cmd/buf-plugin-linters/gogoprotopb
+
+clean: true
+
+plugins:
+  - local:
+      - go
+      - run
+      - google.golang.org/protobuf/cmd/protoc-gen-go
+    out: build.assets/tooling/cmd/buf-plugin-linters/gogoprotopb
+    opt:
+      - module=github.com/gravitational/teleport/build.assets/tooling/cmd/buf-plugin-linters/gogoprotopb
+    strategy: all
