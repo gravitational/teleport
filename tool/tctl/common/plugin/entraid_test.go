@@ -148,11 +148,106 @@ func TestEntraIDGroupFilters(t *testing.T) {
 				install: pluginInstallArgs{
 					name: "entra-id-default",
 					entraID: entraArgs{
-						authConnectorName:    "fake-saml-connector",
-						accessGraph:          false,
-						manualEntraIDSetup:   true,
-						useSystemCredentials: true,
-						groupFilters:         test.groupFilters,
+						authConnectorName:      "fake-saml-connector",
+						accessGraph:            false,
+						manualEntraIDSetup:     true,
+						useSystemCredentials:   true,
+						groupFilters:           test.groupFilters,
+						accessListOwnersSource: "plugin",
+					},
+				},
+				stdin:  inputs,
+				stdout: &output,
+			}
+
+			err = cmd.InstallEntra(t.Context(), pluginArgs)
+			test.errorAssertion(t, err)
+		})
+	}
+}
+
+func TestEntraIDAccessListOwners(t *testing.T) {
+	testCases := []struct {
+		name                           string
+		accessListOwnersSource         string
+		expectedAccessListOwnersSource types.EntraIDAccessListOwnersSource
+		errorAssertion                 require.ErrorAssertionFunc
+	}{
+		{
+			name:                           "unknown source",
+			accessListOwnersSource:         "unknown",
+			expectedAccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED,
+			errorAssertion:                 require.Error,
+		},
+		{
+			name:                           "empty source",
+			accessListOwnersSource:         "",
+			expectedAccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED,
+			errorAssertion:                 require.Error,
+		},
+		{
+			name:                           "plugin source",
+			accessListOwnersSource:         "plugin",
+			expectedAccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN,
+			errorAssertion:                 require.NoError,
+		},
+		{
+			name:                           "plugin and entraid source source",
+			accessListOwnersSource:         "plugin-and-entraid",
+			expectedAccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID,
+			errorAssertion:                 require.NoError,
+		},
+		{
+			name:                           "entra-id source",
+			accessListOwnersSource:         "entraid",
+			expectedAccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID,
+			errorAssertion:                 require.NoError,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			authClient := &mockAuthClient{}
+			authClient.
+				On("Ping", anyContext).
+				Return(proto.PingResponse{
+					ProxyPublicAddr: "example.com",
+				}, nil)
+			authClient.
+				On("CreateSAMLConnector", anyContext, mock.Anything).
+				Return(&types.SAMLConnectorV2{}, nil)
+
+			pluginsClient := &mockPluginsClient{}
+			pluginsClient.
+				On("CreatePlugin", anyContext, mock.Anything, mock.Anything).
+				Run(func(args mock.Arguments) {
+					require.IsType(t, (*pluginsv1.CreatePluginRequest)(nil), args.Get(1))
+					request := args.Get(1).(*pluginsv1.CreatePluginRequest)
+					require.Empty(t, cmp.Diff(test.expectedAccessListOwnersSource, request.GetPlugin().Spec.GetEntraId().SyncSettings.AccessListOwnersSource))
+				}).
+				Return(&emptypb.Empty{}, nil)
+			pluginArgs := pluginServices{
+				authClient: authClient,
+				plugins:    pluginsClient,
+			}
+
+			var output bytes.Buffer
+			var tenantID, clientID bytes.Buffer
+			_, err := io.WriteString(&tenantID, "55fe2b7f-85c7-43c6-a8ba-897ce8570503\n")
+			require.NoError(t, err)
+			_, err = io.WriteString(&clientID, "3658a550-f173-44fa-a670-74b9fd7e3ae7\n")
+			require.NoError(t, err)
+			inputs := io.MultiReader(&tenantID, &clientID)
+
+			cmd := PluginsCommand{
+				install: pluginInstallArgs{
+					name: "entra-id-default",
+					entraID: entraArgs{
+						authConnectorName:      "fake-saml-connector",
+						accessGraph:            false,
+						manualEntraIDSetup:     true,
+						useSystemCredentials:   true,
+						accessListOwnersSource: test.accessListOwnersSource,
 					},
 				},
 				stdin:  inputs,

@@ -1107,8 +1107,7 @@ func (m *mockCache) GetCertAuthority(ctx context.Context, id types.CertAuthID, l
 func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) types.CertAuthority {
 	t.Helper()
 
-	ta := testauthority.New()
-	pub, priv, err := ta.GenerateJWT()
+	pub, priv, err := testauthority.GenerateJWT()
 	require.NoError(t, err)
 
 	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: domain}, nil, time.Minute)

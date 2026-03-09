@@ -14,23 +14,27 @@ import (
 )
 
 type networkIpv4DataT struct {
-	_       structs.HostLayout
-	Cgroup  uint64
-	Ip      uint64
-	Pid     uint32
-	Saddr   uint32
-	Daddr   uint32
-	Dport   uint16
-	Command [16]uint8
-	_       [2]byte
+	_              structs.HostLayout
+	Cgroup         uint64
+	AuditSessionId uint32
+	_              [4]byte
+	Ip             uint64
+	Pid            uint32
+	Saddr          uint32
+	Daddr          uint32
+	Dport          uint16
+	Command        [16]uint8
+	_              [2]byte
 }
 
 type networkIpv6DataT struct {
-	_      structs.HostLayout
-	Cgroup uint64
-	Ip     uint64
-	Pid    uint32
-	Saddr  struct {
+	_              structs.HostLayout
+	Cgroup         uint64
+	AuditSessionId uint32
+	_              [4]byte
+	Ip             uint64
+	Pid            uint32
+	Saddr          struct {
 		_    structs.HostLayout
 		In6U struct {
 			_       structs.HostLayout
@@ -101,12 +105,12 @@ type networkProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type networkMapSpecs struct {
-	Currsock         *ebpf.MapSpec `ebpf:"currsock"`
-	Ipv4Events       *ebpf.MapSpec `ebpf:"ipv4_events"`
-	Ipv6Events       *ebpf.MapSpec `ebpf:"ipv6_events"`
-	LostCounter      *ebpf.MapSpec `ebpf:"lost_counter"`
-	LostDoorbell     *ebpf.MapSpec `ebpf:"lost_doorbell"`
-	MonitoredCgroups *ebpf.MapSpec `ebpf:"monitored_cgroups"`
+	Currsock            *ebpf.MapSpec `ebpf:"currsock"`
+	Ipv4Events          *ebpf.MapSpec `ebpf:"ipv4_events"`
+	Ipv6Events          *ebpf.MapSpec `ebpf:"ipv6_events"`
+	LostCounter         *ebpf.MapSpec `ebpf:"lost_counter"`
+	LostDoorbell        *ebpf.MapSpec `ebpf:"lost_doorbell"`
+	MonitoredSessionids *ebpf.MapSpec `ebpf:"monitored_sessionids"`
 }
 
 // networkVariableSpecs contains global variables before they are loaded into the kernel.
@@ -137,12 +141,12 @@ func (o *networkObjects) Close() error {
 //
 // It can be passed to loadNetworkObjects or ebpf.CollectionSpec.LoadAndAssign.
 type networkMaps struct {
-	Currsock         *ebpf.Map `ebpf:"currsock"`
-	Ipv4Events       *ebpf.Map `ebpf:"ipv4_events"`
-	Ipv6Events       *ebpf.Map `ebpf:"ipv6_events"`
-	LostCounter      *ebpf.Map `ebpf:"lost_counter"`
-	LostDoorbell     *ebpf.Map `ebpf:"lost_doorbell"`
-	MonitoredCgroups *ebpf.Map `ebpf:"monitored_cgroups"`
+	Currsock            *ebpf.Map `ebpf:"currsock"`
+	Ipv4Events          *ebpf.Map `ebpf:"ipv4_events"`
+	Ipv6Events          *ebpf.Map `ebpf:"ipv6_events"`
+	LostCounter         *ebpf.Map `ebpf:"lost_counter"`
+	LostDoorbell        *ebpf.Map `ebpf:"lost_doorbell"`
+	MonitoredSessionids *ebpf.Map `ebpf:"monitored_sessionids"`
 }
 
 func (m *networkMaps) Close() error {
@@ -152,7 +156,7 @@ func (m *networkMaps) Close() error {
 		m.Ipv6Events,
 		m.LostCounter,
 		m.LostDoorbell,
-		m.MonitoredCgroups,
+		m.MonitoredSessionids,
 	)
 }
 

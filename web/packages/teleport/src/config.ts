@@ -39,6 +39,7 @@ import {
   Regions,
 } from 'teleport/services/integrations';
 import type { KubeResourceKind } from 'teleport/services/kube/types';
+import type { GroupAction } from 'teleport/services/managedUpdates';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
@@ -75,26 +76,10 @@ const cfg = {
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
-  /** @deprecated */
-  isTeam: false,
   isStripeManaged: false,
   hasQuestionnaire: false,
   externalAuditStorage: false,
   premiumSupport: false,
-  accessRequests: false,
-  /** @deprecated Use entitlements instead. */
-  trustedDevices: false,
-  oidc: false,
-  saml: false,
-  /** @deprecated Use entitlements instead. */
-  joinActiveSessions: false,
-  /** @deprecated Use entitlements instead. */
-  mobileDeviceManagement: false,
-  /** @deprecated Use entitlements instead. */
-  isIgsEnabled: false,
-
-  // isPolicyEnabled refers to the Teleport Policy product
-  isPolicyEnabled: false,
 
   // sessionSummarizerEnabled refers to the AI session summary feature
   sessionSummarizerEnabled: false,
@@ -103,23 +88,28 @@ const cfg = {
 
   baseUrl: window.location.origin,
 
+  // terraform contains terraform related configuration
+  terraform: {
+    registry: 'terraform.releases.teleport.dev',
+    stagingRegistry: 'terraform-staging.releases.development.teleport.dev',
+  },
+
   // enterprise non-exact routes will be merged into this
   // see `getNonExactRoutes` for details about non-exact routes
   nonExactRoutes: [],
 
-  // featureLimits define limits for features.
-  /** @deprecated Use entitlements instead. */
-  featureLimits: {
-    /** @deprecated Use entitlements instead. */
-    accessListCreateLimit: 0,
-    /** @deprecated Use entitlements instead. */
-    accessMonitoringMaxReportRangeLimit: 0,
-    /** @deprecated Use entitlements instead. */
-    AccessRequestMonthlyRequestLimit: 0,
-  },
-
   // default entitlements to false
   entitlements: defaultEntitlements,
+
+  /** @deprecated Use entitlements instead; remove in v20 */
+  accessRequests: false,
+  /** @deprecated Use entitlements instead; remove in v20 */
+  oidc: false,
+  /** @deprecated Use entitlements instead; remove in v20 */
+  saml: false,
+  // isPolicyEnabled refers to the Teleport Policy product
+  /** @deprecated Use entitlements instead; remove in v20 */
+  isPolicyEnabled: false,
 
   ui: {
     scrollbackLines: 1000,
@@ -153,6 +143,12 @@ const cfg = {
   },
 
   defaultDatabaseTTL: '2190h',
+
+  identitySecurity: {
+    accessGraphConfigSet: false,
+    licensed: false,
+    sessionSummarizationEnabled: false,
+  },
 
   routes: {
     root: '/web',
@@ -198,7 +194,6 @@ const cfg = {
     kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
     kubeExecSession: '/web/cluster/:clusterId/console/kube/session/:sid',
     dbConnect: '/web/cluster/:clusterId/console/db/connect/:serviceName',
-    dbSession: '/web/cluster/:clusterId/console/db/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
@@ -228,6 +223,7 @@ const cfg = {
     requests: '/web/requests/:requestId?',
 
     downloadCenter: '/web/downloads',
+    managedUpdates: '/web/managedupdates',
 
     // sso routes
     ssoConnector: {
@@ -301,7 +297,7 @@ const cfg = {
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username&tdpb=:version',
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid/ws',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
@@ -551,6 +547,11 @@ const cfg = {
         '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/playback/ws',
       thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
     },
+
+    managedUpdates: {
+      details: '/v1/webapi/managedupdates',
+      groupAction: '/v1/webapi/managedupdates/groups/:groupName/:action',
+    },
   },
 
   playable_db_protocols: [],
@@ -711,6 +712,21 @@ const cfg = {
 
   getAuditRoute(clusterId: string) {
     return generatePath(cfg.routes.audit, { clusterId });
+  },
+
+  getManagedUpdatesRoute() {
+    return cfg.routes.managedUpdates;
+  },
+
+  getManagedUpdatesUrl() {
+    return cfg.api.managedUpdates.details;
+  },
+
+  getManagedUpdatesGroupActionUrl(groupName: string, action: GroupAction) {
+    return generatePath(cfg.api.managedUpdates.groupAction, {
+      groupName,
+      action,
+    });
   },
 
   /**
@@ -955,10 +971,6 @@ const cfg = {
 
   getDbConnectRoute(params: UrlDbConnectParams) {
     return generatePath(cfg.routes.dbConnect, { ...params });
-  },
-
-  getDbSessionRoute({ clusterId, sid }: UrlParams) {
-    return generatePath(cfg.routes.dbSession, { clusterId, sid });
   },
 
   getKubeExecSessionRoute(
@@ -1418,13 +1430,17 @@ const cfg = {
     });
   },
 
-  getIntegrationsUrl(integrationName?: string) {
+  getIntegrationsUrl(integrationName?: string, withSummaries: boolean = false) {
     // Currently you can only create integrations at the root cluster.
     const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.integrationsPath, {
+    let url = generatePath(cfg.api.integrationsPath, {
       clusterId,
       name: integrationName,
     });
+    if (withSummaries) {
+      url += `?withSummaries=true`;
+    }
+    return url;
   },
 
   getDeleteIntegrationUrlV2(req: IntegrationDeleteRequest) {

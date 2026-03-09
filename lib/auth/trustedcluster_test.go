@@ -47,6 +47,7 @@ import (
 )
 
 func TestRemoteClusterStatus(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	a := newTestAuthServer(ctx, t)
 
@@ -340,7 +341,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 				DomainName: localClusterName,
 			}, false)
 			require.NoError(t, err)
-			require.True(t, services.CertAuthoritiesEquivalent(localCA, returnedCA))
+			require.True(t, localCA.IsEqual(returnedCA))
 		}
 
 		rcs, err := a.GetRemoteClusters(ctx)
@@ -448,11 +449,15 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *auth.
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
+
+	keygen, err := authority.NewKeygen(modules.BuildOSS, time.Now)
+	require.NoError(t, err)
+
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterNameRes,
 		Backend:                bk,
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
-		Authority:              authority.New(),
+		Authority:              keygen,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
 	}
@@ -475,6 +480,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *auth.
 }
 
 func TestUpsertTrustedCluster(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "localcluster",
@@ -616,6 +622,7 @@ func TestUpsertTrustedCluster(t *testing.T) {
 }
 
 func TestUpdateTrustedCluster(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "localcluster",

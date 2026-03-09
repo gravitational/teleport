@@ -26,7 +26,9 @@ jobs:
             changed:
               - '.github/workflows/integration-tests-win.yaml'
               - 'lib/autoupdate/tools/**.go'
+              - 'lib/teleterm/autoupdate/**.go'
               - 'lib/utils/packaging/**.go'
+              - 'integration/autoupdate/tools/**.go'
               - 'go.mod'
               - 'go.sum'
               - 'build.assets/Makefile'
@@ -47,20 +49,14 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v6
 
-      - name: Get Go version
-        id: go-version
-        shell: bash
-        run: echo "go-version=$(make -s print-go-version | tr -d '\n')" >> $GITHUB_OUTPUT
-
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           cache: false
-          go-version: ${{ steps.go-version.outputs.go-version }}
+          go-version-file: go.mod
 
       - name: Run tests
         shell: bash
         run: |
           export OS="windows"
           go test -timeout 30m ./integration/autoupdate/tools -v
-

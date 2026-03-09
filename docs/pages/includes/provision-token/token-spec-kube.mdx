@@ -1,0 +1,14 @@
+In this example, which assumes that you have placed the manifest in a Helm
+chart, we use the `randBytes` function to generate a cryptographically random
+token value and the `now` and `dateModify` functions to set a time to live:
+
+```yaml
+apiVersion: "resources.teleport.dev/v2"
+kind: TeleportProvisionToken
+metadata:
+  name: {{ randBytes 32 }}
+  expires: {{ now | dateModify "+1h" }}
+spec:
+  # use the minimal set of roles required (e.g. Node, Proxy, App, Kube, DB, WindowsDesktop)
+  roles: [Node]
+```

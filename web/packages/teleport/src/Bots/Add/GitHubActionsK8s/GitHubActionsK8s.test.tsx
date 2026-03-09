@@ -18,16 +18,18 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory } from 'history';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import { Router } from 'react-router';
+import selectEvent from 'react-select-event';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
@@ -39,26 +41,24 @@ import { ContextProvider } from 'teleport/index';
 import { ContentMinWidth } from 'teleport/Main/Main';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
+import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
 import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { trackingTester } from '../Shared/trackingTester';
 import { TrackingProvider } from '../Shared/useTracking';
 import { GitHubActionsK8sWithoutTracking } from './GitHubActionsK8s';
 
-const server = setupServer();
+enableMswServer();
 
-beforeAll(() => {
-  server.listen();
-
+beforeEach(() => {
   server.use(genWizardCiCdSuccess());
   server.use(userEventCaptureSuccess());
+  server.use(fetchUnifiedResourcesSuccess());
 
   jest.useFakeTimers();
 });
 
 afterAll(() => {
-  server.close();
-
   jest.useRealTimers();
   jest.resetAllMocks();
 });
@@ -135,6 +135,9 @@ describe('GitHubActionsK8s', () => {
       screen.getByRole('heading', { name: 'Configure Access' })
     ).toBeInTheDocument();
 
+    const input = screen.getByLabelText('Kubernetes Groups');
+    await user.type(input, 'viewers{enter}');
+
     await user.click(screen.getByRole('button', { name: 'Next' }));
 
     tracking.assertStep(
@@ -144,10 +147,20 @@ describe('GitHubActionsK8s', () => {
     );
 
     expect(
-      screen.getByRole('heading', { name: 'Setup Workflow' })
+      screen.getByRole('heading', { name: 'Set Up Workflow' })
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Done' }));
+    const select = screen.getByLabelText('Select a cluster to access');
+    await selectEvent.select(select, 'kube-lon-staging-01.example.com');
+
+    await act(() => jest.advanceTimersByTimeAsync(1000));
+    tracking.assertField(
+      'test-tracking-event-id',
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW',
+      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_CLUSTER_NAME'
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Close' }));
 
     await user.click(screen.getByRole('button', { name: 'Confirm' }));
 

@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -61,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -305,6 +305,8 @@ type TeleInstance struct {
 
 	// Log specifies the instance logger
 	Log *slog.Logger
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 	InstanceListeners
 	Fds []*servicecfg.FileDescriptor
 	// ProcessProvider creates a Teleport process (OSS or Enterprise)
@@ -334,8 +336,9 @@ type InstanceConfig struct {
 	Logger *slog.Logger
 	// Ports is a collection of instance ports.
 	Listeners *InstanceListeners
-
-	Fds []*servicecfg.FileDescriptor
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
+	Fds     []*servicecfg.FileDescriptor
 }
 
 // NewInstance creates a new Teleport process instance.
@@ -357,6 +360,10 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 		cfg.Logger = slog.New(slog.DiscardHandler)
 	}
 
+	if cfg.Modules == nil {
+		cfg.Modules = modules.GetModules()
+	}
+
 	// generate instance secrets (keys):
 	if cfg.Priv == nil || cfg.Pub == nil {
 		privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
@@ -370,8 +377,11 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	sshSigner, err := ssh.NewSignerFromSigner(key)
 	fatalIf(err)
 
-	keygen := keygen.New(t.Context(), keygen.SetClock(cfg.Clock))
-	hostCert, err := keygen.GenerateHostCert(sshca.HostCertificateRequest{
+	clock := cmp.Or(cfg.Clock, clockwork.NewRealClock())
+	authority, err := testauthority.NewKeygen(cfg.Modules.BuildType(), clock.Now)
+	fatalIf(err)
+
+	hostCert, err := authority.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      sshSigner,
 		PublicHostKey: cfg.Pub,
 		HostID:        cfg.HostID,
@@ -383,8 +393,6 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 		},
 	})
 	fatalIf(err)
-
-	clock := cmp.Or(cfg.Clock, clockwork.NewRealClock())
 
 	identity := tlsca.Identity{
 		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
@@ -633,7 +641,12 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 
 	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
 
-	tconf.Keygen = testauthority.New()
+	clock := cmp.Or(tconf.Clock, clockwork.NewRealClock())
+	keygen, err := testauthority.NewKeygen(tconf.Modules.BuildType(), clock.Now)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tconf.Keygen = keygen
 	tconf.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(defaults.HighResPollingPeriod)
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.FileDescriptors = append(tconf.FileDescriptors, i.Fds...)
@@ -889,6 +902,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
 			cfg.DebugService.Enabled = false
+			cfg.InsecureMode = true
 
 			// Create a new Teleport process and add it to the list of nodes that
 			// compose this "cluster".
@@ -1082,6 +1096,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	}
 
 	tconf.Auth.Enabled = false
+	tconf.InsecureMode = true
 
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.SSHAddr.Addr = NewListenerOn(t, i.Hostname, service.ListenerProxySSH, &tconf.FileDescriptors)
@@ -1512,6 +1527,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		Stdout:                        cfg.Stdout,
 		NonInteractive:                true,
 		DisableSSHResumption:          cfg.DisableSSHResumption,
+		AddKeysToAgent:                client.AddKeysToAgentNo,
 	}
 
 	// JumpHost turns on jump host mode

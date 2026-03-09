@@ -34,8 +34,9 @@ type FluentdConfig struct {
 	// FluentdURL fluentd url for audit log events
 	FluentdURL string `help:"fluentd url" required:"true" env:"FDFWD_FLUENTD_URL"`
 
-	// FluentdSessionURL
-	FluentdSessionURL string `help:"fluentd session url" required:"true" env:"FDFWD_FLUENTD_SESSION_URL"`
+	// FluentdSessionURL is the base URL for session recording events.
+	// The event handler appends .<session-id>.log to this URL for each session.
+	FluentdSessionURL string `help:"fluentd session url (.<session-id>.log is appended per session)" required:"true" env:"FDFWD_FLUENTD_SESSION_URL"`
 
 	// FluentdCert is a path to fluentd cert
 	FluentdCert string `help:"fluentd TLS certificate file" type:"existingfile" env:"FDFWD_FLUENTD_CERT,FDWRD_FLUENTD_CERT"`
@@ -257,7 +258,7 @@ func (c *StartCmdConfig) Validate() error {
 func (c *StartCmdConfig) Dump(ctx context.Context, log *slog.Logger) {
 	// Log configuration variables
 	log.DebugContext(ctx, "Initializing plugin",
-		"name", "teleport-event-handler",
+		"name", pluginName,
 		"version", slog.GroupValue(
 			slog.String("teleport", Version),
 			slog.String("teleport_git", Gitref),

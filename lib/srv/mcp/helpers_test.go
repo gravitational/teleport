@@ -296,9 +296,9 @@ func checkToolsListResponse(t *testing.T, response mcp.JSONRPCMessage, wantID mc
 	require.NoError(t, json.Unmarshal(data, &mcpResponse))
 	require.Equal(t, wantID.String(), mcpResponse.ID.String())
 
-	var result mcp.ListToolsResult
-	require.NoError(t, json.Unmarshal(mcpResponse.Result, &result))
-	checkToolsListResult(t, &result, wantTools)
+	result, err := mcpResponse.GetListToolResult()
+	require.NoError(t, err)
+	checkToolsListResult(t, result, wantTools)
 }
 
 func checkToolsListResult(t *testing.T, result *mcp.ListToolsResult, wantTools []string) {

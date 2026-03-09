@@ -1,121 +1,862 @@
 ---
-title: teleport CLI Reference
+title: teleport Reference
+description: Provides a comprehensive list of commands, arguments, and flags for teleport.
 sidebar_label: teleport
-description: Comprehensive reference of subcommands, flags, and arguments for the teleport CLI tool.
 tags:
- - reference
- - platform-wide
+  - reference
+  - platform-wide
 ---
+{/*vale messaging = NO*/}
 
-The CLI tool that supports the Teleport Infrastructure Identity Platform is called `teleport`, and allows Teleport services to be managed
-over the command line:
+This guide provides a comprehensive list of commands, arguments, and flags for
+teleport.
 
-- [Auth](../architecture/authentication.mdx)
-- [Node/SSH](../architecture/agents.mdx)
-- [Proxy](../architecture/proxy.mdx)
-- [App](../../enroll-resources/application-access/application-access.mdx)
-- [Database](../../enroll-resources/database-access/database-access.mdx)
-- [Windows Desktop](../../enroll-resources/desktop-access/introduction.mdx)
-- [Kubernetes](../../enroll-resources/kubernetes-access/introduction.mdx)
+`teleport` is the CLI tool that supports the Teleport Infrastructure Identity
+Platform, and allows Teleport services to be managed over the command line.
 
-The primary commands for the `teleport` CLI are as follows:
+```code
+$ teleport <command> [<args> ...]
+```
 
-| Command | Description |
-| - | - |
-| `teleport app start` | Starts the Teleport Application Service. |
-| `teleport configure` | Generates and writes a [configuration YAML file](../deployment/config.mdx) for the Teleport service. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
-| `teleport db configure aws create-iam` | Generates, creates, and attaches desired IAM policies to a Teleport-managed database. |
-| `teleport db configure aws print-iam` | Generates and outputs current IAM policies for a Teleport-managed database. |
-| `teleport db configure bootstrap` | Used to bootstrap a configuration to the Teleport Database Service by reading a provided configuration. |
-| `teleport db configure create` | Generates a configuration YAML file for the Database Service. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
-| `teleport db start` | Starts the Teleport Database Service. |
-| `teleport help` | Outputs guidance for using Teleport commands. |
-| `teleport install systemd` | Creates a systemd unit file, used to configure and install a `teleport` service daemon. |
-| `teleport join openssh` | Registers an OpenSSH server with Teleport. |
-| `teleport node configure` | Generates a configuration YAML file for a Teleport Node accessed via SSH. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
-| `teleport start` | Starts the `teleport` process in the foreground using the current shell session, including any services configured by the [configuration YAML file](../deployment/config.mdx). |
-| `teleport status` | Prints the status of the current active Teleport SSH session. |
-| `teleport version` | Prints the current release version of the Teleport binary installed on your system. |
-| `teleport debug set-log-level` | Changes instance log level. |
-| `teleport debug get-log-level` | Fetches instance current log level. |
-| `teleport debug debug profile` | Export the application profiles (pprof format). |
+## teleport app start
 
-<Admonition type="tip">
-For more information on subcommands when working with the `teleport` cli, use the `--help` option or `teleport <subcommand> --help`.
-</Admonition>
+Start application proxy service.
+
+Usage:
+
+```code
+$ teleport app start [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--auth-server`|none|Address of the auth server \[127.0.0.1:3025\].|
+|`--ca-pin`|none|CA pin to validate the auth server (can be repeated for multiple pins).|
+|`-c`, `--config`|none|Path to a configuration file \[/etc/teleport.yaml\].|
+|`--cloud`|none|Set to one of \[AWS Azure GCP\] if application should proxy particular cloud API|
+|`--diag-addr`|none|Start diagnostic prometheus and healthz endpoint.|
+|`-d`, `--[no-]debug`|`false`|Enable verbose logging to stderr.|
+|`--labels`|none|Comma-separated list of labels for this node, for example env=dev,app=web.|
+|`--name`|none|Name of the application to start.|
+|`--[no-]fips`|`false`|Start Teleport in FedRAMP/FIPS 140 mode.|
+|`--[no-]insecure`|`false`|Insecure mode disables certificate validation|
+|`--[no-]mcp-demo-server`|`false`|Enables the Teleport demo MCP server that shows current user and session information.|
+|`--[no-]no-debug-service`|`false`|Disables debug service.|
+|`--[no-]skip-version-check`|`false`|Skip version checking between server and client.|
+|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
+|`--public-addr`|none|Public address of the application to proxy.|
+|`--token`|none|Invitation token or path to file with token value to register with an auth server \[none\].|
+|`--uri`|none|Internal address of the application to proxy.|
+
+## teleport backend clone
+
+Clones data from a source to a destination backend.
+
+Usage:
+
+```code
+$ teleport backend clone
+```
+
+## teleport backend edit
+
+Modify a single item from the cluster state backend.
+
+Usage:
+
+```code
+$ teleport backend edit <key>
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|key|none (required)|The backend key to retrieve.|
+
+## teleport backend get
+
+Retrieves a single item from the cluster state backend.
+
+Usage:
+
+```code
+$ teleport backend get [<flags>] <key>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-f`, `--format`|`text`|Format output (text, json, yaml).|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|key|none (required)|The backend key to retrieve.|
+
+## teleport backend ls
+
+Lists the keys in the cluster state backend.
+
+Usage:
+
+```code
+$ teleport backend ls [<flags>] [<prefix>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-f`, `--format`|`text`|Format output (text, json, yaml).|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|prefix|none (optional)|An optional key prefix to limit listing to.|
+
+## teleport backend rm
+
+Removes a single item from the cluster state backend.
+
+Usage:
+
+```code
+$ teleport backend rm <key>
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|key|none (required)|The backend key to remove.|
+
+## teleport configure
+
+Generate a simple config file to get started.
+
+Usage:
+
+```code
+$ teleport configure [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--acme-email`|none|Email to receive updates from Letsencrypt.org.|
+|`--app-name`|none|Name of the application to start when using app role.|
+|`--app-uri`|none|Internal address of the application to proxy.|
+|`--auth-server`|none|Address of the auth server.|
+|`--cert-file`|none|Path to a TLS certificate file for the proxy.|
+|`--cluster-name`|none|Unique cluster name, e.g. example.com.|
+|`--data-dir`|`/var/lib/teleport`|Path to a directory where Teleport keep its data.|
+|`--join-method`|`token`|Method to use to join the cluster (azure, azure_devops, bitbucket, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
+|`--key-file`|none|Path to a TLS key file for the proxy.|
+|`--[no-]acme`|`false`|Get automatic certificate from Letsencrypt.org using ACME.|
+|`--node-labels`|none|Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.|
+|`--node-name`|none|Name for the Teleport node.|
+|`--[no-]mcp-demo-server`|`false`|Enables the Teleport demo MCP server that shows current user and session information.|
+|`-o`, `--output`|`stdout`|Write to stdout with "--output=stdout", default config file with "--output=file" or custom path with --output=file:///path|
+|`--proxy`|none|Address of the proxy.|
+|`--public-addr`|none|The hostport that the proxy advertises for the HTTP endpoint.|
+|`--roles`|none|Comma-separated list of roles to create config with.|
+|`--test`|none|Path to a configuration file to test.|
+|`--token`|none|Invitation token or path to file with token value to register with an auth server.|
+|`--version`|`v3`|Teleport configuration version.|
+
+## teleport db configure aws create-iam
+
+Generate, create and attach IAM policies.
+
+Usage:
+
+```code
+$ teleport db configure aws create-iam [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--assumes-roles`|none|Comma-separated list of additional IAM roles that the IAM identity should be able to assume. Each role can be either an IAM role ARN or the name of a role in the identity's account.|
+|`--name`|`DatabaseAccess`|Created policy name. Defaults to empty. Will be auto-generated if not provided.|
+|`--[no-]confirm`|`false`|Apply changes without confirmation prompt.|
+|`--role`|none|IAM role name to attach policy to. Mutually exclusive with --user|
+|`-r`, `--types`|none|Comma-separated list of database types to include in the policy. Any of rds,rdsproxy,redshift,redshift-serverless,elasticache,elasticache-serverless,memorydb,keyspace,dynamodb,opensearch,docdb|
+|`--user`|none|IAM user name to attach policy to. Mutually exclusive with --role|
+
+## teleport db configure aws print-iam
+
+Generate and show IAM policies.
+
+Usage:
+
+```code
+$ teleport db configure aws print-iam [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--assumes-roles`|none|Comma-separated list of additional IAM roles that the IAM identity should be able to assume. Each role can be either an IAM role ARN or the name of a role in the identity's account.|
+|`--[no-]policy`|`false`|Only print IAM policy document.|
+|`--policy-name`|`DatabaseAccess`|Name of the Teleport Database agent policy. Default: "DatabaseAccess".|
+|`--role`|none|IAM role name to attach policy to. Mutually exclusive with --user|
+|`-r`, `--types`|none|Comma-separated list of database types to include in the policy. Any of rds,rdsproxy,redshift,redshift-serverless,elasticache,elasticache-serverless,memorydb,keyspace,dynamodb,opensearch,docdb|
+|`--user`|none|IAM user name to attach policy to. Mutually exclusive with --role|
+
+## teleport db configure bootstrap
+
+Bootstrap the necessary configuration for the database agent. It reads the
+provided agent configuration to determine what will be bootstrapped.
+
+Usage:
+
+```code
+$ teleport db configure bootstrap [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--assumes-roles`|none|Comma-separated list of additional IAM roles that the IAM identity should be able to assume. Each role can be either an IAM role ARN or the name of a role in the identity's account.|
+|`--attach-to-role`|none|Role name to attach policy to. Mutually exclusive with --attach-to-user. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.|
+|`--attach-to-user`|none|User name to attach policy to. Mutually exclusive with --attach-to-role. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.|
+|`-c`, `--config`|`/etc/teleport.yaml`|Path to a configuration file \[/etc/teleport.yaml\].|
+|`--[no-]confirm`|`false`|Apply changes without confirmation prompt.|
+|`--[no-]manual`|`false`|When executed in "manual" mode, it will print the instructions to complete the configuration instead of applying them directly.|
+|`--policy-name`|`DatabaseAccess`|Name of the Teleport Database agent policy. Default: "DatabaseAccess".|
+
+## teleport db configure create
+
+Creates a sample Database Service configuration.
+
+Usage:
+
+```code
+$ teleport db configure create [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--ad-domain`|none|(Only for SQL Server) Active Directory domain.|
+|`--ad-keytab-file`|none|(Only for SQL Server) Kerberos keytab file.|
+|`--ad-spn`|none|(Only for SQL Server) Service Principal Name for Active Directory auth.|
+|`--aws-account-id`|none|(Only for Keyspaces or DynamoDB) AWS Account ID.|
+|`--aws-assume-role-arn`|none|Optional AWS IAM role to assume.|
+|`--aws-elasticache-group-id`|none|(Only for ElastiCache) ElastiCache replication group identifier.|
+|`--aws-elasticache-serverless-cache-name`|none|(Only for ElastiCache Serverless) ElastiCache Serverless cache name.|
+|`--aws-external-id`|none|(Only for AWS-hosted databases) Optional AWS external ID to use when assuming AWS roles.|
+|`--aws-memorydb-cluster-name`|none|(Only for MemoryDB) MemoryDB cluster name.|
+|`--aws-rds-cluster-id`|none|(Only for RDS Aurora) RDS Aurora database cluster identifier.|
+|`--aws-rds-instance-id`|none|(Only for RDS) RDS database instance identifier.|
+|`--aws-redshift-cluster-id`|none|(Only for Redshift) Redshift database cluster identifier.|
+|`--aws-region`|none|(Only for AWS-hosted databases) AWS region RDS, Aurora, Redshift, Redshift Serverless, ElastiCache, OpenSearch or MemoryDB database instance is running in.|
+|`--aws-tags`|none|(Only for AWS discoveries) Comma-separated list of AWS resource tags to match, for example env=dev,dept=it|
+|`--azure-mysql-discovery`|none|List of Azure regions in which the agent will discover MySQL servers.|
+|`--azure-postgres-discovery`|none|List of Azure regions in which the agent will discover PostgreSQL servers.|
+|`--azure-redis-discovery`|none|List of Azure regions in which the agent will discover Azure Cache For Redis servers.|
+|`--azure-resource-group`|`*`|List of Azure resource groups for Azure discoveries. Default is "*".|
+|`--azure-sqlserver-discovery`|none|List of Azure regions in which the agent will discover Azure SQL Databases and Managed Instances.|
+|`--azure-subscription`|`*`|List of Azure subscription IDs for Azure discoveries. Default is "*".|
+|`--azure-tags`|none|(Only for Azure discoveries) Comma-separated list of Azure resource tags to match, for example env=dev,dept=it|
+|`--ca-cert-file`|none|Database CA certificate path.|
+|`--ca-pin`|none|CA pin to validate the auth server (can be repeated for multiple pins).|
+|`--dynamic-resources-labels`|none|Comma-separated list(s) of labels to match dynamic resources, for example env=dev,dept=it. Required to enable dynamic resources matching.|
+|`--elasticache-discovery`|none|List of AWS regions in which the agent will discover ElastiCache Valkey or Redis clusters.|
+|`--elasticache-serverless-discovery`|none|List of AWS regions in which the agent will discover ElastiCache Serverless Valkey or Redis caches.|
+|`--gcp-instance-id`|none|(Only for Cloud SQL) GCP Cloud SQL instance identifier.|
+|`--gcp-project-id`|none|(Only for Cloud SQL) GCP Cloud SQL project identifier.|
+|`--labels`|none|Comma-separated list of labels for the database, for example env=dev,dept=it|
+|`--memorydb-discovery`|none|List of AWS regions in which the agent will discover MemoryDB clusters.|
+|`--name`|none|Name of the proxied database.|
+|`--[no-]trust-system-cert-pool`|`false`|Allows Teleport to trust certificate authorities available on the host system for self-hosted databases.|
+|`-o`, `--output`|`stdout`|Write to stdout with "--output=stdout", default config file with "--output=file" or custom path with --output=file:///path|
+|`--opensearch-discovery`|none|List of AWS regions in which the agent will discover OpenSearch domains.|
+|`--protocol`|none|Proxied database protocol. Supported are: \[postgres mysql mongodb oracle cockroachdb redis snowflake sqlserver cassandra elasticsearch opensearch dynamodb clickhouse clickhouse-http spanner\].|
+|`--proxy`|`0.0.0.0:3080`|Teleport proxy address to connect to \[0.0.0.0:3080\].|
+|`--rds-discovery`|none|List of AWS regions in which the agent will discover RDS/Aurora instances.|
+|`--rdsproxy-discovery`|none|List of AWS regions in which the agent will discover RDS Proxies.|
+|`--redshift-discovery`|none|List of AWS regions in which the agent will discover Redshift instances.|
+|`--redshift-serverless-discovery`|none|List of AWS regions in which the agent will discover Redshift Serverless instances.|
+|`--token`|`/tmp/token`|Invitation token or path to file with token value to register with an auth server \[none\].|
+|`--uri`|none|Address the proxied database is reachable at.|
+
+## teleport db start
+
+Start database proxy service.
+
+Usage:
+
+```code
+$ teleport db start [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--ad-domain`|none|(Only for SQL Server) Active Directory domain.|
+|`--ad-keytab-file`|none|(Only for SQL Server) Kerberos keytab file.|
+|`--ad-krb5-file`|`/etc/krb5.conf`|(Only for SQL Server) Kerberos krb5.conf file.|
+|`--ad-spn`|none|(Only for SQL Server) Service Principal Name for Active Directory auth.|
+|`--auth-server`|none|Address of the auth server \[127.0.0.1:3025\].|
+|`--aws-account-id`|none|(Only for Keyspaces or DynamoDB) AWS Account ID.|
+|`--aws-assume-role-arn`|none|Optional AWS IAM role to assume.|
+|`--aws-external-id`|none|Optional AWS external ID used when assuming an AWS role.|
+|`--aws-rds-cluster-id`|none|(Only for Aurora) Aurora cluster identifier.|
+|`--aws-rds-instance-id`|none|(Only for RDS) RDS instance identifier.|
+|`--aws-redshift-cluster-id`|none|(Only for Redshift) Redshift database cluster identifier.|
+|`--aws-region`|none|(Only for RDS, Aurora, Redshift, ElastiCache or MemoryDB) AWS region AWS hosted database instance is running in.|
+|`--aws-session-tags`|none|(Only for DynamoDB) List of STS tags.|
+|`--ca-cert`|none|Database CA certificate path.|
+|`--ca-pin`|none|CA pin to validate the auth server (can be repeated for multiple pins).|
+|`-c`, `--config`|none|Path to a configuration file \[/etc/teleport.yaml\].|
+|`--description`|none|Description of the proxied database.|
+|`--diag-addr`|none|Start diagnostic prometheus and healthz endpoint.|
+|`-d`, `--[no-]debug`|`false`|Enable verbose logging to stderr.|
+|`--gcp-alloydb-endpoint-type`|none|(Only for AlloyDB) Endpoint type. One of: \[public private psc\]|
+|`--gcp-instance-id`|none|(Only for Cloud SQL) Instance identifier.|
+|`--gcp-project-id`|none|(Only for Cloud SQL) Project identifier.|
+|`--labels`|none|Comma-separated list of labels for this node, for example env=dev,app=web.|
+|`--name`|none|Name of the proxied database.|
+|`--[no-]fips`|`false`|Start Teleport in FedRAMP/FIPS 140 mode.|
+|`--[no-]insecure`|`false`|Insecure mode disables certificate validation|
+|`--[no-]no-debug-service`|`false`|Disables debug service.|
+|`--[no-]skip-version-check`|`false`|Skip version checking between server and client.|
+|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
+|`--protocol`|none|Proxied database protocol. Supported are: \[postgres mysql mongodb oracle cockroachdb redis snowflake sqlserver cassandra elasticsearch opensearch dynamodb clickhouse clickhouse-http spanner\].|
+|`--token`|none|Invitation token or path to file with token value to register with an auth server \[none\].|
+|`--uri`|none|Address the proxied database is reachable at.|
+
+## teleport debug get-log-level
+
+Fetches current log level.
+
+Usage:
+
+```code
+$ teleport debug get-log-level
+```
+
+## teleport debug metrics
+
+Fetches the cluster's Prometheus metrics.
+
+Usage:
+
+```code
+$ teleport debug metrics
+```
+
+## teleport debug profile
+
+Export the application profiles (pprof format). Outputs to stdout .tar.gz file
+contents.
+
+Usage:
+
+```code
+$ teleport debug profile [<flags>] [<PROFILES>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-s`, `--seconds`|`0`|For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|PROFILES|none (optional)|Comma-separated profile names to be exported. Supported profiles: allocs,block,cmdline,goroutine,mutex,trace,heap,profile,threadcreate. Default: goroutine,heap,profile|
+
+## teleport debug readyz
+
+Checks if the instance is ready to serve requests.
+
+Usage:
+
+```code
+$ teleport debug readyz
+```
+
+## teleport debug set-log-level
+
+Changes the log level.
+
+Usage:
+
+```code
+$ teleport debug set-log-level <LEVEL>
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|LEVEL|none (required)|Log level (case-insensitive). Any of: TRACE,DEBUG,INFO,WARN,ERROR|
+
+## teleport discovery bootstrap
+
+Bootstrap the necessary configuration for the discovery agent. It reads the
+provided agent configuration to determine what will be bootstrapped.
+
+Usage:
+
+```code
+$ teleport discovery bootstrap [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--assume-role-arn`|none|Optional AWS IAM role to assume while bootstrapping.|
+|`--assumes-roles`|none|Comma-separated list of additional IAM roles that the IAM identity should be able to assume. Each role can be either an IAM role ARN or the name of a role in the identity's account.|
+|`--attach-to-role`|none|Role name to attach policy to. Mutually exclusive with --attach-to-user. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.|
+|`--attach-to-user`|none|User name to attach policy to. Mutually exclusive with --attach-to-role. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.|
+|`-c`, `--config`|`/etc/teleport.yaml`|Path to a configuration file \[/etc/teleport.yaml\].|
+|`--database-service-policy-name`|`DatabaseAccess`|Name of the policy for bootstrapping database service when database-service-role is provided. |
+|`--database-service-role`|none|Role name to attach database access policies to. If specified, bootstrap for the database service that accesses the databases discovered by this discovery service.|
+|`--external-id`|none|Optional AWS external ID used when assuming an AWS role.|
+|`--[no-]confirm`|`false`|Apply changes without confirmation prompt.|
+|`--[no-]manual`|`false`|When executed in "manual" mode, it will print the instructions to complete the configuration instead of applying them directly.|
+|`--policy-name`|`TeleportEC2Discovery`|Name of the Teleport Discovery service policy. Default: "TeleportEC2Discovery".|
+|`--proxy`|none|Teleport proxy address to connect to|
+
+## teleport help
+
+Show help.
+
+Usage:
+
+```code
+$ teleport help [<command>...]
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|command|none (optional)|Show help on command.|
+
+## teleport install systemd
+
+Creates a systemd unit file configuration.
+
+Usage:
+
+```code
+$ teleport install systemd [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--env-file`|`/etc/default/teleport`|Full path to the environment file.|
+|`--fd-limit`|`524288`|Maximum number of open file descriptors.|
+|`-o`, `--output`|`stdout`|Write to stdout with "--output=stdout" or custom path with --output=file:///path|
+|`--pid-file`|`/run/teleport.pid`|Full path to the PID file.|
+|`--teleport-path`|none|Full path to the Teleport binary.|
+
+## teleport integration configure access-graph aws-iam
+
+Adds required AWS IAM permissions for syncing AWS resources into Access Graph
+service.
+
+Usage:
+
+```code
+$ teleport integration configure access-graph aws-iam --role=ROLE [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--aws-account-id`|none|The AWS account ID.|
+|`--cloud-trail-bucket`|none|ARN of the S3 bucket where CloudTrail writes events to.|
+|`--kms-key`|none|List of KMS Keys used to decrypt SQS and S3 bucket data.|
+|`--[no-]confirm`|`false`|Apply changes without confirmation prompt.|
+|`--[no-]eks-audit-logs`|`false`|Enable collection of EKS audit logs|
+|`--role`|none|The AWS Role used by the AWS OIDC Integration.|
+|`--sqs-queue-url`|none|SQS Queue URL used to receive notifications from CloudTrail.|
+
+## teleport integration configure access-graph azure
+
+Adds required Azure permissions for syncing Azure resources into Access Graph
+service.
+
+Usage:
+
+```code
+$ teleport integration configure access-graph azure --managed-identity=MANAGED-IDENTITY --role-name=ROLE-NAME [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--managed-identity`|none|The ID of the managed identity to run the Discovery service.|
+|`--[no-]confirm`|`false`|Apply changes without confirmation prompt.|
+|`--role-name`|none|The name of the Azure Role to create and assign to the managed identity|
+|`--subscription-id`|none|The subscription ID in which to discovery resources.|
+
+## teleport integration configure aws-app-access-iam
+
+Adds required IAM permissions to connect to AWS using App Access.
+
+Usage:
+
+```code
+$ teleport integration configure aws-app-access-iam --role=ROLE [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--aws-account-id`|none|The AWS account ID.|
+|`--[no-]confirm`|`false`|Apply changes without confirmation prompt.|
+|`--role`|none|The AWS Role name used by the AWS OIDC Integration.|
+
+## teleport integration configure awsoidc-idp
+
+Creates an IAM IdP (OIDC) in your AWS account to allow the AWS OIDC Integration
+to access AWS APIs.
+
+Usage:
+
+```code
+$ teleport integration configure awsoidc-idp --cluster=CLUSTER --name=NAME --role=ROLE --proxy-public-url=PROXY-PUBLIC-URL [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--cluster`|none|Teleport Cluster name.|
+|`--name`|none|Integration name.|
+|`--[no-]confirm`|`false`|Apply changes without confirmation prompt.|
+|`--[no-]insecure`|`false`|Insecure mode disables certificate validation.|
+|`--policy-preset`|none|Policy that will be applied to the AWS OIDC integration role.|
+|`--proxy-public-url`|none|Proxy Public URL (eg https://mytenant.teleport.sh).|
+|`--role`|none|The AWS Role used by the AWS OIDC Integration.|
+
+## teleport integration configure awsra-trust-anchor
+
+Configure AWS IAM Roles Anywhere Integration by creating resources in AWS.
+
+Usage:
+
+```code
+$ teleport integration configure awsra-trust-anchor --cluster=CLUSTER --name=NAME --trust-anchor=TRUST-ANCHOR --trust-anchor-cert-b64=TRUST-ANCHOR-CERT-B64 --sync-profile=SYNC-PROFILE --sync-role=SYNC-ROLE [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--cluster`|none|Teleport Cluster's name.|
+|`--name`|none|Integration name.|
+|`--[no-]confirm`|`false`|Apply changes without confirmation prompt.|
+|`--sync-profile`|none|The AWS IAM Roles Anywhere Profile name to create, which will be used to sync profiles as apps.|
+|`--sync-role`|none|The AWS IAM Role name to create, which will be used to sync profiles as apps.|
+|`--trust-anchor`|none|AWS Roles Anywhere Trust Anchor name.|
+|`--trust-anchor-cert-b64`|none|AWS Roles Anywhere Trust Anchor's certificate, encoded in base64.|
+
+## teleport integration configure azure-oidc
+
+Configures Azure / Entra ID OIDC integration.
+
+Usage:
+
+```code
+$ teleport integration configure azure-oidc --proxy-public-addr=PROXY-PUBLIC-ADDR --auth-connector-name=AUTH-CONNECTOR-NAME [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--auth-connector-name`|none|The name of Entra ID SAML Auth connector in Teleport.|
+|`--[no-]access-graph`|`false`|Enable Access Graph integration.|
+|`--[no-]skip-oidc-integration`|`false`|Skip OIDC integration.|
+|`--proxy-public-addr`|none|The public address of Teleport Proxy Service|
+
+## teleport integration configure deployservice-iam
+
+Create the required IAM Roles for the AWS OIDC Deploy Service.
+
+Usage:
+
+```code
+$ teleport integration configure deployservice-iam --cluster=CLUSTER --name=NAME --aws-region=AWS-REGION --role=ROLE --task-role=TASK-ROLE [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--aws-account-id`|none|The AWS account ID.|
+|`--aws-region`|none|AWS Region.|
+|`--cluster`|none|Teleport Cluster's name.|
+|`--name`|none|Integration name.|
+|`--[no-]confirm`|`false`|Apply changes without confirmation prompt.|
+|`--role`|none|The AWS Role used by the AWS OIDC Integration.|
+|`--task-role`|none|The AWS Role to be used by the deployed service.|
+
+## teleport integration configure ec2-ssm-iam
+
+Adds required IAM permissions and SSM Document to enable EC2 Auto Discover using
+SSM.
+
+Usage:
+
+```code
+$ teleport integration configure ec2-ssm-iam --role=ROLE --aws-region=AWS-REGION --cluster=CLUSTER --name=NAME [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--aws-account-id`|none|The AWS account ID.|
+|`--aws-region`|none|AWS Region.|
+|`--cluster`|none|Teleport Cluster's name.|
+|`--name`|none|Integration name.|
+|`--[no-]confirm`|`false`|Apply changes without confirmation prompt.|
+|`--proxy-public-url`|none|Proxy Public URL (eg https://mytenant.teleport.sh).|
+|`--role`|none|The AWS Role name used by the AWS OIDC Integration.|
+|`--ssm-document-name`|none|The AWS SSM Document name to create that will be used to install teleport.|
+
+## teleport integration configure eks-iam
+
+Adds required IAM permissions for enrollment of EKS clusters to Teleport.
+
+Usage:
+
+```code
+$ teleport integration configure eks-iam --aws-region=AWS-REGION --role=ROLE [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--aws-account-id`|none|The AWS account ID.|
+|`--aws-region`|none|AWS Region.|
+|`--[no-]confirm`|`false`|Apply changes without confirmation prompt.|
+|`--role`|none|The AWS Role used by the AWS OIDC Integration.|
+
+## teleport integration configure externalauditstorage
+
+Bootstraps required infrastructure and adds required IAM permissions for
+External Audit Storage logs.
+
+Usage:
+
+```code
+$ teleport integration configure externalauditstorage --aws-region=AWS-REGION --cluster-name=CLUSTER-NAME --integration=INTEGRATION --role=ROLE --policy=POLICY --session-recordings=SESSION-RECORDINGS --audit-events=AUDIT-EVENTS --athena-results=ATHENA-RESULTS --athena-workgroup=ATHENA-WORKGROUP --glue-database=GLUE-DATABASE --glue-table=GLUE-TABLE [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--athena-results`|none|The S3 URI where athena results are stored.|
+|`--athena-workgroup`|none|The name of the Athena workgroup used.|
+|`--audit-events`|none|The S3 URI where audit events are stored.|
+|`--aws-account-id`|none|The AWS account ID.|
+|`--aws-partition`|`aws`|AWS partition (default: aws).|
+|`--aws-region`|none|AWS region.|
+|`--cluster-name`|none|Teleport Cluster name.|
+|`--glue-database`|none|The name of the Glue database used.|
+|`--glue-table`|none|The name of the Glue table used.|
+|`--integration`|none|AWS OIDC Integration name.|
+|`--[no-]bootstrap`|`false`|Bootstrap required infrastructure.|
+|`--policy`|none|The name for the Policy to attach to the IAM role.|
+|`--role`|none|The IAM Role used by the AWS OIDC Integration.|
+|`--session-recordings`|none|The S3 URI where session recordings are stored.|
+
+## teleport integration configure listdatabases-iam
+
+Adds required IAM permissions to List RDS Databases (Instances and Clusters).
+
+Usage:
+
+```code
+$ teleport integration configure listdatabases-iam --aws-region=AWS-REGION --role=ROLE [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--aws-account-id`|none|The AWS account ID.|
+|`--aws-region`|none|AWS Region.|
+|`--[no-]confirm`|`false`|Apply changes without confirmation prompt.|
+|`--role`|none|The AWS Role used by the AWS OIDC Integration.|
+
+## teleport integration configure samlidp gcp-workforce
+
+Configures GCP Workforce Identity Federation pool and SAML provider.
+
+Usage:
+
+```code
+$ teleport integration configure samlidp gcp-workforce --org-id=ORG-ID --pool-name=POOL-NAME --pool-provider-name=POOL-PROVIDER-NAME --idp-metadata-url=IDP-METADATA-URL
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--idp-metadata-url`|none|Teleport SAML IdP metadata endpoint.|
+|`--org-id`|none|GCP organization ID.|
+|`--pool-name`|none|Name for the new workforce identity pool.|
+|`--pool-provider-name`|none|Name for the new workforce identity pool provider.|
+
+## teleport join openssh
+
+Join an SSH server to a Teleport cluster.
+
+Usage:
+
+```code
+$ teleport join openssh [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--additional-principals`|none|Additional principal to include, can be specified multiple times.|
+|`--address`|none|Hostname or IP address of this OpenSSH node.|
+|`--data-dir`|`/var/lib/teleport`|Path to directory to store teleport data \[/var/lib/teleport\].|
+|`-d`, `--[no-]debug`|`false`|Enable verbose logging to stderr.|
+|`--join-method`|none|Method to use to join the cluster (token, iam, ec2).|
+|`--labels`|none|Comma-separated list of labels for this OpenSSH node, for example env=dev,app=web.|
+|`--[no-]insecure`|`false`|Insecure mode disables certificate validation.|
+|`--[no-]restart-sshd`|`true`|Restart OpenSSH.|
+|`--openssh-config`|`/etc/ssh/sshd_config`|Path to the OpenSSH config file \[/etc/ssh/sshd_config\].|
+|`--proxy-server`|none|Address of the proxy server.|
+|`--sshd-check-command`|`sshd -t -f`|Command to use when checking OpenSSH config for validity. (sshd -t -f \<sshd_config\>)|
+|`--sshd-restart-command`|`systemctl restart sshd`|Command to use when restarting openssh.|
+|`--token`|none|Invitation token or path to file with token value to register with an auth server.|
+
+## teleport node configure
+
+Generate a configuration file for an SSH node.
+
+Usage:
+
+```code
+$ teleport node configure [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--auth-server`|none|Address of the auth server.|
+|`--azure-client-id`|none|Sets the client ID of the managed identity to join with. Only applies to the 'azure' join method.|
+|`--ca-pin`|none|Comma-separated list of SKPI hashes for the CA used to verify the auth server.|
+|`--cluster-name`|none|Unique cluster name, e.g. example.com.|
+|`--data-dir`|`/var/lib/teleport`|Path to a directory where Teleport keep its data.|
+|`--join-method`|`token`|Method to use to join the cluster (azure, azure_devops, bitbucket, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
+|`--labels`|none|Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.|
+|`--node-name`|none|Name for the Teleport node.|
+|`--[no-]silent`|`false`|Suppress user hint message.|
+|`-o`, `--output`|`stdout`|Write to stdout with "--output=stdout", default config file with "--output=file" or custom path with --output=file:///path|
+|`--proxy`|none|Address of the proxy server.|
+|`--public-addr`|none|The hostport that the node advertises for the SSH endpoint.|
+|`--token`|none|Invitation token or path to file with token value to register with an auth server.|
+|`--version`|`v3`|Teleport configuration version.|
 
 ## teleport start
 
-The `teleport start` command includes a large number of optional configuration flags.
+Starts the Teleport service.
 
-While configuration flags for `teleport start` can be used to set parameters for Teleport's configuration,
-we recommend using a [configuration file](../deployment/config.mdx) in production.
+Usage:
 
-### Flags
-
-| Name | Default Value(s) | Allowed Value(s) | Description |
-| - | - | - | - |
-| `-d, --debug` | none | none | enable verbose logging to stderr |
-| `--insecure-no-tls` | `false` | `true` or `false` | Tells proxy to not generate default self-signed TLS certificates. This is useful when running Teleport on kubernetes (behind reverse proxy) or behind things like AWS ELBs, GCP LBs or Azure Load Balancers where SSL termination is provided externally. |
-| `-r, --roles` | `proxy`, `node`, `auth` | **string** comma-separated list of `proxy`, `node`, `auth`, `db`, or `app` | start listed services/roles. These roles are explained in the [Core Concepts](../../core-concepts.mdx) document. |
-| `--pid-file` | none | **string** filepath | create a PID file at the path |
-| `--advertise-ip` | none | **string** IP | advertise IP to clients, often used behind NAT |
-| `-l, --listen-ip` | `0.0.0.0` | [**net. IP**](https://golang.org/pkg/net/#IP) | binds services to IP |
-| `--auth-server` | none | **string** IP | proxy attempts to connect to a specified Auth Service instance instead of local auth, disables `--roles=auth` if set |
-| `--token` | none | **string** | set invitation token to register with an Auth Service instance on start, used once and ignored afterwards. Obtain it by running `tctl nodes add` on the Auth Service instance. *We recommend to use tools like `pwgen` to generate sufficiently random tokens of 32+ byte length.* |
-| `--ca-pin` | none | **string** `sha256:<hash>` | set CA pin to validate the Auth Service. Generated by `tctl status` |
-| `--nodename` | value returned by the `hostname` command on the machine | **string** | assigns an alternative name for the node which can be used by clients to log in. |
-| `-c, --config` | `/etc/teleport.yaml` | **string** `.yaml` filepath | starts services with config specified in the YAML file, overrides CLI flags if set |
-| `--apply-on-startup` | none | **string** `.yaml` filepath | On startup, always apply resources described in the file at the given path. Only supports the following kinds: `token`, `role`, `user`, `cluster_auth_preference`, `cluster_networking_config`, `bot`. |
-| `--bootstrap` | none | **string** `.yaml` filepath | bootstrap configured YAML resources {/* TODO link how to configure this file */} |
-| `--labels` | none | **string** comma-separated list | assigns a set of labels to a node, for example env=dev,app=web. See the explanation of labeling mechanism in the [Labeling Nodes](../../zero-trust-access/rbac-get-started/labels.mdx) section. |
-| `--insecure` | none | none | disable certificate validation on Proxy Service, validation still occurs on Auth Service. |
-| `--fips` | none | none | start Teleport in FedRAMP/FIPS mode. |
-| `--skip-version-check` | `false` | `true` or `false` | Skips version checks between the Auth Service and this Teleport instance |
-| `--diag-addr` | none | none | Enable diagnostic endpoints |
-| `--permit-user-env` | none | none | flag reads in environment variables from `~/.tsh/environment` when creating a session. |
-| `--app-name` | none | none | Name of the application to start |
-| `--app-uri` | none | none | Internal address of the application to proxy |
-| `--app-public-addr` | none | none | Public address fo the application to proxy |
-
-### teleport start --roles
-
-The `--roles` flag when used with `teleport --start` instructs Teleport on which specific Teleport services to start. Below is a more cohesive table of roles and their associated services that `teleport start` supports:
-
-| Service | Role Name | Description |
-| - | - | - |
-| [Node](../architecture/agents.mdx) | `node` | Allows SSH connections from authenticated clients. |
-| [Auth](../architecture/authentication.mdx) | `auth` | Authenticates and authorizes hosts and users who want access to Teleport-managed resources or information about a cluster. |
-| [Proxy](../architecture/proxy.mdx) | `proxy` | The gateway that clients use to connect to the Auth Service or resources managed by Teleport. |
-| [App](../../enroll-resources/application-access/application-access.mdx) | `app` | Provides access to applications. |
-| [Database](../../enroll-resources/database-access/reference/reference.mdx) | `db` | Provides access to databases. |
-
-<Admonition type="tip" scope={["cloud"]}>
-
-Teleport Cloud manages Teleport instances with the `auth` and `proxy` roles. Use
-the remaining roles to manage access to specific resources and other Teleport
-clusters.
-
-</Admonition>
-
-### Examples
-
+```code
+$ teleport start [<flags>]
 ```
-# By default without any configuration, teleport starts running as a single-node
-# cluster. It's the equivalent of running with --roles=node,proxy,auth
-sudo teleport start
 
-# Starts a node named 'db' running in strictly SSH mode role, joining the cluster
-# serviced by the auth server running on 10.1.0.1
-sudo teleport start --roles=node --auth-server=10.1.0.1 --token=xyz --nodename=db
+Flags:
 
-# Same as the above, but the node runs with db=master label and can be connected
-# to using that label in addition to its name.
-sudo teleport start --roles=node --auth-server=10.1.0.1 --labels=db=master
+|Flag|Default|Description|
+|---|---|---|
+|`--advertise-ip`|none|IP to advertise to clients if running behind NAT|
+|`--apply-on-startup`|none|Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: \[token cluster_networking_config cluster_auth_preference bot role user\].|
+|`--auth-server`|none|Address of the auth server \[127.0.0.1:3025\]|
+|`--bootstrap`|none|Path to a non-empty YAML file containing bootstrap resources (ignored if already initialized)|
+|`--ca-pin`|none|CA pin to validate the Auth Server (can be repeated for multiple pins)|
+|`-c`, `--config`|none|Path to a configuration file \[/etc/teleport.yaml\]|
+|`--diag-addr`|none|Start diagnostic prometheus and healthz endpoint.|
+|`-d`, `--[no-]debug`|`false`|Enable verbose logging to stderr|
+|`--labels`|none|Comma-separated list of labels for this node, for example env=dev,app=web|
+|`-l`, `--listen-ip`|none|IP address to bind to \[0.0.0.0\]|
+|`--nodename`|none|Name of this node, defaults to hostname|
+|`--[no-]fips`|`false`|Start Teleport in FedRAMP/FIPS 140 mode.|
+|`--[no-]insecure`|`false`|Insecure mode disables certificate validation|
+|`--[no-]insecure-no-tls`|`false`|Disable TLS for the web socket|
+|`--[no-]no-debug-service`|`false`|Disables debug service.|
+|`--[no-]permit-user-env`|`false`|Enables reading of ~/.tsh/environment when creating a session|
+|`--[no-]skip-version-check`|`false`|Skip version checking between server and client.|
+|`--pid-file`|none|Full path to the PID file. By default no PID file will be created|
+|`-r`, `--roles`|none|Comma-separated list of roles to start with \[proxy,node,auth,app,db\]|
+|`--token`|none|Invitation token or path to file with token value. Used to register with an auth server \[none\]|
+|`--token-secret`|none|Invitation token secret or path to file with secret value. Used to register with an auth server \[none\]|
 
-# Starts an app server that proxies the application "example-app" running at http://localhost:8080.
-sudo teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080 \
-    --app-name="example-app" \
-    --app-uri="http://localhost:8080" \
-    --labels=group=dev
+## teleport status
+
+Print the status of the current SSH session.
+
+Usage:
+
+```code
+$ teleport status
 ```
+
+## teleport tpm identify
+
+Output identifying information related to the TPM detected on the system.
+
+Usage:
+
+```code
+$ teleport tpm identify
+```
+
+## teleport version
+
+Print the version of your teleport binary.
+
+Usage:
+
+```code
+$ teleport version [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--[no-]raw`|`false`|Print the raw teleport version string.|
+

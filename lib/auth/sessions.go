@@ -79,8 +79,8 @@ type NewWebSessionRequest struct {
 	LoginTime time.Time
 	// AccessRequests contains the UUIDs of the access requests currently in use.
 	AccessRequests []string
-	// RequestedResourceIDs optionally lists requested resources
-	RequestedResourceIDs []types.ResourceID
+	// RequestedResourceAccessIDs optionally lists requested resources
+	RequestedResourceAccessIDs []types.ResourceAccessID
 	// AttestWebSession optionally attests the web session to meet private key policy requirements.
 	// This should only be set to true for web sessions that are purely in the purview of the Proxy
 	// and Auth services. Users should never have direct access to attested web sessions.
@@ -240,9 +240,9 @@ func (a *Server) newWebSession(
 	}
 
 	checker, err := services.NewAccessChecker(&services.AccessInfo{
-		Roles:              req.Roles,
-		Traits:             req.Traits,
-		AllowedResourceIDs: req.RequestedResourceIDs,
+		Roles:                    req.Roles,
+		Traits:                   req.Traits,
+		AllowedResourceAccessIDs: req.RequestedResourceAccessIDs,
 	}, clusterName.GetClusterName(), a)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -310,7 +310,7 @@ func (a *Server) newWebSession(
 		ttl:            sessionTTL,
 		sshPublicKey:   sshAuthorizedKey,
 		tlsPublicKey:   tlsPublicKeyPEM,
-		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
+		checkerContext: services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
 		traits:         req.Traits,
 		activeRequests: req.AccessRequests,
 	}
@@ -548,10 +548,10 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 
 	checker, err := services.NewAccessChecker(&services.AccessInfo{
-		Username:           req.User,
-		Roles:              req.Roles,
-		Traits:             req.Traits,
-		AllowedResourceIDs: req.RequestedResourceIDs,
+		Username:                 req.User,
+		Roles:                    req.Roles,
+		Traits:                   req.Traits,
+		AllowedResourceAccessIDs: req.RequestedResourceAccessIDs,
 	}, clusterName.GetClusterName(), a)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -597,7 +597,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		user:           user,
 		loginIP:        req.LoginIP,
 		tlsPublicKey:   tlsPublicKey,
-		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
+		checkerContext: services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
 		ttl:            req.SessionTTL,
 		traits:         req.Traits,
 		activeRequests: req.AccessRequests,
@@ -804,7 +804,7 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
 		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 		compatibility:                    req.Compatibility,
-		checker:                          checker,
+		checkerContext:                   checker,
 		traits:                           req.UserState.GetTraits(),
 		routeToCluster:                   req.RouteToCluster,
 		kubernetesCluster:                req.KubernetesCluster,

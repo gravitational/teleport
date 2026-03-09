@@ -22,15 +22,17 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
@@ -123,9 +125,6 @@ func onIntegrationConfEKSIAM(ctx context.Context, params config.IntegrationConfE
 }
 
 func onIntegrationConfAWSOIDCIdP(ctx context.Context, clf config.CommandLineFlags) error {
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
@@ -141,6 +140,7 @@ func onIntegrationConfAWSOIDCIdP(ctx context.Context, clf config.CommandLineFlag
 		ProxyPublicAddress:      clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
 		IntegrationPolicyPreset: awsoidc.PolicyPreset(clf.IntegrationConfAWSOIDCIdPArguments.PolicyPreset),
 		AutoConfirm:             clf.IntegrationConfAWSOIDCIdPArguments.AutoConfirm,
+		Insecure:                clf.InsecureMode,
 	}
 	return trace.Wrap(awsoidc.ConfigureIdPIAM(ctx, iamClient, confReq))
 }
@@ -291,9 +291,6 @@ func onIntegrationConfSAMLIdPGCPWorkforce(ctx context.Context, params samlidpcon
 }
 
 func onIntegrationConfAWSRATrustAnchor(ctx context.Context, clf config.CommandLineFlags) error {
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
@@ -312,4 +309,35 @@ func onIntegrationConfAWSRATrustAnchor(ctx context.Context, clf config.CommandLi
 		AutoConfirm:           clf.IntegrationConfAWSRATrustAnchorArguments.AutoConfirm,
 	}
 	return trace.Wrap(awsra.ConfigureRolesAnywhereIAM(ctx, rolesAnywhereConfigClient, confReq))
+}
+
+func onIntegrationConfSessionSummariesBedrock(ctx context.Context, params config.IntegrationConfSessionSummariesBedrock) error {
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+
+	awsClient, err := awsoidc.NewBedrockSessionSummariesIAMConfigureClient(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If AccountID is not provided, retrieve it from the caller identity.
+	if params.AccountID == "" {
+		callerID, err := awsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+		if err != nil {
+			return trace.Wrap(err, "failed to get AWS account ID from caller identity")
+		}
+		params.AccountID = aws.ToString(callerID.Account)
+	}
+
+	// shsprintf.EscapeDefaultContext incorrectly maps * to \*, which causes AWS API calls to fail.
+	// We need to unescape it before proceeding. \ is not a valid character in ARNs.
+	params.Resource = strings.ReplaceAll(params.Resource, "\\", "")
+
+	confReq := awsoidc.BedrockSessionSummariesIAMConfigureRequest{
+		IntegrationRole: params.Role,
+		Resource:        params.Resource,
+		AccountID:       params.AccountID,
+		AutoConfirm:     params.AutoConfirm,
+	}
+	return trace.Wrap(awsoidc.ConfigureBedrockSessionSummariesIAM(ctx, awsClient, confReq))
 }

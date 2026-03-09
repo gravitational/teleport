@@ -201,7 +201,7 @@ export function RecordingItem({
   );
 }
 
-const RecordingItemContainer = styled(Link).withConfig({
+export const RecordingItemContainer = styled(Link).withConfig({
   // We need to specify this when wrapping non-styled components
   shouldForwardProp: prop =>
     !['viewMode', 'density', 'playable'].includes(prop),
@@ -236,7 +236,7 @@ const RecordingItemContainer = styled(Link).withConfig({
   `
 );
 
-const ThumbnailContainer = styled.div<
+export const ThumbnailContainer = styled.div<
   Pick<RecordingItemProps, 'viewMode' | 'density'>
 >(
   p => css`
@@ -266,7 +266,7 @@ const ThumbnailContainer = styled.div<
   `
 );
 
-const RecordingDetails = styled.div<
+export const RecordingDetails = styled.div<
   Pick<RecordingItemProps, 'viewMode' | 'density'>
 >(
   p => css`
@@ -294,7 +294,7 @@ const RecordingDetails = styled.div<
   `
 );
 
-const Duration = styled.div<Pick<RecordingItemProps, 'viewMode'>>(
+export const Duration = styled.div<Pick<RecordingItemProps, 'viewMode'>>(
   p => css`
     background: rgba(0, 0, 0, 0.5);
     border-radius: ${p.theme.radii[3]}px;
@@ -315,7 +315,7 @@ const Duration = styled.div<Pick<RecordingItemProps, 'viewMode'>>(
   `
 );
 
-const ItemSpan = styled.span`
+export const ItemSpan = styled.span`
   background: ${p => p.theme.colors.spotBackground[0]};
   line-height: 1;
   padding: ${p => p.theme.space[1]}px ${p => p.theme.space[1]}px;

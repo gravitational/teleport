@@ -25,7 +25,7 @@ import { Alert } from 'design/Alert';
 import Box from 'design/Box';
 import Flex from 'design/Flex/Flex';
 import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
-import { SortMenu } from 'shared/components/Controls/SortMenuV2';
+import { SortMenu } from 'shared/components/Controls/SortMenu';
 import { SearchPanel } from 'shared/components/Search';
 
 import {
@@ -96,7 +96,7 @@ export function Instances() {
 
   const upgradersParam = queryParams.get('upgraders');
   const selectedUpgraders = (
-    upgradersParam ? upgradersParam.split(',') : []
+    upgradersParam !== null ? upgradersParam.split(',') : []
   ) as UpgraderType[];
 
   const versionFilter = queryParams.get('version_filter') || '';

@@ -641,7 +641,7 @@ func (u *hostUsersBackendWithExp) CreateUser(name string, groups []string, opts 
 func TestRootLoginAsHostUser(t *testing.T) {
 	testutils.RequireRoot(t)
 	// Create test instance.
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	instance := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -739,7 +739,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 func TestRootStaticHostUsers(t *testing.T) {
 	testutils.RequireRoot(t)
 	// Create test instance.
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	instance := helpers.NewInstance(t, helpers.InstanceConfig{

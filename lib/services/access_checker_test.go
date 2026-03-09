@@ -20,12 +20,14 @@ package services
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -195,7 +197,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				roleSet: roleSet,
 				info: &AccessInfo{
 					Roles: []string{"any", "dev"},
-					AllowedResourceIDs: []types.ResourceID{
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:        types.KindApp,
 							ClusterName: localCluster,
@@ -219,7 +221,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 							Name:            prodKubeCluster.GetName(),
 							SubResourceName: "prod/test-2",
 						},
-					},
+					}),
 				},
 				resource: types.KubernetesResource{
 					Kind:      "pods",
@@ -247,7 +249,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 			fields: fields{
 				info: &AccessInfo{
 					Roles: []string{"any", "dev"},
-					AllowedResourceIDs: []types.ResourceID{
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:        types.KindApp,
 							ClusterName: localCluster,
@@ -271,7 +273,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 							Name:            prodKubeCluster.GetName(),
 							SubResourceName: "prod/test-2",
 						},
-					},
+					}),
 				},
 				resource: types.KubernetesResource{
 					Kind:      "pods",
@@ -292,7 +294,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				roleSet: roleSet,
 				info: &AccessInfo{
 					Roles: []string{"any", "dev"},
-					AllowedResourceIDs: []types.ResourceID{
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:        types.KindApp,
 							ClusterName: localCluster,
@@ -303,7 +305,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 							ClusterName: localCluster,
 							Name:        devKubeCluster.GetName(),
 						},
-					},
+					}),
 				},
 				resource: types.KubernetesResource{
 					Kind:      "pods",
@@ -346,7 +348,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				roleSet: roleSet,
 				info: &AccessInfo{
 					Roles: []string{"any"},
-					AllowedResourceIDs: []types.ResourceID{
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:        types.KindKubernetesCluster,
 							ClusterName: localCluster,
@@ -358,7 +360,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 							Name:            devKubeCluster.GetName(),
 							SubResourceName: "dev/dev",
 						},
-					},
+					}),
 				},
 				resource: types.KubernetesResource{
 					Kind:      "pods",
@@ -387,7 +389,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				roleSet: roleSet,
 				info: &AccessInfo{
 					Roles: []string{"any"},
-					AllowedResourceIDs: []types.ResourceID{
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:        types.KindKubernetesCluster,
 							ClusterName: localCluster,
@@ -399,7 +401,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 							Name:            devKubeCluster.GetName(),
 							SubResourceName: "dev/dev",
 						},
-					},
+					}),
 				},
 				resource: types.KubernetesResource{
 					Kind:      "pods",
@@ -435,14 +437,14 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				roleSet: roleSet,
 				info: &AccessInfo{
 					Roles: []string{"any", "dev"},
-					AllowedResourceIDs: []types.ResourceID{
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:            "pods",
 							ClusterName:     localCluster,
 							Name:            prodKubeCluster.GetName(),
 							SubResourceName: "wrongNamespace/wrongPodName",
 						},
-					},
+					}),
 				},
 				resource: types.KubernetesResource{
 					Kind:      "pods",
@@ -694,6 +696,231 @@ func TestAccessCheckerDesktopGroups(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAccessChecker_CheckConditionalAccess_StateMFANever_ReturnsNoMFAPrecondition(t *testing.T) {
+	t.Parallel()
+
+	const roleName = "allow-all-nodes"
+
+	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
+		r.SetName(roleName)
+	}))
+
+	accessInfo := &AccessInfo{
+		Roles: []string{roleName},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
+
+	srv, err := types.NewServer(
+		"test-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+	)
+	require.NoError(t, err)
+
+	node := &serverStub{Server: srv}
+
+	preconds, err := accessChecker.CheckConditionalAccess(
+		node,
+		AccessState{
+			MFARequired:         MFARequiredNever, // Simulate MFA is never required.
+			ReturnPreconditions: true,
+		},
+	)
+	require.NoError(t, err)
+	require.False(
+		t,
+		slices.ContainsFunc(
+			preconds,
+			func(p *decisionpb.Precondition) bool {
+				return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
+			},
+		),
+		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to NOT be included", preconds,
+	)
+}
+
+func TestAccessChecker_CheckConditionalAccess_StateMFAAlways_ReturnsMFAPrecondition(t *testing.T) {
+	t.Parallel()
+
+	const roleName = "allow-all-nodes"
+
+	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
+		r.SetName(roleName)
+	}))
+
+	accessInfo := &AccessInfo{
+		Roles: []string{roleName},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
+
+	srv, err := types.NewServer(
+		"test-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+	)
+	require.NoError(t, err)
+
+	node := &serverStub{Server: srv}
+
+	preconds, err := accessChecker.CheckConditionalAccess(
+		node,
+		AccessState{
+			MFARequired:         MFARequiredAlways, // Simulate MFA is always required.
+			MFAVerified:         false,             // MFA has not been verified yet.
+			ReturnPreconditions: true,
+		},
+	)
+	require.NoError(t, err)
+	require.True(
+		t,
+		slices.ContainsFunc(
+			preconds,
+			func(p *decisionpb.Precondition) bool {
+				return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
+			},
+		),
+		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
+	)
+}
+
+// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
+func TestAccessChecker_CheckConditionalAccess_StateMFAAlways_EnforceInBandMFA_ReturnsMFAPrecondition(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
+
+	const roleName = "allow-all-nodes"
+
+	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
+		r.SetName(roleName)
+	}))
+
+	accessInfo := &AccessInfo{
+		Roles: []string{roleName},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
+
+	srv, err := types.NewServer(
+		"test-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+	)
+	require.NoError(t, err)
+
+	node := &serverStub{Server: srv}
+
+	preconds, err := accessChecker.CheckConditionalAccess(
+		node,
+		AccessState{
+			MFARequired:         MFARequiredAlways, // Simulate MFA is always required.
+			MFAVerified:         true,              // MFA has been verified via legacy out-of-band MFA flow.
+			ReturnPreconditions: true,
+		},
+	)
+	require.NoError(t, err)
+	require.True(
+		t,
+		slices.ContainsFunc(
+			preconds,
+			func(p *decisionpb.Precondition) bool {
+				return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
+			},
+		),
+		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
+	)
+}
+
+func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ReturnsMFAPrecondition(t *testing.T) {
+	t.Parallel()
+
+	const roleName = "mfa-required"
+
+	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
+		r.SetName(roleName)
+
+		r.SetOptions(types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION, // Role requires MFA.
+		})
+	}))
+
+	accessInfo := &AccessInfo{
+		Roles: []string{roleName},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
+
+	srv, err := types.NewServer(
+		"test-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+	)
+	require.NoError(t, err)
+
+	node := &serverStub{Server: srv}
+
+	preconds, err := accessChecker.CheckConditionalAccess(
+		node,
+		AccessState{
+			ReturnPreconditions: true,
+		},
+	)
+	require.NoError(t, err)
+	require.True(
+		t,
+		slices.ContainsFunc(preconds, func(p *decisionpb.Precondition) bool {
+			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
+		}),
+		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
+	)
+}
+
+// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
+func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ForceInBandMFAEnv_ReturnsMFAPrecondition(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
+
+	const roleName = "mfa-required"
+
+	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
+		r.SetName(roleName)
+
+		r.SetOptions(types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION, // Role requires MFA.
+		})
+	}))
+
+	accessInfo := &AccessInfo{
+		Roles: []string{roleName},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
+
+	srv, err := types.NewServer(
+		"test-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+	)
+	require.NoError(t, err)
+
+	node := &serverStub{Server: srv}
+
+	preconds, err := accessChecker.CheckConditionalAccess(
+		node,
+		AccessState{
+			MFAVerified:         true, // Simulate MFA has been verified via legacy out-of-band MFA flow.
+			ReturnPreconditions: true,
+		},
+	)
+	require.NoError(t, err)
+	require.True(
+		t,
+		slices.ContainsFunc(preconds, func(p *decisionpb.Precondition) bool {
+			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
+		}),
+		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
+	)
 }
 
 func TestSSHPortForwarding(t *testing.T) {
@@ -1091,12 +1318,8 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 		{
 			name: "matches kind and subkind",
 			info: &AccessInfo{
-				AllowedResourceIDs: []types.ResourceID{
-					{
-						Kind:        types.KindIdentityCenterAccount,
-						ClusterName: localCluster,
-						Name:        "aws-dev",
-					},
+				AllowedResourceAccessIDs: []types.ResourceAccessID{
+					{Id: types.ResourceID{Kind: types.KindIdentityCenterAccount, ClusterName: localCluster, Name: "aws-dev"}},
 				},
 			},
 			resource: types.AppServerV3{
@@ -1111,12 +1334,8 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 		{
 			name: "unmatched subkind",
 			info: &AccessInfo{
-				AllowedResourceIDs: []types.ResourceID{
-					{
-						Kind:        types.KindIdentityCenterAccount,
-						ClusterName: localCluster,
-						Name:        "aws-dev",
-					},
+				AllowedResourceAccessIDs: []types.ResourceAccessID{
+					{Id: types.ResourceID{Kind: types.KindIdentityCenterAccount, ClusterName: localCluster, Name: "aws-dev"}},
 				},
 			},
 			resource: types.AppServerV3{
@@ -1132,12 +1351,8 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 		{
 			name: "unmatched kind",
 			info: &AccessInfo{
-				AllowedResourceIDs: []types.ResourceID{
-					{
-						Kind:        types.KindIdentityCenterAccount,
-						ClusterName: localCluster,
-						Name:        "aws-dev",
-					},
+				AllowedResourceAccessIDs: []types.ResourceAccessID{
+					{Id: types.ResourceID{Kind: types.KindIdentityCenterAccount, ClusterName: localCluster, Name: "aws-dev"}},
 				},
 			},
 			resource: types.AppServerV3{
@@ -1161,6 +1376,77 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 			))
 		})
 	}
+}
+
+func TestAccessChecker_Constraints_AwsConsole(t *testing.T) {
+	const localCluster = "cluster"
+	const appName = "aws-console"
+
+	// Over-broad role that allows two ARNs
+	role := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.AppLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+		rv.Spec.Allow.AWSRoleARNs = []string{
+			"arn:aws:iam::123456789012:role/Admin",
+			"arn:aws:iam::123456789012:role/ReadOnly",
+		}
+	})
+
+	app := types.AppServerV3{
+		Kind: types.KindApp,
+		Metadata: types.Metadata{
+			Name: appName,
+		},
+		Spec: types.AppServerSpecV3{
+			App: &types.AppV3{
+				Kind: types.KindApp,
+				Metadata: types.Metadata{
+					Name: appName,
+				},
+				Spec: types.AppSpecV3{
+					URI: constants.AWSConsoleURL,
+				},
+			},
+		},
+	}
+
+	// Cert allows this specific app resource, but scoped to only ReadOnly ARN via Constraints
+	rid := types.ResourceAccessID{
+		Id: types.ResourceID{
+			ClusterName: localCluster,
+			Kind:        types.KindApp,
+			Name:        appName,
+		},
+		Constraints: &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_AwsConsole{
+				AwsConsole: &types.AWSConsoleResourceConstraints{
+					RoleArns: []string{
+						"arn:aws:iam::123456789012:role/ReadOnly",
+					},
+				},
+			},
+		},
+	}
+
+	info := &AccessInfo{AllowedResourceAccessIDs: []types.ResourceAccessID{rid}}
+
+	ac := NewAccessCheckerWithRoleSet(info, localCluster, NewRoleSet(role))
+
+	// 1) Should fail: ARN is not present in Constraints.RoleArns
+	err := ac.CheckAccess(
+		&app,
+		AccessState{MFARequired: MFARequiredNever},
+		NewAppAWSLoginMatcher("arn:aws:iam::123456789012:role/Admin"),
+	)
+	require.Error(t, err)
+
+	// 2) Should pass: ARN is present in Constraints.RoleArns
+	err = ac.CheckAccess(
+		&app,
+		AccessState{MFARequired: MFARequiredNever},
+		NewAppAWSLoginMatcher("arn:aws:iam::123456789012:role/ReadOnly"),
+	)
+	require.NoError(t, err)
 }
 
 // TestUserSessionRoleNotFoundError ensures that role not found errors during user session access checks include UserSessionRoleNotFoundErrorMsg when appropriate,

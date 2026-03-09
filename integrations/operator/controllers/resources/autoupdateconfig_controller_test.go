@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -168,15 +169,40 @@ func (g *autoUpdateConfigTestingPrimitives) CompareTeleportAndKubernetesResource
 
 func TestAutoUpdateConfigCreation(t *testing.T) {
 	test := &autoUpdateConfigTestingPrimitives{}
-	testlib.ResourceCreationTest[*autoupdatev1pb.AutoUpdateConfig, *resourcesv1.TeleportAutoupdateConfigV1](t, test)
+	testlib.ResourceCreationSynchronousTest(
+		t,
+		resources.NewAutoUpdateConfigV1Reconciler,
+		test,
+		testlib.WithResourceName(types.MetaNameAutoUpdateConfig),
+	)
+}
+
+func TestAutoUpdateConfigDeletion(t *testing.T) {
+	test := &autoUpdateConfigTestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(
+		t,
+		resources.NewAutoUpdateConfigV1Reconciler,
+		test,
+		testlib.WithResourceName(types.MetaNameAutoUpdateConfig),
+	)
 }
 
 func TestAutoUpdateConfigDeletionDrift(t *testing.T) {
 	test := &autoUpdateConfigTestingPrimitives{}
-	testlib.ResourceDeletionDriftTest[*autoupdatev1pb.AutoUpdateConfig, *resourcesv1.TeleportAutoupdateConfigV1](t, test)
+	testlib.ResourceDeletionDriftSynchronousTest(
+		t,
+		resources.NewAutoUpdateConfigV1Reconciler,
+		test,
+		testlib.WithResourceName(types.MetaNameAutoUpdateConfig),
+	)
 }
 
 func TestAutoUpdateConfigUpdate(t *testing.T) {
 	test := &autoUpdateConfigTestingPrimitives{}
-	testlib.ResourceUpdateTest[*autoupdatev1pb.AutoUpdateConfig, *resourcesv1.TeleportAutoupdateConfigV1](t, test)
+	testlib.ResourceUpdateTestSynchronous(
+		t,
+		resources.NewAutoUpdateConfigV1Reconciler,
+		test,
+		testlib.WithResourceName(types.MetaNameAutoUpdateConfig),
+	)
 }

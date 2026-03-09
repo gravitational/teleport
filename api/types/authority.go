@@ -32,6 +32,8 @@ import (
 type CertAuthority interface {
 	// ResourceWithSecrets sets common resource properties
 	ResourceWithSecrets
+	// IsEqual determines if two [CertAuthority] objects are equivalent.
+	IsEqual(CertAuthority) bool
 	// SetMetadata sets CA metadata
 	SetMetadata(meta Metadata)
 	// GetID returns certificate authority ID -
@@ -122,6 +124,15 @@ func (ca *CertAuthorityV2) GetRotation() Rotation {
 // SetRotation sets rotation state.
 func (ca *CertAuthorityV2) SetRotation(r Rotation) {
 	ca.Spec.Rotation = &r
+}
+
+func (ca *CertAuthorityV2) IsEqual(other CertAuthority) bool {
+	caV2, ok := other.(*CertAuthorityV2)
+	if !ok {
+		return false
+	}
+
+	return deriveTeleportEqualCertAuthorityV2(ca, caV2)
 }
 
 // SetMetadata sets object metadata

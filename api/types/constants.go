@@ -406,8 +406,14 @@ const (
 	// KindStaticTokens is a type of configuration resource that contains static tokens.
 	KindStaticTokens = "static_tokens"
 
+	// KindStaticScopedTokens is a type of configuration resource that contains static scoped tokens.
+	KindStaticScopedTokens = "static_scoped_tokens"
+
 	// MetaNameStaticTokens is the name of a configuration resource for static tokens.
 	MetaNameStaticTokens = "static-tokens"
+
+	// MetaNameStaticScopedTokens is the name of a configuration resource for static scoped tokens.
+	MetaNameStaticScopedTokens = "static-scoped-tokens"
 
 	// MetaNameSessionTracker is the prefix of resources used to track live sessions.
 	MetaNameSessionTracker = "session-tracker"
@@ -692,6 +698,12 @@ const (
 
 	// KindValidatedMFAChallenge is the resource kind for validated MFA challenges.
 	KindValidatedMFAChallenge = "validated_mfa_challenge"
+
+	// KindWorkloadCluster is the resource kind for workload clusters.
+	KindWorkloadCluster = "workload_cluster"
+
+	// KindCertAuthorityOverride is the resource kind for CA overrides.
+	KindCertAuthorityOverride = "cert_authority_override"
 
 	// V8 is the eighth version of resources.
 	V8 = "v8"

@@ -55,8 +55,8 @@ servers.
 
 1. [Introduction](#introduction)
 1. [Why We Built Teleport](#why-we-built-teleport)
-1. [Supporting & Contributing](#supporting--contributing)
-1. [Installing & Running](#installing--running)
+1. [Supporting and Contributing](#supporting-and-contributing)
+1. [Installing and Running](#installing-and-running)
 1. [Docker](#docker)
 1. [Building Teleport](#building-teleport)
 1. [License](#license)
@@ -131,7 +131,7 @@ by AI agents.
 
 [Learn more about Teleport and our history](https://goteleport.com/about/)
 
-## Supporting & Contributing
+## Supporting and Contributing
 
 We aim to make Teleport easy to adopt and contribute to, starting with clear and comprehensive [documentation](https://goteleport.com/docs/). 
 
@@ -166,7 +166,7 @@ server](https://goteleport.com/docs/get-started/).
 ### Deploy Teleport
 
 If you wish to deploy Teleport inside a Docker container see the
-[installation guide](https://goteleport.com/docs/installation/#running-teleport-on-docker).
+[installation guide](https://goteleport.com/docs/installation/docker/#running-teleport-on-docker).
 
 ### For Local Testing and Development
 

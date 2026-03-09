@@ -521,6 +521,9 @@ const (
 	// CertExtensionAllowedResources lists the resources which this certificate
 	// should be allowed to access
 	CertExtensionAllowedResources = "teleport-allowed-resources"
+	// CertExtensionAllowedResourceAccessIDs lists the resources which this
+	// certificate should be allowed to access, paired with additional access information.
+	CertExtensionAllowedResourceAccessIDs = "teleport-allowed-resource-access-ids"
 	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
 	// The Node/Agent will append connection traces to this diagnostic instance.
 	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
@@ -555,6 +558,9 @@ const (
 	// CertExtensionGitHubUsername indicates the GitHub username identified by
 	// the GitHub connector.
 	CertExtensionGitHubUsername = "github-login@goteleport.com"
+	// CertExtensionImmutableLabelHash is the hash used to verify immutable
+	// labels against a certificate.
+	CertExtensionImmutableLabelHash = "immutable-label-hash@goteleport.com"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag

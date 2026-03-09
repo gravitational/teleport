@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/constants"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -282,10 +283,9 @@ func TestForwardServer(t *testing.T) {
 
 func makeUserCert(t *testing.T, caSigner ssh.Signer) ssh.Signer {
 	t.Helper()
-	keygen := testauthority.New()
 	clientPrivateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-	clientCertBytes, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+	clientCertBytes, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:          caSigner,
 		PublicUserKey:     clientPrivateKey.MarshalSSHPublicKey(),
 		CertificateFormat: constants.CertificateFormatStandard,
@@ -408,6 +408,14 @@ func (m mockAuthClient) NewWatcher(ctx context.Context, watch types.Watch) (type
 		return nil, trace.AccessDenied("unauthorized")
 	}
 	return m.events.NewWatcher(ctx, watch)
+}
+
+type mockMFAServiceClient struct {
+	mfav1.MFAServiceClient
+}
+
+func (m mockAuthClient) MFAServiceClient() mfav1.MFAServiceClient {
+	return &mockMFAServiceClient{}
 }
 
 type mockAccessPoint struct {

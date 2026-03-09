@@ -20,9 +20,9 @@ resource "teleport_discovery_config" "aws" {
   header = {
     version = "v1"
     metadata = {
-      name        = local.teleport_discovery_config_name
       description = "Configure Teleport to discover AWS resources."
       labels      = local.apply_teleport_resource_labels
+      name        = local.teleport_discovery_config_name
     }
   }
 

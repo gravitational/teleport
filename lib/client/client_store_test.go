@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -64,8 +65,11 @@ func newTestAuthority(t *testing.T) testAuthority {
 	require.NoError(t, err)
 
 	clock := clockwork.NewFakeClock()
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
+	require.NoError(t, err)
+
 	return testAuthority{
-		keygen:       testauthority.NewWithClock(clock),
+		keygen:       authority,
 		tlsCA:        tlsCA,
 		trustedCerts: trustedCerts,
 		clock:        clock,
@@ -408,7 +412,7 @@ func TestProxySSHConfig(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, 1, int(called.Load()))
 
-		_, spub, err := testauthority.New().GenerateKeyPair()
+		_, spub, err := testauthority.GenerateKeyPair()
 		require.NoError(t, err)
 		caPub22, _, _, _, err := ssh.ParseAuthorizedKey(spub)
 		require.NoError(t, err)
@@ -433,6 +437,9 @@ func TestProxySSHConfig(t *testing.T) {
 // fast to avoid adding latency to all kubectl calls. It should tolerate being
 // called many times in parallel.
 func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(b, err)
 

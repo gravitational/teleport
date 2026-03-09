@@ -1098,7 +1098,7 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	privateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
 	require.NoError(t, err)

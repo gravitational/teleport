@@ -137,10 +137,11 @@ func (l *Limiter) UnaryServerInterceptorWithCustomRate(customRate CustomRateFunc
 		if !ok {
 			return nil, trace.AccessDenied("missing peer info")
 		}
+
 		// Limit requests per second and simultaneous connection by client IP.
-		clientIP, _, err := net.SplitHostPort(peerInfo.Addr.String())
+		clientIP, err := clientIPFromPeer(peerInfo)
 		if err != nil {
-			return nil, trace.BadParameter("missing client IP")
+			return nil, trace.Wrap(err)
 		}
 		if err := l.RegisterRequestWithCustomRate(clientIP, customRate(info.FullMethod)); err != nil {
 			return nil, trace.LimitExceeded("rate limit exceeded")
@@ -161,9 +162,9 @@ func (l *Limiter) StreamServerInterceptor(srv any, serverStream grpc.ServerStrea
 		return trace.AccessDenied("missing peer info")
 	}
 	// Limit requests per second and simultaneous connection by client IP.
-	clientIP, _, err := net.SplitHostPort(peerInfo.Addr.String())
+	clientIP, err := clientIPFromPeer(peerInfo)
 	if err != nil {
-		return trace.BadParameter("missing client IP")
+		return trace.Wrap(err)
 	}
 	if err := l.RegisterRequest(clientIP); err != nil {
 		return trace.LimitExceeded("rate limit exceeded")
@@ -173,6 +174,21 @@ func (l *Limiter) StreamServerInterceptor(srv any, serverStream grpc.ServerStrea
 	}
 	defer l.connectionLimiter.ReleaseConnection(clientIP)
 	return handler(srv, serverStream)
+}
+
+func clientIPFromPeer(peerInfo *peer.Peer) (string, error) {
+	clientIP, _, err := net.SplitHostPort(peerInfo.Addr.String())
+	if err == nil {
+		return clientIP, nil
+	}
+
+	// bufconn peers don't include host:port, so use a stable synthetic key
+	// for request/connection limiting in tests.
+	if peerInfo.Addr.Network() == "bufconn" && peerInfo.Addr.String() == "bufconn" {
+		return "bufconn", nil
+	}
+
+	return "", trace.BadParameter("missing client IP")
 }
 
 // WrapListener returns a [Listener] that wraps the provided listener

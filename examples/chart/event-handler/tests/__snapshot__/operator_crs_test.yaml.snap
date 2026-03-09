@@ -1,0 +1,61 @@
+should match the snapshot (tokenSpecOverride set):
+  1: |
+    apiVersion: resources.teleport.dev/v1
+    kind: TeleportRoleV8
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-event-handler
+        app.kubernetes.io/version: 19.0.0-dev
+        helm.sh/chart: teleport-plugin-event-handler-19.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-event-handler
+      namespace: NAMESPACE
+    spec:
+      allow:
+        rules:
+        - resources:
+          - event
+          - session
+          verbs:
+          - list
+          - read
+  2: |
+    apiVersion: resources.teleport.dev/v1
+    kind: TeleportBotV1
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-event-handler
+        app.kubernetes.io/version: 19.0.0-dev
+        helm.sh/chart: teleport-plugin-event-handler-19.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-event-handler
+      namespace: NAMESPACE
+    spec:
+      roles:
+      - RELEASE-NAME-teleport-plugin-event-handler
+  3: |
+    apiVersion: resources.teleport.dev/v2
+    kind: TeleportProvisionToken
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-event-handler
+        app.kubernetes.io/version: 19.0.0-dev
+        helm.sh/chart: teleport-plugin-event-handler-19.0.0-dev
+      name: RELEASE-NAME-tbot
+      namespace: NAMESPACE
+    spec:
+      bot_name: RELEASE-NAME-teleport-plugin-event-handler
+      join_method: kubernetes
+      kubernetes:
+        allow:
+        - service_account: NAMESPACE:RELEASE-NAME-tbot
+        static_jwks:
+          jwks: |
+            test-jwks
+        type: static_jwks
+      roles:
+      - Bot

@@ -1013,6 +1013,20 @@ func generateNestedALs(level, directMembers int, rootListName, userName string) 
 			},
 		})
 		listMembers = append(listMembers, generateUserMembers(directMembers/2+directMembers%2, name)...)
+
+		listMembers = append(listMembers, &accesslist.AccessListMember{
+			ResourceHeader: header.ResourceHeader{
+				Metadata: header.Metadata{
+					Name: userName,
+				},
+			},
+			Spec: accesslist.AccessListMemberSpec{
+				AccessList:     parentName,
+				Name:           userName,
+				MembershipKind: accesslist.MembershipKindUser,
+			},
+		})
+
 		members[parentName] = listMembers
 	}
 
@@ -1068,7 +1082,7 @@ func BenchmarkIsAccessListMember(b *testing.B) {
 				mock,
 				lockGetter,
 				clock)
-			if err != nil {
+			if !trace.IsAccessDenied(err) {
 				b.Fatal(err)
 			}
 		}

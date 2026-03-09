@@ -18,7 +18,14 @@
 
 import { formatDuration, intervalToDuration } from 'date-fns';
 
-import { ResourceMap } from '../NewRequest';
+import {
+  getResourceIDString,
+  ResourceConstraints,
+  ResourceIDString,
+  WithResourceConstraints,
+} from 'shared/services/accessRequests';
+
+import { PendingListItem, ResourceMap } from '../NewRequest';
 
 export function getFormattedDurationTxt({
   start,
@@ -45,3 +52,48 @@ export function getNumAddedResources(addedResources: ResourceMap) {
     Object.keys(addedResources.aws_ic_account_assignment).length
   );
 }
+
+const AWS_IAM_ROLE_ARN_REGEX = /^arn:aws[a-z0-9-]*:iam::(\d{12}):role\/(.+)$/;
+
+/**
+ * Formats an AWS Role ARN for pretty display, in the format "accountId: rolePathAndName".
+ */
+export const formatAWSRoleARNForDisplay = (arn: string) => {
+  const match = arn.match(AWS_IAM_ROLE_ARN_REGEX);
+
+  if (!match || match.length < 3) {
+    return arn;
+  }
+
+  const [, accountId, rolePathAndName] = match;
+
+  return `${accountId}: ${rolePathAndName}`;
+};
+
+/**
+ * Toggles an AWS Console constraint by removing the specified ARN from the current constraints.
+ * If no RoleARNs remain after removal, it clears the constraint.
+ */
+export const toggleAWSConsoleConstraint = <T extends PendingListItem>(
+  item: WithResourceConstraints<
+    'aws_console',
+    Pick<T, 'id' | 'kind' | 'clusterName'>
+  >,
+  arn: string,
+  set: (
+    key: ResourceIDString,
+    constraints: ResourceConstraints | undefined
+  ) => void
+) => {
+  const key = getResourceIDString({
+    name: item.id,
+    kind: item.kind,
+    cluster: item.clusterName,
+  });
+  const newRc = {
+    aws_console: {
+      role_arns: item.constraints.aws_console.role_arns.filter(a => a !== arn),
+    },
+  };
+  set(key, newRc.aws_console.role_arns.length ? newRc : undefined);
+};

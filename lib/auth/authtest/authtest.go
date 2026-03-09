@@ -34,6 +34,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -62,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -115,6 +117,7 @@ type AuthServerConfig struct {
 	FIPS bool
 	// KeystoreConfig is configuration for the CA keystore.
 	KeystoreConfig servicecfg.KeystoreConfig
+	InsecureMode   bool
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -158,7 +161,11 @@ type ServerConfig struct {
 	TLS *TLSServerConfig
 }
 
-// NewTestServer creates a new test server configuration
+// NewTestServer creates a new test server configuration and exposes
+// the Auth Service on a random local address. It is the callers
+// responsibility close the server when it is no longer needed.
+//
+// Prefer NewAuthServer if Auth Service RPCs are never invoked.
 func NewTestServer(cfg ServerConfig) (*Server, error) {
 	authServer, err := NewAuthServer(cfg.Auth)
 	if err != nil {
@@ -260,8 +267,23 @@ type AuthServer struct {
 	LockWatcher *services.LockWatcher
 }
 
-// NewAuthServer returns a new test auth server.
-// The caller should close the server when it is no longer needed.
+const (
+	// FakePasswordHash is the bcrypt hash for password "barbaz", the same as the default used
+	// by auth.Server, except, it is generated with the minimum cost instead of the default
+	// cost to speed tests up.
+	FakePasswordHash = `$2a$04$uTNg/AhzeGARChkxBsddyeHuCI7SBr2SG7PYhu63mIXqzuqRD.cgq`
+
+	// FakeRecoveryCodeHash is the bcrypt hash for recovery code "fake-barbaz-barbaz-barbaz-barbaz-barbaz-barbaz-barbaz-barbaz",
+	// the same as the default used by auth.Server, except, it is generated with the minimum
+	// cost instead of the default cost to speed tests up.
+	FakeRecoveryCodeHash = `$2a$04$04QoQDbwYTwSIppmJLQQkebbFrMS9V02ttus3rHi2cwujcnDHKbL6`
+)
+
+// NewAuthServer returns a new test auth server. It is the callers
+// responsibility close the server when it is no longer needed.
+//
+// Prefer using this over NewTestTLSServer if Auth Service RPCs are
+// never invoked.
 func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	ctx := context.Background()
 
@@ -312,7 +334,11 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	accessLists, err := local.NewAccessListService(srv.Backend, cfg.Clock, local.WithRunWhileLockedRetryInterval(cfg.RunWhileLockedRetryInterval))
+	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: srv.Backend,
+		// TODO(tross): replace with cfg.Modules
+		Modules: modules.GetModules(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -325,11 +351,17 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(tross): replace with cfg.Modules.BuildType
+	authority, err := authority.NewKeygen(modules.GetModules().BuildType(), cfg.Clock.Now)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	srv.AuthServer, err = auth.NewServer(&auth.InitConfig{
 		DataDir:                      cfg.Dir,
 		Backend:                      srv.Backend,
 		VersionStorage:               NewFakeTeleportVersion(),
-		Authority:                    authority.NewWithClock(cfg.Clock),
+		Authority:                    authority,
 		Access:                       access,
 		Identity:                     identity,
 		AuditLog:                     srv.AuditLog,
@@ -347,6 +379,9 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		SessionSummarizerProvider:    cfg.SessionSummarizerProvider,
 		RecordingMetadataProvider:    cfg.RecordingMetadataProvider,
 		AWSOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
+		FakePasswordHash:             []byte(FakePasswordHash),
+		FakeRecoveryCodeHash:         []byte(FakeRecoveryCodeHash),
+		InsecureMode:                 cfg.InsecureMode,
 	},
 		// Reduce auth.Server bcrypt costs when testing.
 		WithBcryptCost(bcrypt.MinCost),
@@ -601,6 +636,8 @@ func InitAuthCache(p AuthCacheParams) error {
 		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 		Plugin:                  p.AuthServer.Services.Plugins,
 		AppAuthConfig:           p.AuthServer.Services.AppAuthConfig,
+		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
+		WorkloadClusterService:  p.AuthServer.Services.WorkloadClusterService,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -714,28 +751,30 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 
 		return tlsCert, privateKeyPEM, nil
 	case authz.BuiltinRole:
-		certs, err := authServer.GenerateHostCerts(ctx,
-			&proto.HostCertsRequest{
+		certs, err := authServer.GenerateHostCerts(ctx, auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
-			}, "")
+			},
+		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 		return certs.TLS, privateKeyPEM, nil
 	case authz.RemoteBuiltinRole:
-		certs, err := authServer.GenerateHostCerts(ctx,
-			&proto.HostCertsRequest{
+		certs, err := authServer.GenerateHostCerts(ctx, auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
-			}, "")
+			},
+		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -824,7 +863,8 @@ func (a *AuthServer) Trust(ctx context.Context, remote *AuthServer, roleMap type
 	return nil
 }
 
-// NewTestTLSServer returns new test TLS server
+// NewTestTLSServer creates a test TLS server configured to use
+// this AuthServer.
 func (a *AuthServer) NewTestTLSServer(opts ...TestTLSServerOption) (*TLSServer, error) {
 	apiConfig := &auth.APIConfig{
 		AuthServer:       a.AuthServer,
@@ -865,6 +905,20 @@ func WithAccessGraphConfig(config auth.AccessGraphConfig) TestTLSServerOption {
 	}
 }
 
+// WithBufconnListener configures the auth test server to use a gRPC bufconn
+// listener and dialer instead of loopback TCP. This is useful with synctest
+// where real TCP listeners are not durably blocking.
+func WithBufconnListener() TestTLSServerOption {
+	const testBufconnSize = 1024
+	return func(cfg *TLSServerConfig) {
+		listener := bufconn.Listen(testBufconnSize)
+		cfg.Listener = listener
+		cfg.AuthDialer = client.ContextDialerFunc(func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return listener.DialContext(ctx)
+		})
+	}
+}
+
 // NewRemoteClient creates new client to the remote server using identity
 // generated for this certificate authority
 func (a *AuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, pool *x509.CertPool) (*authclient.Client, error) {
@@ -897,6 +951,8 @@ type TLSServerConfig struct {
 	Limiter *limiter.Config
 	// Listener is a listener to serve requests on
 	Listener net.Listener
+	// AuthDialer is a dialer to use when making auth clients.
+	AuthDialer client.ContextDialer
 	// AcceptedUsage is a list of accepted usage restrictions
 	AcceptedUsage []string
 }
@@ -944,7 +1000,10 @@ func (cfg *TLSServerConfig) CheckAndSetDefaults() error {
 }
 
 // NewTestTLSServer returns new test TLS server that is started and is listening
-// on 127.0.0.1 loopback on any available port
+// on 127.0.0.1 loopback on any available port. It is the callers responsibility
+// close the server when it is no longer needed.
+//
+// Prefer using authtest.AuthServer directly if Auth Service RPCs are never used.
 func NewTestTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
@@ -966,9 +1025,11 @@ func NewTestTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	tlsConfig.Time = cfg.AuthServer.Clock().Now
 	tlsCert := tlsConfig.Certificates[0]
 
-	srv.Listener, err = net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if srv.Listener == nil {
+		srv.Listener, err = net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	srv.TLSServer, err = auth.NewTLSServer(context.Background(), auth.TLSServerConfig{
@@ -1131,7 +1192,8 @@ func (t *TLSServer) NewClientFromWebSession(sess types.WebSession) (*authclient.
 	tlsConfig.Time = t.AuthServer.AuthServer.GetClock().Now
 
 	return authclient.NewClient(client.Config{
-		Addrs: []string{t.Addr().String()},
+		Addrs:  []string{t.Addr().String()},
+		Dialer: t.AuthDialer,
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
@@ -1186,7 +1248,8 @@ func (t *TLSServer) CloneClient(tt *testing.T, clt *authclient.Client) *authclie
 	}
 
 	newClient, err := authclient.NewClient(client.Config{
-		Addrs: []string{t.Addr().String()},
+		Addrs:  []string{t.Addr().String()},
+		Dialer: t.AuthDialer,
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
@@ -1209,7 +1272,8 @@ func (t *TLSServer) NewClientWithCert(clientCert tls.Certificate) (*authclient.C
 	tlsConfig.Time = t.AuthServer.AuthServer.GetClock().Now
 	tlsConfig.Certificates = []tls.Certificate{clientCert}
 	newClient, err := authclient.NewClient(client.Config{
-		Addrs: []string{t.Addr().String()},
+		Addrs:  []string{t.Addr().String()},
+		Dialer: t.AuthDialer,
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
@@ -1240,6 +1304,7 @@ func (t *TLSServer) NewClient(identity TestIdentity) (*authclient.Client, error)
 	newClient, err := authclient.NewClient(client.Config{
 		DialInBackground: true,
 		Addrs:            []string{t.Addr().String()},
+		Dialer:           t.AuthDialer,
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
@@ -1356,14 +1421,15 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := clt.GenerateHostCerts(context.Background(),
-		&proto.HostCertsRequest{
+	certs, err := clt.GenerateHostCerts(context.Background(), auth.HostCertsParams{
+		Req: &proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     hostID,
 			Role:         role,
 			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
 			PublicTLSKey: tlsPubKey,
-		}, "")
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -54,6 +54,18 @@ if (process.env.TEAMID) {
 }
 
 /**
+ * Describes whether there will be an attempt by electron-builder to sign the app on macOS.
+ */
+const shouldBeSignedOnMacOS =
+  process.env.APPLE_ID ||
+  process.env.APPLE_APP_SPECIFIC_PASSWORD ||
+  process.env.APPLE_TEAM_ID;
+
+const entitlementsMacOS = shouldBeSignedOnMacOS
+  ? 'build_resources/entitlements.mac.plist'
+  : 'build_resources/entitlements.mac.adhoc-signed.plist';
+
+/**
  * @type { import('electron-builder').Configuration }
  */
 module.exports = {
@@ -116,14 +128,16 @@ module.exports = {
     notarize: true,
     hardenedRuntime: true,
     gatekeeperAssess: false,
+    entitlements: entitlementsMacOS,
     // Use the same entitlements for Electron subprocesses (e.g., renderer, GPU)
     // as those defined for the main app.
-    entitlementsInherit: 'build_resources/entitlements.mac.plist',
+    entitlementsInherit: entitlementsMacOS,
     // If CONNECT_TSH_APP_PATH is provided, we assume that tsh.app is already signed.
     signIgnore: env.CONNECT_TSH_APP_PATH && ['tsh.app'],
     icon: 'build_resources/icon-mac.png',
     // x64ArchFiles is for x64 and universal files (lipo tool should skip them)
-    x64ArchFiles: 'Contents/MacOS/tsh.app/Contents/MacOS/tsh',
+    x64ArchFiles:
+      '{Contents/MacOS/tsh.app/Contents/MacOS/tsh,Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/**}',
     // On macOS, helper apps (such as tsh.app) should be under Contents/MacOS, hence using
     // `extraFiles` instead of `extraResources`.
     // https://developer.apple.com/documentation/bundleresources/placing_content_in_a_bundle
@@ -198,6 +212,7 @@ module.exports = {
     extraResources: [
       env.CONNECT_TSH_BIN_PATH && {
         from: env.CONNECT_TSH_BIN_PATH,
+        // Keep in sync with lib/teleterm/autoupdate/per_machine_windows.go.
         to: './bin/tsh.exe',
       },
       env.CONNECT_WINTUN_DLL_PATH && {
@@ -213,18 +228,25 @@ module.exports = {
     ].filter(Boolean),
   },
   nsis: {
+    // Static app guid, calculated from appId and electron-builder's UUID.
+    guid: '22539266-67e8-54a3-83b9-dfdca7b33ee1',
     // Turn off blockmaps since we don't support automatic updates.
     // https://github.com/electron-userland/electron-builder/issues/2900#issuecomment-730571696
     differentialPackage: false,
-    // Use a per-machine installation to support VNet.
-    // VNet installs a Windows service per-machine, and tsh.exe must be
-    // installed in a path that is not user-writable.
-    perMachine: true,
+    // Per-machine and per-user modes differ in features.
+    // VNet is available only in per-machine mode.
+    perMachine: false,
+    oneClick: false,
+    selectPerMachineByDefault: true,
+    // In installer.nsh, the `selectUserMode` message is overridden to display information
+    // about VNet availability. The message is only in English, so the multi-language
+    // installer should be disabled to avoid mixing languages in the installation wizard.
+    multiLanguageInstaller: false,
   },
   rpm: {
     artifactName: '${name}-${version}.${arch}.${ext}',
-    afterInstall: 'build_resources/linux/after-install.tpl',
-    afterRemove: 'build_resources/linux/after-remove.tpl',
+    afterInstall: 'build_resources/linux/after-install.sh.tmpl',
+    afterRemove: 'build_resources/linux/after-remove.sh.tmpl',
     // --rpm-rpmbuild-define "_build_id_links none" fixes the problem with not being able to install
     // Connect's rpm next to other Electron apps.
     // https://github.com/gravitational/teleport/issues/18859
@@ -232,8 +254,8 @@ module.exports = {
   },
   deb: {
     artifactName: '${name}_${version}_${arch}.${ext}',
-    afterInstall: 'build_resources/linux/after-install.tpl',
-    afterRemove: 'build_resources/linux/after-remove.tpl',
+    afterInstall: 'build_resources/linux/after-install.sh.tmpl',
+    afterRemove: 'build_resources/linux/after-remove.sh.tmpl',
   },
   linux: {
     target: ['tar.gz', 'rpm', 'deb'],

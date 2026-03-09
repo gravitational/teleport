@@ -128,6 +128,12 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .boolean()
       .default(false)
       .describe('Automatically copies selected text to the clipboard.'),
+    'terminal.setTeleportAuthServerEnvVar': z
+      .boolean()
+      .default(true)
+      .describe(
+        'Whether to set TELEPORT_AUTH_SERVER in local terminal sessions. Setting it helps tctl choose the right profile.'
+      ),
     'usageReporting.enabled': z
       .boolean()
       .default(false)

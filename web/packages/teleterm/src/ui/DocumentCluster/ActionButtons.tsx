@@ -109,7 +109,7 @@ export function ConnectServerActionButton(props: {
     );
   }
 
-  const commonProps = {
+  const commonProps: MenuLoginProps = {
     inputType: MenuInputType.FILTER,
     textTransform: 'none',
     getLoginItems: () => props.server.logins.map(login => ({ login, url: '' })),
@@ -216,12 +216,40 @@ export function ConnectDatabaseActionButton(props: {
   const appContext = useAppContext();
 
   function connect(dbUser: string): void {
-    const { uri, name, protocol, gcpProjectId } = props.database;
+    const { uri, name, protocol, gcpProjectId, autoUserProvisioning } =
+      props.database;
 
     connectToDatabase(
       appContext,
-      { uri, name, protocol, dbUser, gcpProjectId },
+      {
+        uri,
+        name,
+        protocol,
+        dbUser,
+        gcpProjectId,
+        autoUserProvisioning,
+      },
       { origin: 'resource_table' }
+    );
+  }
+
+  if (props.database.autoUserProvisioning) {
+    return (
+      <ButtonBorder
+        size="small"
+        onClick={async () => {
+          const dbUsers = await getDatabaseUsers(
+            appContext,
+            props.database.uri
+          );
+          const autoProvisionedDbUser = dbUsers[0].login;
+          connect(autoProvisionedDbUser);
+        }}
+        textTransform="none"
+        width={buttonWidth}
+      >
+        Connect
+      </ButtonBorder>
     );
   }
 

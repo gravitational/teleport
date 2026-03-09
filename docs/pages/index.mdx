@@ -11,6 +11,7 @@ import Resources, { ResourcesProps } from "@site/src/components/Pages/Homepage/R
 import Integrations, { IntegrationsProps } from "@site/src/components/Pages/Homepage/Integrations";
 import GetStarted from "@site/src/components/Pages/Homepage/GetStarted";
 
+import agenticAiImg from '@version/docs/img/agentic-ai/agentic-ai-hero.png';
 import applicationSvg from "@site/src/components/Icon/teleport-svg/application.svg";
 import linuxServersSvg from "@site/src/components/Icon/teleport-svg/linux-servers.svg";
 import databaseSvg from "@site/src/components/Icon/teleport-svg/database-access.svg";
@@ -58,7 +59,7 @@ import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.
 />
 
 <GetStarted
-  youtubeVideoId="BJWbSqiDLeU"
+  youtubeVideoId="O0YOPpWsn8M"
   steps={[
     {
       title: "Step 1: Deploy a Teleport cluster",
@@ -110,6 +111,19 @@ import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.
 />
 
 <Products
+  highlightedProduct={
+    {
+      title: "Agentic AI/MCP Security",
+      description: "The Teleport Agentic Identity Framework is a standards-driven security architecture and a reference implementation for deploying AI agents across infrastructure. It provides designs and reference implementations for safe agent adoption across infrastructure with built-in security invariants, observability, and governance.",
+      image: agenticAiImg,
+      tag: {
+        label: "Upcoming release",
+        colorHex: "#007D6B",
+        icon: "rocketLaunch",
+      },
+      href: "./agentic-identity-framework",
+    }
+  }
   productCategories={[
     {
       id: 'zero-trust-access',
@@ -237,7 +251,7 @@ import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.
         {
           title: 'Require Managed Devices for Access',
           description: 'Guarantee access only from trusted devices',
-          href: './identity-governance/device-trust/'
+          href: './zero-trust-access/device-trust/'
         },
         {
           title: 'Instantly Lock Identities & Sessions',
@@ -405,7 +419,7 @@ import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.
     },
     {
       title: 'Jamf Pro',
-      href: './identity-governance/device-trust/jamf-integration/',
+      href: './zero-trust-access/device-trust/jamf-integration/',
       iconColor: '#788EB11A',
       iconComponent: jamfProSvg,
     },

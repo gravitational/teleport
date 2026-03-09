@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -125,15 +126,20 @@ func (g *appV3TestingPrimitives) CompareTeleportAndKubernetesResource(tResource 
 
 func TestTeleportAppV3Creation(t *testing.T) {
 	test := &appV3TestingPrimitives{}
-	testlib.ResourceCreationTest[types.Application, *resourcesv1.TeleportAppV3](t, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewAppV3Reconciler, test)
+}
+
+func TestTeleportAppV3Deletion(t *testing.T) {
+	test := &appV3TestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewAppV3Reconciler, test)
 }
 
 func TestTeleportAppV3DeletionDrift(t *testing.T) {
 	test := &appV3TestingPrimitives{}
-	testlib.ResourceDeletionDriftTest[types.Application, *resourcesv1.TeleportAppV3](t, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewAppV3Reconciler, test)
 }
 
 func TestTeleportAppV3Update(t *testing.T) {
 	test := &appV3TestingPrimitives{}
-	testlib.ResourceUpdateTest[types.Application, *resourcesv1.TeleportAppV3](t, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewAppV3Reconciler, test)
 }

@@ -139,7 +139,7 @@ enum MouseWheelAxis {
 // Mouse wheel event.
 message MouseWheel {
   MouseWheelAxis axis = 1;
-  uint32 delta = 2;
+  int32 delta = 2;
 }
 
 // Represents shared clipboard data.

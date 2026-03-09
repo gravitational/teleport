@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.join.v1;
 
 import "google/protobuf/timestamp.proto";
+import "teleport/scopes/joining/v1/token.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1;joinv1";
 
@@ -493,6 +494,8 @@ message HostResult {
   Certificates certificates = 1;
   // HostId is the unique ID assigned to the host.
   string host_id = 2;
+  // The immutable labels assigned to the host by their join token.
+  teleport.scopes.joining.v1.ImmutableLabels immutable_labels = 3;
 }
 
 // HostResult holds results for bot joining.

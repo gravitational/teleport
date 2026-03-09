@@ -230,7 +230,8 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 			if err != nil {
 				f.Logger.WarnContext(ctx, "Skipping Teleport installation on Azure VM - failed to infer resource group from vm id",
 					"subscription_id", f.Subscription,
-					"vm_id", azure.StringVal(vm.ID),
+					"vm_id", azure.StringVal(vm.Properties.VMID),
+					"resource_id", azure.StringVal(vm.ID),
 					"error", err,
 				)
 				continue

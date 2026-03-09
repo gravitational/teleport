@@ -75,7 +75,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/kube"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -101,6 +100,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -145,6 +145,9 @@ func TestMain(m *testing.M) {
 }
 
 func BenchmarkInit(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	executable, err := os.Executable()
 	require.NoError(b, err)
 
@@ -249,6 +252,10 @@ func (p *cliModules) GenerateLongTermResourceGrouping(_ context.Context, _ modul
 
 func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
+}
+
+func (p *cliModules) GenerateAccessRequestSuggestedReviewers(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) ([]string, error) {
+	return []string{}, nil
 }
 
 func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Identity, _ modules.AccessListSuggestionClient, _ modules.AccessListAndMembersGetter, _ string) ([]*accesslist.AccessList, error) {
@@ -623,6 +630,92 @@ func TestOIDCLogin(t *testing.T) {
 	// request to be generated.
 }
 
+// TestLoginRequestIDPrintsUpdatedProfile asserts that tsh login --request-id
+// prints profile information that is up to date with the newly assumed access
+// request.
+func TestLoginRequestIDPrintsUpdatedProfile(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	tmpHomePath := t.TempDir()
+
+	requester, err := types.NewRole("requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"elevated"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	elevated, err := types.NewRole("elevated", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{requester.GetName()})
+
+	connector := mockConnector(t)
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(requester, elevated, connector, alice))
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Do an initial login without the access request.
+	loginOutput := &output{}
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+		"--user", alice.GetName(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()), func(cf *CLIConf) error {
+		cf.OverrideStdout = loginOutput
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotContains(t, loginOutput.String(), elevated.GetName())
+
+	// Create and approve and access request.
+	requestID := uuid.NewString()
+	req, err := types.NewAccessRequest(requestID, alice.GetName(), elevated.GetName())
+	require.NoError(t, err)
+	accessExpiry := time.Now().Add(time.Hour)
+	req.SetExpiry(accessExpiry)
+	req.SetAccessExpiry(accessExpiry)
+	err = authServer.CreateAccessRequest(ctx, req)
+	require.NoError(t, err)
+	err = authServer.SetAccessRequestState(ctx, types.AccessRequestUpdate{
+		RequestID: requestID,
+		State:     types.RequestState_APPROVED,
+	})
+	require.NoError(t, err)
+
+	// Relogin with a approved access request.
+	requestLoginOutput := &output{}
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+		"--request-id", requestID,
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		cf.OverrideStdout = requestLoginOutput
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Assert that the output contains the ID of the active request and the
+	// name of the newly assumed role.
+	require.Regexp(t,
+		regexp.MustCompile(`Active requests:\s.*\b`+requestID+`\b`),
+		requestLoginOutput.String(),
+	)
+	require.Regexp(t,
+		regexp.MustCompile(`Roles:\s.*\belevated\b`),
+		requestLoginOutput.String(),
+	)
+}
+
 func findMOTD(t *testing.T, sc *bufio.Scanner, motd string) {
 	t.Helper()
 	for sc.Scan() {
@@ -948,6 +1041,113 @@ func TestSwitchingProxies(t *testing.T) {
 	cancel()
 }
 
+// TestPrintNodesAsText verifies the expected behavior of printNodesAsText.
+func TestPrintNodesAsText(t *testing.T) {
+	t.Parallel()
+
+	unscopedDirect := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name: "unscoped-direct-uuid",
+			Labels: map[string]string{
+				"key": "val",
+			},
+		},
+		Spec: types.ServerSpecV2{
+			Addr:     "1.2.3.4:22",
+			Hostname: "unscoped-direct-name",
+		},
+		Version: types.V2,
+	}
+
+	unscopedTunnel := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name: "unscoped-tunnel-uuid",
+		},
+		Spec: types.ServerSpecV2{
+			UseTunnel: true,
+			Hostname:  "unscoped-tunnel-name",
+		},
+		Version: types.V2,
+	}
+
+	scopedDirect := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name: "scoped-direct-uuid",
+			Labels: map[string]string{
+				"key1": "val1",
+				"key2": "val2",
+			},
+		},
+		Scope: "/staging/west",
+		Spec: types.ServerSpecV2{
+			Addr:     "1.2.3.4:44",
+			Hostname: "scoped-direct-name",
+		},
+		Version: types.V2,
+	}
+
+	scopedTunnel := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name: "scoped-tunnel-uuid",
+		},
+		Scope: "/staging/west",
+		Spec: types.ServerSpecV2{
+			UseTunnel: true,
+			Hostname:  "scoped-tunnel-name",
+		},
+		Version: types.V2,
+	}
+
+	tts := []struct {
+		name    string
+		nodes   []types.Server
+		verbose bool
+	}{
+		{
+			name:    "non-verbose unscoped",
+			nodes:   []types.Server{unscopedDirect, unscopedTunnel},
+			verbose: false,
+		},
+		{
+			name:    "verbose unscoped",
+			nodes:   []types.Server{unscopedDirect, unscopedTunnel},
+			verbose: true,
+		},
+		{
+			name:    "non-verbose scoped",
+			nodes:   []types.Server{scopedDirect, scopedTunnel},
+			verbose: false,
+		},
+		{
+			name:    "verbose scoped",
+			nodes:   []types.Server{scopedDirect, scopedTunnel},
+			verbose: true,
+		},
+		{
+			name:    "mixed scoped and unscoped verbose",
+			nodes:   []types.Server{unscopedDirect, scopedDirect, unscopedTunnel, scopedTunnel},
+			verbose: true,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			printNodesAsText(&buf, tt.nodes, tt.verbose)
+
+			if golden.ShouldSet() {
+				golden.Set(t, buf.Bytes())
+			}
+
+			require.Equal(t, string(golden.Get(t)), buf.String())
+		})
+	}
+}
+
 func TestMakeClient(t *testing.T) {
 	t.Parallel()
 
@@ -1148,12 +1348,6 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 
 	ctx := t.Context()
 
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(isInsecure)
-	})
-
 	origin := func(cluster string) string {
 		return fmt.Sprintf("https://%s", cluster)
 	}
@@ -1202,7 +1396,12 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	require.NoError(t, err)
 	device.SetPasswordless()
 
-	rootAuth, rootProxy := makeTestServers(t, withBootstrap(connector, alice, bob, noAccessRole, sshLoginRole, perSessionMFARole))
+	rootAuth, rootProxy := makeTestServers(t,
+		withBootstrap(connector, alice, bob, noAccessRole, sshLoginRole, perSessionMFARole),
+		withConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
+	)
 
 	rootAuthAddr, err := rootAuth.AuthAddr()
 	require.NoError(t, err)
@@ -1235,7 +1434,13 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	leafAuth, leafProxy := makeTestServers(t, withClusterName(t, "leafcluster"), withBootstrap(connector, alice, sshLoginRole, perSessionMFARole))
+	leafAuth, leafProxy := makeTestServers(t,
+		withClusterName(t, "leafcluster"),
+		withBootstrap(connector, alice, sshLoginRole, perSessionMFARole),
+		withConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
+	)
 	tryCreateTrustedCluster(t, leafAuth.GetAuthServer(), trustedCluster)
 
 	leafAuthAddr, err := leafAuth.AuthAddr()
@@ -1818,6 +2023,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			)
 			require.NoError(t, err)
 
+			stdin := &input{buf: bytes.Buffer{}}
 			stdout := &output{buf: bytes.Buffer{}}
 			stderr := &output{buf: bytes.Buffer{}}
 			// Clear counter before each ssh command,
@@ -1839,7 +2045,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				args,
 				setHomePath(tmpHomePath),
 				func(conf *CLIConf) error {
-					conf.overrideStdin = &bytes.Buffer{}
+					conf.overrideStdin = stdin
 					conf.OverrideStdout = stdout
 					conf.overrideStderr = stderr
 					conf.MockHeadlessLogin = mockHeadlessLogin(t, tt.auth, user)
@@ -1877,6 +2083,18 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			}
 		})
 	}
+}
+
+type input struct {
+	lock sync.Mutex
+	buf  bytes.Buffer
+}
+
+func (i *input) Read(p []byte) (int, error) {
+	i.lock.Lock()
+	defer i.lock.Unlock()
+
+	return i.buf.Read(p)
 }
 
 type output struct {
@@ -2310,12 +2528,6 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(isInsecure)
-	})
-
 	requester, err := types.NewRole("requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
@@ -2333,6 +2545,9 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 
 	rootAuth, rootProxy := makeTestServers(t,
 		withBootstrap(requester, connector, alice),
+		withConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
 	)
 
 	rootAuthServer := rootAuth.GetAuthServer()
@@ -2357,7 +2572,12 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	leafAuth, _ := makeTestServers(t, withClusterName(t, "leafcluster"))
+	leafAuth, _ := makeTestServers(t,
+		withClusterName(t, "leafcluster"),
+		withConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
+	)
 	tryCreateTrustedCluster(t, leafAuth.GetAuthServer(), trustedCluster)
 
 	err = Run(ctx, []string{
@@ -2742,7 +2962,7 @@ func TestSSHCommands(t *testing.T) {
 //
 // Duplicated in integration/integration_test.go
 func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	for range 10 {
 		_, err := authServer.UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err == nil {
@@ -5816,13 +6036,6 @@ func TestMakeProfileInfo_NoInternalLogins(t *testing.T) {
 }
 
 func TestBenchmarkPostgres(t *testing.T) {
-	// Set insecure mode to allow db agent to establish reverse tunnel.
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(isInsecure)
-	})
-
 	// Canceling the context right after the test ensures the local proxy
 	// started by the benchmark command is closed and the remaining connections
 	// (if any) are dropped.
@@ -5841,6 +6054,7 @@ func TestBenchmarkPostgres(t *testing.T) {
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.InsecureMode = true
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
 				{
@@ -6327,6 +6541,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			// Enable DB
+			cfg.InsecureMode = true
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
 				{
@@ -6350,6 +6565,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithClusterName("leaf"),
 		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
 			// Enable DB
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
@@ -8042,6 +8258,43 @@ func TestLogoutOneIdentity(t *testing.T) {
 				})
 			require.NoError(t, err)
 			require.Contains(t, buf.String(), fmt.Sprintf("Logged out %v from %v.\n", alice.GetName(), proxyAddr.Host()))
+		})
+	}
+}
+
+func TestListNodesCLIFlags(t *testing.T) {
+	testCases := []struct {
+		Description string
+		Args        []string
+		ErrTestFunc func(e error) bool
+	}{
+		{
+			Description: "should return bad parameter error when --headless and --all are specified",
+			Args: []string{
+				"ls",
+				"--proxy", "test-proxy",
+				"--user", "test-user",
+				"--headless",
+				"--all",
+			},
+			ErrTestFunc: trace.IsBadParameter,
+		},
+		{
+			Description: "should return bad parameter error when --auth=headless and --all are specified",
+			Args: []string{
+				"ls",
+				"--proxy", "test-proxy",
+				"--user", "test-user",
+				"--auth", "headless",
+				"--all",
+			},
+			ErrTestFunc: trace.IsBadParameter,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Description, func(t *testing.T) {
+			err := Run(t.Context(), testCase.Args)
+			require.True(t, testCase.ErrTestFunc(err))
 		})
 	}
 }

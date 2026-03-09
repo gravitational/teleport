@@ -64,6 +64,7 @@ Teleport event handler (=teleport.version=)
 [2] Generated sample teleport-event-handler role and user file teleport-event-handler-role.yaml
 [3] Generated sample fluentd configuration file fluent.conf
 [4] Generated plugin configuration file teleport-event-handler.toml
+[5] Generated plugin helm configuration file teleport-plugin-event-handler-values.yaml
 ```
 
 The plugin generates several setup files:
@@ -79,6 +80,7 @@ $ ls -l
 # -rw------- 1 bob bob     1766 Jul  1 11:14 server.key
 # -rw------- 1 bob bob      260 Jul  1 11:14 teleport-event-handler-role.yaml
 # -rw------- 1 bob bob      343 Jul  1 11:14 teleport-event-handler.toml
+# -rw------- 1 bob bob      343 Jul  1 11:14 teleport-plugin-event-handler-values.yaml
 ```
 
 | File(s)                            | Purpose                                                             |
@@ -87,6 +89,8 @@ $ ls -l
 | `server.crt` and `server.key`      | Fluentd server certificate and key                                  |
 | `client.crt` and `client.key`      | Fluentd client certificate and key, all signed by the generated CA  |
 | `teleport-event-handler-role.yaml` | `user` and `role` resource definitions for Teleport's event handler |
+| `teleport-event-handler.toml`      | Example event handler configuration                                 |
+| `teleport-plugin-event-handler-values.yaml` | Example event handler helm configuration                   |
 | `fluent.conf`                      | Fluentd plugin configuration                                        |
 
 <details>

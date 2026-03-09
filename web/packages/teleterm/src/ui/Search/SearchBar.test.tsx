@@ -62,7 +62,7 @@ const displayResultsAction: SearchAction = {
   perform() {},
 };
 
-it('does not display empty results copy after selecting two filters', () => {
+it('does not display empty results copy after selecting two filters', async () => {
   const appContext = setUpContext('/clusters/foo');
 
   const mockActionAttempts = {
@@ -97,11 +97,11 @@ it('does not display empty results copy after selecting two filters', () => {
     </MockAppContextProvider>
   );
 
-  const results = screen.getByRole('menu');
+  const results = await screen.findByRole('menu');
   expect(results).not.toHaveTextContent('No matching results found');
 });
 
-it('displays empty results copy after providing search query for which there is no results', () => {
+it('displays empty results copy after providing search query for which there is no results', async () => {
   const appContext = setUpContext('/clusters/foo');
 
   const mockActionAttempts = {
@@ -131,11 +131,11 @@ it('displays empty results copy after providing search query for which there is 
     </MockAppContextProvider>
   );
 
-  const results = screen.getByRole('menu');
+  const results = await screen.findByRole('menu');
   expect(results).toHaveTextContent('No matching results found.');
 });
 
-it('includes offline cluster names in the empty results copy', () => {
+it('includes offline cluster names in the empty results copy', async () => {
   const cluster = makeRootCluster({ connected: false });
   const appContext = setUpContext(cluster.uri);
   appContext.clustersService.setState(draftState => {
@@ -169,7 +169,7 @@ it('includes offline cluster names in the empty results copy', () => {
     </MockAppContextProvider>
   );
 
-  const results = screen.getByRole('menu');
+  const results = await screen.findByRole('menu');
   expect(results).toHaveTextContent('No matching results found.');
   expect(results).toHaveTextContent(
     `The cluster ${cluster.name} was excluded from the search because you are not logged in to it.`
@@ -217,7 +217,7 @@ it('notifies about resource search errors and allows to display details', async 
     </MockAppContextProvider>
   );
 
-  const results = screen.getByRole('menu');
+  const results = await screen.findByRole('menu');
   expect(results).toHaveTextContent(
     'Some of the search results are incomplete.'
   );
@@ -269,7 +269,8 @@ it('maintains focus on the search input after closing a resource search error mo
     </MockAppContextProvider>
   );
 
-  await act(() => user.type(screen.getByRole('searchbox'), 'foo'));
+  const searchbox = await screen.findByRole('searchbox');
+  await act(() => user.type(searchbox, 'foo'));
 
   expect(screen.getByRole('menu')).toHaveTextContent(
     'Some of the search results are incomplete.'
@@ -333,7 +334,8 @@ it('shows a login modal when a request to a cluster from the current workspace f
     </MockAppContextProvider>
   );
 
-  await user.type(screen.getByRole('searchbox'), 'foo');
+  const searchbox = await screen.findByRole('searchbox');
+  await user.type(searchbox, 'foo');
 
   // Verify that the login modal was shown after typing in the search box.
   await waitFor(() => {
@@ -378,7 +380,8 @@ it('closes on a click on an unfocusable element outside of the search bar', asyn
     </MockAppContextProvider>
   );
 
-  await user.type(screen.getByRole('searchbox'), 'foo');
+  const searchbox = await screen.findByRole('searchbox');
+  await user.type(searchbox, 'foo');
   expect(screen.getByRole('menu')).toBeInTheDocument();
 
   await user.click(screen.getByTestId('unfocusable-element'));

@@ -706,6 +706,17 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 			withMFA:                   validMFAWithReuse,
 			wantAdminActionAuthorized: false,
 		}, {
+			name: "NOK edge case impersonator no longer exists",
+			user: authz.LocalUser{
+				Username: localUser.GetName(),
+				Identity: tlsca.Identity{
+					Username:     localUser.GetName(),
+					Groups:       localUser.GetRoles(),
+					Impersonator: "impersonator",
+				},
+			},
+			wantAdminActionAuthorized: false,
+		}, {
 			name: "OK local user valid mfa",
 			user: authz.LocalUser{
 				Username: localUser.GetName(),

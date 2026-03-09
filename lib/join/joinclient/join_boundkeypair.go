@@ -101,7 +101,9 @@ func boundKeypairJoin(
 				return nil, trace.Wrap(err)
 			}
 		case *messages.BoundKeypairRotationRequest:
-			newPubkey, err := handleBoundKeypairRotationRequest(ctx, bkParams, kind)
+			newPubkey, err := handleBoundKeypairRotationRequest(
+				ctx, joinParams.Log, bkParams, kind,
+			)
 			if err != nil {
 				sendGivingUpErr := stream.Send(&messages.GivingUp{
 					Reason: messages.GivingUpReasonChallengeSolutionFailed,
@@ -157,12 +159,17 @@ func solveBoundKeypairChallenge(bkParams *BoundKeypairParams, challengeMsg *mess
 	return []byte(serialized), nil
 }
 
-func handleBoundKeypairRotationRequest(ctx context.Context, bkParams *BoundKeypairParams, rotationRequest *messages.BoundKeypairRotationRequest) ([]byte, error) {
+func handleBoundKeypairRotationRequest(
+	ctx context.Context,
+	log *slog.Logger,
+	bkParams *BoundKeypairParams,
+	rotationRequest *messages.BoundKeypairRotationRequest,
+) ([]byte, error) {
 	if bkParams.RequestNewKeypair == nil {
 		return nil, trace.BadParameter("RequestNewKeypair is required")
 	}
 
-	slog.InfoContext(ctx, "Server has requested keypair rotation", "suite", rotationRequest.SignatureAlgorithmSuite)
+	log.InfoContext(ctx, "Server has requested keypair rotation", "suite", rotationRequest.SignatureAlgorithmSuite)
 
 	suite, err := types.SignatureAlgorithmSuiteFromString(rotationRequest.SignatureAlgorithmSuite)
 	if err != nil {

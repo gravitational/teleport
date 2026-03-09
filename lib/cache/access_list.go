@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
@@ -348,6 +349,29 @@ func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memb
 	return member.Clone(), nil
 }
 
+// GetAccessListOwners returns the owners of the specified access list, including those inherited.
+func (c *Cache) GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessListOwners")
+	defer span.End()
+
+	rg, err := acquireReadGuard(c, c.collections.accessLists)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		return c.Config.AccessLists.GetAccessListOwners(ctx, accessListName)
+	}
+
+	accessList, err := c.GetAccessList(ctx, accessListName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return accesslists.GetOwnersFor(ctx, accessList, c)
+}
+
 type accessListReviewIndex string
 
 const accessListReviewNameIndex = "name"
@@ -407,10 +431,10 @@ func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pa
 		},
 	}
 
-	start := accessList
-	end := sortcache.NextKey(accessList + "/")
+	start := accessList + "/"
+	end := sortcache.NextKey(start)
 	if pageToken != "" {
-		start += "/" + pageToken
+		start += pageToken
 	}
 
 	out, next, err := lister.listRange(ctx, pageSize, start, end)

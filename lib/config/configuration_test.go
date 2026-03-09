@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -219,8 +218,6 @@ func TestSampleConfig(t *testing.T) {
 			require.Equal(t, testCase.expectProxyWebAddr, fc.Proxy.WebAddr)
 			require.ElementsMatch(t, testCase.expectProxyPublicAddrs, fc.Proxy.PublicAddr)
 			require.ElementsMatch(t, testCase.expectProxyKeyPairs, fc.Proxy.KeyPairs)
-
-			require.False(t, lib.IsInsecureDevMode())
 		})
 	}
 }
@@ -943,6 +940,27 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, oktaAPITokenPath, cfg.Okta.APITokenPath)
 	require.Equal(t, time.Second*300, cfg.Okta.SyncPeriod)
 	require.True(t, cfg.Okta.SyncSettings.SyncAccessLists)
+}
+
+func TestApplyConfigAppsLimiter(t *testing.T) {
+	fc := &FileConfig{
+		Global: Global{
+			Limits: ConnectionLimits{
+				MaxConnections: 100,
+				Rates: []ConnectionRate{
+					{Average: 10, Burst: 10, Period: time.Minute},
+				},
+			},
+		},
+	}
+	cfg := servicecfg.MakeDefaultConfig()
+	require.NoError(t, ApplyFileConfig(fc, cfg))
+
+	require.Equal(t, int64(100), cfg.Apps.Limiter.MaxConnections)
+	require.Len(t, cfg.Apps.Limiter.Rates, 1)
+	require.Equal(t, int64(10), cfg.Apps.Limiter.Rates[0].Average)
+	require.Equal(t, int64(10), cfg.Apps.Limiter.Rates[0].Burst)
+	require.Equal(t, time.Minute, cfg.Apps.Limiter.Rates[0].Period)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -3413,6 +3431,44 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				},
 			},
 			errMessage: "must set keyring in ca_key_params.gcp_kms",
+		},
+		{
+			name: "enable health checking",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					HealthCheck: &servicecfg.KeystoreHealthCheck{
+						Active: &servicecfg.KeystoreActiveHealthCheck{
+							Enabled: true,
+						},
+					},
+				},
+			},
+			want: servicecfg.KeystoreConfig{
+				HealthCheck: &servicecfg.KeystoreHealthCheck{
+					Active: &servicecfg.KeystoreActiveHealthCheck{
+						Enabled: true,
+					},
+				},
+			},
+		},
+		{
+			name: "disable health checking",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					HealthCheck: &servicecfg.KeystoreHealthCheck{
+						Active: &servicecfg.KeystoreActiveHealthCheck{
+							Enabled: false,
+						},
+					},
+				},
+			},
+			want: servicecfg.KeystoreConfig{
+				HealthCheck: &servicecfg.KeystoreHealthCheck{
+					Active: &servicecfg.KeystoreActiveHealthCheck{
+						Enabled: false,
+					},
+				},
+			},
 		},
 	}
 

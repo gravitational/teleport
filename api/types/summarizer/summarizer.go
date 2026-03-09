@@ -23,9 +23,22 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/aws"
 )
 
-const CloudDefaultInferenceModelName = "teleport-cloud-default"
+const (
+	// CloudDefaultInferenceModelName is the name of the built-in Bedrock inference
+	// model used by Teleport Cloud.
+	CloudDefaultInferenceModelName = "teleport-cloud-default"
+	// BedrockModelExpansionPlaceholder is a placeholder value for Bedrock model IDs
+	// that indicates the model ID should be expanded based on the TELEPORT_BEDROCK_MODEL
+	// environment variable.
+	BedrockModelExpansionPlaceholder = "{{env.bedrock_model_id}}"
+	// BedrockRegionExpansionPlaceholder is a placeholder value for Bedrock regions
+	// that indicates the region should be expanded based on the TELEPORT_BEDROCK_REGION
+	// environment variable.
+	BedrockRegionExpansionPlaceholder = "{{env.bedrock_region}}"
+)
 
 // NewInferenceModel creates a new InferenceModel resource with the given name
 // and spec.
@@ -71,7 +84,7 @@ func ValidateInferenceModel(m *summarizerv1.InferenceModel) error {
 			// unsupported one once the object is parsed from YAML. There may be a
 			// way to do it if it was created from binary wire format, but it's not
 			// worth the effort.
-			"missing or unsupported inference provider in spec, supported providers: openai",
+			"missing or unsupported inference provider in spec, supported providers: openai, bedrock",
 		)
 	case *summarizerv1.InferenceModelSpec_Openai:
 		if p.Openai.GetOpenaiModelId() == "" {
@@ -81,12 +94,34 @@ func ValidateInferenceModel(m *summarizerv1.InferenceModel) error {
 		if p.Bedrock.GetBedrockModelId() == "" {
 			return trace.BadParameter("spec.bedrock.bedrock_model_id is required")
 		}
+
+		if containsPlaceholderInstruction(p.Bedrock.GetBedrockModelId()) &&
+			strings.ReplaceAll(p.Bedrock.GetBedrockModelId(), " ", "") != BedrockModelExpansionPlaceholder {
+			return trace.BadParameter("spec.bedrock.bedrock_model_id contains invalid placeholder instructions. Valid placeholder: %s; got %s", BedrockModelExpansionPlaceholder, p.Bedrock.GetBedrockModelId())
+		}
+
 		if p.Bedrock.GetRegion() == "" {
 			return trace.BadParameter("spec.bedrock.region is required")
+		}
+
+		switch {
+		case containsPlaceholderInstruction(p.Bedrock.GetRegion()):
+			if strings.ReplaceAll(p.Bedrock.GetRegion(), " ", "") != BedrockRegionExpansionPlaceholder {
+				return trace.BadParameter("spec.bedrock.region contains invalid placeholder instructions. Valid placeholder: %s; got %s", BedrockRegionExpansionPlaceholder, p.Bedrock.GetRegion())
+			}
+		case aws.IsValidRegion(p.Bedrock.GetRegion()) != nil:
+			return trace.BadParameter("invalid spec.bedrock.region: %q", p.Bedrock.GetRegion())
 		}
 	}
 
 	return nil
+}
+
+// containsPlaceholderInstruction returns true if the given string contains
+// any placeholder instructions (e.g., "{placeholder}").
+func containsPlaceholderInstruction(s string) bool {
+	return strings.Contains(s, "{") ||
+		strings.Contains(s, "}")
 }
 
 // NewInferenceSecret creates a new InferenceSecret resource with the given name

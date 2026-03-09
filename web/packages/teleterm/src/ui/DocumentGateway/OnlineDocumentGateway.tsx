@@ -16,11 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import styled from 'styled-components';
 
 import {
   Alert,
   Box,
+  Button,
   ButtonSecondary,
   Flex,
   H1,
@@ -30,7 +32,10 @@ import {
   Text,
 } from 'design';
 import * as Alerts from 'design/Alert';
+import { ChevronDown, ChevronRight } from 'design/Icon';
+import { AutoUserProvisioning } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import Validation from 'shared/components/Validation';
 import { Attempt, RunFuncReturnValue } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
@@ -47,7 +52,11 @@ export function OnlineDocumentGateway(props: {
   disconnectAttempt: Attempt<void>;
   gateway: Gateway;
   runCliCommand: () => void;
+  autoUserProvisioning?: AutoUserProvisioning;
 }) {
+  const { gateway, autoUserProvisioning } = props;
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+
   const isPortOrDbNameProcessing =
     props.changeDbNameAttempt.status === 'processing' ||
     props.changePortAttempt.status === 'processing';
@@ -55,7 +64,6 @@ export function OnlineDocumentGateway(props: {
     props.changeDbNameAttempt.status === 'error' ||
     props.changePortAttempt.status === 'error';
   const formRef = useRef<HTMLFormElement>(null);
-  const { gateway } = props;
 
   const handleChangeDbName = useMemo(() => {
     return debounce((value: string) => {
@@ -119,8 +127,26 @@ export function OnlineDocumentGateway(props: {
               ml={2}
               mb={0}
             />
+            {autoUserProvisioning && (
+              <ConfigFieldInput
+                label="User"
+                value={gateway.targetUser}
+                toolTipContent="Using auto provisioned user, you cannot change the database user."
+                readonly
+                disabled
+                ml={2}
+                mb={0}
+              />
+            )}
           </Validation>
         </Flex>
+        {autoUserProvisioning?.databaseRoles?.length > 0 && (
+          <AdvancedRoles
+            databaseRoles={autoUserProvisioning.databaseRoles}
+            isAdvancedOpen={isAdvancedOpen}
+            setIsAdvancedOpen={setIsAdvancedOpen}
+          />
+        )}
         <CliCommand
           cliCommand={props.gateway.gatewayCliCommand.preview}
           isLoading={isPortOrDbNameProcessing}
@@ -157,3 +183,57 @@ export function OnlineDocumentGateway(props: {
     </Box>
   );
 }
+
+const AdvancedRoles = ({
+  databaseRoles,
+  isAdvancedOpen,
+  setIsAdvancedOpen,
+}: {
+  databaseRoles: string[];
+  isAdvancedOpen: boolean;
+  setIsAdvancedOpen: (isAdvancedOpen: boolean) => void;
+}) => {
+  return (
+    <Box mt={2} mb={2}>
+      <ExpandToggle onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}>
+        {isAdvancedOpen ? (
+          <ChevronDown size="small" />
+        ) : (
+          <ChevronRight size="small" />
+        )}
+        <Text fontSize={2} color="text.main">
+          Advanced
+        </Text>
+      </ExpandToggle>
+      {isAdvancedOpen && (
+        <Box mt={2}>
+          <Validation>
+            <FieldSelect
+              isMulti
+              label="Database Roles"
+              toolTipContent="These database roles are assigned by your Teleport administrator and are read only."
+              value={databaseRoles.map(role => ({
+                value: role,
+                label: role,
+              }))}
+              readOnly
+              mb={0}
+            />
+          </Validation>
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+const ExpandToggle = styled(Button).attrs({
+  fill: 'minimal',
+  size: 'small',
+})`
+  padding: 0;
+  gap: ${props => props.theme.space[2]}px;
+
+  &:hover {
+    opacity: 0.8;
+  }
+`;

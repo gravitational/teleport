@@ -45,6 +45,7 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
@@ -102,6 +103,9 @@ type RecordingEncryptionManager interface {
 
 // InitConfig is auth server init config
 type InitConfig struct {
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
+
 	// Backend is auth backend to use
 	Backend backend.Backend
 
@@ -196,7 +200,7 @@ type InitConfig struct {
 	DatabaseServices services.DatabaseServices
 
 	// Status is a service that manages cluster status info.
-	Status services.StatusInternal
+	Status services.Status
 
 	// UserPreferences is a service that manages user preferences.
 	UserPreferences services.UserPreferences
@@ -207,6 +211,10 @@ type InitConfig struct {
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
 	StaticTokens types.StaticTokens
+
+	// StaticTokens are pre-defined, scoped host provisioning tokens supplied via config file for
+	// environments where paranoid security is not needed
+	StaticScopedTokens *joiningv1.StaticScopedTokens
 
 	// AuthPreference defines the authentication type (local, oidc) and second
 	// factor passed in from a configuration file.
@@ -433,6 +441,18 @@ type InitConfig struct {
 
 	// MFAService is the service that manages backend MFA resources.
 	MFAService MFAService
+
+	// WorkloadClusterService is the service that manages WorkloadClusters.
+	WorkloadClusterService services.WorkloadClusterService
+
+	// FakePasswordHash is the password hash given to all users without a password.
+	// This helps eliminate timing attacks by ensuring that all authentication attempts
+	// with a password do a bcrypt comparison.
+	FakePasswordHash []byte
+	// FakeRecoveryCodeHash is the recovery code hash given to all users without codes.
+	// This helps eliminate timing attacks by ensuring that all recovery attempts
+	// with codes do a bcrypt comparison.
+	FakeRecoveryCodeHash []byte
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -602,6 +622,15 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(asrv.SetStaticTokens(cfg.StaticTokens))
 	})
 
+	g.Go(func() error {
+		_, span := cfg.Tracer.Start(gctx, "auth/SetStaticScopedTokens")
+		defer span.End()
+		if cfg.StaticScopedTokens != nil {
+			return trace.Wrap(asrv.SetStaticScopedTokens(gctx, cfg.StaticScopedTokens))
+		}
+		return nil
+	})
+
 	var cn types.ClusterName
 	g.Go(func() error {
 		_, span := cfg.Tracer.Start(gctx, "auth/SetClusterName")
@@ -654,12 +683,27 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err, "applying migrations")
 	}
 
+	// Clone UserCA into WindowsCA. Must happen before initializeAuthorities() so
+	// it only affects upgraded clusters.
+	// Added on Teleport 18.x and 19.
+	clusterConfiguration, err := local.NewClusterConfigurationService(cfg.Backend)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := migrateWindowsCA(ctx, migrateWindowsCAParams{
+		Logger:               asrv.logger,
+		ClusterConfiguration: clusterConfiguration,
+		Trust:                local.NewCAService(cfg.Backend),
+	}); err != nil {
+		return trace.Wrap(err, "migrate WindowsCA")
+	}
+
 	// generate certificate authorities if they don't exist
 	if err := initializeAuthorities(ctx, asrv, &cfg); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if lib.IsInsecureDevMode() {
+	if lib.IsInsecureDevMode() || cfg.InsecureMode {
 		const warningMessage = "Starting teleport in insecure mode. This is " +
 			"dangerous! Sensitive information will be logged to console and " +
 			"certificates will not be verified. Proceed with caution!"
@@ -1325,18 +1369,7 @@ type PresetRoleManager interface {
 
 // GetPresetRoles returns a list of all preset roles expected to be available on
 // this cluster.
-func GetPresetRoles(buildTypes ...string) []types.Role {
-	// TODO(tross): make this take a single buildType after all uses are updated.
-	var buildType string
-	switch len(buildTypes) {
-	case 0:
-		buildType = modules.GetModules().BuildType()
-	case 1:
-		buildType = buildTypes[0]
-	default:
-		return nil
-	}
-
+func GetPresetRoles(buildType string) []types.Role {
 	presets := []types.Role{
 		services.NewPresetGroupAccessRole(buildType),
 		services.NewPresetEditorRole(),
@@ -1475,26 +1508,8 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 	if err != nil {
 		return trace.Wrap(err, "failed listing available database object import rules")
 	}
+	// If there are existing rules, don't create a preset.
 	if len(importRules) > 0 {
-		// If the single rule is the old preset, we assume the user hasn't used
-		// DB DAC feature yet since the old preset alone is usually not enough
-		// to make things work. Replace it with the new preset.
-		//
-		// Creating and updating the database object import rule is handled on
-		// a best-effort basis, so it’s not included in backend migrations.
-		//
-		// TODO(greedy52) DELETE in 18.0
-		if len(importRules) == 1 && databaseobjectimportrule.IsOldImportAllObjectsRulePreset(importRules[0]) {
-			rule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
-			if rule == nil {
-				return nil
-			}
-
-			_, err = rules.UpsertDatabaseObjectImportRule(ctx, rule)
-			if err != nil {
-				return trace.Wrap(err, "failed to update the default database object import rule")
-			}
-		}
 		return nil
 	}
 
@@ -1544,11 +1559,21 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			var hasKeys bool
 			var signerErr error
 			switch r.GetType() {
-			case types.HostCA, types.UserCA, types.OpenSSHCA:
+			case types.HostCA,
+				types.UserCA,
+				types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
-			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
+			case types.DatabaseCA,
+				types.DatabaseClientCA,
+				types.SAMLIDPCA,
+				types.SPIFFECA,
+				types.AWSRACA,
+				types.WindowsCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
-			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA, types.BoundKeypairCA:
+			case types.JWTSigner,
+				types.OIDCIdPCA,
+				types.OktaCA,
+				types.BoundKeypairCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)
@@ -1604,8 +1629,8 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.GenerateHostCerts(context.Background(),
-		&proto.HostCertsRequest{
+	certs, err := a.GenerateHostCerts(context.Background(), HostCertsParams{
+		Req: &proto.HostCertsRequest{
 			HostID:               id.HostUUID,
 			NodeName:             id.NodeName,
 			Role:                 id.Role,
@@ -1613,7 +1638,8 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 			DNSNames:             dnsNames,
 			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
 			PublicTLSKey:         tlsPub,
-		}, "")
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

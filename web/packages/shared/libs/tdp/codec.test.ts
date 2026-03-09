@@ -16,14 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Codec, {
+import { BinaryWriter, WireType } from '@protobuf-ts/runtime';
+
+import {
+  Envelope,
+  SharedDirectoryRequest,
+} from 'gen-proto-ts/teleport/desktop/v1/tdpb_pb';
+
+import {
   ButtonState,
   MessageType,
   MouseButton,
   ScrollAxis,
+  TdpbCodec,
+  TdpCodec,
 } from './codec';
 
-const codec = new Codec();
+const codec = new TdpCodec();
+const tdpbCodec = new TdpbCodec();
 
 test('encodes and decodes the screen spec', () => {
   const spec = {
@@ -180,4 +190,92 @@ test('encodes and decodes clipboard data', () => {
 
   const decoded = codec.decodeClipboardData(encodedData);
   expect(decoded.data).toEqual(clipboardData);
+});
+
+test('tdpb encode/decode', () => {
+  let buffer = tdpbCodec.encodeClientHello({
+    screenSpec: {
+      width: 1920,
+      height: 1080,
+    },
+    keyboardLayout: 1,
+  });
+
+  // Header should match the buffer size
+  const view = new DataView(buffer);
+  expect(view.getUint32(0)).toEqual(buffer.byteLength - 4);
+
+  // Message should be wrapped in an Envelope
+  const envelope = Envelope.fromBinary(new Uint8Array(buffer.slice(4)));
+
+  // Envelope should enclose a hello that matches what we encoded above.
+  if (envelope.payload.oneofKind !== 'clientHello') {
+    throw Error(
+      `Expected kind="clientHello", got ${envelope.payload.oneofKind}`
+    );
+  }
+
+  const hello = envelope.payload.clientHello;
+  expect(hello.screenSpec.width).toEqual(1920);
+  expect(hello.screenSpec.height).toEqual(1080);
+  expect(hello.keyboardLayout).toEqual(1);
+});
+
+test('tdpb decode known but unsupported message', () => {
+  const hello_data = tdpbCodec.encodeClientHello({
+    screenSpec: {
+      width: 1,
+      height: 2,
+    },
+    keyboardLayout: 10,
+  });
+  // Known but unsupported message data
+  const result = tdpbCodec.decodeMessage(hello_data);
+  expect(result.kind).toEqual('unsupported');
+  expect(result.data).toEqual('clientHello');
+});
+
+test('tdpb forward compatibility', () => {
+  // Create an Envelope message with unknown payload member
+  // field 100, length-delimited, string
+  const writer = new BinaryWriter();
+  writer.tag(100, WireType.LengthDelimited).string('future payload');
+  const data = writer.finish();
+  let finalMessage = new Uint8Array(data.length + 4);
+  let view = new DataView(finalMessage.buffer);
+  view.setUint32(0, data.length, false);
+  finalMessage.set(data, 4);
+
+  const unknownResult = tdpbCodec.decodeMessage(finalMessage.buffer);
+  expect(unknownResult.kind).toEqual('unsupported');
+});
+
+test('tdpb shared directory unknown op', () => {
+  const writer = new BinaryWriter();
+  // Create a SharedDirectoryRequest with an operation that is not known.
+  let msg = SharedDirectoryRequest.create({
+    completionId: 1,
+    directoryId: 2,
+  });
+
+  const partialMsg = SharedDirectoryRequest.toBinary(msg);
+  let newSharedDirectoryRequest = new Uint8Array([
+    ...partialMsg,
+    // pick field number 50 for this "new" operation type.
+    ...writer.tag(50, WireType.LengthDelimited).string('future op').finish(),
+  ]);
+
+  // SharedDirectoryRequest has tag 17 in the envelope
+  const env = writer
+    .tag(17, WireType.LengthDelimited)
+    .bytes(newSharedDirectoryRequest)
+    .finish();
+
+  let finalMessage = new Uint8Array(env.length + 4);
+  let view = new DataView(finalMessage.buffer);
+  view.setUint32(0, env.length, false);
+  finalMessage.set(env, 4);
+
+  const unknownResult = tdpbCodec.decodeMessage(finalMessage.buffer);
+  expect(unknownResult.kind).toEqual('unknown');
 });
