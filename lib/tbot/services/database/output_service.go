@@ -215,7 +215,7 @@ func (s *OutputService) render(
 		if err := writeMongoDatabaseFiles(
 			ctx, s.log, routedIdentity, databaseCAs, s.cfg.Destination,
 		); err != nil {
-			return trace.Wrap(err, "writing cockroach database files")
+			return trace.Wrap(err, "writing mongo database files")
 		}
 	case CockroachDatabaseFormat:
 		if err := writeCockroachDatabaseFiles(
