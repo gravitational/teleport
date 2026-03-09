@@ -59,7 +59,6 @@ import (
 	"github.com/gravitational/teleport/api/types/vnet"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -2352,9 +2351,6 @@ func TestInitCreatesCertsIfMissing(t *testing.T) {
 }
 
 func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
-
 	tests := []struct {
 		name               string
 		initialVersion     string
@@ -2435,6 +2431,7 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			ctx := t.Context()
 
 			authCfg := setupConfig(t)
+			authCfg.InsecureMode = true
 			service, err := local.NewBackendInfoService(authCfg.Backend)
 			require.NoError(t, err)
 

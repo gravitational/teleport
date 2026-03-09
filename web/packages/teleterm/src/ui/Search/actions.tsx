@@ -216,6 +216,33 @@ export function mapToAction(
         };
       }
 
+      const { uri, name, protocol, gcpProjectId, autoUserProvisioning } =
+        result.resource;
+
+      if (autoUserProvisioning) {
+        return {
+          type: 'simple-action',
+          searchResult: result,
+          perform: async () => {
+            const dbUsers = await retryWithRelogin(ctx, uri, () =>
+              ctx.resourcesService.getDbUsers(uri)
+            );
+            return connectToDatabase(
+              ctx,
+              {
+                uri,
+                name,
+                protocol,
+                gcpProjectId,
+                dbUser: dbUsers[0],
+                autoUserProvisioning,
+              },
+              { origin: 'search_bar' }
+            );
+          },
+        };
+      }
+
       return {
         type: 'parametrized-action',
         searchResult: result,
@@ -232,9 +259,8 @@ export function mapToAction(
             }),
           placeholder: 'Provide db username',
         },
-        perform: dbUser => {
-          const { uri, name, protocol, gcpProjectId } = result.resource;
-          return connectToDatabase(
+        perform: dbUser =>
+          connectToDatabase(
             ctx,
             {
               uri,
@@ -242,12 +268,10 @@ export function mapToAction(
               protocol,
               gcpProjectId,
               dbUser: dbUser.value,
+              autoUserProvisioning: undefined,
             },
-            {
-              origin: 'search_bar',
-            }
-          );
-        },
+            { origin: 'search_bar' }
+          ),
       };
     }
     case 'windows_desktop': {

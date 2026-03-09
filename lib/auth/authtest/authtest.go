@@ -117,6 +117,7 @@ type AuthServerConfig struct {
 	FIPS bool
 	// KeystoreConfig is configuration for the CA keystore.
 	KeystoreConfig servicecfg.KeystoreConfig
+	InsecureMode   bool
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -380,6 +381,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		AWSOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
 		FakePasswordHash:             []byte(FakePasswordHash),
 		FakeRecoveryCodeHash:         []byte(FakeRecoveryCodeHash),
+		InsecureMode:                 cfg.InsecureMode,
 	},
 		// Reduce auth.Server bcrypt costs when testing.
 		WithBcryptCost(bcrypt.MinCost),

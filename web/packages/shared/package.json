@@ -18,7 +18,7 @@
     "ace-builds": "1.43.6",
     "events": "3.3.0",
     "highlight-words-core": "^1.2.3",
-    "semver": "^7.7.3"
+    "semver": "^7.7.4"
   },
   "devDependencies": {
     "@types/semver": "^7.7.1"
