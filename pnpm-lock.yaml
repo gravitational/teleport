@@ -500,8 +500,8 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       electron:
-        specifier: 40.7.0
-        version: 40.7.0
+        specifier: 40.8.0
+        version: 40.8.0
       electron-builder:
         specifier: ^26.8.2
         version: 26.8.2
@@ -4233,8 +4233,8 @@ packages:
       '@swc/core':
         optional: true
 
-  electron@40.7.0:
-    resolution: {integrity: sha512-oQe76S/3V1rcb0+i45hAxnCH8udkRZSaHUNwglzNAEKbB94LSJ1qwbFo8+uRc2UsYZgCqSIMRcyX40GyOkD+Xw==}
+  electron@40.8.0:
+    resolution: {integrity: sha512-WoPq0Nr9Yx3g7T6VnJXdwa/rr2+VRyH3a+K+ezfMKBlf6WjxE/LmhMQabKbb6yjm9RbZhJBRcYyoLph421O2mQ==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -11136,7 +11136,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@40.7.0:
+  electron@40.8.0:
     dependencies:
       '@electron/get': 2.0.3
       '@types/node': 24.10.9
