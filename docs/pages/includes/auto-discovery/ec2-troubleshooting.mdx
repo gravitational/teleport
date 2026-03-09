@@ -4,8 +4,8 @@ Select the instance-id of the Target to review Errors.
 
 ### Installation script exit codes
 
-When enrolling an instance into teleport, the installation script returns a specific exit code when facing well known issues.
-The exit code appears in the `ssm.run` Teleport audit events, in the `exit_code` field.
+When enrolling an instance into Teleport, the installation script returns a specific exit code when facing well known issues.
+The exit code appears in `ssm.run` Teleport audit events, in the `exit_code` field.
 
 It also appears in AWS Systems Manager -> Node Management -> Run Command -> Command history.
 
@@ -14,7 +14,7 @@ The following exit codes are used to indicate well-known failures:
 - 101: `sudo` binary is missing
 - 102: `curl` binary is missing
 - 103: `/opt` or `/` do not have the required minimum space to install teleport
-- 104: host is unable to connect to Teleport Proxy's HTTPS endpoint
+- 104: host is unable to connect to the Teleport Proxy Services's HTTPS endpoint
 
 ### `cannot unmarshal object into Go struct field`
 
