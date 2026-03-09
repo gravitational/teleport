@@ -241,7 +241,9 @@ func (s *TunnelService) Run(ctx context.Context) error {
 	case <-ctx.Done():
 		return nil
 	case err := <-errCh:
-		s.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
+        if err != nil {
+            s.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
+        }
 		return trace.Wrap(err, "local proxy failed")
 	}
 }
