@@ -2216,6 +2216,10 @@ func TestSessionRecordingConfigRBAC(t *testing.T) {
 // PASS
 // ok      github.com/gravitational/teleport/lib/auth      11.679s
 func BenchmarkListNodes(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
+
 	const nodeCount = 50_000
 	const roleCount = 32
 
@@ -6824,6 +6828,9 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 }
 
 func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	const nodeCount = 150_000
 	const roleCount = 32
 	const dbCount = 150_000
@@ -7026,6 +7033,10 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 // PASS
 // ok      github.com/gravitational/teleport/lib/auth      2.878s
 func BenchmarkListUnifiedResources(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
+
 	const nodeCount = 150_000
 	const roleCount = 32
 	const dbCount = 150_000
