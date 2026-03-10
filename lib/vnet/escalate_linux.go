@@ -191,8 +191,7 @@ func runAdminSubcommand(ctx context.Context, cfg LinuxAdminProcessConfig) error 
 
 	cmd := exec.CommandContext(ctx, executableName, "-d",
 		teleport.VnetAdminSetupSubCommand,
-		"--addr", cfg.ClientApplicationServiceAddr,
-		"--cred-path", cfg.ServiceCredentialPath,
+		"--socket", cfg.ClientApplicationServiceSocketPath,
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

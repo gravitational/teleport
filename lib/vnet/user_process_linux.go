@@ -20,14 +20,21 @@ import (
 	"context"
 	"net"
 	"os"
+	"path/filepath"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
-	grpccredentials "google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	"github.com/gravitational/teleport/lib/uds"
 )
+
+const clientApplicationServiceSocketName = "vnet.sock"
 
 // runPlatformUserProcess launches a daemon in the background that will handle
 // all networking and OS configuration. The user process exposes a gRPC
@@ -35,55 +42,43 @@ import (
 // certificates for apps. If successful it sets p.processManager and
 // p.networkStackInfo.
 func (p *UserProcess) runPlatformUserProcess(processCtx context.Context) error {
-	ipcCreds, err := newIPCCredentials()
+	socketDir, err := os.MkdirTemp("", "vnet_service")
 	if err != nil {
-		return trace.Wrap(err, "creating credentials for IPC")
-	}
-	serverTLSConfig, err := ipcCreds.server.serverTLSConfig()
-	if err != nil {
-		return trace.Wrap(err, "generating gRPC server TLS config")
+		return trace.Wrap(err, "creating temp dir for service socket")
 	}
 
-	credDir, err := os.MkdirTemp("", "vnet_service_certs")
+	listener, socketPath, err := listenUnixSocket(socketDir)
 	if err != nil {
-		return trace.Wrap(err, "creating temp dir for service certs")
-	}
-	// Write credentials with 0200 so that only root can read them and no user
-	// processes should be able to connect to the service.
-	if err := ipcCreds.client.write(credDir, 0200); err != nil {
-		return trace.Wrap(err, "writing service IPC credentials")
-	}
-
-	listener, err := net.Listen("tcp", "localhost:0")
-	if err != nil {
-		return trace.Wrap(err, "listening on tcp socket")
+		return trace.Wrap(err, "listening on unix socket")
 	}
 	// grpcServer.Serve takes ownership of (and closes) the listener.
 	grpcServer := grpc.NewServer(
-		grpc.Creds(grpccredentials.NewTLS(serverTLSConfig)),
-		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
-		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
+		grpc.Creds(uds.NewTransportCredentials(insecure.NewCredentials())),
+		grpc.ChainUnaryInterceptor(
+			rootOnlyUnixSocketUnaryInterceptor,
+			interceptors.GRPCServerUnaryErrorInterceptor,
+		),
+		grpc.ChainStreamInterceptor(
+			rootOnlyUnixSocketStreamInterceptor,
+			interceptors.GRPCServerStreamErrorInterceptor,
+		),
 	)
 	vnetv1.RegisterClientApplicationServiceServer(grpcServer, p.clientApplicationService)
 
 	p.processManager.AddCriticalBackgroundTask("admin process", func() error {
 		defer func() {
-			// Delete service credentials after the service terminates.
-			if ipcCreds.client.remove(credDir); err != nil {
-				log.ErrorContext(processCtx, "Failed to remove service credential files", "error", err)
-			}
-			if err := os.RemoveAll(credDir); err != nil {
-				log.ErrorContext(processCtx, "Failed to remove service credential directory", "error", err)
+			// Delete vnet socket after the service terminates.
+			if err := os.RemoveAll(socketDir); err != nil {
+				log.ErrorContext(processCtx, "Failed to remove service socket directory", "error", err)
 			}
 		}()
 		return trace.Wrap(execAdminProcess(processCtx, LinuxAdminProcessConfig{
-			ServiceCredentialPath:        credDir,
-			ClientApplicationServiceAddr: listener.Addr().String(),
+			ClientApplicationServiceSocketPath: socketPath,
 		}))
 	})
 	p.processManager.AddCriticalBackgroundTask("gRPC service", func() error {
 		log.InfoContext(processCtx, "Starting gRPC service",
-			"addr", listener.Addr().String())
+			"socket", socketPath)
 		return trace.Wrap(grpcServer.Serve(listener),
 			"serving VNet user process gRPC service")
 	})
@@ -102,4 +97,59 @@ func (p *UserProcess) runPlatformUserProcess(processCtx context.Context) error {
 	case <-processCtx.Done():
 		return trace.Wrap(p.processManager.Wait(), "process manager exited before network stack info was received")
 	}
+}
+
+func listenUnixSocket(dir string) (net.Listener, string, error) {
+	socketPath := filepath.Join(dir, clientApplicationServiceSocketName)
+	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
+		return nil, "", trace.Wrap(err, "removing stale unix socket %s", socketPath)
+	}
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		return nil, "", trace.Wrap(err, "creating unix socket listener")
+	}
+	if err := os.Chmod(socketPath, 0600); err != nil {
+		_ = listener.Close()
+		return nil, "", trace.Wrap(err, "chmod unix socket %s", socketPath)
+	}
+	return listener, socketPath, nil
+}
+
+func rootOnlyUnixSocketUnaryInterceptor(
+	ctx context.Context,
+	req any,
+	info *grpc.UnaryServerInfo,
+	handler grpc.UnaryHandler,
+) (any, error) {
+	if err := requireRootUnixSocketPeer(ctx); err != nil {
+		return nil, trace.Wrap(err, "validating unix socket peer for unary call %s", info.FullMethod)
+	}
+	return handler(ctx, req)
+}
+
+func rootOnlyUnixSocketStreamInterceptor(
+	srv any,
+	ss grpc.ServerStream,
+	info *grpc.StreamServerInfo,
+	handler grpc.StreamHandler,
+) error {
+	if err := requireRootUnixSocketPeer(ss.Context()); err != nil {
+		return trace.Wrap(err, "validating unix socket peer for stream call %s", info.FullMethod)
+	}
+	return handler(srv, ss)
+}
+
+func requireRootUnixSocketPeer(ctx context.Context) error {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return status.Error(codes.Unauthenticated, "gRPC peer not found in context")
+	}
+	authInfo, ok := p.AuthInfo.(uds.AuthInfo)
+	if !ok || authInfo.Creds == nil {
+		return status.Error(codes.Unauthenticated, "missing unix socket peer credentials")
+	}
+	if authInfo.Creds.UID != 0 {
+		return status.Errorf(codes.PermissionDenied, "unix socket peer uid %d is not root", authInfo.Creds.UID)
+	}
+	return nil
 }

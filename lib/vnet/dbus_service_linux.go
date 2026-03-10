@@ -43,8 +43,7 @@ var introspectNode = &introspect.Node{
 				{
 					Name: "Start",
 					Args: []introspect.Arg{
-						{Name: "addr", Type: "s", Direction: "in"},
-						{Name: "credPath", Type: "s", Direction: "in"},
+						{Name: "socketPath", Type: "s", Direction: "in"},
 					},
 				},
 				{Name: "Stop"},
@@ -85,10 +84,9 @@ func newDBusDaemon() (_ *dbusDaemon, err error) {
 	daemon := &dbusDaemon{
 		conn: conn,
 		done: make(chan error, 1),
-		startAdminProcess: func(addr, credPath string) error {
+		startAdminProcess: func(socketPath string) error {
 			return trace.Wrap(RunLinuxAdminProcess(ctx, LinuxAdminProcessConfig{
-				ClientApplicationServiceAddr: addr,
-				ServiceCredentialPath:        credPath,
+				ClientApplicationServiceSocketPath: socketPath,
 			}))
 		},
 		cancelAdminProcess: cancel,
@@ -124,7 +122,7 @@ type dbusDaemon struct {
 	closing bool
 	done    chan error // buffered 1; receives the admin process error or nil
 
-	startAdminProcess  func(addr, credPath string) error
+	startAdminProcess  func(socketPath string) error
 	cancelAdminProcess context.CancelFunc
 }
 
@@ -155,10 +153,10 @@ func (d *dbusDaemon) Wait() error {
 	return nil
 }
 
-// Start starts actual VNet admin process with passed address and credential path.
+// Start starts actual VNet admin process with passed unix socket path.
 // It uses polkit to authorize the calling D-Bus sender.
 // It returns an error if the admin process has already been started.
-func (d *dbusDaemon) Start(addr, credPath string, sender dbus.Sender) *dbus.Error {
+func (d *dbusDaemon) Start(socketPath string, sender dbus.Sender) *dbus.Error {
 	uid, err := d.authorize(sender)
 	if err != nil {
 		return dbus.MakeFailedError(trace.Wrap(err, "authorization failed"))
@@ -176,7 +174,7 @@ func (d *dbusDaemon) Start(addr, credPath string, sender dbus.Sender) *dbus.Erro
 	log.InfoContext(context.Background(), "Starting VNet admin process", "uid", uid)
 
 	go func() {
-		err := d.startAdminProcess(addr, credPath)
+		err := d.startAdminProcess(socketPath)
 		// TODO(tangyatsu): D-Bus supports signals, we might want to emit a signal when the admin process exits.
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.ErrorContext(context.Background(), "VNet admin process exited with error", "error", err)
