@@ -139,6 +139,17 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 		return rw.Status(), nil
 	}
 
+	// When the kube_service is running in-cluster (no explicit kubeconfig),
+	// request uncompressed responses from the API server
+	// to avoid the decompression half of the decompress -> filter -> recompress cycle.
+	// The API server is on the local cluster network so the uncompressed transfer is cheap.
+	// After filtering, we still recompress for the client if it requested gzip.
+	var clientAcceptsGzip bool
+	if f.cfg.KubeconfigPath == "" {
+		clientAcceptsGzip = strings.Contains(req.Header.Get("Accept-Encoding"), "gzip")
+		req.Header.Set("Accept-Encoding", "identity")
+	}
+
 	// Filtering is needed - buffer the response in memory.
 	// Creates a memory response writer that collects the response status, headers
 	// and payload into memory.
@@ -160,6 +171,14 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 		return memBuffer.Status(), trace.Wrap(err)
 	}
 	filterSpan.End()
+
+	// If we requested identity from the upstream but the client wanted gzip,
+	// compress the filtered response before sending it back.
+	if clientAcceptsGzip {
+		if err := compressMemBuffer(memBuffer); err != nil {
+			return memBuffer.Status(), trace.Wrap(err)
+		}
+	}
 
 	// Copy the filtered payload into target http.ResponseWriter.
 	err := memBuffer.CopyInto(w)

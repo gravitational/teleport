@@ -25,6 +25,8 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 )
 
 const (
@@ -117,5 +119,31 @@ type nopCloserWrapper struct {
 
 // Close has no action on the underlying writer.
 func (*nopCloserWrapper) Close() error {
+	return nil
+}
+
+// compressMemBuffer gzips the contents of a MemoryResponseWriter in-place and sets the encoding header to gzip.
+func compressMemBuffer(mem *responsewriters.MemoryResponseWriter) error {
+	// Copy the plain bytes before resetting.
+	plain := make([]byte, mem.Buffer().Len())
+	copy(plain, mem.Buffer().Bytes())
+
+	gzw := gzipPool.Get().(*gzip.Writer)
+	defer func() {
+		gzw.Reset(nil)
+		gzipPool.Put(gzw)
+	}()
+
+	mem.Buffer().Reset()
+	gzw.Reset(mem.Buffer())
+
+	if _, err := gzw.Write(plain); err != nil {
+		gzw.Close()
+		return trace.Wrap(err)
+	}
+	if err := gzw.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+	mem.Header().Set(contentEncodingHeader, contentEncodingGZIP)
 	return nil
 }

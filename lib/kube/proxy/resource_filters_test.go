@@ -21,6 +21,7 @@ package proxy
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"path"
@@ -294,6 +295,115 @@ func newMemoryResponseWriter(t *testing.T, payload []byte, contentEncoding strin
 		return buf, func(dst io.Writer, src io.Reader) error {
 			_, err := io.Copy(dst, src)
 			return trace.Wrap(err)
+		}
+	}
+}
+
+// generatePodListJSON creates a JSON-encoded PodList with n pods.
+// Half the pods are in "default" namespace (nginx-*), half in "kube-system".
+func generatePodListJSON(b *testing.B, n int) []byte {
+	b.Helper()
+	pods := make([]corev1.Pod, 0, n)
+	for i := range n {
+		pod := corev1.Pod{
+			TypeMeta: metav1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{"pod-template-hash": "bench"},
+			},
+		}
+
+		if i%2 == 1 {
+			pod.Namespace = "kube-system"
+			pod.Name = fmt.Sprintf("coredns-%d", i)
+		} else {
+			pod.Namespace = "default"
+			pod.Name = fmt.Sprintf("nginx-deployment-%d", i)
+		}
+		pod.Labels["app"] = pod.Name
+		pods = append(pods, pod)
+	}
+	podList := &corev1.PodList{
+		TypeMeta: metav1.TypeMeta{Kind: "PodList", APIVersion: "v1"},
+		ListMeta: metav1.ListMeta{ResourceVersion: "1"},
+		Items:    pods,
+	}
+	data, err := json.Marshal(podList)
+	require.NoError(b, err)
+	return data
+}
+
+// newBenchMemoryResponseWriter creates a MemoryResponseWriter for benchmarks.
+func newBenchMemoryResponseWriter(b *testing.B, payload []byte, contentEncoding string) *responsewriters.MemoryResponseWriter {
+	b.Helper()
+	buf := responsewriters.NewMemoryResponseWriter()
+	buf.Header().Set(contentEncodingHeader, contentEncoding)
+	buf.Header().Set(responsewriters.ContentTypeHeader, responsewriters.DefaultContentType)
+
+	switch contentEncoding {
+	case "gzip":
+		w, err := gzip.NewWriterLevel(buf, defaultGzipContentEncodingLevel)
+		require.NoError(b, err)
+		_, err = w.Write(payload)
+		require.NoError(b, err)
+		require.NoError(b, w.Close())
+	default:
+		_, err := buf.Write(payload)
+		require.NoError(b, err)
+	}
+	return buf
+}
+
+// BenchmarkFilterBuffer compares filterBuffer performance with gzip-compressed
+// vs uncompressed (identity) input. The difference shows the cost eliminated
+// by setting Accept-Encoding: identity on upstream requests.
+func BenchmarkFilterBuffer(b *testing.B) {
+	allowedResources := []types.KubernetesResource{
+		{
+			Kind:      types.KindKubePod,
+			APIGroup:  "*",
+			Namespace: "default",
+			Name:      "nginx-*",
+			Verbs:     []string{types.KubeVerbList},
+		},
+	}
+	mr := metaResource{
+		requestedResource:  apiResource{resourceKind: types.KindKubePod},
+		resourceDefinition: &metav1.APIResource{Namespaced: true},
+		verb:               types.KubeVerbList,
+	}
+
+	for _, podCount := range []int{100, 1000, 5000} {
+		payload := generatePodListJSON(b, podCount)
+
+		for _, encoding := range []string{"", "gzip"} {
+			label := "identity"
+			if encoding == "gzip" {
+				label = "gzip"
+			}
+			name := fmt.Sprintf("pods_%d/%s", podCount, label)
+
+			// Snapshot the buffer bytes so we can reset cheaply each iteration.
+			snapshot := newBenchMemoryResponseWriter(b, payload, encoding)
+			snapshotBytes := make([]byte, snapshot.Buffer().Len())
+			copy(snapshotBytes, snapshot.Buffer().Bytes())
+
+			b.Run(name, func(b *testing.B) {
+				b.ReportAllocs()
+				b.SetBytes(int64(len(payload)))
+				for b.Loop() {
+					buf := responsewriters.NewMemoryResponseWriter()
+					// Copy headers from snapshot.
+					for k, v := range snapshot.Header() {
+						buf.Header()[k] = v
+					}
+					buf.Buffer().Write(snapshotBytes)
+					err := filterBuffer(
+						newResourceFilterer(mr, &globalKubeCodecs, allowedResources, nil, logtest.NewLogger()),
+						buf,
+					)
+					require.NoError(b, err)
+				}
+			})
 		}
 	}
 }

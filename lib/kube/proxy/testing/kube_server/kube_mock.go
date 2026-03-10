@@ -156,6 +156,14 @@ func WithVersion(version *apimachineryversion.Info) Option {
 	}
 }
 
+// WithRequestCallback sets a callback that is invoked for every incoming request
+// before the request is handled. Useful for capturing request headers in tests.
+func WithRequestCallback(cb func(*http.Request)) Option {
+	return func(s *KubeMockServer) {
+		s.requestCallback = cb
+	}
+}
+
 type deletedResource struct {
 	requestID string
 	kind      string
@@ -188,7 +196,8 @@ type KubeMockServer struct {
 
 	nsList *corev1.NamespaceList
 
-	crds map[GVP]*CRD
+	crds            map[GVP]*CRD
+	requestCallback func(*http.Request)
 }
 
 // NewKubeAPIMock creates Kubernetes API server for handling exec calls.
@@ -318,6 +327,9 @@ var routerRe = regexp.MustCompile(`\{([^}]+)\}`)
 // withWriter handles the glue to support stdlib handler.
 func (s *KubeMockServer) withWriter(handler httplib.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if s.requestCallback != nil {
+			s.requestCallback(r)
+		}
 		matches := routerRe.FindAllStringSubmatch(r.Pattern, -1)
 
 		p := httprouter.Params{}
