@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// CreateTestEntityDescriptor returns a XML entity descriptor containing signing certificates
+// with expiries from the provided ttls.
 func CreateTestEntityDescriptor(t *testing.T, ttls []time.Duration) string {
 	t.Helper()
 

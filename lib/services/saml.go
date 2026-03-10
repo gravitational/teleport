@@ -459,8 +459,8 @@ func FillSAMLSigningKeyFromExisting(ctx context.Context, connector types.SAMLCon
 	return nil
 }
 
-// CheckSAMLCertExpiry returns true if any certs for the connector have expired or will expire
-// within the given timeframe.
+// CheckSAMLCertExpiry returns true if any certs for the connector from the entity descriptor or
+// cert field have expired or will expire within the given timeframe.
 func CheckSAMLCertExpiry(connector types.SAMLConnector, timeframe time.Duration) (bool, error) {
 	certs, err := CheckSAMLEntityDescriptor(connector.GetEntityDescriptor())
 	if err != nil {
