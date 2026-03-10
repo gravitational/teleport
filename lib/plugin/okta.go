@@ -41,3 +41,21 @@ func OktaParseTimeBetweenImports(syncSettings *types.PluginOktaSyncSettings) (ti
 	}
 	return parsed, nil
 }
+
+func OktaParseTimeBetweenAssignmentProcessLoops(syncSettings *types.PluginOktaSyncSettings) (time.Duration, error) {
+	if syncSettings == nil {
+		return 0, nil
+	}
+	raw := syncSettings.TimeBetweenAssignmentProcessLoops
+	if raw == "" {
+		return 0, nil
+	}
+	parsed, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, trace.BadParameter("time_between_assignment_process_loops is not valid: %s", err)
+	}
+	if parsed < 0 {
+		return 0, trace.BadParameter("time_between_assignment_process_loops %q cannot be a negative value", raw)
+	}
+	return parsed, nil
+}

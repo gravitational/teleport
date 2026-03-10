@@ -52,6 +52,13 @@ func validateOkta(plugin *types.PluginV1) error {
 		return trace.BadParameter("plugin %q does not have Okta settings", plugin.GetName())
 	}
 
-	_, err := OktaParseTimeBetweenImports(oktaSettings.GetSyncSettings())
-	return trace.Wrap(err)
+	if _, err := OktaParseTimeBetweenImports(oktaSettings.GetSyncSettings()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := OktaParseTimeBetweenAssignmentProcessLoops(oktaSettings.GetSyncSettings()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
