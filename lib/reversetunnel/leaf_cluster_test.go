@@ -28,7 +28,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -51,6 +50,8 @@ func TestRunValidatedMFAChallengeSync(t *testing.T) {
 	events := make(chan types.Event, 1)
 	events <- types.Event{Type: types.OpInit}
 
+	clock := clockwork.NewFakeClock()
+
 	// Set up a mock watcher that will return the challenge above.
 	watcher, err := services.NewGenericResourceWatcher(
 		t.Context(),
@@ -58,6 +59,7 @@ func TestRunValidatedMFAChallengeSync(t *testing.T) {
 			ResourceKind: types.KindValidatedMFAChallenge,
 			ResourceWatcherConfig: services.ResourceWatcherConfig{
 				Component: "Watcher on the Wall",
+				Clock:     clock,
 				Client: &mockEvents{
 					watcher: &mockMFAWatcher{
 						events: events,
@@ -88,21 +90,22 @@ func TestRunValidatedMFAChallengeSync(t *testing.T) {
 	// Set up a mock MFA service client that will receive replicated challenges from the leaf cluster.
 	leafMFAClient := &mockMFAServiceClient{
 		requests: make([]*mfav1.ReplicateValidatedMFAChallengeRequest, 0),
+		called:   make(chan struct{}),
 	}
 
-	// Set up a leaf cluster with the mock watcher and mock MFA client.
+	// Set up a leaf cluster with the mock watcher and the mock MFA client.
 	leaf := &leafCluster{
 		domainName:                   "leaf.example.com",
 		logger:                       slog.Default(),
-		clock:                        clockwork.NewFakeClock(),
+		clock:                        clock,
 		leafClient:                   &mockLeafClient{mfaClient: leafMFAClient},
 		validatedMFAChallengeWatcher: watcher,
 	}
 
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
-	defer cancel()
+	t.Cleanup(cancel)
 
-	// Set up a channel to receive errors from the sync process.
+	// Set up a channel to receive errors from the run sync process.
 	errC := make(chan error, 1)
 
 	// Start syncing validated MFA challenges in a separate goroutine since it will block until the context is canceled.
@@ -110,12 +113,25 @@ func TestRunValidatedMFAChallengeSync(t *testing.T) {
 		errC <- leaf.runValidatedMFAChallengeSync(
 			ctx,
 			retryutils.LinearConfig{
-				First: time.Millisecond,
-				Step:  time.Millisecond,
-				Max:   10 * time.Millisecond,
+				First: time.Second,
+				Step:  time.Second,
+				Max:   time.Second,
 			},
 		)
 	}()
+
+	// Wait for the replication attempt.
+	select {
+	case <-ctx.Done():
+		t.Fatal("context deadline exceeded while waiting for replication attempt")
+
+	case <-leafMFAClient.called:
+		// Replication attempt was made, continue with assertions.
+	}
+
+	// Verify it exits without error.
+	cancel()
+	require.NoError(t, <-errC)
 
 	wantReqs := []*mfav1.ReplicateValidatedMFAChallengeRequest{
 		{
@@ -126,40 +142,18 @@ func TestRunValidatedMFAChallengeSync(t *testing.T) {
 			Username:      chal.GetSpec().GetUsername(),
 		},
 	}
-
-	// The watcher will return the challenge we set up above, and we expect the leaf cluster to replicate it.
-	require.EventuallyWithT(
+	require.Empty(
 		t,
-		func(c *assert.CollectT) {
-			assert.Empty(
-				c,
-				cmp.Diff(
-					wantReqs,
-					leafMFAClient.Requests(),
-				),
-				"unexpected replicated challenge requests (-want +got)",
-			)
-		},
-		time.Second, 10*time.Millisecond, "waiting for expected replicated challenge requests",
+		cmp.Diff(
+			wantReqs,
+			leafMFAClient.Requests(),
+		),
+		"runValidatedMFAChallengeSync mismatch (-want +got)",
 	)
-
-	// Cancel the context to stop the sync process and verify that it exits without error and that the expected
-	// challenge was replicated.
-	cancel()
-	require.NoError(t, <-errC)
-
-	// Only one challenge was provided by the watcher, so exactly one request should have been made to the leaf's MFA
-	// service client.
-	require.Len(t, leafMFAClient.Requests(), 1)
 }
 
 func TestSyncValidatedMFAChallenges(t *testing.T) {
 	t.Parallel()
-
-	chal := newValidatedMFAChallenge(
-		"challenge",
-		"leaf.example.com",
-	)
 
 	leafMFAClient := &mockMFAServiceClient{
 		requests: make([]*mfav1.ReplicateValidatedMFAChallengeRequest, 0),
@@ -172,6 +166,11 @@ func TestSyncValidatedMFAChallenges(t *testing.T) {
 		leafClient: &mockLeafClient{mfaClient: leafMFAClient},
 	}
 
+	chal := newValidatedMFAChallenge(
+		"challenge",
+		"leaf.example.com",
+	)
+
 	err := leaf.syncValidatedMFAChallenges(
 		t.Context(),
 		[]*mfav1.ValidatedMFAChallenge{
@@ -179,7 +178,6 @@ func TestSyncValidatedMFAChallenges(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	require.Len(t, leafMFAClient.Requests(), 1)
 
 	wantReqs := []*mfav1.ReplicateValidatedMFAChallengeRequest{
 		{
@@ -190,7 +188,6 @@ func TestSyncValidatedMFAChallenges(t *testing.T) {
 			Username:      chal.GetSpec().GetUsername(),
 		},
 	}
-
 	require.Empty(
 		t,
 		cmp.Diff(
@@ -273,17 +270,18 @@ func (m *mockLeafClient) MFAServiceClient() mfav1.MFAServiceClient {
 type mockMFAServiceClient struct {
 	mfav1.MFAServiceClient
 
-	mu       sync.Mutex
 	requests []*mfav1.ReplicateValidatedMFAChallengeRequest
+	mu       sync.Mutex
+
+	called     chan struct{}
+	calledOnce sync.Once
 }
 
 func (m *mockMFAServiceClient) Requests() []*mfav1.ReplicateValidatedMFAChallengeRequest {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// Return a copy of the requests slice to avoid potential race conditions.
 	out := make([]*mfav1.ReplicateValidatedMFAChallengeRequest, len(m.requests))
 	copy(out, m.requests)
+	m.mu.Unlock()
 
 	return out
 }
@@ -294,9 +292,14 @@ func (m *mockMFAServiceClient) ReplicateValidatedMFAChallenge(
 	_ ...grpc.CallOption,
 ) (*mfav1.ReplicateValidatedMFAChallengeResponse, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	m.requests = append(m.requests, req)
+	m.mu.Unlock()
+
+	if m.called != nil {
+		m.calledOnce.Do(func() {
+			close(m.called)
+		})
+	}
 
 	return &mfav1.ReplicateValidatedMFAChallengeResponse{}, nil
 }
