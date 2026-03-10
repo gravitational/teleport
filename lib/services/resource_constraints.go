@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // MatcherTransform defines a func wrapping a RoleMatcher to modify or extend its behavior.
@@ -99,11 +100,7 @@ func buildStringConstraintTransform(
 		}
 	}
 
-	strs := getStrings()
-	allowedSet := make(map[string]struct{}, len(strs))
-	for _, str := range strs {
-		allowedSet[str] = struct{}{}
-	}
+	allowedSet := set.New(getStrings()...)
 
 	return func(m RoleMatcher) RoleMatcher {
 		principal := getPrincipal(m)

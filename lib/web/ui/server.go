@@ -30,6 +30,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
+	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // SSHLogin describes an SSH login available on a server.
@@ -121,19 +123,13 @@ func MakeServer(clusterName string, server types.Server, allLogins []string, gra
 }
 
 func buildSshLoginDetails(allLogins, grantedLogins []string) []SSHLogin {
-	grantedSet := make(map[string]struct{}, len(grantedLogins))
-	for _, login := range grantedLogins {
-		grantedSet[login] = struct{}{}
-	}
-	out := make([]SSHLogin, 0, len(allLogins))
-	for _, login := range allLogins {
-		_, isGranted := grantedSet[login]
-		out = append(out, SSHLogin{
+	grantedSet := set.New(grantedLogins...)
+	return slices.Map(allLogins, func(login string) SSHLogin {
+		return SSHLogin{
 			Login:           login,
-			RequiresRequest: !isGranted,
-		})
-	}
-	return out
+			RequiresRequest: !grantedSet.Contains(login),
+		}
+	})
 }
 
 // EKSCluster represents and EKS cluster, analog of awsoidc.EKSCluster, but used by web ui.
