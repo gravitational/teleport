@@ -634,13 +634,51 @@ attention:
 
 ## Security Considerations
 
-The prime security consideration throughout this design and implementation is
-ensuring that the isolation guarantees provided by scopes cannot be circumvented
-through the use of scoped MWI. That is, that an individual with administrative
-privileges within a scope, cannot leverage scoped MWI to gain access to
-resources outside of that scope.
+When considering the security implications of Scoped MWI, it's helpful to
+consider two distinct angles of attack.
 
-wip: more common/universal controls.
+Firstly, where a bad actor has compromised the host on which `tbot` is running
+and is authenticated as a scoped Bot. In this case, our goal is to ensure that
+the scope constraints placed on the bot's credentials cannot be circumvented and
+that the blast radius is limited as intended. For this angle, we are mostly
+concerned by the authorization and validation rules on RPCs that `tbot` calls.
+
+Secondly, where a bad actor has compromised a scope admin. In this case, our
+goal is to ensure that scoped MWI configuration created within the scope they
+have compromised cannot be used to escape that scope. We must consider that it
+would be trivial for the scope admin to enrol the scoped bot and receive
+credentials with privileges they have been able to assign to it. For this angle,
+we are mostly concerned with the authorization and validation rules on RPCs for
+managing scoped MWI resources.
+
+In several places, the design proposed by this document makes conservative
+decisions that limit the configurability and flexibility of scoped MWI. This 
+is intentional - limiting flexibility reduces overall complexity and allows us
+to better reason around how different configurations interoperate, especially
+with a mind to ensuring that scope isolation cannot be compromised. Some of
+these controls/limitations may eventually be relaxed or replaced with more
+flexible controls.
+
+The number of security considerations mentioned throughout this document is too
+great to enumerate exhaustively within this section, so instead, this section
+calls out controls which are critical, or which are enforced in multiple places.
+
+### Scope pinning
+
+In our first iterations, certificates issued to scoped Bots will be pinned to 
+the scope of origin of the Bot. This acts as a back-stop control - even if a 
+scoped Bot is somehow assigned privileges outside its scope of origin, these
+will be rendered ineffective by the scope pin.
+
+This restriction has an interesting implication - a scoped Bot's access is
+constrained to at most the administrative scope of its creator. This ensures
+that scoped Bots cannot be used as a vector for escape of scope where an admin
+has been compromised.
+
+This control will eventually be relaxed as per
+[Future Improvement: Cross-Scope Privilege](#b2-cross-scope-privileges),
+however, as part of this process, we will implement a series of additional
+controls to mitigate arising risks.
 
 ### Explicit scope in references
 
