@@ -32,6 +32,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -880,6 +881,52 @@ func TestHandlerAuthenticate(t *testing.T) {
 		_, err := appHandler.authenticate(ctx, request)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
+	})
+}
+
+func TestRedirectToLauncherClusterFallback(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	clusterName := "tp.test"
+	appFQDN := "greeting.tp.test"
+	authClient := &mockAuthClient{clusterName: clusterName}
+
+	appHandler, err := NewHandler(ctx, &HandlerConfig{
+		AuthClient:            authClient,
+		AccessPoint:           authClient,
+		CipherSuites:          utils.DefaultCipherSuites(),
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
+	})
+	require.NoError(t, err)
+
+	t.Run("redirects using cluster name when ProxyPublicAddrs is empty", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "https://"+appFQDN+"/", nil)
+		err := appHandler.redirectToLauncher(w, r, launcherURLParams{stateToken: "tok"})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusFound, w.Code)
+		loc := w.Header().Get("Location")
+		want := "https://" + clusterName + ":443/web/launch/" + appFQDN
+		require.True(t, strings.HasPrefix(loc, want), "got %s, want prefix %s", loc, want)
+	})
+
+	t.Run("rejects app addr matching cluster name", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "https://"+clusterName+"/", nil)
+		err := appHandler.redirectToLauncher(w, r, launcherURLParams{stateToken: "tok", publicAddr: clusterName})
+		require.Error(t, err)
+		require.True(t, trace.IsBadParameter(err))
+	})
+
+	t.Run("preserves request port in fallback redirect", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "https://"+appFQDN+":3080/", nil)
+		err := appHandler.redirectToLauncher(w, r, launcherURLParams{stateToken: "tok"})
+		require.NoError(t, err)
+		loc := w.Header().Get("Location")
+		want := "https://" + clusterName + ":3080/web/launch/" + appFQDN
+		require.True(t, strings.HasPrefix(loc, want), "got %s, want prefix %s", loc, want)
 	})
 }
 

@@ -21,7 +21,9 @@ package app
 import (
 	"crypto/subtle"
 	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -223,30 +225,47 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	})
 
 	requiredApps := strings.Split(req.RequiredApps, ",")
-	if len(requiredApps) > 1 {
-		requiredApps := requiredApps[1:]
-		nextRequiredApp := requiredApps[0]
+	if len(requiredApps) <= 1 {
+		return nil
+	}
 
-		webLauncherURLParams := launcherURLParams{
-			publicAddr:          nextRequiredApp,
-			requiredAppFQDNs:    strings.Join(requiredApps, ","),
-			requiresAppRedirect: true,
-		}
-		addr, err := utils.ParseAddr(webLauncherURLParams.publicAddr)
+	requiredApps = requiredApps[1:]
+	nextRequiredApp := requiredApps[0]
+
+	webLauncherURLParams := launcherURLParams{
+		publicAddr:          nextRequiredApp,
+		requiredAppFQDNs:    strings.Join(requiredApps, ","),
+		requiresAppRedirect: true,
+	}
+	addr, err := utils.ParseAddr(webLauncherURLParams.publicAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var publicAddrs []string
+	for _, proxyAddr := range h.c.ProxyPublicAddrs {
+		err = h.validateAppAddr(r.Context(), webLauncherURLParams.publicAddr, proxyAddr.Host())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		var publicAddrs []string
-		for _, addr := range h.c.ProxyPublicAddrs {
-			publicAddrs = append(publicAddrs, addr.Host())
-		}
-		proxyDNSName := utils.FindMatchingProxyDNS(addr.String(), publicAddrs)
-		urlString := makeAppRedirectURL(r, proxyDNSName, addr.Host(), webLauncherURLParams)
-		// this request does not return a response, so we can pass this value through a custom header instead
-		w.Header().Set(TeleportNextAppRedirectUrlHeader, urlString)
+		publicAddrs = append(publicAddrs, proxyAddr.Host())
 	}
-
+	if len(publicAddrs) == 0 {
+		err = h.validateAppAddr(r.Context(), webLauncherURLParams.publicAddr, h.clusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		reqAddr, err := utils.ParseAddr(r.Host)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		port := reqAddr.Port(443)
+		publicAddrs = []string{net.JoinHostPort(h.clusterName, strconv.Itoa(port))}
+	}
+	proxyDNSName := utils.FindMatchingProxyDNS(addr.String(), publicAddrs)
+	urlString := makeAppRedirectURL(r, proxyDNSName, addr.Host(), webLauncherURLParams)
+	// this request does not return a response, so we can pass this value through a custom header instead
+	w.Header().Set(TeleportNextAppRedirectUrlHeader, urlString)
 	return nil
 }
 

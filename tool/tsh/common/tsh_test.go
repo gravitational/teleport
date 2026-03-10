@@ -75,7 +75,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/kube"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -253,6 +252,10 @@ func (p *cliModules) GenerateLongTermResourceGrouping(_ context.Context, _ modul
 
 func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
+}
+
+func (p *cliModules) GenerateAccessRequestSuggestedReviewers(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) ([]string, error) {
+	return []string{}, nil
 }
 
 func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Identity, _ modules.AccessListSuggestionClient, _ modules.AccessListAndMembersGetter, _ string) ([]*accesslist.AccessList, error) {
@@ -625,6 +628,92 @@ func TestOIDCLogin(t *testing.T) {
 	// if we got this far, then tsh successfully registered name change from `alice` to
 	// `alice@example.com`, since the correct name needed to be used for the access
 	// request to be generated.
+}
+
+// TestLoginRequestIDPrintsUpdatedProfile asserts that tsh login --request-id
+// prints profile information that is up to date with the newly assumed access
+// request.
+func TestLoginRequestIDPrintsUpdatedProfile(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	tmpHomePath := t.TempDir()
+
+	requester, err := types.NewRole("requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"elevated"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	elevated, err := types.NewRole("elevated", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{requester.GetName()})
+
+	connector := mockConnector(t)
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(requester, elevated, connector, alice))
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Do an initial login without the access request.
+	loginOutput := &output{}
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+		"--user", alice.GetName(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()), func(cf *CLIConf) error {
+		cf.OverrideStdout = loginOutput
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotContains(t, loginOutput.String(), elevated.GetName())
+
+	// Create and approve and access request.
+	requestID := uuid.NewString()
+	req, err := types.NewAccessRequest(requestID, alice.GetName(), elevated.GetName())
+	require.NoError(t, err)
+	accessExpiry := time.Now().Add(time.Hour)
+	req.SetExpiry(accessExpiry)
+	req.SetAccessExpiry(accessExpiry)
+	err = authServer.CreateAccessRequest(ctx, req)
+	require.NoError(t, err)
+	err = authServer.SetAccessRequestState(ctx, types.AccessRequestUpdate{
+		RequestID: requestID,
+		State:     types.RequestState_APPROVED,
+	})
+	require.NoError(t, err)
+
+	// Relogin with a approved access request.
+	requestLoginOutput := &output{}
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+		"--request-id", requestID,
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		cf.OverrideStdout = requestLoginOutput
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Assert that the output contains the ID of the active request and the
+	// name of the newly assumed role.
+	require.Regexp(t,
+		regexp.MustCompile(`Active requests:\s.*\b`+requestID+`\b`),
+		requestLoginOutput.String(),
+	)
+	require.Regexp(t,
+		regexp.MustCompile(`Roles:\s.*\belevated\b`),
+		requestLoginOutput.String(),
+	)
 }
 
 func findMOTD(t *testing.T, sc *bufio.Scanner, motd string) {
@@ -1259,12 +1348,6 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 
 	ctx := t.Context()
 
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(isInsecure)
-	})
-
 	origin := func(cluster string) string {
 		return fmt.Sprintf("https://%s", cluster)
 	}
@@ -1313,7 +1396,12 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	require.NoError(t, err)
 	device.SetPasswordless()
 
-	rootAuth, rootProxy := makeTestServers(t, withBootstrap(connector, alice, bob, noAccessRole, sshLoginRole, perSessionMFARole))
+	rootAuth, rootProxy := makeTestServers(t,
+		withBootstrap(connector, alice, bob, noAccessRole, sshLoginRole, perSessionMFARole),
+		withConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
+	)
 
 	rootAuthAddr, err := rootAuth.AuthAddr()
 	require.NoError(t, err)
@@ -1346,7 +1434,13 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	leafAuth, leafProxy := makeTestServers(t, withClusterName(t, "leafcluster"), withBootstrap(connector, alice, sshLoginRole, perSessionMFARole))
+	leafAuth, leafProxy := makeTestServers(t,
+		withClusterName(t, "leafcluster"),
+		withBootstrap(connector, alice, sshLoginRole, perSessionMFARole),
+		withConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
+	)
 	tryCreateTrustedCluster(t, leafAuth.GetAuthServer(), trustedCluster)
 
 	leafAuthAddr, err := leafAuth.AuthAddr()
@@ -2434,12 +2528,6 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(isInsecure)
-	})
-
 	requester, err := types.NewRole("requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
@@ -2457,6 +2545,9 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 
 	rootAuth, rootProxy := makeTestServers(t,
 		withBootstrap(requester, connector, alice),
+		withConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
 	)
 
 	rootAuthServer := rootAuth.GetAuthServer()
@@ -2481,7 +2572,12 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	leafAuth, _ := makeTestServers(t, withClusterName(t, "leafcluster"))
+	leafAuth, _ := makeTestServers(t,
+		withClusterName(t, "leafcluster"),
+		withConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
+	)
 	tryCreateTrustedCluster(t, leafAuth.GetAuthServer(), trustedCluster)
 
 	err = Run(ctx, []string{
@@ -5940,13 +6036,6 @@ func TestMakeProfileInfo_NoInternalLogins(t *testing.T) {
 }
 
 func TestBenchmarkPostgres(t *testing.T) {
-	// Set insecure mode to allow db agent to establish reverse tunnel.
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(isInsecure)
-	})
-
 	// Canceling the context right after the test ensures the local proxy
 	// started by the benchmark command is closed and the remaining connections
 	// (if any) are dropped.
@@ -5965,6 +6054,7 @@ func TestBenchmarkPostgres(t *testing.T) {
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.InsecureMode = true
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
 				{
@@ -6454,6 +6544,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			// Enable DB
+			cfg.InsecureMode = true
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
 				{
@@ -6477,6 +6568,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithClusterName("leaf"),
 		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
 			// Enable DB
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{

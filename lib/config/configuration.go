@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	gcputils "github.com/gravitational/teleport/api/utils/gcp"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -2043,12 +2042,14 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Apps are enabled.
 	cfg.Apps.Enabled = true
 
-	// Warn if proxy_service is enabled in the same config but has no
-	// public_addr. Without it, app access does not work.
+	// Log when proxy_service is enabled in the same config but has no
+	// public_addr. The proxy falls back to the cluster name for the
+	// auth redirect. Per-app public_addr controls the app's FQDN but
+	// does not replace this.
 	if fc.Proxy.Enabled() && len(fc.Proxy.PublicAddr) == 0 {
-		slog.WarnContext(context.Background(),
-			"app_service requires proxy_service.public_addr to route requests; app access will not work until it is set",
-		)
+		slog.InfoContext(context.Background(),
+			"proxy_service.public_addr not set; using cluster name for app auth redirects",
+			"nodename", cfg.Hostname)
 	}
 
 	// Enable debugging application if requested.
@@ -2502,9 +2503,6 @@ func applyConfigVersion(fc *FileConfig, cfg *servicecfg.Config) {
 // Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
 func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags bool) error {
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
 	// load /etc/teleport.yaml and apply its values:
 	fileConf, err := ReadConfigFile(clf.ConfigFile)
 	if err != nil {
@@ -2917,14 +2915,16 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.Auth.AgentRolloutControllerSyncPeriod = period
 	}
 
+	// pass the value of --insecure flag to the runtime
+	if clf.InsecureMode {
+		cfg.InsecureMode = true
+	}
+
 	return nil
 }
 
 // ConfigureOpenSSH initializes a config from the commandline flags passed
 func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
 	// Apply command line --debug flag to override logger severity.
 	level := slog.LevelError
 	if clf.Debug {
@@ -2988,6 +2988,10 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	cfg.SetAuthServerAddresses(nil)
 	cfg.ProxyServer = *proxyServer
 
+	// pass the value of --insecure flag to the runtime
+	if clf.InsecureMode {
+		cfg.InsecureMode = true
+	}
 	return nil
 }
 

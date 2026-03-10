@@ -398,6 +398,10 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	{{.VarName}}Resource := {{.VarName}}
 {{end}}
 
+	{{- if .ForceSetKind }}
+	{{.VarName}}Resource.Kind = {{.ForceSetKind}}
+	{{- end}}
+
 	{{if .HasCheckAndSetDefaults -}}
 	if err := {{.VarName}}Resource.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating {{.Name}}", err, "{{.Kind}}"))

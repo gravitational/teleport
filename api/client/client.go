@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/api/client/summarizer"
 	"github.com/gravitational/teleport/api/client/userloginstate"
 	usertaskapi "github.com/gravitational/teleport/api/client/usertask"
+	"github.com/gravitational/teleport/api/client/vnetconfig"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -935,6 +936,8 @@ func (c *Client) NotificationServiceClient() notificationsv1pb.NotificationServi
 }
 
 // VnetConfigServiceClient returns an unadorned client for the VNet config service.
+//
+// Deprecated: Prefer VnetConfigClient.
 func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
 	return vnet.NewVnetConfigServiceClient(c.conn)
 }
@@ -5471,6 +5474,17 @@ func (c *Client) DiscoveryConfigClient() *discoveryconfig.Client {
 	return discoveryconfig.NewClient(discoveryconfigv1.NewDiscoveryConfigServiceClient(c.conn))
 }
 
+// VnetConfigClient returns a VnetConfig client.
+// Clients connecting to older Teleport versions, still get an VnetConfig client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+//
+// TODO: Add this method to lib/auth/authclient.ClientI so higher-level callers
+// can use the wrapper without reaching for the raw gRPC client.
+func (c *Client) VnetConfigClient() *vnetconfig.Client {
+	return vnetconfig.NewClient(vnet.NewVnetConfigServiceClient(c.conn))
+}
+
 // CrownJewelServiceClient returns a CrownJewel client.
 // Clients connecting to older Teleport versions, still get a CrownJewel client
 // when calling this method, but all RPCs will return "not implemented" errors
@@ -6037,8 +6051,11 @@ func (c *Client) ListScopedTokens(ctx context.Context, req *joiningv1.ListScoped
 	return res, trace.Wrap(err)
 }
 
-func (c *Client) GetScopedToken(ctx context.Context, req *joiningv1.GetScopedTokenRequest) (*joiningv1.ScopedToken, error) {
-	res, err := c.grpc.GetScopedToken(ctx, req)
+func (c *Client) GetScopedToken(ctx context.Context, name string, withSecret bool) (*joiningv1.ScopedToken, error) {
+	res, err := c.grpc.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+		Name:       name,
+		WithSecret: withSecret,
+	})
 	return res.GetToken(), trace.Wrap(err)
 }
 
@@ -6058,8 +6075,17 @@ func (c *Client) CreateScopedToken(ctx context.Context, token *joiningv1.ScopedT
 	return res.GetToken(), trace.Wrap(err)
 }
 
+// UpsertScopedToken upserts a scoped token.
 func (c *Client) UpsertScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
 	res, err := c.grpc.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{
+		Token: token,
+	})
+	return res.GetToken(), trace.Wrap(err)
+}
+
+// UpdateScopedToken updates an existing scoped token.
+func (c *Client) UpdateScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+	res, err := c.grpc.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
 		Token: token,
 	})
 	return res.GetToken(), trace.Wrap(err)

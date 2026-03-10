@@ -37,9 +37,26 @@ export default defineConfig({
   },
 
   projects: [
+    { name: 'setup', testMatch: /.*\.setup\.ts/ },
+
     {
-      name: 'chromium',
+      name: 'authenticated',
+      testDir: './tests/authenticated',
+      use: { ...devices['Desktop Chrome'], storageState: '.auth/user.json' },
+      dependencies: ['setup'],
+    },
+
+    {
+      name: 'unauthenticated',
+      testDir: './tests/unauthenticated',
       use: { ...devices['Desktop Chrome'] },
+    },
+
+    {
+      name: 'with-ssh-node',
+      testDir: './tests/with-ssh-node',
+      use: { ...devices['Desktop Chrome'], storageState: '.auth/user.json' },
+      dependencies: ['setup'],
     },
   ],
 });

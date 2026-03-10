@@ -76,6 +76,7 @@ it('removeItemsBelongingToRootCluster removes connections', () => {
       targetUser: 'alice',
       targetName: 'test',
       targetSubresourceName: 'pg',
+      autoUserProvisioning: undefined,
     },
     {
       kind: 'connection.kube',
@@ -115,6 +116,7 @@ it('updates the port of a gateway connection when the underlying doc gets update
     port: '12345',
     origin: 'resource_table',
     status: '',
+    autoUserProvisioning: undefined,
   };
 
   const { connectionTrackerService, workspacesService } =

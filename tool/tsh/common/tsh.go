@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/profile"
@@ -95,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
@@ -212,6 +214,8 @@ type CLIConf struct {
 	NodePort int32
 	// Login on a remote SSH host
 	NodeLogin string
+	// DryRun prints the configuration without applying it
+	DryRun bool
 	// InsecureSkipVerify bypasses verification of HTTPS certificate when talking to web proxy
 	InsecureSkipVerify bool
 	// SessionID identifies the session tsh is operating on.
@@ -489,6 +493,8 @@ type CLIConf struct {
 	// proxy instead of an HTTPS proxy.
 	// TODO(gabrielcorado): DELETE IN 19.0.0
 	AWSEndpointURLMode bool
+	// AWSSSORegion is the AWS region used for SSO.
+	AWSSSORegion string
 
 	// AzureIdentity is Azure identity that will be used for Azure CLI access.
 	AzureIdentity string
@@ -863,10 +869,21 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	if _, err := muApp.Parse(utils.FilterArguments(args, muApp.Model())); err != nil {
 		slog.WarnContext(ctx, "can't identify current profile", "error", err)
 	}
-	// Check local update for specific proxy from configuration.
-	name := utils.TryHost(strings.TrimPrefix(strings.ToLower(proxyArg), "https://"))
-	if err := autoupdatetools.CheckAndUpdateLocal(ctx, name, args); err != nil {
-		return trace.Wrap(err)
+	// Detect whether the process is running as a Windows service in order to disable automatic updates.
+	// We use this approach because setting `TELEPORT_TOOLS_VERSION=off` for a Windows service via environment variables is cumbersome.
+	//
+	// This is required for VNet, whose system service is implemented by `tsh.exe vnet-service`.
+	// Its service binary must not change unexpectedly.
+	isWinService, err := isWindowsService()
+	if err != nil {
+		logger.ErrorContext(ctx, "Could not determine whether tsh is running as a service; client tools managed updates will not be disabled", "error", err)
+	}
+	if !isWinService {
+		// Check local update for specific proxy from configuration.
+		name := utils.TryHost(strings.TrimPrefix(strings.ToLower(proxyArg), "https://"))
+		if err := autoupdatetools.CheckAndUpdateLocal(ctx, name, args); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	moduleCfg := modules.GetModules()
@@ -1015,6 +1032,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	aws.Flag("exec", "Execute different commands (e.g. terraform) under Teleport credentials.").StringVar(&cf.Exec)
 	aws.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
+
+	// Generate AWS profiles via AWS Identity Center integration.
+	awsProfile := app.Command("aws-profile", "Write AWS profiles retrieved from the AWS IAM Identity Center integration to the AWS config file.")
+	awsProfile.Flag("aws-sso-region", "AWS region for SSO. Auto-detected from cluster if not specified.").StringVar(&cf.AWSSSORegion)
+	awsProfile.Flag("dry-run", "Print the configuration that will be applied without modifying the AWS config file.").BoolVar(&cf.DryRun)
 
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
@@ -1490,6 +1512,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetInstallServiceCommand := newVnetInstallServiceCommand(app)
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
+	connectUpdater := app.Command("connect-updater", "Teleport Connect updater commands.").Hidden()
+	connectUpdaterServiceCommand := newConnectUpdaterServiceRunCommand(connectUpdater)
+	connectUpdaterServiceInstallCommand := newConnectUpdaterServiceInstallCommand(connectUpdater)
+	connectUpdaterServiceUninstallCommand := newConnectUpdaterServiceUninstallCommand(connectUpdater)
+	connectUpdaterServiceInstallUpdateCommand := newConnectUpdaterServiceInstallUpdateCommand(connectUpdater)
+
 	gitCmd := newGitCommands(app)
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
@@ -1881,6 +1909,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onPuttyConfig(&cf)
 	case aws.FullCommand():
 		err = onAWS(&cf)
+	case awsProfile.FullCommand():
+		err = onAWSProfile(&cf)
 	case azure.FullCommand():
 		err = onAzure(&cf)
 	case gcloud.FullCommand():
@@ -1930,6 +1960,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetServiceCommand.run(&cf)
 	case vnetInstallServiceCommand.FullCommand():
 		err = vnetInstallServiceCommand.run(&cf)
+	case connectUpdaterServiceInstallCommand.FullCommand():
+		err = connectUpdaterServiceInstallCommand.run(&cf)
+	case connectUpdaterServiceUninstallCommand.FullCommand():
+		err = connectUpdaterServiceUninstallCommand.run(&cf)
+	case connectUpdaterServiceCommand.FullCommand():
+		err = connectUpdaterServiceCommand.run(&cf)
+	case connectUpdaterServiceInstallUpdateCommand.FullCommand():
+		err = connectUpdaterServiceInstallUpdateCommand.run(&cf)
 	case vnetUninstallServiceCommand.FullCommand():
 		err = vnetUninstallServiceCommand.run(&cf)
 	case gitCmd.list.FullCommand():
@@ -2392,6 +2430,13 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
+
+			// Reload the profile status to show updated active access requests and roles.
+			profile, profiles, err = cf.FullProfileStatus()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			// Print status to show information of the logged in user.
 			return trace.Wrap(printLoginInformation(cf, profile, profiles))
 
@@ -5441,15 +5486,10 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 	if cluster != "" {
 		fmt.Fprintf(w, "  Cluster:            %v\n", cluster)
 	}
-	if p.Scope != "" {
-		fmt.Fprintf(w, "  Scope:              %v\n", p.Scope)
+	if p.ScopePin != nil {
+		fmt.Fprintf(w, "  Scope:              %v\n", p.ScopePin.GetScope())
 		fmt.Fprintf(w, "  Scoped Roles:\n")
-
-		assignedScopes := slices.Collect(maps.Keys(p.ScopedRoles))
-		slices.Sort(assignedScopes)
-		for _, scope := range assignedScopes {
-			fmt.Fprintf(w, "    %s: %v\n", scope, rolesToString(debug, p.ScopedRoles[scope]))
-		}
+		fmt.Fprintf(w, "%v", pinning.FormatAssignmentTree(p.ScopePin.GetAssignmentTree(), "  "))
 	} else {
 		fmt.Fprintf(w, "  Roles:              %v\n", rolesToString(debug, p.Roles))
 	}
@@ -5654,8 +5694,7 @@ type profileInfo struct {
 	ActiveRequests           []string                 `json:"active_requests,omitempty"`
 	Cluster                  string                   `json:"cluster"`
 	Roles                    []string                 `json:"roles,omitempty"`
-	Scope                    string                   `json:"scope,omitempty"`
-	ScopedRoles              map[string][]string      `json:"scoped_roles,omitempty"`
+	ScopePin                 *scopesv1.Pin            `json:"scope_pin,omitempty"`
 	Traits                   wrappers.Traits          `json:"traits,omitempty"`
 	Logins                   []string                 `json:"logins,omitempty"`
 	KubernetesEnabled        bool                     `json:"kubernetes_enabled"`
@@ -5708,8 +5747,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		ActiveRequests:           p.ActiveRequests,
 		Cluster:                  p.Cluster,
 		Roles:                    p.Roles,
-		Scope:                    p.Scope,
-		ScopedRoles:              p.ScopedRoles,
+		ScopePin:                 p.ScopePin,
 		Traits:                   p.Traits,
 		Logins:                   logins,
 		KubernetesEnabled:        p.KubeEnabled,

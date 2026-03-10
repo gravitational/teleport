@@ -50,7 +50,9 @@ export function PromotedMessage({
         <br />
         {self ? (
           <>
-            You are now a member of Access List <b>{promotedAccessListTitle}</b>{' '}
+            You are now a member of Access List <b>
+              {promotedAccessListTitle}
+            </b>{' '}
             which grants you the resources requested.
           </>
         ) : (

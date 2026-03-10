@@ -46,11 +46,16 @@ func TestUnifiedResourcesList(t *testing.T) {
 		Name: "testDb",
 	}, types.DatabaseServerSpecV3{
 		Hostname: "localhost",
-		HostID:   uuid.New().String(), Database: &types.DatabaseV3{
+		HostID:   uuid.New().String(),
+		Database: &types.DatabaseV3{
 			Spec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolPostgres, URI: "localhost:5432",
+				Protocol:  defaults.ProtocolPostgres,
+				URI:       "localhost:5432",
+				AdminUser: &types.DatabaseAdminUser{Name: "teleport-admin"},
 			},
-			Metadata: types.Metadata{Name: "testDb"}}})
+			Metadata: types.Metadata{Name: "testDb"},
+		},
+	})
 	require.NoError(t, err)
 
 	kube, err := types.NewKubernetesServerV3(types.Metadata{
@@ -114,6 +119,24 @@ func TestUnifiedResourcesList(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	leafDatabase, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "leafDb",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "localhost",
+		HostID:   uuid.New().String(),
+		Database: &types.DatabaseV3{
+			Spec: types.DatabaseSpecV3{
+				Protocol:  defaults.ProtocolPostgres,
+				URI:       "localhost:5432",
+				AdminUser: &types.DatabaseAdminUser{Name: "teleport-admin"},
+			},
+			Metadata: types.Metadata{Name: "leafDb"},
+		},
+	})
+	require.NoError(t, err)
+
+	leafCluster := &clusters.Cluster{URI: uri.NewClusterURI("foo").AppendLeafCluster("leaf"), ProfileName: "foo", Name: "leaf"}
+
 	mockedResources := []*proto.PaginatedResource{
 		{Resource: &proto.PaginatedResource_Node{Node: node.(*types.ServerV2)}, Logins: []string{"ec2-user"}},
 		{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}},
@@ -142,6 +165,9 @@ func TestUnifiedResourcesList(t *testing.T) {
 	require.Equal(t, UnifiedResource{Database: &clusters.Database{
 		URI:      uri.NewClusterURI(cluster.ProfileName).AppendDB(database.GetName()),
 		Database: database.GetDatabase(),
+		AutoUserProvisioning: &clusters.AutoUserProvisioning{
+			DatabaseRoles: []string{},
+		},
 	}}, response.Resources[1])
 
 	require.Equal(t, UnifiedResource{Kube: &clusters.Kube{
@@ -175,6 +201,21 @@ func TestUnifiedResourcesList(t *testing.T) {
 	}}, response.Resources[6])
 
 	require.Equal(t, mockedNextKey, response.NextKey)
+
+	leafResponse, err := List(ctx, leafCluster, &mockClient{
+		paginatedResources: []*proto.PaginatedResource{
+			{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: leafDatabase}},
+		},
+	}, &proto.ListUnifiedResourcesRequest{})
+	require.NoError(t, err)
+	require.Len(t, leafResponse.Resources, 1)
+	require.Equal(t, UnifiedResource{Database: &clusters.Database{
+		URI:      leafCluster.URI.AppendDB(leafDatabase.GetName()),
+		Database: leafDatabase.GetDatabase(),
+		AutoUserProvisioning: &clusters.AutoUserProvisioning{
+			DatabaseRoles: []string{},
+		},
+	}}, leafResponse.Resources[0])
 }
 
 type mockClient struct {
@@ -187,4 +228,23 @@ func (m *mockClient) ListUnifiedResources(ctx context.Context, req *proto.ListUn
 		Resources: m.paginatedResources,
 		NextKey:   m.nextKey,
 	}, nil
+}
+
+func (m *mockClient) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
+	role, err := types.NewRole("auto-db-user", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+		},
+		Allow: types.RoleConditions{
+			DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []types.Role{role}, nil
+}
+
+func (m *mockClient) GetCurrentUser(ctx context.Context) (types.User, error) {
+	return types.NewUser("testUser")
 }

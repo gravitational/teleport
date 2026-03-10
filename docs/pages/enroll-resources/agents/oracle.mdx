@@ -35,12 +35,17 @@ self-authentication request to the OCI API for the Auth Service to execute.
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v17.3.0 or higher)"!)
 
 - An OCI Compute instance to host a Teleport service.
-- (!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/iac-clients.mdx!)
 
 ## Step 1/5. Create the Oracle joining token
 
 Configure your Teleport Auth Service with a special dynamic token which will
-allow services from your OCI tenants to join your Teleport cluster.
+allow services from your OCI tenants to join your Teleport cluster. You can
+create the token with `tctl` as well as the Teleport Terraform provider or
+Kubernetes operator:
+
+<Tabs>
+<TabItem label="tctl">
 
 Create the following `token.yaml` file with an `oracle.allow` rule specifying
 the Oracle tenant(s), compartment(s), and region(s) in which your OCI
@@ -55,6 +60,24 @@ Run the following command to create the token:
 ```code
 $ tctl create token.yaml
 ```
+
+</TabItem>
+<TabItem label="Terraform">
+
+Add the following resource to your Terraform configuration, replacing values as
+indicated:
+
+(!docs/pages/includes/provision-token/oracle-spec-hcl.mdx!)
+
+</TabItem>
+<TabItem label="Kubernetes">
+
+Add the following Kubernetes resource manifest, replacing values as indicated:
+
+(!docs/pages/includes/provision-token/oracle-spec-kube.mdx!)
+
+</TabItem>
+</Tabs>
 
 ## Step 2/5. Configure permissions
 
