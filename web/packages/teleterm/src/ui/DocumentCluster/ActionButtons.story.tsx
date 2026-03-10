@@ -345,7 +345,7 @@ function DatabaseWithKnownUsers() {
     <ConnectDatabaseActionButton
       database={makeDatabase({
         uri: `${testCluster.uri}/dbs/bar`,
-        users: ['alice', 'bob', 'charlie'],
+        databaseUsers: ['alice', 'bob', 'charlie'],
       })}
     />
   );
@@ -356,7 +356,7 @@ function DatabaseWithWildcardUsers() {
     <ConnectDatabaseActionButton
       database={makeDatabase({
         uri: `${testCluster.uri}/dbs/bar`,
-        users: ['alice', 'bob', '*'],
+        databaseUsers: ['alice', 'bob', '*'],
       })}
     />
   );

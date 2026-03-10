@@ -168,7 +168,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 		AutoUserProvisioning: &clusters.AutoUserProvisioning{
 			DatabaseRoles: []string{},
 		},
-		Users: []string{"testUser"},
+		DatabaseUsers: []string{"testUser"},
 	}}, response.Resources[1])
 
 	require.Equal(t, UnifiedResource{Kube: &clusters.Kube{
@@ -216,8 +216,43 @@ func TestUnifiedResourcesList(t *testing.T) {
 		AutoUserProvisioning: &clusters.AutoUserProvisioning{
 			DatabaseRoles: []string{},
 		},
-		Users: []string{"testUser"},
+		DatabaseUsers: []string{"testUser"},
 	}}, leafResponse.Resources[0])
+}
+
+func TestUnifiedResourcesListWildcardDatabaseUsers(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}
+
+	database, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "testDb",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "localhost",
+		HostID:   uuid.New().String(),
+		Database: &types.DatabaseV3{
+			Spec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+			Metadata: types.Metadata{Name: "testDb"},
+		},
+	})
+	require.NoError(t, err)
+
+	response, err := List(ctx, cluster, &mockClientWithWildcardUsers{
+		paginatedResources: []*proto.PaginatedResource{
+			{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}},
+		},
+	}, &proto.ListUnifiedResourcesRequest{})
+	require.NoError(t, err)
+	require.Len(t, response.Resources, 1)
+
+	db := response.Resources[0].Database
+	require.NotNil(t, db)
+	require.Nil(t, db.AutoUserProvisioning)
+	require.Equal(t, []string{"*"}, db.DatabaseUsers)
 }
 
 type mockClient struct {
@@ -248,5 +283,32 @@ func (m *mockClient) GetCurrentUserRoles(ctx context.Context) ([]types.Role, err
 }
 
 func (m *mockClient) GetCurrentUser(ctx context.Context) (types.User, error) {
+	return types.NewUser("testUser")
+}
+
+type mockClientWithWildcardUsers struct {
+	paginatedResources []*proto.PaginatedResource
+}
+
+func (m *mockClientWithWildcardUsers) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	return &proto.ListUnifiedResourcesResponse{
+		Resources: m.paginatedResources,
+	}, nil
+}
+
+func (m *mockClientWithWildcardUsers) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
+	role, err := types.NewRole("wildcard-db-user", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseUsers:  []string{types.Wildcard},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []types.Role{role}, nil
+}
+
+func (m *mockClientWithWildcardUsers) GetCurrentUser(ctx context.Context) (types.User, error) {
 	return types.NewUser("testUser")
 }

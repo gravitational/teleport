@@ -68,7 +68,7 @@ import {
   setUpAppGateway,
 } from 'teleterm/ui/services/workspacesService';
 import { IAppContext } from 'teleterm/ui/types';
-import { DatabaseUri, routing } from 'teleterm/ui/uri';
+import { routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
 
@@ -215,12 +215,7 @@ export function ConnectDatabaseActionButton(props: {
 }): React.JSX.Element {
   const appContext = useAppContext();
 
-  const serverUsers = props.database.users;
-  const loginItems = serverUsers
-    ? serverUsers
-        .filter(user => user !== '*')
-        .map(user => ({ login: user, url: '' }))
-    : [];
+  const serverUsers = props.database.databaseUsers;
   const hasWildcardUsers = hasWildcard(serverUsers ?? []);
 
   function connect(dbUser: string): void {
@@ -246,10 +241,7 @@ export function ConnectDatabaseActionButton(props: {
       <ButtonBorder
         size="small"
         onClick={async () => {
-          //TODO(nibrasohin): Remove this once we have servers on Teleport v20 or higher.
-          const dbUsers = serverUsers
-            ? loginItems
-            : await getDatabaseUsers(appContext, props.database.uri);
+          const dbUsers = await getDatabaseUsers(appContext, props.database);
           const autoProvisionedDbUser = dbUsers?.[0]?.login ?? '';
           connect(autoProvisionedDbUser);
         }}
@@ -265,23 +257,18 @@ export function ConnectDatabaseActionButton(props: {
     <MenuLogin
       {...getDatabaseMenuLoginOptions(
         props.database.protocol as GatewayProtocol,
-        serverUsers
+        serverUsers ?? []
       )}
       inputType={
-        loginItems.length > 0 && !hasWildcardUsers
+        (serverUsers ?? []).filter(user => user !== '*').length > 0 &&
+        !hasWildcardUsers
           ? MenuInputType.FILTER
           : MenuInputType.INPUT
       }
       textTransform="none"
       width="195px"
       buttonWidth={buttonWidth}
-      getLoginItems={() => {
-        if (serverUsers) {
-          return loginItems;
-        }
-        //TODO(nibrasohin): Remove this once we have servers on Teleport v20 or higher.
-        return getDatabaseUsers(appContext, props.database.uri);
-      }}
+      getLoginItems={() => getDatabaseUsers(appContext, props.database)}
       onSelect={(_, user) => {
         connect(user);
       }}
@@ -311,18 +298,25 @@ function getDatabaseMenuLoginOptions(
       required: false,
     };
   }
-
-  const placeholder =
-    users.length > 0 && !hasWildcard(users)
-      ? 'Search by username'
-      : 'Enter username';
-  return { placeholder, required: true };
+  let placeholder = 'Enter username';
+  if (users.length === 0) {
+    placeholder = 'No database users found';
+  } else if (!hasWildcard(users)) {
+    placeholder = 'Search by username';
+  }
+  return { placeholder, required: users.length > 0 };
 }
 
-async function getDatabaseUsers(appContext: IAppContext, dbUri: DatabaseUri) {
+async function getDatabaseUsers(appContext: IAppContext, database: Database) {
+  //TODO(nibrasohin): Remove this once we have servers on Teleport v20 or higher.
+  if (database.databaseUsers) {
+    return database.databaseUsers
+      .filter(user => user !== '*')
+      .map(user => ({ login: user, url: '' }));
+  }
   try {
-    const dbUsers = await retryWithRelogin(appContext, dbUri, () =>
-      appContext.resourcesService.getDbUsers(dbUri)
+    const dbUsers = await retryWithRelogin(appContext, database.uri, () =>
+      appContext.resourcesService.getDbUsers(database.uri)
     );
     return dbUsers.map(user => ({ login: user, url: '' }));
   } catch (e) {

@@ -54,8 +54,8 @@ type Database struct {
 	TargetHealth types.TargetHealth
 	// AutoUserProvisioning contains auto-user provisioning information.
 	AutoUserProvisioning *AutoUserProvisioning
-	// Users is a list of allowed database users that Teleport RBAC permits the user to connect as.
-	Users []string
+	// DatabaseUsers is a list of allowed database users that Teleport RBAC permits the user to connect as.
+	DatabaseUsers []string
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal

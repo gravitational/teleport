@@ -97,7 +97,7 @@ func newAPIDatabase(db clusters.Database) *api.Database {
 			Message: db.TargetHealth.Message,
 		},
 		GcpProjectId:         gcpProjectID,
-		Users:                db.Users,
+		DatabaseUsers:        db.DatabaseUsers,
 		AutoUserProvisioning: autoUserProvisioning,
 	}
 }
