@@ -52,7 +52,6 @@ spec:
                 description: TraitsMap is a map of trait keys to lists of predicate
                   expressions which should evaluate to the desired values for that
                   trait.
-                nullable: true
                 type: object
             type: object
           status:

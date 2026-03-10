@@ -371,8 +371,30 @@ func (generator *SchemaGenerator) prop(field *Field) (apiextv1.JSONSchemaProps, 
 		return prop, nil
 	}
 
+	// maps should be represented in OpenAPI objects with additionalProperties describing the value. The key is always
+	// a string in JSON/YAML, so we only need to generate the schema for the map's value type.
+	if field.IsMap() {
+		prop.Type = "object"
+		mapMsg := field.TypeMessage()
+		if mapMsg == nil {
+			return prop, trace.Errorf("failed to get map entry type for %s.%s", field.Message().Name(), field.Name())
+		}
+		valueField, ok := mapMsg.GetField("value")
+		if !ok {
+			return prop, trace.Errorf("failed to get map value field for %s.%s", field.Message().Name(), field.Name())
+		}
+		valueSchema := &apiextv1.JSONSchemaProps{}
+		if err := generator.singularProp(valueField, valueSchema); err != nil {
+			return prop, trace.Wrap(err)
+		}
+		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
+			Schema: valueSchema,
+		}
+		return prop, nil
+	}
+
 	// Regular treatment
-	if field.IsRepeated() && !field.IsMap() {
+	if field.IsRepeated() {
 		prop.Type = "array"
 		prop.Items = &apiextv1.JSONSchemaPropsOrArray{
 			Schema: &apiextv1.JSONSchemaProps{},
@@ -438,14 +460,6 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 		prop.Type = "object"
 		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
 			Allows: true,
-		}
-	case strings.HasSuffix(field.TypeName(), ".v1.LoginRule.TraitsMapEntry"):
-		prop.Type = "object"
-		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
-			Schema: &apiextv1.JSONSchemaProps{
-				Type:  "array",
-				Items: &apiextv1.JSONSchemaPropsOrArray{Schema: &apiextv1.JSONSchemaProps{Type: "string"}},
-			},
 		}
 	case field.IsMessage():
 		inner := field.TypeMessage()
