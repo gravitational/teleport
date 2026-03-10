@@ -113,7 +113,7 @@ The Scope Admin can then create the Scoped Bot. To do so, they must specify:
 - A name for the Scoped Bot. This name must be unique globally within the
   cluster, across both scoped and unscoped bots.
 - The scope that the Scoped Bot should exist within. This must be a scope, or a 
-  subscope of a scope, that they have permission to create Scoped Bots within.
+  descendent of a scope, that they have permission to create Scoped Bots within.
 
 Notably, at this stage, they do not specify roles as they would do with an
 unscoped Bot. It is not possible to create a Scoped Bot with unscoped Roles.
@@ -1075,7 +1075,7 @@ We propose that to relax these controls, the following new controls would likely
 need to be introduced:
 
 - A global, cluster-wide enablement of cross-scope privileges for scoped Bots.
-  This derisks the introduction of this functionality causing a regression in
+  This de-risks the introduction of this functionality causing a regression in
   the isolation of scopes for users who do not wish to leverage it. After a 
   sufficient period of testing, it may be appropriate to enable this by default.
 - Limit the effect of scoped Bot traits to the Bot's scope of origin.
