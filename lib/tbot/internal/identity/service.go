@@ -544,6 +544,16 @@ func renewIdentity(
 		return newIdentity, nil
 	}
 
+	leeway := cfg.Leeway
+	if leeway >= cfg.TTL {
+		log.WarnContext(ctx, "leeway is greater than credential lifetime and "+
+			"will be ignored, be aware of potential failures due to clock drift",
+			"credential_ttl", cfg.TTL,
+			"configured_leeway", cfg.Leeway,
+		)
+		leeway = 0
+	}
+
 	// Note: This simple expiration check is probably not the best possible
 	// solution to determine when to discard an existing identity: the client
 	// could have severe clock drift, or there could be non-expiry related
