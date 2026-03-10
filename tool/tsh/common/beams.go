@@ -149,6 +149,33 @@ func onBeamsList(cf *CLIConf) error {
 	return nil
 }
 
+func onBeamsDelete(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc.AllowHeadless = true
+
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		_, err = clusterClient.AuthClient.BeamsServiceClient().DeleteBeam(cf.Context, &beamsv1.DeleteBeamRequest{
+			BeamId: cf.BeamID,
+		})
+		return trace.Wrap(err)
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(cf.Stdout(), "Deleted beam %q\n", cf.BeamID)
+	return nil
+}
+
 func onBeamsAllow(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {

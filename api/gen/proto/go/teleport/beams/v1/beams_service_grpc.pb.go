@@ -36,6 +36,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	BeamsService_CreateBeam_FullMethodName  = "/teleport.beams.v1.BeamsService/CreateBeam"
 	BeamsService_GetBeam_FullMethodName     = "/teleport.beams.v1.BeamsService/GetBeam"
+	BeamsService_DeleteBeam_FullMethodName  = "/teleport.beams.v1.BeamsService/DeleteBeam"
 	BeamsService_ListBeams_FullMethodName   = "/teleport.beams.v1.BeamsService/ListBeams"
 	BeamsService_WatchBeam_FullMethodName   = "/teleport.beams.v1.BeamsService/WatchBeam"
 	BeamsService_AllowDomain_FullMethodName = "/teleport.beams.v1.BeamsService/AllowDomain"
@@ -53,6 +54,8 @@ type BeamsServiceClient interface {
 	CreateBeam(ctx context.Context, in *CreateBeamRequest, opts ...grpc.CallOption) (*Beam, error)
 	// GetBeam reads a beam.
 	GetBeam(ctx context.Context, in *GetBeamRequest, opts ...grpc.CallOption) (*Beam, error)
+	// DeleteBeam deletes a beam and its associated resources.
+	DeleteBeam(ctx context.Context, in *DeleteBeamRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ListBeams returns a page of beams.
 	ListBeams(ctx context.Context, in *ListBeamsRequest, opts ...grpc.CallOption) (*ListBeamsResponse, error)
 	// WatchBeam returns the current state of the beam, and streams changes (e.g.
@@ -89,6 +92,16 @@ func (c *beamsServiceClient) GetBeam(ctx context.Context, in *GetBeamRequest, op
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Beam)
 	err := c.cc.Invoke(ctx, BeamsService_GetBeam_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *beamsServiceClient) DeleteBeam(ctx context.Context, in *DeleteBeamRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, BeamsService_DeleteBeam_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -155,6 +168,8 @@ type BeamsServiceServer interface {
 	CreateBeam(context.Context, *CreateBeamRequest) (*Beam, error)
 	// GetBeam reads a beam.
 	GetBeam(context.Context, *GetBeamRequest) (*Beam, error)
+	// DeleteBeam deletes a beam and its associated resources.
+	DeleteBeam(context.Context, *DeleteBeamRequest) (*emptypb.Empty, error)
 	// ListBeams returns a page of beams.
 	ListBeams(context.Context, *ListBeamsRequest) (*ListBeamsResponse, error)
 	// WatchBeam returns the current state of the beam, and streams changes (e.g.
@@ -182,6 +197,9 @@ func (UnimplementedBeamsServiceServer) CreateBeam(context.Context, *CreateBeamRe
 }
 func (UnimplementedBeamsServiceServer) GetBeam(context.Context, *GetBeamRequest) (*Beam, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBeam not implemented")
+}
+func (UnimplementedBeamsServiceServer) DeleteBeam(context.Context, *DeleteBeamRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteBeam not implemented")
 }
 func (UnimplementedBeamsServiceServer) ListBeams(context.Context, *ListBeamsRequest) (*ListBeamsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListBeams not implemented")
@@ -248,6 +266,24 @@ func _BeamsService_GetBeam_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(BeamsServiceServer).GetBeam(ctx, req.(*GetBeamRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BeamsService_DeleteBeam_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteBeamRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BeamsServiceServer).DeleteBeam(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BeamsService_DeleteBeam_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BeamsServiceServer).DeleteBeam(ctx, req.(*DeleteBeamRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -331,6 +367,10 @@ var BeamsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetBeam",
 			Handler:    _BeamsService_GetBeam_Handler,
+		},
+		{
+			MethodName: "DeleteBeam",
+			Handler:    _BeamsService_DeleteBeam_Handler,
 		},
 		{
 			MethodName: "ListBeams",

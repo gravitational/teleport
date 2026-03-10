@@ -1058,6 +1058,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beamsExec.Arg("beam-id", "Beam ID to execute on.").Required().StringVar(&cf.BeamID)
 	beamsExec.Arg("command", "Command to execute on the beam.").Required().StringsVar(&cf.RemoteCommand)
 	beamsLS := beams.Command("ls", "List your beams.")
+	beamsRM := beams.Command("rm", "Delete an existing beam.")
+	beamsRM.Arg("beam-id", "Beam ID to delete.").Required().StringVar(&cf.BeamID)
 	beamsAllow := beams.Command("allow", "Allow a domain for an existing beam.")
 	beamsAllow.Arg("beam-id", "Beam ID to update.").Required().StringVar(&cf.BeamID)
 	beamsAllow.Flag("domain", "FQDN to allow for the beam (for example, api.example.com).").Required().StringVar(&cf.BeamDomain)
@@ -1829,6 +1831,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onBeamsExec(&cf)
 	case beamsLS.FullCommand():
 		err = onBeamsList(&cf)
+	case beamsRM.FullCommand():
+		err = onBeamsDelete(&cf)
 	case beamsAllow.FullCommand():
 		err = onBeamsAllow(&cf)
 	case beamsPublish.FullCommand():

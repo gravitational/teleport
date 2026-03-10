@@ -172,6 +172,52 @@ func (x *GetBeamRequest) GetBeamId() string {
 	return ""
 }
 
+// DeleteBeamRequest contains the parameters to DeleteBeam.
+type DeleteBeamRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// BeamID identifies the beam that will be deleted.
+	BeamId        string `protobuf:"bytes,1,opt,name=beam_id,json=beamId,proto3" json:"beam_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteBeamRequest) Reset() {
+	*x = DeleteBeamRequest{}
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteBeamRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteBeamRequest) ProtoMessage() {}
+
+func (x *DeleteBeamRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteBeamRequest.ProtoReflect.Descriptor instead.
+func (*DeleteBeamRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *DeleteBeamRequest) GetBeamId() string {
+	if x != nil {
+		return x.BeamId
+	}
+	return ""
+}
+
 // ListBeamsRequest contains the parameters to ListBeams.
 type ListBeamsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -187,7 +233,7 @@ type ListBeamsRequest struct {
 
 func (x *ListBeamsRequest) Reset() {
 	*x = ListBeamsRequest{}
-	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[2]
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -199,7 +245,7 @@ func (x *ListBeamsRequest) String() string {
 func (*ListBeamsRequest) ProtoMessage() {}
 
 func (x *ListBeamsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[2]
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -212,7 +258,7 @@ func (x *ListBeamsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBeamsRequest.ProtoReflect.Descriptor instead.
 func (*ListBeamsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{2}
+	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListBeamsRequest) GetPageSize() int32 {
@@ -243,7 +289,7 @@ type ListBeamsResponse struct {
 
 func (x *ListBeamsResponse) Reset() {
 	*x = ListBeamsResponse{}
-	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[3]
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -255,7 +301,7 @@ func (x *ListBeamsResponse) String() string {
 func (*ListBeamsResponse) ProtoMessage() {}
 
 func (x *ListBeamsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[3]
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -268,7 +314,7 @@ func (x *ListBeamsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBeamsResponse.ProtoReflect.Descriptor instead.
 func (*ListBeamsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{3}
+	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListBeamsResponse) GetBeams() []*Beam {
@@ -296,7 +342,7 @@ type WatchBeamRequest struct {
 
 func (x *WatchBeamRequest) Reset() {
 	*x = WatchBeamRequest{}
-	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[4]
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -308,7 +354,7 @@ func (x *WatchBeamRequest) String() string {
 func (*WatchBeamRequest) ProtoMessage() {}
 
 func (x *WatchBeamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[4]
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -321,7 +367,7 @@ func (x *WatchBeamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchBeamRequest.ProtoReflect.Descriptor instead.
 func (*WatchBeamRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{4}
+	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *WatchBeamRequest) GetId() string {
@@ -345,7 +391,7 @@ type AllowDomainRequest struct {
 
 func (x *AllowDomainRequest) Reset() {
 	*x = AllowDomainRequest{}
-	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[5]
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -357,7 +403,7 @@ func (x *AllowDomainRequest) String() string {
 func (*AllowDomainRequest) ProtoMessage() {}
 
 func (x *AllowDomainRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[5]
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -370,7 +416,7 @@ func (x *AllowDomainRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllowDomainRequest.ProtoReflect.Descriptor instead.
 func (*AllowDomainRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{5}
+	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *AllowDomainRequest) GetBeamId() string {
@@ -408,7 +454,7 @@ type PublishRequest struct {
 
 func (x *PublishRequest) Reset() {
 	*x = PublishRequest{}
-	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[6]
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -420,7 +466,7 @@ func (x *PublishRequest) String() string {
 func (*PublishRequest) ProtoMessage() {}
 
 func (x *PublishRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[6]
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -433,7 +479,7 @@ func (x *PublishRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishRequest.ProtoReflect.Descriptor instead.
 func (*PublishRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{6}
+	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *PublishRequest) GetBeamId() string {
@@ -468,7 +514,7 @@ type PublishResponse struct {
 
 func (x *PublishResponse) Reset() {
 	*x = PublishResponse{}
-	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[7]
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -480,7 +526,7 @@ func (x *PublishResponse) String() string {
 func (*PublishResponse) ProtoMessage() {}
 
 func (x *PublishResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[7]
+	mi := &file_teleport_beams_v1_beams_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -493,7 +539,7 @@ func (x *PublishResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishResponse.ProtoReflect.Descriptor instead.
 func (*PublishResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{7}
+	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *PublishResponse) GetAddr() string {
@@ -510,6 +556,8 @@ const file_teleport_beams_v1_beams_service_proto_rawDesc = "" +
 	"%teleport/beams/v1/beams_service.proto\x12\x11teleport.beams.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cteleport/beams/v1/beam.proto\"\x13\n" +
 	"\x11CreateBeamRequest\")\n" +
 	"\x0eGetBeamRequest\x12\x17\n" +
+	"\abeam_id\x18\x01 \x01(\tR\x06beamId\",\n" +
+	"\x11DeleteBeamRequest\x12\x17\n" +
 	"\abeam_id\x18\x01 \x01(\tR\x06beamId\"N\n" +
 	"\x10ListBeamsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
@@ -532,11 +580,13 @@ const file_teleport_beams_v1_beams_service_proto_rawDesc = "" +
 	"\bProtocol\x12\x18\n" +
 	"\x14PROTOCOL_UNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fPROTOCOL_TCP\x10\x01\x12\x11\n" +
-	"\rPROTOCOL_HTTP\x10\x022\xe7\x03\n" +
+	"\rPROTOCOL_HTTP\x10\x022\xb3\x04\n" +
 	"\fBeamsService\x12K\n" +
 	"\n" +
 	"CreateBeam\x12$.teleport.beams.v1.CreateBeamRequest\x1a\x17.teleport.beams.v1.Beam\x12E\n" +
-	"\aGetBeam\x12!.teleport.beams.v1.GetBeamRequest\x1a\x17.teleport.beams.v1.Beam\x12V\n" +
+	"\aGetBeam\x12!.teleport.beams.v1.GetBeamRequest\x1a\x17.teleport.beams.v1.Beam\x12J\n" +
+	"\n" +
+	"DeleteBeam\x12$.teleport.beams.v1.DeleteBeamRequest\x1a\x16.google.protobuf.Empty\x12V\n" +
 	"\tListBeams\x12#.teleport.beams.v1.ListBeamsRequest\x1a$.teleport.beams.v1.ListBeamsResponse\x12K\n" +
 	"\tWatchBeam\x12#.teleport.beams.v1.WatchBeamRequest\x1a\x17.teleport.beams.v1.Beam0\x01\x12L\n" +
 	"\vAllowDomain\x12%.teleport.beams.v1.AllowDomainRequest\x1a\x16.google.protobuf.Empty\x12P\n" +
@@ -555,37 +605,40 @@ func file_teleport_beams_v1_beams_service_proto_rawDescGZIP() []byte {
 }
 
 var file_teleport_beams_v1_beams_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_beams_v1_beams_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_teleport_beams_v1_beams_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_beams_v1_beams_service_proto_goTypes = []any{
 	(Protocol)(0),              // 0: teleport.beams.v1.Protocol
 	(*CreateBeamRequest)(nil),  // 1: teleport.beams.v1.CreateBeamRequest
 	(*GetBeamRequest)(nil),     // 2: teleport.beams.v1.GetBeamRequest
-	(*ListBeamsRequest)(nil),   // 3: teleport.beams.v1.ListBeamsRequest
-	(*ListBeamsResponse)(nil),  // 4: teleport.beams.v1.ListBeamsResponse
-	(*WatchBeamRequest)(nil),   // 5: teleport.beams.v1.WatchBeamRequest
-	(*AllowDomainRequest)(nil), // 6: teleport.beams.v1.AllowDomainRequest
-	(*PublishRequest)(nil),     // 7: teleport.beams.v1.PublishRequest
-	(*PublishResponse)(nil),    // 8: teleport.beams.v1.PublishResponse
-	(*Beam)(nil),               // 9: teleport.beams.v1.Beam
-	(*emptypb.Empty)(nil),      // 10: google.protobuf.Empty
+	(*DeleteBeamRequest)(nil),  // 3: teleport.beams.v1.DeleteBeamRequest
+	(*ListBeamsRequest)(nil),   // 4: teleport.beams.v1.ListBeamsRequest
+	(*ListBeamsResponse)(nil),  // 5: teleport.beams.v1.ListBeamsResponse
+	(*WatchBeamRequest)(nil),   // 6: teleport.beams.v1.WatchBeamRequest
+	(*AllowDomainRequest)(nil), // 7: teleport.beams.v1.AllowDomainRequest
+	(*PublishRequest)(nil),     // 8: teleport.beams.v1.PublishRequest
+	(*PublishResponse)(nil),    // 9: teleport.beams.v1.PublishResponse
+	(*Beam)(nil),               // 10: teleport.beams.v1.Beam
+	(*emptypb.Empty)(nil),      // 11: google.protobuf.Empty
 }
 var file_teleport_beams_v1_beams_service_proto_depIdxs = []int32{
-	9,  // 0: teleport.beams.v1.ListBeamsResponse.beams:type_name -> teleport.beams.v1.Beam
+	10, // 0: teleport.beams.v1.ListBeamsResponse.beams:type_name -> teleport.beams.v1.Beam
 	0,  // 1: teleport.beams.v1.PublishRequest.protocol:type_name -> teleport.beams.v1.Protocol
 	1,  // 2: teleport.beams.v1.BeamsService.CreateBeam:input_type -> teleport.beams.v1.CreateBeamRequest
 	2,  // 3: teleport.beams.v1.BeamsService.GetBeam:input_type -> teleport.beams.v1.GetBeamRequest
-	3,  // 4: teleport.beams.v1.BeamsService.ListBeams:input_type -> teleport.beams.v1.ListBeamsRequest
-	5,  // 5: teleport.beams.v1.BeamsService.WatchBeam:input_type -> teleport.beams.v1.WatchBeamRequest
-	6,  // 6: teleport.beams.v1.BeamsService.AllowDomain:input_type -> teleport.beams.v1.AllowDomainRequest
-	7,  // 7: teleport.beams.v1.BeamsService.Publish:input_type -> teleport.beams.v1.PublishRequest
-	9,  // 8: teleport.beams.v1.BeamsService.CreateBeam:output_type -> teleport.beams.v1.Beam
-	9,  // 9: teleport.beams.v1.BeamsService.GetBeam:output_type -> teleport.beams.v1.Beam
-	4,  // 10: teleport.beams.v1.BeamsService.ListBeams:output_type -> teleport.beams.v1.ListBeamsResponse
-	9,  // 11: teleport.beams.v1.BeamsService.WatchBeam:output_type -> teleport.beams.v1.Beam
-	10, // 12: teleport.beams.v1.BeamsService.AllowDomain:output_type -> google.protobuf.Empty
-	8,  // 13: teleport.beams.v1.BeamsService.Publish:output_type -> teleport.beams.v1.PublishResponse
-	8,  // [8:14] is the sub-list for method output_type
-	2,  // [2:8] is the sub-list for method input_type
+	3,  // 4: teleport.beams.v1.BeamsService.DeleteBeam:input_type -> teleport.beams.v1.DeleteBeamRequest
+	4,  // 5: teleport.beams.v1.BeamsService.ListBeams:input_type -> teleport.beams.v1.ListBeamsRequest
+	6,  // 6: teleport.beams.v1.BeamsService.WatchBeam:input_type -> teleport.beams.v1.WatchBeamRequest
+	7,  // 7: teleport.beams.v1.BeamsService.AllowDomain:input_type -> teleport.beams.v1.AllowDomainRequest
+	8,  // 8: teleport.beams.v1.BeamsService.Publish:input_type -> teleport.beams.v1.PublishRequest
+	10, // 9: teleport.beams.v1.BeamsService.CreateBeam:output_type -> teleport.beams.v1.Beam
+	10, // 10: teleport.beams.v1.BeamsService.GetBeam:output_type -> teleport.beams.v1.Beam
+	11, // 11: teleport.beams.v1.BeamsService.DeleteBeam:output_type -> google.protobuf.Empty
+	5,  // 12: teleport.beams.v1.BeamsService.ListBeams:output_type -> teleport.beams.v1.ListBeamsResponse
+	10, // 13: teleport.beams.v1.BeamsService.WatchBeam:output_type -> teleport.beams.v1.Beam
+	11, // 14: teleport.beams.v1.BeamsService.AllowDomain:output_type -> google.protobuf.Empty
+	9,  // 15: teleport.beams.v1.BeamsService.Publish:output_type -> teleport.beams.v1.PublishResponse
+	9,  // [9:16] is the sub-list for method output_type
+	2,  // [2:9] is the sub-list for method input_type
 	2,  // [2:2] is the sub-list for extension type_name
 	2,  // [2:2] is the sub-list for extension extendee
 	0,  // [0:2] is the sub-list for field type_name
@@ -603,7 +656,7 @@ func file_teleport_beams_v1_beams_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beams_service_proto_rawDesc), len(file_teleport_beams_v1_beams_service_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

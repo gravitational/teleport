@@ -30,6 +30,9 @@ service BeamsService {
   // GetBeam reads a beam.
   rpc GetBeam(GetBeamRequest) returns (Beam);
 
+  // DeleteBeam deletes a beam and its associated resources.
+  rpc DeleteBeam(DeleteBeamRequest) returns (google.protobuf.Empty);
+
   // ListBeams returns a page of beams.
   rpc ListBeams(ListBeamsRequest) returns (ListBeamsResponse);
 
@@ -53,6 +56,12 @@ message CreateBeamRequest {}
 // GetBeamRequest contains the parameters to GetBeam.
 message GetBeamRequest {
   // BeamID identifies the beam that will be read.
+  string beam_id = 1;
+}
+
+// DeleteBeamRequest contains the parameters to DeleteBeam.
+message DeleteBeamRequest {
+  // BeamID identifies the beam that will be deleted.
   string beam_id = 1;
 }
 
