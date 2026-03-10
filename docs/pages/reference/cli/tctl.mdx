@@ -6,6 +6,8 @@ tags:
   - reference
   - platform-wide
 ---
+{/*GENERATED FILE. DO NOT EDIT.*/}
+{/*To generate, run: make cli-docs-tctl*/}
 {/*vale messaging = NO*/}
 
 This guide provides a comprehensive list of commands, arguments, and flags for
@@ -78,6 +80,52 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--format`|`yaml`|Output format, 'yaml', 'json', or 'text'|
+|`--[no-]review-only`|`false`|List only access lists that are due for review within the next 2 weeks or past due|
+
+## tctl acl reviews create
+
+Submit a new review for a given access list.
+
+Usage:
+
+```code
+$ tctl acl reviews create [<flags>] <access-list-name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--notes`|none|Optional review notes.|
+|`--remove-members`|none|Comma-separated list of members to remove as part of this review.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|access-list-name|none (required)|The access list name to submit review for.|
+
+## tctl acl reviews ls
+
+List past audit history for a given access list.
+
+Usage:
+
+```code
+$ tctl acl reviews ls [<flags>] <access-list-name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text`|Output format 'yaml', 'json', or 'text'|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|access-list-name|none (required)|The access list name to fetch review history for.|
 
 ## tctl acl users add
 
@@ -201,6 +249,22 @@ Arguments:
 |Argument|Default|Description|
 |---|---|---|
 |message|none (required)|Alert body message.|
+
+## tctl alerts delete
+
+Deletes a cluster alert.
+
+Usage:
+
+```code
+$ tctl alerts delete <id>
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|id|none (required)|The cluster alert ID.|
 
 ## tctl alerts list
 
@@ -467,7 +531,7 @@ Flags:
 |`--[no-]interactive`|`false`|Enable interactive mode|
 |`--[no-]manual`|`false`|Activate manual rotation, set rotation phases manually|
 |`--phase`|none|Target rotation phase to set, used in manual rotation, one of: init, standby, update_clients, update_servers, rollback|
-|`--type`|none|Certificate authority to rotate, one of: host, user, db, db_client, openssh, jwt, saml_idp, oidc_idp, spiffe, okta, awsra, bound_keypair|
+|`--type`|none|Certificate authority to rotate, one of: host, windows, user, db, db_client, openssh, jwt, saml_idp, oidc_idp, spiffe, okta, awsra, bound_keypair|
 
 ## tctl auth sign
 
@@ -644,7 +708,7 @@ Arguments:
 
 ## tctl bots add
 
-Add a new certificate renewal bot to the cluster.
+Add a new bot to the cluster.
 
 Usage:
 
@@ -656,11 +720,17 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--format`|`text`|Output format, one of: text, json|
+|`--initial-public-key`|none|If set, use the given initial public key in SSH authorized_keys format, instead of generating a registration secret. The value must be quoted. Not compatible with --token or --legacy.|
 |`--logins`|none|List of allowed SSH logins for the bot user|
 |`--max-session-ttl`|none|Set a max session TTL for the bot's internal identity. 12h default, 168h maximum.|
+|`--[no-]legacy`|`false`|If set, generate a legacy joining token instead of a bound keypair token. No effect if --token is set.|
+|`--recovery-limit`|none|Overrides the recovery limit (default: 1) for the bound keypair token. No effect if --token or --legacy is set, or if --recovery-mode is not standard. Must be greater than 1.|
+|`--recovery-mode`|`standard`|If set, overrides the recovery mode for the bound keypair token. No effect if --token or --legacy is set.|
+|`--registration-secret`|none|Sets a registration secret for the bound keypair token. If not set, one will be randomly generated. No effect if --initial-public-key, --token, or --legacy is set. |
 |`--roles`|none|Roles the bot is able to assume.|
-|`--token`|none|Name of an existing token to use.|
-|`--ttl`|none|TTL for the bot join token.|
+|`--token`|none|The token to use, if any. If unset, a new single-use token will be created.|
+|`--ttl`|`1h0m0s`|TTL for the bot join token. For standard bound keypair tokens, this sets must_register_before; for legacy tokens, this sets the resource TTL.|
 
 Arguments:
 
@@ -683,7 +753,13 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--format`|`text`|Output format, one of: text, json|
-|`--token`|none|The token to use, if any. If unset, a new one-time-use token will be created.|
+|`--initial-public-key`|none|If set, use the given initial public key in SSH authorized_keys format, instead of generating a registration secret. The value must be quoted. Not compatible with --token or --legacy.|
+|`--[no-]legacy`|`false`|If set, generate a legacy joining token instead of a bound keypair token. No effect if --token is set.|
+|`--recovery-limit`|none|Overrides the recovery limit (default: 1) for the bound keypair token. No effect if --token or --legacy is set, or if --recovery-mode is not standard. Must be greater than 1.|
+|`--recovery-mode`|`standard`|If set, overrides the recovery mode for the bound keypair token. No effect if --token or --legacy is set.|
+|`--registration-secret`|none|Sets a registration secret for the bound keypair token. If not set, one will be randomly generated. No effect if --initial-public-key, --token, or --legacy is set. |
+|`--token`|none|The token to use, if any. If unset, a new single-use token will be created.|
+|`--ttl`|`1h0m0s`|TTL for the bot join token. For standard bound keypair tokens, this sets must_register_before; for legacy tokens, this sets the resource TTL.|
 
 Arguments:
 
@@ -1818,7 +1894,7 @@ Arguments:
 
 ## tctl scoped status
 
-Show the status of scoped resources
+Show the status of scoped resources.
 
 Usage:
 
@@ -1842,9 +1918,11 @@ Flags:
 |---|---|---|
 |`--assign-scope`|none|Scope that should be applied to resources provisioned by this token|
 |`--format`|none|Output format, 'text', 'json', or 'yaml'|
+|`--labels`|none|Set token labels, e.g. env=prod,region=us-west|
 |`--mode`|none|Usage mode of a token (default: unlimited, single_use)|
 |`--name`|none|Override the default, randomly generated token name with a specified name|
 |`--scope`|none|Scope assigned to the token itself|
+|`--ssh-labels`|none|Set immutable ssh labels the token should assign to provisioned resources, e.g. env=prod,region=us-west|
 |`--ttl`|`30m0s`|Set expiration time for token, default is 30 minutes|
 |`--type`|none|Type(s) of token to add, e.g. --type=node|
 
