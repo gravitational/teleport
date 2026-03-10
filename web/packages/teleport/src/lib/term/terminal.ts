@@ -17,7 +17,6 @@
  */
 
 import '@xterm/xterm/css/xterm.css';
-
 import { CanvasAddon } from '@xterm/addon-canvas';
 import { FitAddon } from '@xterm/addon-fit';
 import { ImageAddon } from '@xterm/addon-image';
