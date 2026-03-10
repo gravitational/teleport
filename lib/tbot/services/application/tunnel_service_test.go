@@ -204,8 +204,6 @@ func TestE2E_ApplicationTunnelService_Leeway(t *testing.T) {
 		t.TempDir(),
 		defaultTestServerOpts(log),
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
-			//cfg.Clock = clock
-
 			cfg.Apps.Enabled = true
 			cfg.Apps.Apps = []servicecfg.App{
 				{
