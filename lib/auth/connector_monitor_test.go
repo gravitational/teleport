@@ -129,19 +129,15 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		createdConnector, err := srv.Auth().Services.CreateSAMLConnector(ctx, connector)
+		initialConnector, err := srv.Auth().CreateSAMLConnector(ctx, connector)
 		require.NoError(t, err)
 		t.Cleanup(func() {
-			require.NoError(t, srv.Auth().Services.DeleteSAMLConnector(context.Background(), connector.GetName()))
-			if err := srv.Auth().DeleteClusterAlert(
-				context.Background(), auth.SAMLCertExpiryAlertName,
+			if err := srv.Auth().DeleteSAMLConnector(
+				context.Background(), connector.GetName(),
 			); err != nil && !trace.IsNotFound(err) {
 				require.NoError(t, err)
 			}
 		})
-
-		err = srv.Auth().CheckSAMLCertExpiry(ctx)
-		require.NoError(t, err)
 
 		alerts, err := srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 			AlertID: auth.SAMLCertExpiryAlertName,
@@ -151,20 +147,35 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 		require.Equal(t, types.AlertSeverity_MEDIUM, alerts[0].Spec.Severity)
 		require.Equal(t, fmt.Sprintf("%s:%s", types.KindSAML, types.VerbRead), alerts[0].GetAllLabels()[types.AlertVerbPermit])
 		require.Equal(t, "yes", alerts[0].GetAllLabels()[types.AlertOnLogin])
+		require.Contains(t, alerts[0].Spec.Message, initialConnector.GetName())
 
-		require.Contains(t, alerts[0].Spec.Message, createdConnector.GetName())
+		initialConnector.SetEntityDescriptor(createTestEntityDescriptor(t, []time.Duration{rotatedTTL}))
 
-		createdConnector.SetEntityDescriptor(createTestEntityDescriptor(t, []time.Duration{rotatedTTL}))
-
-		_, err = srv.Auth().Services.UpdateSAMLConnector(ctx, createdConnector)
-		require.NoError(t, err)
-		err = srv.Auth().CheckSAMLCertExpiry(ctx)
+		rotatedConnector, err := srv.Auth().UpdateSAMLConnector(ctx, initialConnector)
 		require.NoError(t, err)
 
 		alerts, err = srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 			AlertID: auth.SAMLCertExpiryAlertName,
 		})
+		require.NoError(t, err)
+		require.Empty(t, alerts)
 
+		rotatedConnector.SetEntityDescriptor(createTestEntityDescriptor(t, []time.Duration{initialTTL}))
+
+		updatedConnector, err := srv.Auth().UpdateSAMLConnector(ctx, rotatedConnector)
+		require.NoError(t, err)
+
+		alerts, err = srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+			AlertID: auth.SAMLCertExpiryAlertName,
+		})
+		require.NoError(t, err)
+		require.Len(t, alerts, 1)
+
+		require.NoError(t, srv.Auth().DeleteSAMLConnector(ctx, updatedConnector.GetName()))
+
+		alerts, err = srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+			AlertID: auth.SAMLCertExpiryAlertName,
+		})
 		require.NoError(t, err)
 		require.Empty(t, alerts)
 	})
