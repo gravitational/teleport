@@ -21,9 +21,6 @@ package services
 import (
 	"context"
 	"crypto/x509/pkix"
-	"encoding/base64"
-	"encoding/pem"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -35,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services/samltest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -406,7 +404,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 			var entityDescriptor string
 			// Absence of ttls signals to generate an invalid entity descriptor.
 			if tc.edTTLs != nil {
-				entityDescriptor = createTestEntityDescriptor(t, tc.edTTLs)
+				entityDescriptor = samltest.CreateTestEntityDescriptor(t, tc.edTTLs)
 			} else {
 				entityDescriptor = "invalid entity descriptor"
 			}
@@ -431,26 +429,4 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 			tc.assertErr(t, err)
 		})
 	}
-}
-
-func createTestEntityDescriptor(t *testing.T, ttls []time.Duration) string {
-	t.Helper()
-
-	var certs []string
-
-	for _, ttl := range ttls {
-		_, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{}, nil, ttl)
-		require.NoError(t, err)
-
-		block, _ := pem.Decode(certPEM)
-		certs = append(certs, fmt.Sprintf(
-			`<md:KeyDescriptor use="signing"><ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:X509Data><ds:X509Certificate>%s</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>`,
-			base64.StdEncoding.EncodeToString(block.Bytes),
-		))
-	}
-
-	return fmt.Sprintf(
-		`<?xml version="1.0"?><md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="test"><md:IDPSSODescriptor>%s</md:IDPSSODescriptor></md:EntityDescriptor>`,
-		strings.Join(certs, ""),
-	)
 }

@@ -2,17 +2,13 @@ package auth_test
 
 import (
 	"context"
-	"crypto/x509/pkix"
-	"encoding/base64"
-	"encoding/pem"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/services/samltest"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -82,7 +78,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 			if len(tt.ttls) > 0 {
 				connector, err := types.NewSAMLConnector(fmt.Sprintf("test-connector-%d", i), types.SAMLConnectorSpecV2{
 					AssertionConsumerService: "https://localhost:65535/acs", // Not called.
-					EntityDescriptor:         createTestEntityDescriptor(t, tt.ttls),
+					EntityDescriptor:         samltest.CreateTestEntityDescriptor(t, tt.ttls),
 					SSO:                      "https://localhost.com/sso", // Not called.
 					AttributesToRoles: []types.AttributeMapping{
 						{Name: "group", Value: "devs", Roles: []string{"$1"}},
@@ -121,7 +117,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 
 		connector, err := types.NewSAMLConnector("test-connector-rotation", types.SAMLConnectorSpecV2{
 			AssertionConsumerService: "https://localhost:65535/acs", // Not called.
-			EntityDescriptor:         createTestEntityDescriptor(t, []time.Duration{initialTTL}),
+			EntityDescriptor:         samltest.CreateTestEntityDescriptor(t, []time.Duration{initialTTL}),
 			SSO:                      "https://localhost.com/sso", // Not called.
 			AttributesToRoles: []types.AttributeMapping{
 				{Name: "group", Value: "devs", Roles: []string{"$1"}},
@@ -149,7 +145,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 		require.Equal(t, "yes", alerts[0].GetAllLabels()[types.AlertOnLogin])
 		require.Contains(t, alerts[0].Spec.Message, initialConnector.GetName())
 
-		initialConnector.SetEntityDescriptor(createTestEntityDescriptor(t, []time.Duration{rotatedTTL}))
+		initialConnector.SetEntityDescriptor(samltest.CreateTestEntityDescriptor(t, []time.Duration{rotatedTTL}))
 
 		rotatedConnector, err := srv.Auth().UpdateSAMLConnector(ctx, initialConnector)
 		require.NoError(t, err)
@@ -160,7 +156,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, alerts)
 
-		rotatedConnector.SetEntityDescriptor(createTestEntityDescriptor(t, []time.Duration{initialTTL}))
+		rotatedConnector.SetEntityDescriptor(samltest.CreateTestEntityDescriptor(t, []time.Duration{initialTTL}))
 
 		updatedConnector, err := srv.Auth().UpdateSAMLConnector(ctx, rotatedConnector)
 		require.NoError(t, err)
@@ -179,26 +175,4 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, alerts)
 	})
-}
-
-func createTestEntityDescriptor(t *testing.T, ttls []time.Duration) string {
-	t.Helper()
-
-	var certs []string
-
-	for _, ttl := range ttls {
-		_, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{}, nil, ttl)
-		require.NoError(t, err)
-
-		block, _ := pem.Decode(certPEM)
-		certs = append(certs, fmt.Sprintf(
-			`<md:KeyDescriptor use="signing"><ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:X509Data><ds:X509Certificate>%s</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>`,
-			base64.StdEncoding.EncodeToString(block.Bytes),
-		))
-	}
-
-	return fmt.Sprintf(
-		`<?xml version="1.0"?><md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="test"><md:IDPSSODescriptor>%s</md:IDPSSODescriptor></md:EntityDescriptor>`,
-		strings.Join(certs, ""),
-	)
 }
