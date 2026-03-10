@@ -7,6 +7,7 @@ inputs:
       - api/proto/teleport/componentfeatures/
       - api/proto/teleport/legacy/
       - api/proto/teleport/mfa/v1/mfa.proto
+      - api/proto/teleport/mfa/v1/validated_challenge.proto
       - api/proto/teleport/usageevents/
       - proto/teleport/lib/web/terminal/envelope.proto
     exclude_paths:
