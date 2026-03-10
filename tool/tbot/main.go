@@ -61,6 +61,7 @@ resources in the same way your engineers do.`
 func Run(args []string, stdout io.Writer) error {
 	ctx := context.Background()
 
+	
 	var cpuProfile, memProfile, traceProfile, configureOutPath string
 
 	app := utils.InitCLIParser("tbot", appHelp).Interspersed(false)
