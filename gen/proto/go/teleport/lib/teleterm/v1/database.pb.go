@@ -304,7 +304,7 @@ var File_teleport_lib_teleterm_v1_database_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/lib/teleterm/v1/database.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\x1a,teleport/lib/teleterm/v1/target_health.proto\"\xcc\x03\n" +
+	"'teleport/lib/teleterm/v1/database.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\x1a,teleport/lib/teleterm/v1/target_health.proto\"\xdd\x03\n" +
 	"\bDatabase\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -317,8 +317,8 @@ const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
 	"\rtarget_health\x18\t \x01(\v2&.teleport.lib.teleterm.v1.TargetHealthR\ftargetHealth\x12$\n" +
 	"\x0egcp_project_id\x18\n" +
 	" \x01(\tR\fgcpProjectId\x12d\n" +
-	"\x16auto_user_provisioning\x18\v \x01(\v2..teleport.lib.teleterm.v1.AutoUserProvisioningR\x14autoUserProvisioning\x12\x14\n" +
-	"\x05users\x18\f \x03(\tR\x05users\"=\n" +
+	"\x16auto_user_provisioning\x18\v \x01(\v2..teleport.lib.teleterm.v1.AutoUserProvisioningR\x14autoUserProvisioning\x12%\n" +
+	"\x0edatabase_users\x18\f \x03(\tR\rdatabaseUsers\"=\n" +
 	"\x14AutoUserProvisioning\x12%\n" +
 	"\x0edatabase_roles\x18\x02 \x03(\tR\rdatabaseRoles\"\xa4\x01\n" +
 	"\x0eDatabaseServer\x12\x10\n" +

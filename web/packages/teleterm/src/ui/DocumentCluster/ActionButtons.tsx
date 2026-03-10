@@ -68,7 +68,7 @@ import {
   setUpAppGateway,
 } from 'teleterm/ui/services/workspacesService';
 import { IAppContext } from 'teleterm/ui/types';
-import { DatabaseUri, routing } from 'teleterm/ui/uri';
+import { routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
 
@@ -216,13 +216,9 @@ export function ConnectDatabaseActionButton(props: {
   const appContext = useAppContext();
   const { database } = props;
 
-  const loginItemsFromDb = database.databaseUsers
-    .filter(user => user !== '*')
-    .map(user => ({ login: user, url: '' }));
-  const hasLoginItems = loginItemsFromDb.length > 0;
   const hasWildcard = hasWildcardDbUsers(database.databaseUsers);
-
-  const shouldShowFilterInput = hasLoginItems && !hasWildcard;
+  const shouldShowFilterInput =
+    !hasWildcard && database.databaseUsers.length > 0;
 
   function connect(dbUser: string): void {
     const { uri, name, protocol, gcpProjectId, autoUserProvisioning } =
@@ -234,18 +230,12 @@ export function ConnectDatabaseActionButton(props: {
     );
   }
 
-  const getLoginItems = () =>
-    //TODO(nibrasohin): Remove the fallback once we have servers on Teleport v20 or higher.
-    hasLoginItems
-      ? loginItemsFromDb
-      : getDatabaseUsers(appContext, database.uri);
-
   if (database.autoUserProvisioning) {
     return (
       <ButtonBorder
         size="small"
         onClick={async () => {
-          const loginItems = await getLoginItems();
+          const loginItems = await getDatabaseUsers(appContext, database);
           connect(loginItems?.[0]?.login ?? '');
         }}
         textTransform="none"
@@ -269,7 +259,7 @@ export function ConnectDatabaseActionButton(props: {
       textTransform="none"
       width="195px"
       buttonWidth={buttonWidth}
-      getLoginItems={getLoginItems}
+      getLoginItems={() => getDatabaseUsers(appContext, database)}
       onSelect={(_, user) => connect(user)}
       transformOrigin={{
         vertical: 'top',
@@ -305,10 +295,16 @@ function getDatabaseMenuLoginOptions(
   return { placeholder, required: true };
 }
 
-async function getDatabaseUsers(appContext: IAppContext, dbUri: DatabaseUri) {
+async function getDatabaseUsers(appContext: IAppContext, database: Database) {
+  //TODO(nibrasohin): Remove the fallback once we have servers on Teleport v20 or higher.
+  if (database.databaseUsers.length > 0) {
+    return database.databaseUsers
+      .filter(user => user !== '*')
+      .map(user => ({ login: user, url: '' }));
+  }
   try {
-    const dbUsers = await retryWithRelogin(appContext, dbUri, () =>
-      appContext.resourcesService.getDbUsers(dbUri)
+    const dbUsers = await retryWithRelogin(appContext, database.uri, () =>
+      appContext.resourcesService.getDbUsers(database.uri)
     );
     return dbUsers.map(user => ({ login: user, url: '' }));
   } catch (e) {

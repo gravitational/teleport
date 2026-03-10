@@ -164,7 +164,7 @@ class Database$Type extends MessageType<Database> {
             { no: 9, name: "target_health", kind: "message", T: () => TargetHealth },
             { no: 10, name: "gcp_project_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 11, name: "auto_user_provisioning", kind: "message", T: () => AutoUserProvisioning },
-            { no: 12, name: "database_users", kind: "scalar", localName: "databaseUsers", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+            { no: 12, name: "database_users", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Database>): Database {
