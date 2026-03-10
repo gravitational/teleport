@@ -2933,6 +2933,71 @@ func TestAccessListDeletePrevention_MissingReferences(t *testing.T) {
 	)
 }
 
+// TestAccessListUpsertUpdateWithMembersValidation tests that Upsert/UpdateAccessListWithMembers validates that
+// all members in the list reference the correct AccessList.
+// This prevents cross-references between access lists, allowing validation to detect and reject
+// incorrectly linked members to another access list in the upsert request.
+func TestAccessListUpsertUpdateWithMembersValidation(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
+	mainAcl := createAccessList(t, service, "test-acl-"+uuid.NewString(), clock)
+	otherAcl := createAccessList(t, service, "test-acl-"+uuid.NewString(), clock)
+
+	t.Run("empty member access list name", func(t *testing.T) {
+		m := newAccessListMember(t, mainAcl.GetName(), "alice")
+		m.Spec.AccessList = ""
+		_, _, err = service.UpsertAccessListWithMembers(ctx, mainAcl, []*accesslist.AccessListMember{m})
+		require.True(t, trace.IsBadParameter(err))
+
+		_, _, err = service.UpdateAccessListAndOverwriteMembers(ctx, mainAcl, []*accesslist.AccessListMember{m})
+		require.True(t, trace.IsBadParameter(err))
+
+	})
+
+	t.Run("wrong m.Spec.AccessList ref should be rejected", func(t *testing.T) {
+		m := newAccessListMember(t, mainAcl.GetName(), "alice")
+		m.Spec.AccessList = otherAcl.GetName()
+		// The call is trying to changes in Main ACL, but the member is referencing other ACL, this should be
+		// validated and rejected, otherwise it can lead to cross-references vulnerability.
+		_, _, err = service.UpsertAccessListWithMembers(ctx, mainAcl, []*accesslist.AccessListMember{m})
+		require.True(t, trace.IsBadParameter(err))
+
+		_, _, err = service.UpdateAccessListAndOverwriteMembers(ctx, mainAcl, []*accesslist.AccessListMember{m})
+		require.True(t, trace.IsBadParameter(err))
+	})
+
+	t.Run("correct m.Spec.AccessList ref should succeed", func(t *testing.T) {
+		m := newAccessListMember(t, mainAcl.GetName(), "alice")
+		m.Spec.AccessList = mainAcl.GetName()
+		// the member correctly references the parent ACL, so the upsert call should succeed.
+		_, _, err = service.UpsertAccessListWithMembers(ctx, mainAcl, []*accesslist.AccessListMember{m})
+		require.NoError(t, err)
+	})
+
+	t.Run("mix of valid correct and incorrect references should be rejected", func(t *testing.T) {
+		m1 := newAccessListMember(t, mainAcl.GetName(), "alice")
+		m2 := newAccessListMember(t, mainAcl.GetName(), "bob")
+		m3 := newAccessListMember(t, mainAcl.GetName(), "charlie")
+
+		m2.Spec.AccessList = otherAcl.GetName()
+		// This call attempts to upsert/update three members to the main ACL, but m2 (bob) references otherAcl. Reject the entire request.
+		_, _, err = service.UpsertAccessListWithMembers(ctx, mainAcl, []*accesslist.AccessListMember{m1, m2, m3})
+		require.True(t, trace.IsBadParameter(err))
+
+		_, _, err = service.UpdateAccessListAndOverwriteMembers(ctx, mainAcl, []*accesslist.AccessListMember{m1, m2, m3})
+		require.True(t, trace.IsBadParameter(err))
+	})
+}
+
 func addListOwner(accessList, owner *accesslist.AccessList) {
 	accessList.Spec.Owners = append(accessList.Spec.Owners, accesslist.Owner{
 		Name:           owner.GetName(),

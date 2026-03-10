@@ -477,6 +477,11 @@ func (p *ProxyLine) getTeleportTLVs() (teleportTLVs, error) {
 					if err != nil {
 						return tlvs, trace.Wrap(err)
 					}
+					// If the source address was marked with a port of 0 to prevent IP Pinning,
+					// then the original address should also have a port of 0.
+					if p.Source.Port == 0 {
+						addr.Port = 0
+					}
 					tlvs.originalAddress = addr
 				}
 			}

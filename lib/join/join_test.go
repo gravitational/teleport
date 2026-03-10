@@ -528,7 +528,7 @@ func TestJoinError(t *testing.T) {
 		{
 			desc: "auth direct",
 			joinParams: joinclient.JoinParams{
-				AuthServers: []utils.NetAddr{utils.FromAddr(authService.TLS.Listener.Addr())},
+				AuthServers: []utils.NetAddr{utils.FromAddr(authService.TLS.Addr())},
 			},
 			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
 				// Should get AccessDenied and should not fall back to joining
@@ -680,7 +680,7 @@ func (p *fakeProxy) runGRPCServer(t *testing.T, l net.Listener) {
 
 	grpcCreds := credentials.NewTLS(tlsConfig)
 
-	authenticatedAuthClientConn, err := grpc.NewClient(p.auth.TLS.Listener.Addr().String(),
+	authenticatedAuthClientConn, err := grpc.NewClient(p.auth.TLS.Addr().String(),
 		grpc.WithTransportCredentials(grpcCreds),
 		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
 	)

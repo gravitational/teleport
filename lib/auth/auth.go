@@ -3018,6 +3018,7 @@ type GenerateUserTestCertsRequest struct {
 	Renewable               bool
 	Generation              uint64
 	ActiveRequests          []string
+	AllowedResourceIDs      []types.ResourceID
 	KubernetesCluster       string
 	Usage                   []string
 }
@@ -3036,6 +3037,10 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 		return nil, nil, trace.Wrap(err)
 	}
 	accessInfo := services.AccessInfoFromUserState(userState)
+	// Propagate AllowedResourceAccessIDs from the req, so AccessChecker
+	// doesn't fall back to role-based checks alone if resource-level restrictions
+	// are present on caller's identity.
+	accessInfo.AllowedResourceIDs = req.AllowedResourceIDs
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
