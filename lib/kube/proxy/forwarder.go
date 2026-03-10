@@ -43,6 +43,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/net/http/httpguts"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -2112,6 +2113,17 @@ func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, us
 	if len(impersonateGroups) == 0 {
 		for group := range kubeGroups {
 			impersonateGroups = append(impersonateGroups, group)
+		}
+	}
+	// Validate impersonateUser and impersonateGroups against HTTP header field value
+	// requirements to prevent header injection attacks.
+	// requirements in http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
+	if !httpguts.ValidHeaderFieldValue(impersonateUser) {
+		return "", nil, trace.BadParameter("invalid impersonated user header value: %q", impersonateUser)
+	}
+	for _, group := range impersonateGroups {
+		if !httpguts.ValidHeaderFieldValue(group) {
+			return "", nil, trace.BadParameter("invalid impersonated group header value: %q ", group)
 		}
 	}
 
