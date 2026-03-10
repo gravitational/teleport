@@ -13,7 +13,7 @@ func TestParseFilename(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, "terraform-provider", info.Type)
-		require.Equal(t, *semver.New("7.0.0"), info.Version)
+		require.Equal(t, semver.Version{Major: 7, Minor: 0, Patch: 0, PreRelease: "", Metadata: ""}, info.Version)
 		require.Equal(t, "darwin", info.OS)
 		require.Equal(t, "amd64", info.Arch)
 		require.Equal(t, "", info.Variant)
@@ -24,7 +24,7 @@ func TestParseFilename(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, "terraform-provider", info.Type)
-		require.Equal(t, *semver.New("13.0.0"), info.Version)
+		require.Equal(t, semver.Version{Major: 13, Minor: 0, Patch: 0, PreRelease: "", Metadata: ""}, info.Version)
 		require.Equal(t, "darwin", info.OS)
 		require.Equal(t, "amd64", info.Arch)
 		require.Equal(t, "", info.Variant)
@@ -35,7 +35,7 @@ func TestParseFilename(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, "terraform-provider", info.Type)
-		require.Equal(t, *semver.New("13.0.0"), info.Version)
+		require.Equal(t, semver.Version{Major: 13, Minor: 0, Patch: 0, PreRelease: "", Metadata: ""}, info.Version)
 		require.Equal(t, "darwin", info.OS)
 		require.Equal(t, "arm64", info.Arch)
 		require.Equal(t, "", info.Variant)
@@ -46,7 +46,7 @@ func TestParseFilename(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, "terraform-provider", info.Type)
-		require.Equal(t, *semver.New("13.0.0"), info.Version)
+		require.Equal(t, semver.Version{Major: 13, Minor: 0, Patch: 0, PreRelease: "", Metadata: ""}, info.Version)
 		require.Equal(t, "darwin", info.OS)
 		require.Equal(t, "amd64", info.Arch)
 		require.Equal(t, "mwi", info.Variant)
@@ -56,7 +56,7 @@ func TestParseFilename(t *testing.T) {
 		info, err := Parse("terraform-provider-teleport-v1.2.3-linux-arm-bin.tar.gz")
 		require.NoError(t, err)
 		require.Equal(t, "terraform-provider", info.Type)
-		require.Equal(t, *semver.New("1.2.3"), info.Version)
+		require.Equal(t, semver.Version{Major: 1, Minor: 2, Patch: 3, PreRelease: "", Metadata: ""}, info.Version)
 		require.Equal(t, "linux", info.OS)
 		require.Equal(t, "arm", info.Arch)
 		require.Equal(t, "", info.Variant)
@@ -71,7 +71,7 @@ func TestParseFilename(t *testing.T) {
 		info, err := Parse("terraform-provider-teleport-v1.2.3-beta.1-linux-arm-bin.tar.gz")
 		require.NoError(t, err)
 		require.Equal(t, "terraform-provider", info.Type)
-		require.Equal(t, *semver.New("1.2.3-beta.1"), info.Version)
+		require.Equal(t, semver.Version{Major: 1, Minor: 2, Patch: 3, PreRelease: "beta.1", Metadata: ""}, info.Version)
 		require.Equal(t, "linux", info.OS)
 		require.Equal(t, "arm", info.Arch)
 		require.Equal(t, "", info.Variant)
@@ -81,7 +81,7 @@ func TestParseFilename(t *testing.T) {
 		info, err := Parse("terraform-provider-teleport-v1.2.3+1-linux-arm-bin.tar.gz")
 		require.NoError(t, err)
 		require.Equal(t, "terraform-provider", info.Type)
-		require.Equal(t, *semver.New("1.2.3+1"), info.Version)
+		require.Equal(t, semver.Version{Major: 1, Minor: 2, Patch: 3, PreRelease: "", Metadata: "1"}, info.Version)
 		require.Equal(t, "linux", info.OS)
 		require.Equal(t, "arm", info.Arch)
 		require.Equal(t, "", info.Variant)
@@ -91,7 +91,7 @@ func TestParseFilename(t *testing.T) {
 		info, err := Parse("terraform-provider-teleport-v1.2.3-beta.1+42-linux-arm-bin.tar.gz")
 		require.NoError(t, err)
 		require.Equal(t, "terraform-provider", info.Type)
-		require.Equal(t, *semver.New("1.2.3-beta.1+42"), info.Version)
+		require.Equal(t, semver.Version{Major: 1, Minor: 2, Patch: 3, PreRelease: "beta.1", Metadata: "42"}, info.Version)
 		require.Equal(t, "linux", info.OS)
 		require.Equal(t, "arm", info.Arch)
 		require.Equal(t, "", info.Variant)
@@ -102,7 +102,7 @@ func TestParseFilename(t *testing.T) {
 		info, err := Parse("terraform-provider-teleportvariant-v1.23.0-very-new-feature-linux-amd64-bin.tar.gz")
 		require.NoError(t, err)
 		require.Equal(t, "terraform-provider", info.Type)
-		require.Equal(t, *semver.New("1.23.0-very-new-feature"), info.Version)
+		require.Equal(t, semver.Version{Major: 1, Minor: 23, Patch: 0, PreRelease: "very-new-feature", Metadata: ""}, info.Version)
 		require.Equal(t, "linux", info.OS)
 		require.Equal(t, "amd64", info.Arch)
 		require.Equal(t, "variant", info.Variant)
@@ -118,7 +118,7 @@ func TestGenerateFilename(t *testing.T) {
 	t.Run("no variant", func(t *testing.T) {
 		info := Info{
 			Type:    "some-plugin",
-			Version: *semver.New("1.2.3"),
+			Version: semver.Version{Major: 1, Minor: 2, Patch: 3},
 			OS:      "darwin",
 			Arch:    "amd64",
 		}
@@ -128,7 +128,7 @@ func TestGenerateFilename(t *testing.T) {
 	t.Run("with variant", func(t *testing.T) {
 		info := Info{
 			Type:    "some-plugin",
-			Version: *semver.New("1.2.3"),
+			Version: semver.Version{Major: 1, Minor: 2, Patch: 3},
 			OS:      "darwin",
 			Arch:    "amd64",
 			Variant: "mwi",
