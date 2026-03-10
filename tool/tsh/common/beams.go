@@ -77,14 +77,9 @@ func onBeamsAdd(cf *CLIConf) error {
 		return nil
 	}
 
-	stopConnecting := startBeamSpinner(cf.Stdout(), "connecting...")
-	err = connectToNodeSSH(cf, tc, beamNode, nil)
-	if err != nil {
-		stopConnecting("")
+	if err = connectToNodeSSH(cf, tc, beamNode, nil); err != nil {
 		return trace.Wrap(err)
 	}
-	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
-	stopConnecting(fmt.Sprintf("%s ready", arrowStyle.Render("↳")))
 	return nil
 }
 
