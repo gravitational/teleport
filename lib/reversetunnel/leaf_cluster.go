@@ -1102,7 +1102,7 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 	ctx context.Context,
 	challenges []*mfav1.ValidatedMFAChallenge,
 ) error {
-	log := s.logger.With(teleport.ComponentKey, "runValidatedMFAChallengeSync", "cluster", s.GetName())
+	log := s.logger.With(teleport.ComponentKey, "syncValidatedMFAChallenges", "cluster", s.GetName())
 
 	log.DebugContext(
 		ctx,
