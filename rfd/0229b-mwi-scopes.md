@@ -628,6 +628,9 @@ attention:
 - Thorough testing of joining and certificate generation for scoped Bots.
   - Key invariants to ensure here is that the resulting certificates are always
     pinned to the bot's scope, and that they do not contain roles or traits.
+- E2E testing: Creation of all configuration resources, enrolment of scoped
+  SSH agent, instantiation of scoped `tbot` and use of resulting certificates
+  for access to the SSH agent.
 
 ## Security Considerations
 
