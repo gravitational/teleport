@@ -392,15 +392,25 @@ a `scope` and `spec.assigned_scope` field. The `spec.assigned_scope` field must
 hold a scope that is the same as `scope` or a descendent of `scope`.
 
 Joining for scoped Bots will be similar to unscoped Bots and Scoped agents. A
-Scoped Join Token will be used with `spec.roles` field set to `["Bot"]` and the
-name of the scoped Bot provided in a `spec.bot_name` field. As this 
-`spec.bot_name` field does not currently exist, it will need to be added to the 
-ScopedToken resource.
+Scoped Join Token will be used with `spec.roles` field set to `["Bot"]`, the
+name of the scoped Bot provided in a `spec.bot_name` field and the scope of the
+scoped Bot provided in `spec.bot_scope`.
+
+Today, the scoped token includes a `spec.mode` field. This field is used to
+control the join behavior of the token for agents (i.e single use or unlimited).
+Joining for bots has its own unique semantics and requirements that differ from
+those of agents. As such, a new value (`bot`) will be required for this field
+when joining Bots and this will indicate that the typical semantics for agent 
+joining are not applicable.
 
 The following new fields will be introduced to the ScopedToken resource:
 
 - `spec.bot_name` (string): The name of the scoped Bot that is joining. This
   must be set when `spec.roles` includes `Bot` and must not be set otherwise.
+- `spec.bot_scope` (string): The scope of the scoped Bot that is joining. This
+  must be set when `spec.roles` includes `Bot` and must not be set otherwise.
+  This must be the same scope, or a descendent scope, of the `scope` field of
+  the token.
 
 The following new validation will be enforced for the ScopedToken resource:
 
@@ -408,9 +418,14 @@ The following new validation will be enforced for the ScopedToken resource:
   - `spec.roles` must have a length of 1. That is, other roles cannot co-exist
     with the `Bot` role.
   - `spec.bot_name` must be set.
-  - `spec.assigned_scope` must be set to the scope of the scoped Bot.
+  - `spec.bot_scope` must be set to the scope of the scoped Bot.
+  - `spec.bot_scope` must be the same or a descendent scope of the `scope` field
+    of the token.
+  - `spec.assigned_scope` must not be set.
+  - `spec.mode` must be set to `bot`.
 - When `spec.roles` does not include `Bot`:
   - `spec.bot_name` must not be set.
+  - `spec.bot_scope` must not be set.
 
 When joining with an unscoped token, the following new validation will be
 enforced:
@@ -420,15 +435,13 @@ enforced:
 When joining with a scoped token, the following new validation will be enforced:
 
 - The Bot must have a scope set, and this scope must match the
-  `spec.assigned_scope` and `scope` of the token.
+  `spec.bot_scope` of the token. This scope must be the same or descendent to
+  the scope of the token itself.
   - This is a critical control for ensuring the isolation of scopes is not 
-    compromised - i.e. an admin in scope `/foo` cannot create a join token for
-    a scoped bot in `/bar`.
+    compromised and that a name reuse attack cannot occur. 
 
-wip: What do we do about the `mode` field on the join token when used for 
-wip: Bots. "single_use" clashes with bot renewal mechanisms. "unlimited" implies
-wip: weird behaviour for bots using the `bound_keypair` join method. Perhaps
-wip: we just require this field is empty for bot scoped join tokens.
+In future iterations, we may introduce a scope-qualified name syntax. This will
+alleviate the need for a distinct `spec.bot_scope` field on the token.
 
 Upon successfully joining, the generation of certificates for the scoped Bot 
 should follow the process outlined under
