@@ -113,6 +113,15 @@ var eventsWithDataRequired = []string{
 	uiIntegrationEnrollFieldCompleteEvent,
 	uiDiscoverCreateDiscoveryConfigEvent,
 	uiAccessGraphCrownJewelDiffViewEvent,
+	uiAccessListCompleteEvent,
+	uiAccessListDefineAccessEvent,
+	uiAccessListDefineBasicInfoEvent,
+	uiAccessListDefineIdentitiesEvent,
+	uiAccessListDefineMembersEvent,
+	uiAccessListDefineOwnersEvent,
+	uiAccessListIntegrateEvent,
+	uiAccessListStartEvent,
+	uiAccessListCustomEvent,
 }
 
 // CreatePreUserEventRequest contains the event and properties associated with a user event
