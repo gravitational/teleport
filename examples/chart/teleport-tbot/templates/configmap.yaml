@@ -17,7 +17,7 @@ data:
     onboarding:
       join_method: kubernetes
       # ensure token is set to the name of the join token you created earlier
-      token: bot-{{ .Values.teleport.tokenName }}
+      token: {{ .Values.teleport.tokenName }}
     storage:
       # a memory destination is used for the bots own state since the kubernetes
       # join method does not require persistence.
