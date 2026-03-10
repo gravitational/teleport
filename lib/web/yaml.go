@@ -131,7 +131,7 @@ func yamlToAccessMonitoringRuleResource(yaml string) (*accessmonitoringrulesv1.A
 		return nil, trace.Wrap(err)
 	}
 	if extractedRes.Kind != types.KindAccessMonitoringRule {
-		return nil, trace.BadParameter("resource kind %q is invalid, only acces_monitoring_rule is allowed", extractedRes.Kind)
+		return nil, trace.BadParameter("resource kind %q is invalid, only access_monitoring_rule is allowed", extractedRes.Kind)
 	}
 	resource, err := services.UnmarshalAccessMonitoringRule(extractedRes.Raw)
 	if err != nil {
