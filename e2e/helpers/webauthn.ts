@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,6 +17,9 @@
  */
 
 import { Page } from '@playwright/test';
+
+const privateKeyBase64 = process.env.E2E_WEBAUTHN_PRIVATE_KEY;
+const credentialIdBase64 = process.env.E2E_WEBAUTHN_CREDENTIAL_ID;
 
 // mockWebAuthn sets up a virtual webauthn authenticator on the page.
 export async function mockWebAuthn(page: Page) {
@@ -36,12 +39,16 @@ export async function mockWebAuthn(page: Page) {
     }
   );
 
-  const cleanup = async () => {
-    await cdpSession.send('WebAuthn.removeVirtualAuthenticator', {
-      authenticatorId,
-    });
-    await cdpSession.detach();
-  };
+  await cdpSession.send('WebAuthn.addCredential', {
+    authenticatorId,
+    credential: {
+      credentialId: credentialIdBase64,
+      isResidentCredential: false,
+      rpId: 'localhost',
+      privateKey: privateKeyBase64,
+      signCount: 0,
+    },
+  });
 
-  return { authenticatorId, cdpSession, cleanup };
+  return { authenticatorId, cdpSession };
 }

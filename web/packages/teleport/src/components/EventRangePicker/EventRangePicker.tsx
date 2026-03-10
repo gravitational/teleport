@@ -17,9 +17,7 @@
  */
 
 import { useState } from 'react';
-
 import 'react-day-picker/dist/style.css';
-
 import styled from 'styled-components';
 
 import { Box, ButtonBorder, Text } from 'design';

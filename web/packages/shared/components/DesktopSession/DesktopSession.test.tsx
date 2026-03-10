@@ -19,6 +19,8 @@
 import { EventEmitter } from 'events';
 
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import 'jest-canvas-mock';
 import { act } from 'react';
 
 import { render } from 'design/utils/testing';
@@ -29,14 +31,9 @@ import {
   SharedDirectoryAccess,
   TdpClient,
 } from 'shared/libs/tdp';
+import { TdpTransport } from 'shared/libs/tdp/client';
 
 import { DesktopSession } from './DesktopSession';
-
-import 'jest-canvas-mock';
-
-import userEvent from '@testing-library/user-event';
-
-import { TdpTransport } from 'shared/libs/tdp/client';
 
 // Disable WASM in tests.
 jest.mock('shared/libs/ironrdp/pkg/ironrdp');

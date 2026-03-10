@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { screen } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router';
-
 import '@testing-library/jest-dom';
+import { screen } from '@testing-library/react';
 import 'jest-canvas-mock';
+import { MemoryRouter, useLocation } from 'react-router';
 
 import { act, render } from 'design/utils/testing';
 
