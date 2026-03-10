@@ -28,6 +28,7 @@ import (
 type Prompt interface {
 	// Run prompts the user to complete an MFA authentication challenge.
 	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	RegisterMFA(ctx context.Context) error
 }
 
 // PromptFunc is a function wrapper that implements the Prompt interface.

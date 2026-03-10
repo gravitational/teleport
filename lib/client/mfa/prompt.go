@@ -43,6 +43,16 @@ type WebauthnLoginFunc func(
 	opts *wancli.LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error)
 
+// WebauthnRegisterFunc is a function that performs WebAuthn registration.
+// Mimics the signature of [wancli.Register].
+type WebauthnRegisterFunc func(
+	ctx context.Context,
+	origin string,
+	cc *wantypes.CredentialCreation,
+	prompt wancli.RegisterPrompt,
+) (*proto.MFARegisterResponse, error)
+
+
 // PromptConfig contains common mfa prompt config options shared by
 // different implementations of [mfa.Prompt].
 type PromptConfig struct {

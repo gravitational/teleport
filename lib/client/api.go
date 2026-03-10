@@ -186,6 +186,12 @@ func (p *DynamicForwardedPort) ToString() string {
 // remote host key or certificate validity
 type HostKeyCallback func(host string, ip net.Addr, key ssh.PublicKey) error
 
+// MFAAdderFunc is called by SSH client when it needs to add an MFA device.
+// Returns true if the MFA device was successfully added, and false if there
+// was no error, but the device was not added (for example, the user refused to
+// register it).
+type MFAAdderFunc func(ctx context.Context, tc *TeleportClient) (bool, error)
+
 // Config is a client config
 type Config struct {
 	// Username is the Teleport account username (for logging into Teleport proxies)
@@ -498,7 +504,7 @@ type Config struct {
 
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
 	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
-
+	
 	// SSOMFACeremonyConstructor is a custom SSO MFA ceremony constructor.
 	SSOMFACeremonyConstructor func(rd *sso.Redirector) mfa.SSOMFACeremony
 
@@ -529,6 +535,13 @@ type Config struct {
 
 	// ProxyTemplates describe rules for parsing out proxy out of full hostnames.
 	ProxyTemplates ProxyTemplates
+
+	// Attempts to add an MFA device. If provided, this function will be called
+	// if MFA is required to connect to a node, but the user has no MFA devices
+	// configured. Returns true if the MFA device was successfully added, and
+	// false if there was no error, but the device was not added (for example,
+	// the user refused to register it).
+	MFAAdder MFAAdderFunc
 }
 
 // CachePolicy defines cache policy for local clients
@@ -2187,8 +2200,13 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
 	}
 
-	// per-session mfa is required, perform the mfa ceremony
-	cfg, err := clt.SessionSSHConfig(ctx, user, nodeDetails)
+	var cfg *ssh.ClientConfig
+	err := tc.retryWithAddingMFA(ctx, func() error {
+		var err error
+		// per-session mfa is required, perform the mfa ceremony
+		cfg, err = clt.SessionSSHConfig(ctx, user, nodeDetails)
+		return trace.Wrap(err)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2276,6 +2294,48 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		return nodeClient.RunCommand(ctx, command)
 	}
 	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, "", "", nil))
+}
+
+// retryWithAddingMFA calls the given fn function. If fn returns an
+// [authclient.ErrNoMFADevice] error, fn will be called once again after giving
+// the user an opportunity to register an MFA device.
+func (tc *TeleportClient) retryWithAddingMFA(ctx context.Context, fn func() error) error {
+	origErr := fn()
+	if tc.MFAAdder == nil || !errors.Is(origErr, authclient.ErrNoMFADevices) {
+		return trace.Wrap(origErr)
+	}
+
+	// yes, err := prompt.Confirmation(ctx, cf.Stdout(), prompt.Stdin(),
+	// 	"\nYou have no MFA devices registered. Do you want to register a new one?",
+	// )
+	// if err != nil {
+	// 	return err
+	// }
+	// if !yes {
+	// 	return trace.Wrap(origErr)
+	// }
+
+	added, err := tc.MFAAdder(ctx, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !added {
+		return trace.Wrap(origErr)
+	}
+
+	// Retry.
+	return trace.Wrap(fn())
+
+	// adder := mfaAdder{}
+	// adder.setWebauthnRegisterFunc(cf.WebauthnRegister)
+	// err = adder.addMFA(ctx, tc)
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
+
+	// fmt.Fprintln(cf.Stdout())
+	// tc.SetExitStatus(0)
+	// return trace.Wrap(fn())
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodes []TargetNode, command []string) error {
@@ -2930,6 +2990,7 @@ func commandLimit(ctx context.Context, getter roleGetter, mfaRequired bool) int 
 type execResult struct {
 	hostname   string
 	exitStatus int
+	err        error
 }
 
 // sharedWriter is an [io.Writer] implementation that protects
@@ -3043,6 +3104,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 				resultsCh <- execResult{
 					hostname:   displayName,
 					exitStatus: 1,
+					err:        err,
 				}
 				return nil
 			}

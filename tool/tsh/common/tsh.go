@@ -153,15 +153,6 @@ var accessRequestModes = []string{
 // the Teleport cluster using the CLI configuration.
 type ClientInitFunc func(cf *CLIConf) (*client.TeleportClient, error)
 
-// WebauthnLoginFunc is a function that performs WebAuthn registration.
-// Mimics the signature of [wancli.Register].
-type WebauthnRegisterFunc func(
-	ctx context.Context,
-	origin string,
-	cc *wantypes.CredentialCreation,
-	prompt wancli.RegisterPrompt,
-) (*proto.MFARegisterResponse, error)
-
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
 	// Scope constrains the current operation to a specific target scope
@@ -698,6 +689,8 @@ type CLIConf struct {
 	// addMFAIfRequired tells `tsh ssh` to offer adding an MFA device if it's
 	// required, but the user doesn't have one.
 	addMFAIfRequired bool
+	// Function that will be used by Teleport client to add a new MFA device.
+	mfaAdder client.MFAAdderFunc
 }
 
 func (c *CLIConf) isForkAuthChild() bool {
@@ -5178,6 +5171,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	c.SSHLogDir = cf.SSHLogDir
 	c.DisableSSHResumption = cf.DisableSSHResumption
+	c.MFAAdder = cf.mfaAdder
 
 	switch cf.Relay {
 	case "":
