@@ -1116,12 +1116,6 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 	count := 0
 
 	for _, challenge := range challenges {
-		// If the target cluster specified in the challenge does not match this leaf cluster, skip it as it's not meant
-		// to be replicated here.
-		if challenge.GetSpec().GetTargetCluster() != s.GetName() {
-			continue
-		}
-
 		// Replicate the resource to the leaf cluster. If the resource already exists in the leaf cluster, it is because
 		// it was replicated from a previous sync, so we can ignore the error and move on to the next one.
 		_, err := s.leafClient.MFAServiceClient().ReplicateValidatedMFAChallenge(

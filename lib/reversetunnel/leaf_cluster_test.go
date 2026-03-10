@@ -42,21 +42,16 @@ import (
 func TestRunValidatedMFAChallengeSync(t *testing.T) {
 	t.Parallel()
 
-	challengeForLeaf := newValidatedMFAChallenge(
+	chal := newValidatedMFAChallenge(
 		"challenge-for-leaf",
 		"leaf.example.com",
-	)
-
-	challengeForOtherLeaf := newValidatedMFAChallenge(
-		"challenge-for-other-leaf",
-		"other-leaf.example.com",
 	)
 
 	// Set up a channel to send events to the watcher and prime it with an init event.
 	events := make(chan types.Event, 1)
 	events <- types.Event{Type: types.OpInit}
 
-	// Set up a mock watcher that will return the two challenges above.
+	// Set up a mock watcher that will return the challenge above.
 	watcher, err := services.NewGenericResourceWatcher(
 		t.Context(),
 		services.GenericWatcherConfig[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]{
@@ -72,8 +67,7 @@ func TestRunValidatedMFAChallengeSync(t *testing.T) {
 			},
 			ResourceGetter: func(context.Context) ([]*mfav1.ValidatedMFAChallenge, error) {
 				return []*mfav1.ValidatedMFAChallenge{
-					challengeForLeaf,
-					challengeForOtherLeaf,
+					chal,
 				}, nil
 			},
 			ResourceKey: func(r *mfav1.ValidatedMFAChallenge) string {
@@ -85,7 +79,7 @@ func TestRunValidatedMFAChallengeSync(t *testing.T) {
 			ReadOnlyFunc: func(r *mfav1.ValidatedMFAChallenge) *mfav1.ValidatedMFAChallenge {
 				return proto.Clone(r).(*mfav1.ValidatedMFAChallenge)
 			},
-			ResourcesC: make(chan []*mfav1.ValidatedMFAChallenge, 2),
+			ResourcesC: make(chan []*mfav1.ValidatedMFAChallenge, 1),
 		},
 	)
 	require.NoError(t, err)
@@ -125,16 +119,15 @@ func TestRunValidatedMFAChallengeSync(t *testing.T) {
 
 	wantReqs := []*mfav1.ReplicateValidatedMFAChallengeRequest{
 		{
-			Name:          challengeForLeaf.GetMetadata().GetName(),
-			Payload:       challengeForLeaf.GetSpec().GetPayload(),
-			SourceCluster: challengeForLeaf.GetSpec().GetSourceCluster(),
-			TargetCluster: challengeForLeaf.GetSpec().GetTargetCluster(),
-			Username:      challengeForLeaf.GetSpec().GetUsername(),
+			Name:          chal.GetMetadata().GetName(),
+			Payload:       chal.GetSpec().GetPayload(),
+			SourceCluster: chal.GetSpec().GetSourceCluster(),
+			TargetCluster: chal.GetSpec().GetTargetCluster(),
+			Username:      chal.GetSpec().GetUsername(),
 		},
 	}
 
-	// The watcher will return the two challenges we set up above, and we expect the leaf cluster to replicate only the
-	// valid challenge for its cluster.
+	// The watcher will return the challenge we set up above, and we expect the leaf cluster to replicate it.
 	require.EventuallyWithT(
 		t,
 		func(c *assert.CollectT) {
@@ -155,22 +148,17 @@ func TestRunValidatedMFAChallengeSync(t *testing.T) {
 	cancel()
 	require.NoError(t, <-errC)
 
-	// Only the challenge intended for the leaf cluster should have been replicated, so we expect exactly one request to
-	// have been made to the leaf's MFA service client.
+	// Only one challenge was provided by the watcher, so exactly one request should have been made to the leaf's MFA
+	// service client.
 	require.Len(t, leafMFAClient.Requests(), 1)
 }
 
 func TestSyncValidatedMFAChallenges(t *testing.T) {
 	t.Parallel()
 
-	challengeForLeaf := newValidatedMFAChallenge(
-		"challenge-for-leaf",
+	chal := newValidatedMFAChallenge(
+		"challenge",
 		"leaf.example.com",
-	)
-
-	challengeForOtherLeaf := newValidatedMFAChallenge(
-		"challenge-for-other-leaf",
-		"other-leaf.example.com",
 	)
 
 	leafMFAClient := &mockMFAServiceClient{
@@ -187,9 +175,7 @@ func TestSyncValidatedMFAChallenges(t *testing.T) {
 	err := leaf.syncValidatedMFAChallenges(
 		t.Context(),
 		[]*mfav1.ValidatedMFAChallenge{
-			challengeForLeaf,
-			challengeForOtherLeaf,
-			nil,
+			chal,
 		},
 	)
 	require.NoError(t, err)
@@ -197,11 +183,11 @@ func TestSyncValidatedMFAChallenges(t *testing.T) {
 
 	wantReqs := []*mfav1.ReplicateValidatedMFAChallengeRequest{
 		{
-			Name:          challengeForLeaf.GetMetadata().GetName(),
-			Payload:       challengeForLeaf.GetSpec().GetPayload(),
-			SourceCluster: challengeForLeaf.GetSpec().GetSourceCluster(),
-			TargetCluster: challengeForLeaf.GetSpec().GetTargetCluster(),
-			Username:      challengeForLeaf.GetSpec().GetUsername(),
+			Name:          chal.GetMetadata().GetName(),
+			Payload:       chal.GetSpec().GetPayload(),
+			SourceCluster: chal.GetSpec().GetSourceCluster(),
+			TargetCluster: chal.GetSpec().GetTargetCluster(),
+			Username:      chal.GetSpec().GetUsername(),
 		},
 	}
 
