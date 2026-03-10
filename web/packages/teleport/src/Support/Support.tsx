@@ -80,7 +80,7 @@ export const Support = ({
           css={`
             grid-column: auto;
             @media screen and (min-width: ${props =>
-                props.theme.breakpoints.small}) {
+              props.theme.breakpoints.small}) {
               grid-column: span 2;
             }
           `}
