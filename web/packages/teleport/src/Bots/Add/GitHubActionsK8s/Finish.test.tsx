@@ -56,11 +56,7 @@ jest.mock('shared/components/FieldSelect/FieldSelectCreatable', () => {
       loadOptions?: unknown;
       defaultOptions?: unknown;
     }) => {
-      const {
-        loadOptions,
-        defaultOptions,
-        ...rest
-      } = props;
+      const { loadOptions, defaultOptions, ...rest } = props;
       return <actual.FieldSelectCreatable {...rest} />;
     },
   };

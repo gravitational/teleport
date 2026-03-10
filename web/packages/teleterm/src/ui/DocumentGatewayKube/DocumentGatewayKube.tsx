@@ -68,15 +68,12 @@ export const DocumentGatewayKube = (props: {
     }
   });
 
-  useEffect(
-    function createGatewayOnMount() {
-      // Only creates a gateway if we don't have it for the given params.
-      if (!gateway && connectAttempt.status === '') {
-        createGateway();
-      }
-    },
-    []
-  );
+  useEffect(function createGatewayOnMount() {
+    // Only creates a gateway if we don't have it for the given params.
+    if (!gateway && connectAttempt.status === '') {
+      createGateway();
+    }
+  }, []);
 
   if (!connected) {
     return (

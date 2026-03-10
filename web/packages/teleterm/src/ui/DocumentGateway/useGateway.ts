@@ -183,17 +183,14 @@ export function useGateway(doc: DocumentGateway) {
     )
   );
 
-  useEffect(
-    function createGatewayOnMount() {
-      // Since the user can close DocumentGateway without shutting down the gateway, it's possible
-      // to open DocumentGateway while the gateway is already running. In that scenario, we must
-      // not attempt to create a gateway.
-      if (!gateway && connectAttempt.status === '') {
-        createGateway({ localPort: doc.port });
-      }
-    },
-    []
-  );
+  useEffect(function createGatewayOnMount() {
+    // Since the user can close DocumentGateway without shutting down the gateway, it's possible
+    // to open DocumentGateway while the gateway is already running. In that scenario, we must
+    // not attempt to create a gateway.
+    if (!gateway && connectAttempt.status === '') {
+      createGateway({ localPort: doc.port });
+    }
+  }, []);
 
   return {
     gateway,
