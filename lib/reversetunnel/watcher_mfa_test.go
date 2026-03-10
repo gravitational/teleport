@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package services_test
+package reversetunnel_test
 
 import (
 	"context"
@@ -34,6 +34,7 @@ import (
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -53,9 +54,9 @@ func TestValidatedMFAChallengeWatcher_Success(t *testing.T) {
 		},
 	}
 
-	watcher, err := services.NewValidatedMFAChallengeWatcher(
+	watcher, err := reversetunnel.NewValidatedMFAChallengeWatcher(
 		t.Context(),
-		services.ValidatedMFAChallengeWatcherConfig{
+		reversetunnel.ValidatedMFAChallengeWatcherConfig{
 			ValidatedMFAChallengeLister: lister,
 			ClusterName:                 "leaf",
 			ResourceWatcherConfig: &services.ResourceWatcherConfig{
@@ -106,12 +107,12 @@ func TestNewValidatedMFAChallengeWatcher_Validation(t *testing.T) {
 
 	for _, testCase := range []struct {
 		name    string
-		cfg     services.ValidatedMFAChallengeWatcherConfig
+		cfg     reversetunnel.ValidatedMFAChallengeWatcherConfig
 		wantErr error
 	}{
 		{
 			name: "nil ValidatedMFAChallengeLister",
-			cfg: services.ValidatedMFAChallengeWatcherConfig{
+			cfg: reversetunnel.ValidatedMFAChallengeWatcherConfig{
 				ValidatedMFAChallengeLister: nil,
 				ClusterName:                 "leaf",
 				ResourceWatcherConfig:       &services.ResourceWatcherConfig{},
@@ -120,7 +121,7 @@ func TestNewValidatedMFAChallengeWatcher_Validation(t *testing.T) {
 		},
 		{
 			name: "empty ClusterName",
-			cfg: services.ValidatedMFAChallengeWatcherConfig{
+			cfg: reversetunnel.ValidatedMFAChallengeWatcherConfig{
 				ValidatedMFAChallengeLister: &mockValidatedMFAChallengeLister{},
 				ClusterName:                 "",
 				ResourceWatcherConfig:       &services.ResourceWatcherConfig{},
@@ -129,7 +130,7 @@ func TestNewValidatedMFAChallengeWatcher_Validation(t *testing.T) {
 		},
 		{
 			name: "nil ResourceWatcherConfig",
-			cfg: services.ValidatedMFAChallengeWatcherConfig{
+			cfg: reversetunnel.ValidatedMFAChallengeWatcherConfig{
 				ValidatedMFAChallengeLister: &mockValidatedMFAChallengeLister{},
 				ClusterName:                 "leaf",
 				ResourceWatcherConfig:       nil,
@@ -138,7 +139,7 @@ func TestNewValidatedMFAChallengeWatcher_Validation(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			watcher, err := services.NewValidatedMFAChallengeWatcher(
+			watcher, err := reversetunnel.NewValidatedMFAChallengeWatcher(
 				t.Context(),
 				testCase.cfg,
 			)
@@ -172,7 +173,7 @@ type mockValidatedMFAChallengeLister struct {
 	challenges []*mfav1.ValidatedMFAChallenge
 }
 
-var _ services.ValidatedMFAChallengeLister = (*mockValidatedMFAChallengeLister)(nil)
+var _ reversetunnel.ValidatedMFAChallengeLister = (*mockValidatedMFAChallengeLister)(nil)
 
 func (m *mockValidatedMFAChallengeLister) ListValidatedMFAChallenges(
 	ctx context.Context,

@@ -123,9 +123,6 @@ func TestRunValidatedMFAChallengeSync(t *testing.T) {
 		)
 	}()
 
-	// Wait for the watcher to initialize before sending events to it.
-	require.NoError(t, watcher.WaitInitialization())
-
 	wantReqs := []*mfav1.ReplicateValidatedMFAChallengeRequest{
 		{
 			Name:          challengeForLeaf.GetMetadata().GetName(),

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package services
+package reversetunnel
 
 import (
 	"context"
@@ -25,9 +25,11 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // ValidatedMFAChallengeLister is an interface that wraps the ListValidatedMFAChallenges method.
@@ -43,14 +45,14 @@ type ValidatedMFAChallengeLister interface {
 type ValidatedMFAChallengeWatcherConfig struct {
 	ValidatedMFAChallengeLister ValidatedMFAChallengeLister
 	ClusterName                 string
-	ResourceWatcherConfig       *ResourceWatcherConfig
+	ResourceWatcherConfig       *services.ResourceWatcherConfig
 }
 
 // NewValidatedMFAChallengeWatcher returns a new ValidatedMFAChallengeWatcher.
 func NewValidatedMFAChallengeWatcher(
 	ctx context.Context,
 	cfg ValidatedMFAChallengeWatcherConfig,
-) (*GenericWatcher[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge], error) {
+) (*services.GenericWatcher[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge], error) {
 	switch {
 	case cfg.ValidatedMFAChallengeLister == nil:
 		return nil, trace.BadParameter("cfg.ValidatedMFAChallengeLister must be set")
@@ -86,9 +88,9 @@ func NewValidatedMFAChallengeWatcher(
 		return resp.GetValidatedChallenges(), resp.GetNextPageToken(), nil
 	}
 
-	w, err := NewGenericResourceWatcher(
+	w, err := services.NewGenericResourceWatcher(
 		ctx,
-		GenericWatcherConfig[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]{
+		services.GenericWatcherConfig[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]{
 			ResourceKind:          types.KindValidatedMFAChallenge,
 			ResourceWatcherConfig: *cfg.ResourceWatcherConfig,
 			CloneFunc:             cloneFunc,
@@ -125,4 +127,35 @@ func NewValidatedMFAChallengeWatcher(
 	}
 
 	return w, nil
+}
+
+type pagerFn[T any] func(ctx context.Context, limit int, startKey string) ([]T, string, error)
+
+func (fn pagerFn[T]) getAll(ctx context.Context) ([]T, error) {
+	var out []T
+	var token string
+	for {
+		page, nextToken, err := fn(ctx, apidefaults.DefaultChunkSize, token)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, page...)
+		if nextToken == "" {
+			return out, nil
+		}
+		token = nextToken
+	}
+}
+
+// convertResource is a generic helper func that converts a [types.Resource] by
+// direct type assertion or assertion to an [types.Resource153UnwrapperT].
+func convertResource[T any](resource types.Resource) (T, error) {
+	switch resource := resource.(type) {
+	case T:
+		return resource, nil
+	case interface{ UnwrapT() T }:
+		return resource.UnwrapT(), nil
+	}
+	var zero T
+	return zero, trace.BadParameter("expected resource type %T, got %T", zero, resource)
 }
