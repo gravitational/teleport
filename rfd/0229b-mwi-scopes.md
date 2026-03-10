@@ -222,12 +222,12 @@ metadata:
   name: staging-deployer 
 scope: /staging
 spec:
-  assigned_scope: /staging
+  bot_scope: /staging
   bot_name: staging-deployer
   roles:
     - Bot
   join_method: token
-  mode: single_use # wip: what to do with mode??
+  mode: bot
 ```
 
 Now, Alice can create a Scoped Role and assign it to the Bot using a Scoped
