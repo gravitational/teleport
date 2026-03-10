@@ -73,7 +73,7 @@ func onBeamsAdd(cf *CLIConf) error {
 	diamondStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
 	stopCreating(fmt.Sprintf("%s created %s", diamondStyle.Render("◆"), idStyle.Render(beamID)))
 
-	if cf.BeamNoConsole {
+	if !cf.BeamConsole {
 		return nil
 	}
 
