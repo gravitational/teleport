@@ -1036,7 +1036,7 @@ func (s *leafCluster) runValidatedMFAChallengeSync(
 	ctx context.Context,
 	cfg retryutils.LinearConfig,
 ) error {
-	log := s.logger.With("component", "runValidatedMFAChallengeSync", "cluster", s.GetName())
+	log := s.logger.With(teleport.ComponentKey, "runValidatedMFAChallengeSync", "cluster", s.GetName())
 
 	// Wait for the watcher to initialize before starting the sync loop to ensure that we have an initial state of the
 	// ValidatedMFAChallenge resources in the root cluster.
@@ -1078,13 +1078,7 @@ func (s *leafCluster) runValidatedMFAChallengeSync(
 						}
 					}
 
-					log.DebugContext(
-						ctx,
-						"Syncing ValidatedMFAChallenges to leaf cluster",
-						"pending_count", len(pending),
-					)
-
-					count, err := s.syncValidatedMFAChallenges(ctx, pending)
+					err := s.syncValidatedMFAChallenges(ctx, pending)
 					if err != nil {
 						log.WarnContext(
 							ctx,
@@ -1094,12 +1088,6 @@ func (s *leafCluster) runValidatedMFAChallengeSync(
 						)
 						return trace.Wrap(err)
 					}
-
-					log.DebugContext(
-						ctx,
-						"Successfully synced ValidatedMFAChallenges to leaf cluster",
-						"replicated_count", count,
-					)
 
 					// Clear the pending challenges as they have been successfully synced.
 					pending = nil
@@ -1112,12 +1100,19 @@ func (s *leafCluster) runValidatedMFAChallengeSync(
 	)
 }
 
-// syncValidatedMFAChallenges syncs the provided ValidatedMFAChallenge resources to the leaf cluster. It returns the
-// number of resources that were replicated to the leaf cluster.
+// syncValidatedMFAChallenges syncs the provided ValidatedMFAChallenge resources to the leaf cluster.
 func (s *leafCluster) syncValidatedMFAChallenges(
 	ctx context.Context,
 	challenges []*mfav1.ValidatedMFAChallenge,
-) (int, error) {
+) error {
+	log := s.logger.With(teleport.ComponentKey, "runValidatedMFAChallengeSync", "cluster", s.GetName())
+
+	log.DebugContext(
+		ctx,
+		"Syncing ValidatedMFAChallenges to leaf cluster",
+		"pending_count", len(challenges),
+	)
+
 	count := 0
 
 	for _, challenge := range challenges {
@@ -1143,11 +1138,17 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 			continue
 		}
 		if err != nil {
-			return 0, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		count++
 	}
 
-	return count, nil
+	log.DebugContext(
+		ctx,
+		"Successfully synced ValidatedMFAChallenges to leaf cluster",
+		"replicated_count", count,
+	)
+
+	return nil
 }

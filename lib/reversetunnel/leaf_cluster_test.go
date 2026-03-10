@@ -187,7 +187,7 @@ func TestSyncValidatedMFAChallenges(t *testing.T) {
 		leafClient: &mockLeafClient{mfaClient: leafMFAClient},
 	}
 
-	replicatedCount, err := leaf.syncValidatedMFAChallenges(
+	err := leaf.syncValidatedMFAChallenges(
 		t.Context(),
 		[]*mfav1.ValidatedMFAChallenge{
 			challengeForLeaf,
@@ -196,7 +196,6 @@ func TestSyncValidatedMFAChallenges(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	require.Equal(t, 1, replicatedCount)
 	require.Len(t, leafMFAClient.Requests(), 1)
 
 	wantReqs := []*mfav1.ReplicateValidatedMFAChallengeRequest{
