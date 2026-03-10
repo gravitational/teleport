@@ -166,15 +166,19 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	// messages: this is where psql prompt appears on the other side.
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
-	// Reconstruct pgconn.PgConn from hijacked connection for easier access
-	// to its utility methods (such as Close).
-	serverConn, err := pgconn.Construct(hijackedConn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// serverConnClosedCh is closed just before the server connection is
+	// closed, allowing receiveFromServer to distinguish an intentional
+	// shutdown from an unexpected read error.
+	serverConnClosedCh := make(chan struct{})
 	defer func() {
-		err = serverConn.Close(ctx)
-		if err != nil && !utils.IsOKNetworkError(err) {
+		close(serverConnClosedCh)
+		// Send Terminate gracefully before closing. Errors are intentionally
+		// ignored — this matches libpq PQfinish behavior. If Terminate was
+		// already sent (e.g. client disconnected cleanly) or the connection
+		// is already broken, the flush will fail and we move on.
+		server.Send(&pgproto3.Terminate{})
+		server.Flush()
+		if err := hijackedConn.Conn.Close(); err != nil && !utils.IsOKNetworkError(err) {
 			e.Log.ErrorContext(e.Context, "Failed to close connection.", "error", err)
 		}
 	}()
@@ -186,7 +190,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	clientErrCh := make(chan error, 1)
 	serverErrCh := make(chan error, 1)
 	go e.receiveFromClient(e.client, server, clientErrCh, sessionCtx)
-	go e.receiveFromServer(serverConn, serverErrCh, sessionCtx)
+	go e.receiveFromServer(serverConnClosedCh, serverErrCh, sessionCtx)
 	select {
 	case err := <-clientErrCh:
 		e.Log.DebugContext(e.Context, "Client done.", "error", err)
@@ -284,6 +288,13 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
 	conn, err := pgconn.ConnectConfig(ctx, connectConfig)
 	if err != nil {
 		return nil, nil, common.ConvertConnectError(err, sessionCtx)
+	}
+	// Per pgconn docs, SyncConn must be called immediately before Hijack —
+	// it drains read buffers and stops background IO to prevent races with
+	// direct net.Conn use after hijacking.
+	if err := conn.SyncConn(ctx); err != nil {
+		conn.Close(ctx)
+		return nil, nil, trace.Wrap(err)
 	}
 	// Hijacked connection exposes some internal connection data, such as
 	// parameters we'll need to relay back to the client (e.g. database
@@ -439,7 +450,7 @@ func (e *Engine) auditResult(session *common.Session, pgMsg pgproto3.BackendMess
 // receiveFromServer receives messages from the provided frontend (which
 // is connected to the database instance) and relays them back to the psql
 // or other client via the provided backend.
-func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<- error, sessionCtx *common.Session) {
+func (e *Engine) receiveFromServer(serverConnClosedCh <-chan struct{}, serverErrCh chan<- error, sessionCtx *common.Session) {
 	log := e.Log.With("from", "server")
 	ctr := common.GetMessagesFromServerMetric(sessionCtx.Database)
 
@@ -464,11 +475,12 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 		for {
 			message, err := server.Receive()
 			if err != nil {
-				if serverConn.IsClosed() {
+				select {
+				case <-serverConnClosedCh:
 					log.DebugContext(e.Context, "Server connection closed.")
-					return
+				default:
+					log.ErrorContext(e.Context, "Failed to receive message from server.", "error", err)
 				}
-				log.ErrorContext(e.Context, "Failed to receive message from server.", "error", err)
 				return
 			}
 
