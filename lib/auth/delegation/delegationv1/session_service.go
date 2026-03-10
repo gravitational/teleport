@@ -22,13 +22,14 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/internal"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 // SessionService manages DelegationSession resources.
@@ -40,7 +41,7 @@ type SessionService struct {
 	sessionWriter     SessionWriter
 	resourceLister    ResourceLister
 	roleGetter        services.RoleGetter
-	userGetter        services.UserGetter
+	userGetter        services.UserOrLoginStateGetter
 	certGenerator     CertGenerator
 	clusterNameGetter ClusterNameGetter
 	appSessionCreator AppSessionCreator
@@ -65,8 +66,9 @@ type SessionServiceConfig struct {
 	// RoleGetter is used to read roles.
 	RoleGetter services.RoleGetter
 
-	// UserGetter is used to read users.
-	UserGetter services.UserGetter
+	// UserGetter is used to read users and user login states (which carry
+	// additional traits from external identity providers like GitHub).
+	UserGetter services.UserOrLoginStateGetter
 
 	// CertGenerator is used to generate delegation certificates.
 	CertGenerator CertGenerator

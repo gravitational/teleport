@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client/proto"
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
@@ -35,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/slices"
-	"github.com/gravitational/trace"
 )
 
 // ErrDelegationUnauthorized is returned from the GenerateCerts handler when
@@ -91,8 +92,10 @@ func (s *SessionService) GenerateCerts(
 		return nil, trace.BadParameter("expires: must be in the future")
 	}
 
-	// Read user from the backend to get the current roles and traits.
-	user, err := s.userGetter.GetUser(ctx, session.GetSpec().GetUser(), false)
+	// Read user login state from the backend to get current roles, traits, and
+	// any enriched identity from external providers (e.g. GitHub). Falls back
+	// to the plain user if no login state exists.
+	user, err := services.GetUserOrLoginState(ctx, s.userGetter, session.GetSpec().GetUser())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -153,7 +156,7 @@ func (s *SessionService) authorizeSession(
 func (s *SessionService) generateCertificates(
 	ctx context.Context,
 	authCtx *authz.Context,
-	delegatingUser types.User,
+	delegatingUser services.UserState,
 	session *delegationv1.DelegationSession,
 	req *delegationv1.GenerateCertsRequest,
 ) (*delegationv1.GenerateCertsResponse, error) {
@@ -294,7 +297,7 @@ func (s *SessionService) generateCertificates(
 	}, nil
 }
 
-func (s *SessionService) getRoleSet(ctx context.Context, user types.User) (services.RoleSet, error) {
+func (s *SessionService) getRoleSet(ctx context.Context, user services.UserState) (services.RoleSet, error) {
 	roleSet := make(services.RoleSet, len(user.GetRoles()))
 	for idx, roleName := range user.GetRoles() {
 		role, err := s.roleGetter.GetRole(ctx, roleName)
@@ -325,7 +328,7 @@ func wildcardPermissions(specs []*delegationv1.DelegationResourceSpec) bool {
 // errors as early as possible (while the user is still "in the loop").
 func (s *SessionService) bestEffortCheckResourceAccess(
 	ctx context.Context,
-	user types.User,
+	user services.UserState,
 	resources []*delegationv1.DelegationResourceSpec,
 ) error {
 	checker, err := services.NewAccessChecker(
