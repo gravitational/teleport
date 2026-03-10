@@ -54,7 +54,7 @@ type Database struct {
 	TargetHealth types.TargetHealth
 	// AutoUserProvisioning contains auto-user provisioning information.
 	AutoUserProvisioning *AutoUserProvisioning
-	// Users is a list of database users
+	// Users is a list of allowed database users that Teleport RBAC permits the user to connect as.
 	Users []string
 }
 

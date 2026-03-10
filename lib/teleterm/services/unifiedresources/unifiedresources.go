@@ -118,20 +118,20 @@ func List(ctx context.Context, cluster *clusters.Cluster, authClient AuthClient,
 					DatabaseRoles: databaseRoles,
 				}
 			}
-			dbUsersEnum, err := accessChecker.EnumerateDatabaseUsers(db)
+			dbUsers, err := accessChecker.EnumerateDatabaseUsers(db)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			dbUsers := dbUsersEnum.Allowed()
-			if dbUsersEnum.WildcardAllowed() {
-				dbUsers = append(dbUsers, "*")
+			allowedUsers := dbUsers.Allowed()
+			if dbUsers.WildcardAllowed() {
+				allowedUsers = append(allowedUsers, "*")
 			}
 			response.Resources = append(response.Resources, UnifiedResource{
 				Database: &clusters.Database{
 					URI:                  cluster.URI.AppendDB(db.GetName()),
 					Database:             db,
 					TargetHealth:         r.GetTargetHealth(),
-					Users:                dbUsers,
+					Users:                allowedUsers,
 					AutoUserProvisioning: autoUserProvisioning,
 				},
 				RequiresRequest: requiresRequest,

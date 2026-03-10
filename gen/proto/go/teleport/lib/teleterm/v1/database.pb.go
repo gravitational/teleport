@@ -63,7 +63,7 @@ type Database struct {
 	GcpProjectId string `protobuf:"bytes,10,opt,name=gcp_project_id,json=gcpProjectId,proto3" json:"gcp_project_id,omitempty"`
 	// auto_user_provisioning contains database auto-user provisioning information.
 	AutoUserProvisioning *AutoUserProvisioning `protobuf:"bytes,11,opt,name=auto_user_provisioning,json=autoUserProvisioning,proto3" json:"auto_user_provisioning,omitempty"`
-	// users is a list of database users
+	// users is a list of allowed database users that Teleport RBAC permits the user to connect as.
 	Users         []string `protobuf:"bytes,12,rep,name=users,proto3" json:"users,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

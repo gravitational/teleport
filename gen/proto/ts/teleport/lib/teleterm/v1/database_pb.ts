@@ -105,7 +105,7 @@ export interface Database {
      */
     autoUserProvisioning?: AutoUserProvisioning;
     /**
-     * users is a list of database users
+     * users is a list of allowed database users that Teleport RBAC permits the user to connect as.
      *
      * @generated from protobuf field: repeated string users = 12;
      */

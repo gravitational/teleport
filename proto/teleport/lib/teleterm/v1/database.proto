@@ -49,7 +49,7 @@ message Database {
   string gcp_project_id = 10;
   // auto_user_provisioning contains database auto-user provisioning information.
   AutoUserProvisioning auto_user_provisioning = 11;
-  // users is a list of database users
+  // users is a list of allowed database users that Teleport RBAC permits the user to connect as.
   repeated string users = 12;
 }
 

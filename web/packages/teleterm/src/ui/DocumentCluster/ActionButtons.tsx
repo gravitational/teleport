@@ -246,7 +246,7 @@ export function ConnectDatabaseActionButton(props: {
       <ButtonBorder
         size="small"
         onClick={async () => {
-          // TODO: Remove this once we have servers on a new version of Teleport.
+          //TODO(nibrasohin): Remove this once we have servers on Teleport v20 or higher.
           const dbUsers = serverUsers
             ? loginItems
             : await getDatabaseUsers(appContext, props.database.uri);
@@ -279,7 +279,7 @@ export function ConnectDatabaseActionButton(props: {
         if (serverUsers) {
           return loginItems;
         }
-        // TODO: Remove this once we have servers on a new version of Teleport.
+        //TODO(nibrasohin): Remove this once we have servers on Teleport v20 or higher.
         return getDatabaseUsers(appContext, props.database.uri);
       }}
       onSelect={(_, user) => {
