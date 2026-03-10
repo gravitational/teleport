@@ -163,6 +163,12 @@ type Request struct {
 	JoinAttributes *workloadidentityv1pb.JoinAttrs
 	// RequesterName is the name of the service that sent the request.
 	RequesterName proto.UserCertsRequest_Requester
+	// WebSessionID is the session ID of the web session.
+	// When the certificate is generated for access graph usage, we store the
+	// web session ID in the cert request to be able to link the certificate to
+	// a valid web session so that we can properly report access graph usage
+	// and reuse the same handlers.
+	WebSessionID string
 }
 
 // Check verifies the cert request is valid.

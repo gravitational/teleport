@@ -700,6 +700,10 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
 			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
 		}
+	case authpb.UserCertsRequest_AccessGraphAPI:
+		if err := certificateReqWithEmptyRoutesToResources(req); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
@@ -728,6 +732,25 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 		return trace.Wrap(err)
 	}
 
+	return nil
+}
+
+func certificateReqWithEmptyRoutesToResources(req *authpb.UserCertsRequest) error {
+	if req.RouteToApp.Name != "" {
+		return trace.BadParameter("RouteToApp field must be empty in a UserCertsRequest for single-use certs")
+	}
+	if req.RouteToDatabase.ServiceName != "" {
+		return trace.BadParameter("RouteToDatabase field must be empty in a UserCertsRequest for single-use certs")
+	}
+	if req.RouteToWindowsDesktop.WindowsDesktop != "" {
+		return trace.BadParameter("RouteToWindowsDesktop field must be empty in a UserCertsRequest for single-use certs")
+	}
+	if req.KubernetesCluster != "" {
+		return trace.BadParameter("KubernetesCluster field must be empty in a UserCertsRequest for single-use certs")
+	}
+	if req.NodeName != "" {
+		return trace.BadParameter("NodeName field must be empty in a UserCertsRequest for single-use certs")
+	}
 	return nil
 }
 
@@ -2798,7 +2821,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req auth
 	switch req.Usage {
 	case authpb.UserCertsRequest_SSH:
 		resp.SSH = certs.SSH
-	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop, authpb.UserCertsRequest_App:
+	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop, authpb.UserCertsRequest_App, authpb.UserCertsRequest_AccessGraphAPI:
 		resp.TLS = certs.TLS
 	default:
 		return nil, trace.BadParameter("unknown certificate usage %q", req.Usage)
@@ -4121,7 +4144,6 @@ func (g *GRPCServer) ListLocks(ctx context.Context, req *authpb.ListLocksRequest
 		req.PageToken,
 		req.Filter,
 	)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

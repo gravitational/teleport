@@ -184,6 +184,8 @@ message UserCertsRequest {
     // WindowsDesktop means a request for a TLS certificate for access to a specific
     // windows desktop.
     WindowsDesktop = 5;
+    // AccessGraphAPI means a request for a TLS certificate for access to the Access Graph API.
+    AccessGraphAPI = 6;
   }
   // CertUsage limits the resulting user certificate to a single protocol.
   CertUsage Usage = 10 [(gogoproto.jsontag) = "usage,omitempty"];
