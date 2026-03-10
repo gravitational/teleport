@@ -3,7 +3,7 @@ run-name: Manual Test Plan Check - ${{ github.run_id }} - @${{ github.actor }}
 on:
   pull_request:
   pull_request_review:
-    type: [edited]
+    types: [edited]
   pull_request_target:
     types: [labeled, unlabeled]
 
