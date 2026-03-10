@@ -410,7 +410,7 @@ The following new fields will be introduced to the ScopedToken resource:
 - `spec.bot_scope` (string): The scope of the scoped Bot that is joining. This
   must be set when `spec.roles` includes `Bot` and must not be set otherwise.
   This must be the same scope, or a descendent scope, of the `scope` field of
-  the token.
+  the token and must match the `scope` field of the Bot itself.
 
 The following new validation will be enforced for the ScopedToken resource:
 
