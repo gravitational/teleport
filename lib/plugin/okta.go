@@ -24,7 +24,39 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+const (
+	// OktaDefaultTimeBetweenImports is the default amount of time between Okta to Teleport
+	// periodic syncs. This setting can be configured with the
+	// okta.sync_settings.time_between_imports Okta plugin value.
+	OktaDefaultTimeBetweenImports = 30 * time.Minute
+
+	// OktaDefaultTimeBetweenAssignmentProcessLoops is the default amount of time that has to
+	// pass between running the assignments process loop. It also determines how often the
+	// cached Okta assignments client is invalidated. This setting can be configured with the
+	// okta.sync_settings.time_between_assignment_process_loops Okta plugin value.
+	OktaDefaultTimeBetweenAssignmentProcessLoops = 10 * time.Minute
+)
+
+// OktaGetTimeBetweenImports parses syncSettings.TimeBetweenImports to duration. If it is not set
+// it returns a default value of 30m.
+func OktaGetTimeBetweenImports(syncSettings *types.PluginOktaSyncSettings) (time.Duration, error) {
+	d, err := oktaParseTimeBetweenImports(syncSettings)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if d == 0 {
+		return OktaDefaultTimeBetweenImports, nil
+	}
+	return d, nil
+}
+
+// Deprecated: Use [OktaGetTimeBetweenImports] instead.
+// TODO(kopiczko): remove once https://github.com/gravitational/teleport.e/pull/8217 is merged.
 func OktaParseTimeBetweenImports(syncSettings *types.PluginOktaSyncSettings) (time.Duration, error) {
+	return oktaParseTimeBetweenImports(syncSettings)
+}
+
+func oktaParseTimeBetweenImports(syncSettings *types.PluginOktaSyncSettings) (time.Duration, error) {
 	if syncSettings == nil {
 		return 0, nil
 	}
@@ -42,7 +74,26 @@ func OktaParseTimeBetweenImports(syncSettings *types.PluginOktaSyncSettings) (ti
 	return parsed, nil
 }
 
+// OktaGetTimeBetweenAssignmentProcessLoops parses syncSettings.TimeBetweenAssignmentProcessLoops
+// to duration. If it is not set it returns a default value of 10m.
+func OktaGetTimeBetweenAssignmentProcessLoops(syncSettings *types.PluginOktaSyncSettings) (time.Duration, error) {
+	d, err := oktaParseTimeBetweenAssignmentProcessLoops(syncSettings)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if d == 0 {
+		return OktaDefaultTimeBetweenAssignmentProcessLoops, nil
+	}
+	return d, nil
+}
+
+// Deprecated: Use [OktaGetTimeBetweenAssignmentProcessLoops] instead.
+// TODO(kopiczko): remove once https://github.com/gravitational/teleport.e/pull/8217 is merged.
 func OktaParseTimeBetweenAssignmentProcessLoops(syncSettings *types.PluginOktaSyncSettings) (time.Duration, error) {
+	return oktaParseTimeBetweenAssignmentProcessLoops(syncSettings)
+}
+
+func oktaParseTimeBetweenAssignmentProcessLoops(syncSettings *types.PluginOktaSyncSettings) (time.Duration, error) {
 	if syncSettings == nil {
 		return 0, nil
 	}

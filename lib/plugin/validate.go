@@ -52,12 +52,18 @@ func validateOkta(plugin *types.PluginV1) error {
 		return trace.BadParameter("plugin %q does not have Okta settings", plugin.GetName())
 	}
 
-	if _, err := OktaParseTimeBetweenImports(oktaSettings.GetSyncSettings()); err != nil {
+	timeBetweenImports, err := OktaGetTimeBetweenImports(oktaSettings.GetSyncSettings())
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if _, err := OktaParseTimeBetweenAssignmentProcessLoops(oktaSettings.GetSyncSettings()); err != nil {
+	timeBetweenAssignmentProcessLoops, err := OktaGetTimeBetweenAssignmentProcessLoops(oktaSettings.GetSyncSettings())
+	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if timeBetweenAssignmentProcessLoops > timeBetweenImports {
+		return trace.BadParameter("time_between_imports has to be longer than time_between_assignment_process_loops")
 	}
 
 	return nil
