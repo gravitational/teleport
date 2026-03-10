@@ -280,6 +280,10 @@ type CLIConf struct {
 	BeamNoConsole bool
 	// BeamTCP switches "tsh beams publish" from HTTP to TCP protocol.
 	BeamTCP bool
+	// BeamLocalPath is the local filesystem path used by `tsh beams push/pull`.
+	BeamLocalPath string
+	// BeamRemotePath is the remote filesystem path used by `tsh beams push/pull`.
+	BeamRemotePath string
 	// Interactive sessions will allocate a PTY and create interactive "shell"
 	// sessions.
 	Interactive bool
@@ -1066,6 +1070,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beamsPublish := beams.Command("publish", "Publish a beam application.")
 	beamsPublish.Arg("beam-id", "Beam ID to publish.").Required().StringVar(&cf.BeamID)
 	beamsPublish.Flag("tcp", "Publish as a TCP app instead of an HTTP app.").BoolVar(&cf.BeamTCP)
+	beamsPush := beams.Command("push", "Copy a local file to a running beam environment.")
+	beamsPush.Arg("name", "Name of the beam to target.").Required().StringVar(&cf.BeamID)
+	beamsPush.Flag("local", "Local file to copy.").Required().StringVar(&cf.BeamLocalPath)
+	beamsPush.Flag("remote", "Remote copy location.").Required().StringVar(&cf.BeamRemotePath)
+	beamsPull := beams.Command("pull", "Copy a file from a running beam environment to the local filesystem.")
+	beamsPull.Arg("name", "Name of the beam to target.").Required().StringVar(&cf.BeamID)
+	beamsPull.Flag("remote", "Remote file to copy.").Required().StringVar(&cf.BeamRemotePath)
+	beamsPull.Flag("local", "Local copy location.").Required().StringVar(&cf.BeamLocalPath)
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
@@ -1837,6 +1849,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onBeamsAllow(&cf)
 	case beamsPublish.FullCommand():
 		err = onBeamsPublish(&cf)
+	case beamsPush.FullCommand():
+		err = onBeamsPush(&cf)
+	case beamsPull.FullCommand():
+		err = onBeamsPull(&cf)
 	case lsRecordings.FullCommand():
 		err = onRecordings(&cf)
 	case exportRecordings.FullCommand():

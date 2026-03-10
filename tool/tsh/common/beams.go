@@ -244,6 +244,44 @@ func onBeamsPublish(cf *CLIConf) error {
 	return nil
 }
 
+func onBeamsPush(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc.AllowHeadless = true
+	nodeID, err := getBeamNodeID(cf.Context, tc, cf.BeamID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := copyBeamFile(cf, tc, []string{cf.BeamLocalPath}, beamRemotePath(cf, tc, nodeID, cf.BeamRemotePath)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintln(cf.Stdout(), "Copied successfully.")
+	return nil
+}
+
+func onBeamsPull(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc.AllowHeadless = true
+	nodeID, err := getBeamNodeID(cf.Context, tc, cf.BeamID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := copyBeamFile(cf, tc, []string{beamRemotePath(cf, tc, nodeID, cf.BeamRemotePath)}, cf.BeamLocalPath); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintln(cf.Stdout(), "Copied successfully.")
+	return nil
+}
+
 func getBeamNodeID(ctx context.Context, tc *client.TeleportClient, beamID string) (string, error) {
 	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
@@ -263,6 +301,27 @@ func getBeamNodeID(ctx context.Context, tc *client.TeleportClient, beamID string
 		return "", trace.NotFound("beam %q has no node", beamID)
 	}
 	return nodeID, nil
+}
+
+func copyBeamFile(cf *CLIConf, tc *client.TeleportClient, sources []string, destination string) error {
+	exec := client.RetryWithRelogin
+	if !cf.Relogin {
+		exec = func(ctx context.Context, teleportClient *client.TeleportClient, f func() error, _ ...client.RetryWithReloginOption) error {
+			return f()
+		}
+	}
+
+	req := client.SFTPRequest{
+		Sources:     sources,
+		Destination: destination,
+	}
+	if !cf.Quiet {
+		req.ProgressWriter = cf.Stdout()
+	}
+
+	return trace.Wrap(exec(cf.Context, tc, func() error {
+		return trace.Wrap(tc.SFTP(cf.Context, req))
+	}))
 }
 
 func connectToNodeSSH(cf *CLIConf, tc *client.TeleportClient, nodeID string, remoteCommand []string) error {
@@ -341,4 +400,13 @@ func beamNodeTarget(nodeID string) *client.TargetNode {
 		Hostname: nodeID,
 		Addr:     nodeID + ":0",
 	}
+}
+
+func beamRemotePath(cf *CLIConf, tc *client.TeleportClient, nodeID, remotePath string) string {
+	login := "root"
+	if cf.NodeLogin != "" {
+		login = cf.NodeLogin
+	}
+
+	return fmt.Sprintf("%s@%s:%s", login, nodeID, remotePath)
 }
