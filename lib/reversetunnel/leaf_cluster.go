@@ -1032,14 +1032,9 @@ func (s *leafCluster) chanTransportConn(req *sshutils.DialReq) (*sshutils.ChConn
 
 // runValidatedMFAChallengeSync runs a loop that watches for changes to ValidatedMFAChallenge resources in the root
 // cluster and syncs them to the leaf cluster.
-func (s *leafCluster) runValidatedMFAChallengeSync(
-	ctx context.Context,
-	cfg retryutils.LinearConfig,
-) error {
+func (s *leafCluster) runValidatedMFAChallengeSync(ctx context.Context, cfg retryutils.LinearConfig) error {
 	log := s.logger.With(teleport.ComponentKey, "runValidatedMFAChallengeSync", "cluster", s.GetName())
 
-	// Wait for the watcher to initialize before starting the sync loop to ensure that we have an initial state of the
-	// ValidatedMFAChallenge resources in the root cluster.
 	if err := s.validatedMFAChallengeWatcher.WaitInitialization(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1053,51 +1048,53 @@ func (s *leafCluster) runValidatedMFAChallengeSync(
 	// we will retry with the full set of challenges that need to be replicated.
 	var pending []*mfav1.ValidatedMFAChallenge
 
-	return trace.Wrap(
-		retry.For(
-			ctx,
-			func() error {
-				for {
-					// If there are no pending challenges to sync, wait for the next set of challenges from the watcher.
-					// If there are pending challenges, it means we had a failure in the previous sync attempt, so we
-					// should retry syncing those before waiting for new changes from the watcher.
-					if len(pending) == 0 {
-						select {
-						case <-ctx.Done():
-							return nil
+	for {
+		// If there are no pending challenges to sync, wait for the next set of challenges from the watcher.
+		// If there are pending challenges, it means we had a failure in the previous sync attempt, so we
+		// should retry syncing those before waiting for new changes from the watcher.
+		if len(pending) == 0 {
+			select {
+			case <-ctx.Done():
+				return nil
 
-						case <-s.validatedMFAChallengeWatcher.Done():
-							return retryutils.PermanentRetryError(trace.Errorf("watcher done"))
+			case <-s.validatedMFAChallengeWatcher.Done():
+				return trace.Errorf("watcher done channel closed")
 
-						case challenges, ok := <-s.validatedMFAChallengeWatcher.ResourcesC:
-							if !ok {
-								return retryutils.PermanentRetryError(trace.Errorf("watcher channel closed"))
-							}
-
-							pending = challenges
-						}
-					}
-
-					err := s.syncValidatedMFAChallenges(ctx, pending)
-					if err != nil {
-						log.WarnContext(
-							ctx,
-							"Failed to sync ValidatedMFAChallenges to leaf cluster, will retry",
-							"backoff_duration", retry.Duration(),
-							"error", err,
-						)
-						return trace.Wrap(err)
-					}
-
-					// Clear the pending challenges as they have been successfully synced.
-					pending = nil
-
-					// Reset the retry to clear any accumulated backoff.
-					retry.Reset()
+			case challenges, ok := <-s.validatedMFAChallengeWatcher.ResourcesC:
+				if !ok {
+					return trace.Errorf("watcher resources channel closed")
 				}
-			},
-		),
-	)
+
+				pending = challenges
+			}
+		}
+
+		err := s.syncValidatedMFAChallenges(ctx, pending)
+		if err == nil {
+			// Clear the pending challenges as they have been successfully synced.
+			pending = nil
+
+			// Reset the retry to clear any accumulated backoff.
+			retry.Reset()
+
+			continue
+		}
+
+		log.WarnContext(
+			ctx,
+			"Failed to sync ValidatedMFAChallenges to leaf cluster, will retry",
+			"backoff_duration", retry.Duration(),
+			"error", err,
+		)
+
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+
+		case <-retry.After():
+			retry.Inc()
+		}
+	}
 }
 
 // syncValidatedMFAChallenges syncs the provided ValidatedMFAChallenge resources to the leaf cluster.
