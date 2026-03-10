@@ -640,8 +640,22 @@ through the use of scoped MWI. That is, that an individual with administrative
 privileges within a scope, cannot leverage scoped MWI to gain access to
 resources outside of that scope.
 
-wip: summarize all controls in place, and where those controls are defence in 
-depth or accounting for different attack vectors.
+wip: more common/universal controls.
+
+### Explicit scope in references
+
+Across the design, where configuration resources reference a Bot, they must
+reference both the name of the bot and the scope in which it resides.
+
+Primarily, this control mitigates the risk of name reuse attacks. Consider
+a Bot created in scope `/foo` which has been assigned privileges. If this Bot
+is then destroyed, but the resources referencing it are not, then a malicious 
+actor with the ability to create Bots in another scope is able to inherit these
+dangling assignments.
+
+However, this control also serves the benefit of making scope and scope
+assignment explicit, reducing the likelihood of an unintentional misassignment
+of privilege.
 
 ## Appendix A: Decisions & Thinking
 
