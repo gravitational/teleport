@@ -27,6 +27,9 @@ service BeamsService {
   // CreateBeam creates a new beam.
   rpc CreateBeam(CreateBeamRequest) returns (Beam);
 
+  // GetBeam reads a beam.
+  rpc GetBeam(GetBeamRequest) returns (Beam);
+
   // ListBeams returns a page of beams.
   rpc ListBeams(ListBeamsRequest) returns (ListBeamsResponse);
 
@@ -46,6 +49,12 @@ service BeamsService {
 
 // CreateBeamRequest contains the parameters to CreateBeam.
 message CreateBeamRequest {}
+
+// GetBeamRequest contains the parameters to GetBeam.
+message GetBeamRequest {
+  // BeamID identifies the beam that will be read.
+  string beam_id = 1;
+}
 
 // ListBeamsRequest contains the parameters to ListBeams.
 message ListBeamsRequest {

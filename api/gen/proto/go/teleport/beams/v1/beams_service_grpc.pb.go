@@ -35,6 +35,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	BeamsService_CreateBeam_FullMethodName  = "/teleport.beams.v1.BeamsService/CreateBeam"
+	BeamsService_GetBeam_FullMethodName     = "/teleport.beams.v1.BeamsService/GetBeam"
 	BeamsService_ListBeams_FullMethodName   = "/teleport.beams.v1.BeamsService/ListBeams"
 	BeamsService_WatchBeam_FullMethodName   = "/teleport.beams.v1.BeamsService/WatchBeam"
 	BeamsService_AllowDomain_FullMethodName = "/teleport.beams.v1.BeamsService/AllowDomain"
@@ -50,6 +51,8 @@ const (
 type BeamsServiceClient interface {
 	// CreateBeam creates a new beam.
 	CreateBeam(ctx context.Context, in *CreateBeamRequest, opts ...grpc.CallOption) (*Beam, error)
+	// GetBeam reads a beam.
+	GetBeam(ctx context.Context, in *GetBeamRequest, opts ...grpc.CallOption) (*Beam, error)
 	// ListBeams returns a page of beams.
 	ListBeams(ctx context.Context, in *ListBeamsRequest, opts ...grpc.CallOption) (*ListBeamsResponse, error)
 	// WatchBeam returns the current state of the beam, and streams changes (e.g.
@@ -76,6 +79,16 @@ func (c *beamsServiceClient) CreateBeam(ctx context.Context, in *CreateBeamReque
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Beam)
 	err := c.cc.Invoke(ctx, BeamsService_CreateBeam_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *beamsServiceClient) GetBeam(ctx context.Context, in *GetBeamRequest, opts ...grpc.CallOption) (*Beam, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Beam)
+	err := c.cc.Invoke(ctx, BeamsService_GetBeam_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -140,6 +153,8 @@ func (c *beamsServiceClient) Publish(ctx context.Context, in *PublishRequest, op
 type BeamsServiceServer interface {
 	// CreateBeam creates a new beam.
 	CreateBeam(context.Context, *CreateBeamRequest) (*Beam, error)
+	// GetBeam reads a beam.
+	GetBeam(context.Context, *GetBeamRequest) (*Beam, error)
 	// ListBeams returns a page of beams.
 	ListBeams(context.Context, *ListBeamsRequest) (*ListBeamsResponse, error)
 	// WatchBeam returns the current state of the beam, and streams changes (e.g.
@@ -164,6 +179,9 @@ type UnimplementedBeamsServiceServer struct{}
 
 func (UnimplementedBeamsServiceServer) CreateBeam(context.Context, *CreateBeamRequest) (*Beam, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateBeam not implemented")
+}
+func (UnimplementedBeamsServiceServer) GetBeam(context.Context, *GetBeamRequest) (*Beam, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetBeam not implemented")
 }
 func (UnimplementedBeamsServiceServer) ListBeams(context.Context, *ListBeamsRequest) (*ListBeamsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListBeams not implemented")
@@ -212,6 +230,24 @@ func _BeamsService_CreateBeam_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(BeamsServiceServer).CreateBeam(ctx, req.(*CreateBeamRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BeamsService_GetBeam_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBeamRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BeamsServiceServer).GetBeam(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BeamsService_GetBeam_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BeamsServiceServer).GetBeam(ctx, req.(*GetBeamRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -291,6 +327,10 @@ var BeamsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateBeam",
 			Handler:    _BeamsService_CreateBeam_Handler,
+		},
+		{
+			MethodName: "GetBeam",
+			Handler:    _BeamsService_GetBeam_Handler,
 		},
 		{
 			MethodName: "ListBeams",

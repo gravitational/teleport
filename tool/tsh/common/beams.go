@@ -19,7 +19,6 @@
 package common
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -30,20 +29,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravitational/trace"
 
-	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/itertools/stream"
-)
-
-const (
-	beamAddPollInterval = 500 * time.Millisecond
-	beamAddPollTimeout  = 5 * time.Minute
 )
 
 func onBeamsAdd(cf *CLIConf) error {
@@ -55,7 +46,10 @@ func onBeamsAdd(cf *CLIConf) error {
 	tc.AllowHeadless = true
 
 	stopCreating := startBeamSpinner(cf.Stdout(), "creating...")
-	var beamID string
+	var (
+		beamID   string
+		beamNode string
+	)
 	createErr := client.RetryWithRelogin(cf.Context, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
@@ -68,6 +62,7 @@ func onBeamsAdd(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		beamID = beam.GetMetadata().GetName()
+		beamNode = beam.GetStatus().GetNodeId()
 		return nil
 	})
 	if createErr != nil {
@@ -82,7 +77,15 @@ func onBeamsAdd(cf *CLIConf) error {
 		return nil
 	}
 
-	return trace.Wrap(connectToBeamSSH(cf, tc, beamID, nil, true))
+	stopConnecting := startBeamSpinner(cf.Stdout(), "connecting...")
+	err = connectToNodeSSH(cf, tc, beamNode, nil)
+	if err != nil {
+		stopConnecting("")
+		return trace.Wrap(err)
+	}
+	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
+	stopConnecting(fmt.Sprintf("%s ready", arrowStyle.Render("↳")))
+	return nil
 }
 
 func onBeamsConsole(cf *CLIConf) error {
@@ -92,7 +95,11 @@ func onBeamsConsole(cf *CLIConf) error {
 	}
 
 	tc.AllowHeadless = true
-	return trace.Wrap(connectToBeamSSH(cf, tc, cf.BeamID, nil, true))
+	nodeID, err := getBeamNodeID(cf.Context, tc, cf.BeamID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(connectToNodeSSH(cf, tc, nodeID, nil))
 }
 
 func onBeamsExec(cf *CLIConf) error {
@@ -102,7 +109,11 @@ func onBeamsExec(cf *CLIConf) error {
 	}
 
 	tc.AllowHeadless = true
-	return trace.Wrap(connectToBeamSSH(cf, tc, cf.BeamID, cf.RemoteCommand, false))
+	nodeID, err := getBeamNodeID(cf.Context, tc, cf.BeamID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(connectToNodeSSH(cf, tc, nodeID, cf.RemoteCommand))
 }
 
 func onBeamsList(cf *CLIConf) error {
@@ -206,34 +217,33 @@ func onBeamsPublish(cf *CLIConf) error {
 	return nil
 }
 
-func connectToBeamSSH(cf *CLIConf, tc *client.TeleportClient, beamID string, remoteCommand []string, showStatus bool) error {
-	clusterClient, err := tc.ConnectToCluster(cf.Context)
+func getBeamNodeID(ctx context.Context, tc *client.TeleportClient, beamID string) (string, error) {
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 	defer clusterClient.Close()
 
-	tc.Host = ""
-	tc.Labels = nil
-	tc.SearchKeywords = nil
-	tc.PredicateExpression = fmt.Sprintf(`labels["teleport.internal/beam/id"]==%q`, beamID)
-	tc.HostLogin = cmp.Or(cf.NodeLogin, "root")
-
-	var stopConnecting func(string)
-	if showStatus {
-		stopConnecting = startBeamSpinner(cf.Stdout(), "connecting...")
-	} else {
-		stopConnecting = func(string) {}
-	}
-	target, err := waitForBeamNode(cf.Context, tc, clusterClient.AuthClient)
+	beam, err := clusterClient.AuthClient.BeamsServiceClient().GetBeam(ctx, &beamsv1.GetBeamRequest{
+		BeamId: beamID,
+	})
 	if err != nil {
-		stopConnecting("")
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
-	if showStatus {
-		arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
-		stopConnecting(fmt.Sprintf("%s ready", arrowStyle.Render("↳")))
+
+	nodeID := beam.GetStatus().GetNodeId()
+	if nodeID == "" {
+		return "", trace.NotFound("beam %q has no node", beamID)
 	}
+	return nodeID, nil
+}
+
+func connectToNodeSSH(cf *CLIConf, tc *client.TeleportClient, nodeID string, remoteCommand []string) error {
+	tc.HostLogin = "root"
+	if cf.NodeLogin != "" {
+		tc.HostLogin = cf.NodeLogin
+	}
+	target := beamNodeTarget(nodeID)
 
 	tc.Stdin = cf.Stdin()
 	sshFunc := func() error {
@@ -299,38 +309,9 @@ func startBeamSpinner(w io.Writer, msg string) func(finalLine string) {
 	}
 }
 
-func waitForBeamNode(ctx context.Context, tc *client.TeleportClient, authClient authclient.ClientI) (*client.TargetNode, error) {
-	pollCtx, cancel := context.WithTimeout(ctx, beamAddPollTimeout)
-	defer cancel()
-
-	ticker := time.NewTicker(beamAddPollInterval)
-	defer ticker.Stop()
-
-	for {
-		page, _, err := apiclient.GetUnifiedResourcePage(pollCtx, authClient, &proto.ListUnifiedResourcesRequest{
-			Kinds:               []string{types.KindNode},
-			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
-			PredicateExpression: tc.PredicateExpression,
-			Limit:               1,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if len(page) > 0 {
-			node, ok := page[0].ResourceWithLabels.(types.Server)
-			if !ok {
-				return nil, trace.BadParameter("expected node resource, got %T", page[0].ResourceWithLabels)
-			}
-			return &client.TargetNode{
-				Hostname: node.GetHostname(),
-				Addr:     node.GetName() + ":0",
-			}, nil
-		}
-
-		select {
-		case <-ticker.C:
-		case <-pollCtx.Done():
-			return nil, trace.LimitExceeded("timed out waiting for beam node to register")
-		}
+func beamNodeTarget(nodeID string) *client.TargetNode {
+	return &client.TargetNode{
+		Hostname: nodeID,
+		Addr:     nodeID + ":0",
 	}
 }
