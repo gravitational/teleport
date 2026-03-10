@@ -34,8 +34,7 @@ import (
 )
 
 func TestUnifiedResourcesList(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}
 
@@ -221,8 +220,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 }
 
 func TestUnifiedResourcesListWildcardDatabaseUsers(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}
 
