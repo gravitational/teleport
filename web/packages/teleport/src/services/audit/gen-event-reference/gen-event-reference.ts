@@ -176,7 +176,7 @@ title: "Audit Event Reference"
 description: "Provides a comprehensive list of Teleport audit events and their fields."
 ---
 {/* Generated file. Do not edit. */}
-{/* To regenerate, navigate to docs/gen-event-reference and run pnpm gen-docs */}
+{/* To regenerate, run: make web-ui-docs */}
 
 ${introParagraph}
 `
