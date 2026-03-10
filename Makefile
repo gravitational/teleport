@@ -885,7 +885,7 @@ tooling: $(DIFF_TEST)
 test: test-helm test-sh test-api test-go test-rust test-operator test-terraform-provider
 
 $(TEST_LOG_DIR):
-	mkdir $(TEST_LOG_DIR)
+	mkdir -p $(TEST_LOG_DIR)
 
 .PHONY: helmunit/installed
 helmunit/installed:
@@ -1440,7 +1440,7 @@ $(VERSRC) &: Makefile version.mk
 update-tag: TAG_REMOTE ?= origin
 update-tag:
 	@test $(VERSION)
-	cd build.assets/tooling && CGO_ENABLED=0 go run ./cmd/check -check valid -tag $(GITTAG)
+	cd build.assets/tooling && GOWORK=off CGO_ENABLED=0 go run ./cmd/check -check valid -tag $(GITTAG)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
