@@ -445,7 +445,7 @@ alleviate the need for a distinct `spec.bot_scope` field on the token.
 
 Upon successfully joining, the generation of certificates for the scoped Bot 
 should follow the process outlined under
-[Calculating and encoding of authorization for scoped Bots.](#calculating-and-encoding-of-authorization-for-scoped-bots).
+[Bot Identity Representation and Certificate Issuance.](#bot-identity-representation-and-certificate-issuance).
 
 #### Auditing
 
