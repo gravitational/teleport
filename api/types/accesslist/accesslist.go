@@ -651,8 +651,10 @@ func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
 type EqualAccessListsOption func(*equalAccessListsConfig)
 
 type equalAccessListsConfig struct {
-	skipClone     bool
-	resetFieldsFn func(*AccessList)
+	skipClone       bool
+	ignoreEphemeral bool
+	equateEmpty     bool
+	normalizeFields bool
 }
 
 // WithSkipClone configures EqualAccessLists to skip cloning
@@ -678,7 +680,29 @@ func WithSkipClone() EqualAccessListsOption {
 // is also used) to avoid modifying the originals.
 func WithIgnoreEphemeralFields() EqualAccessListsOption {
 	return func(c *equalAccessListsConfig) {
-		c.resetFieldsFn = resetEphemeralFieldsAccessList
+		c.ignoreEphemeral = true
+	}
+}
+
+// WithEquateEmpty configures EqualAccessLists to treat nil and empty slices as equal.
+func WithEquateEmpty() EqualAccessListsOption {
+	return func(c *equalAccessListsConfig) {
+		c.equateEmpty = true
+	}
+}
+
+// WithNormalizeFields configures EqualAccessLists to normalize fields in (a) to match
+// the corresponding fields in (b), but only when those fields are semantically equal
+// (i.e., same elements, differing order), using [AccessList.NormalizeSemanticallyEqualFields].
+//
+// For example, if a.Spec.Grants.Roles is ["z", "a"] and b.Spec.Grants.Roles is ["a", "z"],
+// they are semantically equal (same roles), so a.Spec.Grants.Roles will be set to ["a", "z"]
+// to match b's ordering.
+//
+// If (b) is nil, no normalization is performed.
+func WithNormalizeFields() EqualAccessListsOption {
+	return func(c *equalAccessListsConfig) {
+		c.normalizeFields = true
 	}
 }
 
@@ -702,10 +726,16 @@ func EqualAccessLists(a, b *AccessList, opts ...EqualAccessListsOption) bool {
 		a = a.Clone()
 		b = b.Clone()
 	}
-
-	if cfg.resetFieldsFn != nil {
-		cfg.resetFieldsFn(a)
-		cfg.resetFieldsFn(b)
+	if cfg.ignoreEphemeral {
+		resetEphemeralFieldsAccessList(a)
+		resetEphemeralFieldsAccessList(b)
+	}
+	if cfg.equateEmpty {
+		replaceNilWithEmpty(a)
+		replaceNilWithEmpty(b)
+	}
+	if cfg.normalizeFields {
+		a.NormalizeSemanticallyEqualFields(b)
 	}
 
 	return deriveTeleportEqualAccessList(a, b)
@@ -722,4 +752,124 @@ func resetEphemeralFieldsAccessList(a *AccessList) {
 	for i := range a.Spec.Owners {
 		a.Spec.Owners[i].IneligibleStatus = ""
 	}
+}
+
+type alRoleSliceAccessor func(*AccessList) *[]string
+type alTraitsAccessor func(*AccessList) *trait.Traits
+
+var alRoleSliceFields = []alRoleSliceAccessor{
+	func(a *AccessList) *[]string { return &a.Spec.MembershipRequires.Roles },
+	func(a *AccessList) *[]string { return &a.Spec.OwnershipRequires.Roles },
+	func(a *AccessList) *[]string { return &a.Spec.Grants.Roles },
+	func(a *AccessList) *[]string { return &a.Spec.OwnerGrants.Roles },
+}
+
+var alTraitsFields = []alTraitsAccessor{
+	func(a *AccessList) *trait.Traits { return &a.Spec.Grants.Traits },
+	func(a *AccessList) *trait.Traits { return &a.Spec.OwnerGrants.Traits },
+	func(a *AccessList) *trait.Traits { return &a.Spec.MembershipRequires.Traits },
+	func(a *AccessList) *trait.Traits { return &a.Spec.OwnershipRequires.Traits },
+}
+
+// NormalizeSemanticallyEqualFields normalizes fields in-place on the receiver (a) to match the
+// corresponding fields on (b), but only when those fields are semantically equal (i.e., same
+// elements but differing order).
+//
+// For example, if a.Spec.Grants.Roles is ["z", "a"] and b.Spec.Grants.Roles is ["a", "z"],
+// they are semantically equal, so a.Spec.Grants.Roles will be set to ["a", "z"]
+// to match b's ordering.
+//
+// If b is nil, no normalization is performed.
+func (a *AccessList) NormalizeSemanticallyEqualFields(b *AccessList) {
+	if a == nil || b == nil {
+		return
+	}
+	for _, get := range alRoleSliceFields {
+		normalizeSlicesIfEqual(get(a), get(b))
+	}
+	for _, get := range alTraitsFields {
+		normalizeTraitsIfEqual(get(a), get(b))
+	}
+}
+
+// replaceNilWithEmpty replaces any nil role slices with an empty string slice,
+// and any nil traits fields with an empty [trait.Traits].
+func replaceNilWithEmpty(a *AccessList) {
+	if a == nil {
+		return
+	}
+	for _, get := range alRoleSliceFields {
+		replaceNilWithEmptySlice(get(a))
+	}
+	for _, get := range alTraitsFields {
+		replaceNilWithEmptyTraits(get(a))
+	}
+}
+
+func replaceNilWithEmptyTraits(m *trait.Traits) {
+	if *m == nil {
+		*m = make(map[string][]string)
+	}
+}
+
+func replaceNilWithEmptySlice[T comparable](s *[]T) {
+	if *s == nil {
+		*s = []T{}
+	}
+}
+
+// normalizeTraitsIfEqual sets *a to *b if they are semantically equal.
+func normalizeTraitsIfEqual(a, b *trait.Traits) {
+	if mapsAreSemanticallyEqual(*a, *b) {
+		*a = *b
+	}
+}
+
+// mapsAreSemanticallyEqual returns whether the provided maps a, b contain the
+// same key-value pairs, where values (slices) are compared without regard to order.
+// Nil maps are treated as empty maps.
+func mapsAreSemanticallyEqual[T comparable](a, b map[string][]T) bool {
+	if a == nil {
+		a = map[string][]T{}
+	}
+	if b == nil {
+		b = map[string][]T{}
+	}
+	if len(a) != len(b) {
+		return false
+	}
+	for key, value := range a {
+		if bValue, ok := b[key]; !ok || !slicesAreSemanticallyEqual(value, bValue) {
+			return false
+		}
+	}
+	return true
+}
+
+// normalizeSlicesIfEqual sets *a to *b if they are semantically equal.
+func normalizeSlicesIfEqual[T comparable](a, b *[]T) {
+	if slicesAreSemanticallyEqual(*a, *b) {
+		*a = *b
+	}
+}
+
+// slicesAreSemanticallyEqual returns whether the provided slices a, b contain
+// the same elements (with the same multiplicities), regardless of order.
+// For example, ["a", "b", "a"] and ["a", "a", "b"] are semantically equal,
+// but ["a", "b"] and ["a", "a", "b"] are not.
+func slicesAreSemanticallyEqual[T comparable](a, b []T) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	count := map[T]int{}
+	for _, s := range a {
+		count[s]++
+	}
+	for _, s := range b {
+		if count[s] == 0 {
+			return false
+		}
+		count[s]--
+	}
+	return true
 }
