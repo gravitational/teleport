@@ -18904,9 +18904,9 @@ type PluginOktaSyncSettings struct {
 	//
 	// An empty string results in the default value of 10min.
 	//
-	// NOTE: This has an impact on ther parts of the Okta sync. In particual it changes the how often
-	// the cached Okta client for assignments is being invalidated. It is not advised to change this
-	// setting without prior recommedation.
+	// NOTE: This has an impact on other parts of the Okta sync. In particual it changes the how
+	// often the cached Okta client for assignments is being invalidated. It is not advised to change
+	// this setting without prior recommendation.
 	TimeBetweenAssignmentProcessLoops string   `protobuf:"bytes,15,opt,name=time_between_assignment_process_loops,json=timeBetweenAssignmentProcessLoops,proto3" json:"time_between_assignment_process_loops,omitempty"`
 	XXX_NoUnkeyedLiteral              struct{} `json:"-"`
 	XXX_unrecognized                  []byte   `json:"-"`

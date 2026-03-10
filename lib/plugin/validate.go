@@ -63,7 +63,7 @@ func validateOkta(plugin *types.PluginV1) error {
 	}
 
 	if timeBetweenAssignmentProcessLoops > timeBetweenImports {
-		return trace.BadParameter("time_between_imports has to be longer than time_between_assignment_process_loops")
+		return trace.BadParameter("time_between_assignment_process_loops cannot be longer than time_between_imports")
 	}
 
 	return nil

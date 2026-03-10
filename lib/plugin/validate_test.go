@@ -63,7 +63,7 @@ func Test_validateOkta(t *testing.T) {
 				},
 			},
 			errMatcher:  trace.IsBadParameter,
-			errContains: "time_between_imports has to be longer than time_between_assignment_process_loops",
+			errContains: "time_between_assignment_process_loops cannot be longer than time_between_imports",
 		},
 		{
 			name: "TimeBetweenAssignmentProcessLoops longer than implicit TimeBetweenImports",
@@ -74,7 +74,7 @@ func Test_validateOkta(t *testing.T) {
 				},
 			},
 			errMatcher:  trace.IsBadParameter,
-			errContains: "time_between_imports has to be longer than time_between_assignment_process_loops",
+			errContains: "time_between_assignment_process_loops cannot be longer than time_between_imports",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
