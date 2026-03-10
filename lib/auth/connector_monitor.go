@@ -19,8 +19,8 @@ const (
 	// is considered to be 'expiring'. Somewhat arbitrarily set to 90 days.
 	// TODO(nixpig): Make timeframe configurable in future.
 	samlCertExpiryTimeframe = 90 * 24 * time.Hour
-	// samlCertExpiryAlertName is the ID used for the alert.
-	samlCertExpiryAlertName = "saml-cert-expiry-warning"
+	// samlCertExpiryAlertID is the ID used for the alert.
+	samlCertExpiryAlertID = "saml-cert-expiry-warning"
 	// samlCertExpiryAlertExpires is the expiration time for the alert.
 	// It's set to 2x the check cycle so any stale alerts will clear automatically without
 	// affecting valid alerts.
@@ -70,7 +70,7 @@ func (a *Server) checkSAMLCertExpiry(ctx context.Context) error {
 		return trace.Wrap(a.upsertSAMLCertExpiryAlert(ctx, message))
 	}
 
-	if err := a.Services.DeleteClusterAlert(ctx, samlCertExpiryAlertName); err != nil && !trace.IsNotFound(err) {
+	if err := a.Services.DeleteClusterAlert(ctx, samlCertExpiryAlertID); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
@@ -79,7 +79,7 @@ func (a *Server) checkSAMLCertExpiry(ctx context.Context) error {
 
 func (a *Server) upsertSAMLCertExpiryAlert(ctx context.Context, message string) error {
 	alert, err := types.NewClusterAlert(
-		samlCertExpiryAlertName,
+		samlCertExpiryAlertID,
 		message,
 		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
 		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindSAML, types.VerbRead)),

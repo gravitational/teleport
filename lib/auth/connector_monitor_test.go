@@ -95,7 +95,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 				t.Cleanup(func() {
 					require.NoError(t, srv.Auth().Services.DeleteSAMLConnector(context.Background(), createdConnector.GetName()))
 					if err := srv.Auth().DeleteClusterAlert(
-						context.Background(), auth.SAMLCertExpiryAlertName,
+						context.Background(), auth.SAMLCertExpiryAlertID,
 					); err != nil && !trace.IsNotFound(err) {
 						require.NoError(t, err)
 					}
@@ -106,7 +106,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 			require.NoError(t, err)
 
 			alerts, err := srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-				AlertID: auth.SAMLCertExpiryAlertName,
+				AlertID: auth.SAMLCertExpiryAlertID,
 			})
 			require.NoError(t, err)
 			tt.assertAlerts(t, alerts)
@@ -140,7 +140,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 		})
 
 		alerts, err := srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-			AlertID: auth.SAMLCertExpiryAlertName,
+			AlertID: auth.SAMLCertExpiryAlertID,
 		})
 		require.NoError(t, err)
 		require.Len(t, alerts, 1)
@@ -155,7 +155,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 		require.NoError(t, err)
 
 		alerts, err = srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-			AlertID: auth.SAMLCertExpiryAlertName,
+			AlertID: auth.SAMLCertExpiryAlertID,
 		})
 		require.NoError(t, err)
 		require.Empty(t, alerts)
@@ -166,7 +166,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 		require.NoError(t, err)
 
 		alerts, err = srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-			AlertID: auth.SAMLCertExpiryAlertName,
+			AlertID: auth.SAMLCertExpiryAlertID,
 		})
 		require.NoError(t, err)
 		require.Len(t, alerts, 1)
@@ -174,7 +174,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 		require.NoError(t, srv.Auth().DeleteSAMLConnector(ctx, updatedConnector.GetName()))
 
 		alerts, err = srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-			AlertID: auth.SAMLCertExpiryAlertName,
+			AlertID: auth.SAMLCertExpiryAlertID,
 		})
 		require.NoError(t, err)
 		require.Empty(t, alerts)

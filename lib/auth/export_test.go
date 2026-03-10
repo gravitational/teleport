@@ -72,7 +72,7 @@ const (
 	ForwardedTag    = forwardedTag
 
 	SAMLCertExpiryTimeframe = samlCertExpiryTimeframe
-	SAMLCertExpiryAlertName = samlCertExpiryAlertName
+	SAMLCertExpiryAlertID   = samlCertExpiryAlertID
 )
 
 var (
