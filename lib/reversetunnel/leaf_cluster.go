@@ -1044,13 +1044,9 @@ func (s *leafCluster) runValidatedMFAChallengeSync(ctx context.Context, cfg retr
 		return trace.Wrap(err)
 	}
 
-	// Keep track of pending challenges that need to be synced to the leaf cluster. If a sync fails, we will retry with
-	// the pending set of challenges that need to be replicated.
-	pending := []*mfav1.ValidatedMFAChallenge{}
-
-	// Keep track of challenge we already synced to the leaf cluster. This allows us to only compute the delta of
-	// changes we need to sync on each iteration.
-	synced := make(map[string]struct{})
+	// Keep track of pending challenges that need to be synced to the leaf cluster. This ensures that if a sync fails,
+	// we will retry with the full set of challenges that need to be replicated.
+	var pending []*mfav1.ValidatedMFAChallenge
 
 	for {
 		// If there are no pending challenges to sync, wait for the next set of challenges from the watcher.
@@ -1069,10 +1065,7 @@ func (s *leafCluster) runValidatedMFAChallengeSync(ctx context.Context, cfg retr
 					return trace.Errorf("watcher resources channel closed")
 				}
 
-				pending = computeDeltaForMFAChallengesSync(challenges, synced)
-				if len(pending) == 0 {
-					continue
-				}
+				pending = challenges
 			}
 		}
 
@@ -1102,29 +1095,6 @@ func (s *leafCluster) runValidatedMFAChallengeSync(ctx context.Context, cfg retr
 			retry.Inc()
 		}
 	}
-}
-
-func computeDeltaForMFAChallengesSync(
-	challenges []*mfav1.ValidatedMFAChallenge,
-	synced map[string]struct{},
-) []*mfav1.ValidatedMFAChallenge {
-	delta := make([]*mfav1.ValidatedMFAChallenge, 0, len(challenges))
-
-	// Compare the pending challenges with the already synced challenges to compute the delta that need to be
-	// synced to the leaf cluster.
-	for _, challenge := range challenges {
-		key := challenge.GetSpec().GetTargetCluster() + "/" + challenge.GetMetadata().GetName()
-
-		if _, ok := synced[key]; ok {
-			continue
-		}
-
-		synced[key] = struct{}{}
-
-		delta = append(delta, challenge)
-	}
-
-	return delta
 }
 
 // syncValidatedMFAChallenges syncs the provided ValidatedMFAChallenge resources to the leaf cluster.

@@ -41,9 +41,10 @@ import (
 func TestRunValidatedMFAChallengeSync(t *testing.T) {
 	t.Parallel()
 
-	// Create two identical challenges to test that only one of them gets replicated to the leaf cluster.
-	chal := newValidatedMFAChallenge("challenge-for-leaf")
-	duplicatedChal := proto.Clone(chal).(*mfav1.ValidatedMFAChallenge)
+	chal := newValidatedMFAChallenge(
+		"challenge-for-leaf",
+		"leaf.example.com",
+	)
 
 	// Set up a channel to send events to the watcher and prime it with an init event.
 	events := make(chan types.Event, 1)
@@ -69,7 +70,6 @@ func TestRunValidatedMFAChallengeSync(t *testing.T) {
 			ResourceGetter: func(context.Context) ([]*mfav1.ValidatedMFAChallenge, error) {
 				return []*mfav1.ValidatedMFAChallenge{
 					chal,
-					duplicatedChal,
 				}, nil
 			},
 			ResourceKey: func(r *mfav1.ValidatedMFAChallenge) string {
@@ -166,7 +166,10 @@ func TestSyncValidatedMFAChallenges(t *testing.T) {
 		leafClient: &mockLeafClient{mfaClient: leafMFAClient},
 	}
 
-	chal := newValidatedMFAChallenge("challenge")
+	chal := newValidatedMFAChallenge(
+		"challenge",
+		"leaf.example.com",
+	)
 
 	err := leaf.syncValidatedMFAChallenges(
 		t.Context(),
@@ -194,7 +197,7 @@ func TestSyncValidatedMFAChallenges(t *testing.T) {
 		"syncValidatedMFAChallenges mismatch (-want +got)")
 }
 
-func newValidatedMFAChallenge(name string) *mfav1.ValidatedMFAChallenge {
+func newValidatedMFAChallenge(name, targetCluster string) *mfav1.ValidatedMFAChallenge {
 	return &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: "v1",
@@ -206,7 +209,7 @@ func newValidatedMFAChallenge(name string) *mfav1.ValidatedMFAChallenge {
 				Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("session-id")},
 			},
 			SourceCluster: "root.example.com",
-			TargetCluster: "leaf.example.com",
+			TargetCluster: targetCluster,
 			Username:      "alice",
 		},
 	}
