@@ -612,8 +612,6 @@ RFD:
   7a. Support will initially focus on the `identity` service for SSH/tctl/terraform.
 9. Scoping of BotInstances and support of scoped RBAC for BotInstances.
 
-wip wip wip
-
 ### Testing
 
 Enumerating the entirety of the manual and automated testing within this RFD is
