@@ -68,7 +68,7 @@ import {
   setUpAppGateway,
 } from 'teleterm/ui/services/workspacesService';
 import { IAppContext } from 'teleterm/ui/types';
-import { routing } from 'teleterm/ui/uri';
+import { routing, DatabaseUri } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
 
@@ -214,36 +214,43 @@ export function ConnectDatabaseActionButton(props: {
   database: Database;
 }): React.JSX.Element {
   const appContext = useAppContext();
+  const { database } = props;
 
-  const serverUsers = props.database.databaseUsers;
-  const hasWildcardUsers = hasWildcard(serverUsers ?? []);
+  const loginItemsFromDb = database.databaseUsers
+    .filter(user => user !== '*')
+    .map(user => ({ login: user, url: '' }));
+  const hasLoginItems = loginItemsFromDb.length > 0;
+  const hasWildcard = hasWildcardDbUsers(database.databaseUsers);
+
+  const shouldShowFilterInput = hasLoginItems && !hasWildcard;
 
   function connect(dbUser: string): void {
     const { uri, name, protocol, gcpProjectId, autoUserProvisioning } =
-      props.database;
-
+      database;
     connectToDatabase(
       appContext,
-      {
-        uri,
-        name,
-        protocol,
-        dbUser,
-        gcpProjectId,
-        autoUserProvisioning,
-      },
+      { uri, name, protocol, dbUser, gcpProjectId, autoUserProvisioning },
       { origin: 'resource_table' }
     );
   }
 
-  if (props.database.autoUserProvisioning) {
+  const getLoginItems = () =>
+    //TODO(nibrasohin): Remove the fallback once we have servers on Teleport v20 or higher.
+    hasLoginItems
+      ? loginItemsFromDb
+      : getDatabaseUsers(appContext, database.uri);
+
+  if (database.autoUserProvisioning) {
     return (
       <ButtonBorder
         size="small"
         onClick={async () => {
-          const dbUsers = await getDatabaseUsers(appContext, props.database);
-          const autoProvisionedDbUser = dbUsers?.[0]?.login ?? '';
-          connect(autoProvisionedDbUser);
+          //TODO(nibrasohin): Remove the fallback once we have servers on Teleport v20 or higher.
+          const loginItems = hasLoginItems
+            ? loginItemsFromDb
+            : await getDatabaseUsers(appContext, database.uri);
+          const autoProvisionedUser = loginItems[0]?.login ?? '';
+          connect(autoProvisionedUser);
         }}
         textTransform="none"
         width={buttonWidth}
@@ -256,22 +263,18 @@ export function ConnectDatabaseActionButton(props: {
   return (
     <MenuLogin
       {...getDatabaseMenuLoginOptions(
-        props.database.protocol as GatewayProtocol,
-        serverUsers ?? []
+        database.protocol as GatewayProtocol,
+        database.databaseUsers,
+        hasWildcard
       )}
       inputType={
-        (serverUsers ?? []).filter(user => user !== '*').length > 0 &&
-        !hasWildcardUsers
-          ? MenuInputType.FILTER
-          : MenuInputType.INPUT
+        shouldShowFilterInput ? MenuInputType.FILTER : MenuInputType.INPUT
       }
       textTransform="none"
       width="195px"
       buttonWidth={buttonWidth}
-      getLoginItems={() => getDatabaseUsers(appContext, props.database)}
-      onSelect={(_, user) => {
-        connect(user);
-      }}
+      getLoginItems={getLoginItems}
+      onSelect={(_, user) => connect(user)}
       transformOrigin={{
         vertical: 'top',
         horizontal: 'right',
@@ -284,13 +287,14 @@ export function ConnectDatabaseActionButton(props: {
   );
 }
 
-function hasWildcard(users: string[]): boolean {
+function hasWildcardDbUsers(users: string[]): boolean {
   return users.includes('*');
 }
 
 function getDatabaseMenuLoginOptions(
   protocol: GatewayProtocol,
-  users: string[]
+  users: string[],
+  hasWildcard: boolean
 ): Pick<MenuLoginProps, 'placeholder' | 'required'> {
   if (protocol === 'redis') {
     return {
@@ -298,25 +302,20 @@ function getDatabaseMenuLoginOptions(
       required: false,
     };
   }
-  let placeholder = 'Enter username';
-  if (users.length === 0) {
-    placeholder = 'No database users found';
-  } else if (!hasWildcard(users)) {
-    placeholder = 'Search by username';
-  }
-  return { placeholder, required: users.length > 0 };
+
+  const isSearchable = users.length > 0 && !hasWildcard;
+
+  const placeholder = isSearchable ? 'Search by username' : 'Enter username';
+  return { placeholder, required: isSearchable };
 }
 
-async function getDatabaseUsers(appContext: IAppContext, database: Database) {
-  //TODO(nibrasohin): Remove this once we have servers on Teleport v20 or higher.
-  if (database.databaseUsers) {
-    return database.databaseUsers
-      .filter(user => user !== '*')
-      .map(user => ({ login: user, url: '' }));
-  }
+async function getDatabaseUsers(
+  appContext: IAppContext,
+  databaseUri: DatabaseUri
+) {
   try {
-    const dbUsers = await retryWithRelogin(appContext, database.uri, () =>
-      appContext.resourcesService.getDbUsers(database.uri)
+    const dbUsers = await retryWithRelogin(appContext, databaseUri, () =>
+      appContext.resourcesService.getDbUsers(databaseUri)
     );
     return dbUsers.map(user => ({ login: user, url: '' }));
   } catch (e) {
