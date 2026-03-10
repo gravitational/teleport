@@ -319,53 +319,83 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 	testCases := []struct {
 		name         string
 		timeframe    time.Duration
-		ttls         []time.Duration
+		edTTLs       []time.Duration
+		certTTL      time.Duration
 		assertResult bool
 		assertErr    require.ErrorAssertionFunc
 	}{
 		{
-			name:         "cert not expiring within timeframe",
+			name:         "no certs expiring within timeframe",
 			timeframe:    30 * 24 * time.Hour,
-			ttls:         []time.Duration{45 * 24 * time.Hour},
+			edTTLs:       []time.Duration{45 * 24 * time.Hour},
+			certTTL:      75 * 24 * time.Hour,
 			assertResult: false,
 			assertErr:    require.NoError,
 		},
 		{
-			name:         "cert expiring within timeframe",
+			name:         "only entity descriptor cert",
 			timeframe:    30 * 24 * time.Hour,
-			ttls:         []time.Duration{15 * 24 * time.Hour},
-			assertResult: true,
+			edTTLs:       []time.Duration{45 * 24 * time.Hour},
+			certTTL:      0,
+			assertResult: false,
 			assertErr:    require.NoError,
 		},
 		{
-			name:         "cert already expired",
+			name:         "only connector field cert",
 			timeframe:    30 * 24 * time.Hour,
-			ttls:         []time.Duration{-24 * time.Hour},
-			assertResult: true,
+			edTTLs:       []time.Duration{},
+			certTTL:      75 * 24 * time.Hour,
+			assertResult: false,
 			assertErr:    require.NoError,
 		},
 		{
-			name:      "multiple certs with one expiring",
+			name:      "entity descriptor cert expiring within timeframe",
 			timeframe: 30 * 24 * time.Hour,
-			ttls: []time.Duration{
+			edTTLs: []time.Duration{
 				45 * 24 * time.Hour,
+				15 * 24 * time.Hour, // Expiring.
+			},
+			certTTL:      75 * 24 * time.Hour,
+			assertResult: true,
+			assertErr:    require.NoError,
+		},
+		{
+			name:      "entity descriptor cert already expired",
+			timeframe: 30 * 24 * time.Hour,
+			edTTLs: []time.Duration{
+				-24 * 24 * time.Hour, // Expired.
+				15 * 24 * time.Hour,
+			},
+			certTTL:      75 * 24 * time.Hour,
+			assertResult: true,
+			assertErr:    require.NoError,
+		},
+		{
+			name:      "connector field cert expiring within timeframe",
+			timeframe: 30 * 24 * time.Hour,
+			edTTLs: []time.Duration{
+				45 * 24 * time.Hour,
+				60 * 24 * time.Hour,
+			},
+			certTTL:      15 * 24 * time.Hour, // Expiring.
+			assertResult: true,
+			assertErr:    require.NoError,
+		},
+		{
+			name:      "connector field cert already expired",
+			timeframe: 30 * 24 * time.Hour,
+			edTTLs: []time.Duration{
 				15 * 24 * time.Hour,
 				60 * 24 * time.Hour,
 			},
+			certTTL:      -24 * 24 * time.Hour, // Expired.
 			assertResult: true,
-			assertErr:    require.NoError,
-		},
-		{
-			name:         "empty entity descriptor",
-			timeframe:    30 * 24 * time.Hour,
-			ttls:         []time.Duration{},
-			assertResult: false,
 			assertErr:    require.NoError,
 		},
 		{
 			name:         "invalid entity descriptor",
 			timeframe:    30 * 24 * time.Hour,
-			ttls:         nil, // Absence of ttls is used to generate an invalid entity descriptor.
+			edTTLs:       nil, // Absence of edTTLs is used to generate an invalid entity descriptor.
 			assertResult: false,
 			assertErr:    require.Error,
 		},
@@ -375,15 +405,24 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var entityDescriptor string
 			// Absence of ttls signals to generate an invalid entity descriptor.
-			if tc.ttls != nil {
-				entityDescriptor = createTestEntityDescriptor(t, tc.ttls)
+			if tc.edTTLs != nil {
+				entityDescriptor = createTestEntityDescriptor(t, tc.edTTLs)
 			} else {
 				entityDescriptor = "invalid entity descriptor"
+			}
+
+			var cert string
+			if tc.certTTL != 0 {
+				_, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{}, []string{}, tc.certTTL)
+				require.NoError(t, err)
+
+				cert = string(certPEM)
 			}
 
 			connector, err := types.NewSAMLConnector("test-connector", types.SAMLConnectorSpecV2{
 				AssertionConsumerService: "http://localhost:65535/acs", // Not called.
 				EntityDescriptor:         entityDescriptor,
+				Cert:                     cert,
 			})
 			require.NoError(t, err)
 

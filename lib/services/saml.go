@@ -467,6 +467,15 @@ func CheckSAMLCertExpiry(connector types.SAMLConnector, timeframe time.Duration)
 		return false, trace.Wrap(err)
 	}
 
+	if connector.GetCert() != "" {
+		cert, err := tlsca.ParseCertificatePEM([]byte(connector.GetCert()))
+		if err != nil {
+			return false, trace.Wrap(err, "failed to parse certificate defined in cert")
+		}
+
+		certs = append(certs, cert)
+	}
+
 	return slices.ContainsFunc(certs, func(c *x509.Certificate) bool {
 		return time.Until(c.NotAfter) <= timeframe
 	}), nil

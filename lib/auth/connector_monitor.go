@@ -97,7 +97,7 @@ func (a *Server) upsertSAMLCertExpiryAlert(ctx context.Context, message string) 
 func buildSAMLCertExpiryAlertMessage(connectorNames []string) string {
 	return fmt.Sprintf(
 		"The following connectors have one or more certificates that have expired or will expire in the next %d days: %s.",
-		int(samlCertExpiryTimeframe.Hours()/24),
+		int(samlCertExpiryTimeframe/(24*time.Hour)),
 		strings.Join(connectorNames, ", "),
 	)
 }
