@@ -198,11 +198,11 @@ Choose one of the following methods:
 - Install using package repositories
 - Install manually (TAR, DEB, RPM)
 
-## Install using package repositories
+### Install using package repositories
 
 Use this method to install Teleport through your system's package manager.
 
-### Source OS release variables
+#### Source OS release variables
 
 1. Run:
 
@@ -227,7 +227,7 @@ Use this method to install Teleport through your system's package manager.
 
    </Checkpoint>
 
-   ### Verify your distribution is supported
+   #### Verify your distribution is supported
 
 1. Confirm that your distribution appears in the table below. 
 
@@ -255,7 +255,7 @@ for the initial setup and **[Managed Updates v2](../upgrading/agent-managed-upda
 
    If one of those values appears in the table, use it instead.
 
-   ### Set required environment variables
+   #### Set required environment variables
 
 1. Assign the package name.
 
@@ -349,7 +349,7 @@ for the initial setup and **[Managed Updates v2](../upgrading/agent-managed-upda
      </TabItem>
    </Tabs>
 
-   ### Verify the installation
+   #### Verify the installation
 
 1. Run:
 
@@ -368,7 +368,7 @@ for the initial setup and **[Managed Updates v2](../upgrading/agent-managed-upda
    $ echo "ID=$ID, VERSION_ID=$VERSION_ID, TELEPORT_PKG=$TELEPORT_PKG, TELEPORT_CHANNEL=$TELEPORT_CHANNEL"
    ```
 
-   If you see **404** or repository errors, confirm your distribution is supported.
+   If you see 404 or repository errors, confirm your distribution is supported.
 
    Clear package manager cache and retry:
 
