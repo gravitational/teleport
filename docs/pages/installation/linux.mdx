@@ -200,7 +200,7 @@ Choose one of the following methods:
 
 Use this method to install Teleport through your system's package manager.
 
-#### Source OS release variables
+### Source OS release variables
 
 1. Run:
 
@@ -382,7 +382,7 @@ for the initial setup and **[Managed Updates v2](../upgrading/agent-managed-upda
 
 Use this method if you prefer to install from release archives or operate in restricted environments.
 
-  ### Set the package name
+  ### Set the package name, version, and architecture
 
 1. Assign the appropriate package:
 
@@ -390,8 +390,6 @@ Use this method if you prefer to install from release archives or operate in res
    $ TELEPORT_PKG=teleport        # Community Edition
    $ TELEPORT_PKG=teleport-ent    # Enterprise
    ```
-
-   ### Set the version and architecture
 
 1. Determine your system architecture:
 
@@ -422,7 +420,7 @@ Use this method if you prefer to install from release archives or operate in res
    $ SYSTEM_ARCH=""
    ```
 
-   ### Download and install
+  ### Download and install
 
    <Admonition type="note" title="Checksum verification compatibility">
    These steps use `sha256sum`, which is available by default on most modern Linux
@@ -470,7 +468,7 @@ Use this method if you prefer to install from release archives or operate in res
      </TabItem>
    </Tabs>
 
-   ### Verify the installation
+  ### Verify the installation
 
 1. Run:
 
@@ -491,7 +489,7 @@ Use this method if you prefer to install from release archives or operate in res
    ```code
    $ ls -la /usr/local/bin/teleport /usr/local/bin/tctl /usr/local/bin/tsh
    ```
-
+   
    - Add `/usr/local/bin` to your PATH if necessary:
 
    ```code
