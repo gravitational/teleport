@@ -2,6 +2,7 @@ name: Manual Test Plan Check
 run-name: Manual Test Plan Check - ${{ github.run_id }} - @${{ github.actor }}
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 jobs:
   changes:
