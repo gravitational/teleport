@@ -82,7 +82,7 @@ func onBeamsAdd(cf *CLIConf) error {
 		return nil
 	}
 
-	return trace.Wrap(connectToBeamConsole(cf, tc, beamID))
+	return trace.Wrap(connectToBeamSSH(cf, tc, beamID, nil, true))
 }
 
 func onBeamsConsole(cf *CLIConf) error {
@@ -92,7 +92,17 @@ func onBeamsConsole(cf *CLIConf) error {
 	}
 
 	tc.AllowHeadless = true
-	return trace.Wrap(connectToBeamConsole(cf, tc, cf.BeamID))
+	return trace.Wrap(connectToBeamSSH(cf, tc, cf.BeamID, nil, true))
+}
+
+func onBeamsExec(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc.AllowHeadless = true
+	return trace.Wrap(connectToBeamSSH(cf, tc, cf.BeamID, cf.RemoteCommand, false))
 }
 
 func onBeamsList(cf *CLIConf) error {
@@ -196,7 +206,7 @@ func onBeamsPublish(cf *CLIConf) error {
 	return nil
 }
 
-func connectToBeamConsole(cf *CLIConf, tc *client.TeleportClient, beamID string) error {
+func connectToBeamSSH(cf *CLIConf, tc *client.TeleportClient, beamID string, remoteCommand []string, showStatus bool) error {
 	clusterClient, err := tc.ConnectToCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
@@ -209,18 +219,25 @@ func connectToBeamConsole(cf *CLIConf, tc *client.TeleportClient, beamID string)
 	tc.PredicateExpression = fmt.Sprintf(`labels["teleport.internal/beam/id"]==%q`, beamID)
 	tc.HostLogin = cmp.Or(cf.NodeLogin, "root")
 
-	stopConnecting := startBeamSpinner(cf.Stdout(), "connecting...")
+	var stopConnecting func(string)
+	if showStatus {
+		stopConnecting = startBeamSpinner(cf.Stdout(), "connecting...")
+	} else {
+		stopConnecting = func(string) {}
+	}
 	target, err := waitForBeamNode(cf.Context, tc, clusterClient.AuthClient)
 	if err != nil {
 		stopConnecting("")
 		return trace.Wrap(err)
 	}
-	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
-	stopConnecting(fmt.Sprintf("%s ready", arrowStyle.Render("↳")))
+	if showStatus {
+		arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
+		stopConnecting(fmt.Sprintf("%s ready", arrowStyle.Render("↳")))
+	}
 
 	tc.Stdin = cf.Stdin()
 	sshFunc := func() error {
-		return tc.SSH(cf.Context, nil, client.WithHostAddress(target.Addr))
+		return tc.SSH(cf.Context, remoteCommand, client.WithHostAddress(target.Addr))
 	}
 	if !cf.Relogin {
 		return trace.Wrap(sshFunc())
