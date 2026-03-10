@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	gcputils "github.com/gravitational/teleport/api/utils/gcp"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -2916,8 +2915,6 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.Auth.AgentRolloutControllerSyncPeriod = period
 	}
 
-	// TODO(tross): Remove when enterprise is consuming from the config
-	lib.SetInsecureDevMode(clf.InsecureMode)
 	// pass the value of --insecure flag to the runtime
 	if clf.InsecureMode {
 		cfg.InsecureMode = true
@@ -2991,8 +2988,6 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	cfg.SetAuthServerAddresses(nil)
 	cfg.ProxyServer = *proxyServer
 
-	// TODO(tross): Remove when enterprise is consuming from the config
-	lib.SetInsecureDevMode(clf.InsecureMode)
 	// pass the value of --insecure flag to the runtime
 	if clf.InsecureMode {
 		cfg.InsecureMode = true

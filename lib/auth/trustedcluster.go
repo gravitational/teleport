@@ -35,7 +35,6 @@ import (
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -685,8 +684,7 @@ func (a *Server) sendValidateRequestToProxy(ctx context.Context, host string, va
 		roundtrip.SanitizerEnabled(true),
 	}
 
-	// TODO(tross): remove lib.IsInsecureDevMode after everything is converted.
-	if lib.IsInsecureDevMode() || a.insecureMode {
+	if a.insecureMode {
 		a.logger.WarnContext(ctx, "The setting insecureSkipVerify is used to communicate with proxy. Make sure you intend to run Teleport in insecure mode!")
 
 		// Get the default transport, this allows picking up proxy from the
