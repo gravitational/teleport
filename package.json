@@ -24,8 +24,8 @@
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --build",
     "type-check-native": "tsgo --build",
     "optimize-resource-icons": "svgo --multipass --quiet -rf web/packages/design/src/ResourceIcon/assets",
-    "format-check": "oxfmt --check 'e/**/*.{ts,tsx,js,jsx,mts}' 'web/**/*.{ts,tsx,js,jsx,mts}'",
-    "format": "oxfmt 'e/**/*.{ts,tsx,js,jsx,mts}' 'web/**/*.{ts,tsx,js,jsx,mts}'",
+    "format-check": "oxfmt --check 'e/**/*.{ts,tsx,js,jsx,mts}' 'web/**/*.{ts,tsx,js,jsx,mts}' 'e2e/**/*.{ts,tsx,js,jsx,mts}'",
+    "format": "oxfmt 'e/**/*.{ts,tsx,js,jsx,mts}' 'web/**/*.{ts,tsx,js,jsx,mts}' 'e2e/**/*.{ts,tsx,js,jsx,mts}'",
     "process-icons": "pnpm optimize-resource-icons && node web/packages/design/src/Icon/script/script.js && pnpm oxfmt 'web/packages/design/src/Icon/**/*.tsx'",
     "list-installed-versions": "./web/scripts/list-installed-versions.sh",
     "nop": "exit 0"
