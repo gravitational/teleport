@@ -408,7 +408,9 @@ type ProtoStream struct {
 
 	eventsCh chan protoEvent
 
-	// cancelCtx is used to signal closure
+	// cancelCtx is canceled when the stream's goroutines should exit.
+	// This happens on all exit paths: successful completion, timeout,
+	// error, or explicit close.
 	cancelCtx context.Context
 	cancel    context.CancelFunc
 	cancelErr error
@@ -499,12 +501,15 @@ func (s *ProtoStream) RecordEvent(ctx context.Context, pe apievents.PreparedSess
 	}
 }
 
-// Complete completes the upload, waits for completion and returns all allocated resources.
+// Complete completes the upload, waits for completion and returns
+// all allocated resources. The stream's internal context is always
+// canceled when Complete returns (via defer), regardless of whether
+// the upload finished successfully or the caller's context timed out.
 func (s *ProtoStream) Complete(ctx context.Context) error {
+	defer s.cancel()
 	s.complete()
 	select {
 	case <-s.uploadLoopDoneCh:
-		s.cancel()
 		return s.getCompleteResult()
 	case <-ctx.Done():
 		return trace.ConnectionProblem(ctx.Err(), "context has canceled before complete could succeed")
@@ -517,9 +522,13 @@ func (s *ProtoStream) Status() <-chan apievents.StreamStatus {
 	return s.statusCh
 }
 
-// Close flushes non-uploaded flight stream data without marking
-// the stream completed and closes the stream instance
+// Close flushes non-uploaded in-flight stream data without marking
+// the stream completed and closes the stream instance. The stream's
+// internal context is always canceled when Close returns (via defer),
+// regardless of whether the flush finished or the caller's context
+// timed out.
 func (s *ProtoStream) Close(ctx context.Context) error {
+	defer s.cancel()
 	s.completeType.Store(completeTypeFlush)
 	s.complete()
 	select {
