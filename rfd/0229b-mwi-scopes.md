@@ -76,7 +76,26 @@ Personas:
   cluster. Typically, someone who owns infrastructure that belongs to a group
   or team within the organization.
 
-wip: Collect user stories from customer, anonymize and summarise.
+Overarching user story:
+
+> As a Cluster Admin, I would like to delegate responsibility for managing MWI
+> configuration to a Scope Admins, they should be able to create Bots, assign
+> them privileges within their own scope, generate join tokens and troubleshoot
+> arising issues. This means I will no longer need to be a bottleneck for these
+> teams. In doing so, I need to be confident that this will not compromise the
+> security of the overall cluster or other scopes.
+
+Individual user stories:
+
+- As a Scope Admin, I want to be able to create Scoped Bots within my scope
+  and grant them privileges to access or manage resources within my scope or
+  descendent scopes.
+- As a Scope Admin, I want to be able to enrol `tbot` instances against the 
+  Scoped Bots that I have created. 
+- As a Scope Admin, I want to be able to access observability and health 
+  information about `tbot` instances that are operating against Bot's in my
+  scopes, so that I can correct unhealthy `tbot` instances and also ensure that
+  they are running up-to-date versions.
 
 ### Behaviour
 
@@ -550,8 +569,6 @@ designed around Bot use-cases.
 The `GenerateUserCerts` RPC will explicitly reject calls from scoped Bot
 identities. This mitigates the risk that this RPC could pose a potential vector
 for escape of scope constraints.
-
-wip: RPC/proto design for GenerateBotCerts?
 
 ### `tbot`
 
