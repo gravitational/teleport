@@ -127,6 +127,35 @@ func TestListResourcesAcceptEncodingIdentity(t *testing.T) {
 	}
 }
 
+func TestHeaderAcceptsEncoding(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		header   string
+		encoding string
+		want     bool
+	}{
+		{"plain gzip", "gzip", "gzip", true},
+		{"gzip with deflate", "deflate, gzip", "gzip", true},
+		{"quality 1", "gzip;q=1", "gzip", true},
+		{"quality 0.5", "gzip;q=0.5", "gzip", true},
+		{"quality 0 rejects", "gzip;q=0", "gzip", false},
+		{"quality 0.0 rejects", "gzip;q=0.0", "gzip", false},
+		{"empty header", "", "gzip", false},
+		{"no gzip", "deflate, br", "gzip", false},
+		{"spaces around", " gzip ; q=1 ", "gzip", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := http.Header{}
+			if tt.header != "" {
+				h.Set("Accept-Encoding", tt.header)
+			}
+			assert.Equal(t, tt.want, headerAcceptsEncoding(h, tt.encoding))
+		})
+	}
+}
+
 // TestCompressMemBuffer verifies that compressMemBuffer gzip-compresses the
 // buffer contents and sets Content-Encoding: gzip.
 func TestCompressMemBuffer(t *testing.T) {

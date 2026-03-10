@@ -22,6 +22,8 @@ import (
 	"compress/gzip"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -120,6 +122,32 @@ type nopCloserWrapper struct {
 // Close has no action on the underlying writer.
 func (*nopCloserWrapper) Close() error {
 	return nil
+}
+
+// headerAcceptsEncoding checks if the Accept-Encoding header includes the specified encoding
+// and that it is not explicitly refused with a q=0 parameter.
+func headerAcceptsEncoding(h http.Header, encoding string) bool {
+	for _, v := range h["Accept-Encoding"] {
+		for part := range strings.SplitSeq(v, ",") {
+			// Split "gzip;q=0.5" into name="gzip" and params="q=0.5".
+			name, params, _ := strings.Cut(strings.TrimSpace(part), ";")
+			if strings.TrimSpace(name) != encoding {
+				continue
+			}
+			params = strings.TrimSpace(params)
+			if params == "" {
+				return true
+			}
+			// q=0 means the encoding is explicitly refused.
+			if _, qval, ok := strings.Cut(params, "q="); ok {
+				if q, err := strconv.ParseFloat(strings.TrimSpace(qval), 64); err == nil && q == 0 {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
 }
 
 // compressMemBuffer gzips the contents of a MemoryResponseWriter in-place and sets the encoding header to gzip.

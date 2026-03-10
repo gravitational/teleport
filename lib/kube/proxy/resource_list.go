@@ -146,7 +146,7 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	// After filtering, we still recompress for the client if it requested gzip.
 	var clientAcceptsGzip bool
 	if f.cfg.KubeconfigPath == "" {
-		clientAcceptsGzip = strings.Contains(req.Header.Get("Accept-Encoding"), "gzip")
+		clientAcceptsGzip = headerAcceptsEncoding(req.Header, "gzip")
 		req.Header.Set("Accept-Encoding", "identity")
 	}
 
