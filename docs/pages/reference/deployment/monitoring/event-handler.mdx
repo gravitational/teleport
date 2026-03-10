@@ -1,5 +1,6 @@
 ---
 title: Event Handler Plugin Reference
+sidebar_label: Event Handler
 description: Configure the Event Handler plugin to export Teleport audit log events to Fluentd.
 keywords:
   - event forwarding
@@ -8,9 +9,8 @@ keywords:
   - Fluentd
 ---
 
-# Event Handler Plugin reference
 
-The **Event Handler** plugin exports Teleport audit log events to a Fluentd
+The **Event Handler** plugin exports Teleport audit events to a Fluentd
 service. The plugin retrieves events in configurable batches, forwards each
 event to Fluentd over mTLS, and persists the ID of each successfully sent event
 to local storage. If the plugin crashes or restarts, it resumes from the last
@@ -143,7 +143,7 @@ extendedKeyUsage     = critical,OCSPSigning
 
 ### Generate a certificate authority
 
-```bash
+```code
 openssl genrsa -out ca.key 4096
 chmod 444 ca.key
 openssl req -config ssl.conf -key ca.key -new -x509 -days 7300 \
@@ -152,7 +152,7 @@ openssl req -config ssl.conf -key ca.key -new -x509 -days 7300 \
 
 ### Generate a server certificate
 
-```bash
+```code
 openssl genrsa -aes256 -out server.key 4096
 chmod 444 server.key
 openssl req -config ssl.conf -subj "/CN=server" -key server.key \
@@ -164,7 +164,7 @@ openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key \
 
 ### Generate a client certificate
 
-```bash
+```code
 openssl genrsa -out client.key 4096
 chmod 444 client.key
 openssl req -config ssl.conf -subj "/CN=client" -key client.key \
@@ -177,23 +177,15 @@ openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key \
 Alternatively, run the following command to generate all certificates to the
 `example/keys/` directory:
 
-```bash
+```code
 PASS=12345678 KEYLEN=4096 make gen-example-mtls
 ```
-
-## How event processing works
-
-1. The plugin loads audit log events from Teleport in batches.
-1. Each event is sent to Fluentd.
-1. The ID of each successfully sent event is saved to the state directory.
-1. On crash or restart, the plugin resumes from the last saved event ID.
-1. The plugin polls for new events at a default interval of 5 seconds.
 
 ## Further reading
 
 See the following related topics:
 
-- [Teleport audit event reference](./audit-events.mdx)
+- [Teleport audit event reference](../../audit-events.mdx)
 - [Fluentd Documentation](https://docs.fluentd.org/)
-- [Teleport plugin integrations](../identity-governance/access-requests/plugins/plugins.mdx)
-- [Teleport audit log architecture](../reference/deployment/monitoring/audit.mdx)
+- [Teleport plugin integrations](../../../identity-governance/access-requests/plugins/plugins.mdx)
+- [Teleport audit log architecture](../../deployment/monitoring/audit.mdx)
