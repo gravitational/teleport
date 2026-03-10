@@ -99,7 +99,7 @@ export const ClientIpRestrictions = ({ clusterId }: { clusterId: string }) => {
       css={`
         grid-column: auto;
         @media screen and (min-width: ${props =>
-            props.theme.breakpoints.small}) {
+          props.theme.breakpoints.small}) {
           grid-column: span 2;
         }
         transition: 0.2s;

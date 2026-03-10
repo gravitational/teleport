@@ -1,7 +1,5 @@
 import { forwardRef } from 'react';
-
 import 'react-day-picker/dist/style.css';
-
 import { DayPicker } from 'react-day-picker';
 
 import { StyledDateRange } from 'design/DatePicker';
