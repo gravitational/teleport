@@ -253,7 +253,7 @@ metadata:
   name: staging-deployer-ssh-access
 scope: /staging
 spec:
-  bot: staging-deployer
+  bot_name: staging-deployer
   bot_scope: /staging
   assignments:
     - role: staging-ssh-access 
@@ -345,23 +345,23 @@ support scope-specific UIs and CLI.
 
 ### Scoped Role Assignments
 
-The ScopedRoleAssignment resource will be extended with a new field, `spec.bot`,
-which will be used to specify a Bot as the target of a role assignment instead
-of a user.
+The ScopedRoleAssignment resource will be extended with a new field,
+`spec.bot_name`, which will be used to specify a Bot as the target of a role
+assignment instead of a user.
 
-The `spec.bot` field will be mutually exclusive with the `spec.user` field.
+The `spec.bot_name` field will be mutually exclusive with the `spec.user` field.
 
 An additional `spec.bot_scope` field will also be added. This binds the role
 assignment to a scoped bot in a specific scope, and mitigates the potential for
-name reuse attacks. This field must be specified when `spec.bot` is set and 
-cannot be specified if `spec.bot` is unset.
+name reuse attacks. This field must be specified when `spec.bot_name` is set and 
+cannot be specified if `spec.bot_name` is unset.
 
 As per [Behaviour: Assigning the Scoped Bot privileges](#assigning-the-scoped-bot-privileges),
 new validation rules will be added to the Create/Update/Upsert RPCs for the 
-ScopedRoleAssignment to enforce the following when `spec.bot` is set:
+ScopedRoleAssignment to enforce the following when `spec.bot_name` is set:
 
-- That `spec.bot` references a bot that exists.
-- That `spec.bot` references a bot with a scope.
+- That `spec.bot_name` references a bot that exists.
+- That `spec.bot_name` references a bot with a scope.
 - That `spec.bot_scope` is set and that this matches the scope of the referenced
   bot.
 - That the scope of origin (`scope`) and scope of effect
