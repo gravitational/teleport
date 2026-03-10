@@ -354,7 +354,7 @@ jobs:
         run: pnpm type-check
 
       - name: Run oxlint
-        run: pnpm oxlint --format github --quiet
+        run: pnpm oxlint --format github
 
       - name: Check formatting
         run: pnpm prettier-check
