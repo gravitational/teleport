@@ -273,9 +273,8 @@ have set up your Teleport cluster network incorrectly.
 ### Connection reset by peer
 
 If you see the message, `Connection reset by peer`, it often means that your
-Teleport instance is attempting to connect to an upstream host that either:
-- has no process listening on the required port
-- exited the process that was listening on the required port
+Teleport instance is attempting to connect to an upstream host that has exited
+the process that was listening on the required port.
 
 You can rule out the latter scenario by checking whether the upstream process
 was running at the time of the error message. If the upstream server is running
@@ -307,11 +306,10 @@ transport: authentication handshake failed: tls: first record does not look like
 
 The library that Teleport uses for TLS prints this error if the server and
 client have not negotiated a TLS version and the TLS record in question is not a
-handshake, or the TLS version is greater or equal than 16.0 (higher than the
-maximum supported version of 3.3). In other words, the Teleport process that
-printed the log was expected a TLS handshake from the other side of the
-connection and did not receive one, i.e., it was replying to the Teleport
-process in a different protocol.
+handshake. In other words, the Teleport process that printed the log was
+expected a TLS handshake from the other side of the connection and did not
+receive one, i.e., it was replying to the Teleport process in a different
+protocol.
 
 In this case, check the address of the upstream host and make sure it is one
 that is configured to use TLS, rather than (for example) HTTP or unencrypted
