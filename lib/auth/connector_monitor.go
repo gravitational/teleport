@@ -48,7 +48,7 @@ func (a *Server) MonitorSAMLCertExpiry(ctx context.Context) error {
 	}
 }
 
-// CheckSAMLCertExpiry checks all SAML connectors for any that have certs expiring or expired
+// checkSAMLCertExpiry checks all SAML connectors for any that have certs expiring or expired
 // and creates or updates an alert. If none are expiring, then any existing alert is deleted.
 func (a *Server) checkSAMLCertExpiry(ctx context.Context) error {
 	connectors, err := a.GetSAMLConnectors(ctx, false)
