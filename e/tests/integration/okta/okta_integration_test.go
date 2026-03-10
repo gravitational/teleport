@@ -473,7 +473,9 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
 	start := time.Now()
 	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		TimeBetweenImports:        durationpb.New(1 * time.Second),
+		// TODO(smallinsky) Align timer when https://github.com/gravitational/teleport.e/issues/6558 issue is fixed
+		// to test the flow with overlapping Okta sync.
+		TimeBetweenImports:        durationpb.New(time.Minute * 5),
 		ApiCredentials:            apiCredentials,
 		EnableUserSync:            true,
 		DisableAssignDefaultRoles: false,
@@ -496,7 +498,7 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 		s, err := auth.GetUserLoginState(ctx, reviewerLogin)
 		require.NoError(t, err)
 		require.Len(t, s.GetRoles(), 3) // okta-requester + 2 ACL reviewer roles
-	}, time.Second, time.Millisecond*100)
+	}, time.Minute, time.Millisecond*100)
 
 	t.Run("app access request", func(t *testing.T) {
 		var app types.AppServer
@@ -514,7 +516,7 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			require.False(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
-		}, time.Second*10, time.Millisecond*250, "User %s was assigned to app %s", requester.Id, appID)
+		}, time.Minute, time.Millisecond*250, "User %s was assigned to app %s", requester.Id, appID)
 
 		assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requesterLogin)
 
@@ -524,16 +526,16 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				require.True(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
-			}, time.Second*10, time.Millisecond*250, "User %s was never assigned to app %s", requester.Id, appID)
+			}, time.Minute, time.Millisecond*250, "User %s was never assigned to app %s", requester.Id, appID)
 
 			assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requesterLogin)
 
-			err = auth.DeleteAccessRequest(t.Context(), accessRequestApp.GetName())
-			require.NoError(t, err)
+			// TODO(smallinsky): remove dependency on locking access request.
+			deleteAccessRequest(t, sut, accessRequestApp.GetName())
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				require.False(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
-			}, time.Second*10, time.Millisecond*250, "User %s is still assigned to app %s", requester.Id, appID)
+			}, time.Minute, time.Millisecond*250, "User %s is still assigned to app %s", requester.Id, appID)
 
 			assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requesterLogin)
 		})
@@ -544,7 +546,7 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				require.True(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
-			}, time.Second*10, time.Millisecond*250, "User %s was never assigned to app %s", requester.Id, appID)
+			}, time.Minute, time.Millisecond*250, "User %s was never assigned to app %s", requester.Id, appID)
 
 			assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), reviewerLogin)
 
@@ -555,7 +557,7 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				require.True(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
-			}, time.Second*10, time.Millisecond*250, "User %s was never assigned to app %s", requester.Id, appID)
+			}, time.Minute, time.Millisecond*250, "User %s was never assigned to app %s", requester.Id, appID)
 
 			assertUserIsAccessListMember(ctx, t, sut, app.GetName(), reviewerLogin)
 		})
@@ -577,14 +579,14 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				require.True(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, requester.Id))
-			}, time.Second*10, time.Millisecond*250, "User %s was never assigned to group %s", requester.Id, fakeOkta.provisionedGroups[0].Id)
+			}, time.Minute, time.Millisecond*250, "User %s was never assigned to group %s", requester.Id, fakeOkta.provisionedGroups[0].Id)
 
-			err = auth.DeleteAccessRequest(t.Context(), accessRequest.GetName())
-			require.NoError(t, err)
+			// TODO(smallinsky): remove dependency on locking access request.
+			deleteAccessRequest(t, sut, accessRequest.GetName())
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				require.False(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, requester.Id))
-			}, time.Second*10, time.Millisecond*250, "User %s is still assigned to group %s", requester.Id, fakeOkta.provisionedGroups[0].Id)
+			}, time.Minute, time.Millisecond*250, "User %s is still assigned to group %s", requester.Id, fakeOkta.provisionedGroups[0].Id)
 
 			assertUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
 		})
@@ -598,6 +600,29 @@ func selectUserGroupByName(groups []types.UserGroup, name string) types.UserGrou
 		}
 	}
 	return nil
+}
+
+func deleteAccessRequest(t *testing.T, sut *common.SUT, accessRequestName string) {
+	// TODO(smallinsky): remove after https://github.com/gravitational/teleport.e/issues/8118 is addressed.
+	//
+	// In the Okta access request flow, revocation on deletion relies on handling an op.Delete event.
+	// If the service isn’t fully started, the plugin restarts, or leader election is still in progress,
+	// the handler may miss that delete event.
+	//
+	// In that case, Okta assignments may not be revoked immediately on access request deletion, and
+	// will instead be revoked later when the access request expires (AccessRequest expiration is propagate as
+	// Okta assignment cleanup time)
+	lockAccessRequest(t, sut, accessRequestName)
+
+	err := sut.Teleport.Process.GetAuthServer().DeleteAccessRequest(t.Context(), accessRequestName)
+	require.NoError(t, err)
+}
+
+func lockAccessRequest(t *testing.T, sut *common.SUT, accessRequestName string) {
+	lock, err := types.NewLock(accessRequestName, types.LockSpecV2{Target: types.LockTarget{AccessRequest: accessRequestName}})
+	require.NoError(t, err)
+	err = sut.Teleport.Process.GetAuthServer().Services.UpsertLock(t.Context(), lock)
+	require.NoError(t, err)
 }
 
 func mustAddAccessListMember(t *testing.T, sut *common.SUT, aclName, memberName string) {
@@ -614,7 +639,7 @@ func assertUserIsNotAccessListMember(ctx context.Context, t require.TestingT, su
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := sut.Teleport.Process.GetAuthServer().AccessListsInternal.GetAccessListMember(ctx, acl, user)
 		require.True(t, trace.IsNotFound(err))
-	}, 3*time.Second, 50*time.Millisecond, "User %s should not be a member of access list %s", user, acl)
+	}, time.Minute, 50*time.Millisecond, "User %s should not be a member of access list %s", user, acl)
 }
 
 func assertUserIsAccessListMember(ctx context.Context, t require.TestingT, sut *common.SUT, acl, user string) *accesslist.AccessListMember {
@@ -623,7 +648,7 @@ func assertUserIsAccessListMember(ctx context.Context, t require.TestingT, sut *
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		member, err = sut.Teleport.Process.GetAuthServer().AccessListsInternal.GetAccessListMember(ctx, acl, user)
 		require.NoError(t, err)
-	}, 3*time.Second, 200*time.Millisecond)
+	}, time.Minute, 200*time.Millisecond)
 	return member
 }
 

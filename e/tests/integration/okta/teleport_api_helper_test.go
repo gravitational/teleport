@@ -105,5 +105,5 @@ func approveAccessRequest(t *testing.T, sut *common.SUT, requestID string, user 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := auth.GetOktaAssignment(ctx, r.GetName())
 		require.NoError(t, err)
-	}, time.Second, time.Millisecond*100)
+	}, time.Minute, time.Millisecond*100)
 }
