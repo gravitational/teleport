@@ -48,6 +48,11 @@ resources:
     package: github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1
     yaml_kind: bot_instance
     yaml_version: v1
+    introduction: |
+      The `bot_instance` resource tracks the internal state of a Machine ID Bot
+      registered with your Teleport cluster. It is possible to read and list
+      `bot_instance` resources with `tctl` but not to create, modify, or delete
+      them.
   - type: DatabaseServerV3
     package: github.com/gravitational/teleport/api/types
     yaml_kind: db_server
