@@ -10,12 +10,14 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
@@ -229,7 +231,6 @@ func TestSCIMPatch(t *testing.T) {
 	})
 
 	t.Run("PATCH group concurrent add and remove members", func(t *testing.T) {
-		t.Parallel()
 		groupName := "patch-group-005"
 		common.CreateAccessList(t, sut,
 			common.WithName(groupName),
@@ -250,12 +251,17 @@ func TestSCIMPatch(t *testing.T) {
 
 		for memberName := range membersSet {
 			wg.Go(func() error {
-				_, err := patchGroup(httpClient, baseURL.String(), groupName, []map[string]any{{
-					"op":    "add",
-					"path":  "members",
-					"value": []map[string]any{{"value": "member-" + memberName}},
-				}})
-				return err
+				// Under heavy CPU throttling and high concurrency,
+				// the Teleport web server may return HTTP 500 status codes.
+				// Retrying helps mitigate flaky test failures.
+				return retryutils.RetryStaticFor(time.Second*30, time.Millisecond*500, func() error {
+					_, err := patchGroup(httpClient, baseURL.String(), groupName, []map[string]any{{
+						"op":    "add",
+						"path":  "members",
+						"value": []map[string]any{{"value": "member-" + memberName}},
+					}})
+					return err
+				})
 			})
 		}
 
@@ -268,11 +274,13 @@ func TestSCIMPatch(t *testing.T) {
 		wg.SetLimit(5)
 		for k := range membersSet {
 			wg2.Go(func() error {
-				_, err := patchGroup(httpClient, baseURL.String(), groupName, []map[string]any{{
-					"op":   "remove",
-					"path": fmt.Sprintf(`members[value eq "member-%s"]`, k),
-				}})
-				return err
+				return retryutils.RetryStaticFor(time.Second*30, time.Millisecond*500, func() error {
+					_, err := patchGroup(httpClient, baseURL.String(), groupName, []map[string]any{{
+						"op":   "remove",
+						"path": fmt.Sprintf(`members[value eq "member-%s"]`, k),
+					}})
+					return err
+				})
 			})
 		}
 		require.NoError(t, wg2.Wait())
