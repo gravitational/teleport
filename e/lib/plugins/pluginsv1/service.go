@@ -173,15 +173,15 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.BadParameter("missing plugin")
 	}
 
-	if slices.Contains(s.disabledPlugins, req.Plugin.GetType()) {
-		return nil, trace.BadParameter("plugin %s is disabled", req.Plugin.GetType())
+	if slices.Contains(s.disabledPlugins, req.GetPlugin().GetType()) {
+		return nil, trace.BadParameter("plugin %s is disabled", req.GetPlugin().GetType())
 	}
 
 	_, err = s.pluginService.GetPlugin(ctx, req.GetPlugin().GetName(), false /* withSecrets */)
 	switch {
 	case err == nil:
 		s.logger.DebugContext(ctx, "failed to create already existing plugin", "plugin", req.GetPlugin().GetName())
-		return nil, trace.AlreadyExists("plugin %q already exists", req.Plugin.GetName())
+		return nil, trace.AlreadyExists("plugin %q already exists", req.GetPlugin().GetName())
 	case !trace.IsNotFound(err):
 		s.logger.DebugContext(ctx, "failed to create plugin", "plugin", req.GetPlugin().GetName(), "error", err)
 		return nil, trace.Wrap(err)
@@ -256,7 +256,7 @@ This may cause issues with the current installation`,
 		return nil, trace.Wrap(err)
 	}
 
-	resource := req.Plugin.WithoutSecrets()
+	resource := req.GetPlugin().WithoutSecrets()
 	out, ok := resource.(*types.PluginV1)
 	if !ok {
 		return nil, trace.BadParameter("unsupported plugin type %T, expected %T", req.Plugin, out)
@@ -381,6 +381,13 @@ var defaultPluginHandlers = map[types.PluginType]pluginHandler{
 	types.PluginTypeSlack:      defaultHandler{},
 }
 
+func validateUpdatePluginRequest(req *pluginspb.UpdatePluginRequest) error {
+	if req.GetPlugin() == nil {
+		return trace.BadParameter("missing plugin")
+	}
+	return nil
+}
+
 // UpdatePlugin updates the specified plugin instance.
 func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginRequest) (*types.PluginV1, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -390,17 +397,20 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 	if err := authCtx.CheckAccessToKind(types.KindPlugin, types.VerbRead, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := validateUpdatePluginRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	oldPlugin, err := s.pluginService.GetPlugin(ctx, req.Plugin.GetName(), true /* withSecrets */)
+	oldPlugin, err := s.pluginService.GetPlugin(ctx, req.GetPlugin().GetName(), true /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if slices.Contains(s.disabledPlugins, req.Plugin.GetType()) {
-		return nil, trace.BadParameter("plugin %s is disabled", req.Plugin.GetType())
+	if slices.Contains(s.disabledPlugins, req.GetPlugin().GetType()) {
+		return nil, trace.BadParameter("plugin %s is disabled", req.GetPlugin().GetType())
 	}
 
-	if req.Plugin.GetType() != oldPlugin.GetType() {
+	if req.GetPlugin().GetType() != oldPlugin.GetType() {
 		return nil, trace.BadParameter("plugin may not change type")
 	}
 
@@ -440,11 +450,11 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 	}
 
 	if s.logger.Enabled(ctx, slog.LevelInfo) {
-		spec := utils.CloneProtoMsg(&(req.Plugin.Spec))
+		spec := utils.CloneProtoMsg(&(req.GetPlugin().Spec))
 		s.logger.InfoContext(ctx, "Plugin updated",
 			slog.Group("plugin",
-				"type", string(req.Plugin.GetType()),
-				"name", req.Plugin.GetName(),
+				"type", string(req.GetPlugin().GetType()),
+				"name", req.GetPlugin().GetName(),
 				"spec", spec,
 			),
 			slog.Bool("using_existing_credentials", inPlugin.Credentials == nil),

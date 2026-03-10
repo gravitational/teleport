@@ -89,6 +89,13 @@ func TestPluginUpdate(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, got)
 	require.True(t, trace.IsBadParameter(err))
+
+	t.Run("nil plugin should not panic", func(t *testing.T) {
+		_, err = suite.svc.UpdatePlugin(ctx, &pluginsv1.UpdatePluginRequest{
+			Plugin: nil,
+		})
+		require.Error(t, err)
+	})
 }
 
 // TestPluginUpdateHandler tests that the supplied plugin resource gets correctly
