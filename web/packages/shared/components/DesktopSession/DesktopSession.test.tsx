@@ -18,11 +18,12 @@
 
 import { EventEmitter } from 'events';
 
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { act } from 'react';
 
 import { render } from 'design/utils/testing';
+import { Envelope } from 'gen-proto-ts/teleport/desktop/v1/tdpb_pb';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 import {
   MessageType,
@@ -50,6 +51,56 @@ function encodePngFrame(): ArrayBuffer {
   return buffer;
 }
 
+// Matches codec.decodePngFrame.
+function encodePngFrameTDPB(): ArrayBuffer {
+  const msg = Envelope.toBinary(
+    Envelope.create({
+      payload: {
+        oneofKind: 'pngFrame',
+        pngFrame: {
+          coordinates: {
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+          },
+          data: new Uint8Array(),
+        },
+      },
+    })
+  );
+  const arraybuf = new Uint8Array(msg.length + 4);
+  const view = new DataView(arraybuf.buffer);
+  view.setUint32(0, msg.length);
+  arraybuf.set(msg, 4);
+  return arraybuf.buffer;
+}
+
+function encodeServerHello(canRemoveDirectory: boolean): ArrayBuffer {
+  const msg = Envelope.toBinary(
+    Envelope.create({
+      payload: {
+        oneofKind: 'serverHello',
+        serverHello: {
+          activationSpec: {
+            ioChannelId: 1,
+            userChannelId: 2,
+            screenHeight: 100,
+            screenWidth: 100,
+          },
+          clipboardEnabled: true,
+          directoryRemoveSupported: canRemoveDirectory,
+        },
+      },
+    })
+  );
+  const arraybuf = new Uint8Array(msg.length + 4);
+  const view = new DataView(arraybuf.buffer);
+  view.setUint32(0, msg.length);
+  arraybuf.set(msg, 4);
+  return arraybuf.buffer;
+}
+
 const hasNoOtherSession = jest.fn().mockResolvedValue(false);
 const aclAttempt = makeSuccessAttempt({
   clipboardSharingEnabled: true,
@@ -61,6 +112,10 @@ const getMockTransport = () => {
     emitTransportError: () =>
       emitter.emit('error', new Error('Could not send bytes')),
     emitPngFrameMessage: () => emitter.emit('message', encodePngFrame()),
+    emitPngFrameTDPBMessage: () =>
+      emitter.emit('message', encodePngFrameTDPB()),
+    emitServerCapabilities: (canRemove: boolean) =>
+      emitter.emit('message', encodeServerHello(canRemove)),
     getTransport: async (abortSignal: AbortSignal): Promise<TdpTransport> => {
       abortSignal.onabort = () => {
         emitter.emit('complete');
@@ -145,6 +200,86 @@ test('reconnect button reinitializes the connection', async () => {
   expect(tpdClient.shutdown).toHaveBeenCalledTimes(2);
 });
 
+test('directory sharing menu', async () => {
+  const transport = getMockTransport();
+  const dirName = 'some directory';
+  const tpdClient = new TdpClient(
+    transport.getTransport,
+    async () => mockDirectoryAccess(dirName),
+    { mode: 'tdpb' }
+  );
+  render(
+    <DesktopSession
+      client={tpdClient}
+      username="admin"
+      desktop="win-lab"
+      aclAttempt={aclAttempt}
+      hasAnotherSession={hasNoOtherSession}
+      browserSupportsSharing
+    />
+  );
+
+  // The session is initializing.
+  expect(await screen.findByTestId('indicator')).toBeInTheDocument();
+
+  // Successfully initialize the connection.
+  await act(() => transport.emitPngFrameTDPBMessage());
+  await act(() => transport.emitServerCapabilities(true));
+
+  // The menu icon should also be visible
+  const shareButton = await screen.findByRole('button', {
+    name: 'share-directory-menu',
+  });
+  expect(shareButton).toBeVisible();
+
+  // Clicking the new menu icon should open a menu
+  await userEvent.click(shareButton);
+
+  // Share a couple directories via this menu
+  let shareMenu = await screen.findByTestId('shared-directory-menu');
+  await userEvent.click(
+    within(shareMenu).getByRole('button', { name: 'Share a directory' })
+  );
+  await userEvent.click(
+    within(shareMenu).getByRole('button', { name: 'Share a directory' })
+  );
+
+  // retrieve the directories
+  const directories = await getSharedDirectoryEntries(shareMenu);
+  console.log(directories);
+  expect(directories).toHaveLength(2);
+  expect(directories[0].name).toEqual(dirName);
+  expect(directories[1].name).toEqual(dirName);
+
+  // Clicking the eject button unshares the directory and removes
+  // it from the menu.
+  expect(directories[0].ejectButton).toBeEnabled();
+  await userEvent.click(directories[0].ejectButton);
+
+  // Only one should remain
+  const updatedDirectories = await getSharedDirectoryEntries(shareMenu);
+  expect(updatedDirectories).toHaveLength(1);
+
+  // Server reports that it cannot remove directories
+  // unshare/eject button should be disabled.
+  await act(() => transport.emitServerCapabilities(false));
+  expect(updatedDirectories[0].ejectButton).toBeDisabled();
+});
+
+async function getSharedDirectoryEntries(menu: HTMLElement) {
+  const entries = await within(menu).findAllByTestId(
+    new RegExp('direntry-[0-9]+')
+  );
+  return entries.map(elem => {
+    console.log(elem.innerHTML);
+    return {
+      name: within(elem).getByTestId('dirname').textContent,
+      id: Number(elem.getAttribute('data-testid').split('-').at(-1)),
+      ejectButton: within(elem).getByRole('button'),
+    };
+  });
+}
+
 test('ensure sharing remains enabled if the initial desktop connection attempt fails', async () => {
   const transport = getMockTransport();
   const tpdClient = new TdpClient(
@@ -184,6 +319,7 @@ test('ensure sharing remains enabled if the initial desktop connection attempt f
 
 test('re-sharing directory is possible after a reconnect', async () => {
   const transport = getMockTransport();
+
   const mockFsSpy = jest.fn(async () => mockDirectoryAccess());
   const tpdClient = new TdpClient(transport.getTransport, mockFsSpy);
   render(
@@ -228,9 +364,12 @@ async function testSharingDirectory() {
   await userEvent.click(await screen.findByText('Share Directory'));
 }
 
-function mockDirectoryAccess(): SharedDirectoryAccess {
+function mockDirectoryAccess(name?: string): SharedDirectoryAccess {
+  if (!name) {
+    name = '';
+  }
   return {
-    getDirectoryName: () => '',
+    getDirectoryName: () => name,
     create: () => undefined,
     read: () => undefined,
     stat: () => undefined,

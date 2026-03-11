@@ -362,11 +362,16 @@ export type ServerHello = {
   clipboardSupport: boolean;
   hidpiSupported: boolean;
   activationEvent: RdpConnectionActivated;
+  directoryRemovalSupport: boolean;
 };
 
 export type ClientHello = {
   keyboardLayout: number;
   screenSpec: ClientScreenSpec;
+};
+
+export type SharedDirectoryRemoveRequest = {
+  directoryId: number;
 };
 
 export type MfaResponse = {
@@ -448,6 +453,9 @@ export interface Codec {
   ): Message;
   encodeSharedDirectoryTruncateResponse(
     resp: SharedDirectoryTruncateResponse
+  ): Message;
+  encodeSharedDirectoryRemoveRequest(
+    req: SharedDirectoryRemoveRequest
   ): Message;
 }
 
@@ -635,6 +643,8 @@ export class TdpbCodec implements Codec {
             clipboardSupport: envelope.payload.serverHello.clipboardEnabled,
             hidpiSupported: envelope.payload.serverHello.hidpiSupported,
             activationEvent: envelope.payload.serverHello.activationSpec,
+            directoryRemovalSupport:
+              envelope.payload.serverHello.directoryRemoveSupported,
           },
         };
       case 'pngFrame':
@@ -1070,6 +1080,15 @@ export class TdpbCodec implements Codec {
         screenSpec: hello.screenSpec,
         keyboardLayout: hello.keyboardLayout,
       }),
+    });
+  }
+
+  encodeSharedDirectoryRemoveRequest(
+    req: SharedDirectoryRemoveRequest
+  ): Message {
+    return this.marshal({
+      oneofKind: 'sharedDirectoryRemove',
+      sharedDirectoryRemove: req,
     });
   }
 }
@@ -1660,6 +1679,14 @@ export class TdpCodec implements Codec {
     new Uint8Array(buffer, offset).set(new Uint8Array(responseFrame));
 
     return buffer;
+  }
+
+  encodeSharedDirectoryRemoveRequest(): Message {
+    // This is a bug. TDP connections should not negotiate shared directory removal
+    // with the server, and the client UI should not show directory removal as an option.
+    throw new Error(
+      'Legacy TDP codec does not support shared directory removal'
+    );
   }
 
   // decodeClipboardData decodes clipboard data
