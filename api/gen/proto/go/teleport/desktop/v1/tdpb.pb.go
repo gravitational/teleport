@@ -309,11 +309,12 @@ func (x *ClientHello) GetKeyboardLayout() uint32 {
 
 // Sent by server in response to a 'Client Hello'. Advertises server capabilities.
 type ServerHello struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	ActivationSpec   *ConnectionActivated   `protobuf:"bytes,1,opt,name=activation_spec,json=activationSpec,proto3" json:"activation_spec,omitempty"`
-	ClipboardEnabled bool                   `protobuf:"varint,2,opt,name=clipboard_enabled,json=clipboardEnabled,proto3" json:"clipboard_enabled,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	ActivationSpec           *ConnectionActivated   `protobuf:"bytes,1,opt,name=activation_spec,json=activationSpec,proto3" json:"activation_spec,omitempty"`
+	ClipboardEnabled         bool                   `protobuf:"varint,2,opt,name=clipboard_enabled,json=clipboardEnabled,proto3" json:"clipboard_enabled,omitempty"`
+	DirectoryRemoveSupported bool                   `protobuf:"varint,3,opt,name=directory_remove_supported,json=directoryRemoveSupported,proto3" json:"directory_remove_supported,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *ServerHello) Reset() {
@@ -356,6 +357,13 @@ func (x *ServerHello) GetActivationSpec() *ConnectionActivated {
 func (x *ServerHello) GetClipboardEnabled() bool {
 	if x != nil {
 		return x.ClipboardEnabled
+	}
+	return false
+}
+
+func (x *ServerHello) GetDirectoryRemoveSupported() bool {
+	if x != nil {
+		return x.DirectoryRemoveSupported
 	}
 	return false
 }
@@ -3022,10 +3030,11 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\busername\x18\x01 \x01(\tR\busername\x12F\n" +
 	"\vscreen_spec\x18\x02 \x01(\v2%.teleport.desktop.v1.ClientScreenSpecR\n" +
 	"screenSpec\x12'\n" +
-	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\"\x8d\x01\n" +
+	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\"\xcb\x01\n" +
 	"\vServerHello\x12Q\n" +
 	"\x0factivation_spec\x18\x01 \x01(\v2(.teleport.desktop.v1.ConnectionActivatedR\x0eactivationSpec\x12+\n" +
-	"\x11clipboard_enabled\x18\x02 \x01(\bR\x10clipboardEnabled\"_\n" +
+	"\x11clipboard_enabled\x18\x02 \x01(\bR\x10clipboardEnabled\x12<\n" +
+	"\x1adirectory_remove_supported\x18\x03 \x01(\bR\x18directoryRemoveSupported\"_\n" +
 	"\tRectangle\x12\x12\n" +
 	"\x04left\x18\x01 \x01(\rR\x04left\x12\x10\n" +
 	"\x03top\x18\x02 \x01(\rR\x03top\x12\x14\n" +

@@ -585,7 +585,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		// file transfer.
 		switch msg.(type) {
 		case *tdpb.KeyboardButton, *tdpb.MouseMove, *tdpb.MouseButton, *tdpb.MouseWheel,
-			*tdpb.SharedDirectoryAnnounce, *tdpb.SharedDirectoryResponse:
+			*tdpb.SharedDirectoryAnnounce, *tdpb.SharedDirectoryRemove, *tdpb.SharedDirectoryResponse:
 
 			c.UpdateClientActivity()
 		}
@@ -725,6 +725,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			c.cfg.Logger.WarnContext(context.Background(), "Received an empty clipboard message")
 		}
 	case *tdpb.SharedDirectoryAnnounce:
+		c.cfg.Logger.Warn("Handling shared directory announce", "id", m.DirectoryId)
 		if c.cfg.AllowDirectorySharing {
 			driveName := C.CString(m.Name)
 			defer C.free(unsafe.Pointer(driveName))
@@ -736,6 +737,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			}
 		}
 	case *tdpb.SharedDirectoryRemove:
+		c.cfg.Logger.Warn("Handling shared directory remove", "id", m.DirectoryId)
 		if c.cfg.AllowDirectorySharing {
 			if errCode := C.client_handle_tdp_sd_remove(C.uintptr_t(c.handle), C.CGOSharedDirectoryRemove{
 				directory_id: C.uint32_t(m.DirectoryId),

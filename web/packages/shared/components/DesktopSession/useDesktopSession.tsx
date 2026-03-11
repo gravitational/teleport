@@ -26,6 +26,7 @@ import {
 } from 'react';
 
 import type { ToastNotificationItem } from 'shared/components/ToastNotification';
+import type { DirectoryItem } from 'shared/components/DesktopSession/DirectoryList';
 import { Attempt } from 'shared/hooks/useAsync';
 import { ClipboardData, TdpClient } from 'shared/libs/tdp';
 import { isAbortError } from 'shared/utils/error';
@@ -89,6 +90,8 @@ export default function useDesktopSession(
   }, []);
 
   const [alerts, setAlerts] = useState<ToastNotificationItem[]>([]);
+  const [sharedDirectories, setSharedDirectories] = useState<DirectoryItem[]>([]);
+
   const onRemoveAlert = (id: string) => {
     setAlerts(prevState => prevState.filter(alert => alert.id !== id));
   };
@@ -128,17 +131,18 @@ export default function useDesktopSession(
 
   const onShareDirectory = async () => {
     try {
-      await tdpClient.shareDirectory();
-      setDirectorySharingState({
-        directorySelected: true,
-      });
+      const [id, name] = await tdpClient.shareDirectory();
+      //setDirectorySharingState({
+      //  directorySelected: true,
+      //});
+      setSharedDirectories(sharedDirectories.concat({DirectoryId: id, Name: name}))
     } catch (e) {
       if (isAbortError(e)) {
         return;
       }
-      setDirectorySharingState({
-        directorySelected: false,
-      });
+      //setDirectorySharingState({
+      //  directorySelected: false,
+      //});
       addAlert({
         severity: 'warn',
         content: {
@@ -148,6 +152,32 @@ export default function useDesktopSession(
       });
     }
   };
+
+  const onRemoveSharedDirectory = async (directoryId: number) => {
+    let i = 0;
+    for (; i < sharedDirectories.length; i++) {
+      if (sharedDirectories[i].DirectoryId == directoryId) {
+        break;
+      }
+    }
+
+    
+
+    if (i >= sharedDirectories.length) {
+      // DirectoryId not found
+      return;
+    }
+
+    try {
+      await tdpClient.unshareDirectory(directoryId);
+      sharedDirectories.splice(i, 1)
+      setSharedDirectories(sharedDirectories)
+    } catch (e) {
+      if (isAbortError(e)) {
+        return;
+      }
+    }
+  }
 
   /** Clears sharing state. */
   const clearSharing = useCallback(() => {
@@ -162,7 +192,9 @@ export default function useDesktopSession(
     clearSharing,
     onShareDirectory,
     alerts,
+    sharedDirectories,
     onRemoveAlert,
+    onRemoveSharedDirectory,
     addAlert,
     sendLocalClipboardToRemote,
     onClipboardData,

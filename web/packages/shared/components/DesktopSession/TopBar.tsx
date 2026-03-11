@@ -23,6 +23,7 @@ import { Clipboard, FolderShared } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 import type { ToastNotificationItem } from 'shared/components/ToastNotification';
+import { SharedDirectoryList, type DirectoryItem } from 'shared/components/DesktopSession/DirectoryList';
 
 import ActionMenu from './ActionMenu';
 import { AlertDropdown } from './AlertDropdown';
@@ -38,7 +39,9 @@ export default function TopBar(props: Props) {
     onShareDirectory,
     onCtrlAltDel,
     alerts,
+    sharedDirectories,
     onRemoveAlert,
+    onRemoveSharedDirectory,
     isConnected,
     latency,
   } = props;
@@ -70,12 +73,13 @@ export default function TopBar(props: Props) {
             )}
             placement="bottom"
           >
-            <FolderShared style={primaryOnTrue(isSharingDirectory)} />
+          <FolderShared style={primaryOnTrue(isSharingDirectory)} />
           </HoverTooltip>
           <HoverTooltip tipContent={clipboardSharingMessage} placement="bottom">
             <Clipboard style={primaryOnTrue(isSharingClipboard)} />
           </HoverTooltip>
           <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
+          <SharedDirectoryList sharedDirectories={sharedDirectories} onRemoveSharedDirectory={onRemoveSharedDirectory}/>
           <ActionMenu
             onDisconnect={onDisconnect}
             showShareDirectory={canShareDirectory && !isSharingDirectory}
@@ -111,8 +115,10 @@ type Props = {
   onShareDirectory: VoidFunction;
   onCtrlAltDel: VoidFunction;
   alerts: ToastNotificationItem[];
+  sharedDirectories: DirectoryItem[];
   isConnected: boolean;
   onRemoveAlert(id: string): void;
+  onRemoveSharedDirectory(directoryId: number);
   latency: {
     client: number;
     server: number;

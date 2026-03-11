@@ -102,7 +102,9 @@ export function DesktopSession({
     clearSharing,
     onShareDirectory,
     alerts,
+    sharedDirectories,
     onRemoveAlert,
+    onRemoveSharedDirectory,
     addAlert,
   } = useDesktopSession(client, aclAttempt, browserSupportsSharing);
 
@@ -365,7 +367,9 @@ export function DesktopSession({
         onShareDirectory={onShareDirectory}
         onCtrlAltDel={handleCtrlAltDel}
         alerts={alerts}
+        sharedDirectories={sharedDirectories}
         onRemoveAlert={onRemoveAlert}
+        onRemoveSharedDirectory={onRemoveSharedDirectory}
         latency={latencyStats}
       />
 

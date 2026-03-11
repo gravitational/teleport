@@ -65,6 +65,10 @@ export interface ServerHello {
      * @generated from protobuf field: bool clipboard_enabled = 2;
      */
     clipboardEnabled: boolean;
+    /**
+     * @generated from protobuf field: bool directory_remove_supported = 3;
+     */
+    directoryRemoveSupported: boolean;
 }
 /**
  * Defines the boundaries that PNG frame will update.
@@ -1024,12 +1028,14 @@ class ServerHello$Type extends MessageType<ServerHello> {
     constructor() {
         super("teleport.desktop.v1.ServerHello", [
             { no: 1, name: "activation_spec", kind: "message", T: () => ConnectionActivated },
-            { no: 2, name: "clipboard_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 2, name: "clipboard_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 3, name: "directory_remove_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ServerHello>): ServerHello {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.clipboardEnabled = false;
+        message.directoryRemoveSupported = false;
         if (value !== undefined)
             reflectionMergePartial<ServerHello>(this, message, value);
         return message;
@@ -1044,6 +1050,9 @@ class ServerHello$Type extends MessageType<ServerHello> {
                     break;
                 case /* bool clipboard_enabled */ 2:
                     message.clipboardEnabled = reader.bool();
+                    break;
+                case /* bool directory_remove_supported */ 3:
+                    message.directoryRemoveSupported = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1063,6 +1072,9 @@ class ServerHello$Type extends MessageType<ServerHello> {
         /* bool clipboard_enabled = 2; */
         if (message.clipboardEnabled !== false)
             writer.tag(2, WireType.Varint).bool(message.clipboardEnabled);
+        /* bool directory_remove_supported = 3; */
+        if (message.directoryRemoveSupported !== false)
+            writer.tag(3, WireType.Varint).bool(message.directoryRemoveSupported);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

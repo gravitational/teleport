@@ -359,11 +359,16 @@ export type LatencyStats = {
 export type ServerHello = {
   clipboardSupport: boolean;
   activationEvent: RdpConnectionActivated;
+  directoryRemovalSupport: boolean
 };
 
 export type ClientHello = {
   keyboardLayout: number;
   screenSpec: ClientScreenSpec;
+};
+
+export type SharedDirectoryRemoveRequest = {
+  directoryId: number;
 };
 
 export type MfaResponse = {
@@ -446,6 +451,7 @@ export interface Codec {
   encodeSharedDirectoryTruncateResponse(
     resp: SharedDirectoryTruncateResponse
   ): Message;
+  encodeSharedDirectoryRemoveRequest(req: SharedDirectoryRemoveRequest): Message;
 }
 
 export type DecodedMessage =
@@ -626,8 +632,12 @@ export class TdpbCodec implements Codec {
     switch (envelope.payload.oneofKind) {
       case 'serverHello':
         return {
-          kind: 'rdpConnectionActivated',
-          data: envelope.payload.serverHello.activationSpec,
+          kind: 'serverHello',
+          data: {
+            activationEvent: envelope.payload.serverHello.activationSpec,
+            clipboardSupport: envelope.payload.serverHello.clipboardEnabled,
+            directoryRemovalSupport: envelope.payload.serverHello.directoryRemoveSupported, 
+          },
         };
       case 'pngFrame':
         const frame = envelope.payload.pngFrame;
@@ -1063,6 +1073,13 @@ export class TdpbCodec implements Codec {
         keyboardLayout: hello.keyboardLayout,
       }),
     });
+  }
+
+  encodeSharedDirectoryRemoveRequest(req: SharedDirectoryRemoveRequest): Message {
+    return this.marshal({
+      oneofKind: 'sharedDirectoryRemove',
+      sharedDirectoryRemove: req,
+    })
   }
 }
 
@@ -1650,6 +1667,12 @@ export class TdpCodec implements Codec {
     new Uint8Array(buffer, offset).set(new Uint8Array(responseFrame));
 
     return buffer;
+  }
+
+  encodeSharedDirectoryRemoveRequest(req: SharedDirectoryRemoveRequest): Message {
+    // This is a bug. TDP connections should not negotiate shared directory removal
+    // with the server, and the client UI should not show directory removal as an option.
+    throw new Error("Legacy TDP codec does not support shared directory removal");
   }
 
   // decodeClipboardData decodes clipboard data

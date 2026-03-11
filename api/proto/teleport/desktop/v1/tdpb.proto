@@ -36,6 +36,7 @@ message ClientHello {
 message ServerHello {
   ConnectionActivated activation_spec = 1;
   bool clipboard_enabled = 2;
+  bool directory_remove_supported = 3;
 }
 
 // Defines the boundaries that PNG frame will update.
