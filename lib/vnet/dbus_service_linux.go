@@ -18,14 +18,20 @@ package vnet
 
 import (
 	"context"
+	"errors"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/introspect"
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/lib/vnet/polkit"
 )
+
+const polkitAuthorizationTimeout = 30 * time.Second
 
 // introspectNode describes the exported D-Bus API. Update it if any method
 // signature is changed or new methods are added.
@@ -54,51 +60,93 @@ var introspectNode = &introspect.Node{
 // exposes Start and Stop methods that normal client processes can call via
 // system D-Bus. The daemon blocks until the context is canceled.
 func RunLinuxDBusService(ctx context.Context) error {
+	daemon, err := newDBusDaemon()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	stop := context.AfterFunc(ctx, daemon.Close)
+	defer stop()
+
+	return trace.Wrap(daemon.Wait())
+}
+
+func newDBusDaemon() (_ *dbusDaemon, err error) {
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
-		return trace.Wrap(err, "connecting to system D-Bus")
+		return nil, trace.Wrap(err, "connecting to system D-Bus")
 	}
-	defer conn.Close()
+	defer func() {
+		if err != nil {
+			_ = conn.Close()
+		}
+	}()
 
-	serviceCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
 
 	daemon := &dbusDaemon{
-		ctx:    serviceCtx,
-		cancel: cancel,
-		conn:   conn,
+		conn: conn,
+		g:    g,
+		done: make(chan struct{}),
+		startAdminProcess: func(addr, credPath string) error {
+			return trace.Wrap(RunLinuxAdminProcess(ctx, LinuxAdminProcessConfig{
+				ClientApplicationServiceAddr: addr,
+				ServiceCredentialPath:        credPath,
+			}))
+		},
+		cancelAdminProcess: cancel,
 	}
+
 	if err := conn.Export(daemon, dbus.ObjectPath(vnetDBusObjectPath), vnetDBusInterface); err != nil {
-		return trace.Wrap(err, "exporting D-Bus object")
+		return nil, trace.Wrap(err, "exporting D-Bus object")
 	}
 	if err := conn.Export(
 		introspect.NewIntrospectable(introspectNode),
 		dbus.ObjectPath(vnetDBusObjectPath),
 		"org.freedesktop.DBus.Introspectable",
 	); err != nil {
-		return trace.Wrap(err, "exporting D-Bus introspection")
+		return nil, trace.Wrap(err, "exporting D-Bus introspection")
 	}
 
 	reply, err := conn.RequestName(vnetDBusServiceName, dbus.NameFlagDoNotQueue)
 	if err != nil {
-		return trace.Wrap(err, "requesting D-Bus name")
+		return nil, trace.Wrap(err, "requesting D-Bus name")
 	}
 	if reply != dbus.RequestNameReplyPrimaryOwner {
-		return trace.Errorf("D-Bus name %s is already owned", vnetDBusServiceName)
+		return nil, trace.Errorf("D-Bus name %s is already owned", vnetDBusServiceName)
 	}
-	log.InfoContext(serviceCtx, "Acquired D-Bus name", "name", vnetDBusServiceName)
 
-	<-serviceCtx.Done()
-	return nil
+	log.InfoContext(context.Background(), "Acquired D-Bus name", "name", vnetDBusServiceName)
+	return daemon, nil
 }
 
 type dbusDaemon struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	conn   *dbus.Conn
+	conn      *dbus.Conn
+	g         *errgroup.Group
+	started   atomic.Bool
+	done      chan struct{}
+	closeOnce sync.Once
 
-	mu      sync.Mutex
-	started bool
+	startAdminProcess  func(addr, credPath string) error
+	cancelAdminProcess context.CancelFunc
+}
+
+func (d *dbusDaemon) Close() {
+	d.closeOnce.Do(func() {
+		close(d.done)
+		d.cancelAdminProcess()
+		_ = d.conn.Close()
+	})
+}
+
+func (d *dbusDaemon) Wait() error {
+	<-d.done
+	err := d.g.Wait()
+	if err != nil && !errors.Is(err, context.Canceled) {
+		log.DebugContext(context.Background(), "D-Bus daemon background task exited with error after close", "error", err)
+	}
+	return nil
 }
 
 // Start starts actual VNet admin process with passed address and credential path.
@@ -110,31 +158,32 @@ func (d *dbusDaemon) Start(addr, credPath string, sender dbus.Sender) *dbus.Erro
 		return dbus.MakeFailedError(trace.Wrap(err, "authorization failed"))
 	}
 
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if d.started {
+	select {
+	case <-d.done:
+		return dbus.MakeFailedError(trace.Errorf("VNet D-Bus daemon is shutting down"))
+	default:
+	}
+
+	if !d.started.CompareAndSwap(false, true) {
 		return dbus.MakeFailedError(trace.Errorf("VNet admin process already started"))
 	}
-	d.started = true
 
-	log.InfoContext(d.ctx, "Starting VNet admin process", "uid", uid)
+	log.InfoContext(context.Background(), "Starting VNet admin process", "uid", uid)
 
-	go func() {
-		err := RunLinuxAdminProcess(d.ctx, LinuxAdminProcessConfig{
-			ClientApplicationServiceAddr: addr,
-			ServiceCredentialPath:        credPath,
-		})
+	d.g.Go(func() error {
+		err := d.startAdminProcess(addr, credPath)
 		// TODO(tangyatsu): D-Bus supports signals, we might want to emit a signal when the admin process exits.
 		if err != nil {
-			log.ErrorContext(d.ctx, "VNet admin process exited with error", "error", err)
+			log.ErrorContext(context.Background(), "VNet admin process exited with error", "error", err)
 		}
-		d.cancel()
-	}()
+		d.Close()
+		return trace.Wrap(err)
+	})
 
 	return nil
 }
 
-// Stop stops actual VNet admin process by canceling the daemon context.
+// Stop stops actual VNet admin process and exits the daemon.
 // It uses polkit to authorize the calling D-Bus sender.
 func (d *dbusDaemon) Stop(sender dbus.Sender) *dbus.Error {
 	uid, err := d.authorize(sender)
@@ -148,8 +197,8 @@ func (d *dbusDaemon) Stop(sender dbus.Sender) *dbus.Error {
 	// D-Bus activation can start the daemon on any method call. We allow
 	// Stop before Start so the service can exit immediately instead of idling
 	// waiting for a Start call that may never come.
-	log.InfoContext(d.ctx, "Stopping VNet admin process", "uid", uid)
-	d.cancel()
+	log.InfoContext(context.Background(), "Stopping VNet admin process", "uid", uid)
+	d.Close()
 	return nil
 }
 
@@ -165,9 +214,12 @@ func (d *dbusDaemon) authorize(sender dbus.Sender) (uint32, error) {
 		return uid, nil
 	}
 
+	authCtx, cancel := context.WithTimeout(context.Background(), polkitAuthorizationTimeout)
+	defer cancel()
+
 	subject := polkit.NewSystemBusNameSubject(string(sender))
 	result, err := polkit.CheckAuthorization(
-		d.ctx,
+		authCtx,
 		d.conn,
 		subject,
 		vnetPolkitAction,
