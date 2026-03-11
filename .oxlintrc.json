@@ -414,8 +414,7 @@
       }
     },
     {
-      "files": ["e2e/**/*.ts"],
-      "ignores": ["e2e/helpers/test.ts"],
+      "files": ["e2e/tests/**/*.ts"],
       "rules": {
         "no-restricted-imports": [
           "error",
