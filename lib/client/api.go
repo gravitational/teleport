@@ -504,7 +504,7 @@ type Config struct {
 
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
 	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
-	
+
 	// SSOMFACeremonyConstructor is a custom SSO MFA ceremony constructor.
 	SSOMFACeremonyConstructor func(rd *sso.Redirector) mfa.SSOMFACeremony
 
@@ -2301,7 +2301,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 // the user an opportunity to register an MFA device.
 func (tc *TeleportClient) retryWithAddingMFA(ctx context.Context, fn func() error) error {
 	origErr := fn()
-	if tc.MFAAdder == nil || !errors.Is(origErr, authclient.ErrNoMFADevices) {
+	if !errors.Is(origErr, authclient.ErrNoMFADevices) {
 		return trace.Wrap(origErr)
 	}
 
@@ -2315,7 +2315,7 @@ func (tc *TeleportClient) retryWithAddingMFA(ctx context.Context, fn func() erro
 	// 	return trace.Wrap(origErr)
 	// }
 
-	added, err := tc.MFAAdder(ctx, tc)
+	added, err := tc.NewMFAPrompt().AddMFA(ctx, mfa.MFASpec{})
 	if err != nil {
 		return trace.Wrap(err)
 	}

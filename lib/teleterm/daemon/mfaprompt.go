@@ -142,6 +142,10 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	return libmfa.HandleMFAPromptGoroutines(ctx, spawnGoroutines)
 }
 
+func (p *mfaPrompt) AddMFA(ctx context.Context, spec mfa.MFASpec) (bool, error) {
+	return false, nil
+}
+
 func (p *mfaPrompt) promptMFA(ctx context.Context, req *api.PromptMFARequest) (*proto.MFAAuthenticateResponse, error) {
 	resp, err := p.promptAppMFA(ctx, req)
 	if err != nil {

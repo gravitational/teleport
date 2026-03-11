@@ -21,14 +21,31 @@ import (
 	"fmt"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 )
+
+type MFASpec struct {
+	DevName string
+	DevType string
+
+	// AllowPasswordless and AllowPasswordlessSet hold the state of the
+	// --(no-)allow-passwordless flag.
+	//
+	// AllowPasswordless can only be set by users if wancli.IsFIDO2Available() is
+	// true.
+	// Note that Touch ID registrations are always passwordless-capable,
+	// regardless of other settings.
+	AllowPasswordless, AllowPasswordlessSet bool
+
+	AuthSecondFactor constants.SecondFactorType
+}
 
 // Prompt is an MFA prompt.
 type Prompt interface {
 	// Run prompts the user to complete an MFA authentication challenge.
 	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
-	RegisterMFA(ctx context.Context) error
+	AddMFA(ctx context.Context, spec MFASpec) (bool, error)
 }
 
 // PromptFunc is a function wrapper that implements the Prompt interface.
@@ -37,6 +54,10 @@ type PromptFunc func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) 
 // Run prompts the user to complete an MFA authentication challenge.
 func (f PromptFunc) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	return f(ctx, chal)
+}
+
+func (f PromptFunc) AddMFA(ctx context.Context, spec MFASpec) (bool, error) {
+	return false, nil
 }
 
 // PromptConstructor is a function that creates a new MFA prompt.
@@ -57,6 +78,8 @@ type PromptConfig struct {
 	Extensions *mfav1.ChallengeExtensions
 	// SSOMFACeremony is an SSO MFA ceremony.
 	SSOMFACeremony SSOMFACeremony
+	// Ceremony is an MFA ceremony.
+	Ceremony Ceremony
 }
 
 // DeviceDescriptor is a descriptor for a device, such as "registered".

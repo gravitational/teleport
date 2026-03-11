@@ -52,7 +52,6 @@ type WebauthnRegisterFunc func(
 	prompt wancli.RegisterPrompt,
 ) (*proto.MFARegisterResponse, error)
 
-
 // PromptConfig contains common mfa prompt config options shared by
 // different implementations of [mfa.Prompt].
 type PromptConfig struct {
@@ -61,6 +60,8 @@ type PromptConfig struct {
 	ProxyAddress string
 	// WebauthnLoginFunc performs client-side Webauthn login.
 	WebauthnLoginFunc WebauthnLoginFunc
+	// WebauthnRegisterFunc performs client-side Webauthn device registration.
+	WebauthnRegisterFunc WebauthnRegisterFunc
 	// AuthenticatorAttachment specifies the desired authenticator attachment.
 	AuthenticatorAttachment wancli.AuthenticatorAttachment
 	// WebauthnSupported indicates whether Webauthn is supported.

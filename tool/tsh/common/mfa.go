@@ -22,10 +22,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"image/png"
-	"os"
-	"os/exec"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -33,7 +29,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
-	"github.com/pquerna/otp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -299,67 +294,6 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 
 	fmt.Printf("MFA device %q removed.\n", c.name)
 	return nil
-}
-
-func showOTPQRCode(k *otp.Key) (cleanup func(), retErr error) {
-	var imageViewer string
-	// imageViewerArgs is used to send additional arguments to exec command.
-	var imageViewerArgs []string
-	switch runtime.GOOS {
-	case "linux":
-		imageViewer = "xdg-open"
-	case "darwin":
-		imageViewer = "open"
-	case "windows":
-		// On windows start and many other commands are not executable files,
-		// rather internal commands of Command prompt. In order to use internal
-		// command it need to executed as: `cmd.exe /c start filename`
-		imageViewer = "cmd.exe"
-		imageViewerArgs = []string{"/c", "start"}
-	default:
-		return func() {}, trace.NotImplemented("showing QR codes is not implemented on %s", runtime.GOOS)
-	}
-
-	otpImage, err := k.Image(456, 456)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	imageFile, err := os.CreateTemp("", "teleport-otp-qr-code-*.png")
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	defer func() {
-		if retErr != nil {
-			imageFile.Close()
-			os.Remove(imageFile.Name())
-		}
-	}()
-
-	if err := png.Encode(imageFile, otpImage); err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	if err := imageFile.Close(); err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	ctx := context.TODO()
-	logger.DebugContext(ctx, "Wrote OTP QR code to file", "file", imageFile.Name())
-
-	cmd := exec.Command(imageViewer, append(imageViewerArgs, imageFile.Name())...)
-	if err := cmd.Start(); err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	logger.DebugContext(ctx, "Opened QR code via image viewer", "image_viewer", imageViewer)
-	return func() {
-		if err := utils.RemoveSecure(imageFile.Name()); err != nil {
-			logger.DebugContext(ctx, "Failed to clean up temporary QR code file",
-				"file", imageFile.Name(),
-				"error", err,
-			)
-		}
-		if err := cmd.Process.Kill(); err != nil {
-			logger.DebugContext(ctx, "Failed to stop the QR code image viewer", "error", err)
-		}
-	}, nil
 }
 
 func deleteTouchIDCredentialIfApplicable(credentialID string) {
