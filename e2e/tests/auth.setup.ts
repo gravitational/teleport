@@ -22,7 +22,10 @@ import { fileURLToPath } from 'node:url';
 import { login } from '../helpers/login';
 import { test as setup } from '../helpers/test';
 
-const authFile = join(dirname(fileURLToPath(import.meta.url)), '../.auth/user.json');
+const authFile = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '../.auth/user.json'
+);
 
 setup('authenticate', async ({ page }) => {
   await login(page);
