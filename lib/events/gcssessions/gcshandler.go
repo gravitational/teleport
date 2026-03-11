@@ -331,17 +331,17 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 	return fmt.Sprintf("%v://%v/%v", teleport.SchemeGCS, h.Bucket, path), nil
 }
 
-// Download downloads a session recording from a GCS bucket and returns a
+// StreamSessionRecording downloads a session recording from a GCS bucket and returns a
 // ReadCloser for the content. Returns trace.NotFound error if the recording
 // is not found.
-func (h *Handler) Download(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return h.gcsRetrier(ctx, h.recordingPath(sessionID))
 }
 
-// DownloadSummary downloads a session summary from a GCS bucket and returns a
+// StreamSessionSummary downloads a session summary from a GCS bucket and returns a
 // ReadCloser for the content. Returns trace.NotFound error if the summary is
 // not found.
-func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	// Happy path: the final summary exists.
 	rc, err := h.gcsRetrier(ctx, h.summaryPath(sessionID))
 	if trace.IsNotFound(err) {
@@ -357,17 +357,17 @@ func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID) (io
 	return rc, trace.Wrap(err)
 }
 
-// DownloadMetadata downloads a session's metadata from a GCS bucket and
+// StreamSessionMetadata downloads a session's metadata from a GCS bucket and
 // returns a ReadCloser for the content. Returns trace.NotFound error if the
 // metadata is not found.
-func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *Handler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return h.gcsRetrier(ctx, h.metadataPath(sessionID))
 }
 
-// DownloadThumbnail downloads a session's thumbnail from a GCS bucket and
+// StreamSessionThumbnail downloads a session's thumbnail from a GCS bucket and
 // returns a ReadCloser for the content. Returns trace.NotFound error if the
 // thumbnail is not found.
-func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return h.gcsRetrier(ctx, h.thumbnailPath(sessionID))
 }
 

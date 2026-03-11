@@ -71,8 +71,8 @@ func TestErrorCounter(t *testing.T) {
 			steps: []testStep{
 				{
 					action: func(pack *testPack) {
-						pack.errHandler.Download(ctx, "")
-						pack.successHandler.Download(ctx, "")
+						pack.errHandler.StreamSessionRecording(ctx, "")
+						pack.successHandler.StreamSessionRecording(ctx, "")
 					},
 					repeat: 10,
 				},
@@ -105,8 +105,8 @@ func TestErrorCounter(t *testing.T) {
 			steps: []testStep{
 				{
 					action: func(pack *testPack) {
-						pack.errHandler.DownloadSummary(ctx, "")
-						pack.successHandler.DownloadSummary(ctx, "")
+						pack.errHandler.StreamSessionSummary(ctx, "")
+						pack.successHandler.StreamSessionSummary(ctx, "")
 					},
 					repeat: 10,
 				},
@@ -139,8 +139,8 @@ func TestErrorCounter(t *testing.T) {
 			steps: []testStep{
 				{
 					action: func(pack *testPack) {
-						pack.errHandler.DownloadMetadata(ctx, "")
-						pack.successHandler.DownloadMetadata(ctx, "")
+						pack.errHandler.StreamSessionMetadata(ctx, "")
+						pack.successHandler.StreamSessionMetadata(ctx, "")
 					},
 					repeat: 10,
 				},
@@ -173,8 +173,8 @@ func TestErrorCounter(t *testing.T) {
 			steps: []testStep{
 				{
 					action: func(pack *testPack) {
-						pack.errHandler.DownloadThumbnail(ctx, "")
-						pack.successHandler.DownloadThumbnail(ctx, "")
+						pack.errHandler.StreamSessionThumbnail(ctx, "")
+						pack.successHandler.StreamSessionThumbnail(ctx, "")
 					},
 					repeat: 10,
 				},
@@ -387,19 +387,19 @@ func (h *errorHandler) UploadThumbnail(ctx context.Context, sessionID session.ID
 	return "", h.err
 }
 
-func (h *errorHandler) Download(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *errorHandler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return nil, h.err
 }
 
-func (h *errorHandler) DownloadSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *errorHandler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return nil, h.err
 }
 
-func (h *errorHandler) DownloadMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *errorHandler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return nil, h.err
 }
 
-func (h *errorHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *errorHandler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return nil, h.err
 }
 
@@ -410,7 +410,7 @@ type bodyErrorHandler struct {
 	events.MultipartHandler
 }
 
-func (h *bodyErrorHandler) Download(_ context.Context, _ session.ID) (io.ReadCloser, error) {
+func (h *bodyErrorHandler) StreamSessionRecording(_ context.Context, _ session.ID) (io.ReadCloser, error) {
 	return io.NopCloser(errorReader{h.readErr}), nil
 }
 
@@ -432,7 +432,7 @@ func TestDownloadBodyReadError(t *testing.T) {
 	handler := counter.WrapSessionHandler(&bodyErrorHandler{readErr: readErr})
 
 	for range 4 {
-		rc, err := handler.Download(ctx, "")
+		rc, err := handler.StreamSessionRecording(ctx, "")
 		assert.NoError(t, err, "Download call itself must succeed")
 		_, readErr := io.ReadAll(rc)
 		assert.Error(t, readErr, "reading the body must fail")

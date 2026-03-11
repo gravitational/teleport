@@ -362,7 +362,7 @@ func TestEncryptedRecordingIO(t *testing.T) {
 	case <-doneC:
 	}
 
-	rc, err := uploader.Download(ctx, sid)
+	rc, err := uploader.StreamSessionRecording(ctx, sid)
 	require.NoError(t, err)
 	defer rc.Close()
 

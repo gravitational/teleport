@@ -58,10 +58,10 @@ type Authorizer interface {
 
 // DownloadHandler downloads session recording metadata and thumbnails.
 type DownloadHandler interface {
-	// DownloadMetadata downloads session metadata and returns a ReadCloser for the content.
-	DownloadMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
-	// DownloadThumbnail downloads a session thumbnail and returns a ReadCloser for the content.
-	DownloadThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
+	// StreamSessionMetadata downloads session metadata and returns a ReadCloser for the content.
+	StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
+	// StreamSessionThumbnail downloads a session thumbnail and returns a ReadCloser for the content.
+	StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
 }
 
 // ServiceConfig holds the configuration for the recording metadata service.
@@ -101,7 +101,7 @@ func (r *Service) GetThumbnail(ctx context.Context, req *pb.GetThumbnailRequest)
 		return nil, trace.Wrap(err)
 	}
 
-	rc, err := r.downloadHandler.DownloadThumbnail(ctx, session.ID(req.SessionId))
+	rc, err := r.downloadHandler.StreamSessionThumbnail(ctx, session.ID(req.SessionId))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -129,7 +129,7 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 		return trace.Wrap(err)
 	}
 
-	rc, err := r.downloadHandler.DownloadMetadata(stream.Context(), session.ID(req.SessionId))
+	rc, err := r.downloadHandler.StreamSessionMetadata(stream.Context(), session.ID(req.SessionId))
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -444,31 +444,31 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 	return fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, h.Bucket, path), nil
 }
 
-// Download downloads a session recording from an S3 bucket and returns a
+// StreamSessionRecording downloads a session recording from an S3 bucket and returns a
 // ReadCloser for the content. Returns trace.NotFound error if the recording
 // is not found.
-func (h *Handler) Download(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return h.downloadOriginalFile(ctx, h.recordingPath(sessionID))
 }
 
-// DownloadSummary downloads a final session summary from an S3 bucket and
+// StreamSessionSummary downloads a final session summary from an S3 bucket and
 // returns a ReadCloser for the content. Returns trace.NotFound error if the
 // summary is not found or is not final.
-func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return h.downloadFileRetrier(ctx, h.summaryPath(sessionID), nil /* versionID */)
 }
 
-// DownloadMetadata downloads a session's metadata from an S3 bucket and
+// StreamSessionMetadata downloads a session's metadata from an S3 bucket and
 // returns a ReadCloser for the content. Returns trace.NotFound error if the
 // metadata is not found.
-func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *Handler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return h.downloadOriginalFile(ctx, h.metadataPath(sessionID))
 }
 
-// DownloadThumbnail downloads a session's thumbnail from an S3 bucket and
+// StreamSessionThumbnail downloads a session's thumbnail from an S3 bucket and
 // returns a ReadCloser for the content. Returns trace.NotFound error if the
 // thumbnail is not found.
-func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return h.downloadOriginalFile(ctx, h.thumbnailPath(sessionID))
 }
 

@@ -355,8 +355,8 @@ func (m *MemoryUploader) UploadThumbnail(ctx context.Context, sessionID session.
 	return string(sessionID), nil
 }
 
-// Download downloads session tarball and returns a ReadCloser for the content.
-func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+// StreamSessionRecording streams a session tarball and returns a ReadCloser for the content.
+func (m *MemoryUploader) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -367,8 +367,8 @@ func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID) (io
 	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
-// DownloadSummary downloads a session summary and returns a ReadCloser for the content.
-func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+// StreamSessionSummary streams a session summary and returns a ReadCloser for the content.
+func (m *MemoryUploader) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -382,8 +382,8 @@ func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.
 	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
-// DownloadMetadata downloads session metadata and returns a ReadCloser for the content.
-func (m *MemoryUploader) DownloadMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+// StreamSessionMetadata streams session metadata and returns a ReadCloser for the content.
+func (m *MemoryUploader) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -394,8 +394,8 @@ func (m *MemoryUploader) DownloadMetadata(ctx context.Context, sessionID session
 	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
-// DownloadThumbnail downloads session thumbnail and returns a ReadCloser for the content.
-func (m *MemoryUploader) DownloadThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+// StreamSessionThumbnail streams session thumbnail and returns a ReadCloser for the content.
+func (m *MemoryUploader) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -475,6 +475,25 @@ func (m *MemoryUploader) UploadEncryptedRecording(ctx context.Context, sessionID
 	}
 
 	return trace.Wrap(m.CompleteUpload(ctx, *upload, streamParts), "completing upload")
+}
+
+// TODO(tigrato): remove once e is updated.
+func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	data, ok := m.summaries[sessionID]
+	if !ok {
+		data, ok = m.pendingSummaries[sessionID]
+	}
+	if !ok {
+		return trace.NotFound("summary %q is not found", sessionID)
+	}
+	_, err := io.Copy(writer, bytes.NewReader(data))
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }
 
 // MockUploader is a limited implementation of [events.MultipartUploader] that

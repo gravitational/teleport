@@ -408,9 +408,9 @@ func (c *ErrorCountingSessionHandler) UploadThumbnail(ctx context.Context, sessi
 	return res, err
 }
 
-// Download calls [c.wrapped.Download] and counts the error or success.
-func (c *ErrorCountingSessionHandler) Download(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	rc, err := c.wrapped.Download(ctx, sessionID)
+// StreamSessionRecording calls [c.wrapped.StreamSessionRecording] and counts the error or success.
+func (c *ErrorCountingSessionHandler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	rc, err := c.wrapped.StreamSessionRecording(ctx, sessionID)
 	if err != nil {
 		c.downloads.observe(err)
 		return nil, err
@@ -418,9 +418,9 @@ func (c *ErrorCountingSessionHandler) Download(ctx context.Context, sessionID se
 	return newErrorReportReader(rc, c.downloads), nil
 }
 
-// DownloadSummary calls [c.wrapped.DownloadSummary] and counts the error or success.
-func (c *ErrorCountingSessionHandler) DownloadSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	rc, err := c.wrapped.DownloadSummary(ctx, sessionID)
+// StreamSessionSummary calls [c.wrapped.StreamSessionSummary] and counts the error or success.
+func (c *ErrorCountingSessionHandler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	rc, err := c.wrapped.StreamSessionSummary(ctx, sessionID)
 	if err != nil {
 		c.downloads.observe(err)
 		return nil, err
@@ -428,9 +428,9 @@ func (c *ErrorCountingSessionHandler) DownloadSummary(ctx context.Context, sessi
 	return newErrorReportReader(rc, c.downloads), nil
 }
 
-// DownloadMetadata calls [c.wrapped.DownloadMetadata] and counts the error or success.
-func (c *ErrorCountingSessionHandler) DownloadMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	rc, err := c.wrapped.DownloadMetadata(ctx, sessionID)
+// StreamSessionMetadata calls [c.wrapped.StreamSessionMetadata] and counts the error or success.
+func (c *ErrorCountingSessionHandler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	rc, err := c.wrapped.StreamSessionMetadata(ctx, sessionID)
 	if err != nil {
 		c.downloads.observe(err)
 		return nil, err
@@ -438,9 +438,9 @@ func (c *ErrorCountingSessionHandler) DownloadMetadata(ctx context.Context, sess
 	return newErrorReportReader(rc, c.downloads), nil
 }
 
-// DownloadThumbnail calls [c.wrapped.DownloadThumbnail()] and counts the error or success.
-func (c *ErrorCountingSessionHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	rc, err := c.wrapped.DownloadThumbnail(ctx, sessionID)
+// StreamSessionThumbnail calls [c.wrapped.StreamSessionThumbnail()] and counts the error or success.
+func (c *ErrorCountingSessionHandler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	rc, err := c.wrapped.StreamSessionThumbnail(ctx, sessionID)
 	if err != nil {
 		c.downloads.observe(err)
 		return nil, err

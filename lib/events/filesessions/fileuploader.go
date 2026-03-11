@@ -116,13 +116,13 @@ func (l *Handler) Close() error {
 	return nil
 }
 
-// Download reads a session recording from a local directory.
-func (l *Handler) Download(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+// StreamSessionRecording reads a session recording from a local directory.
+func (l *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return openFile(l.recordingPath(sessionID))
 }
 
-// DownloadSummary reads a session summary from a local directory.
-func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+// StreamSessionSummary reads a session summary from a local directory.
+func (l *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	filePathsToTest := [3]string{
 		l.summaryPath(sessionID),
 		l.pendingSummaryPath(sessionID),
@@ -142,13 +142,13 @@ func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID) (io
 	return nil, trace.NotFound("summary for session %v not found", sessionID)
 }
 
-// DownloadMetadata reads session metadata from a local directory.
-func (l *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+// StreamSessionMetadata reads session metadata from a local directory.
+func (l *Handler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return openFile(l.metadataPath(sessionID))
 }
 
-// DownloadThumbnail reads a session thumbnail from a local directory.
-func (l *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+// StreamSessionThumbnail reads a session thumbnail from a local directory.
+func (l *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return openFile(l.thumbnailPath(sessionID))
 }
 

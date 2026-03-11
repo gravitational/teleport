@@ -181,7 +181,7 @@ func StreamEmpty(t *testing.T, handler events.MultipartHandler) {
 
 	require.NoError(t, stream.Complete(ctx))
 
-	_, err = handler.Download(ctx, sid)
+	_, err = handler.StreamSessionRecording(ctx, sid)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -240,7 +240,7 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 	err = stream.Complete(ctx)
 	require.NoError(t, err)
 
-	rc, err := handler.Download(ctx, sid)
+	rc, err := handler.StreamSessionRecording(ctx, sid)
 	require.NoError(t, err)
 	defer rc.Close()
 
@@ -305,7 +305,7 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 	err = stream.Complete(ctx)
 	require.NoError(t, err, "Complete after resume should succeed")
 
-	rc, err := handler.Download(ctx, sid)
+	rc, err := handler.StreamSessionRecording(ctx, sid)
 	require.NoError(t, err)
 	defer rc.Close()
 

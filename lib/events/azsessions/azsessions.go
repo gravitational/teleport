@@ -382,14 +382,14 @@ func (h *Handler) uploadBlob(
 	return blob.URL(), nil
 }
 
-// Download implements [events.UploadHandler] and downloads a session recording.
-func (h *Handler) Download(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+// StreamSessionRecording implements [events.UploadHandler] and downloads a session recording.
+func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return h.blobRetrier(ctx, sessionID, h.sessionBlob(sessionID))
 }
 
-// DownloadSummary implements [events.UploadHandler] and downloads a final
+// StreamSessionSummary implements [events.UploadHandler] and downloads a final
 // session summary.
-func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	// Happy path: the final summary exists.
 	rc, err := h.blobRetrier(ctx, sessionID, h.summaryBlob(sessionID))
 	if trace.IsNotFound(err) {
@@ -405,13 +405,13 @@ func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID) (io
 	return rc, trace.Wrap(err)
 }
 
-// DownloadMetadata implements [events.UploadHandler] and downloads a session's metadata.
-func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+// StreamSessionMetadata implements [events.UploadHandler] and downloads a session's metadata.
+func (h *Handler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return h.blobRetrier(ctx, sessionID, h.metadataBlob(sessionID))
 }
 
-// DownloadThumbnail implements [events.UploadHandler] and downloads a session's thumbnail.
-func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+// StreamSessionThumbnail implements [events.UploadHandler] and downloads a session's thumbnail.
+func (h *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return h.blobRetrier(ctx, sessionID, h.thumbnailBlob(sessionID))
 }
 

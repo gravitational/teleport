@@ -561,7 +561,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			startCb(evt, nil)
 		}()
 	}
-	reader, err := l.UploadHandler.Download(ctx, sessionID)
+	reader, err := l.UploadHandler.StreamSessionRecording(ctx, sessionID)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) || trace.IsNotFound(err) {
 			err = trace.NotFound("a recording for session %v was not found", sessionID)

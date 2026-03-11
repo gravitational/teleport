@@ -57,7 +57,7 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	_, err = handler.Upload(ctx, id, strings.NewReader("impostor"))
 	require.Error(t, err)
 
-	rc, err := handler.Download(ctx, id)
+	rc, err := handler.StreamSessionRecording(ctx, id)
 	require.NoError(t, err)
 	defer rc.Close()
 
@@ -74,7 +74,7 @@ func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
 	_, err := handler.UploadPendingSummary(ctx, id, strings.NewReader("pending summary"))
 	require.NoError(t, err)
 
-	pendingRC, err := handler.DownloadSummary(ctx, id)
+	pendingRC, err := handler.StreamSessionSummary(ctx, id)
 	require.NoError(t, err)
 	pendingData, err := io.ReadAll(pendingRC)
 	require.NoError(t, pendingRC.Close())
@@ -86,7 +86,7 @@ func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
 	require.NoError(t, err)
 
 	// Download the pending version.
-	pendingRC2, err := handler.DownloadSummary(ctx, id)
+	pendingRC2, err := handler.StreamSessionSummary(ctx, id)
 	require.NoError(t, err)
 	pendingData2, err := io.ReadAll(pendingRC2)
 	require.NoError(t, pendingRC2.Close())
@@ -102,7 +102,7 @@ func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
 	require.Error(t, err)
 
 	// Download the final version.
-	finalRC, err := handler.DownloadSummary(ctx, id)
+	finalRC, err := handler.StreamSessionSummary(ctx, id)
 	require.NoError(t, err)
 	finalData, err := io.ReadAll(finalRC)
 	require.NoError(t, finalRC.Close())
@@ -116,7 +116,7 @@ func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
 	require.NoError(t, err)
 
 	// Download the final version of the second file.
-	finalRC2, err := handler.DownloadSummary(ctx, id2)
+	finalRC2, err := handler.StreamSessionSummary(ctx, id2)
 	require.NoError(t, err)
 	finalData2, err := io.ReadAll(finalRC2)
 	require.NoError(t, finalRC2.Close())
@@ -131,7 +131,7 @@ func UploadDownloadMetadata(t *testing.T, handler events.MultipartHandler) {
 	_, err := handler.UploadMetadata(t.Context(), id, bytes.NewBuffer([]byte(val)))
 	require.NoError(t, err)
 
-	rc, err := handler.DownloadMetadata(t.Context(), id)
+	rc, err := handler.StreamSessionMetadata(t.Context(), id)
 	require.NoError(t, err)
 	defer rc.Close()
 
@@ -147,7 +147,7 @@ func UploadDownloadThumbnail(t *testing.T, handler events.MultipartHandler) {
 	_, err := handler.UploadThumbnail(t.Context(), id, bytes.NewBuffer([]byte(val)))
 	require.NoError(t, err)
 
-	rc, err := handler.DownloadThumbnail(t.Context(), id)
+	rc, err := handler.StreamSessionThumbnail(t.Context(), id)
 	require.NoError(t, err)
 	defer rc.Close()
 
@@ -160,7 +160,7 @@ func UploadDownloadThumbnail(t *testing.T, handler events.MultipartHandler) {
 func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	id := session.NewID()
 
-	_, err := handler.Download(t.Context(), id)
+	_, err := handler.StreamSessionRecording(t.Context(), id)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -622,7 +622,8 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 							MapRef: &types.WhereExpr2{
 								L: &types.WhereExpr{Field: "server_labels"},
 								R: &types.WhereExpr{Literal: key},
-							}},
+							},
+						},
 						R: &types.WhereExpr{Literal: value},
 					},
 				},
