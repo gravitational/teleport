@@ -1151,6 +1151,9 @@ const (
 	// BeamIDLabel is a label used to mark a resource as belonging to a beam.
 	BeamIDLabel = TeleportInternalLabelPrefix + "beam/id"
 
+	// BeamOwnerLabel is a label used to track which user owns a beam.
+	BeamOwnerLabel = TeleportInternalLabelPrefix + "beam/owner"
+
 	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
 	// A pratical example of this is to create a correlation between a Node Provision Token and
 	// the Node that used that token to join the cluster
