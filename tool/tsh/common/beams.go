@@ -398,7 +398,7 @@ func beamNodeTarget(nodeID string) *client.TargetNode {
 }
 
 func beamRemotePath(cf *CLIConf, tc *client.TeleportClient, nodeID, remotePath string) string {
-	login := "root"
+	login := "beams"
 	if cf.NodeLogin != "" {
 		login = cf.NodeLogin
 	}
