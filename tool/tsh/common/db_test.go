@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -102,16 +101,6 @@ func TestTshDB(t *testing.T) {
 		defaults.ResyncInterval = oldResyncInterval
 	})
 
-	// Proxy uses self-signed certificates in tests.
-	originalValue := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	// To detect tests that run in parallel incorrectly, call t.Setenv with a
-	// dummy env var - that function detects tests with parallel ancestors
-	// and panics, preventing improper use of this helper.
-	t.Setenv("WithInsecureDevMode", "1")
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(originalValue)
-	})
 	t.Run("Login", testDatabaseLogin)
 	t.Run("List", testListDatabase)
 	t.Run("DatabaseSelection", testDatabaseSelection)
@@ -161,6 +150,7 @@ func testDatabaseLogin(t *testing.T) {
 	alice.SetRoles([]string{"dev-access", "autouser", "access-requestor"})
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
 			cfg.Auth.BootstrapResources = append(
 				cfg.Auth.BootstrapResources,
 				autoUserRole,
@@ -708,6 +698,7 @@ func testListDatabase(t *testing.T) {
 	fullName := "root-postgres-rds-us-west-1-123456789012"
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
 			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
@@ -731,6 +722,7 @@ func testListDatabase(t *testing.T) {
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
+			cfg.InsecureMode = true
 			cfg.SSH.Enabled = false
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{{
@@ -1601,6 +1593,7 @@ func testDatabaseSelection(t *testing.T) {
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, alice)
+			cfg.InsecureMode = true
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
 			cfg.SSH.Enabled = false

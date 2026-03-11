@@ -702,6 +702,9 @@ const (
 	// KindWorkloadCluster is the resource kind for workload clusters.
 	KindWorkloadCluster = "workload_cluster"
 
+	// KindCertAuthorityOverride is the resource kind for CA overrides.
+	KindCertAuthorityOverride = "cert_authority_override"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
@@ -840,6 +843,8 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSAccountIDLabel = TeleportNamespace + "/account-id"
+	// AWSAccountNameLabel is the human-readable AWS account name label.
+	AWSAccountNameLabel = TeleportNamespace + "/account-name"
 	// AWSInstanceIDLabel is used to identify nodes by EC2 instance ID
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -847,6 +852,8 @@ const (
 	// AWSInstanceRegion is used to identify the region an EC2
 	// instance is running in
 	AWSInstanceRegion = TeleportNamespace + "/aws-region"
+	// AWSSSORegionLabel is the AWS Identity Center SSO region label.
+	AWSSSORegionLabel = TeleportNamespace + "/sso-region"
 	// SubscriptionIDLabel is used to identify virtual machines by Azure
 	// subscription ID found via automatic discovery, to avoid re-running
 	// installation commands on the node.

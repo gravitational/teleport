@@ -252,19 +252,43 @@ export interface AccessListRequires {
  */
 export interface AccessListGrants {
     /**
-     * roles are the roles that are granted to users who are members of the Access
-     * List.
+     * roles are the names of roles to be granted to users.
      *
      * @generated from protobuf field: repeated string roles = 1;
      */
     roles: string[];
     /**
-     * traits are the traits that are granted to users who are members of the
-     * Access List.
+     * traits are the traits to be granted to users.
      *
      * @generated from protobuf field: repeated teleport.trait.v1.Trait traits = 2;
      */
     traits: Trait[];
+    /**
+     * scoped_roles are scoped roles to be granted to users.
+     *
+     * @generated from protobuf field: repeated teleport.accesslist.v1.ScopedRoleGrant scoped_roles = 3;
+     */
+    scopedRoles: ScopedRoleGrant[];
+}
+/**
+ * ScopedRoleGrant describes a scoped role granted at a specific scope.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.ScopedRoleGrant
+ */
+export interface ScopedRoleGrant {
+    /**
+     * role is the name of the scoped role to be granted.
+     *
+     * @generated from protobuf field: string role = 1;
+     */
+    role: string;
+    /**
+     * scope is the scope the role will be assigned at. It must be an assignable
+     * scope of the role.
+     *
+     * @generated from protobuf field: string scope = 2;
+     */
+    scope: string;
 }
 /**
  * Member describes a member of an Access List.
@@ -1115,13 +1139,15 @@ class AccessListGrants$Type extends MessageType<AccessListGrants> {
     constructor() {
         super("teleport.accesslist.v1.AccessListGrants", [
             { no: 1, name: "roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "traits", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Trait }
+            { no: 2, name: "traits", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Trait },
+            { no: 3, name: "scoped_roles", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ScopedRoleGrant }
         ]);
     }
     create(value?: PartialMessage<AccessListGrants>): AccessListGrants {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.roles = [];
         message.traits = [];
+        message.scopedRoles = [];
         if (value !== undefined)
             reflectionMergePartial<AccessListGrants>(this, message, value);
         return message;
@@ -1136,6 +1162,9 @@ class AccessListGrants$Type extends MessageType<AccessListGrants> {
                     break;
                 case /* repeated teleport.trait.v1.Trait traits */ 2:
                     message.traits.push(Trait.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* repeated teleport.accesslist.v1.ScopedRoleGrant scoped_roles */ 3:
+                    message.scopedRoles.push(ScopedRoleGrant.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1155,6 +1184,9 @@ class AccessListGrants$Type extends MessageType<AccessListGrants> {
         /* repeated teleport.trait.v1.Trait traits = 2; */
         for (let i = 0; i < message.traits.length; i++)
             Trait.internalBinaryWrite(message.traits[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* repeated teleport.accesslist.v1.ScopedRoleGrant scoped_roles = 3; */
+        for (let i = 0; i < message.scopedRoles.length; i++)
+            ScopedRoleGrant.internalBinaryWrite(message.scopedRoles[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1165,6 +1197,61 @@ class AccessListGrants$Type extends MessageType<AccessListGrants> {
  * @generated MessageType for protobuf message teleport.accesslist.v1.AccessListGrants
  */
 export const AccessListGrants = new AccessListGrants$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ScopedRoleGrant$Type extends MessageType<ScopedRoleGrant> {
+    constructor() {
+        super("teleport.accesslist.v1.ScopedRoleGrant", [
+            { no: 1, name: "role", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "scope", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ScopedRoleGrant>): ScopedRoleGrant {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.role = "";
+        message.scope = "";
+        if (value !== undefined)
+            reflectionMergePartial<ScopedRoleGrant>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ScopedRoleGrant): ScopedRoleGrant {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string role */ 1:
+                    message.role = reader.string();
+                    break;
+                case /* string scope */ 2:
+                    message.scope = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ScopedRoleGrant, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string role = 1; */
+        if (message.role !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.role);
+        /* string scope = 2; */
+        if (message.scope !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.scope);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.ScopedRoleGrant
+ */
+export const ScopedRoleGrant = new ScopedRoleGrant$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class Member$Type extends MessageType<Member> {
     constructor() {

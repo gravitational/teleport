@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	gcputils "github.com/gravitational/teleport/api/utils/gcp"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -2504,9 +2503,6 @@ func applyConfigVersion(fc *FileConfig, cfg *servicecfg.Config) {
 // Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
 func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags bool) error {
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
 	// load /etc/teleport.yaml and apply its values:
 	fileConf, err := ReadConfigFile(clf.ConfigFile)
 	if err != nil {
@@ -2919,14 +2915,16 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.Auth.AgentRolloutControllerSyncPeriod = period
 	}
 
+	// pass the value of --insecure flag to the runtime
+	if clf.InsecureMode {
+		cfg.InsecureMode = true
+	}
+
 	return nil
 }
 
 // ConfigureOpenSSH initializes a config from the commandline flags passed
 func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
 	// Apply command line --debug flag to override logger severity.
 	level := slog.LevelError
 	if clf.Debug {
@@ -2990,6 +2988,10 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	cfg.SetAuthServerAddresses(nil)
 	cfg.ProxyServer = *proxyServer
 
+	// pass the value of --insecure flag to the runtime
+	if clf.InsecureMode {
+		cfg.InsecureMode = true
+	}
 	return nil
 }
 
