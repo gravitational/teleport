@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import cfg from 'teleport/config';
+
 export enum NavigationCategory {
   Resources = 'Resources',
   ZeroTrustAccess = 'Zero Trust Access',
@@ -49,7 +51,17 @@ export const NAVIGATION_CATEGORIES = [
   NavigationCategory.MachineWorkloadId,
   NavigationCategory.IdentityGovernance,
   NavigationCategory.IdentitySecurity,
-  NavigationCategory.Audit,
   NavigationCategory.Beams,
+  NavigationCategory.Audit,
+  NavigationCategory.AddNew,
+];
+
+export const BEAMS_NAVIGATION_CATEGORIES = [
+  NavigationCategory.Beams,
+  NavigationCategory.ZeroTrustAccess,
+  NavigationCategory.MachineWorkloadId,
+  NavigationCategory.IdentityGovernance,
+  NavigationCategory.IdentitySecurity,
+  NavigationCategory.Audit,
   NavigationCategory.AddNew,
 ];
