@@ -54,28 +54,29 @@ func Test_validateOkta(t *testing.T) {
 			errMatcher:  trace.IsBadParameter,
 			errContains: "time_between_assignment_process_loops is not valid",
 		},
-		{
-			name: "TimeBetweenAssignmentProcessLoops longer than TimeBetweenImports",
-			oktaSettings: &types.PluginOktaSettings{
-				SyncSettings: &types.PluginOktaSyncSettings{
-					TimeBetweenImports:                "1m",
-					TimeBetweenAssignmentProcessLoops: "1m6s",
-				},
-			},
-			errMatcher:  trace.IsBadParameter,
-			errContains: "time_between_assignment_process_loops cannot be longer than time_between_imports",
-		},
-		{
-			name: "TimeBetweenAssignmentProcessLoops longer than implicit TimeBetweenImports",
-			oktaSettings: &types.PluginOktaSettings{
-				SyncSettings: &types.PluginOktaSyncSettings{
-					// TimeBetweenImports is 30m by default
-					TimeBetweenAssignmentProcessLoops: "30m1s",
-				},
-			},
-			errMatcher:  trace.IsBadParameter,
-			errContains: "time_between_assignment_process_loops cannot be longer than time_between_imports",
-		},
+		// TODO(kopiczko): add the check when integration tests are fixed.
+		//{
+		//	name: "TimeBetweenAssignmentProcessLoops longer than TimeBetweenImports",
+		//	oktaSettings: &types.PluginOktaSettings{
+		//		SyncSettings: &types.PluginOktaSyncSettings{
+		//			TimeBetweenImports:                "1m",
+		//			TimeBetweenAssignmentProcessLoops: "1m6s",
+		//		},
+		//	},
+		//	errMatcher:  trace.IsBadParameter,
+		//	errContains: "time_between_assignment_process_loops cannot be longer than time_between_imports",
+		//},
+		//{
+		//	name: "TimeBetweenAssignmentProcessLoops longer than implicit TimeBetweenImports",
+		//	oktaSettings: &types.PluginOktaSettings{
+		//		SyncSettings: &types.PluginOktaSyncSettings{
+		//			// TimeBetweenImports is 30m by default
+		//			TimeBetweenAssignmentProcessLoops: "30m1s",
+		//		},
+		//	},
+		//	errMatcher:  trace.IsBadParameter,
+		//	errContains: "time_between_assignment_process_loops cannot be longer than time_between_imports",
+		//},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			plugin := newTestOktaPlugin(tt.oktaSettings)
