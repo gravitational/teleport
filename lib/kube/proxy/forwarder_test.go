@@ -988,6 +988,13 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			inHeaders:    http.Header{},
 			errAssertion: require.Error,
 		},
+		{
+			desc:         "role with invalid kubernetes user containing null byte",
+			kubeUsers:    []string{"kube-user-\x00a"},
+			kubeGroups:   []string{"kube-group-a"},
+			inHeaders:    http.Header{},
+			errAssertion: require.Error,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
