@@ -140,9 +140,18 @@ message CreateIntegrationRequest {
   bool disable_assign_default_roles = 12;
   // TimeBetweenImports controls the time between Okta syncs. I.e. importing Okta users, apps and
   // groups to teleport. This doesn't affect how quickly Teleport changes are propagated to Okta if
-  // bidirectional sync is enabled. It will be rounded down to the nearest second The default value
-  // is 1800 (30 minutes).
+  // bidirectional sync is enabled. The default value is 30m.
   google.protobuf.Duration time_between_imports = 13;
+  // TimeBetweenAssignmentProcessLoops controls the time between periodic synchronizations of the
+  // Okta assignments to Teleport and reconciliation of all existing assignments that are failed or
+  // out of sync.
+  //
+  // An empty string results in the default value of 10min.
+  //
+  // NOTE: This has an impact on other parts of the Okta sync. In particual it changes the how
+  // often the cached Okta client for assignments is being invalidated. It is not advised to change
+  // this setting without prior recommendation.
+  google.protobuf.Duration time_between_assignment_process_loops = 14;
 }
 
 // UpdateIntegrationRequest is the request message for updating an existing Okta integration.
@@ -173,9 +182,18 @@ message UpdateIntegrationRequest {
   bool disable_assign_default_roles = 12;
   // TimeBetweenImports controls the time between Okta syncs. I.e. importing Okta users, apps and
   // groups to teleport. This doesn't affect how quickly Teleport changes are propagated to Okta if
-  // bidirectional sync is enabled. It will be rounded down to the nearest second. The default
-  // value is 1800 (30 minutes).
+  // bidirectional sync is enabled. The default value is 30m.
   google.protobuf.Duration time_between_imports = 13;
+  // TimeBetweenAssignmentProcessLoops controls the time between periodic synchronizations of the
+  // Okta assignments to Teleport and reconciliation of all existing assignments that are failed or
+  // out of sync.
+  //
+  // An empty string results in the default value of 10min.
+  //
+  // NOTE: This has an impact on other parts of the Okta sync. In particual it changes the how
+  // often the cached Okta client for assignments is being invalidated. It is not advised to change
+  // this setting without prior recommendation.
+  google.protobuf.Duration time_between_assignment_process_loops = 14;
 }
 
 // AccessListSettings contains the settings for access list synchronization.
