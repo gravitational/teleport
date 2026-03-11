@@ -115,6 +115,127 @@ func TestHandleOpenAI(t *testing.T) {
 	}
 }
 
+func TestHandleOpenAI_UnsupportedEndpoint(t *testing.T) {
+	for name, tc := range map[string]struct {
+		method string
+		path   string
+	}{
+		"unknown path": {
+			method: http.MethodGet,
+			path:   "/v1/unknown/endpoint",
+		},
+		"unsupported method on supported path": {
+			method: http.MethodPatch,
+			path:   "/v1/responses",
+		},
+		"models endpoint": {
+			method: http.MethodGet,
+			path:   "/v1/models",
+		},
+		"embeddings endpoint": {
+			method: http.MethodPost,
+			path:   "/v1/embeddings",
+		},
+		"images endpoint": {
+			method: http.MethodPost,
+			path:   "/v1/images/generations",
+		},
+		"fine tuning endpoint": {
+			method: http.MethodPost,
+			path:   "/v1/fine_tuning/jobs",
+		},
+		"files endpoint": {
+			method: http.MethodGet,
+			path:   "/v1/files",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// The mock server should never be called for unsupported endpoints.
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Fatal("upstream server should not be called for unsupported endpoints")
+			}))
+			t.Cleanup(mockServer.Close)
+
+			audit := newTestAudit(t, func(apievents.PreparedSessionEvent) {})
+			h := newTestHandler(t, "", mockServer.URL)
+			app := newTestApp(t, types.LLM_FORMAT_OPENAI, types.LLM_PROVIDER_OPENAI)
+			sessionCtx := &common.SessionContext{App: app, Audit: audit}
+			req := newTestSessionRequest(t, tc.method, tc.path, nil, sessionCtx)
+			w := httptest.NewRecorder()
+
+			err := h.handleOpenAI(sessionCtx, w, req)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusNotFound, w.Code)
+
+			var errResp struct {
+				Message string `json:"message"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+			require.Contains(t, errResp.Message, "Teleport")
+		})
+	}
+}
+
+// TestHandleOpenAI_UpstreamPath verifies that the upstream request always
+// contains exactly one /v1 prefix, regardless of whether the incoming request
+// path includes /v1 and whether the base URL already includes it.
+func TestHandleOpenAI_UpstreamPath(t *testing.T) {
+	for name, tc := range map[string]struct {
+		reqPath        string
+		baseURLSuffix  string
+		expectedUpPath string
+	}{
+		"request with /v1, base URL with /v1": {
+			reqPath:        "/v1/responses",
+			baseURLSuffix:  "/v1",
+			expectedUpPath: "/v1/responses",
+		},
+		"request without /v1, base URL with /v1": {
+			reqPath:        "/responses",
+			baseURLSuffix:  "/v1",
+			expectedUpPath: "/v1/responses",
+		},
+		"request with /v1, base URL without /v1": {
+			reqPath:        "/v1/responses",
+			baseURLSuffix:  "",
+			expectedUpPath: "/v1/responses",
+		},
+		"request without /v1, base URL without /v1": {
+			reqPath:        "/responses",
+			baseURLSuffix:  "",
+			expectedUpPath: "/v1/responses",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var gotPath string
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotPath = r.URL.Path
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				io.WriteString(w, `{"id":"resp_123","object":"response","output":[]}`)
+			}))
+			t.Cleanup(mockServer.Close)
+
+			audit := newTestAudit(t, func(apievents.PreparedSessionEvent) {})
+			h := newTestHandler(t, "", mockServer.URL+tc.baseURLSuffix)
+			app := newTestApp(t, types.LLM_FORMAT_OPENAI, types.LLM_PROVIDER_OPENAI)
+			sessionCtx := &common.SessionContext{App: app, Audit: audit}
+			req := newTestSessionRequest(
+				t,
+				http.MethodPost,
+				tc.reqPath,
+				strings.NewReader(`{"model":"gpt-5-2","input":"hello"}`),
+				sessionCtx,
+			)
+			w := httptest.NewRecorder()
+
+			err := h.handleOpenAI(sessionCtx, w, req)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedUpPath, gotPath)
+		})
+	}
+}
+
 func TestHandleOpenAI_AuthErrorBody(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

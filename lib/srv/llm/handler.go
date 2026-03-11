@@ -34,6 +34,7 @@ import (
 type Handler struct {
 	cfg          HandlerConfig
 	closeContext context.Context
+	openAIMux    *http.ServeMux
 }
 
 // HandlerConfig configures dependencies for the LLM proxy handler.
@@ -72,6 +73,7 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 	return &Handler{
 		closeContext: ctx,
 		cfg:          cfg,
+		openAIMux:    newOpenAIMux(),
 	}, nil
 }
 
