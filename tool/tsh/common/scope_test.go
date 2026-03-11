@@ -116,36 +116,6 @@ func TestResolveDesiredScope(t *testing.T) {
 			wantScope:       "",
 			wantScopeChange: false,
 		},
-		{
-			name: "descope with none, scoped profile -> empty, changed",
-			cf: &CLIConf{
-				Scope:          "none",
-				ScopeSetByUser: true,
-			},
-			profile:         &client.ProfileStatus{ScopePin: &scopesv1.Pin{Scope: "/staging/west"}},
-			wantScope:       "",
-			wantScopeChange: true,
-		},
-		{
-			name: "descope with none, unscoped profile -> empty, no change",
-			cf: &CLIConf{
-				Scope:          "none",
-				ScopeSetByUser: true,
-			},
-			profile:         &client.ProfileStatus{},
-			wantScope:       "",
-			wantScopeChange: false,
-		},
-		{
-			name: "descope with none, no profile -> empty, no change",
-			cf: &CLIConf{
-				Scope:          "none",
-				ScopeSetByUser: true,
-			},
-			profile:         nil,
-			wantScope:       "",
-			wantScopeChange: false,
-		},
 	}
 
 	for _, tt := range tests {

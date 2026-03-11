@@ -142,9 +142,6 @@ const (
 	accessRequestModeRole = "role"
 )
 
-// scopeNone unscopes the user
-const scopeNone = "none"
-
 var accessRequestModes = []string{
 	accessRequestModeOff,
 	accessRequestModeResource,
@@ -157,7 +154,7 @@ type ClientInitFunc func(cf *CLIConf) (*client.TeleportClient, error)
 
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
-	// Scope constrains the current operation to a specific target scope. A scope of "" or none descopes the user.
+	// Scope constrains the current operation to a specific target scope. A scope of "" descopes the user.
 	Scope string
 	// ScopeSetByUser specifies whether the flag was set by the user.
 	ScopeSetByUser bool
@@ -1264,7 +1261,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	login.Flag("request-nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
 	login.Flag("request-id", "Login with the roles requested in the given request").StringVar(&cf.RequestID)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
-	login.Flag("scope", `Scope pins credentials to a given scope. Use "none" or "" to explicitly remove scoping.`).
+	login.Flag("scope", `Scope pins credentials to a given scope. Use "" to explicitly remove scoping.`).
 		IsSetByUser(&cf.ScopeSetByUser).
 		StringVar(&cf.Scope)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
@@ -2222,16 +2219,14 @@ func serializeVersion(format string, proxyVersion string, proxyPublicAddress str
 // profile. It returns the desired scope string and whether the scope differs from the profile's
 // current scope. The 3 cases are:
 //  1. --scope not provided at all -> inherit profile.ScopePin.Scope, scopeChanged = false
-//  2. --scope="" or --scope=none -> explicitly descope, scopeChanged = (profile.ScopePin.Scope != "")
+//  2. --scope="" -> explicitly descope, scopeChanged = (profile.ScopePin.Scope != "")
 //  3. --scope=/foo -> switch to /foo, scopeChanged = (profile.ScopePin.Scope != "/foo")
 func resolveScope(cf *CLIConf, profile *client.ProfileStatus) (string, bool) {
 	// --scope was explicitly set by the user
 	if cf.ScopeSetByUser {
-		// treat none as empty string so that both --scope="" and --scope=none descopes
+		// passing in "" descopes
 		targetScope := cf.Scope
-		if strings.EqualFold(targetScope, scopeNone) {
-			targetScope = ""
-		}
+
 		currentScope := ""
 		if profile != nil && profile.ScopePin != nil {
 			currentScope = profile.ScopePin.Scope
