@@ -3,9 +3,7 @@
     "target": "ES2022",
     "module": "ES2022",
     "moduleResolution": "bundler",
-    "composite": true,
-    "emitDeclarationOnly": true,
-    "outDir": "../build.assets/.cache/ts/e2e",
+    "noEmit": true,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true

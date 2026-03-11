@@ -15,7 +15,6 @@
   "references": [
     { "path": "./tsconfig.node.json" },
     { "path": "./web/packages/design/tsconfig.json" },
-    { "path": "./e2e/tsconfig.json" }
   ],
   "compilerOptions": {
     "outDir": "build.assets/.cache/ts",
