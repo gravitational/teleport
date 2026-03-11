@@ -34,6 +34,7 @@ import (
 
 var rolesSupportingScopes = types.SystemRoles{
 	types.RoleNode,
+	types.RoleBot,
 }
 
 // TokenUsageMode represents the possible usage modes of a scoped token.
@@ -44,6 +45,9 @@ const (
 	TokenUsageModeSingle TokenUsageMode = "single_use"
 	// TokenUsageModeUnlimited denotes a token that can provision any number of resources.
 	TokenUsageModeUnlimited = "unlimited"
+	// TokenUsageModeBot denotes a token that can provision bots. Bot joining
+	// perform additional verification steps that can affect token reusability.
+	TokenUsageModeBot = "bot"
 )
 
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
@@ -79,6 +83,8 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		if len(token.GetSpec().GetOracle().GetAllow()) == 0 {
 			return trace.BadParameter("oracle configuration must be defined for a scoped token when using the oracle join method")
 		}
+	case types.JoinMethodBoundKeypair:
+		// TODO: Bound keypair tokens are always valid (?)
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
@@ -131,7 +137,7 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 	}
 
 	switch TokenUsageMode(spec.GetUsageMode()) {
-	case TokenUsageModeSingle, TokenUsageModeUnlimited:
+	case TokenUsageModeSingle, TokenUsageModeUnlimited, TokenUsageModeBot:
 	default:
 		return trace.BadParameter("scoped token mode is not supported")
 	}
@@ -320,7 +326,7 @@ func (t *Token) Expiry() time.Time {
 // GetBotName returns an empty string because scoped tokens do not currently
 // support configuring a bot name.
 func (t *Token) GetBotName() string {
-	return ""
+	return t.scoped.GetSpec().GetBotName()
 }
 
 // GetAssignedScope returns the scope that will be assigned to resources
@@ -435,6 +441,65 @@ func (t *Token) GetOracle() *types.ProvisionTokenSpecV2Oracle {
 	return &types.ProvisionTokenSpecV2Oracle{
 		Allow: allow,
 	}
+}
+
+// GetBoundKeypair returns the bound keypair-specific configuration for this
+// token.
+func (t *Token) GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair {
+	spec := t.scoped.GetSpec().GetBoundKeypair()
+
+	var mustRegisterBefore, rotateAfter *time.Time
+	if m := spec.GetOnboarding().GetMustRegisterBefore(); m != nil {
+		t := m.AsTime()
+		mustRegisterBefore = &t
+	}
+	if v := spec.GetRotateAfter(); v != nil {
+		t := v.AsTime()
+		rotateAfter = &t
+	}
+
+	return &types.ProvisionTokenSpecV2BoundKeypair{
+		Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+			RegistrationSecret: spec.GetOnboarding().GetRegistrationSecret(),
+			InitialPublicKey:   spec.GetOnboarding().GetInitialPublicKey(),
+			MustRegisterBefore: mustRegisterBefore,
+		},
+		Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
+			Limit: spec.GetRecovery().GetLimit(),
+			Mode:  spec.GetRecovery().GetMode(),
+		},
+		RotateAfter: rotateAfter,
+	}
+}
+
+// GetBoundKeypairStatus returns the bound keypair-specific status for this
+// token.
+func (t *Token) GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair {
+	spec := t.scoped.GetStatus().GetUsage().GetBoundKeypair()
+
+	var lastRecoveredAt, lastRotatedAt *time.Time
+	if val := spec.GetLastRecoveredAt(); val != nil {
+		v := val.AsTime()
+		lastRecoveredAt = &v
+	}
+	if val := spec.GetLastRotatedAt(); val != nil {
+		v := val.AsTime()
+		lastRotatedAt = &v
+	}
+
+	return &types.ProvisionTokenStatusV2BoundKeypair{
+		RegistrationSecret: spec.GetRegistrationSecret(),
+		BoundPublicKey:     spec.GetBoundPublicKey(),
+		BoundBotInstanceID: spec.GetBoundBotInstanceId(),
+		RecoveryCount:      spec.GetRecoveryCount(),
+		LastRecoveredAt:    lastRecoveredAt,
+		LastRotatedAt:      lastRotatedAt,
+	}
+}
+
+// GetScoped returns the inner scoped token wrapped by this [provision.Token].
+func (t *Token) GetScoped() *joiningv1.ScopedToken {
+	return t.scoped
 }
 
 // GetScopedToken attempts to return the underlying [*joiningv1.ScopedToken] backing a

@@ -59,6 +59,9 @@ const (
 	maxUserAgentLen = 2048
 )
 
+// todo: on bot join, call this (or something like this) with scope determined
+// from bot, by this point, the scope passed in here should match both bot
+// and join token. nb: one day we will loosen this restriction for cross-scope.
 func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.SplitAccessCheckerContext, error) {
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
@@ -94,8 +97,36 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 	}
 
 	// populate the scope pin with the user's assigned scoped roles
-	if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, userState.GetName(), scopePin); err != nil {
-		return nil, trace.Wrap(err)
+	// TODO: if bot, use PopulatePinnedAssignmentsForBot rather than for user.
+	if userState.IsBot() {
+		// todo: probably preferable we just bifurcate this function??
+		// and directly accept the Bot type rather than inferring this from
+		// underlying user :')
+		botScope, _ := userState.GetLabel(types.BotScopeLabel)
+		botName, _ := userState.GetLabel(types.BotLabel)
+		if botScope == "" {
+			return nil, trace.BadParameter("unscoped bot may not generate scoped certs")
+		}
+		// nb: we could enforce that botScope == scope here - but we already
+		// enforce this in PopulatePinnedAssignmentsForBot.
+		// todo: where is most appropriate to enforce this.
+		if botName == "" {
+			// impossible code path - IsBot is predicated on this label.
+			return nil, trace.BadParameter("bot without a name may not generate certs")
+		}
+		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForBot(
+			ctx, botName, botScope, scopePin,
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// todo: as a wider thought, where do we explicitly prevent non-bot
+		// users authenticating?
+		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(
+			ctx, userState.GetName(), scopePin,
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// build the user's access info based on the scope pin and userState

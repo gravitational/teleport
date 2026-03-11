@@ -307,6 +307,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		ReloadCh:           b.cfg.ReloadCh,
 		Services:           services,
 		ClientMetrics:      clientMetrics,
+		Scoped:             b.cfg.Scoped,
 	})
 	if err != nil {
 		return trace.Wrap(err)

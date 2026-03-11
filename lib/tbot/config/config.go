@@ -98,6 +98,10 @@ type BotConfig struct {
 
 	Oneshot bool `yaml:"oneshot"`
 
+	// Scoped indicates whether `tbot` should run in scoped mode. This must
+	// be set to true when `tbot` is authenticating as a scoped Bot.
+	Scoped bool `yaml:"scoped"`
+
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
 	// regulations. This means the bot should:
 	// - Refuse to run if not compiled with boringcrypto

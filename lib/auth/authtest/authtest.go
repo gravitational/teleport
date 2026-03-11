@@ -1124,6 +1124,20 @@ func TestUserWithRoles(username string, roles []string) TestIdentity {
 	}
 }
 
+// TestScopedUser returns a TestIdentity for a local user with a scoped identity
+// pinned to the given scope.
+func TestScopedUser(username string, scope string) TestIdentity {
+	return TestIdentity{
+		I: authz.LocalUser{
+			Username: username,
+			Identity: tlsca.Identity{
+				Username: username,
+			},
+		},
+		Scope: scope,
+	}
+}
+
 // TestUserWithDeviceExtensions returns a TestIdentity for a local user,
 // including the supplied device extensions in the tlsca.Identity.
 func TestUserWithDeviceExtensions(username string, exts tlsca.DeviceExtensions) TestIdentity {

@@ -107,6 +107,9 @@ type ServiceDependencies struct {
 
 	// StatusRegistry can be used to read the health of the bot's services.
 	StatusRegistry readyz.ReadOnlyRegistry
+
+	// Scoped indicates whether the bot is running in scoped mode.
+	Scoped bool
 }
 
 // ServiceBuilder will be used by the bot to create a service.

@@ -438,6 +438,36 @@ func (a *Server) GenerateBotCertsForJoin(
 		a.logger.WarnContext(ctx, "Unable to encode struct value for join metadata", "error", err)
 	}
 
+	// TODO: add additional scope-related checks here
+	if scoped, ok := token.(*joining.Token); ok {
+		user, err := a.GetUserOrLoginState(ctx, machineidv1.BotResourceName(botName))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		botScope, ok := user.GetLabel(types.BotScopeLabel)
+		if !ok {
+			return nil, "", trace.BadParameter("a scoped token cannot be used to join an unscoped bot")
+		}
+
+		// check: bot's actual scope matches scope on the token
+		//
+
+		if mode := scoped.GetScoped().GetSpec().GetUsageMode(); joining.TokenUsageMode(mode) != joining.TokenUsageModeBot {
+			a.logger.WarnContext(ctx, "scoped token usage mode must be 'bot' for bot joining",
+				"usage_mode", mode,
+			)
+		}
+
+		if tokenScope := scoped.GetScoped().GetScope(); botScope != tokenScope {
+			a.logger.WarnContext(ctx, "bot scope must match token scope",
+				"token_scope", tokenScope,
+				"bot_scope", botScope,
+			)
+			return nil, "", trace.AccessDenied("bot scope must match token scope")
+		}
+	}
+
 	certs, botInstanceID, err := a.generateInitialBotCerts(
 		ctx,
 		botName,

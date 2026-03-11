@@ -68,7 +68,7 @@ type BotInstancesCache interface {
 // BotInstanceServiceConfig holds configuration options for the BotInstance gRPC
 // service.
 type BotInstanceServiceConfig struct {
-	Authorizer authz.Authorizer
+	Authorizer authz.ScopedAuthorizer
 	Cache      BotInstancesCache
 	Backend    services.BotInstance
 	Logger     *slog.Logger
@@ -107,7 +107,7 @@ type BotInstanceService struct {
 	pb.UnimplementedBotInstanceServiceServer
 
 	backend    services.BotInstance
-	authorizer authz.Authorizer
+	authorizer authz.ScopedAuthorizer
 	cache      BotInstancesCache
 	logger     *slog.Logger
 	clock      clockwork.Clock
@@ -115,16 +115,21 @@ type BotInstanceService struct {
 
 // DeleteBotInstance deletes a bot specific bot instance
 func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.DeleteBotInstanceRequest) (*emptypb.Empty, error) {
-	authCtx, err := b.authorizer.Authorize(ctx)
+	authCtx, err := b.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	unscoped, ok := authCtx.UnscopedContext()
+	if !ok {
+		// TODO(noah): Support scopes.
+		return nil, trace.AccessDenied("scoped identities may not call DeleteBotInstance")
+	}
 
-	if err := authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbDelete); err != nil {
+	if err := unscoped.CheckAccessToKind(types.KindBotInstance, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+	if err := unscoped.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -137,12 +142,17 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 
 // GetBotInstance retrieves a specific bot instance
 func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotInstanceRequest) (*pb.BotInstance, error) {
-	authCtx, err := b.authorizer.Authorize(ctx)
+	authCtx, err := b.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	unscoped, ok := authCtx.UnscopedContext()
+	if !ok {
+		// TODO(noah): Support scopes.
+		return nil, trace.AccessDenied("scoped identities may not call GetBotInstance")
+	}
 
-	if err := authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbRead); err != nil {
+	if err := unscoped.CheckAccessToKind(types.KindBotInstance, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -176,12 +186,16 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListB
 
 // ListBotInstancesV2 returns a list of bot instances matching the criteria in the request
 func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.ListBotInstancesV2Request) (*pb.ListBotInstancesResponse, error) {
-	authCtx, err := b.authorizer.Authorize(ctx)
+	authCtx, err := b.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err := authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbRead, types.VerbList); err != nil {
+	unscoped, ok := authCtx.UnscopedContext()
+	if !ok {
+		// TODO(noah): Support scopes.
+		return nil, trace.AccessDenied("scoped identities may not call ListBotInstances")
+	}
+	if err := unscoped.CheckAccessToKind(types.KindBotInstance, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -204,7 +218,7 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 
 // SubmitHeartbeat records heartbeat information for a bot
 func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.SubmitHeartbeatRequest) (*pb.SubmitHeartbeatResponse, error) {
-	authCtx, err := b.authorizer.Authorize(ctx)
+	authCtx, err := b.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -232,6 +246,8 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 	case botInstanceID == "":
 		return nil, trace.AccessDenied("identity did not contain bot instance ID")
 	}
+
+	// TODO: Propagate scope to underlying bot instance resource.
 
 	b.logger.DebugContext(
 		ctx,

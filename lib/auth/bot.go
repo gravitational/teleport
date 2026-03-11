@@ -585,11 +585,13 @@ func (a *Server) generateInitialBotCerts(
 
 	// Inherit the user's roles and traits verbatim.
 	accessInfo := services.AccessInfoFromUserState(userState)
-	clusterName, err := a.GetClusterName(ctx)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+
+	// TODO:
+	// - We only want to allow scoped cert generation if ScopeJoinToken is used
+	// and the token scope follows the bot scoping rules - see RFD
+	scope, _ := userState.GetLabel(types.BotScopeLabel)
+	// accessCheckerForScope works fine if scope is empty.
+	scopeAwareChecker, err := a.accessCheckerForScope(ctx, scope, userState, []types.ResourceAccessID{})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -600,12 +602,13 @@ func (a *Server) generateInitialBotCerts(
 		TTL:            expires.Sub(a.GetClock().Now()),
 		SSHPublicKey:   sshPubKey,
 		TLSPublicKey:   tlsPubKey,
-		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to generateInitialBotCerts (likely not necessary until bot scoping work begins).
+		CheckerContext: scopeAwareChecker,
 		Traits:         accessInfo.Traits,
 		Renewable:      renewable,
 		IncludeHostCA:  true,
 		LoginIP:        loginIP,
 		BotName:        botName,
+		BotInternal:    true,
 		JoinAttributes: joinAttrs,
 	}
 
