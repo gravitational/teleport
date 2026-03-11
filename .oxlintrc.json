@@ -291,9 +291,6 @@
         "no-restricted-imports": [
           "error",
           {
-            "patterns": [
-              { "group": ["teleport/**", "e-teleport/**", "teleterm/**"] }
-            ],
             "paths": [
               {
                 "name": "usehooks-ts",
@@ -306,6 +303,19 @@
                 "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
               }
             ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["web/packages/shared/**/*.{ts,tsx,js,jsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              { "group": ["teleport/**", "e-teleport/**", "teleterm/**"] }
+            ],
           }
         ]
       }
