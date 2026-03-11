@@ -39,7 +39,7 @@ import (
 )
 
 // TODO(codingllama): DELETE IN 20. All valid clients support WindowsCA by then.
-var minGetUserCASemver = semver.New("18.7.0")
+var minGetUserCASemver = &semver.Version{Major: 18, Minor: 7, Patch: 0}
 
 type authServer interface {
 	// GetClusterName returns cluster name
@@ -458,7 +458,7 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 
 	// CASing `updated` over `existing` if they're equivalent will only cause
 	// backend and watcher spam for no gain, so we exit early if that's the case
-	if services.CertAuthoritiesEquivalent(existing, updated) {
+	if existing.IsEqual(updated) {
 		return &trustpb.RotateExternalCertAuthorityResponse{}, nil
 	}
 

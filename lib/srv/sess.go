@@ -1424,44 +1424,48 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		return trace.Wrap(err)
 	}
 
+	bpfEnabled := scx.srv.GetBPF().Enabled()
 	var eventsMap map[string]struct{}
 	if scx.Identity.AccessPermit != nil {
 		eventsMap = eventsMapFromSSHAccessPermit(scx.Identity.AccessPermit)
-	} else if scx.srv.GetBPF().Enabled() {
+	} else if bpfEnabled {
 		// in theory this should never happen, as this method should only ever be called either on a
 		// standard ssh agent (in which case we will always have an access permit) or a recording
 		// proxy (in which case we will never have bpf enabled).
 		return trace.BadParameter("cannot start an interactive session with BPF enabled without an ssh access permit (this is a bug)")
 	}
 
-	// Open a BPF recording session. If BPF was not configured, not available,
-	// or running in a recording proxy, OpenSession is a NOP.
-	sessionContext := &bpf.SessionContext{
-		Context:               scx.srv.Context(),
-		PID:                   s.term.PID(),
-		Emitter:               s.emitter,
-		Namespace:             scx.srv.GetNamespace(),
-		SessionID:             s.id.String(),
-		ServerID:              scx.srv.ID(),
-		ServerHostname:        scx.srv.GetInfo().GetHostname(),
-		Login:                 scx.Identity.Login,
-		User:                  scx.Identity.TeleportUser,
-		UserOriginClusterName: scx.Identity.OriginClusterName,
-		UserRoles:             scx.Identity.MappedRoles,
-		UserTraits:            scx.Identity.Traits,
-		Events:                eventsMap,
-	}
+	// Only open a BPF recording session if Enhanced Session Recording
+	// is enabled on the server and the access permit enables at least
+	// one event.
+	if bpfEnabled && len(eventsMap) > 0 {
+		auditSessID, err := s.term.ReadAuditSessionID()
+		if err != nil {
+			s.logger.ErrorContext(ctx, "Failed to get BPF PID", "error", err)
+			return trace.Wrap(err)
+		}
 
-	if err := s.term.WaitForChild(ctx); err != nil {
-		return trace.Wrap(err)
-	}
+		sessionContext := &bpf.SessionContext{
+			Context:               scx.srv.Context(),
+			AuditSessionID:        auditSessID,
+			Emitter:               s.emitter,
+			Namespace:             scx.srv.GetNamespace(),
+			SessionID:             s.id.String(),
+			ServerID:              scx.srv.ID(),
+			ServerHostname:        scx.srv.GetInfo().GetHostname(),
+			Login:                 scx.Identity.Login,
+			User:                  scx.Identity.TeleportUser,
+			UserOriginClusterName: scx.Identity.OriginClusterName,
+			UserRoles:             scx.Identity.MappedRoles,
+			UserTraits:            scx.Identity.Traits,
+			Events:                eventsMap,
+		}
 
-	bpfService := scx.srv.GetBPF()
-	if cgroupID, err := bpfService.OpenSession(sessionContext); err != nil {
-		s.logger.ErrorContext(ctx, "Failed to open enhanced recording (interactive) session.", "error", err)
-		return trace.Wrap(err)
-	} else if cgroupID > 0 {
-		// If a cgroup ID was assigned then enhanced session recording was enabled.
+		bpfService := scx.srv.GetBPF()
+		if err := bpfService.OpenSession(sessionContext); err != nil {
+			s.logger.ErrorContext(ctx, "Failed to open enhanced recording (interactive) session.", "error", err)
+			return trace.Wrap(err)
+		}
 		s.setHasEnhancedRecording(true)
 		go func() {
 			// Close the BPF recording session once the session is closed
@@ -1474,7 +1478,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 
 	s.logger.DebugContext(ctx, "Waiting for continue signal.")
 
-	// Process has been placed in a cgroup, continue execution.
+	// Signal to child that it may execute the requested program.
 	s.term.Continue()
 
 	s.logger.DebugContext(ctx, "Got continue signal.")
@@ -1608,8 +1612,6 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	}
 
 	// Start execution. If the program failed to start, send that result back.
-	// Note this is a partial start. Teleport will have re-exec'ed itself and
-	// wait until it's been placed in a cgroup and told to continue.
 	result, err := execRequest.Start(ctx, channel)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1623,21 +1625,27 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		scx.SendExecResult(ctx, *result)
 	}
 
+	bpfEnabled := scx.srv.GetBPF().Enabled()
 	var eventsMap map[string]struct{}
 	if scx.Identity.AccessPermit != nil {
 		eventsMap = eventsMapFromSSHAccessPermit(scx.Identity.AccessPermit)
-	} else if scx.srv.GetBPF().Enabled() {
+	} else if bpfEnabled {
 		// in theory this should never happen, as this method should only ever be called either on a
 		// standard ssh agent (in which case we will always have an access permit) or a recording
 		// proxy (in which case we will never have bpf enabled).
 		return trace.BadParameter("cannot start exec with BPF enabled without an ssh access permit (this is a bug)")
 	}
 
-	// Open a BPF recording session. If BPF was not configured, not available,
-	// or running in a recording proxy, OpenSession is a NOP.
+	auditSessID, err := execRequest.ReadAuditSessionID()
+	if err != nil {
+		s.logger.ErrorContext(ctx, "Failed to get child PID", "error", err)
+		return trace.Wrap(err)
+	}
+
+	// Open a BPF recording session.
 	sessionContext := &bpf.SessionContext{
 		Context:               scx.srv.Context(),
-		PID:                   scx.execRequest.PID(),
+		AuditSessionID:        auditSessID,
 		Emitter:               s.emitter,
 		Namespace:             scx.srv.GetNamespace(),
 		SessionID:             string(s.id),
@@ -1649,12 +1657,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		Events:                eventsMap,
 	}
 
-	if err := execRequest.WaitForChild(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)
-	if err != nil {
+	if err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
 		s.logger.ErrorContext(
 			ctx, "Failed to open enhanced recording (exec) session.",
 			"command", execRequest.GetCommand(),
@@ -1663,13 +1666,14 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		return trace.Wrap(err)
 	}
 
-	// If a cgroup ID was assigned then enhanced session recording was enabled.
-	if cgroupID > 0 {
-		s.setHasEnhancedRecording(true)
-	}
+	s.setHasEnhancedRecording(bpfEnabled && len(eventsMap) > 0)
 
-	// Process has been placed in a cgroup, continue execution.
+	s.logger.DebugContext(ctx, "Waiting for continue signal.")
+
+	// Signal to child that it may execute the requested program.
 	execRequest.Continue()
+
+	s.logger.DebugContext(ctx, "Got continue signal.")
 
 	// Process is running, wait for it to stop.
 	go func() {
@@ -1682,8 +1686,6 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		// BPF session so everything can be recorded.
 		time.Sleep(2 * time.Second)
 
-		// Close the BPF recording session. If BPF was not configured, not available,
-		// or running in a recording proxy, this is simply a NOP.
 		err = scx.srv.GetBPF().CloseSession(sessionContext)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to close enhanced recording (exec) session.", "error", err)

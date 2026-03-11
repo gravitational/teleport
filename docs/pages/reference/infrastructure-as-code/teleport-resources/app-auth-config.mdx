@@ -26,9 +26,6 @@ spec:
     audience: teleport
     # username_claim (optional) is the claim name used as username. Defaults to `email`.
     username_claim: preferred_username
-    # authorization_header (optional) defines the header name that will contain
-    # the token. Defaults to `Authorization`.
-    authorization_header: JWT-Authorization
     # jwks_url is the JWKS URL address used to fetch signing keys.
     #
     # Only required, when static_jwks is not set.

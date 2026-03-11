@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -75,9 +74,7 @@ func newProxyTunnelStrategy(t *testing.T, cluster string, strategy *types.Tunnel
 		strategy: strategy,
 	}
 
-	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() {
-		lib.SetInsecureDevMode(false)
 		p.cleanup(t)
 	})
 
@@ -329,6 +326,7 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 	conf.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 	conf.Proxy.Enabled = false
 	conf.SSH.Enabled = false
+	conf.InsecureMode = true
 
 	require.NoError(t, auth.CreateEx(t, nil, conf))
 	require.NoError(t, auth.Start())
@@ -355,6 +353,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	conf.DataDir = t.TempDir()
 	conf.Logger = proxy.Log
 	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	conf.InsecureMode = true
 
 	conf.Auth.Enabled = false
 	conf.SSH.Enabled = false
@@ -401,6 +400,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	conf.Logger = node.Log
 	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	conf.DebugService.Enabled = false
+	conf.InsecureMode = true
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -448,6 +448,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	conf.DataDir = t.TempDir()
 	conf.Logger = db.Log
 	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	conf.InsecureMode = true
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false

@@ -33,6 +33,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	gocmp "github.com/google/go-cmp/cmp"
@@ -1371,7 +1372,7 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 }
 
 func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 	s := newAuthSuite(t)
 
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
@@ -1548,6 +1549,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 }
 
 func TestEmitSSOLoginFailureEvent(t *testing.T) {
+	t.Parallel()
 	mockE := &eventstest.MockRecorderEmitter{}
 
 	auth.EmitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), false)
@@ -1586,8 +1588,14 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	t.Parallel()
 
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	clock := clockwork.NewFakeClock()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 	emitter := &eventstest.MockRecorderEmitter{}
 	authServer.SetEmitter(emitter)
 	ctx := context.Background()
@@ -1601,7 +1609,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	principals := []string{"login0", username, "-teleport-internal-join"}
 
 	// Prepare the user to test with.
-	_, _, err := authtest.CreateUserAndRole(authServer, username, principals, nil)
+	_, _, err = authtest.CreateUserAndRole(authServer, username, principals, nil)
 	require.NoError(t, err, "CreateUserAndRole failed")
 	require.NoError(t,
 		authServer.UpsertPassword(username, []byte(pass)),
@@ -1624,12 +1632,6 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	const devID = "deviceid1"
 	const devTag = "devicetag1"
 	const devCred = "devicecred1"
-
-	advanceClock := func(d time.Duration) {
-		if fc, ok := testServer.Clock().(*clockwork.FakeClock); ok {
-			fc.Advance(d)
-		}
-	}
 
 	tests := []struct {
 		name           string
@@ -1689,14 +1691,14 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 				Username: username,
 				Identity: *identity,
 			})
-			authCtx, err := testServer.APIConfig.Authorizer.Authorize(ctx)
+			authCtx, err := as.Authorizer.Authorize(ctx)
 			require.NoError(t, err, "Authorize failed")
 
 			// Advance time before issuing new certs. This makes timestamp checks
 			// effective under fake clocks.
 			// 1m is enough to make tests fail if the timestamps aren't correct.
-			advanceClock(1 * time.Minute)
-			validAfter := testServer.Clock().Now().UTC().Add(-61 * time.Second)
+			clock.Advance(1 * time.Minute)
+			validAfter := clock.Now().UTC().Add(-61 * time.Second)
 
 			// Test!
 			certs, err := authServer.AugmentContextUserCertificates(ctx, authCtx, test.opts)
@@ -1749,8 +1751,10 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	t.Parallel()
 
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 	ctx := context.Background()
 
 	const pass1 = "secret!!1!!!"
@@ -1828,7 +1832,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	// Build an invalid version of xCert1 (signed using wrongKey).
 	userCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
-		DomainName: testServer.ClusterName(),
+		DomainName: as.ClusterName,
 	}, true /* loadKeys */)
 	require.NoError(t, err, "GetCertAuthority failed")
 	caXPEM := userCA.GetActiveKeys().TLS[0].Cert
@@ -1850,7 +1854,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 
 	// Issue augmented certs for user1.
 	// Used to test that re-issue of augmented certs is not allowed.
-	ctxFromAuthorize := testServer.APIConfig.Authorizer.Authorize
+	ctxFromAuthorize := as.Authorizer.Authorize
 	aCtx := authz.ContextWithUserCertificate(context.Background(), xCert1)
 	aCtx = authz.ContextWithUser(aCtx, authz.LocalUser{
 		Username: identity1.Username,
@@ -2062,7 +2066,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 			identity: identity1,
 			createOpts: func(t *testing.T) *auth.AugmentUserCertificateOpts {
 				// Fake a 1h TTL, expired cert.
-				now := testServer.Clock().Now()
+				now := as.Clock().Now()
 				after := now.Add(-1 * time.Hour)
 				before := now.Add(-1 * time.Minute)
 
@@ -2202,11 +2206,13 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 	t.Parallel()
 
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 	ctx := context.Background()
 
-	userData := setupUserForAugmentWebSessionCertificatesTest(t, testServer)
+	userData := setupUserForAugmentWebSessionCertificatesTest(t, authServer)
 
 	// Safe to reuse, user-independent.
 	deviceExts := &auth.DeviceExtensions{
@@ -2263,7 +2269,7 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 		})
 	})
 
-	user2Data := setupUserForAugmentWebSessionCertificatesTest(t, testServer)
+	user2Data := setupUserForAugmentWebSessionCertificatesTest(t, authServer)
 	user2Opts := &auth.AugmentWebSessionCertificatesOpts{
 		WebSessionID:     user2Data.webSessionID,
 		User:             user2Data.user,
@@ -2331,11 +2337,13 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 func TestServer_ExtendWebSession_deviceExtensions(t *testing.T) {
 	t.Parallel()
 
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 	ctx := context.Background()
 
-	userData := setupUserForAugmentWebSessionCertificatesTest(t, testServer)
+	userData := setupUserForAugmentWebSessionCertificatesTest(t, authServer)
 
 	deviceExts := &auth.DeviceExtensions{
 		DeviceID:     "my-device-id",
@@ -2344,7 +2352,7 @@ func TestServer_ExtendWebSession_deviceExtensions(t *testing.T) {
 	}
 
 	// Augment the user's session, then later extend it.
-	err := authServer.AugmentWebSessionCertificates(ctx, &auth.AugmentWebSessionCertificatesOpts{
+	err = authServer.AugmentWebSessionCertificates(ctx, &auth.AugmentWebSessionCertificatesOpts{
 		WebSessionID:     userData.webSessionID,
 		User:             userData.user,
 		DeviceExtensions: deviceExts,
@@ -2402,8 +2410,7 @@ type augmentUserData struct {
 	webSessionID string
 }
 
-func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *authtest.TLSServer) *augmentUserData {
-	authServer := testServer.Auth()
+func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, authServer *auth.Server) *augmentUserData {
 	ctx := context.Background()
 
 	user := &augmentUserData{
@@ -3066,6 +3073,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 }
 
 func TestGenerateKubernetesUserCert(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	p := newAuthSuite(t)
 
@@ -4051,6 +4059,7 @@ func (f *fakeAuthPreferenceGetter) GetAuthPreference(context.Context) (types.Aut
 }
 
 func TestCAGeneration(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	const (
 		clusterName = "cluster1"
@@ -4089,6 +4098,7 @@ func TestCAGeneration(t *testing.T) {
 }
 
 func TestGetLicense(t *testing.T) {
+	t.Parallel()
 	s := newAuthSuite(t)
 
 	// GetLicense should return error if license is not set
@@ -4542,6 +4552,7 @@ func TestAccessRequestDryRunEnrichment(t *testing.T) {
 }
 
 func TestCleanupNotifications(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -4676,13 +4687,18 @@ func TestCleanupNotifications(t *testing.T) {
 }
 
 func TestCreateAccessListReminderNotifications(t *testing.T) {
+	synctest.Test(t, testCreateAccessListReminderNotifications)
+}
+
+func testCreateAccessListReminderNotifications(t *testing.T) {
 	ctx := context.Background()
 
 	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
 	// Setup test auth server
-	testServer := newTestTLSServer(t)
+	testServer := newTestTLSServer(t, withBufconnListener())
 	authServer := testServer.Auth()
+	defer testServer.Close()
 
 	testRole, err := types.NewRole("test", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -4703,6 +4719,7 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 
 	client, err := testServer.NewClient(authtest.TestUser(testUsername))
 	require.NoError(t, err)
+	defer client.Close()
 
 	// Create access lists with different expiry times
 	accessLists := []struct {
@@ -4757,26 +4774,20 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	}
 
 	// Check notifications
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind))
-	}, 5*time.Minute, 500*time.Millisecond)
+	synctest.Wait()
+	resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind))
 
 	// Run CreateAccessListReminderNotifications() again to verify no duplicates are created
 	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond))
 
 	// Check notifications again, counts should remain the same.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind),
-			"notifications should not have changed after second reconciliation")
-	}, 5*time.Minute, 500*time.Millisecond)
+	synctest.Wait()
+	resp, err = client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind),
+		"notifications should not have changed after second reconciliation")
 }
 
 type createAccessListOptions struct {
@@ -4842,8 +4853,10 @@ func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
 	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
 	// Setup test auth server
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir(), CacheEnabled: true})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 
 	testRole, err := types.NewRole("test", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -4876,7 +4889,7 @@ func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
 	}
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		lists, err := testServer.Auth().Cache.GetAccessLists(ctx)
+		lists, err := authServer.Cache.GetAccessLists(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, lists, numAccessLists, "should have created all %d overdue access lists", numAccessLists)
 	}, 5*time.Minute, 500*time.Millisecond)

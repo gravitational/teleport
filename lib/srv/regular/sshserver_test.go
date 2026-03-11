@@ -1803,6 +1803,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
+		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
@@ -1947,6 +1948,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
+		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
@@ -2626,6 +2628,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			NodeWatcher:           nodeWatcher,
 			GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 			AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
+			DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
 			CertAuthorityWatcher:  caWatcher,
 			EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
 				return nil, errors.New("eice disabled in tests")
@@ -2887,6 +2890,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
+		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
 			return nil, errors.New("eice disabled in tests")
@@ -3264,6 +3268,21 @@ func newAppServerWatcher(ctx context.Context, t *testing.T, client *authclient.C
 	return appServerWatcher
 }
 
+func newDatabaseServerWatcher(ctx context.Context, t *testing.T, client *authclient.Client) *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer] {
+	t.Helper()
+
+	databaseServerWatcher, err := services.NewDatabaseServerWatcher(ctx, services.DatabaseServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    client,
+		},
+	})
+
+	require.NoError(t, err)
+	t.Cleanup(databaseServerWatcher.Close)
+	return databaseServerWatcher
+}
+
 // newSigner creates a new SSH signer that can be used by the Server.
 func newSigner(t testing.TB, ctx context.Context, testServer *authtest.Server) ssh.Signer {
 	t.Helper()
@@ -3336,6 +3355,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
+		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {

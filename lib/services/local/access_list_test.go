@@ -152,6 +152,58 @@ func TestAccessListCRUD(t *testing.T) {
 	require.ElementsMatch(t, expectedAccessList, created.Spec.Owners)
 }
 
+func TestAccessListCRUDScopedRoleGrants(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
+
+	accessList := newAccessList(t, "accessList-scoped", clock)
+	accessList.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
+		{
+			Role:  "scoped-role-1",
+			Scope: "/eng",
+		},
+		{
+			Role:  "scoped-role-2",
+			Scope: "/platform",
+		},
+	}
+
+	cmpOpts := []cmp.Option{
+		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+	}
+
+	created, err := service.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(accessList, created, cmpOpts...))
+
+	fetched, err := service.GetAccessList(ctx, accessList.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(accessList, fetched, cmpOpts...))
+
+	fetched.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
+		{
+			Role:  "scoped-role-3",
+			Scope: "/ops",
+		},
+	}
+
+	updated, err := service.UpdateAccessList(ctx, fetched)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(fetched, updated, cmpOpts...))
+
+	fetched, err = service.GetAccessList(ctx, accessList.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(updated, fetched, cmpOpts...))
+}
+
 func requireAccessDenied(t require.TestingT, err error, i ...any) {
 	require.True(
 		t,

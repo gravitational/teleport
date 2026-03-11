@@ -34,6 +34,7 @@ $ sudo tbot install systemd \
    --config /etc/tbot.yaml \
    --user teleport \
    --group teleport \
+   --pid-file /run/tbot.pid \
    --anonymous-telemetry
 ```
 
@@ -41,6 +42,8 @@ Ensure that you replace:
 
 - `teleport` with the name of Linux user you wish to run `tbot` as.
 - `/etc/tbot.yaml` with the path to the configuration file you have created.
+- `/run/tbot.pid` with a path that the user configured for `tbot` has write
+  access to. By default, `tbot` writes its PID file to `/run/tbot.pid`.
 
 You can omit `--write` to print the systemd service file to the console instead
 of writing it to disk.
