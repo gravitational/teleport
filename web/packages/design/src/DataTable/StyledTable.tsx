@@ -100,6 +100,7 @@ export const StyledTable = styled.table<BorderRadiusProps>`
     }
 
     ${borderRadius}
+  }
 `;
 
 export const StyledPanel = styled.nav`
