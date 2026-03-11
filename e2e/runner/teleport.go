@@ -149,6 +149,7 @@ type TeleportConfig struct {
 	KeyFilePath    string
 	CertFilePath   string
 	LicenseFile    string
+	LogLevel       string
 }
 
 func generateTeleportConfig(templatePath string, config *e2eConfig) (string, error) {
@@ -159,6 +160,7 @@ func generateTeleportConfig(templatePath string, config *e2eConfig) (string, err
 		KeyFilePath:    filepath.Join(config.certsDir, keyFileName),
 		CertFilePath:   filepath.Join(config.certsDir, certFileName),
 		LicenseFile:    config.licenseFile,
+		LogLevel:       config.teleportLogLevel,
 	}
 
 	return renderTemplate(templatePath, teleportConfig)
