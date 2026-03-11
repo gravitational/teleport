@@ -387,8 +387,14 @@ func (generator *SchemaGenerator) prop(field *Field) (apiextv1.JSONSchemaProps, 
 		if err := generator.singularProp(valueField, valueSchema); err != nil {
 			return prop, trace.Wrap(err)
 		}
+		if valueField.IsNullable() && (valueSchema.Type == "array" || valueSchema.Type == "object") {
+			valueSchema.Nullable = true
+		}
 		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
 			Schema: valueSchema,
+		}
+		if field.IsNullable() {
+			prop.Nullable = true
 		}
 		return prop, nil
 	}

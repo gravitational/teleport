@@ -44,6 +44,7 @@ spec:
                         type: string
                       description: AddLabels specifies which labels to add if any
                         of the previous matches match.
+                      nullable: true
                       type: object
                     match:
                       description: Match is a set of matching rules for this mapping.

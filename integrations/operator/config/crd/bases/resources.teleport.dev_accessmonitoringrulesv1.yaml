@@ -87,6 +87,7 @@ spec:
                 type: object
               schedules:
                 additionalProperties:
+                  nullable: true
                   properties:
                     time:
                       description: TimeSchedule specifies an in-line schedule.
@@ -118,6 +119,7 @@ spec:
                   type: object
                 description: schedules specifies a map of schedules that can be used
                   to configure the access monitoring rule conditions.
+                nullable: true
                 type: object
               states:
                 description: states are the desired state which the monitoring rule

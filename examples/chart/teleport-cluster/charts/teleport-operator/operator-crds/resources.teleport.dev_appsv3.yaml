@@ -118,6 +118,7 @@ spec:
                 type: object
               dynamic_labels:
                 additionalProperties:
+                  nullable: true
                   properties:
                     command:
                       description: Command is a command to run
