@@ -17,8 +17,8 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { formatDistanceToNowStrict } from 'date-fns';
-import { useState, type ReactNode } from 'react';
+import { formatDistanceStrict, formatDistanceToNowStrict } from 'date-fns';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router';
 import { Link as RouterLink } from 'react-router-dom';
 
@@ -48,6 +48,7 @@ import {
 import { SummaryStatusLabel } from 'teleport/Integrations/shared/StatusLabel';
 import { useNoMinWidth } from 'teleport/Main';
 import {
+  INTEGRATION_DISCOVERY_SCAN_INTERVAL_MS,
   IntegrationKind,
   integrationService,
   IntegrationWithSummary,
@@ -81,6 +82,8 @@ const TABS = [
   { id: 'settings', label: 'Settings' },
 ] as const;
 
+const OVERDUE_REFETCH_INTERVAL_MS = 10 * 1000;
+
 export function IaCIntegrationOverview() {
   const { name } = useParams<{ name: string }>();
 
@@ -89,10 +92,11 @@ export function IaCIntegrationOverview() {
     error,
     isLoading,
     isError,
-  } = useQuery({
+  } = useQuery<IntegrationWithSummary>({
     queryKey: ['integrationStats', name],
     queryFn: () => integrationService.fetchIntegrationStats(name),
     enabled: !!name,
+    refetchInterval: query => getStatsRefetchIntervalMs(query.state.data),
   });
 
   const [activeTab, setActiveTab] = useState<TabId>('overview');
@@ -203,10 +207,22 @@ function IntegrationHealthCard({
   onViewIssues: () => void;
 }) {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [nowMs, setNowMs] = useState(Date.now);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, []);
 
   const hasIssues = stats.unresolvedUserTasks > 0;
   const lastScanDate = getIntegrationLastScan(stats);
   const lastScanText = formatRelativeDate(lastScanDate);
+  const nextScanText = formatTimeUntilNextScan(lastScanDate, nowMs);
   const configDetails = getIntegrationConfigDetails(stats);
 
   return (
@@ -240,7 +256,14 @@ function IntegrationHealthCard({
         </StatusRow>
 
         <StatusRow label="Last verified:">
-          <Text typography="body3">{lastScanText}</Text>
+          <Flex alignItems="center" gap={2} flexWrap="wrap">
+            <Text typography="body3">{lastScanText}</Text>
+            {lastScanDate && nextScanText && (
+              <Text typography="body3" color="text.slightlyMuted">
+                {nextScanText}
+              </Text>
+            )}
+          </Flex>
         </StatusRow>
 
         <StatusRow label="Resources:">
@@ -431,6 +454,43 @@ function formatResourceCounts(stats: IntegrationWithSummary): string {
   }
 
   return `${total} Discovered (${parts.join(', ')})`;
+}
+
+function formatTimeUntilNextScan(
+  lastScanDate: Date | undefined,
+  nowMs: number
+): string {
+  if (!lastScanDate) {
+    return '';
+  }
+
+  const nextScanAt =
+    lastScanDate.getTime() + INTEGRATION_DISCOVERY_SCAN_INTERVAL_MS;
+  const remainingMs = nextScanAt - nowMs;
+
+  if (remainingMs <= 0) {
+    return '';
+  }
+
+  return `Next scan expected in ${formatDistanceStrict(0, remainingMs, {
+    unit: 'minute',
+    roundingMethod: 'ceil',
+  })}`;
+}
+
+function getStatsRefetchIntervalMs(stats: IntegrationWithSummary | undefined) {
+  const lastScanDate = stats ? getIntegrationLastScan(stats) : undefined;
+
+  if (!lastScanDate) {
+    return OVERDUE_REFETCH_INTERVAL_MS;
+  }
+
+  const remainingMs =
+    lastScanDate.getTime() +
+    INTEGRATION_DISCOVERY_SCAN_INTERVAL_MS -
+    Date.now();
+
+  return remainingMs <= 0 ? OVERDUE_REFETCH_INTERVAL_MS : remainingMs;
 }
 
 function getTimestamp(value: unknown): number {

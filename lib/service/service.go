@@ -81,12 +81,12 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
@@ -1366,7 +1366,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		reversetunnelclient.WebClientResolver(&webclient.Config{
 			Context:   process.ExitContext(),
 			ProxyAddr: resolverAddr.String(),
-			Insecure:  lib.IsInsecureDevMode(),
+			Insecure:  cfg.InsecureMode,
 			Timeout:   process.Config.Testing.ClientTimeout,
 		}),
 		process.Clock,
@@ -2477,6 +2477,7 @@ func (process *TeleportProcess) initAuthService() error {
 			RunWhileLockedRetryInterval: cfg.Testing.RunWhileLockedRetryInterval,
 			SessionSummarizerProvider:   sessionSummarizerProvider,
 			RecordingMetadataProvider:   recordingMetadataProvider,
+			InsecureMode:                cfg.InsecureMode,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil
@@ -3694,6 +3695,7 @@ func (process *TeleportProcess) initSSH() error {
 			agentPool, err = reversetunnel.NewAgentPool(
 				process.ExitContext(),
 				reversetunnel.AgentPoolConfig{
+					InsecureMode:             process.Config.InsecureMode,
 					Component:                teleport.ComponentNode,
 					HostUUID:                 conn.HostID(),
 					Resolver:                 conn.TunnelProxyResolver(),
@@ -3887,7 +3889,7 @@ func (process *TeleportProcess) initUploaderService() error {
 
 		// encrypted uploads are aggregated and uploaded directly rather than with an event stream.
 		// Since we are using the gRPC client, we must set this maximum for the aggregation step.
-		encryptedRecordingMaxUploadSize = 4 * 1024 * 1024 // 4MiB, default gRPC max msg recv size.
+		encryptedRecordingMaxUploadSize = grpcutils.MaxClientRecvMsgSize()
 	}
 
 	logger.InfoContext(process.ExitContext(), "starting upload completer service")
@@ -4974,6 +4976,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	databaseServerWatcher, err := services.NewDatabaseServerWatcher(process.ExitContext(), services.DatabaseServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Logger:    process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),
+			Client:    accessPoint,
+		},
+		DatabaseServersGetter: accessPoint,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	serverTLSConfig, err := process.ServerTLSConfig(conn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -5246,6 +5260,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				NodeWatcher:             nodeWatcher,
 				AppServerWatcher:        appServerWatcher,
 				GitServerWatcher:        gitServerWatcher,
+				DatabaseServerWatcher:   databaseServerWatcher,
 				CertAuthorityWatcher:    caWatcher,
 				CircuitBreakerConfig:    process.Config.CircuitBreakerConfig,
 				LocalAuthAddresses:      utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
@@ -5399,6 +5414,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		connectionsHandler, err := app.NewConnectionsHandler(process.GracefulExitContext(), &app.ConnectionsHandlerConfig{
+			InsecureMode:      process.Config.InsecureMode,
 			Clock:             process.Clock,
 			DataDir:           cfg.DataDir,
 			Emitter:           asyncEmitter,
@@ -5461,6 +5477,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ProxyGroupID:              cfg.Proxy.ProxyGroupID,
 			CipherSuites:              cfg.CipherSuites,
 			FIPS:                      cfg.FIPS,
+			InsecureMode:              cfg.InsecureMode,
 			AccessPoint:               accessPoint,
 			Emitter:                   asyncEmitter,
 			PluginRegistry:            process.PluginRegistry,
@@ -5717,7 +5734,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	sshGRPCTLSConfig := serverTLSConfig.Clone()
 	sshGRPCTLSConfig.NextProtos = []string{string(alpncommon.ProtocolHTTP2), string(alpncommon.ProtocolProxySSHGRPC)}
 	sshGRPCTLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
-	if lib.IsInsecureDevMode() {
+	if cfg.InsecureMode {
 		sshGRPCTLSConfig.InsecureSkipVerify = true
 		sshGRPCTLSConfig.ClientAuth = tls.RequireAnyClientCert
 	}
@@ -5836,6 +5853,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Create and register reverse tunnel AgentPool.
 	rcWatcher, err = reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
+		InsecureMode:        process.Config.InsecureMode,
 		HostUUID:            conn.HostID(),
 		AuthClient:          conn.Client,
 		AccessPoint:         accessPoint,
@@ -6800,6 +6818,7 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		connectionsHandler, err := app.NewConnectionsHandler(process.ExitContext(), &app.ConnectionsHandlerConfig{
+			InsecureMode:      process.Config.InsecureMode,
 			Clock:             process.Config.Clock,
 			DataDir:           process.Config.DataDir,
 			AuthClient:        conn.Client,
@@ -6854,6 +6873,7 @@ func (process *TeleportProcess) initApps() {
 		agentPool, err := reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
+				InsecureMode:             process.Config.InsecureMode,
 				Component:                teleport.ComponentApp,
 				HostUUID:                 conn.HostID(),
 				Resolver:                 tunnelAddrResolver,

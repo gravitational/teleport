@@ -93,6 +93,9 @@ type leafCluster struct {
 	// appServerWatcher is a app server watcher.
 	appServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
 
+	// databaseServerWatcher is a database server watcher.
+	databaseServerWatcher *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer]
+
 	// validatedMFAChallengeWatcher is a ValidatedMFAChallenge resource watcher.
 	validatedMFAChallengeWatcher *services.GenericWatcher[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]
 
@@ -184,6 +187,11 @@ func (s *leafCluster) AppServerWatcher() (*services.GenericWatcher[types.AppServ
 // GitServerWatcher returns the Git server watcher for the leaf cluster.
 func (s *leafCluster) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return nil, trace.NotImplemented("GitServerWatcher not implemented for leafCluster")
+}
+
+// DatabaseServerWatcher returns the Database server watcher for the leaf cluster.
+func (s *leafCluster) DatabaseServerWatcher() (*services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
+	return s.databaseServerWatcher, nil
 }
 
 func (s *leafCluster) GetClient() (authclient.ClientI, error) {
@@ -1024,11 +1032,8 @@ func (s *leafCluster) chanTransportConn(req *sshutils.DialReq) (*sshutils.ChConn
 
 // runValidatedMFAChallengeSync runs a loop that watches for changes to ValidatedMFAChallenge resources in the root
 // cluster and syncs them to the leaf cluster.
-func (s *leafCluster) runValidatedMFAChallengeSync(
-	ctx context.Context,
-	cfg retryutils.LinearConfig,
-) error {
-	log := s.logger.With("component", "runValidatedMFAChallengeSync", "cluster", s.GetName())
+func (s *leafCluster) runValidatedMFAChallengeSync(ctx context.Context, cfg retryutils.LinearConfig) error {
+	log := s.logger.With(teleport.ComponentKey, "runValidatedMFAChallengeSync", "cluster", s.GetName())
 
 	if err := s.validatedMFAChallengeWatcher.WaitInitialization(); err != nil {
 		return trace.Wrap(err)
@@ -1043,71 +1048,71 @@ func (s *leafCluster) runValidatedMFAChallengeSync(
 	// we will retry with the full set of challenges that need to be replicated.
 	var pending []*mfav1.ValidatedMFAChallenge
 
-	return trace.Wrap(
-		retry.For(
-			ctx,
-			func() error {
-				for {
-					if len(pending) == 0 {
-						select {
-						case <-ctx.Done():
-							return nil
+	for {
+		// If there are no pending challenges to sync, wait for the next set of challenges from the watcher.
+		// If there are pending challenges, it means we had a failure in the previous sync attempt, so we
+		// should retry syncing those before waiting for new changes from the watcher.
+		if len(pending) == 0 {
+			select {
+			case <-ctx.Done():
+				return nil
 
-						case <-s.validatedMFAChallengeWatcher.Done():
-							return retryutils.PermanentRetryError(trace.Errorf("watcher done"))
+			case <-s.validatedMFAChallengeWatcher.Done():
+				return trace.Errorf("watcher done channel closed")
 
-						case challenges, ok := <-s.validatedMFAChallengeWatcher.ResourcesC:
-							if !ok {
-								return retryutils.PermanentRetryError(trace.Errorf("watcher channel closed"))
-							}
-
-							pending = challenges
-						}
-					}
-
-					count, err := s.syncValidatedMFAChallenges(ctx, pending)
-					if err != nil {
-						log.WarnContext(
-							ctx,
-							"Failed to sync ValidatedMFAChallenges to leaf cluster, will retry",
-							"backoff_duration", retry.Duration(),
-							"error", err,
-						)
-						return trace.Wrap(err)
-					}
-
-					log.DebugContext(
-						ctx,
-						"Successfully synced ValidatedMFAChallenges to leaf cluster",
-						"replicated_count", count,
-					)
-
-					// Clear the pending challenges as they have been successfully synced.
-					pending = nil
-
-					// Sync was successful, reset the retry to clear any accumulated backoff.
-					retry.Reset()
+			case challenges, ok := <-s.validatedMFAChallengeWatcher.ResourcesC:
+				if !ok {
+					return trace.Errorf("watcher resources channel closed")
 				}
-			},
-		),
-	)
-}
 
-// syncValidatedMFAChallenges syncs the provided ValidatedMFAChallenge resources to the leaf cluster. It returns the
-// number of resources that were replicated to the leaf cluster.
-func (s *leafCluster) syncValidatedMFAChallenges(
-	ctx context.Context,
-	challenges []*mfav1.ValidatedMFAChallenge,
-) (int, error) {
-	count := 0
+				pending = challenges
+			}
+		}
 
-	for _, challenge := range challenges {
-		// If the target cluster specified in the challenge does not match this leaf cluster, skip it as it's not meant
-		// to be replicated here.
-		if challenge.GetSpec().GetTargetCluster() != s.GetName() {
+		err := s.syncValidatedMFAChallenges(ctx, pending)
+		if err == nil {
+			// Clear the pending challenges as they have been successfully synced.
+			pending = nil
+
+			// Reset the retry to clear any accumulated backoff.
+			retry.Reset()
+
 			continue
 		}
 
+		log.WarnContext(
+			ctx,
+			"Failed to sync ValidatedMFAChallenges to leaf cluster, will retry",
+			"backoff_duration", retry.Duration(),
+			"error", err,
+		)
+
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+
+		case <-retry.After():
+			retry.Inc()
+		}
+	}
+}
+
+// syncValidatedMFAChallenges syncs the provided ValidatedMFAChallenge resources to the leaf cluster.
+func (s *leafCluster) syncValidatedMFAChallenges(
+	ctx context.Context,
+	challenges []*mfav1.ValidatedMFAChallenge,
+) error {
+	log := s.logger.With(teleport.ComponentKey, "syncValidatedMFAChallenges", "cluster", s.GetName())
+
+	log.DebugContext(
+		ctx,
+		"Syncing ValidatedMFAChallenges to leaf cluster",
+		"pending_count", len(challenges),
+	)
+
+	count := 0
+
+	for _, challenge := range challenges {
 		// Replicate the resource to the leaf cluster. If the resource already exists in the leaf cluster, it is because
 		// it was replicated from a previous sync, so we can ignore the error and move on to the next one.
 		_, err := s.leafClient.MFAServiceClient().ReplicateValidatedMFAChallenge(
@@ -1124,11 +1129,17 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 			continue
 		}
 		if err != nil {
-			return 0, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		count++
 	}
 
-	return count, nil
+	log.DebugContext(
+		ctx,
+		"Successfully synced ValidatedMFAChallenges to leaf cluster",
+		"replicated_count", count,
+	)
+
+	return nil
 }

@@ -348,6 +348,85 @@ func TestAccessListReviews(t *testing.T) {
 	assert.Empty(t, out)
 }
 
+func TestGetAccessListOwners(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clock := clockwork.NewFakeClock()
+	ctx := t.Context()
+
+	t.Run("owners directly from access list", func(t *testing.T) {
+		al, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, "owners-test-list", clock))
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			owners, err := p.cache.GetAccessListOwners(ctx, al.GetName())
+			assert.NoError(t, err)
+
+			names := make([]string, 0, len(owners))
+			for _, o := range owners {
+				names = append(names, o.Name)
+			}
+
+			assert.ElementsMatch(t, []string{"test-user1", "test-user2"}, names)
+		}, 15*time.Second, 100*time.Millisecond)
+	})
+
+	t.Run("owners inherited from nested list", func(t *testing.T) {
+		nestedList, err := accesslist.NewAccessList(
+			header.Metadata{Name: "nested-owner-list"},
+			accesslist.Spec{
+				Title: "nested",
+				Owners: []accesslist.Owner{
+					{Name: "nested-list-owner", MembershipKind: accesslist.MembershipKindUser},
+				},
+				Audit:  accesslist.Audit{NextAuditDate: clock.Now()},
+				Grants: accesslist.Grants{Roles: []string{"grant-role"}},
+			},
+		)
+		require.NoError(t, err)
+
+		nestedList, err = p.accessLists.UpsertAccessList(ctx, nestedList)
+		require.NoError(t, err)
+
+		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, nestedList.GetName(), "nested-member-1"))
+		require.NoError(t, err)
+
+		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, nestedList.GetName(), "nested-member-2"))
+		require.NoError(t, err)
+
+		parentList, err := accesslist.NewAccessList(
+			header.Metadata{Name: "parent-list"},
+			accesslist.Spec{
+				Title: "parent",
+				Owners: []accesslist.Owner{
+					{Name: nestedList.GetName(), MembershipKind: accesslist.MembershipKindList},
+				},
+				Audit:  accesslist.Audit{NextAuditDate: clock.Now()},
+				Grants: accesslist.Grants{Roles: []string{"grant-role"}},
+			},
+		)
+		require.NoError(t, err)
+
+		parentList, err = p.accessLists.UpsertAccessList(ctx, parentList)
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			owners, err := p.cache.GetAccessListOwners(ctx, parentList.GetName())
+			assert.NoError(t, err)
+
+			names := make([]string, 0, len(owners))
+			for _, o := range owners {
+				names = append(names, o.Name)
+			}
+
+			assert.ElementsMatch(t, []string{"nested-member-1", "nested-member-2"}, names)
+		}, 15*time.Second, 100*time.Millisecond)
+	})
+}
+
 func TestListAccessListsV2(t *testing.T) {
 	t.Parallel()
 

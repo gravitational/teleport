@@ -2,3 +2,12 @@ node_modules/
 test-results/
 playwright-report/
 playwright/.cache/
+runner/e2e
+runner/runner
+certs/
+data/
+config/teleport.yaml
+config/state.yaml
+node/node.yaml
+teleport.log
+.auth/

@@ -98,7 +98,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -466,6 +465,15 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 	t.Cleanup(appServerWatcher.Close)
 
+	databaseServerWatcher, err := services.NewDatabaseServerWatcher(ctx, services.DatabaseServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    s.proxyClient,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(databaseServerWatcher.Close)
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:       node.ID(),
 		Listener: revTunListener,
@@ -483,6 +491,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		NodeWatcher:           proxyNodeWatcher,
 		GitServerWatcher:      proxyGitServerWatcher,
 		AppServerWatcher:      appServerWatcher,
+		DatabaseServerWatcher: databaseServerWatcher,
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
@@ -8313,6 +8322,7 @@ type WebPackOptions struct {
 	proxyOptions    []proxyOption
 	enableAuthCache bool
 	modules         *modulestest.Modules
+	insecureMode    bool
 }
 
 type webPackOptions func(*WebPackOptions)
@@ -8332,6 +8342,12 @@ func withWebPackAuthCacheEnabled(enable bool) webPackOptions {
 func withModules(m *modulestest.Modules) webPackOptions {
 	return func(cfg *WebPackOptions) {
 		cfg.modules = m
+	}
+}
+
+func withInsecureMode() webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.insecureMode = true
 	}
 }
 
@@ -8359,6 +8375,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 			Clock:        clock,
 			AuditLog:     events.NewDiscardAuditLog(),
 			CacheEnabled: options.enableAuthCache,
+			InsecureMode: options.insecureMode,
 		},
 	})
 	require.NoError(t, err)
@@ -8473,7 +8490,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	var proxies []*testProxy
 	for p := range numProxies {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.modules, options.proxyOptions...))
+		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.modules, options.insecureMode, options.proxyOptions...))
 	}
 
 	// Wait for proxies to fully register before starting the test.
@@ -8529,7 +8546,7 @@ func withKubeProxy() proxyOption {
 }
 
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *authtest.TLSServer,
-	hostSigners []ssh.Signer, clock *clockwork.FakeClock, m *modulestest.Modules, opts ...proxyOption,
+	hostSigners []ssh.Signer, clock *clockwork.FakeClock, m *modulestest.Modules, insecureMode bool, opts ...proxyOption,
 ) *testProxy {
 	t.Helper()
 	cfg := proxyConfig{}
@@ -8611,6 +8628,15 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(appServerWatcher.Close)
 
+	databaseServerWatcher, err := services.NewDatabaseServerWatcher(ctx, services.DatabaseServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    client,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(databaseServerWatcher.Close)
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:       node.ID(),
 		Listener: revTunListener,
@@ -8629,6 +8655,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		GitServerWatcher:      proxyGitServerWatcher,
 		CertAuthorityWatcher:  proxyCAWatcher,
 		AppServerWatcher:      appServerWatcher,
+		DatabaseServerWatcher: databaseServerWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{authServer.Listener.Addr().String()},
 		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
@@ -8697,7 +8724,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	tlscfg, err := authServer.Identity.TLSConfig(utils.DefaultCipherSuites())
 	require.NoError(t, err)
 	tlscfg.ClientAuth = tls.RequireAndVerifyClientCert
-	if lib.IsInsecureDevMode() {
+	if insecureMode {
 		tlscfg.InsecureSkipVerify = true
 		tlscfg.ClientAuth = tls.RequireAnyClientCert
 	}
@@ -8832,6 +8859,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		DatabaseREPLRegistry:  &mockDatabaseREPLRegistry{repl: map[string]dbrepl.REPLNewFunc{}},
 		Modules:               m,
 		ClusterFeatures:       *m.TestFeatures.ToProto(),
+		InsecureMode:          insecureMode,
 	}, SetClock(clock))
 	require.NoError(t, err)
 

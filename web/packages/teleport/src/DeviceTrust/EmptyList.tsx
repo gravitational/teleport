@@ -209,7 +209,7 @@ export const EmptyList = ({
 
               <ButtonSecondary
                 as="a"
-                href="https://goteleport.com/docs/identity-governance/device-trust/"
+                href="https://goteleport.com/docs/zero-trust-access/device-trust/"
                 target="_blank"
                 width="280px"
                 size="large"

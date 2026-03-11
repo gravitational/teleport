@@ -40,6 +40,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/gravitational/teleport/api/constants"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -340,7 +341,7 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	// a fake PNG Frame message, which is way too big to be legitimate
-	maliciousPNG := make([]byte, libevents.MaxProtoMessageSizeBytes+1)
+	maliciousPNG := make([]byte, constants.MaxProtoMessageSizeBytes+1)
 	rand.Read(maliciousPNG)
 	png := &tdpb.PNGFrame{Data: maliciousPNG}
 	encoded, err := png.Encode()

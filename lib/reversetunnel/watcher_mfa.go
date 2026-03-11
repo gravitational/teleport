@@ -1,0 +1,161 @@
+/*
+ * Teleport
+ * Copyright (C) 2026  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package reversetunnel
+
+import (
+	"context"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/services"
+)
+
+// ValidatedMFAChallengeLister is an interface that wraps the ListValidatedMFAChallenges method.
+type ValidatedMFAChallengeLister interface {
+	ListValidatedMFAChallenges(
+		ctx context.Context,
+		in *mfav1.ListValidatedMFAChallengesRequest,
+		opts ...grpc.CallOption,
+	) (*mfav1.ListValidatedMFAChallengesResponse, error)
+}
+
+// ValidatedMFAChallengeWatcherConfig represents the configuration for a ValidatedMFAChallengeWatcher.
+type ValidatedMFAChallengeWatcherConfig struct {
+	ValidatedMFAChallengeLister ValidatedMFAChallengeLister
+	ClusterName                 string
+	ResourceWatcherConfig       *services.ResourceWatcherConfig
+}
+
+// NewValidatedMFAChallengeWatcher returns a new ValidatedMFAChallengeWatcher.
+func NewValidatedMFAChallengeWatcher(
+	ctx context.Context,
+	cfg ValidatedMFAChallengeWatcherConfig,
+) (*services.GenericWatcher[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge], error) {
+	switch {
+	case cfg.ValidatedMFAChallengeLister == nil:
+		return nil, trace.BadParameter("cfg.ValidatedMFAChallengeLister must be set")
+
+	case cfg.ClusterName == "":
+		return nil, trace.BadParameter("cfg.ClusterName must be set")
+
+	case cfg.ResourceWatcherConfig == nil:
+		return nil, trace.BadParameter("cfg.ResourceWatcherConfig must be set")
+	}
+
+	cloneFunc := func(r *mfav1.ValidatedMFAChallenge) *mfav1.ValidatedMFAChallenge {
+		return proto.Clone(r).(*mfav1.ValidatedMFAChallenge)
+	}
+
+	paginatedGetFunc := func(ctx context.Context, limit int, startKey string) ([]*mfav1.ValidatedMFAChallenge, string, error) {
+		resp, err := cfg.ValidatedMFAChallengeLister.ListValidatedMFAChallenges(
+			ctx,
+			&mfav1.ListValidatedMFAChallengesRequest{
+				PageToken: startKey,
+				PageSize:  int32(limit),
+				Filter: &mfav1.ListValidatedMFAChallengesFilter{
+					XTargetCluster: &mfav1.ListValidatedMFAChallengesFilter_TargetCluster{
+						TargetCluster: cfg.ClusterName,
+					},
+				},
+			},
+		)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		return resp.GetValidatedChallenges(), resp.GetNextPageToken(), nil
+	}
+
+	w, err := services.NewGenericResourceWatcher(
+		ctx,
+		services.GenericWatcherConfig[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]{
+			ResourceKind:          types.KindValidatedMFAChallenge,
+			ResourceWatcherConfig: *cfg.ResourceWatcherConfig,
+			CloneFunc:             cloneFunc,
+			ReadOnlyFunc:          cloneFunc,
+			// This watcher's consumer waits on WaitInitialization before it starts reading ResourcesC. Keep one slot
+			// buffered to avoid deadlocking initial broadcast when there are already resources present.
+			ResourcesC:                          make(chan []*mfav1.ValidatedMFAChallenge, 1),
+			RequireResourcesForInitialBroadcast: false,
+			ResourceGetter:                      pagerFn[*mfav1.ValidatedMFAChallenge](paginatedGetFunc).getAll,
+			ResourceKey: func(r *mfav1.ValidatedMFAChallenge) string {
+				return backend.NewKey(
+					r.GetSpec().GetTargetCluster(),
+					r.GetMetadata().GetName(),
+				).String()
+			},
+			DeleteKey: func(resource types.Resource) string {
+				chal, err := convertResource[*mfav1.ValidatedMFAChallenge](resource)
+				if err != nil {
+					return resource.GetMetadata().Description + resource.GetName()
+				}
+
+				return backend.NewKey(
+					chal.GetSpec().GetTargetCluster(),
+					chal.GetMetadata().GetName(),
+				).String()
+			},
+			ResourceDiffer: func(oldR, newR *mfav1.ValidatedMFAChallenge) bool {
+				return !proto.Equal(oldR, newR)
+			},
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return w, nil
+}
+
+type pagerFn[T any] func(ctx context.Context, limit int, startKey string) ([]T, string, error)
+
+func (fn pagerFn[T]) getAll(ctx context.Context) ([]T, error) {
+	var out []T
+	var token string
+	for {
+		page, nextToken, err := fn(ctx, apidefaults.DefaultChunkSize, token)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, page...)
+		if nextToken == "" {
+			return out, nil
+		}
+		token = nextToken
+	}
+}
+
+// convertResource is a generic helper func that converts a [types.Resource] by
+// direct type assertion or assertion to an [types.Resource153UnwrapperT].
+func convertResource[T any](resource types.Resource) (T, error) {
+	switch resource := resource.(type) {
+	case T:
+		return resource, nil
+	case interface{ UnwrapT() T }:
+		return resource.UnwrapT(), nil
+	}
+	var zero T
+	return zero, trace.BadParameter("expected resource type %T, got %T", zero, resource)
+}
