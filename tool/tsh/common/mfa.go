@@ -33,11 +33,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client"
+	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -161,11 +163,6 @@ func printMFADevices(devs []*types.MFADevice, verbose bool) {
 
 type mfaAddCommand struct {
 	*kingpin.CmdClause
-	mfaAdder
-}
-
-// mfaAdder adds an MFA device by interacting with the user.
-type mfaAdder struct {
 	devName string
 	devType string
 
@@ -178,7 +175,7 @@ type mfaAdder struct {
 	// regardless of other settings.
 	allowPasswordless, allowPasswordlessSet bool
 
-	webauthnRegister WebauthnRegisterFunc
+	// webauthnRegister client.WebauthnRegisterFunc
 }
 
 func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
@@ -186,8 +183,8 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 		CmdClause: parent.Command("add", "Add a new MFA device."),
 	}
 	c.Flag("name", "Name of the new MFA device.").StringVar(&c.devName)
-	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s).", strings.Join(defaultDeviceTypes, ", "))).
-		EnumVar(&c.devType, defaultDeviceTypes...)
+	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s).", strings.Join(libmfa.DefaultDeviceTypes, ", "))).
+		EnumVar(&c.devType, libmfa.DefaultDeviceTypes...)
 	if wancli.IsFIDO2Available() {
 		c.Flag("allow-passwordless", "Allow passwordless logins.").
 			IsSetByUser(&c.allowPasswordlessSet).
@@ -197,22 +194,28 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 }
 
 func (c *mfaAddCommand) run(cf *CLIConf) error {
-	c.setWebauthnRegisterFunc(cf.WebauthnRegister)
+	// c.setWebauthnRegisterFunc(cf.WebauthnRegister)
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	ctx := cf.Context
-	return trace.Wrap(c.addMFA(ctx, tc))
+	_, err = tc.AddMFA(ctx, mfa.MFASpec{
+		DevName:              c.devName,
+		DevType:              c.devType,
+		AllowPasswordless:    c.allowPasswordless,
+		AllowPasswordlessSet: c.allowPasswordlessSet,
+	})
+	return trace.Wrap(err)
 }
 
-func (a *mfaAdder) setWebauthnRegisterFunc(reg WebauthnRegisterFunc) {
-	if reg != nil {
-		a.webauthnRegister = reg
-	} else {
-		a.webauthnRegister = wancli.Register
-	}
-}
+// func (a *mfaAdder) setWebauthnRegisterFunc(reg WebauthnRegisterFunc) {
+// 	if reg != nil {
+// 		a.webauthnRegister = reg
+// 	} else {
+// 		a.webauthnRegister = wancli.Register
+// 	}
+// }
 
 type mfaRemoveCommand struct {
 	*kingpin.CmdClause

@@ -110,6 +110,16 @@ func (tc *TeleportClient) NewSSOMFACeremony(ctx context.Context) (mfa.SSOMFACere
 }
 
 func (tc *TeleportClient) AddMFA(ctx context.Context, spec mfa.MFASpec) (bool, error) {
+	if spec.DevType == "" {
+		// If we are prompting the user for the device type, then take a glimpse at
+		// server-side settings and adjust the options accordingly.
+		// This is undesirable to do during flag setup, but we can do it here.
+		pingResp, err := tc.Ping(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		spec.AuthSecondFactor = pingResp.Auth.SecondFactor
+	}
 	added, err := tc.NewMFAPrompt().AddMFA(ctx, spec)
 	return added, trace.Wrap(err)
 }
