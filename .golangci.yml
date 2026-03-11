@@ -284,6 +284,7 @@ linters:
     forbidigo:
       forbid:
         - pattern: ^rsa\.GenerateKey$
+          pkg: ^crypto/rsa$
           msg: generating RSA keys is slow, use lib/cryptosuites to generate an appropriate key type
         - pattern: ^iam\.NewFromConfig$
           msg: Use iamutils.NewFromConfig
@@ -297,6 +298,10 @@ linters:
           msg: use protojson.UnmarshalOptions and consider enabling DiscardUnknown
         - pattern: ^jsonpb\.(?:Unmarshal|UnmarshalString|UnmarshalNext)$
           msg: use protojson if possible, or use jsonpb.Unmarshaler and consider enabling AllowUnknownFields
+        - pattern: ^semver\.New$
+          pkg: ^github.com/coreos/go-semver/semver$
+          msg: construct a semver.Version manually or use semver.NewVersion
+      analyze-types: true
     misspell:
       locale: US
     nolintlint:
