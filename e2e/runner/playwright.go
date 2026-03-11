@@ -142,7 +142,8 @@ func (p *playwrightRunner) generateInviteURL(ctx context.Context) (string, error
 
 	out, err := cmd.Output()
 	if err != nil {
-		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			slog.Error("tctl users add failed", "stderr", string(exitErr.Stderr))
 		}
 		return "", fmt.Errorf("tctl users add: %w", err)
@@ -197,7 +198,8 @@ func (p *playwrightRunner) pnpm(ctx context.Context, args []string, env []string
 	cmd.Stdin = os.Stdin
 
 	if err := cmd.Run(); err != nil {
-		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			return fmt.Errorf("command exited with code %d: %w", exitErr.ExitCode(), err)
 		}
 
