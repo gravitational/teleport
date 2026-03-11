@@ -48,11 +48,10 @@ class TeleportEContext extends TeleportContext {
   async init(preferences: UserPreferences) {
     await super.init(preferences);
 
-    // If access graph is enabled, preload the JS bundle for faster launching.
+    // If access graph is enabled, prefetch the JS bundle for faster launching.
     if (storageService.getAccessGraphEnabled()) {
       const link = document.createElement('link');
-      link.rel = 'preload';
-      link.as = 'script';
+      link.rel = 'prefetch';
       link.href = ACCESS_GRAPH_JS_URL;
       document.head.appendChild(link);
     }
