@@ -946,11 +946,8 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.P
 		return nil, trace.Wrap(err)
 	}
 
-	authCallback := func(m ssh.ConnMetadata, _ ssh.NegotiatedAlgorithms, supported, _, _ []string) (ssh.AuthMethod, error) {
-		t.logger.DebugContext(ctx, "connectToNode: Checking if keyboard-interactive auth is supported by server", "supported_methods", supported)
-
-		// Only continue with keyboard-interactive if it's supported by the server.
-		if !slices.Contains(supported, "keyboard-interactive") {
+	authCallback := func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
+		if !slices.Contains(authCtx.PartialSuccessMethods, "publickey") {
 			return nil, nil
 		}
 
@@ -975,7 +972,7 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.P
 				mfaClient.ValidateSessionChallenge,
 				t.proxyPublicAddr,
 			),
-			m,
+			authCtx.Metadata,
 		), nil
 	}
 

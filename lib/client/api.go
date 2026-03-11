@@ -3312,16 +3312,36 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 		return nil, trace.BadParameter("no SSH auth methods loaded, are you logged in?")
 	}
 
-	authCallback := func(m ssh.ConnMetadata, _ ssh.NegotiatedAlgorithms, supported, succeeded, failed []string) (ssh.AuthMethod, error) {
-		// Only continue with keyboard-interactive if it's supported by the server.
-		if !slices.Contains(supported, "keyboard-interactive") {
+	authCallback := func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
+		slog.Info(
+			"SSH server requested additional authentication method",
+			"allowed_methods", authCtx.AllowedMethods,
+			"partial_success_methods", authCtx.PartialSuccessMethods,
+			"tried_methods", authCtx.TriedMethods,
+		)
+
+		// If the server did not accept our SSH cert but indicates that it would accept more authentication methods,
+		// attempt MFA. This is the case where the user has logged in and has a valid certificate, but does not have
+		// permissions to access the target cluster without MFA.
+		if !slices.Contains(authCtx.PartialSuccessMethods, "publickey") {
+			slog.Info("SSH server did not accept any of the provided SSH certificates, and did not indicate that it would accept more. Not attempting MFA.",
+				"allowed_methods", authCtx.AllowedMethods,
+				"partial_success_methods", authCtx.PartialSuccessMethods,
+				"tried_methods", authCtx.TriedMethods,
+			)
 			return nil, nil
 		}
+
+		slog.Info("SSH server accepted the provided SSH certificate, but requires additional authentication. Attempting MFA.",
+			"allowed_methods", authCtx.AllowedMethods,
+			"partial_success_methods", authCtx.PartialSuccessMethods,
+			"tried_methods", authCtx.TriedMethods,
+		)
 
 		ceremony := tc.NewMFACeremony()
 		ceremony.TargetCluster = clusterName()
 
-		return clientssh.KeyboardInteractive(ctx, ceremony, m), nil
+		return clientssh.KeyboardInteractive(ctx, ceremony, authCtx.Metadata), nil
 	}
 
 	return &clientConfig{
