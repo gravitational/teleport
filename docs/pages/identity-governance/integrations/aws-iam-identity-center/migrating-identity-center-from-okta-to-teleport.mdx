@@ -319,7 +319,7 @@ and switch back to Teleport.
 #### Create the Teleport SAML Service Provider
 
 Create a SAML Service Provider in Teleport following the (Using Teleport as a SAML
-Identity Provider)[../idps/saml-guide.mdx] guide. Use the Identity Center SAML
+Identity Provider)[../../idps/saml-guide.mdx] guide. Use the Identity Center SAML
 Metadata file from the previous step to provide the Identity Center metadata to
 Teleport.
 
@@ -360,7 +360,7 @@ $ tctl edit plugins/aws-identity-center
 ```
 
 To enable Full hand-off mode, set the `saml_idp_service_provider_name` field in
-the `aws_ic` block to the name of the SAML Service Provider created in (Step 1)[#step-14-create-a-teleport-saml-idp-service-provider] above. 
+the `aws_ic` block to the name of the SAML Service Provider created in (Step 1)[#step-16-install-okta-saml-connector] above. 
 
 ```YAML
 kind: plugin
