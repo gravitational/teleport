@@ -56,7 +56,6 @@ import {
   isMcp,
   isWebApp,
 } from 'teleterm/services/tshd/app';
-import { GatewayProtocol } from 'teleterm/services/tshd/gateway';
 import { appToAddrToCopy } from 'teleterm/services/vnet/app';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -67,9 +66,7 @@ import {
   connectToWindowsDesktop,
   setUpAppGateway,
 } from 'teleterm/ui/services/workspacesService';
-import { IAppContext } from 'teleterm/ui/types';
 import { routing } from 'teleterm/ui/uri';
-import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
 
 /**
@@ -216,9 +213,8 @@ export function ConnectDatabaseActionButton(props: {
   const appContext = useAppContext();
   const { database } = props;
 
-  const hasWildcard = hasWildcardDbUsers(database.databaseUsers);
   const shouldShowFilterInput =
-    !hasWildcard && database.databaseUsers.length > 0;
+    !database.wildcardUserAllowed && database.databaseUsers.length > 0;
 
   function connect(dbUser: string): void {
     const { uri, name, protocol, gcpProjectId, autoUserProvisioning } =
@@ -235,8 +231,8 @@ export function ConnectDatabaseActionButton(props: {
       <ButtonBorder
         size="small"
         onClick={async () => {
-          const loginItems = await getDatabaseUsers(appContext, database);
-          connect(loginItems?.[0]?.login ?? '');
+          const autoProvisionedDbUser = database.databaseUsers?.[0] ?? '';
+          connect(autoProvisionedDbUser);
         }}
         textTransform="none"
         width={buttonWidth}
@@ -248,18 +244,16 @@ export function ConnectDatabaseActionButton(props: {
 
   return (
     <MenuLogin
-      {...getDatabaseMenuLoginOptions(
-        database.protocol as GatewayProtocol,
-        database.databaseUsers,
-        hasWildcard
-      )}
+      {...getDatabaseMenuLoginOptions(database)}
       inputType={
         shouldShowFilterInput ? MenuInputType.FILTER : MenuInputType.INPUT
       }
       textTransform="none"
       width="195px"
       buttonWidth={buttonWidth}
-      getLoginItems={() => getDatabaseUsers(appContext, database)}
+      getLoginItems={() =>
+        database.databaseUsers.map(user => ({ login: user, url: '' }))
+      }
       onSelect={(_, user) => connect(user)}
       transformOrigin={{
         vertical: 'top',
@@ -273,15 +267,10 @@ export function ConnectDatabaseActionButton(props: {
   );
 }
 
-function hasWildcardDbUsers(users: string[]): boolean {
-  return users.includes('*');
-}
-
 function getDatabaseMenuLoginOptions(
-  protocol: GatewayProtocol,
-  users: string[],
-  hasWildcard: boolean
+  database: Database
 ): Pick<MenuLoginProps, 'placeholder' | 'required'> {
+  const { protocol, databaseUsers, wildcardUserAllowed } = database;
   if (protocol === 'redis') {
     return {
       placeholder: 'Enter username (optional)',
@@ -289,34 +278,10 @@ function getDatabaseMenuLoginOptions(
     };
   }
 
-  const isSearchable = users.length > 0 && !hasWildcard;
+  const isSearchable = databaseUsers.length > 0 && !wildcardUserAllowed;
 
   const placeholder = isSearchable ? 'Search by username' : 'Enter username';
   return { placeholder, required: true };
-}
-
-async function getDatabaseUsers(appContext: IAppContext, database: Database) {
-  //TODO(nibrasohin): Remove the fallback once we have servers on Teleport v20 or higher.
-  if (database.databaseUsers.length > 0) {
-    return database.databaseUsers
-      .filter(user => user !== '*')
-      .map(user => ({ login: user, url: '' }));
-  }
-  try {
-    const dbUsers = await retryWithRelogin(appContext, database.uri, () =>
-      appContext.resourcesService.getDbUsers(database.uri)
-    );
-    return dbUsers.map(user => ({ login: user, url: '' }));
-  } catch (e) {
-    // Emitting a warning instead of an error here because fetching those username suggestions is
-    // not the most important part of the app.
-    appContext.notificationsService.notifyWarning({
-      title: 'Could not fetch database usernames',
-      description: e.message,
-    });
-
-    throw e;
-  }
 }
 
 function AppButton(props: {

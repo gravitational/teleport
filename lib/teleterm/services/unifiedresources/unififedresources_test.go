@@ -259,7 +259,7 @@ func TestUnifiedResourcesListWildcardDatabaseUsers(t *testing.T) {
 	db := response.Resources[0].Database
 	require.NotNil(t, db)
 	require.Nil(t, db.AutoUserProvisioning)
-	require.Equal(t, []string{"*"}, db.DatabaseUsers)
+	require.True(t, db.WildcardUserAllowed)
 }
 
 type mockClient struct {

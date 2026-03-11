@@ -192,7 +192,6 @@ function prepareAppContext(appContext: MockAppContext): void {
   appContext.clustersService.setState(d => {
     d.clusters.set(testCluster.uri, testCluster);
   });
-  appContext.resourcesService.getDbUsers = async () => ['postgres-user'];
 }
 
 function TcpApp() {
@@ -346,6 +345,7 @@ function DatabaseWithKnownUsers() {
       database={makeDatabase({
         uri: `${testCluster.uri}/dbs/bar`,
         databaseUsers: ['alice', 'bob', 'charlie'],
+        wildcardUserAllowed: false,
       })}
     />
   );
@@ -356,7 +356,8 @@ function DatabaseWithWildcardUsers() {
     <ConnectDatabaseActionButton
       database={makeDatabase({
         uri: `${testCluster.uri}/dbs/bar`,
-        databaseUsers: ['alice', 'bob', '*'],
+        databaseUsers: ['alice', 'bob'],
+        wildcardUserAllowed: true,
       })}
     />
   );
@@ -368,6 +369,7 @@ function DatabaseAutoUserProvisioning() {
       database={makeDatabase({
         uri: `${testCluster.uri}/dbs/bar`,
         autoUserProvisioning: { databaseRoles: ['reader', 'writer'] },
+        wildcardUserAllowed: false,
       })}
     />
   );

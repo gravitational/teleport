@@ -56,6 +56,8 @@ type Database struct {
 	AutoUserProvisioning *AutoUserProvisioning
 	// DatabaseUsers is a list of allowed database users that Teleport RBAC permits the user to connect as.
 	DatabaseUsers []string
+	// WildcardUserAllowed is true when the user's role grants db_users: ["*"].
+	WildcardUserAllowed bool
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal

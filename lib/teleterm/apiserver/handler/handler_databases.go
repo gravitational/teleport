@@ -98,6 +98,7 @@ func newAPIDatabase(db clusters.Database) *api.Database {
 		},
 		GcpProjectId:         gcpProjectID,
 		DatabaseUsers:        db.DatabaseUsers,
+		WildcardUserAllowed:  db.WildcardUserAllowed,
 		AutoUserProvisioning: autoUserProvisioning,
 	}
 }
