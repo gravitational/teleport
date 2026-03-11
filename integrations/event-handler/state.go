@@ -297,7 +297,7 @@ func (s *State) GetSessions() (map[string]int64, error) {
 
 	for key := range s.dv.KeysPrefix(sessionPrefix, nil) {
 		// skip if the key is exactly the sessionPrefix
-		if string(key) == sessionPrefix {
+		if key == sessionPrefix {
 			continue
 		}
 
