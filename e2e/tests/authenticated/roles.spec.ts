@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { expect, test } from '@playwright/test';
-
-import { signup } from '../utils/signup';
+import { expect, test } from '../../helpers/test';
+import { mockWebAuthn } from '../../helpers/webauthn';
 
 test('verify that a user can create and delete a role', async ({ page }) => {
-  const { cleanup } = await signup(page);
+  await mockWebAuthn(page);
+
+  await page.goto('/');
 
   await page.getByRole('button', { name: 'Zero Trust Access' }).click();
   await page.getByRole('link', { name: 'Roles' }).click();
@@ -49,6 +50,4 @@ test('verify that a user can create and delete a role', async ({ page }) => {
   await page.getByRole('button', { name: 'Yes, Remove Role' }).click();
 
   await expect(page.getByRole('cell', { name: 'testrole' })).not.toBeVisible();
-
-  await cleanup();
 });
