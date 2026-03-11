@@ -7,9 +7,11 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -21,6 +23,7 @@ import (
 	usersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/tests/common"
@@ -236,7 +239,7 @@ func mustGetUser(t *testing.T, authServer *auth.Server, name string) types.User 
 	t.Helper()
 	ctx := t.Context()
 
-	u, err := authServer.GetUser(ctx, name, false)
+	u, err := authServer.Services.GetUser(ctx, name, false)
 	require.NoError(t, err)
 
 	return u
@@ -256,4 +259,73 @@ func mustGetUserIDLabelValue(t *testing.T, user types.User) string {
 	require.True(t, ok)
 	require.NotEmpty(t, id)
 	return id
+}
+
+func withAPICredentials(apiCredentials *oktav1.OktaAPICredentials) oktaIntegrationOption {
+	return func(opts *scimIntegrationOptions) {
+		opts.ApiCredentials = apiCredentials
+	}
+}
+
+// mustConvertToOktaSCIMOnlyAPICredential converts the regular Okta SSWS API token to a legacy
+// SCIM-only API token. This is to simulate the legacy setup where the Okta API token was created
+// before SCIM support was added. In that case the credential has a "scim-only" purpose label,
+// meaning it was created only for SCIM and the Okta sync is disabled. Such credential is using
+// during SCIM User resource operations to pull groups from Okta and populate the user's "groups"
+// trait.
+func mustConvertToOktaSCIMOnlyAPICredential(t *testing.T, sut *common.SUT) {
+	t.Helper()
+	ctx := t.Context()
+	authServer := sut.Teleport.Process.GetAuthServer()
+
+	plugin, err := authServer.GetPlugin(ctx, types.PluginTypeOkta, true)
+	require.NoError(t, err)
+
+	credsRef := plugin.GetCredentials().GetStaticCredentialsRef()
+	require.NotEmpty(t, credsRef)
+
+	allCreds, err := oktaplugin.GetStaticCredentials(ctx, authServer, credsRef)
+	require.NoError(t, err)
+
+	credsByName := make(map[string]types.PluginStaticCredentials, len(allCreds))
+	for _, cred := range allCreds {
+		credsByName[cred.GetName()] = cred
+	}
+
+	require.Len(t, credsByName, 2)
+	require.Contains(t, credsByName, "okta")
+	require.Contains(t, credsByName, "okta-scim-token")
+
+	authCred := credsByName["okta"]
+	require.NotEmpty(t, authCred.GetAPIToken(), "expected API token credential")
+	authCred.GetStaticLabels()[types.OktaCredPurposeLabel] = types.CredPurposeOKTAAPITokenWithSCIMOnlyIntegration
+
+	_, err = authServer.UpdatePluginStaticCredentials(ctx, authCred)
+	require.NoError(t, err)
+}
+
+func mustDeleteOktaAPICredential(t *testing.T, sut *common.SUT) {
+	t.Helper()
+	ctx := t.Context()
+	authServer := sut.Teleport.Process.GetAuthServer()
+
+	err := authServer.DeletePluginStaticCredentials(ctx, "okta")
+	require.NoError(t, err)
+}
+
+func requireTraitsEqual(t *testing.T, traitsA, traitsB map[string][]string) {
+	t.Helper()
+	traitsA = copyWithSortedValues(traitsA)
+	traitsB = copyWithSortedValues(traitsB)
+	require.Empty(t, cmp.Diff(traitsA, traitsB))
+}
+
+func copyWithSortedValues(m map[string][]string) map[string][]string {
+	res := make(map[string][]string, len(m))
+	for k, v := range m {
+		vCopy := slices.Clone(v)
+		slices.Sort(vCopy)
+		res[k] = vCopy
+	}
+	return res
 }

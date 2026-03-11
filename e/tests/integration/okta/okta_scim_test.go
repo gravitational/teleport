@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
 	libokta "github.com/gravitational/teleport/e/lib/okta"
 	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
@@ -618,4 +619,79 @@ func testUserDeactivationActivation(t *testing.T, ctx context.Context, sut *comm
 		require.NoError(t, err)
 		require.Empty(t, userLocks)
 	}, time.Second, time.Millisecond*40)
+}
+
+// TestSCIMOnlyAPICredentials verifies that SCIM user provisioning correctly populates user's
+// "groups" trait depending on the state of the Okta API credential in the backend. In particular
+// it verifies the behavior with the legacy SCIM-only Okta API token. See
+// [mustConvertToOktaSCIMOnlyAPICredential] godoc for more details.
+func TestSCIMOnlyAPICredentials(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	fakeOkta := newFakeOktaServer(
+		withUserCount(4),
+		withAppCount(4),
+		withGroupCount(4),
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
+	)
+
+	authServer := sut.Teleport.Process.GetAuthServer()
+
+	oktaCreds := &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_SswsBearerToken{SswsBearerToken: "12345"}}
+	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta, withAPICredentials(oktaCreds), withAccessListDisabled())
+	scimClient := createSCIMClient(t, sut, scimToken)
+
+	u1, u2, u3 := fakeOkta.provisionedUsers[1], fakeOkta.provisionedUsers[2], fakeOkta.provisionedUsers[3]
+	g1, g2 := fakeOkta.provisionedGroups[1], fakeOkta.provisionedGroups[2]
+
+	fakeOkta.AddUserToGroup(g1.Id, u1.Id)
+	fakeOkta.AddUserToGroup(g2.Id, u1.Id)
+	fakeOkta.AddUserToGroup(g1.Id, u2.Id)
+	fakeOkta.AddUserToGroup(g2.Id, u2.Id)
+	fakeOkta.AddUserToGroup(g1.Id, u3.Id)
+	fakeOkta.AddUserToGroup(g2.Id, u3.Id)
+
+	groupTraits := map[string][]string{"groups": {g1.Profile.Name, g2.Profile.Name}}
+
+	requireUserNotExists(t, authServer, oktaUserLogin(u1))
+	requireUserNotExists(t, authServer, oktaUserLogin(u2))
+
+	// Create user with the default API credentials, and expect it to have groups trait set
+	// because the credential is present in the backend.
+	_, err := scimClient.CreateUser(ctx, &scimsdk.User{ExternalID: u1.Id, UserName: oktaUserLogin(u1), Active: true})
+	require.NoError(t, err)
+
+	teleportUser1 := mustGetUser(t, authServer, oktaUserLogin(u1))
+	requireTraitsEqual(t, groupTraits, teleportUser1.GetTraits())
+	requireUserNotExists(t, authServer, oktaUserLogin(u2))
+
+	// Convert to the legacy SCIM-only API token.
+	// Then, Create user with the legacy SCIM-only API, and expect it to have groups trait set
+	// because the credential is present in the backend.
+	mustConvertToOktaSCIMOnlyAPICredential(t, sut)
+
+	_, err = scimClient.CreateUser(ctx, &scimsdk.User{ExternalID: u2.Id, UserName: oktaUserLogin(u2), Active: true})
+	require.NoError(t, err)
+
+	teleportUser2 := mustGetUser(t, authServer, oktaUserLogin(u2))
+	requireTraitsEqual(t, groupTraits, teleportUser2.GetTraits())
+
+	// Delete the API token and create a third user with SCIM, but now the groups trait
+	// shouldn't be set.
+	mustDeleteOktaAPICredential(t, sut)
+
+	_, err = scimClient.CreateUser(ctx, &scimsdk.User{ExternalID: u3.Id, UserName: oktaUserLogin(u3), Active: true})
+	require.NoError(t, err)
+
+	teleportUser3 := mustGetUser(t, authServer, oktaUserLogin(u3))
+	require.Empty(t, teleportUser3.GetTraits())
 }
