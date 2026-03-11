@@ -57,8 +57,15 @@ import useDesktopSession, {
   clipboardSharingMessage,
   directorySharingPossible,
   isSharingClipboard,
-  isSharingDirectory,
 } from './useDesktopSession';
+
+import {
+  DirectoryItem,
+} from 'shared/components/DesktopSession/DirectoryList';
+
+export interface ServerCapabilities {
+  canRemoveSharedDirectories: boolean;
+}
 
 export interface DesktopSessionProps {
   client: TdpClient;
@@ -87,10 +94,8 @@ export interface DesktopSessionProps {
 
 export interface DesktopSessionControlsRenderProps {
   canShareDirectory: boolean;
-  isSharingDirectory: boolean;
   isSharingClipboard: boolean;
   clipboardSharingMessage: string;
-  onShareDirectory: VoidFunction;
   onCtrlAltDel: VoidFunction;
   onDisconnect: VoidFunction;
   alerts: ToastNotificationItem[];
@@ -101,6 +106,10 @@ export interface DesktopSessionControlsRenderProps {
   onToggleHiDpi: VoidFunction;
   screenIsHiDpi: boolean;
   hiDpiSupported: boolean;
+  onAddSharedDirectory: VoidFunction;
+  sharedDirectories: DirectoryItem[];
+  onRemoveSharedDirectory(directoryId: number);
+  canRemoveSharedDirectory: boolean;
 }
 
 export function DesktopSession({
@@ -118,11 +127,13 @@ export function DesktopSession({
     onClipboardData,
     onTransientUserActivation,
     clipboardSharingState,
-    clearSharing,
-    onShareDirectory,
+    sharedDirectoriesState,
+    addSharedDirectory,
+    removeSharedDirectory,
     alerts,
     onRemoveAlert,
     addAlert,
+    connect,
   } = useDesktopSession(client, aclAttempt, browserSupportsSharing);
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
@@ -187,18 +198,14 @@ export function DesktopSession({
 
   useListener(client.onClipboardData, onClipboardData);
 
-  const handleConnectionClose = useCallback(
-    (error?: Error) => {
-      clearSharing();
-      setTdpConnectionStatus({
-        status: 'disconnected',
-        fromTdpError: error instanceof TdpError,
-        message: error?.message || '',
-      });
-      initialTdpConnectionSucceeded.current = false;
-    },
-    [clearSharing]
-  );
+  const handleConnectionClose = useCallback((error?: Error) => {
+    setTdpConnectionStatus({
+      status: 'disconnected',
+      fromTdpError: error instanceof TdpError,
+      message: error?.message || '',
+    });
+    initialTdpConnectionSucceeded.current = false;
+  }, []);
   useListener(client.onError, handleConnectionClose);
   useListener(client.onTransportClose, handleConnectionClose);
 
@@ -269,6 +276,18 @@ export function DesktopSession({
     }, [])
   );
 
+  const [serverCapabilities, setServerCapabilities] = useState<
+    ServerCapabilities | undefined
+  >({ canRemoveSharedDirectories: false });
+  useListener(
+    client.onServerCapabilities,
+    useCallback(caps => {
+      setServerCapabilities({
+        canRemoveSharedDirectories: caps.directoryRemoval,
+      });
+    }, [])
+  );
+
   const shouldConnect =
     aclAttempt.status === 'success' &&
     anotherDesktopActiveAttempt.status === 'success' &&
@@ -277,12 +296,12 @@ export function DesktopSession({
     if (!shouldConnect) {
       return;
     }
-    client
-      .connect({
-        keyboardLayout,
-        screenSpec: canvasRendererRef.current.getSize(),
-      })
-      .catch(handleConnectionClose);
+
+    connect({
+      keyboardLayout,
+      screenSpec: canvasRendererRef.current.getSize(),
+    }).catch(handleConnectionClose);
+
     return () => {
       client.shutdown();
     };
@@ -437,10 +456,9 @@ export function DesktopSession({
 
   const controlsProps: DesktopSessionControlsRenderProps = {
     canShareDirectory: directorySharingPossible(directorySharingState),
-    isSharingDirectory: isSharingDirectory(directorySharingState),
+    //isSharingDirectory: isSharingDirectory(directorySharingState),
     isSharingClipboard: isSharingClipboard(clipboardSharingState),
     clipboardSharingMessage: clipboardSharingMessage(clipboardSharingState),
-    onShareDirectory,
     onCtrlAltDel: handleCtrlAltDel,
     onDisconnect: () => client.shutdown(),
     alerts,
@@ -451,6 +469,10 @@ export function DesktopSession({
     onToggleHiDpi: () => setIsHiDpi(!isHiDpi),
     screenIsHiDpi,
     hiDpiSupported: client.hidpiSupported,
+    sharedDirectories: sharedDirectoriesState,
+    onAddSharedDirectory: addSharedDirectory,
+    onRemoveSharedDirectory: removeSharedDirectory,
+    canRemoveSharedDirectory: serverCapabilities.canRemoveSharedDirectories
   };
   return (
     <Flex

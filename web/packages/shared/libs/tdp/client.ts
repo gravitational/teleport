@@ -99,6 +99,7 @@ export enum TdpClientEvent {
   RESET = 'reset',
   POINTER = 'pointer',
   LATENCY_STATS = 'latency stats',
+  SERVER_CAPABILITIES = 'server capabilities',
 }
 
 type EventMap = {
@@ -115,6 +116,7 @@ type EventMap = {
   [TdpClientEvent.RESET]: [void];
   [TdpClientEvent.POINTER]: [PointerData];
   [TdpClientEvent.LATENCY_STATS]: [LatencyStats];
+  [TdpClientEvent.SERVER_CAPABILITIES]: [ServerCapabilities];
   'terminal.webauthn': [string];
 };
 
@@ -153,6 +155,10 @@ let wasmReady: Promise<void> | undefined;
 // Defines which protocol the client will start with.
 type ConnectPolicy = { mode: 'tdpb' } | { mode: 'tdp' };
 
+type ServerCapabilities = {
+  directoryRemoval: boolean;
+};
+
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
@@ -161,7 +167,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   protected transport: TdpTransport | undefined;
   private transportAbortController: AbortController | undefined;
   private fastPathProcessor: FastPathProcessor | undefined;
-  private sharedDirectory: SharedDirectoryAccess | undefined;
+  private directoryManager: SharedDirectoryManager;
   private keyboardLayout: number | undefined;
   private screenSpec: ClientScreenSpec | undefined;
   private codec: Codec | undefined;
@@ -171,10 +177,16 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   constructor(
     private getTransport: (signal: AbortSignal) => Promise<TdpTransport>,
-    private selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
+    selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
     private policy: ConnectPolicy = { mode: 'tdp' }
   ) {
     super();
+    // Hardcode to a maximum of 10 shared directories per session.
+    this.directoryManager = new SharedDirectoryManager(
+      selectSharedDirectory,
+      this.logger,
+      10
+    );
   }
 
   /** Connects to the transport and registers event handlers. */
@@ -213,6 +225,7 @@ export class TdpClient extends EventEmitter<EventMap> {
       wasmReady = this.initWasm();
     }
     await wasmReady;
+    this.directoryManager.reset();
 
     try {
       this.transport = await this.getTransport(
@@ -272,7 +285,6 @@ export class TdpClient extends EventEmitter<EventMap> {
 
     this.logger.info('Transport is closed');
 
-    this.sharedDirectory = undefined;
     this.transport = undefined;
   }
 
@@ -339,6 +351,11 @@ export class TdpClient extends EventEmitter<EventMap> {
   onLatencyStats = (listener: (stats: LatencyStats) => void) => {
     this.on(TdpClientEvent.LATENCY_STATS, listener);
     return () => this.off(TdpClientEvent.LATENCY_STATS, listener);
+  };
+
+  onServerCapabilities = (listener: (caps: ServerCapabilities) => void) => {
+    this.on(TdpClientEvent.SERVER_CAPABILITIES, listener);
+    return () => this.off(TdpClientEvent.SERVER_CAPABILITIES, listener);
   };
 
   private async initWasm() {
@@ -511,6 +528,12 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   handleServerHello(hello: ServerHello) {
     this.hidpiSupported = hello.hidpiSupported;
+    // In the future, we may add new server capability advertisements
+    // that will affect client configuration.
+    // For now we'll just activate the the connection.
+    this.emit(TdpClientEvent.SERVER_CAPABILITIES, {
+      directoryRemoval: hello.directoryRemovalSupport,
+    });
     this.handleRdpConnectionActivated(hello.activationEvent);
   }
 
@@ -610,13 +633,19 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   handleSharedDirectoryAcknowledge(ack: SharedDirectoryAcknowledge) {
-    const sharedDirectory = this.getSharedDirectoryOrThrow();
+    const sharedDirectory = this.directoryManager.getSharedDirectory(
+      ack.directoryId
+    );
+    if (!sharedDirectory) {
+      return;
+    }
 
     if (ack.errCode !== SharedDirectoryErrCode.Nil) {
       // A failure in the acknowledge message means the directory
       // share operation failed (likely due to server side configuration).
       // Since this is not a fatal error, we emit a warning but otherwise
       // keep the sesion alive.
+      console.log('handling directory acknowledge');
       this.handleWarning(
         `Failed to share directory '${sharedDirectory.getDirectoryName()}', drive redirection may be disabled on the RDP server.`,
         TdpClientEvent.TDP_WARNING
@@ -631,7 +660,12 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   async handleSharedDirectoryInfoRequest(req: SharedDirectoryInfoRequest) {
     const path = req.path;
-    const sharedDirectory = this.getSharedDirectoryOrThrow();
+    const sharedDirectory = this.directoryManager.getSharedDirectory(
+      req.directoryId
+    );
+    if (!sharedDirectory) {
+      return;
+    }
 
     try {
       const info = await sharedDirectory.stat(path);
@@ -660,7 +694,13 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   async handleSharedDirectoryCreateRequest(req: SharedDirectoryCreateRequest) {
-    const sharedDirectory = this.getSharedDirectoryOrThrow();
+    const sharedDirectory = this.directoryManager.getSharedDirectory(
+      req.directoryId
+    );
+    if (!sharedDirectory) {
+      return;
+    }
+
     try {
       await sharedDirectory.create(req.path, req.fileType);
       const info = await sharedDirectory.stat(req.path);
@@ -686,7 +726,12 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   async handleSharedDirectoryDeleteRequest(req: SharedDirectoryDeleteRequest) {
-    const sharedDirectory = this.getSharedDirectoryOrThrow();
+    const sharedDirectory = this.directoryManager.getSharedDirectory(
+      req.directoryId
+    );
+    if (!sharedDirectory) {
+      return;
+    }
 
     try {
       await sharedDirectory.delete(req.path);
@@ -704,8 +749,12 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   async handleSharedDirectoryReadRequest(req: SharedDirectoryReadRequest) {
-    const sharedDirectory = this.getSharedDirectoryOrThrow();
-
+    const sharedDirectory = this.directoryManager.getSharedDirectory(
+      req.directoryId
+    );
+    if (!sharedDirectory) {
+      return;
+    }
     const readData = await sharedDirectory.read(
       req.path,
       req.offset,
@@ -720,7 +769,12 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   async handleSharedDirectoryWriteRequest(req: SharedDirectoryWriteRequest) {
-    const sharedDirectory = this.getSharedDirectoryOrThrow();
+    const sharedDirectory = this.directoryManager.getSharedDirectory(
+      req.directoryId
+    );
+    if (!sharedDirectory) {
+      return;
+    }
 
     const bytesWritten = await sharedDirectory.write(
       req.path,
@@ -750,7 +804,12 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   async handleSharedDirectoryListRequest(req: SharedDirectoryListRequest) {
     const path = req.path;
-    const sharedDirectory = this.getSharedDirectoryOrThrow();
+    const sharedDirectory = this.directoryManager.getSharedDirectory(
+      req.directoryId
+    );
+    if (!sharedDirectory) {
+      return;
+    }
 
     const infoList = await sharedDirectory.readDir(path);
     const fsoList = infoList.map(info => this.toFso(info));
@@ -777,7 +836,12 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
 
-    const sharedDirectory = this.getSharedDirectoryOrThrow();
+    const sharedDirectory = this.directoryManager.getSharedDirectory(
+      req.directoryId
+    );
+    if (!sharedDirectory) {
+      return;
+    }
 
     await sharedDirectory.truncate(req.path, Number(req.endOfFile));
     this.sendSharedDirectoryTruncateResponse({
@@ -840,23 +904,38 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.send(msg);
   }
 
-  async shareDirectory() {
-    if (this.sharedDirectory) {
-      throw new Error('Only one shared directory is allowed at a time.');
-    }
-    this.sharedDirectory = await this.selectSharedDirectory();
-    this.sendSharedDirectoryAnnounce();
+  async shareDirectory(): Promise<[number, string]> {
+    const [id, name] = await this.directoryManager.shareDirectory();
+    this.sendSharedDirectoryAnnounce(id, name);
+    return [id, name];
   }
 
-  sendSharedDirectoryAnnounce() {
-    const name = this.sharedDirectory.getDirectoryName();
+  unshareDirectory(directoryId: number) {
+    this.directoryManager.unshareDirectory(directoryId);
+    this.sendRemoveSharedDirectory(directoryId);
+  }
+
+  listSharedDirectories(): [string, number][] {
+    return this.directoryManager.listSharedDirectories();
+  }
+
+  sendSharedDirectoryAnnounce(directoryId: number, name: string) {
+    //const name = this.sharedDirectory.getDirectoryName();
     this.send(
       this.codec.encodeSharedDirectoryAnnounce({
         discard: 0, // This is always the first request.
         // Hardcode directoryId for now since we only support sharing 1 directory.
         // We're using 2 because the smartcard device is hardcoded to 1 in the backend.
-        directoryId: 2,
+        directoryId: directoryId,
         name,
+      })
+    );
+  }
+
+  sendRemoveSharedDirectory(directoryId: number) {
+    this.send(
+      this.codec.encodeSharedDirectoryRemoveRequest({
+        directoryId,
       })
     );
   }
@@ -917,13 +996,6 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.emit(TdpClientEvent.TDP_INFO, info);
   }
 
-  private getSharedDirectoryOrThrow() {
-    if (!this.sharedDirectory) {
-      throw new Error('No shared directory has been initialized.');
-    }
-    return this.sharedDirectory;
-  }
-
   // It's safe to call this multiple times, calls subsequent to the first call
   // will simply do nothing.
   shutdown() {
@@ -958,5 +1030,113 @@ export class TdpError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'TdpError';
+  }
+}
+
+class SharedDirectoryManager {
+  private device_id: Identifiers;
+  private sharedDirectories: Map<number, SharedDirectoryAccess>;
+
+  constructor(
+    private selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
+    private logger: Logger,
+    private max_directories: number = 10
+  ) {
+    // The teleport RDP client uses deviceId '1' for its emulated smart card device.
+    // Reserve enough device identifiers for double the number of allowed directories.
+    // The identifier assignment algorithm assigns least recently used identifiers first.
+    this.device_id = new Identifiers(
+      2,
+      Math.min(2 + max_directories * 2, 0xffffffff /* max uint32 */)
+    );
+    this.sharedDirectories = new Map<number, SharedDirectoryAccess>();
+  }
+
+  // Clear all shared directories
+  reset() {
+    // call 'unshareDirectory' to ensure that both the directory entry
+    // is deleted and associated identifier is released.
+    this.sharedDirectories.forEach((_, id) => {
+      this.unshareDirectory(id);
+    });
+  }
+
+  getSharedDirectory(directoryId: number): SharedDirectoryAccess | undefined {
+    const directoryAccess = this.sharedDirectories.get(directoryId);
+    if (!directoryAccess) {
+      // The directory may have been recently unshared while the server had
+      // pending I/O requests.
+      this.logger.warn(
+        `Attempted to get an invalid directory id: ${directoryId}`
+      );
+    }
+    return directoryAccess;
+  }
+
+  async shareDirectory(): Promise<[number, string]> {
+    if (this.sharedDirectories.size >= this.max_directories) {
+      throw Error('Maximum allowed shared directories reached');
+    }
+
+    let directory = await this.selectSharedDirectory();
+    const id = this.device_id.acquire();
+    if (id === undefined) {
+      throw Error('Error acquiring identifier for shared directory');
+    }
+
+    this.sharedDirectories.set(id, directory);
+    this.logger.info(
+      `Sharing directory '${directory.getDirectoryName()}' with device_id '${id}'`
+    );
+    return [id, directory.getDirectoryName()];
+  }
+
+  unshareDirectory(directoryId: number): void {
+    const del = this.sharedDirectories.delete(directoryId);
+    const rel = this.device_id.release(directoryId);
+    if (!(del && rel)) {
+      this.logger.warn(
+        `Attempted to unshare invalid directory id: ${directoryId}`
+      );
+    }
+  }
+
+  // returns an array of tuples (directoryName, directoryId) representing
+  // the set of currently shared directories.
+  listSharedDirectories(): [string, number][] {
+    return Array.from(this.sharedDirectories).map(entry => [
+      entry[1].getDirectoryName(),
+      entry[0],
+    ]);
+  }
+}
+
+class Identifiers {
+  private free: Array<number>;
+  private leased: Set<number>;
+
+  constructor(start: number, end: number) {
+    // Initialize the free list of identifiers
+    this.leased = new Set();
+    this.free = Array.from(
+      { length: end - start + 1 },
+      (_, idx) => idx + start
+    );
+  }
+
+  acquire(): number | undefined {
+    const identifier = this.free.shift();
+    if (identifier != undefined) {
+      this.leased.add(identifier);
+    }
+    return identifier;
+  }
+
+  release(id: number): boolean {
+    if (this.leased.delete(id)) {
+      this.free.push(id);
+      return true;
+    }
+    return false;
   }
 }
