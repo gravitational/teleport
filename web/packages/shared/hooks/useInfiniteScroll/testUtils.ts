@@ -17,7 +17,6 @@
  */
 
 import 'whatwg-fetch';
-
 import { Node } from 'teleport/services/nodes';
 
 /**
