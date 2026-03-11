@@ -24,6 +24,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 )
 
 var sshNode = registerFixture("ssh-node", "start and connect a Teleport SSH node, runs in Docker")
@@ -42,6 +44,8 @@ type e2eFlags struct {
 	teleportLogLevel string
 	testFiles        []string
 }
+
+var validTeleportLogLevels = []string{"DEBUG", "INFO", "WARN", "ERROR"}
 
 func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	var f e2eFlags
@@ -82,6 +86,11 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 
 	if f.full {
 		enableAllFixtures()
+	}
+
+	f.teleportLogLevel = strings.ToUpper(f.teleportLogLevel)
+	if !slices.Contains(validTeleportLogLevels, f.teleportLogLevel) {
+		return nil, 0, fmt.Errorf("invalid --teleport-log-level %q, must be one of: %s", f.teleportLogLevel, strings.Join(validTeleportLogLevels, ", "))
 	}
 
 	e2eDir := filepath.Join(repoRoot, "e2e")
