@@ -148,14 +148,25 @@ export class EventsRenderer extends TimelineCanvasRenderer {
         const width = endX - startX;
 
         const styles = getEventStyles(this.theme, event);
+        const isError =
+          event.type === SessionRecordingEventType.Risk && event.isError;
 
-        this.ctx.fillStyle = styles.background;
         this.ctx.beginPath();
-
         this.ctx.roundRect(x, y, width, EVENT_HEIGHT, EVENT_RADIUS);
-        this.ctx.fill();
 
-        this.ctx.fillStyle = styles.text;
+        if (isError) {
+          this.ctx.strokeStyle =
+            this.theme.colors.sessionRecording.riskLevels.critical;
+          this.ctx.lineWidth = 2;
+          this.ctx.stroke();
+        } else {
+          this.ctx.fillStyle = styles.background;
+          this.ctx.fill();
+        }
+
+        this.ctx.fillStyle = isError
+          ? this.theme.colors.sessionRecording.riskLevels.critical
+          : styles.text;
 
         this.ctx.font = `bold 12px ${CANVAS_FONT}`;
 
