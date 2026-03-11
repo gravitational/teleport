@@ -378,6 +378,7 @@ func (r *legacyMetadataResourceAdapter[T]) UnwrapT() T {
 // This is needed for resource types that are not full [Resource153] implementations (their GetMetadata method returns
 // *types.Metadata instead of *headerv1.Metadata) but still need to flow through legacy watch/event paths that require
 // [Resource].
+// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
 func LegacyMetadataToResource[T interface {
 	GetKind() string
 	GetSubKind() string
