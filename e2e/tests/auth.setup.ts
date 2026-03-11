@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { login } from '../helpers/login';
 import { test as setup } from '../helpers/test';
 
-const authFile = join(__dirname, '../.auth/user.json');
+const authFile = join(dirname(fileURLToPath(import.meta.url)), '../.auth/user.json');
 
 setup('authenticate', async ({ page }) => {
   await login(page);
