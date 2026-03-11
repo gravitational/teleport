@@ -44,6 +44,26 @@ func (p *playwrightRunner) startURL() string {
 	return fmt.Sprintf("https://localhost:%d/web", p.config.proxyPort)
 }
 
+// callerRelativePaths returns paths relative to the caller's working directory
+// so that logged paths are cmd+clickable in terminals.
+func (p *playwrightRunner) callerRelativePaths(paths []string) []string {
+	callerDir := os.Getenv("E2E_CALLER_DIR")
+	if callerDir == "" {
+		return paths
+	}
+
+	out := make([]string, len(paths))
+	for i, path := range paths {
+		abs := filepath.Join(p.config.e2eDir, path)
+		if rel, err := filepath.Rel(callerDir, abs); err == nil {
+			out[i] = rel
+		} else {
+			out[i] = path
+		}
+	}
+	return out
+}
+
 func (p *playwrightRunner) run(ctx context.Context, mode runMode) error {
 	switch mode {
 	case modeTest:
@@ -78,7 +98,7 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 	if len(p.config.testFiles) > 0 {
 		args := append([]string{"exec", "playwright", "test"}, extraArgs...)
 		args = append(args, p.config.testFiles...)
-		slog.Info("running e2e tests", "files", p.config.testFiles)
+		slog.Info("running e2e tests", "files", p.callerRelativePaths(p.config.testFiles))
 		return p.pnpm(ctx, args, env)
 	}
 
