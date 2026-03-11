@@ -23,6 +23,7 @@
 // Usage: pnpm exec tsx scripts/open-with-webauthn.ts <codegen|open> <url>
 
 import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { chromium, type BrowserContext } from '@playwright/test';
 
@@ -52,7 +53,7 @@ if (!mode || !startURL) {
   process.exit(1);
 }
 
-const e2eDir = join(dirname(new URL(import.meta.url).pathname), '..');
+const e2eDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 const storageStatePath = join(e2eDir, '.auth/user.json');
 
 info(`launching Chromium ${dim(`(mode: ${mode})`)}`);
