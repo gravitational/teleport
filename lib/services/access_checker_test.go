@@ -26,10 +26,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestAccessCheckerKubeResources(t *testing.T) {
@@ -1226,4 +1229,59 @@ func (m *mockRoleGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
 		roles = append(roles, role)
 	}
 	return roles, nil
+}
+
+func TestWithInternalUsernameTrait(t *testing.T) {
+	t.Run("nil traits", func(t *testing.T) {
+		out := WithInternalUsernameTrait("alice", nil)
+		require.Equal(t, map[string][]string{constants.TraitUsername: {"alice"}}, out)
+	})
+
+	t.Run("adds without mutating original", func(t *testing.T) {
+		traits := map[string][]string{"foo": {"bar"}}
+		out := WithInternalUsernameTrait("alice", traits)
+
+		require.Equal(t, map[string][]string{
+			"foo":                   {"bar"},
+			constants.TraitUsername: {"alice"},
+		}, out)
+		require.NotContains(t, traits, constants.TraitUsername)
+	})
+
+	t.Run("deduplicates when already present", func(t *testing.T) {
+		traits := map[string][]string{
+			constants.TraitUsername: {"alice"},
+			"foo":                   {"bar"},
+		}
+		out := WithInternalUsernameTrait("alice", traits)
+
+		require.Equal(t, traits, out)
+	})
+}
+
+func TestAccessInfoAddsInternalUsernameTrait(t *testing.T) {
+	t.Run("TLS identity", func(t *testing.T) {
+		info, err := AccessInfoFromLocalTLSIdentity(tlsca.Identity{
+			Username: "carol",
+			Groups:   []string{"dev"},
+			Traits: map[string][]string{
+				"foo": {"bar"},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"carol"}, info.Traits[constants.TraitUsername])
+		require.Equal(t, []string{"bar"}, info.Traits["foo"])
+	})
+
+	t.Run("SSH identity", func(t *testing.T) {
+		info := AccessInfoFromLocalSSHIdentity(&sshca.Identity{
+			Username: "dave",
+			Roles:    []string{"admin"},
+			Traits: map[string][]string{
+				"foo": {"bar"},
+			},
+		})
+		require.Equal(t, []string{"dave"}, info.Traits[constants.TraitUsername])
+		require.Equal(t, []string{"bar"}, info.Traits["foo"])
+	})
 }

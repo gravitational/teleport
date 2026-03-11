@@ -336,6 +336,30 @@ type accessChecker struct {
 	RoleSet
 }
 
+// WithInternalUsernameTrait returns a copy of traits that includes the Teleport
+// username under the standard trait key. If the username is already present, the
+// original map is returned unchanged.
+func WithInternalUsernameTrait(username string, traits map[string][]string) map[string][]string {
+	if username == "" {
+		return traits
+	}
+
+	existing := traits[constants.TraitUsername]
+	if slices.Contains(existing, username) {
+		return traits
+	}
+
+	out := traits
+	if out == nil {
+		out = make(map[string][]string, len(traits)+1)
+	} else {
+		out = maps.Clone(out)
+	}
+
+	out[constants.TraitUsername] = apiutils.Deduplicate(append(slices.Clone(existing), username))
+	return out
+}
+
 // NewAccessChecker returns a new AccessChecker which can be used to check
 // access to resources.
 // Args:
@@ -1358,7 +1382,7 @@ func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 		Username:           ident.Username,
 		ScopePin:           ident.ScopePin,
 		Roles:              ident.Roles,
-		Traits:             ident.Traits,
+		Traits:             WithInternalUsernameTrait(ident.Username, ident.Traits),
 		AllowedResourceIDs: ident.AllowedResourceIDs,
 	}
 }
@@ -1412,11 +1436,13 @@ func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity) (*AccessInfo, error
 		return nil, trace.BadParameter("tls identity %q has no roles or scope pin, this may indicate a malformed certificate or one that was issued by an incompatible teleport version", identity.Username)
 	}
 
+	traits := WithInternalUsernameTrait(identity.Username, identity.Traits)
+
 	return &AccessInfo{
 		Username:           identity.Username,
 		ScopePin:           identity.ScopePin,
 		Roles:              identity.Groups,
-		Traits:             identity.Traits,
+		Traits:             traits,
 		AllowedResourceIDs: identity.AllowedResourceIDs,
 	}, nil
 }
@@ -1529,6 +1555,6 @@ func accessInfoFromUserState(user UserAccessState, roles []string, pin *scopesv1
 		Username: user.GetName(),
 		Roles:    roles,
 		ScopePin: pin,
-		Traits:   user.GetTraits(),
+		Traits:   WithInternalUsernameTrait(user.GetName(), user.GetTraits()),
 	}
 }

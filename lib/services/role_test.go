@@ -3724,6 +3724,18 @@ func TestApplyTraits(t *testing.T) {
 				},
 			},
 		},
+		{
+			comment: "internal username interpolates into logins and labels",
+			inTraits: map[string][]string{
+				constants.TraitUsername: {"alice"},
+			},
+			allow: rule{
+				inLogins:  []string{"{{internal.username}}"},
+				outLogins: []string{"alice"},
+				inLabels:  types.Labels{"owner": {"{{internal.username}}"}},
+				outLabels: types.Labels{"owner": {"alice"}},
+			},
+		},
 
 		{
 			comment: "full deny kubernetes resources replace rules",

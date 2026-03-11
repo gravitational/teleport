@@ -3652,6 +3652,8 @@ func generateCert(ctx context.Context, a *Server, req internal.CertRequest, caTy
 		allowedResourceIDs = unscopedChecker.GetAllowedResourceIDs()
 	}
 
+	traits := services.WithInternalUsernameTrait(req.User.GetName(), req.Traits)
+
 	var signedSSHCert []byte
 	if req.SSHPublicKey != nil {
 		sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
@@ -3680,7 +3682,7 @@ func generateCert(ctx context.Context, a *Server, req internal.CertRequest, caTy
 				PermitAgentForwarding:   req.Checker.Common().CanForwardAgents(),
 				PermitX11Forwarding:     req.Checker.Common().PermitX11Forwarding(),
 				RouteToCluster:          req.RouteToCluster,
-				Traits:                  req.Traits,
+				Traits:                  traits,
 				ActiveRequests:          req.ActiveRequests,
 				MFAVerified:             req.MFAVerified,
 				PreviousIdentityExpires: req.PreviousIdentityExpires,
@@ -3795,7 +3797,7 @@ func generateCert(ctx context.Context, a *Server, req internal.CertRequest, caTy
 		Usage:             req.Usage,
 		RouteToCluster:    req.RouteToCluster,
 		KubernetesCluster: req.KubernetesCluster,
-		Traits:            req.Traits,
+		Traits:            traits,
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{

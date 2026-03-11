@@ -383,6 +383,9 @@ const (
 
 // Constants for Traits
 const (
+	// TraitUsername is the name of the variable used to expose the Teleport username.
+	TraitUsername = "username"
+
 	// TraitLogins is the name of the role variable used to store
 	// allowed logins.
 	TraitLogins = "logins"

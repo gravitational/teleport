@@ -645,6 +645,9 @@ const (
 	// logins for local accounts.
 	TraitInternalLoginsVariable = "{{internal.logins}}"
 
+	// TraitInternalUsernameVariable is the variable used to expose the Teleport username for local accounts.
+	TraitInternalUsernameVariable = "{{internal.username}}"
+
 	// TraitInternalWindowsLoginsVariable is the variable used to store
 	// allowed Windows Desktop logins for local accounts.
 	TraitInternalWindowsLoginsVariable = "{{internal.windows_logins}}"
