@@ -1154,13 +1154,9 @@ const (
 	// BeamOwnerLabel is a label used to track which user owns a beam.
 	BeamOwnerLabel = TeleportInternalLabelPrefix + "beam/owner"
 
-	// BeamsEgressLabel is a label used to mark an application as being used for
-	// egress from beams (so that we can target it in roles and app service config).
-	BeamsEgressLabel = TeleportInternalLabelPrefix + "beams/egress"
-
-	// BeamsEgressLabel is a label used to mark an application as being used for
-	// ingress into a published beam.
-	BeamsIngressLabel = TeleportInternalLabelPrefix + "beams/ingress"
+	// BeamsAppTypeLabel is a label used to annotate a beams-owned application
+	// with its purpose (e.g. egress, ingress, llm).
+	BeamsAppTypeLabel = TeleportInternalLabelPrefix + "beams/app-type"
 
 	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
 	// A pratical example of this is to create a correlation between a Node Provision Token and
