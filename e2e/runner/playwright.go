@@ -113,7 +113,8 @@ func (p *playwrightRunner) browse(ctx context.Context) error {
 }
 
 // openAuthenticated runs the setup project to generate auth state, then opens
-// Playwright in the given mode (codegen or open) with the saved session.
+// a Chromium browser with a virtual WebAuthn authenticator pre-loaded so that
+// MFA challenges resolve automatically.
 func (p *playwrightRunner) openAuthenticated(ctx context.Context, playwrightCmd string) error {
 	env, err := p.startEnv(ctx)
 	if err != nil {
@@ -125,12 +126,11 @@ func (p *playwrightRunner) openAuthenticated(ctx context.Context, playwrightCmd 
 		return err
 	}
 
-	slog.Info("opening playwright " + playwrightCmd + " (with auth)")
+	slog.Info("opening playwright " + playwrightCmd + " (with auth and WebAuthn)")
 
 	return p.pnpm(ctx, []string{
-		"exec", "playwright", playwrightCmd,
-		"--load-storage=.auth/user.json",
-		"--ignore-https-errors",
+		"exec", "tsx", "scripts/open-with-webauthn.ts",
+		playwrightCmd,
 		p.startURL(),
 	}, env)
 }
