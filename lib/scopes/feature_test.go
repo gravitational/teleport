@@ -29,5 +29,52 @@ func TestFeatureEnabled(t *testing.T) {
 	require.Error(t, AssertFeatureEnabled())
 	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	require.NoError(t, AssertFeatureEnabled())
+}
 
+func TestMWIFeatureEnabled(t *testing.T) {
+	cases := []struct {
+		name     string
+		envVars  map[string]string
+		expected bool
+	}{
+		{
+			name:     "both flags unset",
+			envVars:  map[string]string{},
+			expected: false,
+		},
+		{
+			name: "mwi flag unset",
+			envVars: map[string]string{
+				"TELEPORT_UNSTABLE_SCOPES": "yes",
+			},
+			expected: false,
+		},
+		{
+			name: "main scopes flag unset",
+			envVars: map[string]string{
+				"TELEPORT_UNSTABLE_SCOPES_MWI": "yes",
+			},
+			expected: false,
+		},
+		{
+			name: "both flags set",
+			envVars: map[string]string{
+				"TELEPORT_UNSTABLE_SCOPES":     "yes",
+				"TELEPORT_UNSTABLE_SCOPES_MWI": "yes",
+			}, expected: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for key, value := range tc.envVars {
+				t.Setenv(key, value)
+			}
+			require.Equal(t, tc.expected, MWIFeatureEnabled())
+			if tc.expected {
+				require.NoError(t, AssertMWIFeatureEnabled())
+			} else {
+				require.Error(t, AssertMWIFeatureEnabled())
+			}
+		})
+	}
 }

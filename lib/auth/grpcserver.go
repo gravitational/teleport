@@ -6133,13 +6133,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	inventorypb.RegisterInventoryServiceServer(server, inventoryService)
 
 	botService, err := machineidv1.NewBotService(machineidv1.BotServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Cache:      cfg.AuthServer.Cache,
-		Backend:    cfg.AuthServer.Services,
-		Reporter:   cfg.AuthServer.Services.UsageReporter,
-		Emitter:    cfg.Emitter,
-		Clock:      cfg.AuthServer.GetClock(),
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "bot.service"),
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Cache:            cfg.AuthServer.Cache,
+		Backend:          cfg.AuthServer.Services,
+		Reporter:         cfg.AuthServer.Services.UsageReporter,
+		Emitter:          cfg.Emitter,
+		Clock:            cfg.AuthServer.GetClock(),
+		Logger:           cfg.AuthServer.logger.With(teleport.ComponentKey, "bot.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating bot service")
