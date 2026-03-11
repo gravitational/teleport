@@ -155,7 +155,6 @@ func TestGetSessions(t *testing.T) {
 	state, err := NewState(config, slog.Default())
 	require.NoError(t, err)
 
-	expected := make([]session, 0, 10)
 	expectedMap := make(map[string]int64, 10)
 	for i := 0; i < 10; i++ {
 		s := session{
@@ -164,7 +163,6 @@ func TestGetSessions(t *testing.T) {
 			UploadTime: time.Now().UTC(),
 		}
 		err := state.SetSessionIndex(s.ID, 0)
-		expected = append(expected, s)
 		expectedMap[s.ID] = 0
 		assert.NoError(t, err)
 	}
