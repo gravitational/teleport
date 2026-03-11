@@ -1,5 +1,9 @@
 # Changelog
 
+## 17.7.21 (03/10/26)
+
+This is a private security release. Changelog will be publicly announced in a later version.
+
 ## 17.7.20 (03/05/06)
 
 * Fix a bug where audit events could be created forever for an expired access request. [#64355](https://github.com/gravitational/teleport/pull/64355)
