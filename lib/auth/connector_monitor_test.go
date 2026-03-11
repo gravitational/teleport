@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -136,44 +137,52 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 			}
 		})
 
-		alerts, err := srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-			AlertID: auth.SAMLCertExpiryAlertID,
-		})
-		require.NoError(t, err)
-		require.Len(t, alerts, 1)
-		require.Equal(t, types.AlertSeverity_MEDIUM, alerts[0].Spec.Severity)
-		require.Equal(t, fmt.Sprintf("%s:%s", types.KindSAML, types.VerbRead), alerts[0].GetAllLabels()[types.AlertVerbPermit])
-		require.Equal(t, "yes", alerts[0].GetAllLabels()[types.AlertOnLogin])
-		require.Contains(t, alerts[0].Spec.Message, initialConnector.GetName())
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			alerts, err := srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+				AlertID: auth.SAMLCertExpiryAlertID,
+			})
+			require.NoError(t, err)
+			require.Len(t, alerts, 1)
+			require.Equal(t, types.AlertSeverity_MEDIUM, alerts[0].Spec.Severity)
+			require.Equal(t, fmt.Sprintf("%s:%s", types.KindSAML, types.VerbRead), alerts[0].GetAllLabels()[types.AlertVerbPermit])
+			require.Equal(t, "yes", alerts[0].GetAllLabels()[types.AlertOnLogin])
+			require.Contains(t, alerts[0].Spec.Message, initialConnector.GetName())
+		}, time.Second, 10*time.Millisecond)
 
 		initialConnector.SetEntityDescriptor(samltest.CreateTestEntityDescriptor(t, []time.Duration{rotatedTTL}))
 
 		rotatedConnector, err := srv.Auth().UpdateSAMLConnector(ctx, initialConnector)
 		require.NoError(t, err)
 
-		alerts, err = srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-			AlertID: auth.SAMLCertExpiryAlertID,
-		})
-		require.NoError(t, err)
-		require.Empty(t, alerts)
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			alerts, err := srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+				AlertID: auth.SAMLCertExpiryAlertID,
+			})
+			require.NoError(t, err)
+			require.Empty(t, alerts)
+		}, time.Second, 10*time.Millisecond)
 
 		rotatedConnector.SetEntityDescriptor(samltest.CreateTestEntityDescriptor(t, []time.Duration{initialTTL}))
 
 		updatedConnector, err := srv.Auth().UpdateSAMLConnector(ctx, rotatedConnector)
 		require.NoError(t, err)
 
-		alerts, err = srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-			AlertID: auth.SAMLCertExpiryAlertID,
-		})
-		require.NoError(t, err)
-		require.Len(t, alerts, 1)
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			alerts, err := srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+				AlertID: auth.SAMLCertExpiryAlertID,
+			})
+			require.NoError(t, err)
+			require.Len(t, alerts, 1)
+		}, time.Second, 10*time.Millisecond)
 
 		require.NoError(t, srv.Auth().DeleteSAMLConnector(ctx, updatedConnector.GetName()))
 
-		alerts, err = srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-			AlertID: auth.SAMLCertExpiryAlertID,
-		})
-		require.NoError(t, err)
-		require.Empty(t, alerts)
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			alerts, err := srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+				AlertID: auth.SAMLCertExpiryAlertID,
+			})
+			require.NoError(t, err)
+			require.Empty(t, alerts)
+		}, time.Second, 10*time.Millisecond)
 	})
 }
