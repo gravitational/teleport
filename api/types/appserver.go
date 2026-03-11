@@ -54,7 +54,8 @@ type AppServer interface {
 	String() string
 	// Copy returns a copy of this app server object.
 	Copy() AppServer
-
+	// IsEqual determines if two servers are equivalent to one another.
+	IsEqual(AppServer) bool
 	// CloneResource returns a copy of the AppServer as a ResourceWithLabels
 	CloneResource() ResourceWithLabels
 	// GetApp returns the app this app server proxies.
@@ -119,6 +120,15 @@ func NewAppServerForAWSOIDCIntegration(integrationName, hostID, publicAddr strin
 			PublicAddr:  publicAddr,
 		}},
 	})
+}
+
+func (s *AppServerV3) IsEqual(other AppServer) bool {
+	otherv3, ok := other.(*AppServerV3)
+	if !ok {
+		return false
+	}
+
+	return deriveTeleportEqualAppServerV3(s, otherv3)
 }
 
 // GetComponentFeatures returns the ComponentFeatures supported by this AppServer.
