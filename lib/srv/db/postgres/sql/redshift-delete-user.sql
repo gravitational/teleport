@@ -1,7 +1,11 @@
-CREATE OR REPLACE PROCEDURE teleport_delete_user(username varchar)
+CREATE OR REPLACE PROCEDURE teleport_delete_user(username varchar, reassignment_user varchar)
 LANGUAGE plpgsql
 AS $$
 BEGIN
+    -- Note: reassignment_user is not used because redshift does not support
+    -- REASSIGN OWNED BY. It is here because redshift and postgres are called
+    -- via the same procedure, so it is required to avoid errors.
+
     -- Only drop if the user doesn't have other active sessions.
     -- Update to pg_stat_activity is delayed for a few hundred ms. Use
     -- stv_sessions instead:
