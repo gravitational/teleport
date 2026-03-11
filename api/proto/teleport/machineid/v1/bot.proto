@@ -38,6 +38,10 @@ message Bot {
   // Fields that are set by the server as results of operations. These should
   // not be modified by users.
   BotStatus status = 6;
+  // The scope of the Bot. If unset, the Bot is unscoped (classic behavior) and
+  // if set, the Bot is scoped. When the Bot is scoped, the `spec.roles` and
+  // `spec.traits` fields must not be set.
+  string scope = 7;
 }
 
 // Trait is an individual trait that will be applied to the bot user.
@@ -52,16 +56,22 @@ message Trait {
 // The configured properties of a Bot.
 message BotSpec {
   // The roles that the bot should be able to impersonate.
+  //
+  // Cannot be set for a scoped Bot.
   repeated string roles = 1;
   // The traits that will be associated with the bot for the purposes of role
   // templating.
   //
   // Where multiple specified with the same name, these will be merged by the
   // server.
+  //
+  // Cannot be set for a scoped Bot.
   repeated Trait traits = 2;
   // The max session TTL value for the bot's internal role. Unless specified,
   // bots may not request a value beyond the default maximum TTL of 12 hours.
   // This value may not be larger than 7 days (168 hours).
+  //
+  // Cannot be set for a scoped Bot.
   google.protobuf.Duration max_session_ttl = 3;
 }
 

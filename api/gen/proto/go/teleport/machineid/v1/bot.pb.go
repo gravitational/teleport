@@ -54,7 +54,11 @@ type Bot struct {
 	Spec *BotSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
 	// Fields that are set by the server as results of operations. These should
 	// not be modified by users.
-	Status        *BotStatus `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
+	Status *BotStatus `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
+	// The scope of the Bot. If unset, the Bot is unscoped (classic behavior) and
+	// if set, the Bot is scoped. When the Bot is scoped, the `spec.roles` and
+	// `spec.traits` fields must not be set.
+	Scope         string `protobuf:"bytes,7,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -131,6 +135,13 @@ func (x *Bot) GetStatus() *BotStatus {
 	return nil
 }
 
+func (x *Bot) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
 // Trait is an individual trait that will be applied to the bot user.
 type Trait struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -191,16 +202,22 @@ func (x *Trait) GetValues() []string {
 type BotSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The roles that the bot should be able to impersonate.
+	//
+	// Cannot be set for a scoped Bot.
 	Roles []string `protobuf:"bytes,1,rep,name=roles,proto3" json:"roles,omitempty"`
 	// The traits that will be associated with the bot for the purposes of role
 	// templating.
 	//
 	// Where multiple specified with the same name, these will be merged by the
 	// server.
+	//
+	// Cannot be set for a scoped Bot.
 	Traits []*Trait `protobuf:"bytes,2,rep,name=traits,proto3" json:"traits,omitempty"`
 	// The max session TTL value for the bot's internal role. Unless specified,
 	// bots may not request a value beyond the default maximum TTL of 12 hours.
 	// This value may not be larger than 7 days (168 hours).
+	//
+	// Cannot be set for a scoped Bot.
 	MaxSessionTtl *durationpb.Duration `protobuf:"bytes,3,opt,name=max_session_ttl,json=maxSessionTtl,proto3" json:"max_session_ttl,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -317,14 +334,15 @@ var File_teleport_machineid_v1_bot_proto protoreflect.FileDescriptor
 
 const file_teleport_machineid_v1_bot_proto_rawDesc = "" +
 	"\n" +
-	"\x1fteleport/machineid/v1/bot.proto\x12\x15teleport.machineid.v1\x1a\x1egoogle/protobuf/duration.proto\x1a!teleport/header/v1/metadata.proto\"\xf6\x01\n" +
+	"\x1fteleport/machineid/v1/bot.proto\x12\x15teleport.machineid.v1\x1a\x1egoogle/protobuf/duration.proto\x1a!teleport/header/v1/metadata.proto\"\x8c\x02\n" +
 	"\x03Bot\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x122\n" +
 	"\x04spec\x18\x05 \x01(\v2\x1e.teleport.machineid.v1.BotSpecR\x04spec\x128\n" +
-	"\x06status\x18\x06 \x01(\v2 .teleport.machineid.v1.BotStatusR\x06status\"3\n" +
+	"\x06status\x18\x06 \x01(\v2 .teleport.machineid.v1.BotStatusR\x06status\x12\x14\n" +
+	"\x05scope\x18\a \x01(\tR\x05scope\"3\n" +
 	"\x05Trait\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06values\x18\x02 \x03(\tR\x06values\"\x98\x01\n" +
