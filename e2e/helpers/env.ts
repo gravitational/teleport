@@ -1,4 +1,4 @@
-/*
+/**
  * Teleport
  * Copyright (C) 2026  Gravitational, Inc.
  *
@@ -16,16 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+// This file provides helper functions to read required environment variables for the E2E tests.
 
-import { login } from '../helpers/login';
-import { test as setup } from '../helpers/test';
+function required(name: string) {
+  const value = process.env[name];
 
-const authFile = join(dirname(fileURLToPath(import.meta.url)), '../.auth/user.json');
+  if (!value) {
+    throw new Error(`required environment variable ${name} is not set`);
+  }
 
-setup('authenticate', async ({ page }) => {
-  await login(page);
+  return value;
+}
 
-  await page.context().storageState({ path: authFile });
-});
+export const password = required('E2E_PASSWORD');
+export const webauthnPrivateKey = required('E2E_WEBAUTHN_PRIVATE_KEY');
+export const webauthnCredentialId = required('E2E_WEBAUTHN_CREDENTIAL_ID');
+export const inviteUrl = required('E2E_INVITE_URL');

@@ -18,12 +18,13 @@
 
 import type { Page } from '@playwright/test';
 
+import { inviteUrl } from './env';
 import { mockWebAuthn } from './webauthn';
 
 export async function signup(page: Page) {
   await mockWebAuthn(page);
 
-  await page.goto(process.env.E2E_INVITE_URL);
+  await page.goto(inviteUrl);
 
   await page.getByRole('button', { name: 'Get started' }).click();
   await page.getByRole('textbox', { name: 'Password', exact: true }).click();

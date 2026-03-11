@@ -18,13 +18,14 @@
 
 import { type Page } from '@playwright/test';
 
+import { password as e2ePassword } from './env';
 import { expect } from './test';
 import { mockWebAuthn } from './webauthn';
 
 export async function login(
   page: Page,
   username = 'bob',
-  password = process.env.E2E_PASSWORD
+  password = e2ePassword
 ) {
   await page.addInitScript(() =>
     localStorage.setItem('grv_teleport_license_acknowledged', 'true')
