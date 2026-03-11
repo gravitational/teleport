@@ -43,6 +43,8 @@ import { ClusterResources } from 'teleport/UnifiedResources/UnifiedResources';
 import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
+import { SessionSummariesUnifiedResourcesCta } from './SessionSummariesUnifiedResourcesCta';
+
 export function UnifiedResourcesE() {
   const ctx = useTeleportE();
   const { clusterId, isLeafCluster } = useStickyClusterId();
@@ -276,6 +278,8 @@ export function UnifiedResourcesE() {
           }}
         />
       </Flex>
+
+      <SessionSummariesUnifiedResourcesCta />
     </FeatureBox>
   );
 }
