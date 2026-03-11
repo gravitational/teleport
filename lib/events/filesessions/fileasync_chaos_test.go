@@ -1,6 +1,3 @@
-//go:build !race
-// +build !race
-
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -42,17 +39,8 @@ import (
 
 // TestChaosUpload introduces failures in all stages of the async
 // upload process and verifies that the system is working correctly.
-//
-// Data race detector slows down the test significantly (10x+),
-// that is why the test is skipped when tests are running with
-// `go test -race` flag or `go test -short` flag
 func TestChaosUpload(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping chaos test in short mode.")
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	eventsC := make(chan events.UploadEvent, 100)
 	memUploader := eventstest.NewMemoryUploader(eventsC)
@@ -114,7 +102,7 @@ func TestChaosUpload(t *testing.T) {
 	uploader, err := NewUploader(UploaderConfig{
 		ScanDir:      scanDir,
 		CorruptedDir: corruptedDir,
-		ScanPeriod:   3 * time.Second,
+		ScanPeriod:   100 * time.Millisecond,
 		Streamer:     faultyStreamer,
 		Clock:        clockwork.NewRealClock(),
 	})
