@@ -758,7 +758,8 @@ func (process *TeleportProcess) initBoundKeypairClientState() (boundkeypair.Clie
 		process.logger.ErrorContext(
 			process.ExitContext(),
 			"Could not complete bound keypair joining: no local credentials "+
-				"are available and no registration secret was configured",
+				"could be loaded and no registration secret was configured",
+			"error", err,
 		)
 		return nil, trace.Wrap(err, "loading bound keypair client state")
 	}

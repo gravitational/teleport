@@ -485,7 +485,7 @@ type BoundKeypairParams struct {
 
 	// StaticPrivateKeyPath is a path to a file on the local disk containing a
 	// static keypair to be used for bound keypair joining. Static keys are
-	// immmutable and are not managed automatically. They must be preregistered,
+	// immutable and are not managed automatically. They must be preregistered,
 	// do not support automatic keypair rotation, and must be used with a token
 	// set to use `insecure` recovery mode.
 	StaticPrivateKeyPath string
@@ -521,7 +521,7 @@ func (b *BoundKeypairParams) RegistrationSecret() (string, error) {
 // StaticPrivateKeyBytes returns the configured static private key if one has
 // been configured. If not nil, this value should be used to initialize a
 // bound keypair `StaticClientState` instead of the process-stored state. Static
-// keys do not support automatic rotation or join state verification. 
+// keys do not support automatic rotation or join state verification.
 func (b *BoundKeypairParams) StaticPrivateKeyBytes() ([]byte, error) {
 	if b.StaticPrivateKeyPath != "" {
 		bytes, err := os.ReadFile(b.StaticPrivateKeyPath)

@@ -508,11 +508,11 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 
 // JoinParams configures the parameters for Simplified Node Joining.
 type JoinParams struct {
-	TokenName   string           `yaml:"token_name"`
-	TokenSecret string           `yaml:"token_secret,omitempty"`
-	Method      types.JoinMethod `yaml:"method"`
-	Azure       AzureJoinParams  `yaml:"azure,omitempty"`
-	BoundKeypair BoundKeypairParams `yaml:"bound_keypair"`
+	TokenName    string             `yaml:"token_name"`
+	TokenSecret  string             `yaml:"token_secret,omitempty"`
+	Method       types.JoinMethod   `yaml:"method"`
+	Azure        AzureJoinParams    `yaml:"azure,omitempty"`
+	BoundKeypair BoundKeypairParams `yaml:"bound_keypair,omitempty"`
 }
 
 // AzureJoinParams configures the parameters specific to the Azure join method.
@@ -533,7 +533,7 @@ type BoundKeypairParams struct {
 
 	// StaticPrivateKeyPath is a path to a file on the local disk containing a
 	// static keypair to be used for bound keypair joining. Static keys are
-	// immmutable and are not managed automatically. They must be preregistered,
+	// immutable and are not managed automatically. They must be preregistered,
 	// do not support automatic keypair rotation, and must be used with a token
 	// set to use `insecure` recovery mode.
 	StaticPrivateKeyPath string `yaml:"static_key_path"`
