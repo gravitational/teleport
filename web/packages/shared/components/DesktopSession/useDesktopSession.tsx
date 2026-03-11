@@ -29,7 +29,7 @@ import {
 import { Logger } from 'design/logger';
 import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 import { Attempt } from 'shared/hooks/useAsync';
-import { ClipboardData, TdpClient } from 'shared/libs/tdp';
+import { ClientScreenSpec, ClipboardData, TdpClient } from 'shared/libs/tdp';
 import { isAbortError } from 'shared/utils/error';
 
 declare global {
@@ -42,6 +42,10 @@ const supportsClipboardChangeEvent =
   navigator.clipboard && 'onclipboardchange' in navigator.clipboard;
 
 const logger = new Logger('DesktopSession');
+export type DirectoryEntry = {
+  name: string;
+  id: number;
+};
 
 export default function useDesktopSession(
   tdpClient: TdpClient,
@@ -54,14 +58,15 @@ export default function useDesktopSession(
   const encoder = useRef(new TextEncoder());
   const latestClipboardDigest = useRef('');
   const triggeredClipboardPermissionsCheck = useRef(false);
-  const [directorySharingState, setDirectorySharingState] = useState<{
-    directorySelected: boolean;
-  }>({ directorySelected: false });
 
   const [clipboardSharingState, setClipboardSharingState] = useState<{
     readState?: PermissionState;
     writeState?: PermissionState;
   }>({});
+
+  const [sharedDirectoriesState, setSharedDirectoriesState] = useState<
+    DirectoryEntry[]
+  >([]);
 
   const clipboardSharing: ClipboardSharingState = {
     ...clipboardSharingState,
@@ -71,7 +76,6 @@ export default function useDesktopSession(
       aclAttempt.data.clipboardSharingEnabled,
   };
   const directorySharing: DirectorySharingState = {
-    ...directorySharingState,
     browserSupported: browserSupportsSharing,
     allowedByAcl:
       aclAttempt.status === 'success' &&
@@ -177,19 +181,32 @@ export default function useDesktopSession(
     );
   }
 
-  const onShareDirectory = useCallback(async () => {
+  const connect = (
+    options: {
+      keyboardLayout?: number;
+      screenSpec?: ClientScreenSpec;
+    } = {}
+  ) => {
+    // The client clears any tracked shared directories on each connect.
+    setSharedDirectoriesState([]);
+    return tdpClient.connect(options);
+  };
+
+  const addSharedDirectory = useCallback(async () => {
     try {
       await tdpClient.shareDirectory();
-      setDirectorySharingState({
-        directorySelected: true,
-      });
+      setSharedDirectoriesState(
+        tdpClient.listSharedDirectories().map(entry => {
+          return {
+            name: entry[0],
+            id: entry[1],
+          };
+        })
+      );
     } catch (e) {
       if (isAbortError(e)) {
         return;
       }
-      setDirectorySharingState({
-        directorySelected: false,
-      });
       addAlert({
         severity: 'warn',
         content: {
@@ -200,23 +217,37 @@ export default function useDesktopSession(
     }
   }, [tdpClient, addAlert]);
 
-  /** Clears sharing state. */
-  const clearSharing = useCallback(() => {
-    setDirectorySharingState({
-      directorySelected: false,
-    });
-  }, []);
+  const removeSharedDirectory = async (directoryId: number) => {
+    try {
+      tdpClient.unshareDirectory(directoryId);
+      setSharedDirectoriesState(
+        tdpClient.listSharedDirectories().map(entry => {
+          return {
+            name: entry[0],
+            id: entry[1],
+          };
+        })
+      );
+    } catch (e) {
+      if (isAbortError(e)) {
+        return;
+      }
+    }
+  };
 
   return {
-    clipboardSharingState: clipboardSharing,
     directorySharingState: directorySharing,
-    clearSharing,
-    onShareDirectory,
+    onClipboardData,
+    sendLocalClipboardToRemote,
+    clipboardSharingState: clipboardSharing,
+    sharedDirectoriesState,
+    addSharedDirectory,
+    removeSharedDirectory,
     alerts,
     onRemoveAlert,
     addAlert,
     onTransientUserActivation,
-    onClipboardData,
+    connect,
   };
 }
 
@@ -236,12 +267,7 @@ type CommonFeatureState = {
 /**
  * The state of the directory sharing feature.
  */
-export type DirectorySharingState = CommonFeatureState & {
-  /**
-   * Whether the user is currently sharing a directory.
-   */
-  directorySelected: boolean;
-};
+export type DirectorySharingState = CommonFeatureState;
 
 /**
  * The state of the clipboard sharing feature.
@@ -362,16 +388,18 @@ export function directorySharingPossible(
 }
 
 /**
- * Returns whether directory sharing is active.
+ * Provides a user-friendly message indicating whether directory sharing is enabled,
+ * and the reason it is disabled.
  */
-export function isSharingDirectory(
-  directorySharingState: DirectorySharingState
-): boolean {
-  return (
-    directorySharingState.allowedByAcl &&
-    directorySharingState.browserSupported &&
-    directorySharingState.directorySelected
-  );
+export function directorySharingMessage(state: DirectorySharingState): string {
+  if (!state.allowedByAcl) {
+    return 'Directory Sharing disabled by Teleport RBAC.';
+  }
+  if (!state.browserSupported) {
+    return 'Directory Sharing is not supported in this browser.';
+  }
+
+  return 'Share local directories with this Windows desktop.';
 }
 
 /**
