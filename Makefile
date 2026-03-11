@@ -2104,3 +2104,11 @@ ifndef BENCH_FILES
 	$(error "Please provide BENCH_FILES=<file1> <file2> ...")
 endif
 	@$(BENCHSTAT) $(BENCH_FILES) | tee test-logs/benchstat.txt
+
+# ensure-changelog-entry will check that the VERSION is present as a changelog entry
+.PHONY: ensure-changelog-entry
+ensure-changelog-entry:
+	@if ! grep -q "$(VERSION)" CHANGELOG.md; then \
+		echo Missing changelog entry for $(VERSION); \
+		exit 1; \
+	fi
