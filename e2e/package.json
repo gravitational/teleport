@@ -1,10 +1,10 @@
 {
-  "name": "playwright-e2e-testing",
+  "name": "@gravitational/e2e",
   "version": "1.0.0",
   "description": "Playwright tests for e2e testing.",
   "scripts": {
-    "test": "playwright test --project=chromium",
-    "report": "playwright show-report"
+    "test": "./run.sh",
+    "show-report": "playwright show-report --port 0"
   },
   "license": "Apache-2.0",
   "devDependencies": {
