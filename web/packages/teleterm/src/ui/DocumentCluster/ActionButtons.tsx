@@ -280,7 +280,13 @@ function getDatabaseMenuLoginOptions(
 
   const isSearchable = databaseUsers.length > 0 && !wildcardUserAllowed;
 
-  const placeholder = isSearchable ? 'Search by username' : 'Enter username';
+  let placeholder = 'Enter username';
+  if (isSearchable) {
+    placeholder = 'Search by username';
+  } else if (databaseUsers.length === 0 && !wildcardUserAllowed) {
+    placeholder = 'No db username available';
+  }
+
   return { placeholder, required: true };
 }
 

@@ -223,6 +223,7 @@ export function mapToAction(
         gcpProjectId,
         autoUserProvisioning,
         databaseUsers,
+        wildcardUserAllowed,
       } = result.resource;
 
       if (autoUserProvisioning) {
@@ -254,7 +255,10 @@ export function mapToAction(
               value: dbUser,
               displayText: dbUser,
             })),
-          placeholder: 'Provide db username',
+          placeholder:
+            databaseUsers.length === 0 && !wildcardUserAllowed
+              ? 'No db username available'
+              : 'Provide db username',
         },
         perform: dbUser =>
           connectToDatabase(

@@ -225,7 +225,7 @@ it('displays a user dropdown for databases without auto-user provisioning', asyn
   const database = makeDatabase({
     name: 'regular-db',
     protocol: 'postgres',
-    wildcardUserAllowed: false,
+    wildcardUserAllowed: true,
   });
 
   const responseWithDatabase = {
