@@ -70,7 +70,8 @@ func runInDir(ctx context.Context, dir, name string, args ...string) error {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			return fmt.Errorf("command exited with code %d: %w", exitErr.ExitCode(), err)
 		}
 

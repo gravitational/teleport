@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/e2e/runner
 
-go 1.26
+go 1.25.8
 
 require (
 	github.com/docker/go-sdk/container v0.1.0-alpha013
