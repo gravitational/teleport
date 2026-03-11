@@ -31,6 +31,7 @@ import (
 
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
@@ -77,7 +78,7 @@ func onBeamsAdd(cf *CLIConf) error {
 		return nil
 	}
 
-	if err = connectToNodeSSH(cf, tc, beamNode, nil); err != nil {
+	if err = connectToBeamSSHWithRetry(cf, tc, beamNode, nil); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -94,7 +95,7 @@ func onBeamsConsole(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(connectToNodeSSH(cf, tc, nodeID, nil))
+	return trace.Wrap(connectToBeamSSHWithRetry(cf, tc, nodeID, nil))
 }
 
 func onBeamsExec(cf *CLIConf) error {
@@ -108,7 +109,7 @@ func onBeamsExec(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(connectToNodeSSH(cf, tc, nodeID, cf.RemoteCommand))
+	return trace.Wrap(connectToBeamSSHWithRetry(cf, tc, nodeID, cf.RemoteCommand))
 }
 
 func onBeamsList(cf *CLIConf) error {
@@ -319,7 +320,7 @@ func copyBeamFile(cf *CLIConf, tc *client.TeleportClient, sources []string, dest
 	}))
 }
 
-func connectToNodeSSH(cf *CLIConf, tc *client.TeleportClient, nodeID string, remoteCommand []string) error {
+func connectToBeamSSH(cf *CLIConf, tc *client.TeleportClient, nodeID string, remoteCommand []string) error {
 	tc.HostLogin = "beams"
 	if cf.NodeLogin != "" {
 		tc.HostLogin = cf.NodeLogin
@@ -334,6 +335,38 @@ func connectToNodeSSH(cf *CLIConf, tc *client.TeleportClient, nodeID string, rem
 		return trace.Wrap(sshFunc())
 	}
 	return trace.Wrap(client.RetryWithRelogin(cf.Context, tc, sshFunc))
+}
+
+func connectToBeamSSHWithRetry(cf *CLIConf, tc *client.TeleportClient, nodeID string, remoteCommand []string) error {
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
+		First:  100 * time.Millisecond,
+		Step:   100 * time.Millisecond,
+		Max:    time.Second,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var lastErr error
+	for range 10 {
+		lastErr = connectToBeamSSH(cf, tc, nodeID, remoteCommand)
+		if lastErr == nil {
+			return nil
+		}
+		if !trace.IsNotFound(lastErr) {
+			return trace.Wrap(lastErr)
+		}
+
+		select {
+		case <-cf.Context.Done():
+			return trace.Wrap(cf.Context.Err())
+		case <-retry.After():
+			retry.Inc()
+		}
+	}
+
+	return trace.Wrap(lastErr)
 }
 
 func renderBeamsTable(beams []*beamsv1.Beam, proxyHost string) string {
