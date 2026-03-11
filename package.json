@@ -18,7 +18,7 @@
     "test-coverage": "jest --coverage && web/scripts/print-coverage-link.sh",
     "test-update-snapshot": "pnpm run test --updateSnapshot",
     "tdd": "jest --watch",
-    "oxlint": "oxlint --quiet --report-unused-disable-directives-severity error web/ e/",
+    "oxlint": "oxlint --quiet --report-unused-disable-directives-severity error web/ e/ e2e/",
     "lint": "pnpm oxlint && pnpm format-check",
     "lint-fix": "pnpm oxlint --fix && pnpm format-write",
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --build",
