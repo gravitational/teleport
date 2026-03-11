@@ -815,8 +815,6 @@ func (process *TeleportProcess) makeJoinParams(
 			return nil, trace.Wrap(err, "initializing bound keypair client state")
 		}
 
-		// TODO: this was accidental but I think is actually the correct way to
-		// do this, and we should refactor joinParams to make this real.
 		joinParams.BoundKeypairState = boundKeypairState
 	}
 	return joinParams, nil
