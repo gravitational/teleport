@@ -320,7 +320,7 @@ func copyBeamFile(cf *CLIConf, tc *client.TeleportClient, sources []string, dest
 }
 
 func connectToNodeSSH(cf *CLIConf, tc *client.TeleportClient, nodeID string, remoteCommand []string) error {
-	tc.HostLogin = "root"
+	tc.HostLogin = "beams"
 	if cf.NodeLogin != "" {
 		tc.HostLogin = cf.NodeLogin
 	}
