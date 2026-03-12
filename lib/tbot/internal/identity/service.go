@@ -563,7 +563,7 @@ func renewIdentity(
 	// To allow users to manually compensate for clock drift if e.g. using very
 	// tight renewal/TTL values, we expose a configurable leeway to trigger
 	// modestly early renewal.
-	now := time.Now().Add(cfg.Leeway)
+	now := time.Now().Add(leeway)
 	if expiry, ok := facade.Expiry(); !ok || now.After(expiry) {
 		slog.WarnContext(
 			ctx,
