@@ -89,7 +89,7 @@ func (m *SAMLCertExpiryMonitor) Run(ctx context.Context) error {
 	}
 
 	if err := m.reconcileAlert(ctx); err != nil {
-		m.logger.ErrorContext(ctx, "Failed initial SAML cert expiry check", "error", err)
+		m.logger.ErrorContext(ctx, "Failed initial reconciliation of SAML cert expiry alert", "error", err)
 	}
 
 	ticker := time.NewTicker(samlCertCheckCycle)
@@ -126,15 +126,15 @@ func (m *SAMLCertExpiryMonitor) runWatchLoop(ctx context.Context, ticker *time.T
 				continue
 			}
 			if err := m.reconcileAlert(ctx); err != nil {
-				m.logger.ErrorContext(ctx, "Failed to check SAML cert expiry", "error", err)
+				m.logger.ErrorContext(ctx, "Failed to reconcile SAML cert expiry alert", "error", err)
 			}
 		case <-ticker.C:
 			if err := m.reconcileAlert(ctx); err != nil {
-				m.logger.ErrorContext(ctx, "Failed to check SAML cert expiry", "error", err)
+				m.logger.ErrorContext(ctx, "Failed to reconcile SAML cert expiry alert", "error", err)
 			}
 		case <-watch.Done():
 			if err := watch.Error(); err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 			return nil
 		case <-ctx.Done():
@@ -153,9 +153,12 @@ func (m *SAMLCertExpiryMonitor) reconcileAlert(ctx context.Context) error {
 
 	var expiringConnectors []string
 	for _, connector := range connectors {
-		if expiring, err := services.CheckSAMLCertExpiry(connector, samlCertExpiryTimeframe); err != nil {
-			m.logger.WarnContext(ctx, "Failed to check SAML connector cert expiry", "connector", connector.GetName(), "error", err)
-		} else if expiring {
+		expiring, err := services.CheckSAMLCertExpiry(connector, samlCertExpiryTimeframe)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if expiring {
 			expiringConnectors = append(expiringConnectors, connector.GetName())
 		}
 	}
