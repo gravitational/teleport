@@ -387,9 +387,9 @@ func (w *eventWriter) writeBatch(ctx context.Context, start, end int, payload st
 
 func (w *eventWriter) writeWithRetry(ctx context.Context, item backend.Item) error {
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		First:  1 * time.Second,
-		Driver: retryutils.NewExponentialDriver(2 * time.Second),
-		Max:    60 * time.Second,
+		First:  10 * time.Millisecond,
+		Driver: retryutils.NewExponentialDriver(20 * time.Millisecond),
+		Max:    2 * time.Second,
 		Jitter: retryutils.HalfJitter,
 	})
 	if err != nil {
