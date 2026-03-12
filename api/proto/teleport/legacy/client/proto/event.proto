@@ -243,5 +243,7 @@ message Event {
     teleport.linuxdesktop.v1.LinuxDesktop LinuxDesktop = 87;
     // WorkloadCluster is a resource for defining workload clusters.
     teleport.workloadcluster.v1.WorkloadCluster WorkloadCluster = 88;
+    // SAMLConnector is a resource for defining SAML connectors.
+    types.SAMLConnectorV2 SAMLConnector = 89;
   }
 }
