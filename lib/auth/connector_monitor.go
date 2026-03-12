@@ -164,19 +164,14 @@ func (m *SAMLCertExpiryMonitor) runWatchLoop(ctx context.Context, ticker *time.T
 // reconcileAlert checks all SAML connectors for any that have certs expiring or expired
 // and creates or updates an alert. If none are expiring, then any existing alert is deleted.
 func (m *SAMLCertExpiryMonitor) reconcileAlert(ctx context.Context) error {
-	connectors, err := m.connectors.GetSAMLConnectors(ctx, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	var expiringConnectors []string
-	for _, connector := range connectors {
-		expiring, err := services.CheckSAMLCertExpiry(connector, samlCertExpiryTimeframe)
+	for connector, err := range m.connectors.RangeSAMLConnectorsWithOptions(ctx, "", "", false, types.SAMLConnectorValidationFollowURLs(false)) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		if expiring {
+		if expiring, err := services.CheckSAMLCertExpiry(connector, samlCertExpiryTimeframe); err != nil {
+			return trace.Wrap(err)
+		} else if expiring {
 			expiringConnectors = append(expiringConnectors, connector.GetName())
 		}
 	}
