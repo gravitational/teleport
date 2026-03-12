@@ -71,15 +71,16 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
     ? path.join(envDataDir, 'sessionData')
     : app.getPath('sessionData');
   const tempDataDir = app.getPath('temp');
-  const {
-    tsh: tshAddress,
-    shared: sharedAddress,
-    tshdEvents: tshdEventsAddress,
-  } = await requestGrpcServerAddresses();
+  const [grpcAddresses, kubeConfigsDir, certsDir, availableShells] =
+    await Promise.all([
+      requestGrpcServerAddresses(),
+      getKubeConfigsDir(userDataDir),
+      getCertsDir(userDataDir),
+      getAvailableShells(),
+    ]);
   const { binDir, tshBinPath } = getBinaryPaths();
   const { username } = os.userInfo();
   const hostname = os.hostname();
-  const kubeConfigsDir = await getKubeConfigsDir(userDataDir);
   // TODO(ravicious): Replace with app.getPath('logs'). We started storing logs under a custom path.
   // Before switching to the recommended path, we need to investigate the impact of this change.
   // https://www.electronjs.org/docs/latest/api/app#appgetpathname
@@ -91,13 +92,13 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
   const tshd = {
     binaryPath: tshBinPath,
     defaultHomeDir: path.resolve(homeDir, '.tsh'),
-    requestedNetworkAddress: tshAddress,
+    requestedNetworkAddress: grpcAddresses.tsh,
   };
   const sharedProcess = {
-    requestedNetworkAddress: sharedAddress,
+    requestedNetworkAddress: grpcAddresses.shared,
   };
   const tshdEvents = {
-    requestedNetworkAddress: tshdEventsAddress,
+    requestedNetworkAddress: grpcAddresses.tshdEvents,
   };
 
   // To start the app in dev mode, we run `electron path_to_main.js`. It means
@@ -108,7 +109,6 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
   //
   // A workaround is to read the version from `process.env.npm_package_version`.
   const appVersion = dev ? process.env.npm_package_version : app.getVersion();
-  const availableShells = await getAvailableShells();
 
   return {
     dev,
@@ -123,7 +123,7 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
     tempDataDir,
     binDir,
     agentBinaryPath: path.resolve(sessionDataDir, 'teleport', 'teleport'),
-    certsDir: await getCertsDir(userDataDir),
+    certsDir,
     availableShells,
     defaultOsShellId: getDefaultShell(availableShells),
     kubeConfigsDir,
