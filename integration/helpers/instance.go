@@ -2021,7 +2021,7 @@ func (i *TeleInstance) WaitForNodeCount(ctx context.Context, clusterName string,
 				},
 			})
 			if err != nil {
-				return trace.BadParameter("node tunnel preflight dial failed")
+				return trace.Wrap(err, "node tunnel preflight dial failed")
 			}
 			conn.Close()
 		}

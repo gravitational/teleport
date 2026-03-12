@@ -9409,12 +9409,7 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		require.NoError(t, lis.Close())
 	})
 
-	go func() {
-		nConn, err := lis.Accept()
-		if utils.IsOKNetworkError(err) {
-			return
-		}
-		assert.NoError(t, err)
+	handleConn := func(nConn net.Conn) {
 		t.Cleanup(func() {
 			if nConn != nil {
 				// the error is ignored here to avoid failing on net.ErrClosed
@@ -9423,7 +9418,15 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		})
 
 		conn, channels, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
-		assert.NoError(t, err)
+		if err != nil {
+			// If the connection does not perform an SSH handshake, then this is just
+			// a readiness probe (raw TCP Dial) from the test.
+			if utils.IsOKNetworkError(err) {
+				return
+			}
+			assert.NoError(t, err)
+			return
+		}
 		t.Cleanup(func() {
 			if conn != nil {
 				// the error is ignored here to avoid failing on net.ErrClosed
@@ -9506,6 +9509,19 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 				}
 				assert.True(t, (agentForwarded && shellRequested) || execRequested || sftpRequested)
 			}()
+		}
+	}
+
+	go func() {
+		for {
+			nConn, err := lis.Accept()
+			if utils.IsOKNetworkError(err) || errors.Is(err, net.ErrClosed) {
+				return
+			}
+			if !assert.NoError(t, err) {
+				return
+			}
+			handleConn(nConn)
 		}
 	}()
 
