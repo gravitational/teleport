@@ -456,6 +456,7 @@ tctl-app:
 .PHONEY: test-bpf
 test-bpf:
 	mkdir -p _test
+	gcc ./lib/srv/testdata/bpf_rodata_args.c -o _test/bpf_rodata_args
 	go test -c -tags bpf,pam -o _test/libsrv.test ./lib/srv
 
 	# ignore non bpf-related tests

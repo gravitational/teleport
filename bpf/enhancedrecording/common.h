@@ -11,9 +11,11 @@
 // Maximum monitored sessions.
 #define MAX_MONITORED_SESSIONS 1024
 
-// ARGSIZE specifies the max argument size read.
-#define ARGSIZE 1024
+#define FILENAMESIZE 512
+
+#define MAXARGLEN 1024
 #define MAXARGS 20
+#define ARGBUFSIZE (MAXARGLEN * MAXARGS)
 
 // Easier to use bpf_printk taken from https://nakryiko.com/posts/bpf-tips-printk/
 
@@ -49,31 +51,47 @@ static void print_event(struct task_struct *task) {
     bpf_printk("  session ID: %lu", session_id);
 }
 
-static void print_command_event(struct task_struct *task, const char *filename, const char *const *argv) {
+// MAXARGLEN is too large to fit in the eBPF stack
+#define PRINT_MAX_ARG_LEN 256
+
+static void print_command_event(struct task_struct *task, const u8 filename[FILENAMESIZE], const u8 argv[ARGBUFSIZE], int return_code) {
     const char *arg = NULL;
-    
+
     bpf_printk("command:");
     print_event(task);
     bpf_printk("  filename:   %s", filename);
-    for (int i = 1; i < MAXARGS; i++) {
-        bpf_probe_read_user_str(&arg, MAXARGS, (void*)&argv[i]);
-        if (arg == NULL){
+
+    u32 offset = 0;
+    u8 argp[PRINT_MAX_ARG_LEN] = {0};
+    for (int i = 0; i < MAXARGS; i++) {
+        if (offset >= ARGBUFSIZE - PRINT_MAX_ARG_LEN) {
             break;
         }
-        bpf_printk("  argv[%d]:    %s", i, arg);
+
+        long ret = bpf_probe_read_kernel_str(&argp, PRINT_MAX_ARG_LEN, &argv[offset]);
+        if (ret <= 0 || argp[0] == 0) {
+            break;
+        }
+
+        bpf_printk("  argv[%d]:    %s", i, argp);
+
+        offset += ret;
     }
+
+    bpf_printk("  retcode:    %d", return_code);
 }
 
-static void print_disk_event(struct task_struct *task, const char *path) {
+static void print_disk_event(struct task_struct *task, const char *path, int return_code) {
     bpf_printk("disk:");
     print_event(task);
     bpf_printk("  path:       %s", path);
+    bpf_printk("  retcode:    %d", return_code);
 }
 #else
 #define bpf_printk(fmt, ...)
 static void print_event(struct task_struct *task) {}
-static void print_command_event(struct task_struct *task, const char *filename, const char *const *argv) {}
-static void print_disk_event(struct task_struct *task, const char *path) {}
+static void print_command_event(struct task_struct *task, const u8 filename[FILENAMESIZE], const u8 argv[ARGBUFSIZE], int return_code) {}
+static void print_disk_event(struct task_struct *task, const char *path, int return_code) {}
 #endif
 
 #endif // BPF_COMMON_H
