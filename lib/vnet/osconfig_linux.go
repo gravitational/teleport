@@ -18,8 +18,10 @@ package vnet
 
 import (
 	"context"
+	"errors"
 	"net"
 	"slices"
+	"strings"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/gravitational/trace"
@@ -109,6 +111,7 @@ func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigSta
 	if len(cfg.dnsAddrs) > 0 && cfg.tunName == "" {
 		return trace.BadParameter("empty TUN interface name with non-empty nameserver")
 	}
+	deconfigure := len(cfg.dnsAddrs) == 0 && len(cfg.dnsZones) == 0
 
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
@@ -122,6 +125,12 @@ func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigSta
 	if shouldReconfigureDNSZones(cfg, state) {
 		iface, err := net.InterfaceByName(state.tunName)
 		if err != nil {
+			if deconfigure && isNoSuchNetworkInterfaceError(err) {
+				// During shutdown the TUN can disappear before deconfigure runs.
+				// In that case there is no link left to clear.
+				log.DebugContext(ctx, "Skipping DNS deconfiguration because TUN interface is unavailable.", "device", state.tunName)
+				return nil
+			}
 			return trace.Wrap(err, "looking up interface %s", state.tunName)
 		}
 		log.InfoContext(ctx, "Configuring DNS zones", "zones", cfg.dnsZones)
@@ -166,4 +175,12 @@ func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigSta
 	}
 
 	return nil
+}
+
+func isNoSuchNetworkInterfaceError(err error) bool {
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return strings.Contains(opErr.Err.Error(), "no such network interface")
+	}
+	return false
 }
