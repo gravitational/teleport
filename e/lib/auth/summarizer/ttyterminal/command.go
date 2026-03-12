@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hinshun/vt10x"
 
+	tokenizerpkg "github.com/gravitational/teleport/e/lib/auth/summarizer/tokenizer"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
@@ -374,7 +375,7 @@ func (c *commandRecreator) generateTerminalSnapshot(timestamp time.Duration) lin
 		lineNumber: -1,
 		content:    content,
 		timestamp:  timestamp,
-		tokenCount: CountTokens(content),
+		tokenCount: tokenizerpkg.CountTokens(content),
 	}
 }
 
@@ -462,7 +463,7 @@ func (c *commandRecreator) trackLineChanges(changedLines []int, previousActiveCo
 					lineNumber: lineNum,
 					content:    content,
 					timestamp:  timestamp,
-					tokenCount: CountTokens(content),
+					tokenCount: tokenizerpkg.CountTokens(content),
 				})
 
 				c.completedLines[lineNum] = previousContent
@@ -487,7 +488,7 @@ func (c *commandRecreator) trackLineChanges(changedLines []int, previousActiveCo
 				lineNumber: lineNum,
 				content:    content,
 				timestamp:  timestamp,
-				tokenCount: CountTokens(content),
+				tokenCount: tokenizerpkg.CountTokens(content),
 			})
 
 			c.completedLines[lineNum] = currentContent

@@ -1,4 +1,4 @@
-package ttyterminal
+package tokenizer
 
 import (
 	"crypto/sha256"

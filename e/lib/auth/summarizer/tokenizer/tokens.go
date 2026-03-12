@@ -1,4 +1,4 @@
-package ttyterminal
+package tokenizer
 
 import (
 	"bytes"
@@ -58,13 +58,34 @@ func newBPELoader() *bpeLoader {
 // CountTokens counts the number of tokens in a string using the o200k_base encoding.
 // If the tokenizer fails to initialize, it returns 0.
 func CountTokens(text string) int {
-	tk, err := initTokenizer()
+	tokens, err := EncodeTokens(text)
 	if err != nil {
 		return 0
 	}
+	return len(tokens)
+}
+
+// EncodeTokens encodes the given text into tokens using the o200k_base encoding.
+func EncodeTokens(text string) ([]int, error) {
+	tk, err := initTokenizer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	tokens := tk.Encode(text, nil, nil)
-	return len(tokens)
+	return tokens, nil
+}
+
+// DecodeTokens decodes the given tokens back into a string using the o200k_base encoding.
+func DecodeTokens(tokens []int) (string, error) {
+	tk, err := initTokenizer()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	text := tk.Decode(tokens)
+
+	return text, nil
 }
 
 type bpeLoader struct {

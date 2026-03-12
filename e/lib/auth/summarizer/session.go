@@ -10,6 +10,7 @@ import (
 
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/tokenizer"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/ttyterminal"
 	"github.com/gravitational/teleport/lib/session"
 )
@@ -70,8 +71,8 @@ func (s *sessionAnalyzer) analyzeCommands(
 	var chunks []*commandChunk
 	currentChunk := &commandChunk{}
 
-	promptHeaderTokens := ttyterminal.CountTokens(chunkSynthesisPromptHeader(0))
-	promptFooterTokens := ttyterminal.CountTokens(chunkSynthesisPromptFooter())
+	promptHeaderTokens := tokenizer.CountTokens(chunkSynthesisPromptHeader(0))
+	promptFooterTokens := tokenizer.CountTokens(chunkSynthesisPromptFooter())
 
 	var commandAnalyses []*schema.CommandAnalysis
 
@@ -96,7 +97,7 @@ func (s *sessionAnalyzer) analyzeCommands(
 		commandAnalyses = append(commandAnalyses, result)
 
 		entryText := formatEntryForPrompt(commandIndex, entry)
-		entryTokens := ttyterminal.CountTokens(entryText)
+		entryTokens := tokenizer.CountTokens(entryText)
 
 		chunkTokens := promptHeaderTokens + currentChunk.tokenCount + entryTokens + promptFooterTokens
 		if chunkTokens > maxTokensPerChunk && len(currentChunk.entries) > 0 {
@@ -318,7 +319,7 @@ func createFinalSynthesisPrompt(summaries []*summarizedSessionResult) string {
 		}
 
 		chunkText := formatChunkSummary(i+1, len(summaries), summary)
-		chunkTokens := ttyterminal.CountTokens(chunkText)
+		chunkTokens := tokenizer.CountTokens(chunkText)
 
 		if summaryTokenCount+chunkTokens > maxFinalSynthesisTokens {
 			truncated = true
