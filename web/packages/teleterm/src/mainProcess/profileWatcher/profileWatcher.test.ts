@@ -239,7 +239,6 @@ test('file system events are debounced', async () => {
   const tshDir = await makePerTestDir();
   const tshClientMock = await mockTshClient(tshDir, { clusters: [] });
   const clusterStoreMock = mockClusterStore({ clusters: [] });
-  const handler = jest.fn().mockImplementation(() => Promise.resolve());
   const testDebounceMs = 100;
   const watcher = watchProfiles({
     tshDirectory: tshDir,
@@ -249,20 +248,30 @@ test('file system events are debounced', async () => {
     debounceMs: testDebounceMs,
   });
 
-  void (async () => {
-    for await (let e of watcher) {
-      await handler(e);
-    }
-  })();
-
   const cluster = makeRootCluster();
 
   // Insert two rapid events within debounce interval.
   await tshClientMock.insertOrUpdateCluster(cluster);
   await tshClientMock.insertOrUpdateCluster(cluster);
-  // Wait slightly longer than debounce interval to ensure a single handler is called.
-  await wait(2 * testDebounceMs);
-  expect(handler).toHaveBeenCalledTimes(1);
+
+  const firstEvent = await Promise.race([
+    watcher.next(),
+    wait(1000).then(() => 'timeout'),
+  ]);
+  expect(firstEvent).toEqual({
+    done: false,
+    value: [{ op: 'added', cluster }],
+  });
+
+  const secondEvent = await Promise.race([
+    watcher.next(),
+    wait(3 * testDebounceMs).then(() => 'timeout'),
+  ]);
+  // Only one event is expected.
+  expect(secondEvent).toBe('timeout');
+
+  // Cancel the watcher with the abort signal, it's blocked on `watcher.next()`.
+  abortController.abort();
 });
 
 test('no events are lost when handler is slow', async () => {
