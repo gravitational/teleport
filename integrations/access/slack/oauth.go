@@ -183,6 +183,7 @@ type SaveCredsFunc func(context.Context, storage.Credentials) error
 //
 // To have an up-to-date token, one must run RefreshLoop() in a background goroutine.
 type OauthTokenRefresher struct {
+	running             sync.Mutex
 	retryInterval       time.Duration
 	tokenBufferInterval time.Duration
 	saveCreds           SaveCredsFunc
@@ -230,6 +231,10 @@ func (r *OauthTokenRefresher) GetAccessToken() (string, error) {
 
 // RefreshLoop runs the credential refresh process.
 func (r *OauthTokenRefresher) RefreshLoop(ctx context.Context) {
+	// Don't start a refresh loop if the previous one did not exit yet.
+	r.running.Lock()
+	defer r.running.Unlock()
+
 	r.lock.Lock()
 	interval := r.getRefreshInterval(r.creds)
 	r.lock.Unlock()
