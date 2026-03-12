@@ -83,11 +83,15 @@ func TestShardSplitting(t *testing.T) {
 				tt.payloadSize,
 			)
 
-			numWritten := writer.run(t, ctx)
-			t.Logf("All writers finished. Successfully wrote %d/%d events", numWritten, tt.numEvents)
+			writer.run(t, ctx)
 
-			waitForEvents(t, tracker, numWritten, tt.eventTimeout)
-			verifyNoEventLoss(t, tracker, numWritten)
+			// Start monitoring as soon as we start writing.
+			tracker.waitForEvents(ctx, t, tt.numEvents, tt.eventTimeout)
+
+			// Ensure all writers have finished, this may not be the case in a case where unexpected events are
+			// received the the target event count is reached before all writes have completed.
+			writer.wg.Wait()
+			verifyNoEventLoss(t, tracker)
 		})
 	}
 }
@@ -240,16 +244,15 @@ type eventTracker struct {
 	writtenEvents map[string]bool
 
 	receiveMu      sync.Mutex
-	receivedEvents map[string]bool
+	receivedEvents map[string]int
 
-	eventCount    int
 	lastEventTime time.Time
 }
 
 func newEventTracker() *eventTracker {
 	return &eventTracker{
 		writtenEvents:  make(map[string]bool),
-		receivedEvents: make(map[string]bool),
+		receivedEvents: make(map[string]int),
 		lastEventTime:  time.Now(),
 	}
 }
@@ -261,6 +264,7 @@ func (et *eventTracker) receiveEvents(ctx context.Context, t *testing.T, watcher
 			if event.Type == apitypes.OpPut {
 				et.handleReceivedEvent(t, event)
 			}
+
 		case <-ctx.Done():
 			return
 		case <-watcher.Done():
@@ -271,16 +275,44 @@ func (et *eventTracker) receiveEvents(ctx context.Context, t *testing.T, watcher
 
 func (et *eventTracker) handleReceivedEvent(t *testing.T, event backend.Event) {
 	keyStr := event.Item.Key.String()
-	if _, ok := et.receivedEvents[keyStr]; ok {
-		t.Fatalf("Received duplicate event: %s", keyStr)
-	}
-
-	et.receivedEvents[keyStr] = true
-	et.eventCount++
+	et.receivedEvents[keyStr]++
 	et.lastEventTime = time.Now()
+}
 
-	if et.eventCount%100 == 0 {
-		t.Logf("Received %d events so far", et.eventCount)
+func (e *eventTracker) waitForEvents(ctx context.Context, t *testing.T, targetCount int, eventTimeout time.Duration) {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			e.receiveMu.Lock()
+			timeSinceLastEvent := time.Since(e.lastEventTime)
+			currentEventCount := len(e.receivedEvents)
+			e.receiveMu.Unlock()
+
+			e.writeMu.Lock()
+			numWritten := len(e.writtenEvents)
+			e.writeMu.Unlock()
+
+			t.Logf("Received %d/%d (%.1f%%), last event %v ago",
+				currentEventCount, numWritten,
+				float64(currentEventCount)/float64(numWritten)*100,
+				timeSinceLastEvent.Round(time.Second))
+
+			if currentEventCount >= targetCount {
+				t.Logf("Received target of %d events, proceeding with verification", targetCount)
+				return
+			}
+			if timeSinceLastEvent > eventTimeout {
+				t.Logf("No events received for %v, stopping wait", eventTimeout)
+				return
+			}
+
+		case <-ctx.Done():
+			return
+
+		}
 	}
 }
 
@@ -291,6 +323,7 @@ type eventWriter struct {
 	numWriters   int
 	payloadSize  int
 	seriesPrefix int64
+	wg           sync.WaitGroup
 }
 
 func newEventWriter(
@@ -310,7 +343,7 @@ func newEventWriter(
 	}
 }
 
-func (w *eventWriter) run(t *testing.T, ctx context.Context) int {
+func (w *eventWriter) run(t *testing.T, ctx context.Context) {
 	t.Logf(
 		"Writing %d events with %d concurrent writers...",
 		w.numEvents,
@@ -324,17 +357,13 @@ func (w *eventWriter) run(t *testing.T, ctx context.Context) int {
 
 	for writerID := range w.numWriters {
 		wg.Go(func() {
+			t.Logf("Writer %d started.", writerID)
+			defer t.Logf("Writer %d finished.", writerID)
 			start := writerID * eventsPerWriter
 			end := start + eventsPerWriter
 			w.writeBatch(t, ctx, start, end, payload)
 		})
 	}
-	wg.Wait()
-
-	w.tracker.writeMu.Lock()
-	defer w.tracker.writeMu.Unlock()
-
-	return len(w.tracker.writtenEvents)
 }
 
 func (w *eventWriter) writeBatch(
@@ -345,11 +374,7 @@ func (w *eventWriter) writeBatch(
 ) {
 	for i := start; i < end; i++ {
 		item := backend.Item{
-			Key: backend.NewKey(
-				"shard-split-test",
-				"event",
-				fmt.Sprintf("%d-%d", w.seriesPrefix, i),
-			),
+			Key:   backend.NewKey("shard-split-test", "event", fmt.Sprintf("%d-%d", w.seriesPrefix, i)),
 			Value: []byte(payload),
 		}
 
@@ -397,45 +422,34 @@ func writeWithRetry(ctx context.Context, t *testing.T, b *Backend, item backend.
 	}
 }
 
-func waitForEvents(t *testing.T, tracker *eventTracker, numWritten int, eventTimeout time.Duration) {
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		tracker.receiveMu.Lock()
-		timeSinceLastEvent := time.Since(tracker.lastEventTime)
-		currentEventCount := tracker.eventCount
-		tracker.receiveMu.Unlock()
-
-		if currentEventCount >= numWritten {
-			return
-		}
-
-		t.Logf("Waiting for events... received %d/%d (%.1f%%), last event %v ago",
-			currentEventCount, numWritten,
-			float64(currentEventCount)/float64(numWritten)*100,
-			timeSinceLastEvent.Round(time.Second))
-
-		if timeSinceLastEvent > eventTimeout {
-			t.Logf("No events received for %v, stopping wait", eventTimeout)
-			return
+func diffKeys[K comparable, V1 any, V2 any](a map[K]V1, b map[K]V2) (onlyInA, onlyInB []K) {
+	for k := range a {
+		if _, ok := b[k]; !ok {
+			onlyInA = append(onlyInA, k)
 		}
 	}
+
+	for k := range b {
+		if _, ok := a[k]; !ok {
+			onlyInB = append(onlyInB, k)
+		}
+	}
+
+	return
 }
 
-func verifyNoEventLoss(t *testing.T, tracker *eventTracker, numWritten int) {
+func verifyNoEventLoss(t *testing.T, tracker *eventTracker) {
 	tracker.receiveMu.Lock()
 	tracker.writeMu.Lock()
 	defer tracker.receiveMu.Unlock()
 	defer tracker.writeMu.Unlock()
 
-	missing := make([]string, 0)
-	for eventKey := range tracker.writtenEvents {
-		if !tracker.receivedEvents[eventKey] {
-			missing = append(missing, eventKey)
-		}
+	for eventKey, count := range tracker.receivedEvents {
+		require.Equal(t, 1, count, "Duplicate (%d) events found %q", count, eventKey)
 	}
 
-	t.Logf("Total events received: %d/%d written", tracker.eventCount, numWritten)
-	require.Empty(t, missing, "Missing %d events that were successfully written. Missing event keys: %v", len(missing), missing)
+	missingRecived, unexpectedReceived := diffKeys(tracker.writtenEvents, tracker.receivedEvents)
+	require.Empty(t, missingRecived, "Missing %d events that were successfully written. Missing event keys: %v", len(missingRecived), missingRecived)
+	require.Empty(t, unexpectedReceived, "Received %d unexpected events that were not written. Unexpected event keys: %v", len(unexpectedReceived), unexpectedReceived)
+	t.Logf("Total events received: %d/%d written", len(tracker.receivedEvents), len(tracker.writtenEvents))
 }
