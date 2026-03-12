@@ -327,6 +327,47 @@ func TestClientStore(t *testing.T) {
 	}
 }
 
+func TestPartialProfileStatusScope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil ScopePin when profile has no scope", func(t *testing.T) {
+		t.Parallel()
+		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
+			p := &profile.Profile{
+				WebProxyAddr: "noscope.example.com:3080",
+				SiteName:     "root",
+				Username:     "alice",
+			}
+			err := clientStore.SaveProfile(p, true)
+			require.NoError(t, err)
+
+			// No key ring saved — ReadProfileStatus should return partial status.
+			status, err := clientStore.ReadProfileStatus(p.Name())
+			require.NoError(t, err)
+			require.Nil(t, status.ScopePin)
+		})
+	})
+
+	t.Run("ScopePin set when profile has scope", func(t *testing.T) {
+		t.Parallel()
+		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
+			p := &profile.Profile{
+				WebProxyAddr: "scoped.example.com:3080",
+				SiteName:     "root",
+				Username:     "alice",
+				Scope:        "/production",
+			}
+			err := clientStore.SaveProfile(p, true)
+			require.NoError(t, err)
+
+			status, err := clientStore.ReadProfileStatus(p.Name())
+			require.NoError(t, err)
+			require.NotNil(t, status.ScopePin)
+			require.Equal(t, "/production", status.ScopePin.Scope)
+		})
+	})
+}
+
 // TestProxySSHConfig tests proxy client SSH config function
 // that generates SSH client configuration for proxy tunnel connections
 func TestProxySSHConfig(t *testing.T) {

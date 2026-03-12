@@ -268,6 +268,11 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		Username:    profile.Username,
 	}
 
+	var scopePin *scopesv1.Pin
+	if profile.Scope != "" {
+		scopePin = &scopesv1.Pin{Scope: profile.Scope}
+	}
+
 	// If we can't find a keyRing to match the profile, connect to the keyRing (hardware key),
 	// or read the full profile status, return a partial status.
 	// This is used for some superficial functions `tsh logout` and `tsh status`.
@@ -285,7 +290,7 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		ValidUntil:              time.Now(),
 		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
 		SSOHost:                 profile.SSOHost,
-		ScopePin:                &scopesv1.Pin{Scope: profile.Scope},
+		ScopePin:                scopePin,
 	}
 
 	keyRing, err := s.GetKeyRing(idx, WithAllCerts...)
