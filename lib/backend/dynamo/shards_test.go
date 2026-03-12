@@ -386,6 +386,7 @@ func (w *eventWriter) writeBatch(ctx context.Context, start, end int, payload st
 }
 
 func (w *eventWriter) writeWithRetry(ctx context.Context, item backend.Item) error {
+	// This backoff is intentionally aggressive to increase the likelihood of triggering shard splits under test conditions
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
 		First:  10 * time.Millisecond,
 		Driver: retryutils.NewExponentialDriver(20 * time.Millisecond),
@@ -413,15 +414,14 @@ func (w *eventWriter) writeWithRetry(ctx context.Context, item backend.Item) err
 				}
 				w.t.Logf("unexpected write error: %s, retrying...", trace.DebugReport(err))
 				otherRetries++
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(retry.Duration()):
+				}
+				retry.Inc()
 			}
 
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-time.After(retry.Duration()):
-			}
-
-			retry.Inc()
 			continue
 		}
 
