@@ -18,7 +18,6 @@ package vnet
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,7 +25,6 @@ import (
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/introspect"
 	"github.com/gravitational/trace"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/lib/vnet/polkit"
 )
@@ -76,19 +74,17 @@ func newDBusDaemon() (_ *dbusDaemon, err error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "connecting to system D-Bus")
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		if err != nil {
+			cancel()
 			_ = conn.Close()
 		}
 	}()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
-
 	daemon := &dbusDaemon{
 		conn: conn,
-		g:    g,
-		done: make(chan struct{}),
+		done: make(chan error, 1),
 		startAdminProcess: func(addr, credPath string) error {
 			return trace.Wrap(RunLinuxAdminProcess(ctx, LinuxAdminProcessConfig{
 				ClientApplicationServiceAddr: addr,
@@ -123,9 +119,9 @@ func newDBusDaemon() (_ *dbusDaemon, err error) {
 
 type dbusDaemon struct {
 	conn      *dbus.Conn
-	g         *errgroup.Group
 	started   atomic.Bool
-	done      chan struct{}
+	closing   atomic.Bool
+	done      chan error // buffered 1; receives the admin process error or nil
 	closeOnce sync.Once
 
 	startAdminProcess  func(addr, credPath string) error
@@ -133,20 +129,19 @@ type dbusDaemon struct {
 }
 
 func (d *dbusDaemon) Close() {
+	d.closing.Store(true)
 	d.closeOnce.Do(func() {
-		close(d.done)
 		d.cancelAdminProcess()
 		_ = d.conn.Close()
+		// If no admin process goroutine was started, unblock Wait.
+		if !d.started.Load() {
+			d.done <- nil
+		}
 	})
 }
 
 func (d *dbusDaemon) Wait() error {
-	<-d.done
-	err := d.g.Wait()
-	if err != nil && !errors.Is(err, context.Canceled) {
-		log.DebugContext(context.Background(), "D-Bus daemon background task exited with error after close", "error", err)
-	}
-	return nil
+	return <-d.done
 }
 
 // Start starts actual VNet admin process with passed address and credential path.
@@ -158,10 +153,8 @@ func (d *dbusDaemon) Start(addr, credPath string, sender dbus.Sender) *dbus.Erro
 		return dbus.MakeFailedError(trace.Wrap(err, "authorization failed"))
 	}
 
-	select {
-	case <-d.done:
+	if d.closing.Load() {
 		return dbus.MakeFailedError(trace.Errorf("VNet D-Bus daemon is shutting down"))
-	default:
 	}
 
 	if !d.started.CompareAndSwap(false, true) {
@@ -170,15 +163,15 @@ func (d *dbusDaemon) Start(addr, credPath string, sender dbus.Sender) *dbus.Erro
 
 	log.InfoContext(context.Background(), "Starting VNet admin process", "uid", uid)
 
-	d.g.Go(func() error {
+	go func() {
 		err := d.startAdminProcess(addr, credPath)
 		// TODO(tangyatsu): D-Bus supports signals, we might want to emit a signal when the admin process exits.
 		if err != nil {
 			log.ErrorContext(context.Background(), "VNet admin process exited with error", "error", err)
 		}
+		d.done <- err
 		d.Close()
-		return trace.Wrap(err)
-	})
+	}()
 
 	return nil
 }
