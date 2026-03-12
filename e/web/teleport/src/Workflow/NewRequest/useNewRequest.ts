@@ -244,14 +244,20 @@ export function useNewRequest(ctx: Ctx) {
         ? Object.keys(addedResources.user_group)[0]
         : null;
 
+    const abortController = new AbortController();
+
     async function fetchUserGroupApps(userGroupId: string) {
       setUserGroupFetchAttempt({ status: 'processing' });
       try {
-        const ugs = await ctx.userGroupService.fetchUserGroups(clusterId, {
-          limit: 1,
-          searchAsRoles: 'yes',
-          search: userGroupId,
-        });
+        const ugs = await ctx.userGroupService.fetchUserGroups(
+          clusterId,
+          {
+            limit: 1,
+            searchAsRoles: 'yes',
+            search: userGroupId,
+          },
+          abortController.signal
+        );
 
         if (ugs.agents.length > 0) {
           setAppsGrantedByUserGroup(
@@ -260,13 +266,20 @@ export function useNewRequest(ctx: Ctx) {
         }
         setUserGroupFetchAttempt({ status: 'success' });
       } catch (err) {
-        setUserGroupFetchAttempt({ status: 'failed', statusText: err.message });
+        if (!abortController.signal.aborted) {
+          setUserGroupFetchAttempt({
+            status: 'failed',
+            statusText: err.message,
+          });
+        }
       }
     }
 
     if (selectedUserGroup) {
       fetchUserGroupApps(selectedUserGroup);
     }
+
+    return () => abortController.abort();
   }, [addedResources.user_group]);
 
   function clearAddedResources() {

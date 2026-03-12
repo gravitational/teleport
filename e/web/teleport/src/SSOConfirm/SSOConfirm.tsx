@@ -16,15 +16,17 @@ export const SSOConfirm = () => {
     }
 
     const bc = new BroadcastChannel(channelId);
+    let timerId: ReturnType<typeof setTimeout>;
     if (ssoResponse) {
       const data = JSON.parse(ssoResponse);
       bc.postMessage({ mfaToken: data.mfa_token });
-      setTimeout(() => {
+      timerId = setTimeout(() => {
         window.close();
       }, 1000);
     }
 
     return () => {
+      clearTimeout(timerId);
       bc.close();
     };
   }, [ssoResponse, channelId]);

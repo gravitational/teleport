@@ -103,14 +103,16 @@ export function useRequestCheckout({
   const numAddedResources = pendingAccessRequestsWithoutParentResource.length;
 
   useEffect(() => {
+    const abortController = new AbortController();
     if (isResourceRequest && numAddedResources > 0) {
-      fetchResourceRequestRoles();
+      fetchResourceRequestRoles(abortController.signal);
       // if we add another resource, clear any successful attempt so we can
       // view the checkout screen again
       if (createAttempt.attempt.status === 'success') {
         clearAttempt();
       }
     }
+    return () => abortController.abort();
   }, [addedResources, numAddedResources]);
 
   // If adding constraints, switch to a short-term request.
@@ -232,7 +234,7 @@ export function useRequestCheckout({
 
   // Fetches the necessary roles for a resource request
   // TODO(kiosion): update to handle ResourceAccessId.
-  function fetchResourceRequestRoles() {
+  function fetchResourceRequestRoles(signal: AbortSignal) {
     fetchResourceRequestRolesAttempt.setAttempt({ status: 'processing' });
     const resourceIdRequest: ResourceId[] = getResourceIDsForRequest({
       resources: pendingAccessRequestsWithoutParentResource,
@@ -241,17 +243,19 @@ export function useRequestCheckout({
     }).map(r => r.id);
 
     ctx.workflowService
-      .fetchResourceRequestRoles(resourceIdRequest)
+      .fetchResourceRequestRoles(resourceIdRequest, signal)
       .then(roles => {
         fetchResourceRequestRolesAttempt.setAttempt({ status: 'success' });
         setResourceRequestRoles(roles);
         setSelectedResourceRequestRoles(roles);
       })
       .catch((err: Error) => {
-        fetchResourceRequestRolesAttempt.setAttempt({
-          status: 'failed',
-          statusText: err.message,
-        });
+        if (!signal.aborted) {
+          fetchResourceRequestRolesAttempt.setAttempt({
+            status: 'failed',
+            statusText: err.message,
+          });
+        }
       });
   }
 

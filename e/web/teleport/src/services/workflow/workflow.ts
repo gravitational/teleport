@@ -25,9 +25,12 @@ class WorkflowService {
     return api.get(cfg.getAccessRequestFilterUrl(filter), signal);
   }
 
-  fetchResourceRequestRoles(resourceIds: ResourceId[]): Promise<string[]> {
+  fetchResourceRequestRoles(
+    resourceIds: ResourceId[],
+    signal?: AbortSignal
+  ): Promise<string[]> {
     return api
-      .get(cfg.getResourceRequestRolesUrl(resourceIds))
+      .get(cfg.getResourceRequestRolesUrl(resourceIds), signal)
       .then(roles => roles || []);
   }
 
