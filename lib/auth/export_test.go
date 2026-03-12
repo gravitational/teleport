@@ -208,10 +208,6 @@ func (a *Server) CreateGithubUser(ctx context.Context, p *CreateUserParams, dryR
 	return a.createGithubUser(ctx, p, dryRun)
 }
 
-func (a *Server) CheckSAMLCertExpiry(ctx context.Context) error {
-	return a.checkSAMLCertExpiry(ctx)
-}
-
 func BuildAPIEndpoint(apiEndpointURLStr string) (string, error) {
 	return buildAPIEndpoint(apiEndpointURLStr)
 }

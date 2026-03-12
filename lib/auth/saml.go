@@ -76,13 +76,6 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 		return nil, trace.BadParameter("unknown SAMLConnector type, expected *types.SAMLConnectorV2 got %T", connector)
 	}
 
-	go func() {
-		ctx := a.CloseContext()
-		if err := a.checkSAMLCertExpiry(ctx); err != nil {
-			a.logger.WarnContext(ctx, "Failed to check SAML connector cert expiry", "error", err)
-		}
-	}()
-
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorCreate{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLConnectorCreatedEvent,
@@ -129,13 +122,6 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 		return nil, trace.BadParameter("unknown SAMLConnector type, expected *types.SAMLConnectorV2 got %T", connector)
 	}
 
-	go func() {
-		ctx := a.CloseContext()
-		if err := a.checkSAMLCertExpiry(ctx); err != nil {
-			a.logger.WarnContext(ctx, "Failed to check SAML connector cert expiry", "error", err)
-		}
-	}()
-
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLConnectorUpdatedEvent,
@@ -178,13 +164,6 @@ func (a *Server) CreateSAMLConnector(ctx context.Context, connector types.SAMLCo
 		return nil, trace.BadParameter("unknown SAMLConnector type, expected *types.SAMLConnectorV2 got %T", connector)
 	}
 
-	go func() {
-		ctx := a.CloseContext()
-		if err := a.checkSAMLCertExpiry(ctx); err != nil {
-			a.logger.WarnContext(ctx, "Failed to check SAML connector cert expiry", "error", err)
-		}
-	}()
-
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorCreate{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLConnectorCreatedEvent,
@@ -207,13 +186,6 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorID string) er
 	if err := a.Services.DeleteSAMLConnector(ctx, connectorID); err != nil {
 		return trace.Wrap(err)
 	}
-
-	go func() {
-		ctx := a.CloseContext()
-		if err := a.checkSAMLCertExpiry(ctx); err != nil {
-			a.logger.WarnContext(ctx, "Failed to check SAML connector cert expiry", "error", err)
-		}
-	}()
 
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorDelete{
 		Metadata: apievents.Metadata{
