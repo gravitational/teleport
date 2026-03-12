@@ -73,7 +73,7 @@ jobs:
       
       # Generate the manifests
       - name: Assume AWS ECR pull role
-        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
         with:
           role-skip-session-tagging: true
           aws-region: ${{ env.RELCLI_IMAGE_REGION }}
@@ -114,7 +114,7 @@ jobs:
 
       # Upload the files
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2

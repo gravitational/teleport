@@ -103,7 +103,7 @@ jobs:
           environments-directory: e/.environments
 
       - name: Assume Legacy Drone storage AWS role
-        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
         with:
           aws-region: us-west-2
           role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
@@ -124,7 +124,7 @@ jobs:
           echo path="$(readlink -f "./${TARBALL_NAME}")" >> "$GITHUB_OUTPUT"
 
       - name: Assume tag build AWS role
-        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
         with:
           aws-region: us-west-2
           role-to-assume: ${{ env.AMI_UPLOAD_AWS_ROLE }}

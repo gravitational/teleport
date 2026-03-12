@@ -71,7 +71,7 @@ jobs:
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
       - name: Assume env-loader secrets decryption AWS role
-        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
         with:
           aws-region: us-west-2
           role-to-assume: ${{ vars.BUILD_MAC_ENV_LOADER_AWS_ROLE_ARN }}
@@ -128,7 +128,7 @@ jobs:
           ./build.assets/keychain-setup.sh -a APP_KEY -A APP_KEY_PASSWORD -i INST_KEY -I INST_KEY_PASSWORD -v
 
       - name: Assume AWS role for downloading the arch-specific artifacts
-        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
@@ -274,7 +274,7 @@ jobs:
 
       # Upload to the pending artifacts bucket
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
