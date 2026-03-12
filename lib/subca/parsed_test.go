@@ -21,50 +21,38 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/subca"
 	subcaenv "github.com/gravitational/teleport/lib/subca/testenv"
 )
 
-func TestSubCAService_Create(t *testing.T) {
+func TestValidateAndParseCAOverride(t *testing.T) {
 	t.Parallel()
 
 	const caType = types.WindowsCA
 
-	// sharedEnv is shared by failure tests, since they aren't expected to change
-	// the underlying resource.
-	sharedEnv := subcaenv.New(t, subcaenv.EnvParams{
+	// A testenv is the simplest way to get a valid-looking CAOverride.
+	env := subcaenv.New(t, subcaenv.EnvParams{
 		CATypesToCreate:  []types.CertAuthType{caType},
 		SkipExternalRoot: true,
 	})
 
 	// External CA chain.
 	const chainLength = 3
-	caChain := sharedEnv.MakeCAChain(t, chainLength)
+	caChain := env.MakeCAChain(t, chainLength)
 	leafToRootChain := caChain.LeafToRootPEMs()
 	// Create overrides from the tip of the external chain.
-	sharedEnv.ExternalRoot = caChain[len(caChain)-1]
+	env.ExternalRoot = caChain[len(caChain)-1]
 
-	cloneEnv := func(t *testing.T) *subcaenv.Env {
-		env := subcaenv.New(t, subcaenv.EnvParams{
-			CATypesToCreate:  []types.CertAuthType{caType},
-			SkipExternalRoot: true,
-		})
-		env.ExternalRoot = sharedEnv.ExternalRoot
-		return env
-	}
-
-	// Cloned by failure tests.
-	sharedCAOverride := sharedEnv.NewOverrideForCAType(t, caType)
+	// Cloned before every test.
+	sharedCAOverride := env.NewOverrideForCAType(t, caType)
 
 	// Used to test various public key mismatch scenarios. "Random".
 	const unrelatedPublicKey = `9852b3bbc867cc047e6d894333488da322df27fa96aa20ebb29c0bf44ff6327f`
@@ -72,52 +60,22 @@ func TestSubCAService_Create(t *testing.T) {
 	// Forge a CA that has the correct Subject to match the override certificate,
 	// but has a different set of keys.
 	forgedExternalRoot, err := subcaenv.NewSelfSignedCA(&subcaenv.CAParams{
-		Clock: sharedEnv.Clock,
+		Clock: env.Clock,
 		Template: &x509.Certificate{
-			Subject: sharedEnv.ExternalRoot.Cert.Subject,
+			Subject: env.ExternalRoot.Cert.Subject,
 		},
 	})
 	require.NoError(t, err)
 
-	// Verify that resources are written under the correct customized key.
-	t.Run("storage key", func(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
 		t.Parallel()
-
-		env := cloneEnv(t)
-		be := env.Backend
-		ctx := t.Context()
-
-		// Create resource.
-		caOverride := env.NewOverrideForCAType(t, caType)
-		_, err := env.SubCA.CreateCertAuthorityOverride(ctx, caOverride)
-		require.NoError(t, err, "CreateCertAuthorityOverride errored")
-
-		// Form our customized key.
-		wantKey := backend.NewKey(
-			"cert_authority_overrides",
-			"cluster",
-			caOverride.Metadata.Name,
-			caOverride.SubKind,
-		)
-
-		// Get resource from customized key.
-		_, err = be.Get(ctx, wantKey)
-		require.NoError(t, err, "Read resource by customized key")
-
-		// Verify that the "normal" generic.Service key doesn't exist.
-		notWantKey := backend.NewKey(
-			"cert_authority_overrides",
-			"cluster",
-			caOverride.Metadata.Name,
-		)
-		_, err = be.Get(ctx, notWantKey)
-		assert.ErrorAs(t, err, new(*trace.NotFoundError), "Read resource by notWantKey")
+		_, err := subca.ValidateAndParseCAOverride(nil)
+		assert.ErrorContains(t, err, "ca override required")
 	})
 
 	tests := []struct {
 		name    string
 		modify  func(ca *subcav1.CertAuthorityOverride)
-		success bool // mutually exclusive with wantErr
 		wantErr string
 	}{
 		{
@@ -125,14 +83,12 @@ func TestSubCAService_Create(t *testing.T) {
 			modify: func(ca *subcav1.CertAuthorityOverride) {
 				// Don't modify anything, take the default testenv override.
 			},
-			success: true,
 		},
 		{
 			name: "OK: Minimal CA override",
 			modify: func(ca *subcav1.CertAuthorityOverride) {
 				ca.Spec = &subcav1.CertAuthorityOverrideSpec{}
 			},
-			success: true,
 		},
 
 		{
@@ -182,7 +138,7 @@ func TestSubCAService_Create(t *testing.T) {
 			modify: func(ca *subcav1.CertAuthorityOverride) {
 				ca.Metadata = nil
 			},
-			wantErr: "name/clusterName required",
+			wantErr: "metadata required",
 		},
 		{
 			name: "empty name",
@@ -325,7 +281,6 @@ func TestSubCAService_Create(t *testing.T) {
 				co := ca.Spec.CertificateOverrides[0]
 				co.Disabled = false
 			},
-			success: true,
 		},
 		{
 			name: "OK: Override without public key",
@@ -333,7 +288,6 @@ func TestSubCAService_Create(t *testing.T) {
 				co := ca.Spec.CertificateOverrides[0]
 				co.PublicKey = ""
 			},
-			success: true,
 		},
 		{
 			name: "OK: Disabled override with only public key",
@@ -341,7 +295,6 @@ func TestSubCAService_Create(t *testing.T) {
 				co := ca.Spec.CertificateOverrides[0]
 				co.Certificate = ""
 			},
-			success: true,
 		},
 		{
 			name: "OK: Override with chain",
@@ -349,51 +302,89 @@ func TestSubCAService_Create(t *testing.T) {
 				co := ca.Spec.CertificateOverrides[0]
 				co.Chain = leafToRootChain
 			},
-			success: true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create a distinct env for success tests, but otherwise use shared
-			// resources.
-			env := sharedEnv
-			var caOverride *subcav1.CertAuthorityOverride
-			if test.success {
-				env = cloneEnv(t)
-				caOverride = env.NewOverrideForCAType(t, caType)
-			} else {
-				caOverride = proto.Clone(sharedCAOverride).(*subcav1.CertAuthorityOverride)
-			}
-			service := env.SubCA
-
+			caOverride := proto.Clone(sharedCAOverride).(*subcav1.CertAuthorityOverride)
 			test.modify(caOverride)
 
-			// Take a copy. generic.Service modifies its inputs.
-			want := proto.Clone(caOverride).(*subcav1.CertAuthorityOverride)
-
-			got, err := service.CreateCertAuthorityOverride(t.Context(), caOverride)
-			if !test.success {
-				// Assert failures.
-				if assert.ErrorContains(t, err, test.wantErr, "Create error mismatch") {
-					assert.ErrorAs(t, err, new(*trace.BadParameterError), "Create error type mismatch")
-				}
+			_, err := subca.ValidateAndParseCAOverride(caOverride)
+			if test.wantErr == "" {
+				assert.NoError(t, err, "ValidateAndParseCAOverride errored")
 				return
 			}
-			// Assert success.
-			require.NoError(t, err, "CreateCertAuthorityOverride errored")
-			want.Metadata.Revision = got.Metadata.Revision
-			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
-				t.Errorf("Create mismatch (-want +got)\n%s", diff)
-			}
 
-			// Assert stored resource.
-			stored, err := service.GetCertAuthorityOverride(t.Context(), local.CertAuthorityOverrideIDFromResource(got))
-			require.NoError(t, err, "GetCertAuthorityOverride errored")
-			if diff := cmp.Diff(got, stored, protocmp.Transform()); diff != "" {
-				t.Errorf("Get mismatch (-want +got)\n%s", diff)
-			}
+			require.ErrorContains(t, err, test.wantErr, "ValidateAndParseCAOverride error mismatch")
+			assert.ErrorAs(t, err, new(*trace.BadParameterError), "ValidateAndParseCAOverride error type mismatch")
 		})
 	}
+}
+
+func TestValidateAndParseCAOverride_ParsedResource(t *testing.T) {
+	t.Parallel()
+
+	// Use a pre-made caOverride so we have predicatable certificates/public keys.
+	caOverride := &subcav1.CertAuthorityOverride{
+		Kind:    "cert_authority_override",
+		SubKind: "windows",
+		Version: "v1",
+		Metadata: &headerv1.Metadata{
+			Name: "zarquon",
+		},
+		Spec: &subcav1.CertAuthorityOverrideSpec{
+			CertificateOverrides: []*subcav1.CertificateOverride{
+				{
+					//PublicKey:   "b05b24e7c4b141d8a081f49242ad859218d95ab826f23cf823c4e07138c95a9f",
+					Certificate: "-----BEGIN CERTIFICATE-----\nMIIBtDCCAVqgAwIBAgIBBDAKBggqhkjOPQQDAjAxMSMwIQYDVQQDExpFWFRFUk5B\nTCBJTlRFUk1FRElBVEUgQ0EgMzEKMAgGA1UEBRMBMzAeFw0yNjAzMTIxMzA4MTZa\nFw0yNjAzMTIxNDA5MTZaMDExIzAhBgNVBAMTGkVYVEVSTkFMIElOVEVSTUVESUFU\nRSBDQSA0MQowCAYDVQQFEwE0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE+quy\nog1ZSEDzXc3rGhRqQG98tbn2rnrf8ynmRCejQRCmfWA8fHQB1ObedzRGbnkyUvYa\nfKCJxhhHS6vhgM0xM6NjMGEwDgYDVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQFMAMB\nAf8wHQYDVR0OBBYEFJFkotRmGwBC0gKTDIGqDcAKtdeJMB8GA1UdIwQYMBaAFNuI\nI2v0B+R00TyVP+uJ5wzUhrQoMAoGCCqGSM49BAMCA0gAMEUCIQCnugqmqxDg1JnJ\nwjT8MpDMPrwPO5+IVth5E67QAq9ZIAIgcvkIy0V+k3Q180AziL7ZrLtLY2h0FRqv\nyWt+1Lnx+EY=\n-----END CERTIFICATE-----\n",
+					Chain: []string{
+						"-----BEGIN CERTIFICATE-----\nMIIBtTCCAVqgAwIBAgIBAzAKBggqhkjOPQQDAjAxMSMwIQYDVQQDExpFWFRFUk5B\nTCBJTlRFUk1FRElBVEUgQ0EgMjEKMAgGA1UEBRMBMjAeFw0yNjAzMTIxMzA4MTZa\nFw0yNjAzMTIxNDA5MTZaMDExIzAhBgNVBAMTGkVYVEVSTkFMIElOVEVSTUVESUFU\nRSBDQSAzMQowCAYDVQQFEwEzMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEPBu0\nRewncuGV9LP2CUEW5U5JHRMbgcL4RUNkl+gYo3WYAxFYRdjqFGRD0d7wzo2t4I+s\niT/CwF1EfNO1AAtePKNjMGEwDgYDVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQFMAMB\nAf8wHQYDVR0OBBYEFNuII2v0B+R00TyVP+uJ5wzUhrQoMB8GA1UdIwQYMBaAFKWp\nG0/k4iUwHJf1hjDBbOGgJIicMAoGCCqGSM49BAMCA0kAMEYCIQC/yLDWxElbkYJJ\nD7B7HnMNWabsJu0EDA408s+M0JcS9gIhAI1Cs+smAkb5f+UXQdBv7lqOlHFfR/3c\ni/ONL+HCRA1P\n-----END CERTIFICATE-----\n",
+						"-----BEGIN CERTIFICATE-----\nMIIBrzCCAVWgAwIBAgIBAjAKBggqhkjOPQQDAjApMRswGQYDVQQDExJFWFRFUk5B\nTCBST09UIENBIDExCjAIBgNVBAUTATEwHhcNMjYwMzEyMTMwODE2WhcNMjYwMzEy\nMTQwOTE2WjAxMSMwIQYDVQQDExpFWFRFUk5BTCBJTlRFUk1FRElBVEUgQ0EgMjEK\nMAgGA1UEBRMBMjBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHX5Lb4OjZG21k/7\nqAdDRPCNXn1G4XndwMoBL53Ni3xd+ovx4zIFajLq+8i6jg/rihxI74QBnR38j/D7\nlaPp48WjZjBkMA4GA1UdDwEB/wQEAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEBMB0G\nA1UdDgQWBBSlqRtP5OIlMByX9YYwwWzhoCSInDAfBgNVHSMEGDAWgBSgEnGXl1ci\nDYWoRhm8uNXB5T3t8zAKBggqhkjOPQQDAgNIADBFAiBc1KqvASkx1PYuVjZEQr7b\nWCizRoOn3J/yLbi5DVo/TgIhAPHPm8ErDxl/AoZybbdT8QVwQYPeB1jsK+h9Kcm1\nAkDR\n-----END CERTIFICATE-----\n",
+						"-----BEGIN CERTIFICATE-----\nMIIBhjCCASygAwIBAgIBATAKBggqhkjOPQQDAjApMRswGQYDVQQDExJFWFRFUk5B\nTCBST09UIENBIDExCjAIBgNVBAUTATEwHhcNMjYwMzEyMTMwODE2WhcNMjYwMzEy\nMTQwOTE2WjApMRswGQYDVQQDExJFWFRFUk5BTCBST09UIENBIDExCjAIBgNVBAUT\nATEwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASP68oeRXs8P10r2KMP0yx1zkTk\nyUDdy9PCMMQgdDl85jMwOLcEKeOR+rwqp4FvHJVkDebQdtU4mqIweyOW1u8to0Uw\nQzAOBgNVHQ8BAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBAjAdBgNVHQ4EFgQU\noBJxl5dXIg2FqEYZvLjVweU97fMwCgYIKoZIzj0EAwIDSAAwRQIgWXfQuNOSTrY2\nEHG41FDbIY3kB5730M7NNLm09ZuecRICIQCXwm9EH13zx462z+6eahLAoYeUdtP6\nhBW0accYgMXnmQ==\n-----END CERTIFICATE-----\n",
+					},
+					Disabled: true,
+				},
+				{
+					PublicKey: "89B32EF334D6FA94E2A7D9B3CC122115A3A9ED19907A7F25D3FE71BBC734619D",
+					Disabled:  true,
+				},
+			},
+		},
+	}
+
+	// Verify ParsedCAOverride.
+	parsed, err := subca.ValidateAndParseCAOverride(caOverride)
+	require.NoError(t, err)
+	assert.Same(t, caOverride, parsed.CAOverride, "CAOverride")
+	require.Len(t, parsed.CertificateOverrides, 2, "CertificateOverrides mismatch")
+
+	// Verify CertificateOverride #0.
+	const publicKey0 = "b05b24e7c4b141d8a081f49242ad859218d95ab826f23cf823c4e07138c95a9f"
+	co0 := parsed.CertificateOverrides[0]
+	assert.Same(t, caOverride.Spec.CertificateOverrides[0], co0.CertificateOverride, "CertificateOverride changed")
+	assert.Equal(t, publicKey0, co0.PublicKey, "PublicKey mismatch")
+	assert.NotNil(t, co0.Certificate, "Certificate expected")
+	assert.Equal(t, publicKey0, subca.HashCertificatePublicKey(co0.Certificate), "Certificate public key mismatch")
+	assert.Len(t, co0.Chain, 3, "Chain mismatch")
+
+	chainPublicKeys := []string{
+		"6fe333ee9900316999fecc7b026b833fa97f301ed08ec545728a21c2ef04a7ba",
+		"76e4355c0493658b869450c097f233ed4017ccb8eb1f7f6d251e8745b33f4336",
+		"b14d63ec97168d52dee4de8f80be040441964e2b06443ce50786b60f0028ec42",
+	}
+	for i, chain := range co0.Chain {
+		assert.NotNil(t, chain, "Chain[%d] certificate expected", i)
+		assert.Equal(t, chainPublicKeys[i], subca.HashCertificatePublicKey(chain),
+			"Chain[%d] certificate public key mismatch", i)
+	}
+
+	// Verify CertificateOverride #1.
+	const publicKey1 = "89b32ef334d6fa94e2a7d9b3cc122115a3a9ed19907a7f25d3fe71bbc734619d" // lowercase!
+	co1 := parsed.CertificateOverrides[1]
+	assert.Same(t, caOverride.Spec.CertificateOverrides[1], co1.CertificateOverride, "CertificateOverride changed")
+	assert.Equal(t, publicKey1, co1.PublicKey, "PublicKey mismatch")
+	assert.Nil(t, co1.Certificate)
+	assert.Empty(t, co1.Chain)
 }

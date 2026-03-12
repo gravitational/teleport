@@ -78,7 +78,7 @@ type ParsedCertificateOverride struct {
 func ValidateAndParseCAOverride(resource *subcav1.CertAuthorityOverride) (*ParsedCertAuthorityOverride, error) {
 	switch {
 	case resource == nil:
-		return nil, trace.BadParameter("resource required")
+		return nil, trace.BadParameter("ca override required")
 	case resource.Kind != types.KindCertAuthorityOverride:
 		return nil, trace.BadParameter("invalid kind: %q", resource.Kind)
 	case !slices.Contains(allowedCAOverrideSubKinds, resource.SubKind):
