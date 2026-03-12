@@ -121,18 +121,20 @@ func onBeamsList(cf *CLIConf) error {
 	tc.AllowHeadless = true
 
 	var beams []*beamsv1.Beam
-	if err := tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
-		beams, err = stream.Collect(clientutils.Resources(cf.Context, func(ctx context.Context, pageSize int, pageToken string) ([]*beamsv1.Beam, string, error) {
-			resp, err := clt.BeamsServiceClient().ListBeams(ctx, &beamsv1.ListBeamsRequest{
-				PageSize:  int32(pageSize),
-				PageToken: pageToken,
-			})
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-			return resp.GetBeams(), resp.GetNextPageToken(), nil
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		return trace.Wrap(tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
+			beams, err = stream.Collect(clientutils.Resources(cf.Context, func(ctx context.Context, pageSize int, pageToken string) ([]*beamsv1.Beam, string, error) {
+				resp, err := clt.BeamsServiceClient().ListBeams(ctx, &beamsv1.ListBeamsRequest{
+					PageSize:  int32(pageSize),
+					PageToken: pageToken,
+				})
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+				return resp.GetBeams(), resp.GetNextPageToken(), nil
+			}))
+			return trace.Wrap(err)
 		}))
-		return trace.Wrap(err)
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -279,34 +281,32 @@ func onBeamsPull(cf *CLIConf) error {
 }
 
 func getBeamNodeID(ctx context.Context, tc *client.TeleportClient, beamID string) (string, error) {
-	clusterClient, err := tc.ConnectToCluster(ctx)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	defer clusterClient.Close()
+	var nodeID string
+	err := client.RetryWithRelogin(ctx, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
 
-	beam, err := clusterClient.AuthClient.BeamsServiceClient().GetBeam(ctx, &beamsv1.GetBeamRequest{
-		BeamId: beamID,
+		beam, err := clusterClient.AuthClient.BeamsServiceClient().
+			GetBeam(ctx, &beamsv1.GetBeamRequest{
+				BeamId: beamID,
+			})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		nodeID = beam.GetStatus().GetNodeId()
+		if nodeID == "" {
+			return trace.NotFound("beam %q has no node", beamID)
+		}
+		return nil
 	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	nodeID := beam.GetStatus().GetNodeId()
-	if nodeID == "" {
-		return "", trace.NotFound("beam %q has no node", beamID)
-	}
-	return nodeID, nil
+	return nodeID, trace.Wrap(err)
 }
 
 func copyBeamFile(cf *CLIConf, tc *client.TeleportClient, sources []string, destination string) error {
-	exec := client.RetryWithRelogin
-	if !cf.Relogin {
-		exec = func(ctx context.Context, teleportClient *client.TeleportClient, f func() error, _ ...client.RetryWithReloginOption) error {
-			return f()
-		}
-	}
-
 	req := client.SFTPRequest{
 		Sources:     sources,
 		Destination: destination,
@@ -315,7 +315,7 @@ func copyBeamFile(cf *CLIConf, tc *client.TeleportClient, sources []string, dest
 		req.ProgressWriter = cf.Stdout()
 	}
 
-	return trace.Wrap(exec(cf.Context, tc, func() error {
+	return trace.Wrap(client.RetryWithRelogin(cf.Context, tc, func() error {
 		return trace.Wrap(tc.SFTP(cf.Context, req))
 	}))
 }
@@ -325,16 +325,12 @@ func connectToBeamSSH(cf *CLIConf, tc *client.TeleportClient, nodeID string, rem
 	if cf.NodeLogin != "" {
 		tc.HostLogin = cf.NodeLogin
 	}
-	target := beamNodeTarget(nodeID)
-
 	tc.Stdin = cf.Stdin()
-	sshFunc := func() error {
+
+	target := beamNodeTarget(nodeID)
+	return trace.Wrap(client.RetryWithRelogin(cf.Context, tc, func() error {
 		return tc.SSH(cf.Context, remoteCommand, client.WithHostAddress(target.Addr))
-	}
-	if !cf.Relogin {
-		return trace.Wrap(sshFunc())
-	}
-	return trace.Wrap(client.RetryWithRelogin(cf.Context, tc, sshFunc))
+	}))
 }
 
 func connectToBeamSSHWithRetry(cf *CLIConf, tc *client.TeleportClient, nodeID string, remoteCommand []string) error {
