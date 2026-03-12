@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -141,7 +142,11 @@ func (d *dbusDaemon) Close() {
 }
 
 func (d *dbusDaemon) Wait() error {
-	return <-d.done
+	err := <-d.done
+	if err != nil && !errors.Is(err, context.Canceled) {
+		log.DebugContext(context.Background(), "D-Bus daemon background task exited with error after close", "error", err)
+	}
+	return nil
 }
 
 // Start starts actual VNet admin process with passed address and credential path.
