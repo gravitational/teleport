@@ -50,6 +50,7 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -1077,6 +1078,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 			proxyPublicAddr = cfg.Proxy.WebAddr
 			proxyPublicAddr.Addr = fmt.Sprintf("localhost:%v", proxyPublicAddr.Port(0))
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{proxyPublicAddr}
+			cfg.Auth.CreateAuthenticateChallengeLimiterConfig = &limiter.Config{}
 		}),
 	)
 	require.NoError(t, err)

@@ -80,6 +80,11 @@ type AuthConfig struct {
 
 	Limiter limiter.Config
 
+	// CreateAuthenticateChallengeLimiterConfig is the optional configuration
+	// for the limiter applied to unauthenticated calls to
+	// CreateAuthenticateChallenge. Used in tests.
+	CreateAuthenticateChallengeLimiterConfig *limiter.Config
+
 	// NoAudit, when set to true, disables session recording and event audit
 	NoAudit bool
 

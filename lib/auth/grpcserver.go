@@ -230,12 +230,12 @@ type GRPCServer struct {
 	// of the RPC and pulling one out before returning.
 	createAuditStreamSemaphore chan struct{}
 
-	// createAuthenticateChallengeUnauthenticatedLimiter is a rate limiter for
-	// invocations of /proto.AuthService/CreateAuthenticateChallenge that don't
-	// rely on a user context and thus warrant additional rate limiting since
-	// they are unauthenticated (either through direct API connections or coming
-	// from the proxy on behalf of a remote unauthenticated user).
-	createAuthenticateChallengeUnauthenticatedLimiter *limiter.RateLimiter
+	// createAuthenticateChallengeLimiter is a rate limiter for invocations of
+	// /proto.AuthService/CreateAuthenticateChallenge that don't rely on a user
+	// context and thus warrant additional rate limiting since they are
+	// unauthenticated (either through direct API connections or coming from the
+	// proxy on behalf of a remote unauthenticated user).
+	createAuthenticateChallengeLimiter *limiter.RateLimiter
 }
 
 func (g *GRPCServer) SetServingStatus(service string, servingStatus grpc_health_v1.HealthCheckResponse_ServingStatus) {
@@ -4844,7 +4844,7 @@ func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *authp
 			return nil, trace.BadParameter("unable to find peer")
 		}
 
-		if err := g.createAuthenticateChallengeUnauthenticatedLimiter.RegisterRequestFromAddr(peerInfo.Addr, nil); err != nil {
+		if err := g.createAuthenticateChallengeLimiter.RegisterRequestFromAddr(peerInfo.Addr, nil); err != nil {
 			return nil, trace.LimitExceeded("rate limit exceeded")
 		}
 	}
@@ -5964,6 +5964,10 @@ type GRPCServerConfig struct {
 	UnaryInterceptors []grpc.UnaryServerInterceptor
 	// StreamInterceptors is the gRPC stream interceptor chain.
 	StreamInterceptors []grpc.StreamServerInterceptor
+	// CreateAuthenticateChallengeLimiterConfig is the optional configuration
+	// for the limiter applied to unauthenticated calls to
+	// CreateAuthenticateChallenge. Used in tests.
+	CreateAuthenticateChallengeLimiterConfig *limiter.Config
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -6245,13 +6249,17 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	grpcv1pb.RegisterServiceConfigDiscoveryServiceServer(server, grpcClientConfigService)
 
-	createAuthenticateChallengeUnauthenticatedLimiter, err := limiter.NewRateLimiter(limiter.Config{
+	limiterConfig := limiter.Config{
 		Rates: []limiter.Rate{{
 			Period:  defaults.LimiterPeriod,
 			Average: defaults.LimiterAverage,
 			Burst:   defaults.LimiterBurst,
 		}},
-	})
+	}
+	if cfg.CreateAuthenticateChallengeLimiterConfig != nil {
+		limiterConfig = *cfg.CreateAuthenticateChallengeLimiterConfig
+	}
+	createAuthenticateChallengeLimiter, err := limiter.NewRateLimiter(limiterConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6262,7 +6270,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		server:      server,
 		healthcheck: health.NewServer(),
 
-		createAuthenticateChallengeUnauthenticatedLimiter: createAuthenticateChallengeUnauthenticatedLimiter,
+		createAuthenticateChallengeLimiter: createAuthenticateChallengeLimiter,
 	}
 
 	if en := os.Getenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT"); en != "" {
