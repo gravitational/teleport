@@ -29,6 +29,7 @@ import (
 	"net"
 	"slices"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/cilium/ebpf/ringbuf"
@@ -82,6 +83,8 @@ type Service struct {
 	// conn is a BPF programs that hooks connect.
 	// conn is set only when restricted sessions are enabled.
 	conn *conn
+
+	wg sync.WaitGroup
 }
 
 // New creates a BPF service.
@@ -152,11 +155,31 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 		"elapsed", time.Since(start),
 	)
 
-	go s.processNetworkEvents()
-
 	// Start pulling events off the perf buffers and emitting them to the
 	// Audit Log.
-	go s.processAccessEvents()
+	s.wg.Go(func() {
+		for event := range s.exec.events() {
+			s.emitCommandEvent(event)
+		}
+	})
+	s.wg.Go(func() {
+		for event := range s.open.events() {
+			s.emitDiskEvent(event)
+		}
+	})
+	s.wg.Go(func() {
+		for event := range s.conn.v4Events() {
+			s.emit4NetworkEvent(event)
+		}
+	})
+	s.wg.Go(func() {
+		for event := range s.conn.v6Events() {
+			s.emit6NetworkEvent(event)
+		}
+	})
+
+	// Log the number of lost events.
+	s.wg.Go(s.logLostEvents)
 
 	return s, nil
 }
@@ -177,8 +200,9 @@ func (s *Service) Close(restarting bool) error {
 		logger.WarnContext(s.closeContext, "Failed to close cgroup", "error", err)
 	}
 
-	// Signal to the processAccessEvents pulling events off the perf buffer to shutdown.
 	s.closeFunc()
+
+	s.wg.Wait()
 
 	return nil
 }
@@ -270,13 +294,20 @@ func (s *Service) Enabled() bool {
 	return true
 }
 
+// LostEvents returns the number of lost events for command, disk,
+// and network events respectively.
+func (s *Service) LostEvents() (uint64, uint64, uint64) {
+	return s.exec.lostCounter.Count(), s.open.lostCounter.Count(), s.conn.lostCounter.Count()
+}
+
 func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
 	defer eventBuf.Close()
+	defer close(bpfEvents)
 
 	for {
 		rec, err := eventBuf.Read()
 		if err != nil {
-			if errors.Is(err, ringbuf.ErrClosed) {
+			if errors.Is(err, ringbuf.ErrClosed) || errors.Is(err, ringbuf.ErrFlushed) {
 				logger.DebugContext(context.Background(), "Received signal, exiting")
 				return
 			}
@@ -288,35 +319,36 @@ func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
 	}
 }
 
-// processAccessEvents pulls events off the perf ring buffer, parses them, and emits them to
-// the audit log.
-// TODO(capnspacehook): combine processAccessEvents and processNetworkEvents
-func (s *Service) processAccessEvents() {
-	for {
-		select {
-		// Program execution.
-		case event := <-s.exec.events():
-			s.emitCommandEvent(event)
-		// Disk access.
-		case event := <-s.open.events():
-			s.emitDiskEvent(event)
-		case <-s.closeContext.Done():
-			return
-		}
-	}
-}
+func (s *Service) logLostEvents() {
+	ticker := time.NewTicker(5 * time.Second)
 
-// processNetworkEvents pulls networks events of the ring buffer and emits them
-// to the audit log.
-func (s *Service) processNetworkEvents() {
+	// keep track of how many events were lost previously so we only
+	// log when events have been lost in the last 5 seconds
+	oldLostCmd := uint64(0)
+	oldLostDisk := uint64(0)
+	oldLostNet := uint64(0)
 	for {
 		select {
-		// Network access (IPv4).
-		case event := <-s.conn.v4Events():
-			s.emit4NetworkEvent(event)
-		// Network access (IPv6).
-		case event := <-s.conn.v6Events():
-			s.emit6NetworkEvent(event)
+		case <-ticker.C:
+			lostCmd, lostDisk, lostNet := s.LostEvents()
+
+			newLostCmd := lostCmd - oldLostCmd
+			newLostDisk := lostDisk - oldLostDisk
+			newLostNet := lostNet - oldLostNet
+
+			oldLostCmd = lostCmd
+			oldLostDisk = lostDisk
+			oldLostNet = lostNet
+
+			if newLostCmd > 0 {
+				logger.WarnContext(s.closeContext, "Lost some command events in the last 5 seconds", "lost_events", newLostCmd)
+			}
+			if newLostDisk > 0 {
+				logger.WarnContext(s.closeContext, "Lost some disk events in the last 5 seconds", "lost_events", newLostDisk)
+			}
+			if newLostNet > 0 {
+				logger.WarnContext(s.closeContext, "Lost some network events in the last 5 seconds", "lost_events", newLostNet)
+			}
 		case <-s.closeContext.Done():
 			return
 		}

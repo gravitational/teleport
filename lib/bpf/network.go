@@ -22,6 +22,7 @@ package bpf
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sync"
 
@@ -44,16 +45,18 @@ var lostNetworkEvents = prometheus.NewCounter(
 )
 
 type conn struct {
-	objs *networkObjects
+	objs networkObjects
 
-	event4Chan chan []byte
-	event6Chan chan []byte
-	toClose    []io.Closer
-
-	closed bool
-	mtx    sync.Mutex
-
+	bpf4Events  chan []byte
+	bpf6Events  chan []byte
 	lostCounter *Counter
+	toClose     []io.Closer
+
+	closed   bool
+	flushBuf func() error
+
+	mtx sync.Mutex
+	wg  sync.WaitGroup
 }
 
 func startConn(bufferSize int) (*conn, error) {
@@ -133,19 +136,24 @@ func startConn(bufferSize int) (*conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	bpfv4Events := make(chan []byte, bufferSize)
-	go sendEvents(bpfv4Events, eventBufV4)
+	flush := func() error {
+		return errors.Join(eventBufV4.Flush(), eventBufV6.Flush())
+	}
 
-	bpfv6Events := make(chan []byte, bufferSize)
-	go sendEvents(bpfv6Events, eventBufV6)
-
-	return &conn{
-		objs:        &objs,
-		event4Chan:  bpfv4Events,
-		event6Chan:  bpfv6Events,
-		toClose:     toClose,
+	c := &conn{
+		objs:        objs,
 		lostCounter: lostCtr,
-	}, nil
+		toClose:     toClose,
+		flushBuf:    flush,
+	}
+
+	c.bpf4Events = make(chan []byte, bufferSize)
+	c.wg.Go(func() { sendEvents(c.bpf4Events, eventBufV4) })
+
+	c.bpf6Events = make(chan []byte, bufferSize)
+	c.wg.Go(func() { sendEvents(c.bpf6Events, eventBufV6) })
+
+	return c, nil
 }
 
 func (c *conn) startSession(auditSessionID uint32) error {
@@ -181,7 +189,6 @@ func (c *conn) endSession(auditSessionID uint32) error {
 // close will stop reading events off the ring buffer and unload the BPF
 // program. The ring buffer is closed as part of the module being closed.
 func (c *conn) close() {
-	// c.lost.Close()
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -190,6 +197,12 @@ func (c *conn) close() {
 	}
 
 	c.closed = true
+
+	if err := c.flushBuf(); err != nil {
+		logger.WarnContext(context.Background(), "failed to flush network ring buffer", "error", err)
+	} else {
+		logger.DebugContext(context.Background(), "Flushed network ring buffer, waiting for pending events to be processed")
+	}
 
 	for _, link := range c.toClose {
 		if err := link.Close(); err != nil {
@@ -201,6 +214,8 @@ func (c *conn) close() {
 		logger.WarnContext(context.Background(), "failed to close network objects", "error", err)
 	}
 
+	c.wg.Wait()
+
 	if err := c.lostCounter.Close(); err != nil {
 		logger.WarnContext(context.Background(), "failed to close network lost counter", "error", err)
 	}
@@ -210,10 +225,10 @@ func (c *conn) close() {
 
 // v4Events contains raw events off the perf buffer.
 func (c *conn) v4Events() <-chan []byte {
-	return c.event4Chan
+	return c.bpf4Events
 }
 
 // v6Events contains raw events off the perf buffer.
 func (c *conn) v6Events() <-chan []byte {
-	return c.event6Chan
+	return c.bpf6Events
 }

@@ -47,13 +47,15 @@ var lostDiskEvents = prometheus.NewCounter(
 type open struct {
 	objs diskObjects
 
-	eventBuf chan []byte
-	toClose  []io.Closer
-
-	closed bool
-	mtx    sync.Mutex
-
+	bpfEvents   chan []byte
 	lostCounter *Counter
+	toClose     []io.Closer
+
+	closed   bool
+	flushBuf func() error
+
+	mtx sync.Mutex
+	wg  sync.WaitGroup
 }
 
 // startOpen will compile, load, start, and pull events off the perf buffer
@@ -142,15 +144,17 @@ func startOpen(bufferSize int) (*open, error) {
 		return nil, trace.Wrap(err, "creating ring buffer reader: %v", err)
 	}
 
-	bpfEvents := make(chan []byte, bufferSize)
-	go sendEvents(bpfEvents, eventBuf)
-
-	return &open{
+	o := &open{
 		objs:        objs,
-		eventBuf:    bpfEvents,
-		toClose:     toClose,
 		lostCounter: lostCtr,
-	}, nil
+		toClose:     toClose,
+		flushBuf:    eventBuf.Flush,
+	}
+
+	o.bpfEvents = make(chan []byte, bufferSize)
+	o.wg.Go(func() { sendEvents(o.bpfEvents, eventBuf) })
+
+	return o, nil
 }
 
 func (o *open) startSession(auditSessionID uint32) error {
@@ -195,6 +199,12 @@ func (o *open) close() {
 
 	o.closed = true
 
+	if err := o.flushBuf(); err != nil {
+		logger.WarnContext(context.Background(), "failed to flush disk ring buffer", "error", err)
+	} else {
+		logger.DebugContext(context.Background(), "Flushed disk ring buffer, waiting for pending events to be processed")
+	}
+
 	for _, toClose := range o.toClose {
 		if err := toClose.Close(); err != nil {
 			logger.WarnContext(context.Background(), "failed to close link", "error", err)
@@ -205,6 +215,8 @@ func (o *open) close() {
 		logger.WarnContext(context.Background(), "failed to close disk objects", "error", err)
 	}
 
+	o.wg.Wait()
+
 	if err := o.lostCounter.Close(); err != nil {
 		logger.WarnContext(context.Background(), "failed to close disk lost counter", "error", err)
 	}
@@ -214,5 +226,5 @@ func (o *open) close() {
 
 // events contains raw events off the perf buffer.
 func (o *open) events() <-chan []byte {
-	return o.eventBuf
+	return o.bpfEvents
 }
