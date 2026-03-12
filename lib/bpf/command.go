@@ -88,25 +88,13 @@ func startExec(bufferSize int) (*exec, error) {
 		tracepoint *ebpf.Program
 	}{
 		{
-			name:       "sys_enter_execve",
-			tracepoint: objs.TracepointSyscallsSysEnterExecve,
-		},
-		{
-			name:       "sys_exit_execve",
-			tracepoint: objs.TracepointSyscallsSysExitExecve,
-		},
-		{
-			name:       "sys_enter_execveat",
-			tracepoint: objs.TracepointSyscallsSysEnterExecveat,
-		},
-		{
-			name:       "sys_exit_execveat",
-			tracepoint: objs.TracepointSyscallsSysExitExecveat,
+			name:       "sched_process_exec",
+			tracepoint: objs.TracepointSchedSchedProcessExec,
 		},
 	}
 
 	for _, tp := range tracePoints {
-		tp, err := link.Tracepoint("syscalls", tp.name, tp.tracepoint, nil)
+		tp, err := link.Tracepoint("sched", tp.name, tp.tracepoint, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

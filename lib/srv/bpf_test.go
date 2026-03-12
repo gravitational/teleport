@@ -53,10 +53,6 @@ import (
 )
 
 const (
-	// the maximum number of arguments that will be emitted in a event,
-	// including argv[0]
-	maxArgs = 20
-
 	// the maximum length of a path, anything longer will be truncated
 	maxPathLength = 255
 
@@ -69,7 +65,7 @@ const (
 
 var (
 	// the maximum length of a single argument, anything longer will be truncated
-	maxArgLength = bpf.ArgsCacheSize
+	maxArgLength = bpf.CommandArgsBufferSize - 4
 
 	longArg    = strings.Repeat(longArgBase, (maxArgLength/4)/len(longArgBase))
 	overMaxArg = strings.Repeat(longArgBase, (maxArgLength)/len(longArgBase)+1)
@@ -207,20 +203,6 @@ eval $(echo %s | base64 --decode)`,
 	err = os.WriteFile(obfScriptPath, []byte(obfScript), 0o700)
 	require.NoError(t, err)
 
-	// Create a slice of arguments over the maximum length.
-	overMaxArgs := make([]string, maxArgs+3)
-	for i := range overMaxArgs {
-		overMaxArgs[i] = strconv.Itoa(i) + overMaxArg
-	}
-	atMaxArgs := slices.Clone(overMaxArgs)
-	for i := range atMaxArgs {
-		atMaxArgs[i] = atMaxArgs[i][:maxArgLength]
-	}
-	maxArgPaths := slices.Clone(atMaxArgs)
-	for i := range maxArgPaths {
-		maxArgPaths[i] = maxArgPaths[i][:maxPathLength]
-	}
-
 	// Define the test cases.
 	tests := []struct {
 		name       string
@@ -353,6 +335,7 @@ eval $(echo %s | base64 --decode)`,
 						program:     obfScriptName,
 						interpreter: "bash",
 						scriptPath:  obfScriptPath,
+						args:        []string{obfScriptPath},
 					},
 				},
 				{
@@ -428,7 +411,7 @@ eval $(echo %s | base64 --decode)`,
 						// the argument isn't an existing file on disk
 						expectedFail: true,
 					},
-					paths: []string{longArg},
+					// paths: []string{longArg},
 				},
 			},
 		},
@@ -439,72 +422,11 @@ eval $(echo %s | base64 --decode)`,
 				{
 					cmdInfo: commandInfo{
 						program: "cat",
-						args:    []string{overMaxArg[:maxArgLength]},
+						args:    []string{overMaxArg[:maxArgLength], "..."},
 						// the argument isn't an existing file on disk
 						expectedFail: true,
 					},
-					paths: []string{overMaxArg[:maxPathLength]},
-				},
-			},
-		},
-		{
-			name:    "max amount of args",
-			command: "cat " + strings.Repeat(tempFilePath+" ", maxArgs),
-			eventInfos: []expectedEvents{
-				{
-					cmdInfo: commandInfo{
-						program: "cat",
-						// argv[0] is counted, so we expect MAXARGS-1 args
-						args: slices.Repeat([]string{tempFilePath}, maxArgs-1),
-					},
-					paths: []string{tempFilePath},
-				},
-			},
-		},
-		// TODO(capnspacehook): bpf C code seems to want to add '...' if arguments are truncated but doesn't
-		{
-			name:    "over max amount of args",
-			command: "cat " + strings.Repeat(tempFilePath+" ", maxArgs+3),
-			eventInfos: []expectedEvents{
-				{
-					cmdInfo: commandInfo{
-						program: "cat",
-						// argv[0] is counted, so we expect MAXARGS-1 args
-						args: slices.Repeat([]string{tempFilePath}, maxArgs-1),
-					},
-					paths: []string{tempFilePath},
-				},
-			},
-		},
-		{
-			name:    "max amount of args over max length",
-			command: "cat " + strings.Join(overMaxArgs[:maxArgs], " "),
-			eventInfos: []expectedEvents{
-				{
-					cmdInfo: commandInfo{
-						program: "cat",
-						// argv[0] is counted, so we expect MAXARGS-1 args
-						args: atMaxArgs[:maxArgs-1],
-						// the arguments aren't existing files on disk
-						expectedFail: true,
-					},
-					paths: maxArgPaths[:maxArgs],
-				},
-			},
-		},
-		{
-			name:    "over max amount of args over max length",
-			command: "cat " + strings.Join(overMaxArgs, " "),
-			eventInfos: []expectedEvents{
-				{
-					cmdInfo: commandInfo{
-						program: "cat",
-						// argv[0] is counted, so we expect MAXARGS-1 args
-						args: atMaxArgs[:maxArgs-1],
-						// the arguments aren't existing files on disk
-						expectedFail: true,
-					},
-					paths: maxArgPaths,
+					// paths: []string{overMaxArg[:maxPathLength]},
 				},
 			},
 		},

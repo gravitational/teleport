@@ -12,7 +12,7 @@
 // Size, in bytes, of the ring buffer used to report
 // audit events to userspace. This is the default,
 // the userspace can adjust this value based on config.
-#define EVENTS_BUF_SIZE (4096*128)
+#define EVENTS_BUF_SIZE (4096 * 512)
 
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";

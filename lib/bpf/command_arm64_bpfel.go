@@ -18,9 +18,11 @@ type commandDataT struct {
 	Pid            uint64
 	Ppid           uint64
 	Command        [16]uint8
-	Type           uint32
-	Argv           [1024]uint8
-	Retval         int32
+	Filename       [512]uint8
+	Args           [20480]uint8
+	ArgsLen        uint64
+	ArgsTruncated  bool
+	_              [7]byte
 	Cgroup         uint64
 	AuditSessionId uint32
 	_              [4]byte
@@ -68,10 +70,7 @@ type commandSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type commandProgramSpecs struct {
-	TracepointSyscallsSysEnterExecve   *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_execve"`
-	TracepointSyscallsSysEnterExecveat *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_execveat"`
-	TracepointSyscallsSysExitExecve    *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_execve"`
-	TracepointSyscallsSysExitExecveat  *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_execveat"`
+	TracepointSchedSchedProcessExec *ebpf.ProgramSpec `ebpf:"tracepoint__sched__sched_process_exec"`
 }
 
 // commandMapSpecs contains maps before they are loaded into the kernel.
@@ -137,18 +136,12 @@ type commandVariables struct {
 //
 // It can be passed to loadCommandObjects or ebpf.CollectionSpec.LoadAndAssign.
 type commandPrograms struct {
-	TracepointSyscallsSysEnterExecve   *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_execve"`
-	TracepointSyscallsSysEnterExecveat *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_execveat"`
-	TracepointSyscallsSysExitExecve    *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_execve"`
-	TracepointSyscallsSysExitExecveat  *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_execveat"`
+	TracepointSchedSchedProcessExec *ebpf.Program `ebpf:"tracepoint__sched__sched_process_exec"`
 }
 
 func (p *commandPrograms) Close() error {
 	return _CommandClose(
-		p.TracepointSyscallsSysEnterExecve,
-		p.TracepointSyscallsSysEnterExecveat,
-		p.TracepointSyscallsSysExitExecve,
-		p.TracepointSyscallsSysExitExecveat,
+		p.TracepointSchedSchedProcessExec,
 	)
 }
 
