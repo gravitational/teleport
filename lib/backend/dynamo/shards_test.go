@@ -92,6 +92,10 @@ func TestShardSplitting(t *testing.T) {
 			// Ensure all writers have finished, this may not be the case in a case where unexpected events are
 			// received the the target event count is reached before all writes have completed.
 			writer.wg.Wait()
+
+			// This test relies on at least 1 shard split happening.
+			require.Less(t, monitor.initialCounts.child, monitor.lastKnownCounts.child, "Expected last known child shard count to be larger than initial!")
+
 			verifyNoEventLoss(t, tracker)
 		})
 	}
@@ -155,6 +159,7 @@ type testShardCounts struct {
 type testShardMonitor struct {
 	backend         *Backend
 	lastKnownCounts *testShardCounts
+	initialCounts   *testShardCounts
 	t               *testing.T
 }
 
@@ -170,7 +175,9 @@ func newTestShardMonitor(ctx context.Context, b *Backend, t *testing.T) *testSha
 	monitor := &testShardMonitor{
 		backend:         b,
 		t:               t,
-		lastKnownCounts: startingCounts}
+		lastKnownCounts: startingCounts,
+		initialCounts:   startingCounts,
+	}
 	return monitor
 }
 
