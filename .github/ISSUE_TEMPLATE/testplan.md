@@ -2071,6 +2071,34 @@ also managed, but not considered for role-based host user creation.
   - [ ] Windows Desktop
   - [ ] App Access
 
+## Relay service
+
+[Relay docs](https://goteleport.com/docs/reference/architecture/relay/)
+
+[Relay chart](https://goteleport.com/docs/reference/helm-reference/teleport-relay/)
+
+- Relay service and relay tunnels
+  - [ ] Relay agents can start and join the cluster
+  - [ ] SSH agents (from the previous and current major version) can open tunnels to the Relay group
+    - Verify this through the agent logs and from the `relay_ids` in the `node` heartbeats
+  - [ ] Kube agents (from the previous and current major version) can open tunnels to the Relay group
+    - Verify this through the agent logs and from the `relay_ids` in the `kube_server` heartbeats
+- `tsh` can be configured to use the relay
+  - [ ] `tsh login` with the `default_relay_addr` user trait
+  - [ ] `tsh login --relay`
+  - [ ] `tsh ssh` goes through the relay if an address is configured with the above
+    - [ ] `tsh ssh --relay none` does not
+  - [ ] `tsh ssh --relay` goes through the relay
+  - [ ] `tsh proxy ssh` goes through the relay if appropriate (as called by `ProxyCommand` in `tsh config`)
+  - [ ] `tsh kube login` generates a kubeconfig file that uses the appropriate relay
+  - [ ] `tsh proxy kube` goes through the relay
+- Relay rollouts and relay peering
+  - [ ] Different relay agents bounce connections between them correctly
+    - Verify this by setting the `target_connection_count` to less than the replica count and checking logs
+  - [ ] Rolling the relay chart results in agents maintaining no less than `target_connection_count` tunnels open
+  - [ ] SSH (with connection resumption) can keep a connection going through a relay rollout
+
+
 ## SSH Connection Resumption
 
 Verify that SSH works, and that resumable SSH is not interrupted across a Teleport Cloud tenant upgrade.
