@@ -176,7 +176,7 @@ func newTestShardMonitor(ctx context.Context, b *Backend, t *testing.T) *testSha
 
 // monitor continuously polls DynamoDB shard topology and logs any changes in shard counts.
 func (m *testShardMonitor) monitor(ctx context.Context) {
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(time.Second * 4)
 	defer ticker.Stop()
 
 	for {
