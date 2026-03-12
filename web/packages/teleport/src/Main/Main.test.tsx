@@ -17,7 +17,6 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter } from 'react-router';
 
 import { ButtonPrimary } from 'design/Button';
 import { ListThin } from 'design/Icon';
@@ -26,6 +25,7 @@ import {
   enableMswServer,
   fireEvent,
   render,
+  Router,
   screen,
   server,
 } from 'design/utils/testing';
@@ -102,7 +102,7 @@ test('renders', () => {
   };
 
   render(
-    <MemoryRouter>
+    <Router>
       <LayoutContextProvider>
         <ContextProvider ctx={ctx}>
           <ToastNotificationProvider>
@@ -110,7 +110,7 @@ test('renders', () => {
           </ToastNotificationProvider>
         </ContextProvider>
       </LayoutContextProvider>
-    </MemoryRouter>
+    </Router>
   );
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
@@ -128,7 +128,7 @@ test('toggle rendering of info guide panel', async () => {
   };
 
   render(
-    <MemoryRouter>
+    <Router>
       <ContextProvider ctx={ctx}>
         <ToastNotificationProvider>
           <LayoutContextProvider>
@@ -136,7 +136,7 @@ test('toggle rendering of info guide panel', async () => {
           </LayoutContextProvider>
         </ToastNotificationProvider>
       </ContextProvider>
-    </MemoryRouter>
+    </Router>
   );
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
@@ -170,7 +170,7 @@ test('notification render and auto dismissal', async () => {
   };
 
   render(
-    <MemoryRouter>
+    <Router>
       <ContextProvider ctx={ctx}>
         <ToastNotificationProvider>
           <LayoutContextProvider>
@@ -178,7 +178,7 @@ test('notification render and auto dismissal', async () => {
           </LayoutContextProvider>
         </ToastNotificationProvider>
       </ContextProvider>
-    </MemoryRouter>
+    </Router>
   );
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();

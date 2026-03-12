@@ -17,7 +17,7 @@
  */
 
 import { useState, type ComponentPropsWithoutRef } from 'react';
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Link as ExternalLink, Flex, Text } from 'design';
