@@ -125,10 +125,6 @@ func (m *SAMLCertExpiryMonitor) run(ctx context.Context) error {
 		}
 	}
 
-	if err := m.reconcileAlert(ctx); err != nil {
-		m.Logger.ErrorContext(ctx, "Failed initial reconciliation of SAML cert expiry alert", "error", err)
-	}
-
 	ticker := m.Clock.NewTicker(samlCertCheckInterval)
 	defer ticker.Stop()
 
@@ -160,11 +156,13 @@ func (m *SAMLCertExpiryMonitor) runWatchLoop(ctx context.Context, ticker clockwo
 	for {
 		select {
 		case ev := <-watch.Events():
-			if ev.Type != types.OpPut && ev.Type != types.OpDelete {
+			switch ev.Type {
+			case types.OpInit, types.OpPut, types.OpDelete:
+				if err := m.reconcileAlert(ctx); err != nil {
+					m.Logger.ErrorContext(ctx, "Failed to reconcile SAML cert expiry alert", "error", err)
+				}
+			default:
 				continue
-			}
-			if err := m.reconcileAlert(ctx); err != nil {
-				m.Logger.ErrorContext(ctx, "Failed to reconcile SAML cert expiry alert", "error", err)
 			}
 		case <-ticker.Chan():
 			if err := m.reconcileAlert(ctx); err != nil {
