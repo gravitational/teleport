@@ -163,6 +163,10 @@ func newTestShardMonitor(ctx context.Context, b *Backend, t *testing.T) *testSha
 	startingCounts, err := fetchShardCounts(ctx, b)
 	require.NoError(t, err)
 	require.NotNil(t, startingCounts)
+
+	t.Logf("Starting shard status: %d active, %d closed, %d child shards ",
+		startingCounts.active, startingCounts.closed, startingCounts.child)
+
 	monitor := &testShardMonitor{
 		backend:         b,
 		t:               t,
@@ -356,7 +360,6 @@ func (w *eventWriter) run(ctx context.Context) {
 
 	for writerID := range w.numWriters {
 		w.wg.Go(func() {
-			w.t.Logf("Writer %d started.", writerID)
 			defer w.t.Logf("Writer %d finished.", writerID)
 			start := writerID * eventsPerWriter
 			end := start + eventsPerWriter
