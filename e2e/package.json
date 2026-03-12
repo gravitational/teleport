@@ -11,6 +11,8 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@playwright/test": "^1.55.1",
-    "tsx": "^4.21.0"
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   }
 }
