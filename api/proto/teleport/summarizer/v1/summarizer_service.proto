@@ -78,6 +78,18 @@ service SummarizerService {
   // TestInferenceModel tests an InferenceModel configuration by making a test
   // request to the configured provider (AWS Bedrock or OpenAI).
   rpc TestInferenceModel(TestInferenceModelRequest) returns (TestInferenceModelResponse);
+
+  // CreateRetrievalModel creates the RetrievalModel.
+  rpc CreateRetrievalModel(CreateRetrievalModelRequest) returns (CreateRetrievalModelResponse);
+  // GetRetrievalModel retrieves the existing RetrievalModel.
+  rpc GetRetrievalModel(GetRetrievalModelRequest) returns (GetRetrievalModelResponse);
+  // UpdateRetrievalModel updates the existing RetrievalModel.
+  rpc UpdateRetrievalModel(UpdateRetrievalModelRequest) returns (UpdateRetrievalModelResponse);
+  // UpsertRetrievalModel creates a new RetrievalModel or updates the existing
+  // one.
+  rpc UpsertRetrievalModel(UpsertRetrievalModelRequest) returns (UpsertRetrievalModelResponse);
+  // DeleteRetrievalModel deletes the existing RetrievalModel by name.
+  rpc DeleteRetrievalModel(DeleteRetrievalModelRequest) returns (DeleteRetrievalModelResponse);
 }
 
 // Summarization inference models
@@ -118,7 +130,7 @@ message UpdateInferenceModelResponse {
   InferenceModel model = 1;
 }
 
-// UpsertInferenceModelRequest is a request for creating or updating a
+// UpsertInferenceModelRequest is a request for creating or updating an
 // InferenceModel.
 message UpsertInferenceModelRequest {
   // Model is the InferenceModel resource to create or update.
@@ -364,3 +376,59 @@ message TestInferenceModelResponse {
   // If success is false, this contains the error message.
   string message = 2;
 }
+
+// CreateRetrievalModelRequest is a request for creating the RetrievalModel.
+// Only one RetrievalModel can exist per cluster.
+message CreateRetrievalModelRequest {
+  // Model is the RetrievalModel resource to create.
+  RetrievalModel model = 1;
+}
+
+// CreateRetrievalModelResponse is a response to creating the RetrievalModel.
+message CreateRetrievalModelResponse {
+  // Model is the RetrievalModel resource that was created.
+  RetrievalModel model = 1;
+}
+
+// GetRetrievalModelRequest is a request for retrieving the RetrievalModel.
+// Since only one RetrievalModel can exist per cluster, no name is required.
+message GetRetrievalModelRequest {}
+
+// GetRetrievalModelResponse is a response to retrieving the RetrievalModel.
+message GetRetrievalModelResponse {
+  // Model is the RetrievalModel resource that was retrieved.
+  RetrievalModel model = 1;
+}
+
+// UpdateRetrievalModelRequest is a request for updating the RetrievalModel.
+message UpdateRetrievalModelRequest {
+  // Model is the RetrievalModel resource to update.
+  RetrievalModel model = 1;
+}
+
+// UpdateRetrievalModelResponse is a response to updating the RetrievalModel.
+message UpdateRetrievalModelResponse {
+  // Model is the RetrievalModel resource that was updated.
+  RetrievalModel model = 1;
+}
+
+// UpsertRetrievalModelRequest is a request for creating or updating the
+// RetrievalModel.
+message UpsertRetrievalModelRequest {
+  // Model is the RetrievalModel resource to create or update.
+  RetrievalModel model = 1;
+}
+
+// UpsertRetrievalModelResponse is a response to creating or updating the
+// RetrievalModel.
+message UpsertRetrievalModelResponse {
+  // Model is the RetrievalModel resource that was created or updated.
+  RetrievalModel model = 1;
+}
+
+// DeleteRetrievalModelRequest is a request for deleting the RetrievalModel.
+// Since only one RetrievalModel can exist per cluster, no name is required.
+message DeleteRetrievalModelRequest {}
+
+// DeleteRetrievalModelResponse is a response to deleting the RetrievalModel.
+message DeleteRetrievalModelResponse {}
