@@ -144,7 +144,7 @@ func (d *dbusDaemon) Close() {
 func (d *dbusDaemon) Wait() error {
 	err := <-d.done
 	if err != nil && !errors.Is(err, context.Canceled) {
-		log.DebugContext(context.Background(), "D-Bus daemon background task exited with error after close", "error", err)
+		return err
 	}
 	return nil
 }
@@ -171,8 +171,10 @@ func (d *dbusDaemon) Start(addr, credPath string, sender dbus.Sender) *dbus.Erro
 	go func() {
 		err := d.startAdminProcess(addr, credPath)
 		// TODO(tangyatsu): D-Bus supports signals, we might want to emit a signal when the admin process exits.
-		if err != nil {
+		if err != nil && !errors.Is(err, context.Canceled) {
 			log.ErrorContext(context.Background(), "VNet admin process exited with error", "error", err)
+		} else {
+			log.InfoContext(context.Background(), "VNet admin process exited")
 		}
 		d.done <- err
 		d.Close()
