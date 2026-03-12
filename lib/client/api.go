@@ -2315,7 +2315,7 @@ func (tc *TeleportClient) retryWithAddingMFA(ctx context.Context, fn func() erro
 	// 	return trace.Wrap(origErr)
 	// }
 
-	added, err := tc.AddMFA(ctx, mfa.MFASpec{})
+	added, err := tc.AddMFA(ctx, mfa.RegisterDeviceConfig{})
 	if err != nil {
 		return trace.Wrap(err)
 	}

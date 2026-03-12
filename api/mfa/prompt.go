@@ -20,19 +20,22 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 )
 
-type MFASpec struct {
-	DevName string
-	DevType string
+type RegisterDeviceConfig struct {
+	Confirmed bool
+	Name      string
+	Type      string
 
-	// AllowPasswordless and AllowPasswordlessSet hold the state of the
+	// allowPasswordless and allowPasswordlessSet hold the state of the
 	// --(no-)allow-passwordless flag.
 	//
-	// AllowPasswordless can only be set by users if wancli.IsFIDO2Available() is
+	// allowPasswordless can only be set by users if wancli.IsFIDO2Available() is
 	// true.
 	// Note that Touch ID registrations are always passwordless-capable,
 	// regardless of other settings.
@@ -41,11 +44,17 @@ type MFASpec struct {
 	AuthSecondFactor constants.SecondFactorType
 }
 
+type RegisterCallback interface {
+	Rollback() error
+	Confirm() error
+}
+
 // Prompt is an MFA prompt.
 type Prompt interface {
 	// Run prompts the user to complete an MFA authentication challenge.
 	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
-	AddMFA(ctx context.Context, spec MFASpec) (bool, error)
+	AskRegister(ctx context.Context, config RegisterDeviceConfig) (RegisterDeviceConfig, error)
+	Register(ctx context.Context, chal *proto.MFARegisterChallenge, config RegisterDeviceConfig) (*proto.MFARegisterResponse, RegisterCallback, error)
 }
 
 // PromptFunc is a function wrapper that implements the Prompt interface.
@@ -56,8 +65,12 @@ func (f PromptFunc) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	return f(ctx, chal)
 }
 
-func (f PromptFunc) AddMFA(ctx context.Context, spec MFASpec) (bool, error) {
-	return false, nil
+func (f PromptFunc) AskRegister(ctx context.Context, config RegisterDeviceConfig) (RegisterDeviceConfig, error) {
+	return RegisterDeviceConfig{}, trace.NotImplemented("not supported")
+}
+
+func (f PromptFunc) Register(ctx context.Context, chal *proto.MFARegisterChallenge, config RegisterDeviceConfig) (*proto.MFARegisterResponse, RegisterCallback, error) {
+	return nil, nil, trace.NotImplemented("not supported")
 }
 
 // PromptConstructor is a function that creates a new MFA prompt.

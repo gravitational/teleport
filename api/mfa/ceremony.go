@@ -31,6 +31,8 @@ import (
 type Ceremony struct {
 	// CreateAuthenticateChallenge creates an authentication challenge.
 	CreateAuthenticateChallenge CreateAuthenticateChallengeFunc
+	CreateRegisterChallenge     CreateRegisterChallengeFunc
+	AddMFADevice                AddMFADeviceFunc
 	// PromptConstructor creates a prompt to prompt the user to solve an authentication challenge.
 	PromptConstructor PromptConstructor
 	// SSOMFACeremonyConstructor is an optional SSO MFA ceremony constructor. If provided,
@@ -51,6 +53,8 @@ type SSOMFACeremonyConstructor func(ctx context.Context) (SSOMFACeremony, error)
 
 // CreateAuthenticateChallengeFunc is a function that creates an authentication challenge.
 type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+type CreateRegisterChallengeFunc func(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error)
+type AddMFADeviceFunc func(ctx context.Context, req *proto.MFARegisterResponse, config RegisterDeviceConfig) error
 
 // Run the MFA ceremony.
 //
@@ -106,6 +110,19 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		return nil, trace.Wrap(&ErrMFANotSupported, "mfa ceremony must have PromptConstructor set in order to succeed")
 	}
 
+	// If the user has no device registered, prompt them to register and then re-generate the challenge.
+	noRegisteredDevices := chal.WebauthnChallenge == nil && chal.SSOChallenge == nil && chal.TOTP == nil
+	if noRegisteredDevices && c.CreateRegisterChallenge != nil && c.AddMFADevice != nil {
+		if err := c.Register(ctx, RegisterDeviceConfig{}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		chal, err = c.CreateAuthenticateChallenge(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Set challenge extensions in the prompt, if present, but set it first so the
 	// caller can still override it.
 	if req != nil && req.ChallengeExtensions != nil {
@@ -114,6 +131,51 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 
 	resp, err := c.PromptConstructor(promptOpts...).Run(ctx, chal)
 	return resp, trace.Wrap(err)
+}
+
+func (c *Ceremony) Register(ctx context.Context, config RegisterDeviceConfig) error {
+	regPrompt := c.PromptConstructor()
+
+	// TODO: Roll AskRegister and Register together with c.CreateRegisterChallenge and c.Run passed as arguments.
+	var err error
+	config, err = regPrompt.AskRegister(ctx, config)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO: avoid recursive registration if no challenge available. Probably as a promptOpt?
+	mfaResp, err := c.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	regChal, err := c.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		// DeviceType:  config.ProtoType,
+		// DeviceUsage: config.ProtoUsage,
+		ExistingMFAResponse: mfaResp,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	resp, callback, err := regPrompt.Register(ctx, regChal, config)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err = c.AddMFADevice(ctx, resp, config); err != nil {
+		callback.Rollback()
+		return trace.Wrap(err)
+	}
+	if err := callback.Confirm(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // CeremonyFn is a function that will carry out an MFA ceremony.

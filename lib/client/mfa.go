@@ -33,6 +33,8 @@ import (
 func (tc *TeleportClient) NewMFACeremony() *mfa.Ceremony {
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: tc.createAuthenticateChallenge,
+		CreateRegisterChallenge:     tc.createRegisterChallenge,
+		AddMFADevice:                tc.addMFADevice,
 		PromptConstructor:           tc.NewMFAPrompt,
 		SSOMFACeremonyConstructor:   tc.NewSSOMFACeremony,
 	}
@@ -49,6 +51,37 @@ func (tc *TeleportClient) createAuthenticateChallenge(ctx context.Context, req *
 		return nil, trace.Wrap(err)
 	}
 	return rootClient.CreateAuthenticateChallenge(ctx, req)
+}
+
+// createRegisterChallenge creates and returns an MFA registration challenge for a user.
+func (tc *TeleportClient) createRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rootClient.CreateRegisterChallenge(ctx, req)
+}
+
+func (tc *TeleportClient) addMFADevice(ctx context.Context, resp *proto.MFARegisterResponse, config mfa.RegisterDeviceConfig) error {
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = rootClient.AddMFADeviceSync(ctx, &proto.AddMFADeviceSyncRequest{
+		NewDeviceName:  config.Name,
+		NewMFAResponse: resp,
+		// DeviceUsage:    config.ProtoUsage,
+	})
+	return trace.Wrap(err)
 }
 
 // WebauthnLoginFunc is a function that performs WebAuthn login.
@@ -109,8 +142,8 @@ func (tc *TeleportClient) NewSSOMFACeremony(ctx context.Context) (mfa.SSOMFACere
 	return sso.NewCLIMFACeremony(rd), nil
 }
 
-func (tc *TeleportClient) AddMFA(ctx context.Context, spec mfa.MFASpec) (bool, error) {
-	if spec.DevType == "" {
+func (tc *TeleportClient) AddMFA(ctx context.Context, spec mfa.RegisterDeviceConfig) (bool, error) {
+	if spec.Type == "" {
 		// If we are prompting the user for the device type, then take a glimpse at
 		// server-side settings and adjust the options accordingly.
 		// This is undesirable to do during flag setup, but we can do it here.
@@ -120,6 +153,6 @@ func (tc *TeleportClient) AddMFA(ctx context.Context, spec mfa.MFASpec) (bool, e
 		}
 		spec.AuthSecondFactor = pingResp.Auth.SecondFactor
 	}
-	added, err := tc.NewMFAPrompt().AddMFA(ctx, spec)
+	added, err := tc.NewMFAPrompt().Register(ctx)
 	return added, trace.Wrap(err)
 }

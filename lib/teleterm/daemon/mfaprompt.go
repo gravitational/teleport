@@ -142,7 +142,7 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	return libmfa.HandleMFAPromptGoroutines(ctx, spawnGoroutines)
 }
 
-func (p *mfaPrompt) AddMFA(ctx context.Context, spec mfa.MFASpec) (bool, error) {
+func (p *mfaPrompt) AddMFA(ctx context.Context, spec mfa.RegisterDeviceConfig) (bool, error) {
 	return false, nil
 }
 

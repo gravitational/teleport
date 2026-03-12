@@ -200,12 +200,27 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	ctx := cf.Context
-	_, err = tc.AddMFA(ctx, mfa.MFASpec{
-		DevName:              c.devName,
-		DevType:              c.devType,
+
+	config := mfa.RegisterDeviceConfig{
+		Confirmed:            true,
+		Name:                 c.devName,
+		Type:                 c.devType,
 		AllowPasswordless:    c.allowPasswordless,
 		AllowPasswordlessSet: c.allowPasswordlessSet,
-	})
+	}
+
+	if config.Type == "" {
+		// If we are prompting the user for the device type, then take a glimpse at
+		// server-side settings and adjust the options accordingly.
+		// This is undesirable to do during flag setup, but we can do it here.
+		pingResp, err := tc.Ping(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		config.AuthSecondFactor = pingResp.Auth.SecondFactor
+	}
+
+	err = tc.NewMFACeremony().Register(ctx, config)
 	return trace.Wrap(err)
 }
 
