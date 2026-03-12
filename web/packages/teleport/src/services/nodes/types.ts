@@ -24,7 +24,7 @@ import { ResourceLabel } from 'teleport/services/agents';
 import { Regions } from '../integrations';
 
 /** Describes an SSH login available on a server. */
-export type SSHLogin = {
+export type SshLogin = {
   login: string;
   requiresRequest?: boolean;
 };
@@ -41,7 +41,7 @@ export interface Node {
   /** Plain login names. Always present for backwards compatibility with older proxies. */
   sshLogins: string[];
   /** Per-login metadata (granted vs requestable). Only present from newer proxies. */
-  sshLoginDetails?: SSHLogin[];
+  sshLoginDetails?: SshLogin[];
   awsMetadata?: AwsMetadata;
   requiresRequest?: boolean;
   supportedFeatureIds?: ComponentFeatureID[];
