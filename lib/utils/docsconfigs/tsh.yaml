@@ -78,3 +78,7 @@ flag_default_overrides:
   - full_command: "tsh scan keys"
     flag: "dirs"
     value: '<system dependent: /home/, /Users/, or C:\\Users\\>'
+
+hidden_flag_overrides:
+  - full_command: "tsh"
+    flag: "os-log"

@@ -59,6 +59,8 @@ tags:
   - reference
   - platform-wide
 ---
+{/*GENERATED FILE. DO NOT EDIT.*/}
+{/*To generate, run: make cli-docs-myapp*/}
 {/*vale messaging = NO*/}
 
 This guide provides a comprehensive list of commands, arguments, and flags for
@@ -458,6 +460,8 @@ tags:
   - reference
   - platform-wide
 ---
+{/*GENERATED FILE. DO NOT EDIT.*/}
+{/*To generate, run: make cli-docs-myapp*/}
 {/*vale messaging = NO*/}
 
 This guide provides a comprehensive list of commands, arguments, and flags for
@@ -514,6 +518,102 @@ Arguments:
 
 `,
 		},
+		{
+			name: "hidden flags allowed via config",
+			makeApp: func() *kingpin.Application {
+				app := InitCLIParser("myapp", "This is the main CLI tool.")
+				app.Flag("config", "The location of the config file").Default("config.yaml").Hidden().String()
+				app.Command("hello", "Hello.")
+				create := app.Command("create", "Create.")
+				create.Flag("name", "The name of the resource").Default("myresource").Hidden().String()
+				createRocket := create.Command("rocket", "Rocket.")
+				createRocket.Flag("launch", "Whether to launch the Rocket").Bool()
+				return app
+			},
+			config: generatorConfig{
+				Introduction: "This is the main CLI tool.",
+				HiddenFlagOverrides: []hiddenFlagOverride{
+					{
+						FullCommand: "myapp",
+						Flag:        "config",
+					},
+					{
+						FullCommand: "myapp create",
+						Flag:        "name",
+					},
+				},
+			},
+			expectSubstring: `---
+title: myapp Reference
+description: Provides a comprehensive list of commands, arguments, and flags for myapp.
+sidebar_label: myapp
+tags:
+  - reference
+  - platform-wide
+---
+{/*GENERATED FILE. DO NOT EDIT.*/}
+{/*To generate, run: make cli-docs-myapp*/}
+{/*vale messaging = NO*/}
+
+This guide provides a comprehensive list of commands, arguments, and flags for
+myapp.
+
+This is the main CLI tool.
+
+@@@code
+$ myapp [<flags>] <command> [<args> ...]
+@@@
+
+Global flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|@--config@|@config.yaml@|The location of the config file|
+
+## myapp create rocket
+
+Rocket.
+
+Usage:
+
+@@@code
+$ myapp create rocket [<flags>]
+@@@
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|@--[no-]launch@|@false@|Whether to launch the Rocket|
+
+## myapp hello
+
+Hello.
+
+Usage:
+
+@@@code
+$ myapp hello
+@@@
+
+## myapp help
+
+Show help.
+
+Usage:
+
+@@@code
+$ myapp help [<command>...]
+@@@
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|command|none (optional)|Show help on command.|
+
+`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -523,7 +623,7 @@ Arguments:
 			args := []string{"help"}
 			app.Terminate(func(int) {})
 
-			docsUsageTemplatePath := "docs-usage.md.tmpl"
+			docsUsageTemplatePath := "usage_docs.md.tmpl"
 			f, err := os.Open(docsUsageTemplatePath)
 			require.NoError(t, err)
 			updateAppUsageTemplate(f, tt.config, app)

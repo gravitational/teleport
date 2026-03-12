@@ -45,7 +45,7 @@ Configures tbot with an application output.
 Usage:
 
 ```code
-$ tbot configure application --destination=DESTINATION --app=APP [<flags>]
+$ tbot configure application [<flags>]
 ```
 
 Environment variables:
@@ -88,7 +88,7 @@ Configures tbot with a HTTP application proxy.
 Usage:
 
 ```code
-$ tbot configure application-proxy --listen=LISTEN [<flags>]
+$ tbot configure application-proxy [<flags>]
 ```
 
 Environment variables:
@@ -127,7 +127,7 @@ Configures tbot with an application tunnel.
 Usage:
 
 ```code
-$ tbot configure application-tunnel --listen=LISTEN --app=APP [<flags>]
+$ tbot configure application-tunnel [<flags>]
 ```
 
 Environment variables:
@@ -167,7 +167,7 @@ Configures tbot with a database output.
 Usage:
 
 ```code
-$ tbot configure database --destination=DESTINATION --service=SERVICE --username=USERNAME --database=DATABASE [<flags>]
+$ tbot configure database [<flags>]
 ```
 
 Environment variables:
@@ -212,7 +212,7 @@ Configures tbot with a database tunnel listener.
 Usage:
 
 ```code
-$ tbot configure database-tunnel --listen=LISTEN --service=SERVICE --username=USERNAME --database=DATABASE [<flags>]
+$ tbot configure database-tunnel [<flags>]
 ```
 
 Environment variables:
@@ -254,7 +254,7 @@ Configures tbot with an identity output for SSH and Teleport API access.
 Usage:
 
 ```code
-$ tbot configure identity --destination=DESTINATION [<flags>]
+$ tbot configure identity [<flags>]
 ```
 
 Environment variables:
@@ -297,7 +297,7 @@ Configures tbot with a Kubernetes output.
 Usage:
 
 ```code
-$ tbot configure kubernetes --destination=DESTINATION --kubernetes-cluster=KUBERNETES-CLUSTER [<flags>]
+$ tbot configure kubernetes [<flags>]
 ```
 
 Environment variables:
@@ -340,7 +340,7 @@ Configures tbot with a Kubernetes V2 output.
 Usage:
 
 ```code
-$ tbot configure kubernetes/v2 --destination=DESTINATION [<flags>]
+$ tbot configure kubernetes/v2 [<flags>]
 ```
 
 Environment variables:
@@ -457,7 +457,7 @@ Configures tbot with an SSH Multiplexer service.
 Usage:
 
 ```code
-$ tbot configure ssh-multiplexer --destination=DESTINATION [<flags>]
+$ tbot configure ssh-multiplexer [<flags>]
 ```
 
 Environment variables:
@@ -502,7 +502,7 @@ SPIFFE Workload API and Envoy SDS.
 Usage:
 
 ```code
-$ tbot configure workload-identity-api --listen=LISTEN [<flags>]
+$ tbot configure workload-identity-api [<flags>]
 ```
 
 Environment variables:
@@ -544,7 +544,7 @@ Roles Anywhere.
 Usage:
 
 ```code
-$ tbot configure workload-identity-aws-roles-anywhere --destination=DESTINATION --role-arn=ROLE-ARN --profile-arn=PROFILE-ARN --trust-anchor-arn=TRUST-ANCHOR-ARN [<flags>]
+$ tbot configure workload-identity-aws-roles-anywhere [<flags>]
 ```
 
 Environment variables:
@@ -593,7 +593,7 @@ Configures tbot with a SPIFFE-compatible JWT SVID output.
 Usage:
 
 ```code
-$ tbot configure workload-identity-jwt --destination=DESTINATION --audience=AUDIENCE [<flags>]
+$ tbot configure workload-identity-jwt [<flags>]
 ```
 
 Environment variables:
@@ -637,7 +637,7 @@ Configures tbot with a SPIFFE-compatible SVID output.
 Usage:
 
 ```code
-$ tbot configure workload-identity-x509 --destination=DESTINATION [<flags>]
+$ tbot configure workload-identity-x509 [<flags>]
 ```
 
 Environment variables:
@@ -797,7 +797,7 @@ Creates a keypair to preregister for bound-keypair joining.
 Usage:
 
 ```code
-$ tbot keypair create --proxy-server=PROXY-SERVER [<flags>]
+$ tbot keypair create [<flags>]
 ```
 
 Flags:
@@ -859,7 +859,7 @@ Inspects a SPIFFE Workload API endpoint to ensure it is working correctly.
 Usage:
 
 ```code
-$ tbot spiffe-inspect --path=PATH
+$ tbot spiffe-inspect [<flags>]
 ```
 
 Flags:
@@ -875,7 +875,7 @@ Starts tbot with an application output.
 Usage:
 
 ```code
-$ tbot start application --destination=DESTINATION --app=APP [<flags>]
+$ tbot start application [<flags>]
 ```
 
 Environment variables:
@@ -918,7 +918,7 @@ Starts tbot with a HTTP application proxy.
 Usage:
 
 ```code
-$ tbot start application-proxy --listen=LISTEN [<flags>]
+$ tbot start application-proxy [<flags>]
 ```
 
 Environment variables:
@@ -957,7 +957,7 @@ Starts tbot with an application tunnel.
 Usage:
 
 ```code
-$ tbot start application-tunnel --listen=LISTEN --app=APP [<flags>]
+$ tbot start application-tunnel [<flags>]
 ```
 
 Environment variables:
@@ -997,7 +997,7 @@ Starts tbot with a database output.
 Usage:
 
 ```code
-$ tbot start database --destination=DESTINATION --service=SERVICE --username=USERNAME --database=DATABASE [<flags>]
+$ tbot start database [<flags>]
 ```
 
 Environment variables:
@@ -1042,7 +1042,7 @@ Starts tbot with a database tunnel listener.
 Usage:
 
 ```code
-$ tbot start database-tunnel --listen=LISTEN --service=SERVICE --username=USERNAME --database=DATABASE [<flags>]
+$ tbot start database-tunnel [<flags>]
 ```
 
 Environment variables:
@@ -1084,7 +1084,7 @@ Starts tbot with an identity output for SSH and Teleport API access.
 Usage:
 
 ```code
-$ tbot start identity --destination=DESTINATION [<flags>]
+$ tbot start identity [<flags>]
 ```
 
 Environment variables:
@@ -1127,7 +1127,7 @@ Starts tbot with a Kubernetes output.
 Usage:
 
 ```code
-$ tbot start kubernetes --destination=DESTINATION --kubernetes-cluster=KUBERNETES-CLUSTER [<flags>]
+$ tbot start kubernetes [<flags>]
 ```
 
 Environment variables:
@@ -1170,7 +1170,7 @@ Starts tbot with a Kubernetes V2 output.
 Usage:
 
 ```code
-$ tbot start kubernetes/v2 --destination=DESTINATION [<flags>]
+$ tbot start kubernetes/v2 [<flags>]
 ```
 
 Environment variables:
@@ -1287,7 +1287,7 @@ Starts tbot with an SSH Multiplexer service.
 Usage:
 
 ```code
-$ tbot start ssh-multiplexer --destination=DESTINATION [<flags>]
+$ tbot start ssh-multiplexer [<flags>]
 ```
 
 Environment variables:
@@ -1332,7 +1332,7 @@ Workload API and Envoy SDS.
 Usage:
 
 ```code
-$ tbot start workload-identity-api --listen=LISTEN [<flags>]
+$ tbot start workload-identity-api [<flags>]
 ```
 
 Environment variables:
@@ -1374,7 +1374,7 @@ Anywhere.
 Usage:
 
 ```code
-$ tbot start workload-identity-aws-roles-anywhere --destination=DESTINATION --role-arn=ROLE-ARN --profile-arn=PROFILE-ARN --trust-anchor-arn=TRUST-ANCHOR-ARN [<flags>]
+$ tbot start workload-identity-aws-roles-anywhere [<flags>]
 ```
 
 Environment variables:
@@ -1423,7 +1423,7 @@ Starts tbot with a SPIFFE-compatible JWT SVID output.
 Usage:
 
 ```code
-$ tbot start workload-identity-jwt --destination=DESTINATION --audience=AUDIENCE [<flags>]
+$ tbot start workload-identity-jwt [<flags>]
 ```
 
 Environment variables:
@@ -1467,7 +1467,7 @@ Starts tbot with a SPIFFE-compatible SVID output.
 Usage:
 
 ```code
-$ tbot start workload-identity-x509 --destination=DESTINATION [<flags>]
+$ tbot start workload-identity-x509 [<flags>]
 ```
 
 Environment variables:
@@ -1531,7 +1531,7 @@ Waits for a running tbot to become ready.
 Usage:
 
 ```code
-$ tbot wait --diag-addr=DIAG-ADDR [<flags>]
+$ tbot wait [<flags>]
 ```
 
 Flags:
@@ -1540,5 +1540,5 @@ Flags:
 |---|---|---|
 |`--diag-addr`|none|The configured --diag-addr of a running bot, in host:port form.|
 |`--service`|none|An optional name. If set, waits for only the named service to become healthy. If unset, waits for all services.|
-|`--timeout`|none|An optional timeout. If set, returns an error if all specified services have reported healthy by the timeout.|
+|`--timeout`|none|An optional timeout. If set, returns an error if not all specified services have reported healthy by the timeout.|
 
