@@ -100,11 +100,7 @@ func TestTryCompileFastMatcher(t *testing.T) {
 
 	t.Run("returns nil when matching rules exceed threshold", func(t *testing.T) {
 		t.Parallel()
-		orig := maxFastMatcherRules
-		maxFastMatcherRules = 5
-		t.Cleanup(func() { maxFastMatcherRules = orig })
-
-		allowed := make([]types.KubernetesResource, 10)
+		allowed := make([]types.KubernetesResource, maxFastMatcherRules+1)
 		for i := range allowed {
 			allowed[i] = types.KubernetesResource{
 				Kind: types.KindKubePod, Namespace: fmt.Sprintf("ns-%d", i),
@@ -437,21 +433,17 @@ func BenchmarkFilterObj(b *testing.B) {
 	for _, ruleCount := range []int{4, 50, 150, 4000} {
 		allowed, denied := buildRules(ruleCount)
 
-		// Temporarily raise the threshold so the fast matcher is compiled
-		// even for high rule counts, allowing direct comparison.
-		orig := maxFastMatcherRules
-		maxFastMatcherRules = ruleCount + 1
-		forcedAllowed, forcedDenied := allowed, denied
-		maxFastMatcherRules = orig
-
 		for _, itemCount := range []int{500, 5000} {
 			items, savedItems := buildItems(itemCount)
 			prefix := fmt.Sprintf("%d_rules/%d_items", ruleCount, itemCount)
 
 			b.Run(prefix+"/fast_matcher", func(b *testing.B) {
+				// Temporarily raise the threshold so the fast matcher is compiled
+				// even for high rule counts, allowing direct comparison.
+				orig := maxFastMatcherRules
 				maxFastMatcherRules = ruleCount + 1
 				b.Cleanup(func() { maxFastMatcherRules = orig })
-				rf, obj := newFilterer(b, items, forcedAllowed, forcedDenied, false)
+				rf, obj := newFilterer(b, items, allowed, denied, false)
 				require.NotNil(b, rf.fastMatcher)
 				b.ReportAllocs()
 				b.ResetTimer()
