@@ -82,6 +82,10 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 
 	flag.Parse()
 
+	if err := resolveAbsPaths(&f.teleportBin, &f.tctlBin); err != nil {
+		return nil, 0, err
+	}
+
 	if f.verbose {
 		logLevel.Set(slog.LevelDebug)
 	}
@@ -128,21 +132,11 @@ func normalizeTestFiles(e2eDir string, args []string) ([]string, error) {
 		return nil, nil
 	}
 
-	callerDir := os.Getenv("E2E_CALLER_DIR")
-	if callerDir == "" {
-		var err error
-		callerDir, err = os.Getwd()
-
-		if err != nil {
-			return nil, fmt.Errorf("getting current working directory: %w", err)
-		}
-	}
-
 	normalized := make([]string, 0, len(args))
 	for _, arg := range args {
 		abs := arg
-		if !filepath.IsAbs(abs) {
-			abs = filepath.Join(callerDir, abs)
+		if err := resolveAbsPaths(&abs); err != nil {
+			return nil, err
 		}
 
 		rel, err := filepath.Rel(e2eDir, abs)
@@ -154,6 +148,25 @@ func normalizeTestFiles(e2eDir string, args []string) ([]string, error) {
 	}
 
 	return normalized, nil
+}
+
+func resolveAbsPaths(paths ...*string) error {
+	callerDir := os.Getenv("E2E_CALLER_DIR")
+	if callerDir == "" {
+		var err error
+		callerDir, err = os.Getwd()
+		if err != nil {
+			return fmt.Errorf("getting current working directory: %w", err)
+		}
+	}
+
+	for _, p := range paths {
+		if *p != "" && !filepath.IsAbs(*p) {
+			*p = filepath.Join(callerDir, *p)
+		}
+	}
+
+	return nil
 }
 
 func stringFlagWithEnv(fs *flag.FlagSet, p *string, name, env, fallback, usage string) {

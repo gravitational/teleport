@@ -4,7 +4,6 @@ go 1.25.8
 
 require (
 	github.com/docker/go-sdk/container v0.1.0-alpha013
-	github.com/docker/go-sdk/image v0.1.0-alpha013
 	github.com/lmittmann/tint v1.1.3
 	github.com/moby/moby/api v1.52.0
 	github.com/moby/moby/client v0.1.0
@@ -28,6 +27,7 @@ require (
 	github.com/docker/go-sdk/client v0.1.0-alpha012 // indirect
 	github.com/docker/go-sdk/config v0.1.0-alpha012 // indirect
 	github.com/docker/go-sdk/context v0.1.0-alpha012 // indirect
+	github.com/docker/go-sdk/image v0.1.0-alpha013 // indirect
 	github.com/docker/go-sdk/network v0.1.0-alpha012 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect

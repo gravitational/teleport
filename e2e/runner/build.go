@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -34,14 +35,34 @@ func build(ctx context.Context, config *e2eConfig) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	if !config.noBuild {
-		g.Go(func() error {
-			slog.Info("building teleport binaries")
-			if err := runInDir(ctx, config.repoRoot, "make", "binaries"); err != nil {
-				return fmt.Errorf("make binaries: %w", err)
-			}
+		switch config.teleportBin {
+		case filepath.Join(config.repoRoot, "build", "teleport"):
+			g.Go(func() error {
+				slog.Info("building teleport")
 
-			return nil
-		})
+				return runMake(ctx, config.repoRoot, "build/teleport")
+			})
+
+		case filepath.Join(config.repoRoot, "e", "build", "teleport"):
+			g.Go(func() error {
+				slog.Info("building teleport (enterprise)")
+
+				return runMake(ctx, filepath.Join(config.repoRoot, "e"), "build/teleport")
+			})
+
+		default:
+			slog.Info("teleport binary overridden, skipping build", "path", config.teleportBin)
+		}
+
+		if config.tctlBin == filepath.Join(config.repoRoot, "build", "tctl") {
+			g.Go(func() error {
+				slog.Info("building tctl")
+
+				return runMake(ctx, config.repoRoot, "build/tctl")
+			})
+		} else {
+			slog.Info("tctl binary overridden, skipping build", "path", config.tctlBin)
+		}
 	}
 
 	if !config.isCI {
@@ -81,6 +102,14 @@ func build(ctx context.Context, config *e2eConfig) error {
 	}
 
 	return g.Wait()
+}
+
+func runMake(ctx context.Context, dir string, targets ...string) error {
+	if err := runInDir(ctx, dir, "make", targets...); err != nil {
+		return fmt.Errorf("make %v: %w", targets, err)
+	}
+
+	return nil
 }
 
 func runInDir(ctx context.Context, dir, name string, args ...string) error {
