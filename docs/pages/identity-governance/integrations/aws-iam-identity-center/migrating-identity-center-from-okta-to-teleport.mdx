@@ -437,10 +437,10 @@ spec:
       # Account import filters. An absent or empty list of filters implies 
       # "manage all AWS accounts"      
       aws_accounts_filters:
-      - Include:
-          id: "058264527036"
-      - Include:
-          name_regex: ^Staging-.*$
+      - id: "058264527036"
+      - nameRegex: ^Staging-.*$
+      - excludeId: "123456789012"
+      - excludeNameRegex: "^Production-.*$"
 
       # User provisioning filters. An absent or empty list of filters implies 
       # "provision all users to AWS"
@@ -450,8 +450,7 @@ spec:
 
       # Group import filters, as per the "Group import control" section above
       group_sync_filters:
-      - Include:
-          name_regex: '^Group #00\d+$'
+      - nameRegex: '^Group #00\d+$'
 ```
 
 Saving the updated resource and quitting the editor will update the remote
