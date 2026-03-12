@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -48,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type mockCAandAuthPrefGetter struct {
@@ -1133,6 +1135,124 @@ func TestAuthAttemptAuditEvent(t *testing.T) {
 	authEvent := emitter.LastEvent().(*apievents.AuthAttempt)
 	require.Equal(t, node.GetName(), authEvent.ServerID)
 	require.Equal(t, node.GetHostname(), authEvent.ServerHostname)
+}
+
+func TestVerifiedPublicKeyCallback(t *testing.T) {
+	t.Parallel()
+
+	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	caSigner, err := ssh.NewSignerFromKey(userCAPriv)
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	rawCert, err := testauthority.GenerateUserCert(
+		sshca.UserCertificateRequest{
+			CASigner:      caSigner,
+			PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+			Identity: sshca.Identity{
+				Username:    "testuser",
+				ClusterName: "localhost",
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	cert, err := sshutils.ParseCertificate(rawCert)
+	require.NoError(t, err)
+
+	t.Run("no access permit returns original permissions", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
+		require.NoError(t, err)
+		require.Same(t, inPerms, outPerms)
+	})
+
+	t.Run("invalid access permit fails", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: "{",
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
+		require.ErrorContains(t, err, "unexpected EOF")
+		require.Nil(t, outPerms)
+	})
+
+	t.Run("non certificate key fails", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: "{}",
+			},
+		}
+
+		nonCertKey := privateKey.SSHPublicKey()
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, nonCertKey, inPerms, "")
+		require.ErrorIs(t, err, trace.BadParameter("unsupported key type: %v %v", nonCertKey.Type(), ssh.FingerprintSHA256(nonCertKey)))
+		require.Nil(t, outPerms)
+	})
+
+	t.Run("permit with no preconditions allows auth", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: "{}",
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
+		require.NoError(t, err)
+		require.Same(t, inPerms, outPerms)
+	})
+
+	t.Run("permit with preconditions requires additional auth", func(t *testing.T) {
+		ah := &AuthHandlers{
+			c: &AuthHandlerConfig{
+				ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
+			},
+		}
+
+		precondsPermitRaw, err := protojson.Marshal(
+			&decisionpb.SSHAccessPermit{
+				Preconditions: []*decisionpb.Precondition{
+					{
+						Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+					},
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
+		require.Error(t, err)
+		require.Nil(t, outPerms)
+
+		var partialSuccessErr *ssh.PartialSuccessError
+		require.ErrorAs(t, err, &partialSuccessErr)
+		require.NotNil(t, partialSuccessErr.Next.PublicKeyCallback)
+		require.NotNil(t, partialSuccessErr.Next.KeyboardInteractiveCallback)
+	})
 }
 
 type mockMFAServiceClient struct {

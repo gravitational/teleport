@@ -734,12 +734,6 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 		return nil, trace.Wrap(err)
 	}
 
-	// If there are no preconditions, it means no additional checks are required for access, so return the input
-	// permissions to grant access.
-	if len(permit.GetPreconditions()) == 0 {
-		return perms, nil
-	}
-
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		return nil, trace.BadParameter("unsupported key type: %v %v", key.Type(), sshutils.Fingerprint(key))
