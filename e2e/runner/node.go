@@ -83,7 +83,9 @@ func (d *dockerNode) runContainer(ctx context.Context) error {
 			},
 		),
 		container.WithHostConfigModifier(func(hc *apicontainer.HostConfig) {
-			hc.ExtraHosts = []string{"host.docker.internal:host-gateway"}
+			if os.Getenv("DOCKER_HOST") == "" {
+				hc.ExtraHosts = []string{"host.docker.internal:host-gateway"}
+			}
 			hc.PortBindings = network.PortMap{
 				network.MustParsePort(fmt.Sprintf("%d/tcp", d.config.sshPort)): []network.PortBinding{
 					{HostPort: fmt.Sprintf("%d", d.config.sshPort)},

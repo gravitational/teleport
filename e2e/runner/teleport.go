@@ -23,7 +23,9 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -167,17 +169,44 @@ func generateTeleportConfig(templatePath string, config *e2eConfig) (string, err
 }
 
 type TeleportNodeConfig struct {
+	AuthServerHost string
 	AuthServerPort int
 	SSHServerPort  int
 }
 
 func generateTeleportNodeConfig(templatePath string, config *e2eConfig) (string, error) {
+	host, err := resolveDockerHost()
+	if err != nil {
+		return "", fmt.Errorf("resolving docker host: %w", err)
+	}
+
 	nodeConfig := &TeleportNodeConfig{
+		AuthServerHost: host,
 		AuthServerPort: config.authPort,
 		SSHServerPort:  config.sshPort,
 	}
 
 	return renderTemplate(templatePath, nodeConfig)
+}
+
+func resolveDockerHost() (string, error) {
+	dockerHost := os.Getenv("DOCKER_HOST")
+	if dockerHost == "" {
+		return "host.docker.internal", nil
+	}
+
+	u, err := url.Parse(dockerHost)
+	if err != nil {
+		return "", fmt.Errorf("parsing DOCKER_HOST: %w", err)
+	}
+
+	conn, err := net.Dial("udp", u.Host)
+	if err != nil {
+		return "", fmt.Errorf("dialing docker host: %w", err)
+	}
+	defer conn.Close()
+
+	return conn.LocalAddr().(*net.UDPAddr).IP.String(), nil
 }
 
 type StateConfig struct {
