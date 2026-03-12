@@ -74,7 +74,10 @@ static int enter_execve(struct trace_event_raw_sched_process_exec *tp)
         data->args_len = ARGBUFSIZE;
         data->args_truncated = true;
     }
-    int read_ret = bpf_probe_read(&data->args, data->args_len, arg_start);
+    int read_ret = bpf_probe_read_user(&data->args, data->args_len, arg_start);
+    if (read_ret < 0) {
+        data->args_len = 0;
+    }
 
     print_command_event(task, data->filename, data->args);
 

@@ -375,6 +375,10 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 // convertArgs converts a large buffer of null-terminated strings into
 // a slice of strings.
 func convertArgs(rawArgs []byte, truncated bool) []string {
+	if len(rawArgs) == 0 {
+		return nil
+	}
+
 	argc := bytes.Count(rawArgs, []byte{0x0})
 	args := make([]string, 0, argc)
 
