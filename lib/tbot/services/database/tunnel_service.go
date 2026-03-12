@@ -243,6 +243,8 @@ func (s *TunnelService) Run(ctx context.Context) error {
 	case err := <-errCh:
 		if err != nil {
 			s.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
+		} else {
+			s.statusReporter.Report(readyz.Unhealthy)
 		}
 		return trace.Wrap(err, "local proxy failed")
 	}
