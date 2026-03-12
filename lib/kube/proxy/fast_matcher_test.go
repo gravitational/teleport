@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -122,6 +122,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 
 	tests := []struct {
 		name      string
+		kind      string
 		allowed   []types.KubernetesResource
 		denied    []types.KubernetesResource
 		input     matchInput
@@ -129,6 +130,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 	}{
 		{
 			name: "wildcard allows everything",
+			kind: types.KindKubePod,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
 			},
@@ -137,6 +139,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name: "exact namespace match",
+			kind: types.KindKubePod,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubePod, Namespace: "default", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
 			},
@@ -145,6 +148,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name: "namespace mismatch",
+			kind: types.KindKubePod,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubePod, Namespace: "default", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
 			},
@@ -153,6 +157,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name: "exact name match",
+			kind: types.KindKubePod,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubePod, Namespace: "*", Name: "nginx", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
 			},
@@ -161,6 +166,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name: "name mismatch",
+			kind: types.KindKubePod,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubePod, Namespace: "*", Name: "nginx", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
 			},
@@ -169,6 +175,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name: "glob name pattern",
+			kind: types.KindKubePod,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubePod, Namespace: "*", Name: "nginx-*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
 			},
@@ -177,6 +184,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name: "regex name pattern",
+			kind: types.KindKubePod,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubePod, Namespace: "*", Name: "^nginx-[a-z]+$", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
 			},
@@ -185,6 +193,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name: "deny rule takes precedence",
+			kind: types.KindKubePod,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
 			},
@@ -196,6 +205,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name: "deny rule does not affect other namespaces",
+			kind: types.KindKubePod,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
 			},
@@ -207,6 +217,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name: "multiple allow rules - first matches",
+			kind: types.KindKubePod,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubePod, Namespace: "default", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
 				{Kind: types.KindKubePod, Namespace: "staging", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
@@ -216,6 +227,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name: "multiple allow rules - second matches",
+			kind: types.KindKubePod,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubePod, Namespace: "default", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
 				{Kind: types.KindKubePod, Namespace: "staging", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
@@ -225,6 +237,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name: "multiple allow rules - none match",
+			kind: types.KindKubePod,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubePod, Namespace: "default", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
 				{Kind: types.KindKubePod, Namespace: "staging", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
@@ -234,6 +247,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name: "empty namespace input with specific namespace rule",
+			kind: types.KindKubePod,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubePod, Namespace: "default", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
 			},
@@ -242,6 +256,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name: "empty namespace input with wildcard namespace rule",
+			kind: types.KindKubePod,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
 			},
@@ -250,6 +265,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name: "apigroup matching",
+			kind: types.KindKubeDeployment,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubeDeployment, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "apps"},
 			},
@@ -258,6 +274,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name: "apigroup mismatch",
+			kind: types.KindKubeDeployment,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubeDeployment, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "apps"},
 			},
@@ -266,6 +283,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 		},
 		{
 			name:      "no rules means no access",
+			kind:      types.KindKubePod,
 			allowed:   []types.KubernetesResource{},
 			input:     matchInput{name: "nginx", namespace: "default", apiGroup: ""},
 			wantMatch: false,
@@ -275,11 +293,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			fm, err := tryCompileFastMatcher(types.KindKubePod, types.KubeVerbList, tt.allowed, tt.denied)
-			// Handle deployment test case
-			if len(tt.allowed) > 0 && tt.allowed[0].Kind == types.KindKubeDeployment {
-				fm, err = tryCompileFastMatcher(types.KindKubeDeployment, types.KubeVerbList, tt.allowed, tt.denied)
-			}
+			fm, err := tryCompileFastMatcher(tt.kind, types.KubeVerbList, tt.allowed, tt.denied)
 			require.NoError(t, err)
 			require.NotNil(t, fm)
 			got := fm.match(tt.input.name, tt.input.namespace, tt.input.apiGroup)
@@ -312,25 +326,29 @@ func TestFastMatcherEquivalence(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, fm)
 
-	inputs := []types.KubernetesResource{
-		{Kind: types.KindKubePod, Namespace: "default", Name: "nginx-abc", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
-		{Kind: types.KindKubePod, Namespace: "default", Name: "redis", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
-		{Kind: types.KindKubePod, Namespace: "staging", Name: "app", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
-		{Kind: types.KindKubePod, Namespace: "staging", Name: "secret-data", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
-		{Kind: types.KindKubePod, Namespace: "monitoring", Name: "prometheus", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
-		{Kind: types.KindKubePod, Namespace: "production", Name: "app", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
-		{Kind: types.KindKubePod, Namespace: "", Name: "orphan", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
+	inputs := []struct {
+		resource             types.KubernetesResource
+		isClusterWideResource bool
+	}{
+		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "nginx-abc", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "redis", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "staging", Name: "app", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "staging", Name: "secret-data", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "monitoring", Name: "prometheus", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "production", Name: "app", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "", Name: "orphan", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "", Name: "cluster-wide-pod", Verbs: []string{types.KubeVerbList}, APIGroup: ""}, isClusterWideResource: true},
 	}
 
-	for _, input := range inputs {
-		t.Run(fmt.Sprintf("%s/%s", input.Namespace, input.Name), func(t *testing.T) {
+	for _, tt := range inputs {
+		t.Run(fmt.Sprintf("%s/%s", tt.resource.Namespace, tt.resource.Name), func(t *testing.T) {
 			t.Parallel()
-			expected, err := matchKubernetesResource(input, false, allowed, denied)
+			expected, err := matchKubernetesResource(tt.resource, tt.isClusterWideResource, allowed, denied)
 			require.NoError(t, err)
-			got := fm.match(input.Name, input.Namespace, input.APIGroup)
+			got := fm.match(tt.resource.Name, tt.resource.Namespace, tt.resource.APIGroup)
 			require.Equal(t, expected, got,
 				"mismatch for %s/%s: matchKubernetesResource=%v, fastMatcher=%v",
-				input.Namespace, input.Name, expected, got,
+				tt.resource.Namespace, tt.resource.Name, expected, got,
 			)
 		})
 	}
