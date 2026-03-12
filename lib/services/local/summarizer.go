@@ -33,9 +33,10 @@ import (
 // SummarizerService implements the [services.Summarizer]
 // interface and manages summarization configuration resources in the backend.
 type SummarizerService struct {
-	modelService  *generic.ServiceWrapper[*summarizerv1.InferenceModel]
-	secretService *generic.ServiceWrapper[*summarizerv1.InferenceSecret]
-	policyService *generic.ServiceWrapper[*summarizerv1.InferencePolicy]
+	modelService          *generic.ServiceWrapper[*summarizerv1.InferenceModel]
+	secretService         *generic.ServiceWrapper[*summarizerv1.InferenceSecret]
+	policyService         *generic.ServiceWrapper[*summarizerv1.InferencePolicy]
+	retrievalModelService *generic.ServiceWrapper[*summarizerv1.RetrievalModel]
 }
 
 var _ services.Summarizer = (*SummarizerService)(nil)
@@ -75,6 +76,12 @@ func (s *SummarizerService) ListInferenceModels(
 	return res, nextToken, trace.Wrap(err)
 }
 
+// DeleteAllInferenceModels deletes all session summary inference models from
+// the backend. This should only be used by the cache.
+func (s *SummarizerService) DeleteAllInferenceModels(ctx context.Context) error {
+	return trace.Wrap(s.modelService.DeleteAllResources(ctx))
+}
+
 // UpdateInferenceModel updates an existing session summary inference model in
 // the backend.
 func (s *SummarizerService) UpdateInferenceModel(
@@ -106,7 +113,8 @@ func (s *SummarizerService) CreateInferenceSecret(
 // DeleteInferenceSecret deletes a session summary inference secret from the
 // backend by name.
 func (s *SummarizerService) DeleteInferenceSecret(
-	ctx context.Context, name string) error {
+	ctx context.Context, name string,
+) error {
 	return trace.Wrap(s.secretService.DeleteResource(ctx, name))
 }
 
@@ -129,6 +137,12 @@ func (s *SummarizerService) ListInferenceSecrets(
 ) ([]*summarizerv1.InferenceSecret, string, error) {
 	res, nextToken, err := s.secretService.ListResources(ctx, size, pageToken)
 	return res, nextToken, trace.Wrap(err)
+}
+
+// DeleteAllInferenceSecrets deletes all session summary inference secrets from
+// the backend. This should only be used by the cache.
+func (s *SummarizerService) DeleteAllInferenceSecrets(ctx context.Context) error {
+	return trace.Wrap(s.secretService.DeleteAllResources(ctx))
 }
 
 // UpdateInferenceSecret updates an existing session summary inference secret
@@ -187,6 +201,12 @@ func (s *SummarizerService) ListInferencePolicies(
 	return res, nextToken, trace.Wrap(err)
 }
 
+// DeleteAllInferencePolicies deletes all session summary inference policies
+// from the backend. This should only be used by the cache.
+func (s *SummarizerService) DeleteAllInferencePolicies(ctx context.Context) error {
+	return trace.Wrap(s.policyService.DeleteAllResources(ctx))
+}
+
 // UpdateInferencePolicy updates an existing session summary inference policy
 // in the backend.
 func (s *SummarizerService) UpdateInferencePolicy(
@@ -213,10 +233,52 @@ func (s *SummarizerService) AllInferencePolicies(
 	return s.policyService.Resources(ctx, "", "")
 }
 
+// CreateRetrievalModel creates the search model in the backend.
+// Only one RetrievalModel can exist per cluster.
+func (s *SummarizerService) CreateRetrievalModel(
+	ctx context.Context, model *summarizerv1.RetrievalModel,
+) (*summarizerv1.RetrievalModel, error) {
+	res, err := s.retrievalModelService.CreateResource(ctx, model)
+	return res, trace.Wrap(err)
+}
+
+// GetRetrievalModel retrieves the search model from the backend.
+// Since only one RetrievalModel can exist per cluster, no name is required.
+func (s *SummarizerService) GetRetrievalModel(
+	ctx context.Context,
+) (*summarizerv1.RetrievalModel, error) {
+	res, err := s.retrievalModelService.GetResource(ctx, types.MetaNameRetrievalModel)
+	return res, trace.Wrap(err)
+}
+
+// UpdateRetrievalModel updates the existing search model in the backend.
+func (s *SummarizerService) UpdateRetrievalModel(
+	ctx context.Context, model *summarizerv1.RetrievalModel,
+) (*summarizerv1.RetrievalModel, error) {
+	res, err := s.retrievalModelService.ConditionalUpdateResource(ctx, model)
+	return res, trace.Wrap(err)
+}
+
+// UpsertRetrievalModel creates or updates the search model in the backend.
+// If the model already exists, it will be updated.
+func (s *SummarizerService) UpsertRetrievalModel(
+	ctx context.Context, model *summarizerv1.RetrievalModel,
+) (*summarizerv1.RetrievalModel, error) {
+	res, err := s.retrievalModelService.UpsertResource(ctx, model)
+	return res, trace.Wrap(err)
+}
+
+// DeleteRetrievalModel deletes the search model from the backend.
+// Since only one RetrievalModel can exist per cluster, no name is required.
+func (s *SummarizerService) DeleteRetrievalModel(ctx context.Context) error {
+	return trace.Wrap(s.retrievalModelService.DeleteResource(ctx, types.MetaNameRetrievalModel))
+}
+
 const (
 	inferenceModelPrefix  = "inference_models"
 	inferenceSecretPrefix = "inference_secrets"
 	inferencePolicyPrefix = "inference_policies"
+	retrievalModelPrefix  = "retrieval_model"
 )
 
 // SummarizerServiceConfig provides data necessary to initialize a
@@ -291,9 +353,32 @@ func NewSummarizerService(cfg SummarizerServiceConfig) (*SummarizerService, erro
 		return nil, trace.Wrap(err)
 	}
 
+	validateRetrievalModel := func(m *summarizerv1.RetrievalModel) error {
+		err := summarizer.ValidateRetrievalModel(m)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+
+	retrievalModelService, err := generic.NewServiceWrapper(
+		generic.ServiceConfig[*summarizerv1.RetrievalModel]{
+			Backend:       cfg.Backend,
+			ResourceKind:  types.KindRetrievalModel,
+			BackendPrefix: backend.NewKey(retrievalModelPrefix),
+			MarshalFunc:   services.MarshalProtoResource[*summarizerv1.RetrievalModel],
+			UnmarshalFunc: services.UnmarshalProtoResource[*summarizerv1.RetrievalModel],
+			ValidateFunc:  validateRetrievalModel,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &SummarizerService{
-		modelService:  modelService,
-		secretService: secretService,
-		policyService: policyService,
+		modelService:          modelService,
+		secretService:         secretService,
+		policyService:         policyService,
+		retrievalModelService: retrievalModelService,
 	}, nil
 }
