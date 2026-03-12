@@ -448,29 +448,22 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.Empty(t, sessions)
 
 			// create interactive session (this goroutine is this user's terminal time)
-			endC := make(chan error)
 			myTerm := NewTerminal(250)
-			go func() {
-				cl, err := teleport.NewClient(helpers.ClientConfig{
-					Login:        suite.Me.Username,
-					Cluster:      helpers.Site,
-					Host:         nodeConf.Hostname,
-					Port:         helpers.Port(t, nodeConf.SSH.Addr.Addr),
-					ForwardAgent: tt.inForwardAgent,
-				})
-				if err != nil {
-					endC <- err
-					return
-				}
-				cl.Stdout = myTerm
-				cl.Stdin = myTerm
-
-				err = cl.SSH(ctx, nil)
-				endC <- err
-			}()
+			cl, err := teleport.NewClient(helpers.ClientConfig{
+				Login:        suite.Me.Username,
+				Cluster:      helpers.Site,
+				Host:         nodeConf.Hostname,
+				Port:         helpers.Port(t, nodeConf.SSH.Addr.Addr),
+				ForwardAgent: tt.inForwardAgent,
+			})
+			require.NoError(t, err)
+			cl.Stdout = myTerm
+			cl.Stdin = myTerm
 
 			// wait until the session tracker exists.
-			tracker := waitForSessionToBeEstablished(t, site, 1)
+			tracker, endC, err := startSessionAndWaitForTracker(t, site, cl, nil)
+			require.NoError(t, err)
+
 			// make sure it's us who joined! :)
 			require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
 			sessionID := tracker.GetSessionID()
@@ -4921,29 +4914,21 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 
 	beforeSession := time.Now()
 
-	// create interactive session (this goroutine is this user's terminal time)
-	endCh := make(chan error, 1)
-
 	myTerm := NewTerminal(250)
-	go func() {
-		cl, err := teleport.NewClient(helpers.ClientConfig{
-			Login:   suite.Me.Username,
-			Cluster: helpers.Site,
-			Host:    Host,
-			Port:    helpers.Port(t, teleport.SSH),
-		})
-		if err != nil {
-			endCh <- err
-			return
-		}
-		cl.Stdout = myTerm
-		cl.Stdin = myTerm
-		err = cl.SSH(ctx, []string{})
-		endCh <- err
-	}()
+	cl, err := teleport.NewClient(helpers.ClientConfig{
+		Login:   suite.Me.Username,
+		Cluster: helpers.Site,
+		Host:    Host,
+		Port:    helpers.Port(t, teleport.SSH),
+		Stdout:  myTerm,
+		Stdin:   myTerm,
+	})
+	require.NoError(t, err)
 
-	// wait for the user to join this session
-	tracker := waitForSessionToBeEstablished(t, site, 1)
+	// create interactive session
+	tracker, endCh, err := startSessionAndWaitForTracker(t, site, cl, nil)
+	require.NoError(t, err)
+
 	// make sure it's us who joined! :)
 	require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
 
