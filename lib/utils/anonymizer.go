@@ -40,9 +40,9 @@ type Anonymizer interface {
 	AnonymizeNonEmpty(s string) []byte
 }
 
-var _ AnnonymizationKeyProvider = (AnonymizationKeyString)("")
+var _ AnonymizationKeyProvider = (AnonymizationKeyString)("")
 
-// AnonymizationKeyString is a simple implementation of AnnonymizationKeyProvider that uses a string as the key.
+// AnonymizationKeyString is a simple implementation of AnonymizationKeyProvider that uses a string as the key.
 type AnonymizationKeyString string
 
 func (h AnonymizationKeyString) GetAnonymizationKey() []byte {
@@ -56,12 +56,12 @@ func (h AnonymizationKeyString) InitializeAnonymizationKey() error {
 // HMACAnonymizer implements anonymization using HMAC
 type HMACAnonymizer struct {
 	// key is the HMAC key
-	keyProvider AnnonymizationKeyProvider
+	keyProvider AnonymizationKeyProvider
 }
 
 var _ Anonymizer = (*HMACAnonymizer)(nil)
 
-type AnnonymizationKeyProvider interface {
+type AnonymizationKeyProvider interface {
 	// InitializeAnonymizationKey initializes the anonymization key if needed.
 	InitializeAnonymizationKey() error
 	// GetHMACAnonymizerKey returns the HMAC anonymizer key.
@@ -69,7 +69,7 @@ type AnnonymizationKeyProvider interface {
 }
 
 // NewHMACAnonymizer returns a new HMAC-based anonymizer
-func NewHMACAnonymizer(keyProvider AnnonymizationKeyProvider) (*HMACAnonymizer, error) {
+func NewHMACAnonymizer(keyProvider AnonymizationKeyProvider) (*HMACAnonymizer, error) {
 	if err := keyProvider.InitializeAnonymizationKey(); err != nil {
 		return nil, trace.Wrap(err, "failed to initialize anonymization key")
 	}
