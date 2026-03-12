@@ -29,7 +29,6 @@ import (
 
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/subca"
 )
 
 var (
@@ -43,25 +42,59 @@ var (
 	certificateOverridePublicKeyRE = regexp.MustCompile(`^[0-9A-Fa-f]{64}$`)
 )
 
-func validateCAOverride(resource *subcav1.CertAuthorityOverride) error {
+// ParsedCertAuthorityOverride is a CertAuthorityOverride with a
+// ParsedCertificateOverride list.
+type ParsedCertAuthorityOverride struct {
+	// CAOverride is the original resource.
+	CAOverride *subcav1.CertAuthorityOverride
+	// CertificateOverrides is a ParsedCertAuthorityOverride list, parallel to
+	// CAOverride.Spec.CertificateOverrides.
+	CertificateOverrides []*ParsedCertificateOverride
+}
+
+// ParsedCertificateOverride is a CertificateOverride with its certificates
+// parsed and a normalized PublicKeyHash field.
+type ParsedCertificateOverride struct {
+	// CertificateOverride is the original resource.
+	CertificateOverride *subcav1.CertificateOverride
+	// PublicKey is a normalized public key from CertificateOverride.
+	// If CertificateOverride.Certificate is present it's calculated from it,
+	// otherwise it's normalized from CertificateOverride.PublicKey.
+	PublicKey string
+	// Certificate is the parsed certificate.
+	Certificate *x509.Certificate
+	// Chain is the parsed certificate chain.
+	Chain []*x509.Certificate
+}
+
+// ValidateAndParseCAOverride validates a CertAuthorityOverride resource and
+// returns it in parsed form.
+//
+// Used by storage to validate resources in write paths.
+//
+// It should not be used by any layers in read paths. Stored resources are
+// considered valid and must not be subject to validation (lest they fail new
+// validation rules, making reading impossible).
+func ValidateAndParseCAOverride(resource *subcav1.CertAuthorityOverride) (*ParsedCertAuthorityOverride, error) {
 	switch {
 	case resource == nil:
-		return trace.BadParameter("resource required")
+		return nil, trace.BadParameter("resource required")
 	case resource.Kind != types.KindCertAuthorityOverride:
-		return trace.BadParameter("invalid kind: %q", resource.Kind)
+		return nil, trace.BadParameter("invalid kind: %q", resource.Kind)
 	case !slices.Contains(allowedCAOverrideSubKinds, resource.SubKind):
-		return trace.BadParameter("invalid or unsupported sub_kind/caType: %q", resource.SubKind)
+		return nil, trace.BadParameter("invalid or unsupported sub_kind/caType: %q", resource.SubKind)
 	case resource.Version != types.V1:
-		return trace.BadParameter("invalid or unsupported version: %q", resource.Version)
+		return nil, trace.BadParameter("invalid or unsupported version: %q", resource.Version)
 	case resource.Metadata == nil:
-		return trace.BadParameter("metadata required")
+		return nil, trace.BadParameter("metadata required")
 	case resource.Metadata.Name == "":
-		return trace.BadParameter("metadata.name/clusterName required")
+		return nil, trace.BadParameter("metadata.name/clusterName required")
 	case resource.Spec == nil:
-		return trace.BadParameter("spec required")
+		return nil, trace.BadParameter("spec required")
 	}
 
 	overrides := resource.Spec.CertificateOverrides
+	parsedOverrides := make([]*ParsedCertificateOverride, len(overrides))
 	seenPublicKeys := make(map[string]struct{})
 	for i, co := range overrides {
 		parsedCO, fieldName, err := validateCertificateOverride(co)
@@ -69,28 +102,29 @@ func validateCAOverride(resource *subcav1.CertAuthorityOverride) error {
 			if fieldName != "" {
 				fieldName = "." + fieldName
 			}
-			return trace.BadParameter("spec.certificate_overrides[%d]%s: %v", i, fieldName, err)
+			return nil, trace.BadParameter("spec.certificate_overrides[%d]%s: %v", i, fieldName, err)
 		}
 
-		if _, ok := seenPublicKeys[parsedCO.publicKey]; ok {
-			return trace.BadParameter(
+		if _, ok := seenPublicKeys[parsedCO.PublicKey]; ok {
+			return nil, trace.BadParameter(
 				"spec.certificate_overrides[%d]: found duplicate override for public key %q",
-				i, parsedCO.publicKey,
+				i, parsedCO.PublicKey,
 			)
 		}
-		seenPublicKeys[parsedCO.publicKey] = struct{}{}
-	}
-	return nil
-}
+		seenPublicKeys[parsedCO.PublicKey] = struct{}{}
 
-type parsedCertificateOverride struct {
-	certificateOverride *subcav1.CertificateOverride
-	publicKey           string
+		parsedOverrides[i] = parsedCO
+	}
+
+	return &ParsedCertAuthorityOverride{
+		CAOverride:           resource,
+		CertificateOverrides: parsedOverrides,
+	}, nil
 }
 
 func validateCertificateOverride(
 	co *subcav1.CertificateOverride,
-) (_ *parsedCertificateOverride, fieldName string, _ error) {
+) (_ *ParsedCertificateOverride, fieldName string, _ error) {
 	// Trace not used on purpose. Errors are trace-wrapped up in the chain.
 	if co == nil {
 		return nil, "", errors.New("nil certificate override")
@@ -101,11 +135,11 @@ func validateCertificateOverride(
 	var wantPublicKey string
 	if co.Certificate != "" {
 		var err error
-		cert, err = subca.ParseCertificateOverrideCertificate(co.Certificate)
+		cert, err = ParseCertificateOverrideCertificate(co.Certificate)
 		if err != nil {
 			return nil, "certificate", err
 		}
-		wantPublicKey = subca.HashCertificatePublicKey(cert)
+		wantPublicKey = HashCertificatePublicKey(cert)
 	}
 
 	// PublicKey.
@@ -130,6 +164,8 @@ func validateCertificateOverride(
 	}
 
 	// Chain.
+
+	var chain []*x509.Certificate
 	if len(co.Chain) > 0 {
 		if cert == nil {
 			return nil, "", errors.New("chain not allowed with an empty certificate")
@@ -142,9 +178,10 @@ func validateCertificateOverride(
 				"certificate chain has too many entries (%d > %d)", len(co.Chain), maxChainLength)
 		}
 
+		chain = make([]*x509.Certificate, len(co.Chain))
 		prev := cert
 		for i, chainPEM := range co.Chain {
-			chainCert, err := subca.ParseCertificateOverrideCertificate(chainPEM)
+			chainCert, err := ParseCertificateOverrideCertificate(chainPEM)
 			if err != nil {
 				return nil, fmt.Sprintf("chain[%d]", i), err
 			}
@@ -173,16 +210,19 @@ func validateCertificateOverride(
 			// as that could make an override that was once valid impossible to
 			// bootstrap or update without destructive action.
 
+			chain[i] = chainCert
 			prev = chainCert
 		}
 	}
 
-	// Normalize public key to lowercase so it matches subca.HashPublicKey.
+	// Normalize public key to lowercase so it matches HashPublicKey.
 	publicKey := cmp.Or(wantPublicKey, co.PublicKey)
 	publicKey = strings.ToLower(publicKey)
 
-	return &parsedCertificateOverride{
-		certificateOverride: co,
-		publicKey:           publicKey,
+	return &ParsedCertificateOverride{
+		CertificateOverride: co,
+		PublicKey:           publicKey,
+		Certificate:         cert,
+		Chain:               chain,
 	}, "", nil
 }
