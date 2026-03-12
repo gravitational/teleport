@@ -210,6 +210,7 @@ func onBeamsPublish(cf *CLIConf) error {
 
 	tc.AllowHeadless = true
 
+	var port int32 = 8080
 	protocol := beamsv1.Protocol_PROTOCOL_HTTP
 	if cf.BeamTCP {
 		protocol = beamsv1.Protocol_PROTOCOL_TCP
@@ -225,7 +226,7 @@ func onBeamsPublish(cf *CLIConf) error {
 
 		resp, err := clusterClient.AuthClient.BeamsServiceClient().Publish(cf.Context, &beamsv1.PublishRequest{
 			BeamId:   cf.BeamID,
-			Port:     8080,
+			Port:     port,
 			Protocol: protocol,
 		})
 		if err != nil {
@@ -238,7 +239,24 @@ func onBeamsPublish(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintln(cf.Stdout(), addr)
+	var dialAddr string
+	if protocol == beamsv1.Protocol_PROTOCOL_HTTP {
+		dialAddr = fmt.Sprintf("https://%s", addr)
+	} else {
+		dialAddr = fmt.Sprintf("tcp://%s:%d", addr, port)
+	}
+
+	if cf.Quiet || protocol == beamsv1.Protocol_PROTOCOL_HTTP {
+		fmt.Fprintln(cf.Stdout(), dialAddr)
+	} else {
+		// TODO(boxofrad): Return the app name in the `Publish` response rather than
+		// constructing it here.
+		const usageText = "Connect to your TCP application from another beam by dialing:\n%s\n\n" +
+			"Or start a local tunnel to the application with:\n" +
+			"tsh proxy app beam-%s\n"
+		fmt.Fprintf(cf.Stdout(), usageText, dialAddr, cf.BeamID)
+	}
+
 	return nil
 }
 
