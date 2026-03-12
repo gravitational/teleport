@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	filesftp "github.com/gravitational/teleport/lib/sshutils/sftp"
 )
 
 func onBeamsAdd(cf *CLIConf) error {
@@ -260,18 +261,68 @@ func onBeamsPublish(cf *CLIConf) error {
 	return nil
 }
 
+type beamCopySpec struct {
+	Source      beamCopyTarget
+	Destination beamCopyTarget
+}
+
+type beamCopyTarget struct {
+	Path   string
+	BeamID string
+	IsBeam bool
+}
+
+func onBeamsCopy(cf *CLIConf) error {
+	spec, err := parseBeamCopySpec(cf.BeamCopySpec)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(runBeamCopy(cf, spec))
+}
+
 func onBeamsPush(cf *CLIConf) error {
+	return trace.Wrap(runBeamCopy(cf, beamCopySpec{
+		Source: beamCopyTarget{
+			Path: cf.BeamLocalPath,
+		},
+		Destination: beamCopyTarget{
+			Path:   cf.BeamRemotePath,
+			BeamID: cf.BeamID,
+			IsBeam: true,
+		},
+	}))
+}
+
+func onBeamsPull(cf *CLIConf) error {
+	return trace.Wrap(runBeamCopy(cf, beamCopySpec{
+		Source: beamCopyTarget{
+			Path:   cf.BeamRemotePath,
+			BeamID: cf.BeamID,
+			IsBeam: true,
+		},
+		Destination: beamCopyTarget{
+			Path: cf.BeamLocalPath,
+		},
+	}))
+}
+
+func runBeamCopy(cf *CLIConf, spec beamCopySpec) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	tc.AllowHeadless = true
-	nodeID, err := getBeamNodeID(cf.Context, tc, cf.BeamID)
+	source, err := resolveBeamCopyTarget(cf, tc, spec.Source)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := copyBeamFile(cf, tc, []string{cf.BeamLocalPath}, beamRemotePath(cf, tc, nodeID, cf.BeamRemotePath)); err != nil {
+	destination, err := resolveBeamCopyTarget(cf, tc, spec.Destination)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := copyBeamFile(cf, tc, []string{source}, destination); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -279,23 +330,58 @@ func onBeamsPush(cf *CLIConf) error {
 	return nil
 }
 
-func onBeamsPull(cf *CLIConf) error {
-	tc, err := makeClient(cf)
-	if err != nil {
-		return trace.Wrap(err)
+func parseBeamCopySpec(rawSpec []string) (beamCopySpec, error) {
+	if len(rawSpec) != 2 {
+		return beamCopySpec{}, trace.BadParameter("source and destination are required")
 	}
 
-	tc.AllowHeadless = true
-	nodeID, err := getBeamNodeID(cf.Context, tc, cf.BeamID)
+	source, err := parseBeamCopyTarget(rawSpec[0])
 	if err != nil {
-		return trace.Wrap(err)
+		return beamCopySpec{}, trace.Wrap(err)
 	}
-	if err := copyBeamFile(cf, tc, []string{beamRemotePath(cf, tc, nodeID, cf.BeamRemotePath)}, cf.BeamLocalPath); err != nil {
-		return trace.Wrap(err)
+	destination, err := parseBeamCopyTarget(rawSpec[1])
+	if err != nil {
+		return beamCopySpec{}, trace.Wrap(err)
 	}
 
-	fmt.Fprintln(cf.Stdout(), "Copied successfully.")
-	return nil
+	if !source.IsBeam && !destination.IsBeam {
+		return beamCopySpec{}, trace.BadParameter("one of source or destination must be a beam path in the form BEAM_ID:PATH")
+	}
+
+	return beamCopySpec{
+		Source:      source,
+		Destination: destination,
+	}, nil
+}
+
+func parseBeamCopyTarget(rawTarget string) (beamCopyTarget, error) {
+	if !filesftp.IsRemotePath(rawTarget) {
+		return beamCopyTarget{Path: rawTarget}, nil
+	}
+
+	beamID, path, _ := strings.Cut(rawTarget, ":")
+	if beamID == "" {
+		return beamCopyTarget{}, trace.BadParameter("%q is missing a beam ID, use the form BEAM_ID:PATH", rawTarget)
+	}
+
+	return beamCopyTarget{
+		Path:   path,
+		BeamID: beamID,
+		IsBeam: true,
+	}, nil
+}
+
+func resolveBeamCopyTarget(cf *CLIConf, tc *client.TeleportClient, target beamCopyTarget) (string, error) {
+	if !target.IsBeam {
+		return target.Path, nil
+	}
+
+	nodeID, err := getBeamNodeID(cf.Context, tc, target.BeamID)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return beamRemotePath(cf, tc, nodeID, target.Path), nil
 }
 
 func getBeamNodeID(ctx context.Context, tc *client.TeleportClient, beamID string) (string, error) {
