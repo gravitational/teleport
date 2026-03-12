@@ -1,5 +1,5 @@
 import { ComponentProps } from 'react';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import { Flex, Text } from 'design';
 import { FeatureName } from 'design/constants';
@@ -32,14 +32,14 @@ export function ScimDetails({
   disabled?: boolean;
   onToggle: () => void;
 }) {
-  const history = useHistory();
+  const navigate = useNavigate();
   const hasIdentity = cfg.entitlements.Identity.enabled;
   const showContent = toggled && hasIdentity;
   const options: ComponentProps<typeof StatusAndOptions>['options'] = [
     {
       label: 'Edit Configuration',
       onClick: () =>
-        history.push(
+        navigate(
           cfg.getIntegrationStatusRoute(
             'okta',
             'okta',

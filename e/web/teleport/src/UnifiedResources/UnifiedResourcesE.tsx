@@ -1,5 +1,4 @@
-import { Prompt } from 'react-router';
-import { Link } from 'react-router-dom';
+import { Link, matchPath } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, ButtonPrimary, ButtonText, Flex, H2 } from 'design';
@@ -36,6 +35,7 @@ import {
 } from 'e-teleport/Workflow/NewRequest/useNewRequest';
 import { useRequestCheckout } from 'e-teleport/Workflow/NewRequest/useRequestCheckout';
 import { FeatureBox } from 'teleport/components/Layout';
+import { Prompt } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import { UnifiedResource } from 'teleport/services/agents';
 import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
@@ -44,6 +44,9 @@ import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { SessionSummariesUnifiedResourcesCta } from './SessionSummariesUnifiedResourcesCta';
+
+const CROSS_CLUSTER_WARNING =
+  'Resources from different clusters cannot be combined in an access request. Current items selected will be cleared. Are you sure you want to continue?';
 
 export function UnifiedResourcesE() {
   const ctx = useTeleportE();
@@ -269,12 +272,20 @@ export function UnifiedResourcesE() {
         )}
         <Prompt
           when={numAddedResources > 0}
-          message={location => {
-            if (location.pathname.endsWith('/resources')) {
-              return `Resources from different clusters cannot be combined in an access request. Current items selected will be cleared. Are you sure you want to continue?`;
-            } else {
-              return `${numAddedResources} item(s) selected for a new access request will be cleared if you leave this page. Are you sure you want to continue?`;
+          message={nextLocation => {
+            const nextMatch = matchPath(
+              cfg.routes.unifiedResources,
+              nextLocation.pathname
+            );
+
+            if (
+              nextMatch?.params.clusterId &&
+              nextMatch.params.clusterId !== clusterId
+            ) {
+              return CROSS_CLUSTER_WARNING;
             }
+
+            return `${numAddedResources} item(s) selected for a new access request will be cleared if you leave this page. Are you sure you want to continue?`;
           }}
         />
       </Flex>

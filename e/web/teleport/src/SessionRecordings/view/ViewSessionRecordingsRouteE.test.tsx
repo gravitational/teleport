@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter, Route } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import {
   enableMswServer,
@@ -67,9 +67,12 @@ function setupTest(initialEntry?: string, summarizerEnabled?: boolean) {
   return render(
     <MemoryRouter initialEntries={initialEntry ? [initialEntry] : undefined}>
       <ContextProvider ctx={ctx}>
-        <Route path={cfg.oss.routes.player}>
-          <ViewSessionRecordingRouteE />
-        </Route>
+        <Routes>
+          <Route
+            path={cfg.oss.routes.player}
+            element={<ViewSessionRecordingRouteE />}
+          />
+        </Routes>
       </ContextProvider>
     </MemoryRouter>
   );

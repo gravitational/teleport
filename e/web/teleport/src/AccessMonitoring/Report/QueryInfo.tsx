@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled from 'styled-components';
 
 import { ChevronRight, Code } from 'design/Icon';
@@ -121,10 +121,8 @@ export function QueryInfo(props: QueryInfoProps) {
 
       <Footer>
         <OpenInLink
-          to={{
-            pathname: cfg.routes.accessMonitoring.queryEditor,
-            state: { query: props.query.trim(), days: props.days },
-          }}
+          to={cfg.routes.accessMonitoring.queryEditor}
+          state={{ query: props.query.trim(), days: props.days }}
         >
           Open in Query Editor <ChevronRight size={18} />
         </OpenInLink>

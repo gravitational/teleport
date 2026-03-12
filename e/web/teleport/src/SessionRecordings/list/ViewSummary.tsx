@@ -18,7 +18,7 @@ import {
   type Duration,
 } from 'date-fns';
 import { useCallback, useState, type MouseEvent, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 
 import Box from 'design/Box';

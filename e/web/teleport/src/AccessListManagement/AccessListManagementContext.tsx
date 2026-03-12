@@ -15,7 +15,7 @@ import {
   useState,
   type PropsWithChildren,
 } from 'react';
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import { parseSortType } from 'design/DataTable/sort';
 import type { SortDir } from 'design/DataTable/types';
@@ -163,7 +163,7 @@ export const AccessListManagementContext =
 export const AccessListManagementContextProvider = (
   props: PropsWithChildren<unknown>
 ) => {
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
   const guideEditor = useGuideEditor();
@@ -282,12 +282,15 @@ export const AccessListManagementContextProvider = (
       }
 
       setPreviousSearchParams(params.toString());
-      history.replace({
-        pathname: location.pathname,
-        search: params.toString(),
-      });
+      navigate(
+        {
+          pathname: location.pathname,
+          search: params.toString(),
+        },
+        { replace: true }
+      );
     },
-    [history, location.search, location.pathname]
+    [navigate, location.search, location.pathname]
   );
 
   const [oktaPluginAttempt, fetchOktaPlugin] = useAsync<

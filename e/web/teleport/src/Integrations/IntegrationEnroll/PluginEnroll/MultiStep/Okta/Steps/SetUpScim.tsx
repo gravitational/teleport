@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import { Alert, Box, ButtonPrimary, ButtonSecondary, Flex, Text } from 'design';
 import { Check } from 'design/Icon';

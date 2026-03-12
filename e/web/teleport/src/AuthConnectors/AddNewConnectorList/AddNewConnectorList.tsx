@@ -1,5 +1,4 @@
-import { useHistory } from 'react-router';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import Box from 'design/Box';
@@ -37,10 +36,10 @@ export function AddNewConnectorPage() {
 }
 
 export function AddNewConnectorsList() {
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const onCreate = (kind: KindAuthConnectors) => {
-    history.push(cfg.oss.getCreateAuthConnectorRoute(kind));
+    navigate(cfg.oss.getCreateAuthConnectorRoute(kind));
   };
 
   return (
@@ -59,9 +58,7 @@ export function AddNewConnectorsList() {
           isGuided={true}
           name={'Okta'}
           Icon={getSsoIcon('saml', 'okta')}
-          onClick={() =>
-            history.push(cfg.oss.getIntegrationEnrollRoute('okta'))
-          }
+          onClick={() => navigate(cfg.oss.getIntegrationEnrollRoute('okta'))}
         />
         {cfg.oss.entitlements.Identity.enabled && (
           <AddNewConnectorTile
@@ -71,7 +68,7 @@ export function AddNewConnectorsList() {
             name={'Microsoft Entra ID'}
             Icon={getSsoIcon('saml', 'entraid')}
             onClick={() =>
-              history.push(cfg.oss.getIntegrationEnrollRoute('entra-id'))
+              navigate(cfg.oss.getIntegrationEnrollRoute('entra-id'))
             }
           />
         )}

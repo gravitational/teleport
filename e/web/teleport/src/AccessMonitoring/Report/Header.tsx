@@ -1,5 +1,5 @@
 import { formatRelative } from 'date-fns';
-import { useHistory, useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 
 import { H1 } from 'design';
@@ -50,14 +50,12 @@ const RefreshButton = styled.div`
 `;
 
 export function Header(props: HeaderProps) {
-  const { name } = useParams<{
-    name: string;
-  }>();
+  const { name = '' } = useParams<{ name: string }>();
 
-  const history = useHistory();
+  const navigate = useNavigate();
 
   function handleChange(days: number) {
-    history.replace(cfg.getAccessMonitoringReportRoute(name, days));
+    navigate(cfg.getAccessMonitoringReportRoute(name, days), { replace: true });
   }
 
   return (

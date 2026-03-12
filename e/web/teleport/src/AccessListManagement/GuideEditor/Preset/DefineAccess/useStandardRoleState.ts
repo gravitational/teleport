@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, type Location } from 'react-router';
 
 import { AppSubKind } from 'shared/services';
 
@@ -203,7 +203,7 @@ export type StandardRoleState = {
  * Manages role condition state for standard resources.
  */
 export function useStandardRoleState(): StandardRoleState {
-  const loc = useLocation<ResumableStandardRoleState>();
+  const loc = useLocation() as Location<ResumableStandardRoleState>;
 
   const [roleEditState, setRoleEditState] = useState<RoleEditState | null>();
 

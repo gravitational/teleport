@@ -1,6 +1,5 @@
 import { Suspense, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router';
 import styled from 'styled-components';
 
 import { Box } from 'design';
@@ -132,22 +131,22 @@ export function AccessMonitoring() {
             {hasQueryAccess && (
               <Route
                 path={config.routes.accessMonitoring.queryEditor}
-                component={QueryEditor}
+                element={<QueryEditor />}
               />
             )}
 
             {hasReportAccess && (
-              <Switch>
-                <Route
-                  path={config.routes.accessMonitoring.report}
-                  component={Report}
-                />
+              <Route
+                path={config.routes.accessMonitoring.report}
+                element={<Report />}
+              />
+            )}
 
-                <Route
-                  path={config.routes.accessMonitoring.base}
-                  component={ReportList}
-                />
-              </Switch>
+            {hasReportAccess && (
+              <Route
+                path={config.routes.accessMonitoring.base}
+                element={<ReportList />}
+              />
             )}
           </Switch>
         </Suspense>

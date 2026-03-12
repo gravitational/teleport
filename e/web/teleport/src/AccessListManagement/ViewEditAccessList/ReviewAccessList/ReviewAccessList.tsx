@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router';
 
 import {
   Alert,
@@ -71,7 +71,7 @@ export function ReviewAccessList({
   isOwner?: boolean;
   isReadOnlyOktaList?: boolean;
 }) {
-  const history = useHistory();
+  const navigate = useNavigate();
   const [reviewStep, setReviewStep] = useState<ReviewStep>(views[0].step);
   const { attempt, run } = useAttempt('');
   const toastNotification = useToastNotifications();
@@ -151,7 +151,7 @@ export function ReviewAccessList({
             mutationType: 'reviewed',
             accessList: reviewedAccessList,
           });
-          history.replace(cfg.getAccessListManagementRoute());
+          navigate(cfg.getAccessListManagementRoute(), { replace: true });
         })
     );
   }

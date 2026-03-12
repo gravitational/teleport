@@ -9,7 +9,7 @@ import { RecoveryToken } from 'e-teleport/services/recovery/types';
 import history from 'teleport/services/history';
 
 export default function useRecoveryFlow(recoveryService: RecoveryService) {
-  const { tokenId } = useParams<{ tokenId: string }>();
+  const { tokenId = '' } = useParams<{ tokenId: string }>();
   const [token, setToken] = useState<RecoveryToken>();
   const { attempt, run } = useAttempt('processing');
 

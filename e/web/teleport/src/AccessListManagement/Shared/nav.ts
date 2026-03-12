@@ -1,13 +1,11 @@
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate, type Location } from 'react-router';
 
 import cfg from 'e-teleport/config';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 
 export const useOnClickNestedList = () => {
-  const history = useHistory();
-  const location = useLocation<{
-    previousPaths?: string[];
-  }>();
+  const navigate = useNavigate();
+  const location = useLocation() as Location<{ previousPaths?: string[] }>;
 
   return (accessListId: string) => {
     const nextListPath = cfg.getAccessListManagementRoute(accessListId);
@@ -20,8 +18,10 @@ export const useOnClickNestedList = () => {
       previousPaths.push(currentListPath);
     }
 
-    history.push(nextListPath, {
-      previousPaths,
+    navigate(nextListPath, {
+      state: {
+        previousPaths,
+      },
     });
   };
 };

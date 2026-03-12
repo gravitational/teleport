@@ -1,5 +1,4 @@
-import { useParams } from 'react-router';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router';
 
 import { Box, ButtonBorder, ButtonPrimary, Flex, Text } from 'design';
 import { ArrowBack } from 'design/Icon';

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router';
 
 import { Alert, Box, ButtonPrimary, ButtonSecondary, Indicator } from 'design';
 import Dialog, {
@@ -32,7 +32,7 @@ export function DeleteAccessListConfirmDialog({
   accessList: AccessListModified;
 }) {
   const accessListId = accessList.id;
-  const history = useHistory();
+  const navigate = useNavigate();
   const { updateAccessListCache } = useAccessListManagementContext();
 
   const { attempt: deleteAccessListAttempt, setAttempt } = useAttempt();
@@ -66,7 +66,7 @@ export function DeleteAccessListConfirmDialog({
     // Because of backend caching, we send the deleted ID
     // as router state to be used to update the listing.
     updateAccessListCache({ mutationType: 'deleted', accessListId });
-    history.replace(cfg.getAccessListManagementRoute());
+    navigate(cfg.getAccessListManagementRoute(), { replace: true });
   }
 
   async function onDelete() {

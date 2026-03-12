@@ -1,5 +1,5 @@
 import { PropsWithChildren, useEffect } from 'react';
-import { MemoryRouter } from 'react-router';
+import { createMemoryRouter, RouterProvider } from 'react-router';
 
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
@@ -36,20 +36,24 @@ export const ComponentWithAccountsSelected: React.FC<
 
 export const Provider = props => {
   const ctx = createTeleportContextE({ customAcl: props.customAcl });
+  const router = createMemoryRouter([
+    {
+      path: '*',
+      element: (
+        <InfoGuidePanelProvider>
+          <UserContextProvider>
+            <ContextProvider ctx={ctx}>
+              <AccessListManagementContextProvider>
+                <CreateAccessListContextProvider>
+                  {props.children}
+                </CreateAccessListContextProvider>
+              </AccessListManagementContextProvider>
+            </ContextProvider>
+          </UserContextProvider>
+        </InfoGuidePanelProvider>
+      ),
+    },
+  ]);
 
-  return (
-    <MemoryRouter>
-      <InfoGuidePanelProvider>
-        <UserContextProvider>
-          <ContextProvider ctx={ctx}>
-            <AccessListManagementContextProvider>
-              <CreateAccessListContextProvider>
-                {props.children}
-              </CreateAccessListContextProvider>
-            </AccessListManagementContextProvider>
-          </ContextProvider>
-        </UserContextProvider>
-      </InfoGuidePanelProvider>
-    </MemoryRouter>
-  );
+  return <RouterProvider router={router} />;
 };

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useHistory, useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 
 import { useAsync } from 'shared/hooks/useAsync';
 
@@ -16,7 +16,11 @@ export function AuthConnectorEditor({ isNew = false }) {
     connectorName: string;
   }>();
   const ctx = useTeleportE();
-  const history = useHistory();
+  const navigate = useNavigate();
+
+  if (!connectorType || (!isNew && !connectorName)) {
+    return null;
+  }
 
   const [content, setContent] = useState(templates[connectorType]);
   const [initialContent, setInitialContent] = useState(
@@ -41,11 +45,11 @@ export function AuthConnectorEditor({ isNew = false }) {
     if (isNew) {
       await ctx.resourceService
         .createConnector(connectorType, content)
-        .then(() => history.push(cfg.oss.routes.sso));
+        .then(() => navigate(cfg.oss.routes.sso));
     } else {
       await ctx.resourceService
         .updateConnector(connectorType, connectorName, content)
-        .then(() => history.push(cfg.oss.routes.sso));
+        .then(() => navigate(cfg.oss.routes.sso));
     }
   });
 
@@ -89,7 +93,7 @@ export function AuthConnectorEditor({ isNew = false }) {
       saveAttempt={saveAttempt}
       fetchAttempt={fetchAttempt}
       onSave={saveConnector}
-      onCancel={() => history.push(backButtonRoute)}
+      onCancel={() => navigate(backButtonRoute)}
       setContent={setContent}
     />
   );

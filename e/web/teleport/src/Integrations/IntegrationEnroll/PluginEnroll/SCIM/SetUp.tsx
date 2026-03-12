@@ -5,7 +5,7 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import {
   Alert,

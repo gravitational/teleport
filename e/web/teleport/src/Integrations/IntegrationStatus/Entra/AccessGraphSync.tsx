@@ -1,4 +1,4 @@
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import { ButtonBorder, Flex, H2, Text } from 'design';
 import { CardTile } from 'design/CardTile/CardTile';
@@ -19,7 +19,7 @@ export function AccessGraphSyncDetails({
 }: {
   syncEnabled: boolean;
 }) {
-  const history = useHistory();
+  const navigate = useNavigate();
   const policyEnabled = cfg.oss.isPolicyEnabled;
   const syncAndPolicyEnabled = syncEnabled && policyEnabled;
 
@@ -44,7 +44,7 @@ export function AccessGraphSyncDetails({
         </Text>
         {syncAndPolicyEnabled ? (
           <ButtonBorder
-            onClick={() => history.push(cfg.routes.accessGraph.dashboard)}
+            onClick={() => navigate(cfg.routes.accessGraph.dashboard)}
           >
             Open in Access Graph
             <NewTab ml={2} size="medium" />

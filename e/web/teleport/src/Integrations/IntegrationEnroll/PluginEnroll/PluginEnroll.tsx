@@ -33,6 +33,10 @@ export type PluginEnrollResponse = StaticPluginResponse | OAuthPluginResponse;
 export function PluginEnroll() {
   const { type: selectedPluginType } = useParams<{ type: PluginKind }>();
 
+  if (!selectedPluginType) {
+    return <NotFound message="plugin type was not provided" />;
+  }
+
   const plugin = pluginMap[selectedPluginType];
   if (!plugin || !plugin.cloudHostable) {
     return (

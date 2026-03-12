@@ -47,8 +47,12 @@ export function getResourceIdUri(params: AccessRequestResourceIdParam) {
 }
 
 export function parseResourceIdUri(uri: string) {
-  return matchPath<AccessRequestResourceIdParam>(
-    uri,
-    accessRequestResourceIdPath
-  );
+  const pattern = accessRequestResourceIdPath.startsWith('/')
+    ? accessRequestResourceIdPath
+    : `/${accessRequestResourceIdPath}`;
+  const path = uri.startsWith('/') ? uri : `/${uri}`;
+
+  return matchPath(pattern, path) as {
+    params: AccessRequestResourceIdParam;
+  } | null;
 }

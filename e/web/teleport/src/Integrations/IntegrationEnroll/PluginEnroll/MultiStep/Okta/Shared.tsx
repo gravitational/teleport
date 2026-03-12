@@ -1,5 +1,5 @@
 import { ComponentProps, PropsWithChildren, ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled from 'styled-components';
 
 import {
@@ -86,7 +86,7 @@ export const OktaSetupStepComplete = ({
           >
             <ButtonPrimary
               as={Link}
-              to={goToCreateAccessListFromOktaRoute(
+              {...goToCreateAccessListFromOktaRoute(
                 plugin.spec.orgUrl,
                 preservedLocationState?.preset
                   ? preservedLocationState

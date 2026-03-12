@@ -16,7 +16,7 @@ import session from 'teleport/services/websession';
 import { getBaseRequestFlags } from '../requestFlags';
 
 export default function useRequestView(ctx: TeleportContextE) {
-  const { requestId } = useParams<{ requestId: string }>();
+  const { requestId = '' } = useParams<{ requestId: string }>();
 
   const [fetchRequestAttempt, runFetchRequest] = useAsync(
     useCallback(

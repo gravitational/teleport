@@ -1,4 +1,4 @@
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import { Flex, Label, P3, Text } from 'design';
 import { FeatureName } from 'design/constants';
@@ -41,7 +41,7 @@ export function AppGroupSyncDetails({
   disabled?: boolean;
   onToggle: () => void;
 }) {
-  const history = useHistory();
+  const navigate = useNavigate();
   const hasIdentity = cfg.oss.entitlements.Identity.enabled;
   const hasSyncError =
     appGroupSpec?.statusCode === PluginOktaSyncStatusCode.Error ||
@@ -60,7 +60,7 @@ export function AppGroupSyncDetails({
             {
               label: 'Edit Configuration',
               onClick: () =>
-                history.push(
+                navigate(
                   cfg.oss.getIntegrationStatusRoute(
                     'okta',
                     'okta',
@@ -73,7 +73,7 @@ export function AppGroupSyncDetails({
             {
               label: 'Go to Applications',
               onClick: () =>
-                history.push(
+                navigate(
                   `${cfg.oss.getUnifiedResourcesRoute(cfg.oss.proxyCluster)}?sort=name%3Aasc&kinds=app&query=labels%5B"teleport.dev%2Forigin"%5D+%3D%3D+"okta"`
                 ),
               Icon: Application,
@@ -81,9 +81,7 @@ export function AppGroupSyncDetails({
             {
               label: 'Go to Access Lists',
               onClick: () =>
-                history.push(
-                  `${cfg.getAccessListManagementRoute()}?search=okta`
-                ),
+                navigate(`${cfg.getAccessListManagementRoute()}?search=okta`),
               Icon: UserList,
             },
           ]}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useHistory, useLocation, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 
 import {
   Alert,
@@ -68,8 +68,8 @@ export function ViewEditAccessList() {
   const { updateAccessListCache, isOktaPluginReadOnly } =
     useAccessListManagementContext();
   const location = useLocation();
-  const history = useHistory();
-  const { accessListId } = useParams<{ accessListId: string }>();
+  const navigate = useNavigate();
+  const { accessListId = '' } = useParams<{ accessListId: string }>();
 
   const {
     attempt: fetchViewingAccessListAttempt,
@@ -174,9 +174,12 @@ export function ViewEditAccessList() {
         isReadOnlyOktaList={isReadOnlyOktaList}
         cancelReview={() => {
           if (!location.key || location.key === 'default') {
-            history.replace(location.pathname, location.state);
+            navigate(location.pathname, {
+              replace: true,
+              state: location.state,
+            });
           } else {
-            history.goBack();
+            navigate(-1);
           }
         }}
         isOwner={perms.isOwner}
@@ -206,9 +209,9 @@ export function ViewEditAccessList() {
             onClick={() => {
               // If location.key is unset, or 'default', this is the first history entry in-app in the session.
               if (!location.key || location.key === 'default') {
-                history.push(cfg.getAccessListManagementRoute());
+                navigate(cfg.getAccessListManagementRoute());
               } else {
-                history.goBack();
+                navigate(-1);
               }
             }}
             aria-label="Back"

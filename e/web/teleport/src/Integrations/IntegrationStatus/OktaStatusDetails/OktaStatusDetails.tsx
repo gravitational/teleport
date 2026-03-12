@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import {
@@ -210,14 +210,7 @@ export function OktaStatusDetails({
   return (
     <Switch>
       {accessGraphEnabled && !cfg.isCloud && (
-        <Route
-          exact
-          path={cfg.getIntegrationStatusRoute(
-            'okta',
-            'okta',
-            OktaIntegrationStepType.IdentitySecuritySync
-          )}
-        >
+        <Route exact path={OktaIntegrationStepType.IdentitySecuritySync}>
           <SetupIdentitySecuritySyncForm plugin={plugin} isEditing />
         </Route>
       )}
@@ -226,39 +219,27 @@ export function OktaStatusDetails({
             <Route
               exact
               key={OktaIntegrationStepType.Scim}
-              path={cfg.getIntegrationStatusRoute(
-                'okta',
-                'okta',
-                OktaIntegrationStepType.Scim
-              )}
+              path={OktaIntegrationStepType.Scim}
             >
               <ScimForm plugin={plugin} isEditing />
             </Route>,
             <Route
               exact
               key={OktaIntegrationStepType.UserSync}
-              path={cfg.getIntegrationStatusRoute(
-                'okta',
-                'okta',
-                OktaIntegrationStepType.UserSync
-              )}
+              path={OktaIntegrationStepType.UserSync}
             >
               <UserSyncForm plugin={plugin} isEditing />
             </Route>,
             <Route
               exact
               key={OktaIntegrationStepType.AppGroupSync}
-              path={cfg.getIntegrationStatusRoute(
-                'okta',
-                'okta',
-                OktaIntegrationStepType.AppGroupSync
-              )}
+              path={OktaIntegrationStepType.AppGroupSync}
             >
               <AppGroupSyncForm plugin={plugin} isEditing />
             </Route>,
           ]
         : []}
-      <Route path={cfg.getIntegrationStatusRoute('okta', 'okta')}>
+      <Route path="*">
         <StatusDetails
           accessGraphEnabled={accessGraphEnabled}
           plugin={plugin}
@@ -278,7 +259,7 @@ const StatusDetails = ({
   plugin: Plugin<PluginOktaSpec, PluginStatusOkta>;
   deletePlugin: () => void;
 }) => {
-  const history = useHistory();
+  const navigate = useNavigate();
   const [confirmModal, setConfirmModal] = useState<
     ConfirmModalState | undefined
   >();
@@ -330,7 +311,7 @@ const StatusDetails = ({
     ) => {
       // SCIM can only be set up, not disabled.
       if (updateSetting === UpdateSetting.SCIM) {
-        history.push(
+        navigate(
           cfg.getIntegrationStatusRoute(
             'okta',
             'okta',
@@ -357,7 +338,7 @@ const StatusDetails = ({
       // the UserSync setup page to add them.
       if (!plugin.spec?.credentialsInfo?.hasConfiguredOauthCredentials) {
         const goToSetup = () =>
-          history.push(
+          navigate(
             cfg.getIntegrationStatusRoute(
               'okta',
               'okta',
@@ -387,7 +368,7 @@ const StatusDetails = ({
           !!plugin.status?.details?.accessListsSyncDetails?.appFilters ||
           !!plugin.status?.details?.accessListsSyncDetails?.groupFilters)
       ) {
-        history.push(
+        navigate(
           cfg.getIntegrationStatusRoute(
             'okta',
             'okta',
@@ -399,7 +380,7 @@ const StatusDetails = ({
 
       // Go to the setup page for Identity Security Sync so we can show the additional scopes required.
       if (updateSetting === UpdateSetting.IdentitySecuritySync) {
-        history.push(
+        navigate(
           cfg.getIntegrationStatusRoute(
             'okta',
             'okta',
@@ -416,7 +397,7 @@ const StatusDetails = ({
     [
       localSettings,
       updatePlugin,
-      history,
+      navigate,
       plugin.spec?.credentialsInfo?.hasConfiguredOauthCredentials,
       plugin.spec?.defaultOwners,
       plugin.status?.details?.accessListsSyncDetails?.appFilters,

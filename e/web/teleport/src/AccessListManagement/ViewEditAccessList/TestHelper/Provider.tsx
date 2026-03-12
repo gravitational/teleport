@@ -1,4 +1,4 @@
-import { MemoryRouter, Route, Switch } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
@@ -18,14 +18,16 @@ export const Provider = props => {
         <UserContextProvider>
           <AccessGraphDemoProvider>
             <ContextProvider ctx={ctx}>
-              <Switch>
-                <AccessListManagementContextProvider>
-                  <Route
-                    path={cfg.routes.accessLists}
-                    render={() => <>{props.children}</>}
-                  />
-                </AccessListManagementContextProvider>
-              </Switch>
+              <Routes>
+                <Route
+                  path={cfg.routes.accessLists}
+                  element={
+                    <AccessListManagementContextProvider>
+                      {props.children}
+                    </AccessListManagementContextProvider>
+                  }
+                />
+              </Routes>
             </ContextProvider>
           </AccessGraphDemoProvider>
         </UserContextProvider>

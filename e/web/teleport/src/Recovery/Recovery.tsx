@@ -16,7 +16,7 @@ export function Recovery() {
         <Route exact path={cfg.routes.recoveryForgotDevice}>
           <RecoveryStart recoveryType="device" />
         </Route>
-        <Route path={cfg.routes.recoverySteps} component={RecoveryFlow} />
+        <Route path={cfg.routes.recoverySteps} element={<RecoveryFlow />} />
       </Switch>
     </>
   );

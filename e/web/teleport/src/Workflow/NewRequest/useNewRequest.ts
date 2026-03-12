@@ -335,7 +335,7 @@ export function useNewRequest(ctx: Ctx) {
             if (item.kind === 'kube_cluster') {
               const kubeNamespaceUris = Object.keys(newResources['namespace']);
               kubeNamespaceUris.forEach(uri => {
-                const { resourceName } = parseResourceIdUri(uri).params;
+                const { resourceName } = parseResourceIdUri(uri)!.params;
                 if (resourceName === id) {
                   delete newResources['namespace'][uri];
                 }

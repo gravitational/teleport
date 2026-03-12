@@ -1,4 +1,4 @@
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink } from 'react-router';
 
 import { ButtonPrimary, Link as ExternalLink, Flex, Text } from 'design';
 import { Info } from 'design/Alert/Alert';

@@ -38,7 +38,7 @@ import useTeleport from 'teleport/useTeleport';
 export const PassthroughPage = () => {
   const ctx = useTeleport();
   const { search } = useLocation();
-  const { id, token } = useParams<{
+  const { id = '', token = '' } = useParams<{
     id: string;
     token: string;
   }>();

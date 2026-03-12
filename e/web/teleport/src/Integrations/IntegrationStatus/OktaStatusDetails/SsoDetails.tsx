@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import { Link as ExternalLink, Flex, Mark, Text } from 'design';
 import { NewTab, PlugsConnected } from 'design/Icon';
@@ -26,14 +26,14 @@ export const SsoDetails = ({
   orgUrl?: string;
 }) => {
   const ctx = useTeleportE();
-  const history = useHistory();
+  const navigate = useNavigate();
   const hasSsoAccess = ctx.storeUser.getConnectorAccess().list;
 
   const options = [];
   if (hasSsoAccess) {
     options.push({
       label: 'View Auth Connector',
-      onClick: () => history.push(cfg.routes.sso),
+      onClick: () => navigate(cfg.routes.sso),
       Icon: PlugsConnected,
     });
   }

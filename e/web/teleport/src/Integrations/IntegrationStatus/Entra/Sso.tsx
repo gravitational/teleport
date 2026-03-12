@@ -1,4 +1,4 @@
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import { Flex, H2, Text } from 'design';
 import { CardTile } from 'design/CardTile/CardTile';
@@ -14,7 +14,7 @@ import cfg from 'teleport/config';
  */
 export function SsoDetails({ connectorName }: { connectorName: string }) {
   const ctx = useTeleportE();
-  const history = useHistory();
+  const navigate = useNavigate();
   const hasSsoAccess =
     ctx.storeUser.getConnectorAccess().list &&
     ctx.storeUser.getConnectorAccess().read;
@@ -22,7 +22,7 @@ export function SsoDetails({ connectorName }: { connectorName: string }) {
   const options = [];
   const authConnectorOpt = {
     label: 'View Auth Connector',
-    onClick: () => history.push(cfg.routes.sso),
+    onClick: () => navigate(cfg.routes.sso),
     Icon: PlugsConnected,
     disabled: false,
     tooltip: '',

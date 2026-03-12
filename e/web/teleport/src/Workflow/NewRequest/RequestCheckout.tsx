@@ -1,5 +1,5 @@
 import { forwardRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import type { TransitionStatus } from 'react-transition-group';
 
 import { Box, ButtonPrimary, ButtonText } from 'design';

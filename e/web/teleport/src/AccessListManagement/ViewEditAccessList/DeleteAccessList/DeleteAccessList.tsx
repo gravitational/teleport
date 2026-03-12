@@ -1,4 +1,4 @@
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink } from 'react-router';
 
 import { Alert, Box, ButtonSecondary, ButtonWarning, P1, Text } from 'design';
 import { Warning } from 'design/Alert/Alert';

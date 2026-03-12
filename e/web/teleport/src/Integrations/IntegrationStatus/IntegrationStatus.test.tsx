@@ -1,7 +1,7 @@
 /* eslint-disable testing-library/no-node-access */
 import { within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter, Route } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import {
   act,
@@ -49,9 +49,12 @@ describe('Okta status', () => {
         initialEntries={[`/web/integrations/status/okta/some-name`]}
       >
         <TeleportContextProvider ctx={ctx}>
-          <Route path={cfg.routes.integrationStatus}>
-            <IntegrationStatus />
-          </Route>
+          <Routes>
+            <Route
+              path={`${cfg.routes.integrationStatus}/*`}
+              element={<IntegrationStatus />}
+            />
+          </Routes>
         </TeleportContextProvider>
       </MemoryRouter>
     );
@@ -188,9 +191,12 @@ const renderOktaStatus = async (
       initialEntries={[cfg.getIntegrationStatusRoute('okta', 'okta', page)]}
     >
       <TeleportContextProvider ctx={ctx}>
-        <Route path={cfg.routes.integrationStatus}>
-          <IntegrationStatus />
-        </Route>
+        <Routes>
+          <Route
+            path={`${cfg.routes.integrationStatus}/*`}
+            element={<IntegrationStatus />}
+          />
+        </Routes>
       </TeleportContextProvider>
     </MemoryRouter>
   );
@@ -204,9 +210,12 @@ test('unsupported integration kinds', () => {
       <MemoryRouter
         initialEntries={[`/web/integrations/status/${key}/some-name`]}
       >
-        <Route path={cfg.routes.integrationStatus}>
-          <IntegrationStatus />
-        </Route>
+        <Routes>
+          <Route
+            path={`${cfg.routes.integrationStatus}/*`}
+            element={<IntegrationStatus />}
+          />
+        </Routes>
       </MemoryRouter>
     );
 
@@ -243,9 +252,12 @@ test.each`
       <MemoryRouter
         initialEntries={[`/web/integrations/status/${type}/some-name`]}
       >
-        <Route path={cfg.routes.integrationStatus}>
-          <IntegrationStatus />
-        </Route>
+        <Routes>
+          <Route
+            path={`${cfg.routes.integrationStatus}/*`}
+            element={<IntegrationStatus />}
+          />
+        </Routes>
       </MemoryRouter>
     </TeleportContextProvider>
   );

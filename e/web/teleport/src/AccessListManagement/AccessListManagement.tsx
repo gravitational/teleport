@@ -5,6 +5,11 @@ import { Route, Switch } from 'teleport/components/Router';
 import { AccessLists } from './AccessLists';
 import { ViewEditAccessList } from './ViewEditAccessList';
 
+const accessListDetailsRoute = cfg.routes.accessLists.replace(
+  '/:accessListId?',
+  '/:accessListId'
+);
+
 export function AccessListManagement() {
   return (
     <AccessListManagementContextProvider>
@@ -13,13 +18,13 @@ export function AccessListManagement() {
           key="access-lists"
           exact
           path={cfg.getAccessListManagementRoute()}
-          component={AccessLists}
+          element={<AccessLists />}
         />
         <Route
           key="view-access-list"
           exact
-          path={cfg.routes.accessLists}
-          component={ViewEditAccessList}
+          path={accessListDetailsRoute}
+          element={<ViewEditAccessList />}
         />
       </Switch>
     </AccessListManagementContextProvider>

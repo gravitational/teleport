@@ -143,5 +143,5 @@ test('redirect to SAML path if session is valid and path matches "/enterprise/sa
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(samlIdPPath.toString());
   render(<Login />);
-  expect(history.push).toHaveBeenCalledWith(samlIdPPath, true);
+  expect(history.push).toHaveBeenCalledWith(samlIdPPath.toString(), true);
 });

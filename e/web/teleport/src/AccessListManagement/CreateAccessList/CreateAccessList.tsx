@@ -1,5 +1,3 @@
-import { Prompt } from 'react-router-dom';
-
 import { Box, Indicator } from 'design';
 import { UserList } from 'design/Icon';
 
@@ -9,6 +7,7 @@ import {
 } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import cfg from 'e-teleport/config';
 import { FeatureBox } from 'teleport/components/Layout';
+import { Prompt } from 'teleport/components/Router';
 import { BaseView } from 'teleport/components/Wizard/flow';
 import { Navigation } from 'teleport/components/Wizard/Navigation';
 
@@ -83,6 +82,7 @@ export function CreateAccessList() {
       <GuideContainer>{views[currentStep].Component}</GuideContainer>
       {preset && currentStep < presetGuideViews.length - 1 && (
         <Prompt
+          when
           message={nextLocation => {
             if (
               nextLocation.pathname === cfg.routes.accessListNew ||

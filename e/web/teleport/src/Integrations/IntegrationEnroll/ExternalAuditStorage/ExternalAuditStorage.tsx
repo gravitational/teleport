@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, Prompt, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router';
 import styled from 'styled-components';
 
 import {
@@ -16,6 +16,7 @@ import { Notification as IconNotification } from 'design/Icon';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleportE from 'e-teleport/useTeleportE';
+import { Prompt } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
 import celebratePamPng from 'teleport/Discover/Shared/Finished/celebrate-pam.png';
@@ -36,7 +37,7 @@ export function ExternalAuditStorage() {
   const { attempt: activateAttempt, run: activateRun } = useAttempt('');
   const [activated, setActivated] = useState<boolean>(false);
 
-  const location = useLocation<{ continueDraft: boolean }>();
+  const location = useLocation() as { state?: { continueDraft?: boolean } };
   useEffect(() => {
     // continuing draft (probably a redirect from integrations list)
     if (location.state?.continueDraft) {

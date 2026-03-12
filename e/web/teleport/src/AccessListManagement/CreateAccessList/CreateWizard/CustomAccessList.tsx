@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import { Alert, Box, ButtonPrimary, ButtonSecondary, Flex, H1 } from 'design';
 import { ArrowBack } from 'design/Icon';

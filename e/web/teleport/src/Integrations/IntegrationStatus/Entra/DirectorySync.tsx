@@ -1,6 +1,6 @@
 import { formatDistanceStrict } from 'date-fns';
 import { useState } from 'react';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import {
@@ -50,7 +50,7 @@ export function DirectorySyncDetails({
   spec: PluginEntraIdSpec;
   status: PluginStatus<PluginEntraIDStatusDetails>;
 }) {
-  const history = useHistory();
+  const navigate = useNavigate();
 
   function lastSynced() {
     let msg = `Last Synced: ${getDurationText(status?.lastRun)}`;
@@ -80,7 +80,7 @@ export function DirectorySyncDetails({
             {
               label: 'Edit Configuration',
               onClick: () =>
-                history.push(
+                navigate(
                   cfg.oss.getIntegrationStatusRoute(
                     'entra-id',
                     name,
@@ -91,15 +91,13 @@ export function DirectorySyncDetails({
             },
             {
               label: 'Go to Users',
-              onClick: () => history.push(`${cfg.oss.getUsersRoute()}`),
+              onClick: () => navigate(`${cfg.oss.getUsersRoute()}`),
               Icon: Users,
             },
             {
               label: 'Go to Access Lists',
               onClick: () =>
-                history.push(
-                  `${cfg.getAccessListManagementRoute()}?search=entra`
-                ),
+                navigate(`${cfg.getAccessListManagementRoute()}?search=entra`),
               Icon: UserList,
             },
           ]}

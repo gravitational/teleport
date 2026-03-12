@@ -1,5 +1,4 @@
-import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
 
@@ -166,21 +165,20 @@ test('getEditedAccessListFields: members with differing references are not flagg
 
 describe('ReviewMembers UI', () => {
   test('Remove buttons should be disabled for EntraID access lists', () => {
-    const history = createMemoryHistory();
     const mockEntraIDAccessList: AccessListModified = {
       ...mockAccessList,
       origin: AccessListOrigin.EntraID,
     };
 
     render(
-      <Router history={history}>
+      <MemoryRouter>
         <ReviewMembers
           accessList={mockEntraIDAccessList}
           editedMembers={mockEntraIDAccessList.members}
           originalMembers={mockEntraIDAccessList.members}
           onDeleteMember={jest.fn()}
         />
-      </Router>
+      </MemoryRouter>
     );
 
     const removeButtons = screen.getAllByRole('button', { name: /remove/i });

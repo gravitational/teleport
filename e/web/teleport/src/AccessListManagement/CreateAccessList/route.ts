@@ -17,7 +17,7 @@ export function goToCreateAccessListFromOktaRoute(
     state = { oktaOrgUrl, ...locState };
   }
   return {
-    pathname: cfg.routes.accessListNew,
+    to: cfg.routes.accessListNew,
     state,
   };
 }

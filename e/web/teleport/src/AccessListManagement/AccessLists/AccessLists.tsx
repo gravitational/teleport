@@ -8,8 +8,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import { useHistory } from 'react-router';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import { Alert, Box, Button, ButtonBorder, Flex, Text } from 'design';
@@ -160,7 +159,7 @@ function MainContent({
   setSearchValue: Dispatch<SetStateAction<string>>;
 }) {
   const ctx = useTeleport();
-  const history = useHistory();
+  const navigate = useNavigate();
   const {
     accessLists,
     view: viewMode,
@@ -182,12 +181,15 @@ function MainContent({
 
   useEffect(() => {
     if (previousSearchParams) {
-      history.replace({
-        pathname: location.pathname,
-        search: previousSearchParams,
-      });
+      navigate(
+        {
+          pathname: location.pathname,
+          search: previousSearchParams,
+        },
+        { replace: true }
+      );
     }
-  }, [history, previousSearchParams]);
+  }, [navigate, previousSearchParams]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
@@ -202,10 +204,13 @@ function MainContent({
 
     if (paramsToRemove.length > 0) {
       paramsToRemove.forEach(param => urlParams.delete(param));
-      history.replace({
-        pathname: location.pathname,
-        search: urlParams.toString(),
-      });
+      navigate(
+        {
+          pathname: location.pathname,
+          search: urlParams.toString(),
+        },
+        { replace: true }
+      );
     }
     // we only want to cleanse this once
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -326,7 +331,6 @@ function MainContent({
           <AccessListTable
             isLoading={isFetching}
             accessLists={accessLists}
-            history={history}
             showListTypes={showListTypes}
             isOktaReadOnly={isOktaPluginReadOnly}
           />
@@ -336,9 +340,7 @@ function MainContent({
               key={a.id}
               accessList={a}
               isOktaReadOnly={isOktaPluginReadOnly}
-              onClick={() =>
-                history.push(cfg.getAccessListManagementRoute(a.id))
-              }
+              onClick={() => navigate(cfg.getAccessListManagementRoute(a.id))}
             />
           ))
         ) : !isFetching ? (
@@ -377,17 +379,17 @@ const NumCell = ({ children, ...props }: ComponentProps<typeof Cell>) => (
 
 const AccessListTable = ({
   accessLists,
-  history,
   showListTypes,
   isLoading,
   isOktaReadOnly = false,
 }: {
   accessLists: AccessListWithModifiedGrants[];
-  history: ReturnType<typeof useHistory>;
   isLoading: boolean;
   showListTypes?: boolean;
   isOktaReadOnly?: boolean;
 }) => {
+  const navigate = useNavigate();
+
   const columns = useMemo(() => {
     const cols: TableColumn<AccessListWithModifiedGrants>[] = [
       {
@@ -488,14 +490,13 @@ const AccessListTable = ({
           <TableAuditNextDateCell
             accessList={acl}
             isOktaReadOnly={isOktaReadOnly}
-            history={history}
           />
         ),
       }
     );
 
     return cols;
-  }, [showListTypes, history, isOktaReadOnly]);
+  }, [showListTypes, navigate, isOktaReadOnly]);
 
   return (
     <Table
@@ -507,7 +508,7 @@ const AccessListTable = ({
       isSearchable={false}
       row={{
         onClick: (acl: AccessListWithModifiedGrants) =>
-          history.push(cfg.getAccessListManagementRoute(acl.id)),
+          navigate(cfg.getAccessListManagementRoute(acl.id)),
         getStyle: () => ({
           cursor: 'pointer',
           height: '46px',
@@ -533,13 +534,13 @@ const friendlyListOrigin = (listType: string) => {
 
 const TableAuditNextDateCell = ({
   accessList,
-  history,
   isOktaReadOnly = false,
 }: {
   accessList: AccessListWithModifiedGrants;
-  history: ReturnType<typeof useHistory>;
   isOktaReadOnly?: boolean;
 }) => {
+  const navigate = useNavigate();
+
   if (
     (accessList.origin === AccessListOrigin.Okta && isOktaReadOnly) ||
     !accessList.audit?.nextDate
@@ -567,9 +568,7 @@ const TableAuditNextDateCell = ({
       <ReviewBadge
         onClick={e => {
           e.stopPropagation();
-          history.push(
-            `${cfg.getAccessListManagementRoute(accessList.id)}#review`
-          );
+          navigate(`${cfg.getAccessListManagementRoute(accessList.id)}#review`);
         }}
         isOverdue={isOverdue}
       >

@@ -1,5 +1,5 @@
 import { http, HttpResponse, PathParams } from 'msw';
-import { MemoryRouter, Route } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import {
   enableMswServer,
@@ -488,9 +488,12 @@ async function renderPluginEnroll(
       ]}
     >
       <TeleportContextProvider ctx={ctx}>
-        <Route path={cfg.oss.routes.integrationEnroll}>
-          <PluginEnroll />
-        </Route>
+        <Routes>
+          <Route
+            path={`${cfg.oss.routes.integrationEnroll}/*`}
+            element={<PluginEnroll />}
+          />
+        </Routes>
       </TeleportContextProvider>
     </MemoryRouter>
   );

@@ -1,4 +1,4 @@
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import { Flex, P3, Text } from 'design';
 import { FeatureName } from 'design/constants';
@@ -33,7 +33,7 @@ export function UserSyncDetails({
   toggled?: boolean;
   onToggle: () => void;
 }) {
-  const history = useHistory();
+  const navigate = useNavigate();
   const hasIdentity = cfg.entitlements.Identity.enabled;
   const hasSyncError = spec?.statusCode === PluginOktaSyncStatusCode.Error;
   const showContent = hasIdentity && (toggled || hasSyncError);
@@ -50,7 +50,7 @@ export function UserSyncDetails({
             {
               label: 'Edit Configuration',
               onClick: () =>
-                history.push(
+                navigate(
                   cfg.getIntegrationStatusRoute(
                     'okta',
                     'okta',
@@ -62,7 +62,7 @@ export function UserSyncDetails({
             },
             {
               label: 'Go to Users',
-              onClick: () => history.push(`${cfg.routes.users}?search=okta`),
+              onClick: () => navigate(`${cfg.routes.users}?search=okta`),
               Icon: User,
             },
           ]}

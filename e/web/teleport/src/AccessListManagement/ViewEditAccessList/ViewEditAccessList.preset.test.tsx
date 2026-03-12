@@ -1,7 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { createMemoryHistory } from 'history';
 import { http, HttpResponse } from 'msw';
-import { Router } from 'react-router';
+import { createMemoryRouter, RouterProvider } from 'react-router';
 
 import {
   enableMswServer,
@@ -234,21 +233,25 @@ test('shows warning when role has unsupported fields (e.g. deny rules)', async (
 });
 
 const Provider = ({ customAcl }: { customAcl?: Acl }) => {
-  const history = createMemoryHistory();
   const ctx = createTeleportContextE({ customAcl });
-  return (
-    <Router history={history}>
-      <QueryClientProvider client={testQueryClient}>
-        <ContextProvider ctx={ctx}>
-          <AccessGraphDemoProvider>
-            <AccessListManagementContextProvider>
-              <ViewEditAccessList />
-            </AccessListManagementContextProvider>
-          </AccessGraphDemoProvider>
-        </ContextProvider>
-      </QueryClientProvider>
-    </Router>
-  );
+  const router = createMemoryRouter([
+    {
+      path: '*',
+      element: (
+        <QueryClientProvider client={testQueryClient}>
+          <ContextProvider ctx={ctx}>
+            <AccessGraphDemoProvider>
+              <AccessListManagementContextProvider>
+                <ViewEditAccessList />
+              </AccessListManagementContextProvider>
+            </AccessGraphDemoProvider>
+          </ContextProvider>
+        </QueryClientProvider>
+      ),
+    },
+  ]);
+
+  return <RouterProvider router={router} />;
 };
 
 const oktaPlugin: Plugin<PluginOktaSpec, PluginStatusOkta> = {

@@ -1,15 +1,16 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { createMemoryHistory, History } from 'history';
 import { http, HttpResponse } from 'msw';
-import { Router } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import {
+  CurrentLocation,
   enableMswServer,
   render,
   screen,
   server,
   testQueryClient,
   userEvent,
+  waitFor,
   within,
 } from 'design/utils/testing';
 import { AccessListUserAssignmentType } from 'gen-proto-ts/teleport/accesslist/v1/accesslist_pb';
@@ -79,31 +80,43 @@ afterEach(async () => {
 });
 
 test('back button uses previous route if present and preserves queries', async () => {
-  const history = createMemoryHistory({
-    initialEntries: [`${cfg.getAccessListManagementRoute()}?search=banana`],
-  });
-  history.goBack = jest.fn();
-
-  render(<Provider customHistory={history} />);
+  render(
+    <Provider
+      initialEntries={[
+        `${cfg.getAccessListManagementRoute()}?search=banana`,
+        cfg.getAccessListManagementRoute(),
+      ]}
+      initialIndex={1}
+    />
+  );
 
   await screen.findByText(/mocked title/i);
   await userEvent.click(screen.getByTestId('back-button'));
-  expect(history.goBack).toHaveBeenCalled();
-  expect(history.location?.pathname).toBe(cfg.getAccessListManagementRoute());
-  expect(history.location?.search).toBe('?search=banana');
+
+  await waitFor(() => {
+    expect(screen.getByTestId('location-display')).toHaveTextContent(
+      `${cfg.getAccessListManagementRoute()}?search=banana`
+    );
+  });
 });
 
 test('back button uses default route if router state is not provided', async () => {
-  const history = createMemoryHistory();
-  history.push = jest.fn();
-  // Manually unset location.key to simulate initial page load in-browser
-  history.location.key = undefined;
-
-  render(<Provider customHistory={history} />);
+  render(
+    <Provider
+      initialEntries={[cfg.getAccessListManagementRoute(accessList.id)]}
+    />
+  );
 
   await screen.findByText(/mocked title/i);
   await userEvent.click(screen.getByTestId('back-button'));
-  expect(history.push).toHaveBeenCalledWith(cfg.getAccessListManagementRoute());
+
+  await waitFor(() => {
+    expect(screen.getByTestId('location-display')).toHaveTextContent(
+      cfg.getAccessListManagementRoute()
+    );
+    expect(screen.getByTestId('location-display')).not.toHaveTextContent('?');
+    expect(screen.getByTestId('location-display')).not.toHaveTextContent('#');
+  });
 });
 
 test('viewing access list as admin (has access list rbac)', async () => {
@@ -364,22 +377,34 @@ async function testAccessToEditHeaderContents({ as }: { as: TestAs }) {
 
 const Provider = ({
   customAcl,
-  customHistory = createMemoryHistory(),
+  initialEntries = [cfg.getAccessListManagementRoute()],
+  initialIndex,
 }: {
   customAcl?: Acl;
-  customHistory?: History;
+  initialEntries?: string[];
+  initialIndex?: number;
 }) => {
   const ctx = createTeleportContextE({ customAcl });
   return (
-    <Router history={customHistory}>
+    <MemoryRouter initialEntries={initialEntries} initialIndex={initialIndex}>
       <QueryClientProvider client={testQueryClient}>
         <ContextProvider ctx={ctx}>
           <AccessListManagementContextProvider>
-            <ViewEditAccessList />
+            <Routes>
+              <Route
+                path="*"
+                element={
+                  <>
+                    <CurrentLocation />
+                    <ViewEditAccessList />
+                  </>
+                }
+              />
+            </Routes>
           </AccessListManagementContextProvider>
         </ContextProvider>
       </QueryClientProvider>
-    </Router>
+    </MemoryRouter>
   );
 };
 

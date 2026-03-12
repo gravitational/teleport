@@ -277,7 +277,7 @@ class FeatureAccessListManagement implements TeleportFeature {
 
   route = {
     title: 'Manage Access Lists',
-    path: cfg.routes.accessLists,
+    path: cfg.routes.accessListsList,
     exact: false,
     component: AccessListManagement,
   };

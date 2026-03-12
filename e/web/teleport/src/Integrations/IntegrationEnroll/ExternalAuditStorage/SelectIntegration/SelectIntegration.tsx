@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import { Alert, Box, ButtonPrimary, ButtonText, Text } from 'design';
 import Select, { Option as BaseOption } from 'shared/components/Select';
@@ -86,7 +86,12 @@ export function SelectIntegration() {
               data-testid="aws-integration-select"
             />
           </Box>
-          <ButtonText as={Link} to={locationState} compact>
+          <ButtonText
+            as={Link}
+            to={integrationEnrollPath}
+            state={locationState}
+            compact
+          >
             Or click here to set up a different AWS account
           </ButtonText>
 
@@ -112,7 +117,8 @@ export function SelectIntegration() {
             mt={2}
             mb={2}
             as={Link}
-            to={locationState}
+            to={integrationEnrollPath}
+            state={locationState}
             disabled={!hasAccess}
           >
             Set up AWS Account
@@ -122,15 +128,12 @@ export function SelectIntegration() {
     </>
   );
 }
-const locationState: {
-  pathname: string;
-  state: { integration: IntegrationUrlLocationState };
-} = {
-  pathname: cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc),
-  state: {
-    integration: {
-      kind: IntegrationKind.ExternalAuditStorage,
-      redirectText: 'Continue External Audit Storage Setup',
-    },
+const integrationEnrollPath = cfg.getIntegrationEnrollRoute(
+  IntegrationKind.AwsOidc
+);
+const locationState: { integration: IntegrationUrlLocationState } = {
+  integration: {
+    kind: IntegrationKind.ExternalAuditStorage,
+    redirectText: 'Continue External Audit Storage Setup',
   },
 };

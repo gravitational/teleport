@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import {
   Box,
@@ -42,7 +42,7 @@ export function EditGroupsImport({
   onSave: (filters: Filters, owners: string[], ownersSource: string) => void;
   disabled: boolean;
 }) {
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
 
   const {
@@ -81,9 +81,9 @@ export function EditGroupsImport({
 
   function goBack() {
     if (!location.key || location.key === 'default') {
-      history.push(cfg.getIntegrationStatusRoute('entra-id', plugin.name));
+      navigate(cfg.getIntegrationStatusRoute('entra-id', plugin.name));
     } else {
-      history.goBack();
+      navigate(-1);
     }
   }
 

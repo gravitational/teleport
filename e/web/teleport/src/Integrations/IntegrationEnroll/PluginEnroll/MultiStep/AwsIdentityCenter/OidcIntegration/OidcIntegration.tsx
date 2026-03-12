@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router';
 
 import {
   Box,
@@ -53,7 +53,7 @@ import { UserAccountWarning } from '../shared/UserAccountWarning';
 
 export function AwsIcOidcIntegration() {
   const { storeUser } = useTeleport();
-  const history = useHistory();
+  const navigate = useNavigate();
   const integrationAccess = storeUser.getIntegrationsAccess();
   const hasAccess = integrationAccess.list && integrationAccess.read;
   const { formData, nextStep, setFormData, eventId } = usePlugin();
@@ -217,7 +217,7 @@ export function AwsIcOidcIntegration() {
     emitEvent(eventId, IntegrationEnrollStep.ConnectOidc, {
       code: IntegrationEnrollStatusCode.Aborted,
     });
-    history.push(ecfg.oss.getIntegrationEnrollRoute());
+    navigate(ecfg.oss.getIntegrationEnrollRoute());
   }
 
   // AWS IAM Identity Center plugin creates AWS OIDC integration with the

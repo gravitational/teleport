@@ -1,6 +1,4 @@
-import { MemoryRouter } from 'react-router';
-
-import { render, screen, userEvent } from 'design/utils/testing';
+import { screen, userEvent } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { getEnterpriseFeatures } from 'e-teleport/features';
@@ -14,6 +12,7 @@ import { getAcl } from 'teleport/mocks/contexts';
 import { userEventService } from 'teleport/services/userEvent';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import { renderWithMemoryRouter } from 'teleport/test/helpers/router';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
@@ -32,20 +31,19 @@ const renderDiscover = () => {
   // TODO(sshah): update Discover flow to use "cfg.edition" instead of "cfg.isEnterprise"
   cfg.isEnterprise = true;
 
-  return render(
-    <MemoryRouter
-      initialEntries={[
+  return renderWithMemoryRouter(
+    <TeleportContextProvider ctx={ctx}>
+      <FeaturesContextProvider value={getEnterpriseFeatures()}>
+        <InfoGuidePanelProvider>
+          <Discover />
+        </InfoGuidePanelProvider>
+      </FeaturesContextProvider>
+    </TeleportContextProvider>,
+    {
+      initialEntries: [
         { pathname: cfg.routes.discover, state: { entity: '' } },
-      ]}
-    >
-      <TeleportContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={getEnterpriseFeatures()}>
-          <InfoGuidePanelProvider>
-            <Discover />
-          </InfoGuidePanelProvider>
-        </FeaturesContextProvider>
-      </TeleportContextProvider>
-    </MemoryRouter>
+      ],
+    }
   );
 };
 

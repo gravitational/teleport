@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Prompt, useHistory } from 'react-router';
+import { matchPath, useNavigate } from 'react-router';
 import { Transition } from 'react-transition-group';
 import styled from 'styled-components';
 
@@ -43,6 +43,7 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import { Prompt } from 'teleport/components/Router';
 import { ServersideSearchPanel } from 'teleport/components/ServersideSearchPanel';
 import cfg from 'teleport/config';
 import { TextIcon } from 'teleport/Discover/Shared';
@@ -72,6 +73,10 @@ const accessRequestTypeToLabel: Record<AccessRequestKind, string> = {
   resource: 'Resources',
   role: 'Roles',
 };
+
+const CROSS_CLUSTER_WARNING =
+  'Resources from different clusters cannot be combined in an access request. Current items selected will be cleared. Are you sure you want to continue?';
+const REQUEST_NEW_ROUTE = '/web/cluster/:clusterId/requests/new';
 
 export default function Container() {
   const teleCtx = useTeleportE();
@@ -134,7 +139,7 @@ function NewRequest(props: State) {
     numAddedResources,
   } = props;
   useNoMinWidth();
-  const history = useHistory();
+  const navigate = useNavigate();
   const { preferences, updatePreferences } = useUser();
   const [clusterDropdownError, setClusterDropdownError] = useState('');
 
@@ -199,7 +204,7 @@ function NewRequest(props: State) {
           <Flex alignItems="center">
             <HoverTooltip tipContent="Back to Access Requests">
               <ButtonIcon
-                onClick={() => history.push(cfg.getAccessRequestRoute())}
+                onClick={() => navigate(cfg.getAccessRequestRoute())}
                 mr={2}
               >
                 <ArrowLeft size="medium" />
@@ -408,17 +413,19 @@ function NewRequest(props: State) {
           />
         )}
       </Transition>
-      {/* This is a react-router provided prompt when it detects route change.
-       * Used when user navigates away or changes cluster (which changes the route).
-       */}
       <Prompt
         when={numTotalSelections > 0}
-        message={location => {
-          if (location.pathname.endsWith('/requests/new')) {
-            return `Resources from different clusters cannot be combined in an access request. Current items selected will be cleared. Are you sure you want to continue?`;
-          } else {
-            return `${numTotalSelections} item(s) selected for a new access request will be cleared if you leave this page. Are you sure you want to continue?`;
+        message={nextLocation => {
+          const nextMatch = matchPath(REQUEST_NEW_ROUTE, nextLocation.pathname);
+
+          if (
+            nextMatch?.params.clusterId &&
+            nextMatch.params.clusterId !== clusterId
+          ) {
+            return CROSS_CLUSTER_WARNING;
           }
+
+          return `${numTotalSelections} item(s) selected for a new access request will be cleared if you leave this page. Are you sure you want to continue?`;
         }}
       />
     </FeatureBox>

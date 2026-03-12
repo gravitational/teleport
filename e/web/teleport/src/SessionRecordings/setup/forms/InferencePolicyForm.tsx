@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, type MouseEvent } from 'react';
 import { useFormContext, useWatch } from 'react-hook-form';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import type { SingleValueProps } from 'react-select';
 import styled from 'styled-components';
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { generatePath, useHistory } from 'react-router';
+import { generatePath, useNavigate } from 'react-router';
 
 import { Alert } from 'design/Alert';
 import { ButtonPrimary, ButtonSecondary, ButtonWarning } from 'design/Button';
@@ -39,7 +39,7 @@ export function ConfigurePermissions() {
     continuePreviousDraft,
     attempt,
   } = useExternalAuditStorage();
-  const history = useHistory();
+  const navigate = useNavigate();
   const script = getBootstrapScript(draft, selectedAwsIntegration);
   const { run: runGenerate, attempt: attemptGenerate } = useAttempt('');
   const { run: runDelete, attempt: attemptDelete } = useAttempt('');
@@ -108,7 +108,7 @@ export function ConfigurePermissions() {
             <ButtonSecondary
               mr="2"
               disabled={attemptDelete.status === 'processing'}
-              onClick={history.goBack}
+              onClick={() => navigate(-1)}
             >
               Cancel
             </ButtonSecondary>

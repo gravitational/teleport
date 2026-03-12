@@ -1,4 +1,4 @@
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink } from 'react-router';
 
 import { Box, ButtonBorder, Flex, Text } from 'design';
 import { MarkInverse } from 'design/Mark';
@@ -47,7 +47,7 @@ export function SetupAccessCta({
             disabled={!enabledAppGroupSync}
             {...(enabledAppGroupSync && {
               as: InternalLink,
-              to: goToCreateAccessListFromOktaRoute(oktaOrgUrl),
+              ...goToCreateAccessListFromOktaRoute(oktaOrgUrl),
             })}
           >
             Set Up Access

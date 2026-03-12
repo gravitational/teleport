@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import { Alert } from 'design/Alert';
 import { DATE_FORMAT } from 'design/datetime/constants';
@@ -19,7 +19,7 @@ export const ReviewBanner = ({
   isReadOnlyOktaList?: boolean;
 }) => {
   const location = useLocation();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const canReview = perms.isOwner || perms.adminWhoCanEdit;
   const requiresReview =
@@ -51,7 +51,7 @@ export const ReviewBanner = ({
             </>
           ),
           onClick: () =>
-            history.push(`${location.pathname}#review`, location.state),
+            navigate(`${location.pathname}#review`, { state: location.state }),
         }}
       >
         This Access List requires review by{' '}

@@ -1,6 +1,4 @@
-import { act } from '@testing-library/react';
-import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
@@ -45,11 +43,22 @@ const routeNewCodesWithApprovedToken =
   '/web/recovery/steps/approvedTokenId/codes';
 
 describe('all recovery flows should show correct screens', () => {
-  const setup = () => {
-    const mockHistory = createMemoryHistory({
-      initialEntries: ['/web/recovery/startTokenId'],
-    });
+  // Helper component that provides routing context
+  const TestWrapper = ({
+    initialPath,
+    children,
+  }: {
+    initialPath: string;
+    children: React.ReactNode;
+  }) => {
+    return (
+      <MemoryRouter key={initialPath} initialEntries={[initialPath]}>
+        {children}
+      </MemoryRouter>
+    );
+  };
 
+  const setup = (initialPath: string = '/web/recovery/startTokenId') => {
     jest.spyOn(history, 'push').mockImplementation();
 
     jest.spyOn(history, 'replace').mockImplementation();
@@ -85,13 +94,22 @@ describe('all recovery flows should show correct screens', () => {
         },
       ]);
 
-    render(
-      <Router history={mockHistory}>
+    const { rerender } = render(
+      <TestWrapper initialPath={initialPath}>
         <Recovery />
-      </Router>
+      </TestWrapper>
     );
 
-    return { mockHistory };
+    // Return a function to re-render with a new path
+    const rerenderWithPath = (newPath: string) => {
+      rerender(
+        <TestWrapper initialPath={newPath}>
+          <Recovery />
+        </TestWrapper>
+      );
+    };
+
+    return { rerenderWithPath };
   };
 
   afterEach(() => {
@@ -99,7 +117,7 @@ describe('all recovery flows should show correct screens', () => {
   });
 
   test('new password using otp', async () => {
-    const { mockHistory } = setup();
+    const { rerenderWithPath } = setup();
 
     jest.spyOn(cfg.oss, 'getAuth2faType').mockReturnValue('otp');
     jest
@@ -113,7 +131,7 @@ describe('all recovery flows should show correct screens', () => {
       isRecoverPassword: true,
     });
 
-    act(() => mockHistory.replace(route1VerifyWithStartToken));
+    rerenderWithPath(route1VerifyWithStartToken);
 
     await waitFor(() => {
       expect(history.replace).toHaveBeenCalledWith(route1VerifyWithStartToken);
@@ -131,7 +149,7 @@ describe('all recovery flows should show correct screens', () => {
     fireEvent.change(tokenField, { target: { value: '321321' } });
 
     fireEvent.click(screen.getByText('Continue'));
-    act(() => mockHistory.push(route2NewPasswordWithApprovedToken));
+    rerenderWithPath(route2NewPasswordWithApprovedToken);
     await waitFor(() => {
       expect(RecoveryService.prototype.verifyUser).toHaveBeenCalledWith({
         tokenId: startToken.id,
@@ -154,7 +172,7 @@ describe('all recovery flows should show correct screens', () => {
     });
 
     fireEvent.click(screen.getByText('Continue'));
-    act(() => mockHistory.push(routeNewCodesWithApprovedToken));
+    rerenderWithPath(routeNewCodesWithApprovedToken);
 
     await waitFor(() => {
       expect(
@@ -169,9 +187,11 @@ describe('all recovery flows should show correct screens', () => {
       routeNewCodesWithApprovedToken
     );
 
-    expect(
-      RecoveryService.prototype.generateRecoveryCodes
-    ).toHaveBeenCalledWith(approvedToken.id);
+    await waitFor(() => {
+      expect(
+        RecoveryService.prototype.generateRecoveryCodes
+      ).toHaveBeenCalledWith(approvedToken.id);
+    });
 
     expect(
       await screen.findByText('New Backup & Recovery Codes')
@@ -185,7 +205,7 @@ describe('all recovery flows should show correct screens', () => {
   });
 
   test('new otp device using password', async () => {
-    const { mockHistory } = setup();
+    const { rerenderWithPath } = setup();
 
     jest.spyOn(cfg.oss, 'getAuth2faType').mockReturnValue('otp');
     jest
@@ -199,7 +219,7 @@ describe('all recovery flows should show correct screens', () => {
       isRecoverPassword: false,
     });
 
-    act(() => mockHistory.replace(route1VerifyWithStartToken));
+    rerenderWithPath(route1VerifyWithStartToken);
 
     await waitFor(() => {
       expect(history.replace).toHaveBeenCalledWith(route1VerifyWithStartToken);
@@ -217,7 +237,7 @@ describe('all recovery flows should show correct screens', () => {
     fireEvent.change(passwordField, { target: { value: 'password1234' } });
 
     fireEvent.click(screen.getByText('Continue'));
-    act(() => mockHistory.push(route2NewDeviceWithApprovedToken));
+    rerenderWithPath(route2NewDeviceWithApprovedToken);
 
     expect(RecoveryService.prototype.verifyUser).toHaveBeenCalledWith({
       tokenId: startToken.id,
@@ -238,7 +258,7 @@ describe('all recovery flows should show correct screens', () => {
     fireEvent.change(deviceNameField, { target: { value: 'backup' } });
 
     fireEvent.click(screen.getByText('Continue'));
-    act(() => mockHistory.push(route3DevicesWithApprovedToken));
+    rerenderWithPath(route3DevicesWithApprovedToken);
 
     expect(
       RecoveryService.prototype.setNewTotpDeviceOrPassword
@@ -265,7 +285,7 @@ describe('all recovery flows should show correct screens', () => {
     expect(screen.getByText(/solokey/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Continue'));
-    act(() => mockHistory.push(routeNewCodesWithApprovedToken));
+    rerenderWithPath(routeNewCodesWithApprovedToken);
 
     expect(history.push).toHaveBeenLastCalledWith(
       routeNewCodesWithApprovedToken

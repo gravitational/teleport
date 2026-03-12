@@ -1,7 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { createMemoryHistory, History } from 'history';
 import { delay, http, HttpResponse } from 'msw';
-import { Router } from 'react-router';
+import { createMemoryRouter, RouterProvider } from 'react-router';
 
 import {
   enableMswServer,
@@ -58,11 +57,9 @@ afterEach(() => {
 test('shows loading state when fetching roles for preset access list', async () => {
   server.use(http.get(rolesV2Path, () => delay('infinite')));
 
-  render(
-    <Provider
-      accessList={modifyAccessList({ ...baseAccessList, preset: 'long-term' })}
-    />
-  );
+  renderProvider({
+    accessList: modifyAccessList({ ...baseAccessList, preset: 'long-term' }),
+  });
 
   await waitFor(() => {
     expect(screen.getByTestId('indicator')).toBeInTheDocument();
@@ -81,11 +78,9 @@ test('shows error state when fetching roles fails with retry button for preset a
     })
   );
 
-  render(
-    <Provider
-      accessList={modifyAccessList({ ...baseAccessList, preset: 'long-term' })}
-    />
-  );
+  renderProvider({
+    accessList: modifyAccessList({ ...baseAccessList, preset: 'long-term' }),
+  });
 
   await screen.findByText(/failed to fetch roles/i);
   expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
@@ -112,7 +107,7 @@ test('shows delete confirmation for non-preset access list without fetching role
     })
   );
 
-  render(<Provider accessList={modifyAccessList(baseAccessList)} />);
+  renderProvider({ accessList: modifyAccessList(baseAccessList) });
 
   // Should show delete confirmation immediately
   await screen.findByText(/are you sure you want to delete/i);
@@ -129,9 +124,10 @@ test('shows delete confirmation for non-preset access list without fetching role
 test('calls onClose when cancel button is clicked', async () => {
   const onClose = jest.fn();
 
-  render(
-    <Provider accessList={modifyAccessList(baseAccessList)} onClose={onClose} />
-  );
+  renderProvider({
+    accessList: modifyAccessList(baseAccessList),
+    onClose,
+  });
 
   await screen.findByText(/are you sure you want to delete/i);
   await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
@@ -149,7 +145,7 @@ test('shows error when delete fails', async () => {
     })
   );
 
-  render(<Provider accessList={modifyAccessList(baseAccessList)} />);
+  renderProvider({ accessList: modifyAccessList(baseAccessList) });
 
   await screen.findByText(/are you sure you want to delete/i);
   await userEvent.click(
@@ -169,11 +165,9 @@ test('successfully deletes non-preset access list and redirects to access list m
     })
   );
 
-  const history = createMemoryHistory();
-
-  render(
-    <Provider accessList={modifyAccessList(baseAccessList)} history={history} />
-  );
+  const { router } = renderProvider({
+    accessList: modifyAccessList(baseAccessList),
+  });
 
   await screen.findByText(/are you sure you want to delete/i);
   await userEvent.click(
@@ -186,7 +180,9 @@ test('successfully deletes non-preset access list and redirects to access list m
 
   // Should auto redirect.
   await waitFor(() => {
-    expect(history.location.pathname).toBe(cfg.getAccessListManagementRoute());
+    expect(router.state.location.pathname).toBe(
+      cfg.getAccessListManagementRoute()
+    );
   });
 });
 
@@ -232,14 +228,9 @@ test('after deleting a preset access list, test listing and deleting from roles 
     })
   );
 
-  const history = createMemoryHistory();
-
-  render(
-    <Provider
-      accessList={modifyAccessList({ ...baseAccessList, preset: 'long-term' })}
-      history={history}
-    />
-  );
+  const { router } = renderProvider({
+    accessList: modifyAccessList({ ...baseAccessList, preset: 'long-term' }),
+  });
 
   // Wait for roles to be fetched and show delete confirmation
   await screen.findByText(/are you sure you want to delete/i);
@@ -285,7 +276,9 @@ test('after deleting a preset access list, test listing and deleting from roles 
   await userEvent.click(screen.getByRole('button', { name: /close/i }));
 
   await waitFor(() => {
-    expect(history.location.pathname).toBe(cfg.getAccessListManagementRoute());
+    expect(router.state.location.pathname).toBe(
+      cfg.getAccessListManagementRoute()
+    );
   });
 });
 
@@ -302,14 +295,9 @@ test('after deleting a preset access list with no roles to delete, redirects to 
     })
   );
 
-  const history = createMemoryHistory();
-
-  render(
-    <Provider
-      accessList={modifyAccessList({ ...baseAccessList, preset: 'long-term' })}
-      history={history}
-    />
-  );
+  const { router } = renderProvider({
+    accessList: modifyAccessList({ ...baseAccessList, preset: 'long-term' }),
+  });
 
   await screen.findByText(/are you sure you want to delete/i);
   await userEvent.click(
@@ -322,34 +310,42 @@ test('after deleting a preset access list with no roles to delete, redirects to 
 
   // Should auto redirect.
   await waitFor(() => {
-    expect(history.location.pathname).toBe(cfg.getAccessListManagementRoute());
+    expect(router.state.location.pathname).toBe(
+      cfg.getAccessListManagementRoute()
+    );
   });
 });
 
-const Provider = ({
+const renderProvider = ({
   accessList,
   onClose = jest.fn(),
-  history = createMemoryHistory(),
 }: {
   accessList: AccessListModified;
   onClose?: () => void;
-  history?: History;
 }) => {
   const ctx = createTeleportContextE();
-  return (
-    <Router history={history}>
-      <QueryClientProvider client={testQueryClient}>
-        <ContextProvider ctx={ctx}>
-          <AccessListManagementContextProvider>
-            <DeleteAccessListConfirmDialog
-              accessList={accessList}
-              onClose={onClose}
-            />
-          </AccessListManagementContextProvider>
-        </ContextProvider>
-      </QueryClientProvider>
-    </Router>
-  );
+  const router = createMemoryRouter([
+    {
+      path: '*',
+      element: (
+        <QueryClientProvider client={testQueryClient}>
+          <ContextProvider ctx={ctx}>
+            <AccessListManagementContextProvider>
+              <DeleteAccessListConfirmDialog
+                accessList={accessList}
+                onClose={onClose}
+              />
+            </AccessListManagementContextProvider>
+          </ContextProvider>
+        </QueryClientProvider>
+      ),
+    },
+  ]);
+
+  return {
+    router,
+    ...render(<RouterProvider router={router} />),
+  };
 };
 
 const baseAccessList: AccessList = {

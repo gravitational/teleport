@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import {
   pluginTypeToIntegrationEnrollKind,
@@ -29,7 +29,7 @@ type OAuthPluginResponse = {
 
 export function PluginEnrollOAuth({ plugin }: { plugin: CloudHostablePlugin }) {
   const { search } = useLocation();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   // URL params are only apparent when a user got redirected back to this
   // view after getting a response from an oauth provider callback.
@@ -86,9 +86,7 @@ export function PluginEnrollOAuth({ plugin }: { plugin: CloudHostablePlugin }) {
       });
 
       params.delete('event_id');
-      history.replace({
-        search: params.toString(),
-      });
+      navigate({ search: params.toString() }, { replace: true });
     }
     if (!enrollResponse && eventId) {
       userEventService.captureIntegrationEnrollEvent({

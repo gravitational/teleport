@@ -1,4 +1,4 @@
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 
 import { fireEvent, render, screen } from 'design/utils/testing';
 import { requestRoleApproved } from 'shared/components/AccessRequests/fixtures';

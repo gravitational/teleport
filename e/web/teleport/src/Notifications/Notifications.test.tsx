@@ -1,6 +1,5 @@
 import { subMinutes, subSeconds } from 'date-fns';
-import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { render, screen, waitFor } from 'design/utils/testing';
 
@@ -88,7 +87,7 @@ test('notification bell with no notifications', async () => {
 
 const renderNotifications = (ctx: TeleportContext) => {
   return (
-    <Router history={createMemoryHistory()}>
+    <MemoryRouter initialEntries={['/']}>
       <LayoutContextProvider>
         <TeleportContextProvider ctx={ctx}>
           <FeaturesContextProvider value={getOSSFeatures()}>
@@ -96,6 +95,6 @@ const renderNotifications = (ctx: TeleportContext) => {
           </FeaturesContextProvider>
         </TeleportContextProvider>
       </LayoutContextProvider>
-    </Router>
+    </MemoryRouter>
   );
 };

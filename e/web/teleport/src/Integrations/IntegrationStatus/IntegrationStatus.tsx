@@ -1,7 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import React, { PropsWithChildren, useMemo, useState } from 'react';
-import { useParams } from 'react-router';
-import { Link, useHistory } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router';
 
 import { Alert, Box, ButtonIcon, Flex, Indicator, Label, Text } from 'design';
 import { ArrowLeft } from 'design/Icon';
@@ -27,9 +26,9 @@ import { OktaStatusDetails } from './OktaStatusDetails/OktaStatusDetails';
 import { OverallStatus } from './Shared';
 
 export function IntegrationStatus() {
-  const history = useHistory();
+  const navigate = useNavigate();
 
-  const { type, name } = useParams<{
+  const { type, name = '' } = useParams<{
     type: PluginKind;
     name: string;
   }>();
@@ -44,7 +43,7 @@ export function IntegrationStatus() {
     mutationFn: pluginsService.deletePlugin,
     onSuccess: () => {
       // redirect to integrations page after deletion
-      history.push(cfg.routes.integrations);
+      navigate(cfg.routes.integrations);
     },
   });
 

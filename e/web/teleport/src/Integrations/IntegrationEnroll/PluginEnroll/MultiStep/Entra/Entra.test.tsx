@@ -1,4 +1,4 @@
-import { MemoryRouter, Route } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import {
   fireEvent,
@@ -434,9 +434,12 @@ function renderPluginEnroll(pluginType: PluginKind, search?: string) {
       ]}
     >
       <TeleportContextProvider ctx={ctx}>
-        <Route path={cfg.routes.integrationEnroll}>
-          <PluginEnroll />
-        </Route>
+        <Routes>
+          <Route
+            path={`${cfg.routes.integrationEnroll}/*`}
+            element={<PluginEnroll />}
+          />
+        </Routes>
       </TeleportContextProvider>
     </MemoryRouter>
   );

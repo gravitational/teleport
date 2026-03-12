@@ -6,7 +6,7 @@ import {
   useState,
   type PropsWithChildren,
 } from 'react';
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import { SessionSummariesOverlays } from 'e-teleport/SessionRecordings/setup/Overlays';
 
@@ -65,8 +65,8 @@ interface PendingSelection {
 export function SessionSummariesManagementProvider({
   children,
 }: PropsWithChildren) {
-  const history = useHistory();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [pendingSelection, setPendingSelection] =
     useState<null | PendingSelection>(null);
@@ -80,7 +80,7 @@ export function SessionSummariesManagementProvider({
     const newOverlays = overlays.slice(0, -1);
 
     if (newOverlays.length === 0) {
-      history.push(location.pathname + location.search);
+      navigate(location.pathname + location.search);
 
       return;
     }
@@ -88,8 +88,10 @@ export function SessionSummariesManagementProvider({
     const serialized = newOverlays.map(serializeOverlay).join(SEPARATOR);
 
     // if there are still overlays open, replace the current history entry instead of pushing a new one
-    history.replace(location.pathname + location.search + `#${serialized}`);
-  }, [history, location, overlays]);
+    navigate(location.pathname + location.search + `#${serialized}`, {
+      replace: true,
+    });
+  }, [location.pathname, location.search, navigate, overlays]);
 
   const createEditOverlayLink = useCallback(
     (entity: OverlayEntity, name: string) => {
@@ -104,7 +106,7 @@ export function SessionSummariesManagementProvider({
 
       return location.pathname + location.search + `#${serialized}`;
     },
-    [location, overlays]
+    [location.pathname, location.search, overlays]
   );
 
   const createNewOverlayLink = useCallback(
@@ -119,21 +121,21 @@ export function SessionSummariesManagementProvider({
 
       return location.pathname + location.search + `#${serialized}`;
     },
-    [location, overlays]
+    [location.pathname, location.search, overlays]
   );
 
   const openEditOverlay = useCallback(
     (entity: OverlayEntity, name: string) => {
-      history.push(createEditOverlayLink(entity, name));
+      navigate(createEditOverlayLink(entity, name));
     },
-    [history, createEditOverlayLink]
+    [createEditOverlayLink, navigate]
   );
 
   const openNewOverlay = useCallback(
     (entity: OverlayEntity) => {
-      history.push(createNewOverlayLink(entity));
+      navigate(createNewOverlayLink(entity));
     },
-    [history, createNewOverlayLink]
+    [createNewOverlayLink, navigate]
   );
 
   const clearPendingSelection = useCallback(() => {

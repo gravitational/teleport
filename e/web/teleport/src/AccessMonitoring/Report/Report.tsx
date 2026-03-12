@@ -36,7 +36,7 @@ export function Report() {
   const { clusterId } = useStickyClusterId();
   const { attempt, run } = useAttemptNext('processing');
 
-  const { days, name } = useParams<{
+  const { days = '', name = '' } = useParams<{
     days: string;
     name: string;
   }>();

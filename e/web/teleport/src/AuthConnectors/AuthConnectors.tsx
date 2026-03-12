@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router';
 
 import { Alert, Box, Flex, Indicator } from 'design';
 import { H2 } from 'design/Text/Text';
@@ -40,25 +40,25 @@ export default function AuthConnectorsContainer() {
       <Route
         key="auth-connector-edit"
         path={cfg.oss.routes.ssoConnector.edit}
-        render={() => <AuthConnectorEditor />}
+        element={<AuthConnectorEditor />}
       />
       <Route
         key="auth-connector-create"
         path={cfg.oss.routes.ssoConnector.create}
         exact
-        render={() => <AuthConnectorEditor isNew={true} />}
+        element={<AuthConnectorEditor isNew={true} />}
       />
       <Route
         key="auth-connector-new"
         exact
         path={cfg.routes.ssoNewConnectorList}
-        render={() => <AddNewConnectorPage />}
+        element={<AddNewConnectorPage />}
       />
       <Route
         exact
         key="auth-connector-list"
         path={cfg.oss.routes.sso}
-        render={() => <AuthConnectors />}
+        element={<AuthConnectors />}
       />
     </Switch>
   );
@@ -110,7 +110,7 @@ export function AuthConnectors() {
 
   const showAuthConnectorsCTA = ctx.lockedFeatures.authConnectors;
 
-  const history = useHistory();
+  const navigate = useNavigate();
   const isEmpty = items.length === 0;
   const resources = useResources(items, templates);
 
@@ -137,7 +137,7 @@ export function AuthConnectors() {
           <InfoGuideButton config={{ guide: <InfoGuide /> }}>
             <ResponsiveAddButton
               fill="border"
-              onClick={() => history.push(cfg.routes.ssoNewConnectorList)}
+              onClick={() => navigate(cfg.routes.ssoNewConnectorList)}
             >
               Add Auth Connector
             </ResponsiveAddButton>

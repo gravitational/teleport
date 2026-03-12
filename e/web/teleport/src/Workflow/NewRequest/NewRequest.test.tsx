@@ -4,10 +4,9 @@ import {
   within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
 import selectEvent from 'react-select-event';
 
-import { fireEvent, render, screen } from 'design/utils/testing';
+import { fireEvent, screen } from 'design/utils/testing';
 import { dryRunResponse } from 'shared/components/AccessRequests/fixtures';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
@@ -20,6 +19,7 @@ import { makeUnifiedResource } from 'teleport/services/resources/makeUnifiedReso
 import makeUserContext from 'teleport/services/user/makeUserContext';
 import * as service from 'teleport/services/userPreferences/userPreferences';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+import { renderWithMemoryRouter } from 'teleport/test/helpers/router';
 import * as userUserContext from 'teleport/User/UserContext';
 
 import NewRequest from './NewRequest';
@@ -27,7 +27,7 @@ import NewRequest from './NewRequest';
 const defaultAccessRequestsEntitlement = cfg.entitlements.AccessRequests;
 
 const ctx = new TeleportContextE();
-let Component;
+let component;
 
 beforeEach(() => {
   ctx.storeUser.setState({ ...userContext });
@@ -114,16 +114,20 @@ beforeEach(() => {
 
   global.ResizeObserver = ResizeObserver;
 
-  Component = (
-    <MemoryRouter initialEntries={[`web/cluster/cluster-id/requests/new`]}>
-      <ContextProvider ctx={ctx}>
-        <InfoGuidePanelProvider>
-          <NewRequest />
-        </InfoGuidePanelProvider>
-      </ContextProvider>
-    </MemoryRouter>
+  component = (
+    <ContextProvider ctx={ctx}>
+      <InfoGuidePanelProvider>
+        <NewRequest />
+      </InfoGuidePanelProvider>
+    </ContextProvider>
   );
 });
+
+function renderComponent() {
+  return renderWithMemoryRouter(component, {
+    initialEntries: ['/web/cluster/localhost/requests/new'],
+  });
+}
 
 afterEach(() => {
   jest.resetAllMocks();
@@ -132,7 +136,7 @@ afterEach(() => {
 });
 
 test('add and remove a resource from table', async () => {
-  render(Component);
+  renderComponent();
   await screen.findAllByText('node1-addr');
 
   // Initial render is a resource table so we select roles
@@ -182,7 +186,7 @@ test('add and remove a resource from table', async () => {
 });
 
 test('clicking on a resource label constructs predicate query', async () => {
-  render(Component);
+  renderComponent();
   await screen.findAllByText('node1-addr');
 
   // Click on a label.
@@ -199,7 +203,7 @@ test('clicking on a resource label constructs predicate query', async () => {
 });
 
 test('select uses node hostnames in checkout', async () => {
-  render(Component);
+  renderComponent();
 
   let hostnames = await screen.findAllByText('hostname-node1');
   // only one in the resource list
@@ -218,7 +222,7 @@ test('select uses node hostnames in checkout', async () => {
 });
 
 test('select all nodes hostnames in checkout', async () => {
-  render(Component);
+  renderComponent();
 
   let hostnames = await screen.findAllByText(/hostname-node/);
   expect(hostnames).toHaveLength(1);
@@ -238,7 +242,7 @@ test('select all nodes hostnames in checkout', async () => {
 });
 
 test('adding resources with bulk action properly adds/removes nodes', async () => {
-  render(Component);
+  renderComponent();
 
   let hostnames = await screen.findAllByText(/hostname-node/);
   expect(hostnames).toHaveLength(1);
@@ -260,7 +264,7 @@ test('adding resources with bulk action properly adds/removes nodes', async () =
 });
 
 test('select all buttons work properly', async () => {
-  render(Component);
+  renderComponent();
 
   await screen.findAllByText('node1-addr');
 
@@ -282,7 +286,7 @@ test('legacy renders no usage info', async () => {
     .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
     .mockResolvedValueOnce(mockUsageWithNotLimitReached);
 
-  render(Component);
+  renderComponent();
   await waitFor(() => {
     expect(screen.queryByTestId('usage-info')).not.toBeInTheDocument();
   });
@@ -295,7 +299,7 @@ test('enabled and unlimited renders no usage info', async () => {
     .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
     .mockResolvedValueOnce(mockUsageWithNotLimitReached);
 
-  render(Component);
+  renderComponent();
   await waitFor(() => {
     expect(screen.queryByTestId('usage-info')).not.toBeInTheDocument();
   });
@@ -308,7 +312,7 @@ test('enabled and limited renders usage info', async () => {
     .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
     .mockResolvedValueOnce(mockUsageWithNotLimitReached);
 
-  render(Component);
+  renderComponent();
   await waitFor(() => {
     expect(screen.getByTestId('usage-info')).toBeInTheDocument();
   });
@@ -330,7 +334,7 @@ test('enabled and limited renders allocation info', async () => {
 
   ecfg.oss.entitlements.AccessRequests = { enabled: true, limit: 30 };
 
-  render(Component);
+  renderComponent();
   await waitFor(() => {
     expect(screen.getByTestId('usage-info')).toBeInTheDocument();
   });
@@ -359,7 +363,7 @@ test('limited: displays upsell link and button when access request limit is reac
       },
     });
 
-  render(Component);
+  renderComponent();
   await waitFor(() => {
     expect(screen.getByTestId('usage-info')).toBeInTheDocument();
   });
@@ -376,7 +380,7 @@ test('limited: displays upsell link and button when access request limit is reac
 
 test('adding constrained resources to requests', async () => {
   ecfg.oss.entitlements.AccessRequests = { enabled: true, limit: 0 };
-  render(Component);
+  renderComponent();
 
   const awsTileTitle = await screen.findByTitle(
     'https://aws-console.localhost'
@@ -445,7 +449,7 @@ test('adding constrained resources to requests', async () => {
 
 test('created requests specifiable fields are respected on checkout (not overwritten)', async () => {
   ecfg.oss.entitlements.AccessRequests = { enabled: true, limit: 0 };
-  render(Component);
+  renderComponent();
 
   // Select a resource.
   await screen.findAllByText('node1-addr');
@@ -593,7 +597,7 @@ test('serverside pagination works for roles', async () => {
     .mockResolvedValueOnce(mockFirstPageResponse)
     .mockResolvedValueOnce(mockSecondPageResponse);
 
-  render(Component);
+  renderComponent();
 
   await selectEvent.select(
     within(screen.getByTestId('resource-selector')).getByRole('combobox'),

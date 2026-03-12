@@ -2,6 +2,7 @@ import { generatePath } from 'react-router';
 
 import { SortType } from 'design/DataTable/types';
 import { ResourceId } from 'shared/services/accessRequests';
+import { mergeDeep } from 'shared/utils/highbar';
 
 import { AccessMonitoringRuleFilter } from 'e-teleport/services/accessmonitoringrule/types';
 import { AccessRequestFilter } from 'e-teleport/services/workflow';
@@ -9,66 +10,105 @@ import ossCfg, { UrlResourcesParams } from 'teleport/config';
 import generateResourcePath from 'teleport/generateResourcePath';
 import type { PluginKind } from 'teleport/services/integrations/types';
 
+/**
+ * Generates a URL path by substituting named parameters.
+ * Unlike react-router's generatePath, this function also supports
+ * parameters in query strings (e.g., `?param=:value`).
+ */
+function generateFullPath(
+  pattern: string,
+  params: Record<string, string | number | boolean | undefined>
+): string {
+  const queryStart = pattern.indexOf('?');
+  const hasQuery = queryStart !== -1;
+  const pathPart = hasQuery ? pattern.slice(0, queryStart) : pattern;
+  const queryPart = hasQuery ? pattern.slice(queryStart) : '';
+
+  const pathParams = Object.fromEntries(
+    Object.entries(params).map(([key, value]) => [
+      key,
+      value === undefined || value === '' ? null : String(value),
+    ])
+  ) as Record<string, string | null>;
+  const processedPath = generatePath(pathPart, pathParams);
+
+  const processedQuery = queryPart.replace(
+    /:([A-Za-z_][A-Za-z0-9_]*)(\?)?/g,
+    (fullMatch, key: string, optional: string | undefined) => {
+      const value = params[key];
+      if (value === undefined || value === '') {
+        return optional ? '' : fullMatch;
+      }
+      return encodeURIComponent(String(value));
+    }
+  );
+
+  return processedPath + processedQuery;
+}
+
+export const enterpriseRoutes = {
+  accessGraph: {
+    dashboard: '/web/accessgraph',
+    browse: '/web/accessgraph/browse',
+    alerts: '/web/accessgraph/alerts',
+    investigate: '/web/accessgraph/investigate',
+    crownJewels: '/web/accessgraph/crownjewels',
+    graphExplorer: '/web/accessgraph/graph',
+    sqlEditor: '/web/accessgraph/sql',
+    integrations: '/web/accessgraph/integrations',
+  },
+  accessLists: '/web/accesslists/:accessListId?',
+  accessListsList: '/web/accesslists',
+  accessListNew: '/web/accesslists/new',
+
+  accessMonitoring: {
+    base: '/web/accessmonitoring',
+    queryEditor: '/web/accessmonitoring/query',
+    report: '/web/accessmonitoring/report/:name/:days',
+  },
+
+  accessAutomations: `/web/accessautomations`,
+  accessAutomationNew: `/web/accessautomations/new`,
+
+  requests: '/web/requests/:requestId?',
+  requestNew: '/web/cluster/:clusterId/requests/new',
+
+  accountRecovery: '/web/account/recovery',
+
+  recovery: '/web/recovery/',
+  recoveryForgotPassword: '/web/recovery/forgot/password',
+  recoveryForgotDevice: '/web/recovery/forgot/device',
+  recoverySteps: '/web/recovery/steps/:tokenId',
+  recoveryStepVerify: '/web/recovery/steps/:tokenId/verify',
+  recoveryStepNewPassword: '/web/recovery/steps/:tokenId/new/password',
+  recoveryStepNewDevice: '/web/recovery/steps/:tokenId/new/device',
+  recoveryStepDevices: '/web/recovery/steps/:tokenId/devices',
+  recoveryStepCodes: '/web/recovery/steps/:tokenId/codes',
+
+  /**
+   * ssoNewConnectorList is a page which lists possible auth connector types to add, similar to Discover.
+   */
+  ssoNewConnectorList: '/web/sso/new',
+
+  // allow SAML IdP handlers
+  samlIdPHandler: '/enterprise/saml-idp/*',
+
+  samlIdPLogin: '/web/saml-idp/login',
+  ssoConfirm: '/web/sso_confirm',
+
+  // device trust
+  deviceTrust: `/web/devices`,
+
+  // billing
+  usageSummarySummary: '/web/cluster/:clusterId/usage-summary',
+
+  sessionSummariesManagement: '/web/cluster/:clusterId/recordings/summaries',
+};
+
 const cfg = {
   oss: ossCfg,
 
-  routes: {
-    accessGraph: {
-      dashboard: '/web/accessgraph',
-      browse: '/web/accessgraph/browse',
-      alerts: '/web/accessgraph/alerts',
-      investigate: '/web/accessgraph/investigate',
-      crownJewels: '/web/accessgraph/crownjewels',
-      graphExplorer: '/web/accessgraph/graph',
-      sqlEditor: '/web/accessgraph/sql',
-      integrations: '/web/accessgraph/integrations',
-    },
-    accessLists: '/web/accesslists/:accessListId?',
-    accessListNew: '/web/accesslists/new',
-
-    accessMonitoring: {
-      base: '/web/accessmonitoring',
-      queryEditor: '/web/accessmonitoring/query',
-      report: '/web/accessmonitoring/report/:name/:days',
-    },
-
-    accessAutomations: `/web/accessautomations`,
-    accessAutomationNew: `/web/accessautomations/new`,
-
-    requests: '/web/requests/:requestId?',
-    requestNew: '/web/cluster/:clusterId/requests/new',
-
-    accountRecovery: '/web/account/recovery',
-
-    recovery: '/web/recovery/',
-    recoveryForgotPassword: '/web/recovery/forgot/password',
-    recoveryForgotDevice: '/web/recovery/forgot/device',
-    recoverySteps: '/web/recovery/steps/:tokenId',
-    recoveryStepVerify: '/web/recovery/steps/:tokenId/verify',
-    recoveryStepNewPassword: '/web/recovery/steps/:tokenId/new/password',
-    recoveryStepNewDevice: '/web/recovery/steps/:tokenId/new/device',
-    recoveryStepDevices: '/web/recovery/steps/:tokenId/devices',
-    recoveryStepCodes: '/web/recovery/steps/:tokenId/codes',
-
-    /**
-     * ssoNewConnectorList is a page which lists possible auth connector types to add, similar to Discover.
-     */
-    ssoNewConnectorList: '/web/sso/new',
-
-    // allow SAML IdP handlers
-    samlIdPHandler: '/enterprise/saml-idp/*',
-
-    samlIdPLogin: '/web/saml-idp/login',
-    ssoConfirm: '/web/sso_confirm',
-
-    // device trust
-    deviceTrust: `/web/devices`,
-
-    // billing
-    usageSummarySummary: '/web/cluster/:clusterId/usage-summary',
-
-    sessionSummariesManagement: '/web/cluster/:clusterId/recordings/summaries',
-  },
+  routes: { ...enterpriseRoutes },
 
   api: {
     // TODO(kimlisa): move accessListXXX to the "accessList" object.
@@ -333,7 +373,7 @@ const cfg = {
     const action = req.action;
     switch (action) {
       case 'reviews':
-        return generatePath(cfg.api.accessList.reviews, {
+        return generateFullPath(cfg.api.accessList.reviews, {
           accessListId: req.params.accessListId,
           limit: req.params.limit || undefined,
           startKey: req.params.startKey || undefined,
@@ -352,13 +392,13 @@ const cfg = {
   },
 
   getAccessRequestFilterUrl(filter: AccessRequestFilter) {
-    return generatePath(cfg.api.accessRequestFilterPath, { ...filter });
+    return generateFullPath(cfg.api.accessRequestFilterPath, { ...filter });
   },
 
   getResourceRequestRolesUrl(resourceIds: ResourceId[]) {
     const stringified = JSON.stringify(resourceIds);
 
-    return generatePath(cfg.api.resourceRequestRolesPath, {
+    return generateFullPath(cfg.api.resourceRequestRolesPath, {
       resourceIds: stringified,
     });
   },
@@ -471,7 +511,7 @@ const cfg = {
     clusterId: string,
     filter: AccessMonitoringRuleFilter
   ) {
-    return generatePath(cfg.api.accessMonitoringRule.list, {
+    return generateFullPath(cfg.api.accessMonitoringRule.list, {
       clusterId,
       ...filter,
       startKey: filter?.startKey || undefined,
@@ -533,7 +573,7 @@ const cfg = {
     let path = cfg.api.azureOidcConfigureScriptPath;
     return (
       cfg.oss.baseUrl +
-      generatePath(path, { ...p }) +
+      generateFullPath(path, { ...p }) +
       (p.accessGraph ? '&accessGraph=true' : '')
     );
   },
@@ -633,12 +673,25 @@ const cfg = {
   },
 
   init(json: object) {
-    // this will apply server config by merging it with oss cfg
+    const {
+      routes: serverRoutes,
+      nonExactRoutes: serverNonExactRoutes,
+      ...rest
+    } = (json ?? {}) as {
+      routes?: Record<string, unknown>;
+      nonExactRoutes?: string[];
+      [key: string]: unknown;
+    };
+
+    const routes = mergeDeep({}, enterpriseRoutes, serverRoutes ?? {});
+
+    // This applies server config by merging it with OSS config,
+    // while preserving enterprise route defaults.
     ossCfg.init({
+      ...rest,
       isEnterprise: true,
-      routes: cfg.routes,
-      nonExactRoutes: this.getNonExactRoutes(),
-      ...json,
+      routes,
+      nonExactRoutes: serverNonExactRoutes ?? this.getNonExactRoutes(),
     });
   },
 };

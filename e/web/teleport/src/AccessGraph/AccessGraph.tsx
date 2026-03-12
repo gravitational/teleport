@@ -5,7 +5,7 @@
 import { Location } from 'history';
 import { ComponentType, lazy, Suspense, useCallback } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import { Flex } from 'design';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
@@ -72,7 +72,7 @@ export function AccessGraph() {
 
   const theme = getCurrentTheme(preferences.theme);
 
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
 
   const onRouteChange = useCallback(
@@ -83,10 +83,10 @@ export function AccessGraph() {
         // We replace the current history entry with the new location so that
         // Teleport's router is aware of the change (and the navigation buttons
         // have the correct active state).
-        history.replace(next);
+        navigate(next, { replace: true });
       }
     },
-    [history, location]
+    [navigate, location]
   );
 
   if (!hasAccess) {

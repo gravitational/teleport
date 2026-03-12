@@ -90,7 +90,7 @@ interface CodeMirrorConfig {
 
 export function QueryEditor() {
   const theme = useTheme();
-  const location = useLocation<{ query: string; days: number }>();
+  const location = useLocation() as { state?: { query: string; days: number } };
 
   const { clusterId } = useStickyClusterId();
 

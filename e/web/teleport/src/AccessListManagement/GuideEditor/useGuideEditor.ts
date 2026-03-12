@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate, type Location } from 'react-router';
 
 import { AccessListPreset } from 'e-teleport/services/accessmanagement/preset';
 import { Role, RoleVersion } from 'teleport/services/resources';
@@ -123,8 +123,8 @@ export type GuideEditorState = {
  *   access list
  */
 export function useGuideEditor(): GuideEditorState {
-  const history = useHistory();
-  const loc = useLocation<ResumableGuideEditorState>();
+  const navigate = useNavigate();
+  const loc = useLocation() as Location<ResumableGuideEditorState>;
 
   const [preset, setPreset] = useState<AccessListPreset>(
     () => loc.state?.preset ?? null
@@ -148,7 +148,7 @@ export function useGuideEditor(): GuideEditorState {
 
   function removeLocationState() {
     if (loc.state) {
-      history.replace({ pathname: loc.pathname });
+      navigate(loc.pathname, { replace: true });
     }
   }
 

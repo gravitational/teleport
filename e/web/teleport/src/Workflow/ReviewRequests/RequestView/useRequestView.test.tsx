@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import { requestRolePending } from 'shared/components/AccessRequests/fixtures';
 
@@ -168,8 +168,10 @@ test('flags for reviewer', async () => {
 
 function Wrapper(props: any) {
   return (
-    <MemoryRouter initialEntries={[`web/requests/123`]}>
-      <Route path="web/requests/:requestId">{props.children}</Route>
+    <MemoryRouter initialEntries={[`/web/requests/123`]}>
+      <Routes>
+        <Route path="/web/requests/:requestId" element={props.children} />
+      </Routes>
     </MemoryRouter>
   );
 }

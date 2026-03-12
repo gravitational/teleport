@@ -2,13 +2,11 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter } from 'react-router';
 import selectEvent from 'react-select-event';
 
 import {
   act,
   enableMswServer,
-  render,
   screen,
   server,
   testQueryClient,
@@ -27,6 +25,7 @@ import {
 import TeleportEContext from 'e-teleport/teleportContextE';
 import { ContextProvider } from 'teleport';
 import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+import { renderWithMemoryRouter } from 'teleport/test/helpers/router';
 import { UserContextProvider } from 'teleport/User';
 
 import {
@@ -670,29 +669,28 @@ function renderComponent(
   ctx: TeleportEContext,
   locationState?: ResumableCreateAccessListState
 ) {
-  return render(
-    <MemoryRouter
-      initialEntries={[
+  return renderWithMemoryRouter(
+    <QueryClientProvider client={testQueryClient}>
+      <InfoGuidePanelProvider>
+        <AccessGraphDemoProvider>
+          <UserContextProvider>
+            <ContextProvider ctx={ctx}>
+              <AccessListManagementContextProvider>
+                <CreateAccessListContextProvider>
+                  <CreateAccessList />
+                </CreateAccessListContextProvider>
+              </AccessListManagementContextProvider>
+            </ContextProvider>
+          </UserContextProvider>
+        </AccessGraphDemoProvider>
+        <InfoGuideSidePanel />
+      </InfoGuidePanelProvider>
+    </QueryClientProvider>,
+    {
+      initialEntries: [
         { pathname: cfg.routes.accessListNew, state: locationState },
-      ]}
-    >
-      <QueryClientProvider client={testQueryClient}>
-        <InfoGuidePanelProvider>
-          <AccessGraphDemoProvider>
-            <UserContextProvider>
-              <ContextProvider ctx={ctx}>
-                <AccessListManagementContextProvider>
-                  <CreateAccessListContextProvider>
-                    <CreateAccessList />
-                  </CreateAccessListContextProvider>
-                </AccessListManagementContextProvider>
-              </ContextProvider>
-            </UserContextProvider>
-          </AccessGraphDemoProvider>
-          <InfoGuideSidePanel />
-        </InfoGuidePanelProvider>
-      </QueryClientProvider>
-    </MemoryRouter>
+      ],
+    }
   );
 }
 

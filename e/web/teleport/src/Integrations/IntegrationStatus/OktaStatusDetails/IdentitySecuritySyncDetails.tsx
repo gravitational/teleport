@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import { Flex, Text } from 'design';
 import { FeatureName } from 'design/constants';
@@ -44,7 +44,7 @@ export function IdentitySecuritySyncDetails({
   syncEnabled?: boolean;
   onToggle: () => void;
 }) {
-  const history = useHistory();
+  const navigate = useNavigate();
   const showContent = accessGraphEnabled && syncEnabled;
 
   return (
@@ -59,7 +59,7 @@ export function IdentitySecuritySyncDetails({
             {
               label: 'Edit Configuration',
               onClick: () =>
-                history.push(
+                navigate(
                   cfg.getIntegrationStatusRoute(
                     'okta',
                     'okta',

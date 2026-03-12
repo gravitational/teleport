@@ -16,13 +16,12 @@ export function IntegrationEnroll() {
           key="pick-integration"
           exact
           path={cfg.getIntegrationEnrollRoute()}
-          component={IntegrationPick}
+          element={<IntegrationPick />}
         />
         <Route
           key="enroll-plugin"
-          exact
           path={cfg.routes.integrationEnroll}
-          component={PluginEnroll}
+          element={<PluginEnroll />}
         />
       </Switch>
     </FeatureBox>

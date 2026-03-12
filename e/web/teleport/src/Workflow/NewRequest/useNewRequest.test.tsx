@@ -87,7 +87,7 @@ test('update kube namespaces', async () => {
 
   let savaedRequestIds = Object.keys(
     result.current.addedResources.namespace
-  ).map(uri => parseResourceIdUri(uri).params.subResourceName);
+  ).map(uri => parseResourceIdUri(uri)!.params.subResourceName);
   expect(savaedRequestIds).toEqual(['n3', 'n2', 'n1']);
 
   // Test empty request clears request.

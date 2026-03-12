@@ -6,7 +6,7 @@ import {
   useEffect,
   useState,
 } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, type Location } from 'react-router';
 
 import { Validator } from 'shared/components/Validation';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
@@ -74,7 +74,7 @@ const CreateAccessListContext = createContext<State>(null);
 export const CreateAccessListContextProvider: FC<
   PropsWithChildren & { mockCreatedAccessList?: AccessList }
 > = props => {
-  const loc = useLocation<ResumableAccessListState>();
+  const loc = useLocation() as Location<ResumableAccessListState>;
 
   const ctx = useTeleport();
 

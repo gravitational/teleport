@@ -79,7 +79,7 @@ export function useRequestCheckout({
         const {
           subResourceName: namespaceName,
           resourceName: kubeClusterName,
-        } = parseResourceIdUri(id).params;
+        } = parseResourceIdUri(id)!.params;
         resourceId = kubeClusterName;
         subResourceName = namespaceName;
         resourceName = namespaceName;

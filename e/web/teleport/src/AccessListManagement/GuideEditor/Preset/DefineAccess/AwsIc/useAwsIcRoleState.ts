@@ -4,7 +4,7 @@ import {
   UseQueryResult,
 } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, type Location } from 'react-router';
 
 import { UnifiedResourceApp } from 'shared/components/UnifiedResources';
 
@@ -109,7 +109,7 @@ export type AwsIcRoleState = {
  * AWS IC applications.
  */
 export function useAwsIcRoleState(): AwsIcRoleState {
-  const loc = useLocation<ResumableAwsIcRoleState>();
+  const loc = useLocation() as Location<ResumableAwsIcRoleState>;
 
   const [roleEditState, setRoleEditState] = useState<RoleEditState | null>();
 

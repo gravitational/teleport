@@ -13,13 +13,13 @@ export function getRoutesToEnrollIntegrations() {
       key={IntegrationKind.ExternalAuditStorage}
       exact
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.ExternalAuditStorage)}
-      component={ExternalAuditStorage}
+      element={<ExternalAuditStorage />}
     />,
     <Route
       key={IntegrationKind.GitHub}
       exact
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.GitHub)}
-      component={GitHub}
+      element={<GitHub />}
     />,
   ];
 }

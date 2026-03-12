@@ -1,5 +1,5 @@
 import { JSX } from 'react';
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink } from 'react-router';
 
 import { Box, Link as ExternalLink, Flex, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';

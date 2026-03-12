@@ -6,7 +6,7 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, type Location } from 'react-router';
 
 import { ResumableCreateAccessListState } from 'e-teleport/AccessListManagement/CreateAccessList/route';
 import {
@@ -50,7 +50,7 @@ export const OktaIntegrationSetUpContextProvider = (
 ) => {
   const { steps } = props;
 
-  const loc = useLocation<ResumableCreateAccessListState>();
+  const loc = useLocation() as Location<ResumableCreateAccessListState>;
 
   /**
    * Saves location state on initial render.

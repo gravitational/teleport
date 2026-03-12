@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink } from 'react-router';
 
 import { ButtonText, Text } from 'design';
 import { Warning } from 'design/Alert';

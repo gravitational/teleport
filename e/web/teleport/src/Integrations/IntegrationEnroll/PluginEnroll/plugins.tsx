@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link as ReactRouterLink } from 'react-router-dom';
+import { Link as ReactRouterLink } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex, H2, Link, Text } from 'design';

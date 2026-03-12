@@ -1,7 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { ReactNode, useCallback, useMemo, useState } from 'react';
-import { useHistory } from 'react-router';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import {
@@ -64,8 +63,9 @@ function is404Error(error: unknown): boolean {
 
 export const OktaIntegrationSetUp = () => {
   const ctx = useTeleport();
-  const history = useHistory();
-  const { subPage } = useParams<{ subPage?: string }>();
+  const navigate = useNavigate();
+  const params = useParams<Record<string, string | undefined>>();
+  const subPage = params.subPage ?? params['*']?.split('/')[0];
 
   const accessGraphEnabled =
     storageService.getAccessGraphEnabled() && ctx.getFeatureFlags().accessGraph;
@@ -123,7 +123,7 @@ export const OktaIntegrationSetUp = () => {
     async (level: OktaIntegrationStepType) => {
       // If SSO is already set up, plugin exists & doesn't require cleanup.
       if (level !== OktaIntegrationStepType.Sso) {
-        history.push(cfg.oss.getIntegrationEnrollRoute('okta', level));
+        navigate(cfg.oss.getIntegrationEnrollRoute('okta', level));
         return;
       }
 
@@ -132,12 +132,12 @@ export const OktaIntegrationSetUp = () => {
       );
 
       if (!needsCleanup) {
-        history.push(cfg.oss.getIntegrationEnrollRoute('okta', level));
+        navigate(cfg.oss.getIntegrationEnrollRoute('okta', level));
       } else {
         setShowCleanUpModal(true);
       }
     },
-    [history, queryClient]
+    [navigate, queryClient]
   );
 
   if (existingPlugin.isFetching) {
@@ -187,50 +187,35 @@ export const OktaIntegrationSetUp = () => {
         >
           <Switch>
             <Route
-              path={cfg.oss.getIntegrationEnrollRoute(
-                'okta',
-                OktaIntegrationStepType.Sso
-              )}
-              component={SetUpSSO}
+              path={OktaIntegrationStepType.Sso}
+              element={<SetUpSSO />}
               exact
             />
             {accessGraphEnabled && (
               <Route
                 key={OktaIntegrationStepType.IdentitySecuritySync}
-                path={cfg.oss.getIntegrationEnrollRoute(
-                  'okta',
-                  OktaIntegrationStepType.IdentitySecuritySync
-                )}
-                component={SetupIdentitySecuritySync}
+                path={OktaIntegrationStepType.IdentitySecuritySync}
+                element={<SetupIdentitySecuritySync />}
                 exact
               />
             )}
             {cfg.oss.entitlements.Identity.enabled && [
               <Route
                 key={OktaIntegrationStepType.Scim}
-                path={cfg.oss.getIntegrationEnrollRoute(
-                  'okta',
-                  OktaIntegrationStepType.Scim
-                )}
-                component={SetUpScim}
+                path={OktaIntegrationStepType.Scim}
+                element={<SetUpScim />}
                 exact
               />,
               <Route
                 key={OktaIntegrationStepType.UserSync}
-                path={cfg.oss.getIntegrationEnrollRoute(
-                  'okta',
-                  OktaIntegrationStepType.UserSync
-                )}
-                component={SetUpUserSync}
+                path={OktaIntegrationStepType.UserSync}
+                element={<SetUpUserSync />}
                 exact
               />,
               <Route
                 key={OktaIntegrationStepType.AppGroupSync}
-                path={cfg.oss.getIntegrationEnrollRoute(
-                  'okta',
-                  OktaIntegrationStepType.AppGroupSync
-                )}
-                component={SetUpAppGroupSync}
+                path={OktaIntegrationStepType.AppGroupSync}
+                element={<SetUpAppGroupSync />}
                 exact
               />,
             ]}
@@ -399,7 +384,7 @@ function SetupAccessCta({
           mt={2}
           {...(appAndGroupSyncEnabled && {
             as: Link,
-            to: goToCreateAccessListFromOktaRoute(oktaOrgUrl),
+            ...goToCreateAccessListFromOktaRoute(oktaOrgUrl),
           })}
           disabled={!appAndGroupSyncEnabled}
         >

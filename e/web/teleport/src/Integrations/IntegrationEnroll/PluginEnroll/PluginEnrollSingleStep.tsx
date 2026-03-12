@@ -20,7 +20,9 @@ export function PluginEnrollSingleStep({
 }: {
   plugin: CloudHostablePlugin;
 }) {
-  const { type: selectedPluginType } = useParams<{ type: PluginKind }>();
+  const { type: selectedPluginType = plugin.type } = useParams<{
+    type: PluginKind;
+  }>();
   const [eventId] = useState(() => crypto.randomUUID());
 
   const [enrollResponse, setEnrollResponse] = useState<Plugin>();

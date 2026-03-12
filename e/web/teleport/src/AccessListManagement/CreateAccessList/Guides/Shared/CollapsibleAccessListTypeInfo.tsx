@@ -109,10 +109,8 @@ function NestedAccessListInfo({
         wrapContents
         primaryAction={{
           content: 'Enroll Okta Integration',
-          linkTo: {
-            pathname: cfg.getIntegrationEnrollRoute('okta'),
-            state: resumableState,
-          },
+          linkTo: cfg.getIntegrationEnrollRoute('okta'),
+          linkState: resumableState,
         }}
         details={
           <>
@@ -138,16 +136,15 @@ function NestedAccessListInfo({
     if (!okta.hasConfiguredOauthCredentials) {
       step = OktaIntegrationStepType.UserSync;
     }
+
     oktaInfo = (
       <Info
         mt={4}
         wrapContents
         primaryAction={{
           content: 'Enable Okta Apps and Groups Sync',
-          linkTo: {
-            pathname: cfg.getIntegrationEnrollRoute('okta', step),
-            state: resumableState,
-          },
+          linkTo: cfg.getIntegrationEnrollRoute('okta', step),
+          linkState: resumableState,
         }}
         details={
           <>

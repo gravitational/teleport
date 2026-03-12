@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react';
 import { useFormContext, useWatch } from 'react-hook-form';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import type { OptionProps, SingleValueProps } from 'react-select';
 import styled, { css, keyframes } from 'styled-components';
 
