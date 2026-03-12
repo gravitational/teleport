@@ -42,7 +42,22 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
-	err := run()
+	e2eDir, err := resolveE2EDir()
+	if err != nil {
+		slog.Error("failed to resolve e2e directory", "error", err)
+		os.Exit(1)
+	}
+
+	flags, mode, err := parseFlags(filepath.Dir(e2eDir))
+	if err != nil {
+		slog.Error("failed to parse flags", "error", err)
+		os.Exit(1)
+	}
+
+	_ = os.Remove(filepath.Join(e2eDir, "test-results", ".results.json"))
+
+	isCI := os.Getenv("CI") != ""
+	runErr := run(flags, mode, e2eDir, isCI)
 
 	// Reset the terminal before exiting to ensure we aren't left with a messed up terminal if interrupted
 	if tty, err := os.Open("/dev/tty"); err == nil {
@@ -54,8 +69,13 @@ func main() {
 		tty.Close()
 	}
 
-	if err != nil {
-		slog.Error("runner exited with error", "error", err)
+	// log the test summary again if we aren't silencing Teleport's output, since it may have been scrolled out of view by Teleport logs
+	if !flags.quiet && !isCI {
+		printTestSummary(e2eDir)
+	}
+
+	if runErr != nil {
+		slog.Error("runner exited with error", "error", runErr)
 		os.Exit(1)
 	}
 }
@@ -83,23 +103,13 @@ type e2eConfig struct {
 
 // run sets up the test environment (ports, certs, credentials, teleport instance)
 // and hands off to the Playwright runner in whatever mode was requested.
-func run() error {
+func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	e2eDir, err := resolveE2EDir()
-	if err != nil {
-		return fmt.Errorf("failed to resolve e2e directory: %w", err)
-	}
-
-	flags, mode, err := parseFlags(filepath.Dir(e2eDir))
-	if err != nil {
-		return fmt.Errorf("failed to parse flags: %w", err)
-	}
-
 	config := &e2eConfig{
 		e2eFlags:               *flags,
-		isCI:                   os.Getenv("CI") != "",
+		isCI:                   isCI,
 		dataDir:                filepath.Join(e2eDir, "data"),
 		repoRoot:               filepath.Dir(e2eDir),
 		e2eDir:                 e2eDir,
