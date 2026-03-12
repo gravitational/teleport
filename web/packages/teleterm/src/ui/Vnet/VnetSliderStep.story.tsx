@@ -344,17 +344,3 @@ export const SelfHostedWithManyLeavesAndZones: StoryObj<StoryProps> = {
     ],
   },
 };
-
-export const WindowsServiceNotInstalled: StoryObj<StoryProps> = {
-  args: {
-    ...defaultArgs,
-    installTimeRequirementsCheck: 'windows-service-not-installed',
-  },
-};
-
-export const WindowsServiceVersionMismatch: StoryObj<StoryProps> = {
-  args: {
-    ...defaultArgs,
-    installTimeRequirementsCheck: 'windows-service-version-mismatch',
-  },
-};
