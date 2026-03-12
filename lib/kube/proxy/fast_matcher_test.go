@@ -20,7 +20,6 @@ package proxy
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"testing"
 
@@ -51,7 +50,7 @@ func TestTryCompileFastMatcher(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, fm)
 		require.Len(t, fm.allowRules, 1)
-		require.Len(t, fm.denyRules, 0)
+		require.Empty(t, fm.denyRules)
 	})
 
 	t.Run("filters out rules with non-matching kind", func(t *testing.T) {
@@ -85,7 +84,7 @@ func TestTryCompileFastMatcher(t *testing.T) {
 		fm, err := tryCompileFastMatcher(types.KindKubePod, types.KubeVerbList, allowed, nil)
 		require.NoError(t, err)
 		require.NotNil(t, fm)
-		require.Len(t, fm.allowRules, 0, "should exclude rule with non-matching verb")
+		require.Empty(t, fm.allowRules, "should exclude rule with non-matching verb")
 	})
 
 	t.Run("returns error for invalid regex", func(t *testing.T) {
@@ -323,7 +322,7 @@ func TestFastMatcherEquivalence(t *testing.T) {
 	require.NotNil(t, fm)
 
 	inputs := []struct {
-		resource             types.KubernetesResource
+		resource              types.KubernetesResource
 		isClusterWideResource bool
 	}{
 		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "nginx-abc", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
@@ -369,7 +368,7 @@ func buildUnstructuredList(listKind, apiVersion string, items []map[string]any) 
 // BenchmarkFilterObj benchmarks the full FilterObj path through newResourceFilterer,
 // comparing fast matcher vs fallback at different item and rule counts.
 func BenchmarkFilterObj(b *testing.B) {
-	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	log := slog.New(slog.DiscardHandler)
 
 	mr := metaResource{
 		requestedResource: apiResource{
