@@ -489,7 +489,7 @@ func enumerateRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, effectSegm
 // `/staging/west` always outranks an admin in `/staging/west/testing`, however it isn't necessarily true that
 // an admin in `/staging/west` actually outranks an admin at `/prod/west/testing`. What we have selected is the
 // most *straightforward* pruning strategy that meaningfully respects scope hierarchy, but relative ranking of
-// orthogonal scopes is ambiguous. We think what we have here is an acceptable approximation, espectially becase,
+// orthogonal scopes is ambiguous. We think what we have here is an acceptable approximation, espectially because,
 // thanks to scope pinning, scenarios where this pruning strategy fails are likely easily addressable by simply pinning
 // to a more specific scope (e.g. pinning to `/prod` to avoid having assignments in `/staging` count toward the size of
 // the pin).
