@@ -4845,7 +4845,7 @@ func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *authp
 		}
 
 		if err := g.createAuthenticateChallengeUnauthenticatedLimiter.RegisterRequestFromAddr(peerInfo.Addr, nil); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.LimitExceeded("rate limit exceeded")
 		}
 	}
 
