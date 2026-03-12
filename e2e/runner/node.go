@@ -21,8 +21,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -121,6 +124,35 @@ func (d *dockerNode) waitJoined(ctx context.Context, timeout time.Duration) erro
 	return nil
 }
 
+func (d *dockerNode) saveLogs(ctx context.Context) {
+	if d.ctr == nil {
+		return
+	}
+
+	logPath := filepath.Join(d.config.e2eDir, "docker-node.log")
+
+	logs, err := d.ctr.Logs(ctx)
+	if err != nil {
+		slog.Warn("could not get docker node logs", "error", err)
+		return
+	}
+	defer logs.Close()
+
+	f, err := os.Create(logPath)
+	if err != nil {
+		slog.Warn("could not create docker node log file", "error", err)
+		return
+	}
+	defer f.Close()
+
+	if _, err := io.Copy(f, logs); err != nil {
+		slog.Warn("could not write docker node logs", "error", err)
+		return
+	}
+
+	slog.Info("saved docker node logs", "path", logPath)
+}
+
 func (d *dockerNode) stop(ctx context.Context) {
 	if d.ctr == nil {
 		return
@@ -128,5 +160,6 @@ func (d *dockerNode) stop(ctx context.Context) {
 
 	slog.Info("stopping docker SSH node")
 
+	d.saveLogs(ctx)
 	_ = d.ctr.Terminate(ctx, container.TerminateTimeout(10*time.Second))
 }
