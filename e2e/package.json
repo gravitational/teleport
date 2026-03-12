@@ -12,6 +12,7 @@
   "devDependencies": {
     "@playwright/test": "^1.55.1",
     "@types/node": "^25.5.0",
+    "cbor-x": "^1.6.4",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
