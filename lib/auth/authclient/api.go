@@ -1490,6 +1490,8 @@ type Cache interface {
 
 	// WorkloadClusterServiceGetter defines methods for fetching workload clusters.
 	services.WorkloadClusterServiceGetter
+	// SummarizerServiceGetter defines methods for fetching summarizer resources.
+	services.SummarizerServiceGetter
 }
 
 type NodeWrapper struct {

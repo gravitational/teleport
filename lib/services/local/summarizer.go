@@ -382,3 +382,164 @@ func NewSummarizerService(cfg SummarizerServiceConfig) (*SummarizerService, erro
 		retrievalModelService: retrievalModelService,
 	}, nil
 }
+
+// Parser implementations for event watching
+func newInferenceModelParser() *inferenceModelParser {
+	return &inferenceModelParser{
+		baseParser: newBaseParser(backend.NewKey(inferenceModelPrefix)),
+	}
+}
+
+type inferenceModelParser struct {
+	baseParser
+}
+
+func (p *inferenceModelParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		components := event.Item.Key.Components()
+		if len(components) != 2 {
+			return nil, trace.NotFound("failed parsing %v: expected 2 components, got %d", event.Item.Key.String(), len(components))
+		}
+		name := components[1]
+		return &types.ResourceHeader{
+			Kind:    types.KindInferenceModel,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}, nil
+	case types.OpPut:
+		model, err := services.UnmarshalProtoResource[*summarizerv1.InferenceModel](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(model), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newInferencePolicyParser() *inferencePolicyParser {
+	return &inferencePolicyParser{
+		baseParser: newBaseParser(backend.NewKey(inferencePolicyPrefix)),
+	}
+}
+
+type inferencePolicyParser struct {
+	baseParser
+}
+
+func (p *inferencePolicyParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		components := event.Item.Key.Components()
+		if len(components) != 2 {
+			return nil, trace.NotFound("failed parsing %v: expected 2 components, got %d", event.Item.Key.String(), len(components))
+		}
+		name := components[1]
+		return &types.ResourceHeader{
+			Kind:    types.KindInferencePolicy,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}, nil
+	case types.OpPut:
+		policy, err := services.UnmarshalProtoResource[*summarizerv1.InferencePolicy](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(policy), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newInferenceSecretParser() *inferenceSecretParser {
+	return &inferenceSecretParser{
+		baseParser: newBaseParser(backend.NewKey(inferenceSecretPrefix)),
+	}
+}
+
+type inferenceSecretParser struct {
+	baseParser
+}
+
+func (p *inferenceSecretParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		components := event.Item.Key.Components()
+		if len(components) != 2 {
+			return nil, trace.NotFound("failed parsing %v: expected 2 components, got %d", event.Item.Key.String(), len(components))
+		}
+		name := components[1]
+		return &types.ResourceHeader{
+			Kind:    types.KindInferenceSecret,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}, nil
+	case types.OpPut:
+		secret, err := services.UnmarshalProtoResource[*summarizerv1.InferenceSecret](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(secret), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newRetrievalModelParser() *retrievalModelParser {
+	return &retrievalModelParser{
+		baseParser: newBaseParser(backend.NewKey(retrievalModelPrefix)),
+	}
+}
+
+type retrievalModelParser struct {
+	baseParser
+}
+
+func (p *retrievalModelParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		components := event.Item.Key.Components()
+		if len(components) != 2 {
+			return nil, trace.NotFound("failed parsing %v: expected 2 components, got %d", event.Item.Key.String(), len(components))
+		}
+		name := components[1]
+		return &types.ResourceHeader{
+			Kind:    types.KindRetrievalModel,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}, nil
+	case types.OpPut:
+		model, err := services.UnmarshalProtoResource[*summarizerv1.RetrievalModel](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(model), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}

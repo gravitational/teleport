@@ -40,6 +40,7 @@ import (
 	v119 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	v117 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	v13 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	v123 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	v11 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	v2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	v112 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -206,6 +207,10 @@ type Event struct {
 	//	*Event_AppAuthConfig
 	//	*Event_LinuxDesktop
 	//	*Event_WorkloadCluster
+	//	*Event_InferenceModel
+	//	*Event_InferenceSecret
+	//	*Event_InferencePolicy
+	//	*Event_RetrievalModel
 	Resource      isEvent_Resource `protobuf_oneof:"Resource"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1002,6 +1007,42 @@ func (x *Event) GetWorkloadCluster() *v122.WorkloadCluster {
 	return nil
 }
 
+func (x *Event) GetInferenceModel() *v123.InferenceModel {
+	if x != nil {
+		if x, ok := x.Resource.(*Event_InferenceModel); ok {
+			return x.InferenceModel
+		}
+	}
+	return nil
+}
+
+func (x *Event) GetInferenceSecret() *v123.InferenceSecret {
+	if x != nil {
+		if x, ok := x.Resource.(*Event_InferenceSecret); ok {
+			return x.InferenceSecret
+		}
+	}
+	return nil
+}
+
+func (x *Event) GetInferencePolicy() *v123.InferencePolicy {
+	if x != nil {
+		if x, ok := x.Resource.(*Event_InferencePolicy); ok {
+			return x.InferencePolicy
+		}
+	}
+	return nil
+}
+
+func (x *Event) GetRetrievalModel() *v123.RetrievalModel {
+	if x != nil {
+		if x, ok := x.Resource.(*Event_RetrievalModel); ok {
+			return x.RetrievalModel
+		}
+	}
+	return nil
+}
+
 type isEvent_Resource interface {
 	isEvent_Resource()
 }
@@ -1426,6 +1467,26 @@ type Event_WorkloadCluster struct {
 	WorkloadCluster *v122.WorkloadCluster `protobuf:"bytes,88,opt,name=WorkloadCluster,proto3,oneof"`
 }
 
+type Event_InferenceModel struct {
+	// InferenceModel is a resource for defining inference models.
+	InferenceModel *v123.InferenceModel `protobuf:"bytes,89,opt,name=InferenceModel,proto3,oneof"`
+}
+
+type Event_InferenceSecret struct {
+	// InferenceSecret is a resource for defining inference secrets.
+	InferenceSecret *v123.InferenceSecret `protobuf:"bytes,90,opt,name=InferenceSecret,proto3,oneof"`
+}
+
+type Event_InferencePolicy struct {
+	// InferencePolicy is a resource for defining inference policies.
+	InferencePolicy *v123.InferencePolicy `protobuf:"bytes,91,opt,name=InferencePolicy,proto3,oneof"`
+}
+
+type Event_RetrievalModel struct {
+	// RetrievalModel is a resource for defining retrieval models.
+	RetrievalModel *v123.RetrievalModel `protobuf:"bytes,92,opt,name=RetrievalModel,proto3,oneof"`
+}
+
 func (*Event_ResourceHeader) isEvent_Resource() {}
 
 func (*Event_CertAuthority) isEvent_Resource() {}
@@ -1592,11 +1653,19 @@ func (*Event_LinuxDesktop) isEvent_Resource() {}
 
 func (*Event_WorkloadCluster) isEvent_Resource() {}
 
+func (*Event_InferenceModel) isEvent_Resource() {}
+
+func (*Event_InferenceSecret) isEvent_Resource() {}
+
+func (*Event_InferencePolicy) isEvent_Resource() {}
+
+func (*Event_RetrievalModel) isEvent_Resource() {}
+
 var File_teleport_legacy_client_proto_event_proto protoreflect.FileDescriptor
 
 const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a-teleport/appauthconfig/v1/appauthconfig.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a,teleport/linuxdesktop/v1/linux_desktop.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a1teleport/workloadcluster/v1/workloadcluster.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xdd2\n" +
+	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a-teleport/appauthconfig/v1/appauthconfig.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a,teleport/linuxdesktop/v1/linux_desktop.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a'teleport/summarizer/v1/summarizer.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a1teleport/workloadcluster/v1/workloadcluster.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xab5\n" +
 	"\x05Event\x12$\n" +
 	"\x04Type\x18\x01 \x01(\x0e2\x10.proto.OperationR\x04Type\x12?\n" +
 	"\x0eResourceHeader\x18\x02 \x01(\v2\x15.types.ResourceHeaderH\x00R\x0eResourceHeader\x12>\n" +
@@ -1694,7 +1763,11 @@ const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\x1bAutoUpdateBotInstanceReport\x18U \x01(\v23.teleport.autoupdate.v1.AutoUpdateBotInstanceReportH\x00R\x1bAutoUpdateBotInstanceReport\x12P\n" +
 	"\rAppAuthConfig\x18V \x01(\v2(.teleport.appauthconfig.v1.AppAuthConfigH\x00R\rAppAuthConfig\x12L\n" +
 	"\fLinuxDesktop\x18W \x01(\v2&.teleport.linuxdesktop.v1.LinuxDesktopH\x00R\fLinuxDesktop\x12X\n" +
-	"\x0fWorkloadCluster\x18X \x01(\v2,.teleport.workloadcluster.v1.WorkloadClusterH\x00R\x0fWorkloadClusterB\n" +
+	"\x0fWorkloadCluster\x18X \x01(\v2,.teleport.workloadcluster.v1.WorkloadClusterH\x00R\x0fWorkloadCluster\x12P\n" +
+	"\x0eInferenceModel\x18Y \x01(\v2&.teleport.summarizer.v1.InferenceModelH\x00R\x0eInferenceModel\x12S\n" +
+	"\x0fInferenceSecret\x18Z \x01(\v2'.teleport.summarizer.v1.InferenceSecretH\x00R\x0fInferenceSecret\x12S\n" +
+	"\x0fInferencePolicy\x18[ \x01(\v2'.teleport.summarizer.v1.InferencePolicyH\x00R\x0fInferencePolicy\x12P\n" +
+	"\x0eRetrievalModel\x18\\ \x01(\v2&.teleport.summarizer.v1.RetrievalModelH\x00R\x0eRetrievalModelB\n" +
 	"\n" +
 	"\bResourceJ\x04\b\a\x10\bJ\x04\b1\x102J\x04\b?\x10@J\x04\bD\x10ER\x12ExternalCloudAuditR\x0eStaticHostUserR\x13AutoUpdateAgentPlan**\n" +
 	"\tOperation\x12\b\n" +
@@ -1800,6 +1873,10 @@ var file_teleport_legacy_client_proto_event_proto_goTypes = []any{
 	(*v120.AppAuthConfig)(nil),                  // 79: teleport.appauthconfig.v1.AppAuthConfig
 	(*v121.LinuxDesktop)(nil),                   // 80: teleport.linuxdesktop.v1.LinuxDesktop
 	(*v122.WorkloadCluster)(nil),                // 81: teleport.workloadcluster.v1.WorkloadCluster
+	(*v123.InferenceModel)(nil),                 // 82: teleport.summarizer.v1.InferenceModel
+	(*v123.InferenceSecret)(nil),                // 83: teleport.summarizer.v1.InferenceSecret
+	(*v123.InferencePolicy)(nil),                // 84: teleport.summarizer.v1.InferencePolicy
+	(*v123.RetrievalModel)(nil),                 // 85: teleport.summarizer.v1.RetrievalModel
 }
 var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	0,  // 0: proto.Event.Type:type_name -> proto.Operation
@@ -1886,11 +1963,15 @@ var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	79, // 81: proto.Event.AppAuthConfig:type_name -> teleport.appauthconfig.v1.AppAuthConfig
 	80, // 82: proto.Event.LinuxDesktop:type_name -> teleport.linuxdesktop.v1.LinuxDesktop
 	81, // 83: proto.Event.WorkloadCluster:type_name -> teleport.workloadcluster.v1.WorkloadCluster
-	84, // [84:84] is the sub-list for method output_type
-	84, // [84:84] is the sub-list for method input_type
-	84, // [84:84] is the sub-list for extension type_name
-	84, // [84:84] is the sub-list for extension extendee
-	0,  // [0:84] is the sub-list for field type_name
+	82, // 84: proto.Event.InferenceModel:type_name -> teleport.summarizer.v1.InferenceModel
+	83, // 85: proto.Event.InferenceSecret:type_name -> teleport.summarizer.v1.InferenceSecret
+	84, // 86: proto.Event.InferencePolicy:type_name -> teleport.summarizer.v1.InferencePolicy
+	85, // 87: proto.Event.RetrievalModel:type_name -> teleport.summarizer.v1.RetrievalModel
+	88, // [88:88] is the sub-list for method output_type
+	88, // [88:88] is the sub-list for method input_type
+	88, // [88:88] is the sub-list for extension type_name
+	88, // [88:88] is the sub-list for extension extendee
+	0,  // [0:88] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_event_proto_init() }
@@ -1982,6 +2063,10 @@ func file_teleport_legacy_client_proto_event_proto_init() {
 		(*Event_AppAuthConfig)(nil),
 		(*Event_LinuxDesktop)(nil),
 		(*Event_WorkloadCluster)(nil),
+		(*Event_InferenceModel)(nil),
+		(*Event_InferenceSecret)(nil),
+		(*Event_InferencePolicy)(nil),
+		(*Event_RetrievalModel)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
