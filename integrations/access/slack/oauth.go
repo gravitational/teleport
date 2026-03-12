@@ -25,10 +25,10 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 )
 
@@ -68,7 +68,7 @@ func newAuthorizer(client *resty.Client, clientID string, clientSecret string, l
 // clientSecret is the Client Secret for this Slack app as specified by OAuth2.
 func NewAuthorizer(clientID string, clientSecret string, log *slog.Logger) *Authorizer {
 	client := makeSlackClient(slackAPIURL)
-	return newAuthorizer(client, clientID, clientSecret, log.With("Authorizer", "slack"))
+	return newAuthorizer(client, clientID, clientSecret, log.With("authorizer", "slack"))
 }
 
 // Exchange implements oauth.Exchanger

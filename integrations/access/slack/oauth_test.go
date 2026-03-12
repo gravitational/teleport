@@ -28,12 +28,12 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
