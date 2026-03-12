@@ -73,7 +73,9 @@ func build(ctx context.Context, config *e2eConfig) error {
 			}
 
 			slog.Info("installing playwright browsers")
-			if err := runInDir(ctx, config.e2eDir, "pnpm", "exec", "playwright", "install", "--with-deps", "chromium"); err != nil {
+			args := []string{"exec", "playwright", "install", "--no-shell"}
+			args = append(args, config.browsers...)
+			if err := runInDir(ctx, config.e2eDir, "pnpm", args...); err != nil {
 				return fmt.Errorf("playwright install: %w", err)
 			}
 

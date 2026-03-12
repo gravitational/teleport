@@ -112,7 +112,19 @@ func run() error {
 		connectTshBinPath:      filepath.Join(filepath.Dir(e2eDir), "build", "tsh-e2e-webauthnmock"),
 	}
 
-	slog.Info("running playwright in mode", "mode", mode)
+	if len(flags.browsers) == 0 {
+		if config.isCI {
+			config.browsers = []string{"chromium", "firefox", "webkit"}
+		} else {
+			config.browsers = []string{"chromium"}
+		}
+	}
+
+	if (mode == modeBrowse || mode == modeCodegen) && len(config.browsers) > 1 {
+		return fmt.Errorf("--%s only supports a single browser, got: %v", mode, config.browsers)
+	}
+
+	slog.Info("running playwright in mode", "mode", mode, "browsers", config.browsers)
 
 	slog.Debug("using teleport binary", "path", flags.teleportBin)
 	slog.Debug("using tctl binary", "path", flags.tctlBin)

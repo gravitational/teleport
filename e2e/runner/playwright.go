@@ -29,6 +29,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 type playwrightRunner struct {
@@ -104,7 +105,19 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 		return p.pnpm(ctx, args, env)
 	}
 
-	projects := append([]string{"authenticated", "unauthenticated"}, p.extraProjects...)
+	baseProjects := append([]string{"authenticated", "unauthenticated"}, p.extraProjects...)
+
+	var projects []string
+	if len(p.config.browsers) > 1 {
+		for _, browser := range p.config.browsers {
+			for _, proj := range baseProjects {
+				projects = append(projects, browser+":"+proj)
+			}
+		}
+	} else {
+		projects = baseProjects
+	}
+
 	args := append([]string{"exec", "playwright", "test"}, extraArgs...)
 	for _, project := range projects {
 		args = append(args, "--project="+project)
@@ -212,6 +225,7 @@ func (p *playwrightRunner) startEnv(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("generating invite URL: %w", err)
 	}
 	env = append(env, "E2E_INVITE_URL="+inviteURL)
+	env = append(env, "E2E_BROWSERS="+strings.Join(p.config.browsers, ","))
 
 	env = append(env, "E2E_CONNECT_TSH_BIN="+p.config.connectTshBinPath)
 	env = append(env, "E2E_CONNECT_APP_DIR="+p.config.connectAppDir)

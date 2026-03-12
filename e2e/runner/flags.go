@@ -31,6 +31,8 @@ import (
 var sshNode = registerFixture("ssh-node", "start and connect a Teleport SSH node, runs in Docker")
 var connect = registerFixture("connect", "build Teleport Connect")
 
+var validBrowsers = []string{"chromium", "firefox", "webkit"}
+
 type e2eFlags struct {
 	noBuild          bool
 	full             bool
@@ -43,6 +45,7 @@ type e2eFlags struct {
 	tctlBin          string
 	teleportURL      string
 	teleportLogLevel string
+	browsers         []string
 	testFiles        []string
 }
 
@@ -69,6 +72,8 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	flag.BoolVar(&f.updateSnapshots, "update-snapshots", false, "update Playwright snapshot baselines")
 	flag.StringVar(&f.teleportLogLevel, "teleport-log-level", "INFO", "Teleport log severity (DEBUG, INFO, WARN, ERROR)")
 	flag.StringVar(&f.licenseFile, "license-file", "", "path to Teleport license file (required for Enterprise features)")
+
+	stringArrayFlag(flag.CommandLine, &f.browsers, "browsers", "comma-separated browsers to test: chromium, firefox, webkit (default: chromium locally, all in CI)")
 
 	stringFlagWithEnv(flag.CommandLine, &f.teleportBin, "teleport-bin", "TELEPORT_BIN",
 		filepath.Join(repoRoot, "build", "teleport"), "override teleport binary path")
@@ -97,6 +102,12 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	f.teleportLogLevel = strings.ToUpper(f.teleportLogLevel)
 	if !slices.Contains(validTeleportLogLevels, f.teleportLogLevel) {
 		return nil, 0, fmt.Errorf("invalid --teleport-log-level %q, must be one of: %s", f.teleportLogLevel, strings.Join(validTeleportLogLevels, ", "))
+	}
+
+	for _, b := range f.browsers {
+		if !slices.Contains(validBrowsers, b) {
+			return nil, 0, fmt.Errorf("invalid browser %q, must be one of: %s", b, strings.Join(validBrowsers, ", "))
+		}
 	}
 
 	e2eDir := filepath.Join(repoRoot, "e2e")
@@ -167,6 +178,17 @@ func resolveAbsPaths(paths ...*string) error {
 	}
 
 	return nil
+}
+
+func stringArrayFlag(fs *flag.FlagSet, p *[]string, name, usage string) {
+	fs.Func(name, usage, func(s string) error {
+		for _, v := range strings.Split(s, ",") {
+			if v = strings.TrimSpace(v); v != "" {
+				*p = append(*p, v)
+			}
+		}
+		return nil
+	})
 }
 
 func stringFlagWithEnv(fs *flag.FlagSet, p *string, name, env, fallback, usage string) {
