@@ -83,7 +83,7 @@ func TestRangeScopedRoleAssignments(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	upstream := assignments.NewAssignmentCache()
+	upstream := assignments.NewAssignmentCache(assignments.AssignmentCacheConfig{})
 
 	expectedAssignmentNames := make([]string, 0, assignmentCount)
 
