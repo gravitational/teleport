@@ -74,7 +74,6 @@ type diskProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type diskMapSpecs struct {
-	BufHeap             *ebpf.MapSpec `ebpf:"buf_heap"`
 	LostCounter         *ebpf.MapSpec `ebpf:"lost_counter"`
 	LostDoorbell        *ebpf.MapSpec `ebpf:"lost_doorbell"`
 	MonitoredSessionids *ebpf.MapSpec `ebpf:"monitored_sessionids"`
@@ -108,7 +107,6 @@ func (o *diskObjects) Close() error {
 //
 // It can be passed to loadDiskObjects or ebpf.CollectionSpec.LoadAndAssign.
 type diskMaps struct {
-	BufHeap             *ebpf.Map `ebpf:"buf_heap"`
 	LostCounter         *ebpf.Map `ebpf:"lost_counter"`
 	LostDoorbell        *ebpf.Map `ebpf:"lost_doorbell"`
 	MonitoredSessionids *ebpf.Map `ebpf:"monitored_sessionids"`
@@ -117,7 +115,6 @@ type diskMaps struct {
 
 func (m *diskMaps) Close() error {
 	return _DiskClose(
-		m.BufHeap,
 		m.LostCounter,
 		m.LostDoorbell,
 		m.MonitoredSessionids,

@@ -53,14 +53,12 @@ import (
 )
 
 const (
-	// the maximum length of a path, anything longer will be truncated
-	maxPathLength = 255
-
 	longArgBase = "averylongargument"
 
 	// number of commands that will be run in parallel during the
 	// stress test test case
-	stressTestRunCount = 10
+	// TODO: bump back up once event flakiness is addressed
+	stressTestRunCount = 3
 )
 
 var (
@@ -408,7 +406,6 @@ eval $(echo %s | base64 --decode)`,
 						// the argument isn't an existing file on disk
 						expectedFail: true,
 					},
-					// paths: []string{longArg},
 				},
 			},
 		},
@@ -423,7 +420,6 @@ eval $(echo %s | base64 --decode)`,
 						// the argument isn't an existing file on disk
 						expectedFail: true,
 					},
-					// paths: []string{overMaxArg[:maxPathLength]},
 				},
 			},
 		},

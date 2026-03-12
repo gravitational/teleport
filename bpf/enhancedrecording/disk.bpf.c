@@ -5,7 +5,6 @@
 #include <bpf/bpf_tracing.h>       /* for getting kprobe arguments */
 
 #include "./common.h"
-#include "./path.h"
 
 // Maximum number of in-flight open syscalls supported
 #define INFLIGHT_MAX 8192
@@ -39,8 +38,6 @@ struct data_t {
 // to generate the Go bindings.
 const struct data_t *unused __attribute__((unused));
 
-BPF_PER_CPU_ARRAY(buf_heap, struct buf_t, 1);
-
 // Hashmap that keeps all audit session IDs that should be monitored 
 // by Teleport.
 BPF_HASH(monitored_sessionids, u32, u8, MAX_MONITORED_SESSIONS);
@@ -49,18 +46,6 @@ BPF_HASH(monitored_sessionids, u32, u8, MAX_MONITORED_SESSIONS);
 BPF_RING_BUF(open_events, EVENTS_BUF_SIZE);
 
 BPF_COUNTER(lost);
-
-static char *get_path_str(struct path *path)
-{
-    int key = 0;
-    struct buf_t *string_p = bpf_map_lookup_elem(&buf_heap, &key);
-    if (string_p == NULL) {
-        return NULL;
-    }
-
-    size_t buf_off = get_path_str_buf(path, string_p);
-    return &string_p->buf[buf_off & ((PATH_MAX >> 1) - 1)];
-}
 
 static int handle_open(struct file *f) {
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
@@ -77,9 +62,8 @@ static int handle_open(struct file *f) {
         return 0;
     }
 
-    const char *path = get_path_str(&f->f_path);
-    print_disk_event(task, path);
-    bpf_probe_read_kernel_str(&data->file_path, sizeof(data->file_path), path);
+    bpf_d_path(&f->f_path, (char *)data->file_path, sizeof(data->file_path));
+    print_disk_event(task, (char *)data->file_path);
 
     bpf_get_current_comm(&data->command, sizeof(data->command));
 
