@@ -328,6 +328,7 @@ func copyBeamFile(cf *CLIConf, tc *client.TeleportClient, sources []string, dest
 	req := client.SFTPRequest{
 		Sources:     sources,
 		Destination: destination,
+		Recursive:   cf.RecursiveCopy,
 	}
 	if !cf.Quiet {
 		req.ProgressWriter = cf.Stdout()
