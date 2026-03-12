@@ -289,5 +289,34 @@ export default tseslint.config(
         },
       ],
     },
+  },
+
+  /*
+   * E2E tests
+   */
+  {
+    files: ['e2e/**/*.ts'],
+    rules: {
+      'react-hooks/rules-of-hooks': 'off',
+    },
+  },
+  {
+    files: ['e2e/**/*.ts'],
+    ignores: ['e2e/helpers/test.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@playwright/test',
+              importNames: ['test', 'expect'],
+              message:
+                "Import 'test' and 'expect' from '../helpers/test' instead.",
+            },
+          ],
+        },
+      ],
+    },
   }
 );
