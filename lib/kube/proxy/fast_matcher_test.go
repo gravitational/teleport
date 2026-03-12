@@ -371,19 +371,9 @@ func buildUnstructuredList(listKind, apiVersion string, items []map[string]any) 
 }
 
 // BenchmarkFilterObj benchmarks the full FilterObj path through newResourceFilterer,
-// comparing fast matcher vs fallback using the same setup.
+// comparing fast matcher vs fallback at different item and rule counts.
 func BenchmarkFilterObj(b *testing.B) {
-	const itemCount = 5000
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	allowed := []types.KubernetesResource{
-		{Kind: types.KindKubePod, Namespace: "default", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
-		{Kind: types.KindKubePod, Namespace: "staging", Name: "app-*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
-		{Kind: types.KindKubePod, Namespace: "monitoring", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
-	}
-	denied := []types.KubernetesResource{
-		{Kind: types.KindKubePod, Namespace: "default", Name: "secret-*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
-	}
 
 	mr := metaResource{
 		requestedResource: apiResource{
@@ -394,30 +384,44 @@ func BenchmarkFilterObj(b *testing.B) {
 		verb:               types.KubeVerbList,
 	}
 
-	items := make([]map[string]any, itemCount)
-	for i := range items {
-		ns := "default"
-		switch i % 3 {
-		case 1:
-			ns = "staging"
-		case 2:
-			ns = "monitoring"
+	namespaces := []string{"default", "staging", "monitoring", "kube-system", "production"}
+
+	buildRules := func(ruleCount int) (allowed, denied []types.KubernetesResource) {
+		for i := range ruleCount {
+			allowed = append(allowed, types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: namespaces[i%len(namespaces)],
+				Name:      fmt.Sprintf("app-%d-*", i),
+				Verbs:     []string{types.KubeVerbList},
+				APIGroup:  "",
+			})
 		}
-		items[i] = map[string]any{
-			"apiVersion": "v1",
-			"kind":       "Pod",
-			"metadata": map[string]any{
-				"name":      fmt.Sprintf("pod-%d", i),
-				"namespace": ns,
-			},
+		denied = []types.KubernetesResource{
+			{Kind: types.KindKubePod, Namespace: "default", Name: "secret-*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
 		}
-	}
-	savedItems := make([]any, len(items))
-	for i, item := range items {
-		savedItems[i] = item
+		return allowed, denied
 	}
 
-	newFilterer := func(b *testing.B, disableFastMatcher bool) (*resourceFilterer, *unstructured.Unstructured) {
+	buildItems := func(count int) ([]map[string]any, []any) {
+		items := make([]map[string]any, count)
+		for i := range items {
+			items[i] = map[string]any{
+				"apiVersion": "v1",
+				"kind":       "Pod",
+				"metadata": map[string]any{
+					"name":      fmt.Sprintf("pod-%d", i),
+					"namespace": namespaces[i%len(namespaces)],
+				},
+			}
+		}
+		saved := make([]any, len(items))
+		for i, item := range items {
+			saved[i] = item
+		}
+		return items, saved
+	}
+
+	newFilterer := func(b *testing.B, items []map[string]any, allowed, denied []types.KubernetesResource, disableFastMatcher bool) (*resourceFilterer, *unstructured.Unstructured) {
 		b.Helper()
 		wrapper := newResourceFilterer(mr, &globalKubeCodecs, allowed, denied, log)
 		filter, err := wrapper(responsewriters.DefaultContentType, 200)
@@ -430,25 +434,43 @@ func BenchmarkFilterObj(b *testing.B) {
 		return rf, obj
 	}
 
-	b.Run("fast_matcher", func(b *testing.B) {
-		rf, obj := newFilterer(b, false)
-		require.NotNil(b, rf.fastMatcher)
-		b.ReportAllocs()
-		b.ResetTimer()
-		for b.Loop() {
-			obj.Object["items"] = savedItems
-			rf.FilterObj(obj)
-		}
-	})
+	for _, ruleCount := range []int{4, 50, 150, 4000} {
+		allowed, denied := buildRules(ruleCount)
 
-	b.Run("fallback", func(b *testing.B) {
-		rf, obj := newFilterer(b, true)
-		require.Nil(b, rf.fastMatcher)
-		b.ReportAllocs()
-		b.ResetTimer()
-		for b.Loop() {
-			obj.Object["items"] = savedItems
-			rf.FilterObj(obj)
+		// Temporarily raise the threshold so the fast matcher is compiled
+		// even for high rule counts, allowing direct comparison.
+		orig := maxFastMatcherRules
+		maxFastMatcherRules = ruleCount + 1
+		forcedAllowed, forcedDenied := allowed, denied
+		maxFastMatcherRules = orig
+
+		for _, itemCount := range []int{500, 5000} {
+			items, savedItems := buildItems(itemCount)
+			prefix := fmt.Sprintf("%d_rules/%d_items", ruleCount, itemCount)
+
+			b.Run(prefix+"/fast_matcher", func(b *testing.B) {
+				maxFastMatcherRules = ruleCount + 1
+				b.Cleanup(func() { maxFastMatcherRules = orig })
+				rf, obj := newFilterer(b, items, forcedAllowed, forcedDenied, false)
+				require.NotNil(b, rf.fastMatcher)
+				b.ReportAllocs()
+				b.ResetTimer()
+				for b.Loop() {
+					obj.Object["items"] = savedItems
+					rf.FilterObj(obj)
+				}
+			})
+
+			b.Run(prefix+"/fallback", func(b *testing.B) {
+				rf, obj := newFilterer(b, items, allowed, denied, true)
+				require.Nil(b, rf.fastMatcher)
+				b.ReportAllocs()
+				b.ResetTimer()
+				for b.Loop() {
+					obj.Object["items"] = savedItems
+					rf.FilterObj(obj)
+				}
+			})
 		}
-	})
+	}
 }
