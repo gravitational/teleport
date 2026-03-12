@@ -25,10 +25,10 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 )
 
@@ -68,7 +68,7 @@ func newAuthorizer(client *resty.Client, clientID string, clientSecret string, l
 // clientSecret is the Client Secret for this Slack app as specified by OAuth2.
 func NewAuthorizer(clientID string, clientSecret string, log *slog.Logger) *Authorizer {
 	client := makeSlackClient(slackAPIURL)
-	return newAuthorizer(client, clientID, clientSecret, log.With("Authorizer", "slack"))
+	return newAuthorizer(client, clientID, clientSecret, log.With("authorizer", "slack"))
 }
 
 // Exchange implements oauth.Exchanger
@@ -183,6 +183,7 @@ type SaveCredsFunc func(context.Context, storage.Credentials) error
 //
 // To have an up-to-date token, one must run RefreshLoop() in a background goroutine.
 type OauthTokenRefresher struct {
+	running             sync.Mutex
 	retryInterval       time.Duration
 	tokenBufferInterval time.Duration
 	saveCreds           SaveCredsFunc
@@ -230,6 +231,10 @@ func (r *OauthTokenRefresher) GetAccessToken() (string, error) {
 
 // RefreshLoop runs the credential refresh process.
 func (r *OauthTokenRefresher) RefreshLoop(ctx context.Context) {
+	// Don't start a refresh loop if the previous one did not exit yet.
+	r.running.Lock()
+	defer r.running.Unlock()
+
 	r.lock.Lock()
 	interval := r.getRefreshInterval(r.creds)
 	r.lock.Unlock()
