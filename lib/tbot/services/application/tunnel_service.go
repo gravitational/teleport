@@ -187,14 +187,26 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 	}
 	s.log.DebugContext(ctx, "Issued initial certificate for local proxy.")
 
-	leeway := s.leeway
+	// Attempt to provide a sensible cap for leeway values based on the
+	// configured and actual cert TTL to guard against rapid renewals. This
+	// doesn't attempt to be perfect, and it's still possible to force a new
+	// cert to be issued on every connection with the right set of unreasonable
+	// values. However, we want it to be possible to specify  nearly-too-large
+	// values for testing purposes (i.e. using negative leeway to simulate clock
+	// drift) and do not want to be in the business of calculating leeway-leeway
+	// so we'll keep the check somewhat simple.
+	issuedCertLifetime := appCert.Leaf.NotAfter.Sub(appCert.Leaf.NotBefore)
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	if leeway >= effectiveLifetime.TTL {
+	effectiveTTL := min(issuedCertLifetime, effectiveLifetime.TTL)
+
+	leeway := s.leeway
+	if leeway >= effectiveTTL {
 		s.log.WarnContext(ctx,
 			"leeway is greater than the credential lifetime and will be "+
 				"ignored, be aware of potential failures due to clock drift",
-			"credential_ttl", effectiveLifetime.TTL,
+			"configured_ttl", effectiveLifetime.TTL,
 			"configured_leeway", leeway,
+			"issued_cert_ttl", issuedCertLifetime,
 		)
 		leeway = 0
 	}
@@ -289,7 +301,12 @@ func (s *TunnelService) issueCert(
 		s.cfg.certIssuedHook()
 	}
 
-	return routedIdent.TLSCert, app, nil
+	// The leaf isn't appended by the stdlib, so add it here so we can inspect
+	// the TTL downstream.
+	cert := routedIdent.TLSCert
+	cert.Leaf = routedIdent.X509Cert
+
+	return cert, app, nil
 }
 
 // String returns a human-readable string that can uniquely identify the
