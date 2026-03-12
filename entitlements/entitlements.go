@@ -20,19 +20,22 @@ import "github.com/gravitational/teleport/api/client/proto"
 
 type EntitlementKind string
 
-// The EntitlementKind list should be 1:1 with the Features & FeatureStrings in salescenter/product/product.go,
+// The EntitlementKind list should be 1:1 with the Features & FeatureStrings in cloud/cloud/product/product.go,
 // except CustomTheme which is dropped. CustomTheme entitlement only toggles the ability to "set" a theme;
 // the value of that theme, if set, is stored and accessed outside of entitlements.
 //
 // All EntitlementKinds added here should also be added to AllEntitlements below and defaultEntitlements in
 // web/packages/teleport/src/entitlement.ts.
 const (
+	AccessGraph                EntitlementKind = "AccessGraph"
+	AccessGraphDemoMode        EntitlementKind = "AccessGraphDemoMode"
 	AccessLists                EntitlementKind = "AccessLists"
 	AccessMonitoring           EntitlementKind = "AccessMonitoring"
 	AccessRequests             EntitlementKind = "AccessRequests"
 	ActivityCenter             EntitlementKind = "ActivityCenter"
 	App                        EntitlementKind = "App"
 	Beams                      EntitlementKind = "Beams"
+	ClientIPRestrictions       EntitlementKind = "ClientIPRestrictions"
 	CloudAuditLogRetention     EntitlementKind = "CloudAuditLogRetention"
 	DB                         EntitlementKind = "DB"
 	Desktop                    EntitlementKind = "Desktop"
@@ -43,6 +46,7 @@ const (
 	Identity                   EntitlementKind = "Identity"
 	JoinActiveSessions         EntitlementKind = "JoinActiveSessions"
 	K8s                        EntitlementKind = "K8s"
+	LicenseAutoUpdate          EntitlementKind = "LicenseAutoUpdate"
 	MobileDeviceManagement     EntitlementKind = "MobileDeviceManagement"
 	OIDC                       EntitlementKind = "OIDC"
 	OktaSCIM                   EntitlementKind = "OktaSCIM"
@@ -54,15 +58,12 @@ const (
 	UnrestrictedManagedUpdates EntitlementKind = "UnrestrictedManagedUpdates"
 	UpsellAlert                EntitlementKind = "UpsellAlert"
 	UsageReporting             EntitlementKind = "UsageReporting"
-	LicenseAutoUpdate          EntitlementKind = "LicenseAutoUpdate"
-	AccessGraphDemoMode        EntitlementKind = "AccessGraphDemoMode"
-	ClientIPRestrictions       EntitlementKind = "ClientIPRestrictions"
 	WorkloadClusters           EntitlementKind = "WorkloadClusters"
 )
 
 // AllEntitlements returns all Entitlements; should be 1:1 with the const declared above.
 var AllEntitlements = []EntitlementKind{
-	AccessGraphDemoMode, AccessLists, AccessMonitoring, AccessRequests, ActivityCenter, App, Beams,
+	AccessGraph, AccessGraphDemoMode, AccessLists, AccessMonitoring, AccessRequests, ActivityCenter, App, Beams,
 	ClientIPRestrictions, CloudAuditLogRetention, DB, Desktop, DeviceTrust,
 	ExternalAuditStorage, FeatureHiding, HSM, Identity, JoinActiveSessions, K8s, LicenseAutoUpdate,
 	MobileDeviceManagement, OIDC, OktaSCIM, OktaUserSync, Policy, SAML, SessionLocks, SessionSummaries,
@@ -110,6 +111,11 @@ func BackfillFeatures(features *proto.Features) {
 		features.Entitlements[string(OktaSCIM)] = &proto.EntitlementInfo{Enabled: true}
 		features.Entitlements[string(OktaUserSync)] = &proto.EntitlementInfo{Enabled: true}
 		features.Entitlements[string(SessionLocks)] = &proto.EntitlementInfo{Enabled: true}
+	}
+	if features.GetPolicy().GetEnabled() {
+		features.Entitlements[string(AccessGraph)] = &proto.EntitlementInfo{Enabled: true}
+		features.Entitlements[string(ActivityCenter)] = &proto.EntitlementInfo{Enabled: true}
+		features.Entitlements[string(SessionSummaries)] = &proto.EntitlementInfo{Enabled: true}
 	}
 }
 

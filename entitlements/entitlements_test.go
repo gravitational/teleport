@@ -209,6 +209,9 @@ func TestBackfillFeatures(t *testing.T) {
 				string(UnrestrictedManagedUpdates): {Enabled: false},
 				string(ClientIPRestrictions):       {Enabled: false},
 				string(WorkloadClusters):           {Enabled: false},
+				string(AccessGraph):                {Enabled: false},
+				string(ActivityCenter):             {Enabled: false},
+				string(SessionSummaries):           {Enabled: false},
 			},
 		},
 		{
@@ -287,6 +290,9 @@ func TestBackfillFeatures(t *testing.T) {
 				string(UnrestrictedManagedUpdates): {Enabled: false},
 				string(ClientIPRestrictions):       {Enabled: false},
 				string(WorkloadClusters):           {Enabled: false},
+				string(AccessGraph):                {Enabled: false},
+				string(ActivityCenter):             {Enabled: false},
+				string(SessionSummaries):           {Enabled: false},
 				// Identity off, fields false
 				string(Identity):     {Enabled: false},
 				string(SessionLocks): {Enabled: false},
