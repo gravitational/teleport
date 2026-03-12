@@ -376,7 +376,7 @@ func (w *eventWriter) writeBatch(ctx context.Context, start, end int, payload st
 		}
 
 		if err := w.writeWithRetry(ctx, item); err != nil {
-			w.t.Logf("unexpected write error: %s", err)
+			w.t.Logf("unexpected write error: %s", trace.DebugReport(err))
 			continue
 		}
 
