@@ -49,6 +49,19 @@ func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allow
 	if containsWildcard(allowedResources) && len(deniedResources) == 0 {
 		return nil
 	}
+
+	// Try to compile a fast matcher that pre-filters rules by kind/verb and pre-compiles all regex patterns.
+	// This reduces per-item overhead from cache lookups + rule iteration to direct regex matching.
+	fm, err := tryCompileFastMatcher(
+		mr.requestedResource.resourceKind,
+		mr.verb,
+		allowedResources,
+		deniedResources,
+	)
+	if err != nil {
+		log.WarnContext(context.Background(), "Failed to compile fast matcher, falling back to per-item matching", "error", err)
+	}
+
 	return func(contentType string, responseCode int) (responsewriters.Filter, error) {
 		negotiator := newClientNegotiator(codecs)
 		encoder, decoder, err := newEncoderAndDecoderForContentType(contentType, negotiator)
@@ -65,6 +78,7 @@ func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allow
 			deniedResources:  deniedResources,
 			log:              log,
 			metaResource:     mr,
+			fastMatcher:      fm,
 		}, nil
 	}
 }
@@ -114,6 +128,10 @@ type resourceFilterer struct {
 
 	// metaResource contains the information about the resource being filtered.
 	metaResource metaResource
+
+	// fastMatcher is a precompiled per-request RBAC matcher.
+	// When non-nil, it is used instead of calling matchKubernetesResource per item.
+	fastMatcher *fastResourceMatcher
 }
 
 // FilterBuffer receives a byte array, decodes the response into the appropriate
@@ -166,6 +184,13 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 			return hasElemts, true, nil
 		}
 
+		if d.fastMatcher != nil {
+			return d.fastMatcher.match(
+				o.GetName(),
+				o.GetNamespace(),
+				d.metaResource.requestedResource.apiGroup,
+			), false, nil
+		}
 		r := getKubeResource(d.metaResource.requestedResource.resourceKind, d.metaResource.requestedResource.apiGroup, d.metaResource.verb, o)
 		result, err := matchKubernetesResource(
 			r, d.metaResource.isClusterWideResource(),
@@ -278,6 +303,13 @@ type kubeObjectInterface interface {
 
 // filterResource validates if the user should access the current resource.
 func (d *resourceFilterer) filterResource(resource kubeObjectInterface) (bool, error) {
+	if d.fastMatcher != nil {
+		return d.fastMatcher.match(
+			resource.GetName(),
+			resource.GetNamespace(),
+			d.metaResource.requestedResource.apiGroup,
+		), nil
+	}
 	result, err := matchKubernetesResource(
 		getKubeResource(d.metaResource.requestedResource.resourceKind, d.metaResource.requestedResource.apiGroup, d.metaResource.verb, resource),
 		d.metaResource.isClusterWideResource(),
@@ -308,6 +340,12 @@ func (d *resourceFilterer) filterMetaV1Table(table *metav1.Table, allowedResourc
 		resource, err := getKubeResourcePartialMetadataObject(d.metaResource.requestedResource.resourceKind, d.metaResource.requestedResource.apiGroup, d.metaResource.verb, row.Object.Object)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if d.fastMatcher != nil {
+			if d.fastMatcher.match(resource.Name, resource.Namespace, resource.APIGroup) {
+				resources = append(resources, *row)
+			}
+			continue
 		}
 		if result, err := matchKubernetesResource(resource, d.metaResource.isClusterWideResource(), allowedResources, deniedResources); err == nil && result {
 			resources = append(resources, *row)
@@ -441,6 +479,12 @@ func (d *resourceFilterer) filterUnstructuredList(obj *unstructured.Unstructured
 
 	filteredList := make([]any, 0, len(objList.Items))
 	for _, resource := range objList.Items {
+		if d.fastMatcher != nil {
+			if d.fastMatcher.match(resource.GetName(), resource.GetNamespace(), resource.GroupVersionKind().Group) {
+				filteredList = append(filteredList, resource.Object)
+			}
+			continue
+		}
 		gvk := resource.GroupVersionKind()
 		r := getKubeResource(d.metaResource.requestedResource.resourceKind, gvk.Group, d.metaResource.verb, &resource)
 		if result, err := matchKubernetesResource(
