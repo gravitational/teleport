@@ -376,7 +376,6 @@ func (w *eventWriter) writeBatch(ctx context.Context, start, end int, payload st
 		}
 
 		if err := w.writeWithRetry(ctx, item); err != nil {
-			w.t.Logf("unexpected write error: %s", trace.DebugReport(err))
 			continue
 		}
 
@@ -397,24 +396,33 @@ func (w *eventWriter) writeWithRetry(ctx context.Context, item backend.Item) err
 		panic("unexpected error creating retry strategy (this is a bug): " + err.Error())
 	}
 
+	// Max retry for non throttled errors.
+	const maxOtherRetries = 5
+	otherRetries := 0
+
 	for {
 		if _, err := w.backend.Put(ctx, item); err != nil {
 			// Log the error if it's not a throughput exceeded error,
 			// which is expected for this test as we are forcing high load to trigger shard splits.
 			var throttled *types.ThrottlingException
-			if errors.As(err, &throttled) {
-				// Write throttled, wait and retry.
-				select {
-				case <-ctx.Done():
-					return nil
-				case <-time.After(retry.Duration()):
-				}
+			isThrottled := errors.As(err, &throttled)
 
-				retry.Inc()
-				continue
+			if !isThrottled {
+				if otherRetries >= maxOtherRetries {
+					return trace.Wrap(err, "failed to write item %q after %d retries", item.Key.String(), maxOtherRetries)
+				}
+				w.t.Logf("unexpected write error: %s, retrying...", trace.DebugReport(err))
+				otherRetries++
 			}
 
-			return trace.Wrap(err, "failed to write item %q", item.Key.String())
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(retry.Duration()):
+			}
+
+			retry.Inc()
+			continue
 		}
 
 		return nil
