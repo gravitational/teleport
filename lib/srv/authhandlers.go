@@ -722,6 +722,15 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 	perms *ssh.Permissions,
 	_ string,
 ) (*ssh.Permissions, error) {
+	// Prevent looping into keyboard-interactive auth after successfully flowing through the legacy public key flow.
+	// Since VerifiedPublicKeyCallback is called after every public key auth, even
+	// ssh.PartialSuccessError.PublicKeyCallback, this is used to break the loop and not call keyboard-interactive auth
+	// again if the legacy public key flow succeeded.
+	//  TODO(cthach): Remove in v20.0 when the legacy public-key auth flow is removed.
+	if _, ok := perms.Extensions[utils.ExtIntLegacyPublicKeyAuthSucceeded]; ok {
+		return perms, nil
+	}
+
 	// Access preconditions are only set in the SSH access permit. For all other permit types, it is expected for this
 	// entry to be unset, so return the input permissions to grant access.
 	rawPermit, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]

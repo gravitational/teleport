@@ -30,6 +30,7 @@ import (
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	srvssh "github.com/gravitational/teleport/lib/srv/ssh"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // KeyboardInteractiveAuth performs keyboard-interactive authentication based on the provided preconditions. If no
@@ -75,6 +76,9 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		if err := denyRegularSSHCertsIfMFARequired(preconds, id); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// Mark that legacy auth succeeded to prevent infinite auth loops if the SSH server invokes this callback again.
+		perms.Extensions[utils.ExtIntLegacyPublicKeyAuthSucceeded] = "true"
 
 		return perms, nil
 	}

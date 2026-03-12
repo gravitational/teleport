@@ -1253,6 +1253,67 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		require.NotNil(t, partialSuccessErr.Next.PublicKeyCallback)
 		require.NotNil(t, partialSuccessErr.Next.KeyboardInteractiveCallback)
 	})
+
+	t.Run("legacy public key fallback does not loop back into partial success", func(t *testing.T) {
+		ah := &AuthHandlers{
+			c: &AuthHandlerConfig{
+				ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
+			},
+		}
+
+		legacyRawCert, err := testauthority.GenerateUserCert(
+			sshca.UserCertificateRequest{
+				CASigner:      caSigner,
+				PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+				Identity: sshca.Identity{
+					Username:    "testuser",
+					ClusterName: "localhost",
+					MFAVerified: "verified",
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		legacyCert, err := sshutils.ParseCertificate(legacyRawCert)
+		require.NoError(t, err)
+
+		precondsPermitRaw, err := protojson.Marshal(
+			&decisionpb.SSHAccessPermit{
+				Preconditions: []*decisionpb.Precondition{
+					{
+						Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+					},
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, legacyCert, inPerms, "")
+		require.Nil(t, outPerms)
+
+		var partialSuccessErr *ssh.PartialSuccessError
+		require.ErrorAs(t, err, &partialSuccessErr)
+
+		legacyPerms, err := partialSuccessErr.Next.PublicKeyCallback(nil, nil)
+		require.NoError(t, err)
+		require.Equal(t, "true", legacyPerms.Extensions[utils.ExtIntLegacyPublicKeyAuthSucceeded])
+
+		outPerms, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, legacyCert, legacyPerms, "")
+		require.NoError(t, err)
+		require.Same(t, legacyPerms, outPerms)
+		require.Contains(t, outPerms.Extensions, utils.ExtIntLegacyPublicKeyAuthSucceeded)
+
+		outPerms, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, legacyCert, outPerms, "")
+		require.NoError(t, err)
+		require.Same(t, legacyPerms, outPerms)
+		require.Contains(t, outPerms.Extensions, utils.ExtIntLegacyPublicKeyAuthSucceeded)
+	})
 }
 
 type mockMFAServiceClient struct {
