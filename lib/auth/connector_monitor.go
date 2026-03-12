@@ -57,13 +57,15 @@ const (
 	samlCertMonitorLockRefreshInterval = 20 * time.Second
 )
 
+// SAMLCertExpiryMonitorConfig is embedded in the SAMLCertExpiryMonitor to provide access
+// to the services.
 type SAMLCertExpiryMonitorConfig struct {
 	Connectors services.Identity
 	Alerts     services.Status
 	Events     types.Events
+	Backend    backend.Backend
 	Clock      clockwork.Clock
 	Logger     *slog.Logger
-	Backend    backend.Backend
 }
 
 // SAMLCertExpiryMonitor watches for changes to SAML connectors and raises a cluster
