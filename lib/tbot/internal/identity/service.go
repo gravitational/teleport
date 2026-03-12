@@ -544,6 +544,9 @@ func renewIdentity(
 		return newIdentity, nil
 	}
 
+	// Note: This leeway cap check is simpler than app/db tunnel services as the
+	// main renewal loop is, well, a loop, and will not attempt to renew more
+	// often than the configured renewal interval.
 	leeway := cfg.Leeway
 	if leeway >= cfg.TTL {
 		log.WarnContext(ctx, "leeway is greater than credential lifetime and "+
