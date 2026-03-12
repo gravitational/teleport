@@ -28,7 +28,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
 
@@ -177,32 +176,9 @@ func (p *playwrightRunner) openConnectAuthenticated(ctx context.Context) error {
 	return p.pnpm(ctx, []string{"exec", "tsx", "scripts/open-connect.ts"}, env)
 }
 
-// generateInviteURL runs tctl to create a new user and extracts the invite link from its output.
-func (p *playwrightRunner) generateInviteURL(ctx context.Context) (string, error) {
-	cmd := exec.CommandContext(ctx, p.config.tctlBin, "users", "add", "testuser",
-		"--roles=access,editor", "-c", p.config.teleportConfigPath)
-
-	out, err := cmd.Output()
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			slog.Error("tctl users add failed", "stderr", string(exitErr.Stderr))
-		}
-		return "", fmt.Errorf("tctl users add: %w", err)
-	}
-
-	inviteURL := parseInviteURL(string(out))
-	if inviteURL == "" {
-		return "", fmt.Errorf("failed to parse invite URL from tctl output: %s", string(out))
-	}
-
-	slog.Debug("generated invite URL", "url", inviteURL)
-
-	return inviteURL, nil
-}
 
 // startEnv builds the environment variables that Playwright tests need,
-// including START_URL, credentials, and the invite URL for signup tests.
+// including START_URL, credentials, and tctl paths for invite URL generation.
 func (p *playwrightRunner) startEnv(ctx context.Context) ([]string, error) {
 	env := os.Environ()
 	// Force color output since Playwright's TTY detection won't work
@@ -220,11 +196,8 @@ func (p *playwrightRunner) startEnv(ctx context.Context) ([]string, error) {
 		)
 	}
 
-	inviteURL, err := p.generateInviteURL(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("generating invite URL: %w", err)
-	}
-	env = append(env, "E2E_INVITE_URL="+inviteURL)
+	env = append(env, "E2E_TCTL_BIN="+p.config.tctlBin)
+	env = append(env, "E2E_TELEPORT_CONFIG="+p.config.teleportConfigPath)
 	env = append(env, "E2E_BROWSERS="+strings.Join(p.config.browsers, ","))
 
 	env = append(env, "E2E_CONNECT_TSH_BIN="+p.config.connectTshBinPath)
@@ -298,8 +271,3 @@ func (rw rewriteWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-var inviteURLRe = regexp.MustCompile(`https?://\S+/web/invite/[0-9a-f]+`)
-
-func parseInviteURL(output string) string {
-	return inviteURLRe.FindString(output)
-}
