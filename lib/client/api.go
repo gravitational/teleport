@@ -3263,6 +3263,10 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 
 	hostKeyCallback := tc.HostKeyCallback
 	authMethods := slices.Clone(tc.Config.AuthMethods)
+
+	// XXX: Hack to workaround recent behavior changes to ssh.ClientConfig.AuthCallback.
+	var authMethodForPublicKey ssh.AuthMethod
+
 	clusterName := func() string { return tc.SiteName }
 	if len(tc.JumpHosts) > 0 {
 		log.DebugContext(ctx, "Overriding SSH proxy to JumpHosts's address", "addr", logutils.StringerAttr(&tc.JumpHosts[0].Addr))
@@ -3276,7 +3280,11 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			// callback to load the appropriate SSH certificate for that cluster.
 			clusterGuesser := newProxyClusterGuesser(hostKeyCallback, tc.SignersForClusterWithReissue)
 			hostKeyCallback = clusterGuesser.hostKeyCallback
-			authMethods = append(authMethods, clusterGuesser.authMethod(ctx))
+
+			// Set authMethodForPublicKey here so that it's available in the auth callback closure.
+			authMethodForPublicKey = clusterGuesser.authMethod(ctx)
+
+			authMethods = append(authMethods, authMethodForPublicKey)
 
 			rootClusterName, err := tc.rootClusterName()
 			if err != nil {
@@ -3304,7 +3312,10 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			return nil, trace.Wrap(err)
 		}
 		if len(signers) > 0 {
-			authMethods = append(authMethods, ssh.PublicKeys(signers...))
+			// Set authMethodForPublicKey here so that it's available in the auth callback closure.
+			authMethodForPublicKey = ssh.PublicKeys(signers...)
+
+			authMethods = append(authMethods, authMethodForPublicKey)
 		}
 	}
 
@@ -3314,43 +3325,54 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 
 	authCallback := func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
 		slog.Info(
-			"SSH server requested additional authentication method",
+			"Inside authCallback, checking if MFA is required based on SSH server response",
 			"allowed_methods", authCtx.AllowedMethods,
 			"partial_success_methods", authCtx.PartialSuccessMethods,
 			"tried_methods", authCtx.TriedMethods,
 		)
 
-		// If the server did not accept our SSH cert but indicates that it would accept more authentication methods,
-		// attempt MFA. This is the case where the user has logged in and has a valid certificate, but does not have
-		// permissions to access the target cluster without MFA.
-		if !slices.Contains(authCtx.PartialSuccessMethods, "publickey") {
-			slog.Info("SSH server did not accept any of the provided SSH certificates, and did not indicate that it would accept more. Not attempting MFA.",
+		switch {
+		case authMethodForPublicKey != nil &&
+			slices.Contains(authCtx.AllowedMethods, "publickey") &&
+			!slices.Contains(authCtx.TriedMethods, "publickey") &&
+			!slices.Contains(authCtx.PartialSuccessMethods, "publickey"):
+			slog.Info(
+				"SSH server allows publickey and no partial success yet. Selecting publickey authentication via callback.",
+				"allowed_methods", authCtx.AllowedMethods,
+				"partial_success_methods", authCtx.PartialSuccessMethods,
+				"tried_methods", authCtx.TriedMethods,
+			)
+			return authMethodForPublicKey, nil
+
+		case slices.Contains(authCtx.PartialSuccessMethods, "publickey") && slices.Contains(authCtx.AllowedMethods, "keyboard-interactive"):
+			slog.Info(
+				"SSH server accepted public key authentication but requires additional keyboard-interactive authentication. Attempting MFA.",
+				"allowed_methods", authCtx.AllowedMethods,
+				"partial_success_methods", authCtx.PartialSuccessMethods,
+				"tried_methods", authCtx.TriedMethods,
+			)
+			ceremony := tc.NewMFACeremony()
+			ceremony.TargetCluster = clusterName()
+			return clientssh.KeyboardInteractive(ctx, ceremony, authCtx.Metadata), nil
+
+		default:
+			slog.Info(
+				"SSH server did not accept any of the provided SSH certificates, and did not indicate that it would accept more. Falling back to default SSH auth methods...",
 				"allowed_methods", authCtx.AllowedMethods,
 				"partial_success_methods", authCtx.PartialSuccessMethods,
 				"tried_methods", authCtx.TriedMethods,
 			)
 			return nil, nil
 		}
-
-		slog.Info("SSH server accepted the provided SSH certificate, but requires additional authentication. Attempting MFA.",
-			"allowed_methods", authCtx.AllowedMethods,
-			"partial_success_methods", authCtx.PartialSuccessMethods,
-			"tried_methods", authCtx.TriedMethods,
-		)
-
-		ceremony := tc.NewMFACeremony()
-		ceremony.TargetCluster = clusterName()
-
-		return clientssh.KeyboardInteractive(ctx, ceremony, authCtx.Metadata), nil
 	}
 
 	return &clientConfig{
 		ClientConfig: &ssh.ClientConfig{
 			User:            tc.getProxySSHPrincipal(),
 			HostKeyCallback: hostKeyCallback,
-			Auth:            authMethods,
-			Timeout:         tc.SSHDialTimeout,
+			Auth:            []ssh.AuthMethod{},
 			AuthCallback:    authCallback,
+			Timeout:         tc.SSHDialTimeout,
 		},
 		proxyAddress: proxyAddr,
 		clusterName:  clusterName,
