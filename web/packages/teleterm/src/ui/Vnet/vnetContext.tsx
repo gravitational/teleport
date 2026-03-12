@@ -55,6 +55,10 @@ export type VnetContext = {
    * Describes whether the given OS can run VNet.
    */
   isSupported: boolean;
+  /**
+   * Describes whether the given OS can run VNet diagnostics.
+   */
+  isDiagSupported: boolean;
   status: VnetStatus;
   start: () => Promise<[void, Error]>;
   startAttempt: Attempt<void>;
@@ -169,6 +173,7 @@ export const VnetContextProvider: FC<
   );
   const isSupported =
     platform === 'darwin' || platform === 'win32' || platform === 'linux';
+  const isDiagSupported = platform === 'darwin' || platform === 'win32';
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
@@ -460,6 +465,10 @@ export const VnetContextProvider: FC<
 
   useEffect(
     function periodicallyRunDiagnostics() {
+      if (!isDiagSupported) {
+        return;
+      }
+
       if (status.value !== 'running') {
         return;
       }
@@ -481,6 +490,7 @@ export const VnetContextProvider: FC<
       };
     },
     [
+      isDiagSupported,
       diagnosticsIntervalMs,
       runDiagnosticsAndShowNotification,
       status.value,
@@ -516,6 +526,7 @@ export const VnetContextProvider: FC<
     <VnetContext.Provider
       value={{
         isSupported,
+        isDiagSupported,
         status,
         start,
         startAttempt,
