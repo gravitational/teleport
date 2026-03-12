@@ -50,8 +50,16 @@ const (
 	maxAssignableScopes = 16
 )
 
-// RoleIsAssignableAtScope checks if the given role is assignable at the given scope.
-func RoleIsAssignableAtScope(role *scopedaccessv1.ScopedRole, scope string) bool {
+// RoleIsAssignableToScopeOfEffect checks if the given role is assignable to the given scope of effect.
+func RoleIsAssignableToScopeOfEffect(role *scopedaccessv1.ScopedRole, scope string) bool {
+	if scopes.WeakValidate(role.GetScope()) != nil {
+		return false
+	}
+
+	if !scopes.PolicyAssignmentScope(scope).IsSubjectToPolicyResourceScope(role.GetScope()) {
+		return false
+	}
+
 	for assignableScope := range WeakValidatedAssignableScopes(role) {
 		if scopes.Glob(assignableScope).Matches(scope) {
 			return true
@@ -59,6 +67,15 @@ func RoleIsAssignableAtScope(role *scopedaccessv1.ScopedRole, scope string) bool
 	}
 
 	return false
+}
+
+// RoleIsAssignableFromScopeOfOrigin checks if the given role is assignable from the given scope of origin.
+func RoleIsAssignableFromScopeOfOrigin(role *scopedaccessv1.ScopedRole, scope string) bool {
+	if scopes.WeakValidate(role.GetScope()) != nil {
+		return false
+	}
+
+	return scopes.PolicyAssignmentScope(scope).IsSubjectToPolicyResourceScope(role.GetScope())
 }
 
 // WeakValidatedAssignableScopes is a helper for iterating all well formed assignable scopes for a given role.

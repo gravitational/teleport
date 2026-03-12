@@ -228,6 +228,8 @@ type OktaAssignment interface {
 	SetFinalized(bool)
 	// Copy returns a copy of this Okta assignment resource.
 	Copy() OktaAssignment
+	// IsEqual determines if two Okta assignments are equivalent to one another.
+	IsEqual(OktaAssignment) bool
 }
 
 // NewOktaAssignment creates a new Okta assignment object.

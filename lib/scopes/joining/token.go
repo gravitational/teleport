@@ -237,7 +237,8 @@ func ValidateTokenUpdate(oldToken *joiningv1.ScopedToken, newToken *joiningv1.Sc
 		return trace.BadParameter("cannot modify usage mode of existing scoped token %s from usage mode %s to %s", tokenName, oldToken.GetSpec().GetUsageMode(), newToken.GetSpec().GetUsageMode())
 	}
 
-	if oldToken.GetStatus().GetSecret() != newToken.GetStatus().GetSecret() {
+	// If the new Token does not have a status, this should indicate that the status was not sent, meaning no change to the underlying secret
+	if newToken.GetStatus() != nil && oldToken.GetStatus().GetSecret() != newToken.GetStatus().GetSecret() {
 		return trace.BadParameter("cannot modify secret of existing scoped token %s", tokenName)
 	}
 

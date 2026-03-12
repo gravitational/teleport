@@ -31,6 +31,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/session"
@@ -141,8 +142,8 @@ func bytesToSessionPrintEvents(b []byte) []apievents.AuditEvent {
 			},
 			Data: b,
 		}
-		if printEvent.Size() > MaxProtoMessageSizeBytes {
-			extraBytes := printEvent.Size() - MaxProtoMessageSizeBytes
+		if printEvent.Size() > constants.MaxProtoMessageSizeBytes {
+			extraBytes := printEvent.Size() - constants.MaxProtoMessageSizeBytes
 			printEvent.Data = b[:extraBytes]
 			printEvent.Bytes = int64(len(printEvent.Data))
 			b = b[extraBytes:]

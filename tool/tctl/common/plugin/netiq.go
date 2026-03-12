@@ -31,7 +31,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/fatih/color"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -43,7 +43,7 @@ import (
 )
 
 var (
-	boldGreen          = color.New(color.Bold, color.FgGreen).SprintFunc()
+	boldGreen          = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("10")).Render
 	netIQStep1Template = bold("Step 1: Configure IDM OSP address") + `
 
 Please provide the IDM OSP address to configure the integration.

@@ -47,6 +47,14 @@ message Database {
   TargetHealth target_health = 9;
   // gcp_project_id is optional project ID set for GCP Project databases.
   string gcp_project_id = 10;
+  // auto_user_provisioning contains database auto-user provisioning information.
+  AutoUserProvisioning auto_user_provisioning = 11;
+}
+
+// AutoUserProvisioning contains database auto-user provisioning information.
+message AutoUserProvisioning {
+  // database_roles is a list of database roles that will be assigned to the auto-provisioned database user.
+  repeated string database_roles = 2;
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal

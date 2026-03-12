@@ -37,6 +37,8 @@ const (
 // InstallerMinFreeDiskMB is the minimum free disk space in megabytes required for Teleport installation.
 // This value might change over time as Teleport's binary size changes, but currently sits at around 990MB: 210MB for the tarball, and around 780MB for the extracted files.
 // Setting this value to 1250MB provides a buffer for future updates, while still being reasonable for most systems.
+//
+// If this value is updated, ensure you also update the docs at "Installation script exit codes" in the Teleport EC2 Server Discovery documentation.
 const InstallerMinFreeDiskMB = 1250
 
 // String returns a human-readable description for the exit code.

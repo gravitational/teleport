@@ -29,9 +29,9 @@
     "node-pty": "1.2.0-beta.10",
     "ring-buffer-ts": "^1.2.0",
     "split2": "4.2.0",
-    "strip-ansi": "^7.1.2",
+    "strip-ansi": "^7.2.0",
     "tar-fs": "^3.1.1",
-    "which": "^6.0.0",
+    "which": "^6.0.1",
     "winston": "^3.19.0"
   },
   "devDependencies": {

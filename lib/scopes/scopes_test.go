@@ -489,6 +489,66 @@ func TestDescendingScopes(t *testing.T) {
 	}
 }
 
+// TestAscendingScopes tests the AscendingScopes function for various combinations of scopes.
+func TestAscendingScopes(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		scope  string
+		expect []string
+	}{
+		{
+			name:   "root",
+			scope:  "/",
+			expect: []string{"/"},
+		},
+		{
+			name:   "empty",
+			scope:  "",
+			expect: nil,
+		},
+		{
+			name:   "single-segment",
+			scope:  "/aa",
+			expect: []string{"/aa", "/"},
+		},
+		{
+			name:   "multi-segment",
+			scope:  "/aa/bb/cc",
+			expect: []string{"/aa/bb/cc", "/aa/bb", "/aa", "/"},
+		},
+		{
+			name:   "dangling separator single",
+			scope:  "/aa/",
+			expect: []string{"/aa", "/"},
+		},
+		{
+			name:   "dangling separator multi",
+			scope:  "/aa/bb/cc/",
+			expect: []string{"/aa/bb/cc", "/aa/bb", "/aa", "/"},
+		},
+		{
+			name:   "missing prefix single",
+			scope:  "aa",
+			expect: []string{"/aa", "/"},
+		},
+		{
+			name:   "missing prefix multi",
+			scope:  "aa/bb/cc",
+			expect: []string{"/aa/bb/cc", "/aa/bb", "/aa", "/"},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			// verify that the iterator produces the expected scopes
+			scopes := slices.Collect(AscendingScopes(tt.scope))
+			require.Equal(t, tt.expect, scopes)
+		})
+	}
+}
+
 // TestCompare tests the Compare function for various combinations of scopes.
 func TestCompare(t *testing.T) {
 	t.Parallel()
@@ -1138,6 +1198,74 @@ func TestGlobIsSubjectToPolicyResourceScope(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.subject, Glob(tt.glob).IsSubjectToPolicyResourceScope(tt.scope),
 				"Glob(%q).IsSubjectToPolicyResourceScope(%q)", tt.glob, tt.scope)
+		})
+	}
+}
+
+// TestEnforcementPointsForResourceScope verifies that EnforcementPointsForResourceScope yields all (ScopeOfOrigin, ScopeOfEffect)
+// pairs in the correct order, independent of any particular assignment tree.
+func TestEnforcementPointsForResourceScope(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		resourceScope string
+		expect        []EnforcementPoint
+	}{
+		{
+			name:          "root scope",
+			resourceScope: "/",
+			expect: []EnforcementPoint{
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/"},
+			},
+		},
+		{
+			name:          "single segment scope",
+			resourceScope: "/foo",
+			expect: []EnforcementPoint{
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/foo"},
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/"},
+				{ScopeOfOrigin: "/foo", ScopeOfEffect: "/foo"},
+			},
+		},
+		{
+			name:          "two segment scope",
+			resourceScope: "/staging/west",
+			expect: []EnforcementPoint{
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west"},
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging"},
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/"},
+				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west"},
+				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging"},
+				{ScopeOfOrigin: "/staging/west", ScopeOfEffect: "/staging/west"},
+			},
+		},
+		{
+			name:          "three segment scope",
+			resourceScope: "/prod/us/east",
+			expect: []EnforcementPoint{
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/prod/us/east"},
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/prod/us"},
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/prod"},
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/"},
+				{ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod/us/east"},
+				{ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod/us"},
+				{ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod"},
+				{ScopeOfOrigin: "/prod/us", ScopeOfEffect: "/prod/us/east"},
+				{ScopeOfOrigin: "/prod/us", ScopeOfEffect: "/prod/us"},
+				{ScopeOfOrigin: "/prod/us/east", ScopeOfEffect: "/prod/us/east"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []EnforcementPoint
+			for level := range EnforcementPointsForResourceScope(tt.resourceScope) {
+				got = append(got, level)
+			}
+
+			require.Equal(t, tt.expect, got, "scope hierarchy levels should match expected order")
 		})
 	}
 }

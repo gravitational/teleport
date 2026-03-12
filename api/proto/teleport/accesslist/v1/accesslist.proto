@@ -162,13 +162,23 @@ message AccessListRequires {
 // AccessListGrants describes what access is granted by membership to the Access
 // List.
 message AccessListGrants {
-  // roles are the roles that are granted to users who are members of the Access
-  // List.
+  // roles are the names of roles to be granted to users.
   repeated string roles = 1;
 
-  // traits are the traits that are granted to users who are members of the
-  // Access List.
+  // traits are the traits to be granted to users.
   repeated teleport.trait.v1.Trait traits = 2;
+
+  // scoped_roles are scoped roles to be granted to users.
+  repeated ScopedRoleGrant scoped_roles = 3;
+}
+
+// ScopedRoleGrant describes a scoped role granted at a specific scope.
+message ScopedRoleGrant {
+  // role is the name of the scoped role to be granted.
+  string role = 1;
+  // scope is the scope the role will be assigned at. It must be an assignable
+  // scope of the role.
+  string scope = 2;
 }
 
 // Member describes a member of an Access List.
