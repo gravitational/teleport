@@ -59,11 +59,7 @@ type SAMLCertExpiryMonitorConfig struct {
 // SAMLCertExpiryMonitor watches for changes to SAML connectors and raises a cluster
 // alert when any connector has a certificate that is expiring or expired.
 type SAMLCertExpiryMonitor struct {
-	connectors services.Identity
-	alerts     services.Status
-	events     types.Events
-	clock      clockwork.Clock
-	logger     *slog.Logger
+	SAMLCertExpiryMonitorConfig
 }
 
 // NewSAMLCertExpiryMonitor creates a SAMLCertExpiryMonitor with the provided config.
@@ -84,13 +80,7 @@ func NewSAMLCertExpiryMonitor(cfg SAMLCertExpiryMonitorConfig) (*SAMLCertExpiryM
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, "saml-cert-expiry-monitor"))
 	}
 
-	return &SAMLCertExpiryMonitor{
-		connectors: cfg.Connectors,
-		alerts:     cfg.Alerts,
-		events:     cfg.Events,
-		clock:      cfg.Clock,
-		logger:     cfg.Logger,
-	}, nil
+	return &SAMLCertExpiryMonitor{cfg}, nil
 }
 
 // Run performs an initial SAML cert expiry alert reconciliation, then starts the watch loop that
@@ -106,15 +96,15 @@ func (m *SAMLCertExpiryMonitor) Run(ctx context.Context) error {
 	}
 
 	if err := m.reconcileAlert(ctx); err != nil {
-		m.logger.ErrorContext(ctx, "Failed initial reconciliation of SAML cert expiry alert", "error", err)
+		m.Logger.ErrorContext(ctx, "Failed initial reconciliation of SAML cert expiry alert", "error", err)
 	}
 
-	ticker := time.NewTicker(samlCertCheckCycle)
+	ticker := m.Clock.NewTicker(samlCertCheckCycle)
 	defer ticker.Stop()
 
 	for {
 		if err := m.runWatchLoop(ctx, ticker); err != nil {
-			m.logger.ErrorContext(ctx, "SAML connector watcher exited unexpectedly, retrying", "error", err)
+			m.Logger.ErrorContext(ctx, "SAML connector watcher exited unexpectedly, retrying", "error", err)
 			if !shouldRetryAfterJitterFn() {
 				return nil
 			}
@@ -127,8 +117,8 @@ func (m *SAMLCertExpiryMonitor) Run(ctx context.Context) error {
 // runWatchLoop creates a watcher for SAML connector events and reconciles the expiry alert on each
 // put or delete event, and on each tick of the provided ticker. An error is returned if the watcher
 // fails to create or unexpectedly closes.
-func (m *SAMLCertExpiryMonitor) runWatchLoop(ctx context.Context, ticker *time.Ticker) error {
-	watch, err := m.events.NewWatcher(ctx, types.Watch{
+func (m *SAMLCertExpiryMonitor) runWatchLoop(ctx context.Context, ticker clockwork.Ticker) error {
+	watch, err := m.Events.NewWatcher(ctx, types.Watch{
 		Name:  "saml_cert_expiry_watcher",
 		Kinds: []types.WatchKind{{Kind: types.KindSAMLConnector}},
 	})
@@ -144,11 +134,11 @@ func (m *SAMLCertExpiryMonitor) runWatchLoop(ctx context.Context, ticker *time.T
 				continue
 			}
 			if err := m.reconcileAlert(ctx); err != nil {
-				m.logger.ErrorContext(ctx, "Failed to reconcile SAML cert expiry alert", "error", err)
+				m.Logger.ErrorContext(ctx, "Failed to reconcile SAML cert expiry alert", "error", err)
 			}
-		case <-ticker.C:
+		case <-ticker.Chan():
 			if err := m.reconcileAlert(ctx); err != nil {
-				m.logger.ErrorContext(ctx, "Failed to reconcile SAML cert expiry alert", "error", err)
+				m.Logger.ErrorContext(ctx, "Failed to reconcile SAML cert expiry alert", "error", err)
 			}
 		case <-watch.Done():
 			if err := watch.Error(); err != nil {
@@ -165,7 +155,7 @@ func (m *SAMLCertExpiryMonitor) runWatchLoop(ctx context.Context, ticker *time.T
 // and creates or updates an alert. If none are expiring, then any existing alert is deleted.
 func (m *SAMLCertExpiryMonitor) reconcileAlert(ctx context.Context) error {
 	var expiringConnectors []string
-	for connector, err := range m.connectors.RangeSAMLConnectorsWithOptions(ctx, "", "", false, types.SAMLConnectorValidationFollowURLs(false)) {
+	for connector, err := range m.Connectors.RangeSAMLConnectorsWithOptions(ctx, "", "", false, types.SAMLConnectorValidationFollowURLs(false)) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -181,8 +171,14 @@ func (m *SAMLCertExpiryMonitor) reconcileAlert(ctx context.Context) error {
 		return trace.Wrap(m.upsertAlert(ctx, message))
 	}
 
-	if err := m.alerts.DeleteClusterAlert(ctx, samlCertExpiryAlertID); err != nil && !trace.IsNotFound(err) {
+	alerts, err := m.Alerts.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		AlertID: samlCertExpiryAlertID,
+	})
+	if err != nil {
 		return trace.Wrap(err)
+	}
+	if len(alerts) > 0 {
+		return trace.Wrap(m.Alerts.DeleteClusterAlert(ctx, samlCertExpiryAlertID))
 	}
 
 	return nil
@@ -195,14 +191,14 @@ func (m *SAMLCertExpiryMonitor) upsertAlert(ctx context.Context, message string)
 		message,
 		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
 		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindSAML, types.VerbRead)),
-		types.WithAlertExpires(m.clock.Now().Add(samlCertExpiryAlertExpires)),
+		types.WithAlertExpires(m.Clock.Now().Add(samlCertExpiryAlertExpires)),
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(m.alerts.UpsertClusterAlert(ctx, alert))
+	return trace.Wrap(m.Alerts.UpsertClusterAlert(ctx, alert))
 }
 
 // buildAlertMessage returns a SAML cert expiry alert message for the given connector names.

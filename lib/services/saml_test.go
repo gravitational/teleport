@@ -313,8 +313,9 @@ func Test_ValidateSAMLConnector(t *testing.T) {
 	}
 }
 
-func TestCheckSAMLCertExpiry(t *testing.T) 
-   t.Parallel()
+func TestCheckSAMLCertExpiry(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name         string
 		timeframe    time.Duration
