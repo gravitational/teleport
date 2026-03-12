@@ -61,6 +61,11 @@ func requireTestClusterWithIdentityCenter(t *testing.T) (*common.SUT, *ictest.Un
 			require.NoError(t, err)
 			require.Len(t, mockIC.Accounts, len(accounts))
 
+			for _, acct := range accounts {
+				assertICAccount(ctx, t, auth.IdentityCenter, acct.GetMetadata().GetName(),
+					withAccountLabel(types.AWSSSORegionLabel, "eu-central-1"))
+			}
+
 			permissionSet, _, err := auth.ListPermissionSets(ctx, 0, "")
 			require.NoError(t, err)
 			require.Len(t, mockIC.PermissionSets, len(permissionSet))

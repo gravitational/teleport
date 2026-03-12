@@ -19,6 +19,17 @@ func withAccountName(name string) icAccountAssertion {
 	}
 }
 
+func withAccountLabel(key, value string) icAccountAssertion {
+	return func(t assert.TestingT, acct *identitycenterv1.Account) bool {
+		labels := acct.GetMetadata().GetLabels()
+		actual, ok := labels[key]
+		if !assert.True(t, ok, "expected label %q to be present on account %q", key, acct.GetMetadata().GetName()) {
+			return false
+		}
+		return assert.Equal(t, value, actual, "label %q on account %q", key, acct.GetMetadata().GetName())
+	}
+}
+
 func assertICAccount(ctx context.Context, t assert.TestingT, icAccountSvc services.IdentityCenterAccountGetter, id string, assertions ...icAccountAssertion) bool {
 	if h, ok := t.(interface{ Helper() }); ok {
 		h.Helper()

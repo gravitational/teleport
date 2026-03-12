@@ -52,6 +52,7 @@ type Account struct {
 	ID             services.IdentityCenterAccountID
 	Name           string
 	ARN            string
+	SSORegion      string
 	IsOwner        bool
 	PermissionSets iter.Seq[*identitycenterv1.PermissionSet]
 	StartURL       string
@@ -73,9 +74,10 @@ func (a Account) Build() *identitycenterv1.Account {
 			Name:        string(a.ID),
 			Description: a.Name,
 			Labels: map[string]string{
-				common.OriginLabel:          common.OriginAWSIdentityCenter,
-				types.AWSAccountIDLabel:     string(a.ID),
-				"teleport.dev/account-name": a.Name,
+				common.OriginLabel:        common.OriginAWSIdentityCenter,
+				types.AWSAccountIDLabel:   string(a.ID),
+				types.AWSAccountNameLabel: a.Name,
+				types.AWSSSORegionLabel:   a.SSORegion,
 			},
 		},
 		Spec: &identitycenterv1.AccountSpec{
@@ -167,9 +169,9 @@ func (a AccountAssignment) Build() *identitycenterv1.AccountAssignment {
 		Metadata: &headerv1.Metadata{
 			Name: a.ID,
 			Labels: map[string]string{
-				types.OriginLabel:           common.OriginAWSIdentityCenter,
-				types.AWSAccountIDLabel:     string(a.AccountID),
-				"teleport.dev/account-name": a.AccountName,
+				types.OriginLabel:         common.OriginAWSIdentityCenter,
+				types.AWSAccountIDLabel:   string(a.AccountID),
+				types.AWSAccountNameLabel: a.AccountName,
 			},
 		},
 		Spec: &identitycenterv1.AccountAssignmentSpec{

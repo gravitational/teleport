@@ -139,6 +139,7 @@ func AWSIC(ctx context.Context, p *types.PluginV1, deps Dependencies) (Delegate,
 			UserPredicate:    identitycentercommon.UserPredicateFilter(settings.UserSyncFilters),
 			Emitter:          deps.ParentProcess.GetAuthServer().GetEmitter(),
 			RolesSyncMode:    rolesSyncMode,
+			SSORegion:        settings.Region,
 		})
 		if err != nil {
 			return trace.Wrap(err)

@@ -91,7 +91,7 @@ func (svc *Service) fetchAccounts(ctx context.Context, idStoreID icsdk.IdentityS
 		}
 
 		acct := newIdentityCenterAccount(src.Name, services.IdentityCenterAccountID(src.ID),
-			accountArn, idStoreID)
+			accountArn, idStoreID, svc.ssoRegion)
 		accounts[getAccountID(acct)] = acct
 	}
 	return accounts, err

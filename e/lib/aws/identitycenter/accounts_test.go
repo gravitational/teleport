@@ -6,6 +6,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -40,10 +42,16 @@ func TestAccountStartURL(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			arn, err := arn.Parse(test.arn)
 			require.NoError(t, err)
-			account := newIdentityCenterAccount(name, id, arn, idSource)
+			account := newIdentityCenterAccount(name, id, arn, idSource, "us-east-1")
 			require.NotNil(t, account)
 			require.NotEmpty(t, account.Spec.StartUrl)
 			require.Contains(t, account.Spec.StartUrl, test.urlContains)
+			require.Equal(t, map[string]string{
+				types.OriginLabel:         common.OriginAWSIdentityCenter,
+				types.AWSAccountIDLabel:   string(id),
+				types.AWSAccountNameLabel: name,
+				types.AWSSSORegionLabel:   "us-east-1",
+			}, account.GetMetadata().GetLabels())
 		})
 	}
 }

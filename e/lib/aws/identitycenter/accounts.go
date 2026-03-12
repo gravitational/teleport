@@ -90,7 +90,7 @@ func (svc *Service) reconcileAccounts(ctx context.Context, oldAccounts, newAccou
 	return result, nil
 }
 
-func newIdentityCenterAccount(name string, id services.IdentityCenterAccountID, arn arn.ARN, idSource icsdk.IdentityStoreID) *identitycenterv1.Account {
+func newIdentityCenterAccount(name string, id services.IdentityCenterAccountID, arn arn.ARN, idSource icsdk.IdentityStoreID, ssoRegion string) *identitycenterv1.Account {
 	// https://docs.aws.amazon.com/signin/latest/userguide/sign-in-urls-defined.html#access-portal-url
 	startURL := "https://%s.awsapps.com/start/#/console?account_id=%s"
 
@@ -109,9 +109,10 @@ func newIdentityCenterAccount(name string, id services.IdentityCenterAccountID, 
 			Name:        string(id),
 			Description: name,
 			Labels: map[string]string{
-				types.OriginLabel:           common.OriginAWSIdentityCenter,
-				types.AWSAccountIDLabel:     string(id),
-				"teleport.dev/account-name": name,
+				types.OriginLabel:         common.OriginAWSIdentityCenter,
+				types.AWSAccountIDLabel:   string(id),
+				types.AWSAccountNameLabel: name,
+				types.AWSSSORegionLabel:   ssoRegion,
 			},
 		},
 		Spec: &identitycenterv1.AccountSpec{

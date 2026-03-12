@@ -106,9 +106,9 @@ func newAccountAssignment(acct *identitycenterv1.Account, ps *identitycenterv1.P
 		Metadata: &headerv1.Metadata{
 			Name: normalizeResourceName(fmt.Sprintf("%s--%s", acct.GetSpec().GetId(), ps.Name)),
 			Labels: map[string]string{
-				types.OriginLabel:           common.OriginAWSIdentityCenter,
-				types.AWSAccountIDLabel:     acct.GetSpec().GetId(),
-				"teleport.dev/account-name": acct.GetSpec().GetName(),
+				types.OriginLabel:         common.OriginAWSIdentityCenter,
+				types.AWSAccountIDLabel:   acct.GetSpec().GetId(),
+				types.AWSAccountNameLabel: acct.GetSpec().GetName(),
 			},
 		},
 		Spec: &identitycenterv1.AccountAssignmentSpec{

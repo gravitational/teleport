@@ -126,6 +126,11 @@ type ServiceConfig struct {
 	// Defaults to defaultResourceSyncInterval if not set
 	AWSSyncInterval time.Duration
 
+	// SSORegion is the AWS region of the Identity Center instance. This is
+	// propagated as a label on synced Account resources so that downstream
+	// consumers (e.g. tsh aws-profile) can discover it without admin access.
+	SSORegion string
+
 	// AssignmentSyncInterval defines the interval between performing full
 	// assignment refreshes.
 	AssignmentSyncInterval time.Duration

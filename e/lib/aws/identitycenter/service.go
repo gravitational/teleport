@@ -49,6 +49,7 @@ type Service struct {
 	userMatchesPredicate       func(types.User) bool
 	assignmentSyncInterval     time.Duration
 	awsSyncInterval            time.Duration
+	ssoRegion                  string
 	importConfig               ImportConfig
 	pluginStatusSink           common.StatusSink
 	pluginsService             pluginsService
@@ -107,6 +108,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		userMatchesPredicate:       config.UserPredicate,
 		accessListMatchesPredicate: aclPredicate,
 		awsSyncInterval:            config.AWSSyncInterval,
+		ssoRegion:                  config.SSORegion,
 		assignmentSyncInterval:     config.AssignmentSyncInterval,
 		importConfig:               config.ImportConfig,
 		pluginStatusSink:           config.PluginStatusSink,
