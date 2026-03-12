@@ -1,62 +1,268 @@
 name: E2E Tests
 run-name: E2E Tests
 on:
-  # Only allow manual triggers
-  workflow_dispatch:
+  pull_request:
+  merge_group:
+  push:
+    branches:
+      - master
+      - branch/**
 
 jobs:
-  build:
-    name: Build binaries
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+  changes:
+    name: Check for relevant changes
     runs-on: ubuntu-latest
+
+    permissions:
+      pull-requests: read
+
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v6
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            changed:
+              - '.github/workflows/e2e-tests.yaml'
+              - '**.go'
+              - 'go.mod'
+              - 'go.sum'
+              - '**.rs'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'e2e/**'
+              - 'web/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+              - 'Makefile'
+
+  build:
+    name: Build Teleport
+    needs: changes
+    if: ${{ needs.changes.outputs.changed == 'true' || github.event_name == 'push' }}
+    runs-on: ubuntu-22.04-16core
 
     permissions:
       contents: read
 
+    outputs:
+      playwright-version: ${{ steps.playwright-version.outputs.version }}
+
     container:
-      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport19-amd64
-      env:
-        GOCACHE: /tmp/gocache
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
 
     steps:
-      - name: Checkout Teleport
-        uses: actions/checkout@v6 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('./e2e/package.json').devDependencies['@playwright/test']")" >> "$GITHUB_OUTPUT"
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
 
-      - name: Run make
+      - name: Get cache paths
+        id: cache-paths
+        run: echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+
+      - name: Restore Go module cache
+        id: go-mod-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.cache-paths.outputs.go-mod }}
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: go-mod-${{ runner.os }}-
+
+      - name: Restore Rust output cache
+        id: rust-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            web/packages/shared/libs/ironrdp/pkg
+            target/x86_64-unknown-linux-gnu/release/librdp_client.a
+            lib/srv/desktop/rdp/rdpclient/librdpclient.h
+          key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml',
+            'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
+
+      - name: Restore pnpm cache
+        id: pnpm-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
+      - name: Build Teleport, tctl, and tsh
         run: |
-          make binaries
+          cargo --version && rustc --version && echo "ARCH=$(uname -m)"
+          make build/teleport & pid1=$!
+          make build/tctl & pid2=$!
+          go build -tags webauthnmock -o build/tsh-e2e-webauthnmock ./tool/tsh & pid3=$!
+          wait $pid1 && wait $pid2 && wait $pid3
+        env:
+          RDPCLIENT_SKIP_BUILD: '0'
+          IRONRDP_SKIP_BUILD: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
+          RDPCLIENT_SKIP_CARGO: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
+
+      - name: Build e2e runner
+        run: cd e2e/runner && go build -o e2e .
+
+      - name: Build Connect
+        run: pnpm --filter=@gravitational/teleterm build
+        env:
+          IRONRDP_SKIP_BUILD: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
 
       - name: Upload binaries
         uses: actions/upload-artifact@v7
         with:
-          name: build
-          path: ${{ github.workspace }}/build/
+          name: teleport-binaries
+          path: |
+            build/teleport
+            build/tctl
+            build/tsh-e2e-webauthnmock
+            e2e/runner/e2e
+            web/packages/teleterm/build/
           retention-days: 1
+
+      - name: Save Go module cache
+        if: github.event_name == 'push' && steps.go-mod-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.cache-paths.outputs.go-mod }}
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+
+      - name: Save Rust output cache
+        if: github.event_name == 'push' && steps.rust-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            web/packages/shared/libs/ironrdp/pkg
+            target/x86_64-unknown-linux-gnu/release/librdp_client.a
+            lib/srv/desktop/rdp/rdpclient/librdpclient.h
+          key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml',
+            'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
+
+      - name: Save pnpm cache
+        if: github.event_name == 'push' && steps.pnpm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
   test:
     name: E2E Tests
-    needs: build
-    runs-on: ubuntu-latest
+    needs: [changes, build]
+    if: ${{ needs.changes.outputs.changed == 'true' || github.event_name == 'push' }}
+    runs-on: ubuntu-22.04-8core
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    env:
+      HOME: /root
+
+    container:
+      image: mcr.microsoft.com/playwright:v${{ needs.build.outputs.playwright-version }}-noble
+      env:
+        DOCKER_HOST: tcp://docker:2375
+
+    services:
+      docker:
+        image: docker:dind
+        options: --privileged
+        env:
+          DOCKER_TLS_CERTDIR: ""
+        ports:
+          - 2375:2375
+
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install Docker CLI
+        run: |
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker.gpg
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
+          apt-get update && apt-get install -y docker-ce-cli
+
+      - name: Restore pnpm cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
+      - name: Setup e2e environment
+        run: |
+          for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break || sleep 1; done
+          docker info >/dev/null 2>&1 || { echo "Docker failed to start"; exit 1; }
+          docker pull debian:bookworm-slim & pid1=$!
+
+          corepack enable
+          (pnpm install --frozen-lockfile --ignore-scripts && pnpm rebuild electron) & pid2=$!
+          (cd e2e && pnpm install --frozen-lockfile && pnpm type-check) & pid3=$!
+
+          wait $pid1 && wait $pid2 && wait $pid3
+
       - uses: actions/download-artifact@v8
         with:
-          name: build
-          path: ${{ github.workspace }}/build/
+          name: teleport-binaries
+          path: ${{ github.workspace }}
 
       - name: Chmod binaries
         run: |
           chmod +x build/teleport
           chmod +x build/tctl
-          chmod +x build/tsh
+          chmod +x build/tsh-e2e-webauthnmock
+          chmod +x e2e/runner/e2e
 
-      - name: Build Images
-        run: |
-          make -C e2e build
-      - name: Run Tests
-        run: |
-          make test-e2e
+      - name: Create Docker config
+        run: mkdir -p ~/.docker && echo '{}' > ~/.docker/config.json
+
+      - name: Run tests
+        run: xvfb-run e2e/runner/e2e --no-build --full
+        env:
+          E2E_CALLER_DIR: ${{ github.workspace }}
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
+
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: e2e/test-results/
+          retention-days: 7
+
+      - name: Upload Teleport logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: teleport-logs
+          path: e2e/teleport-*.log
+          retention-days: 7
+
+      - name: Upload Docker node logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: docker-node-logs
+          path: e2e/docker-node-*.log
+          retention-days: 7
