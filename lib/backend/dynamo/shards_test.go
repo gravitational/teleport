@@ -45,7 +45,7 @@ func TestShardSplitting(t *testing.T) {
 		{
 			name:       "default shard split load",
 			numEvents:  3000,
-			numWriters: 20,
+			numWriters: 200,
 			// 300KB (safe margin below 400KB DynamoDB limit) large object are more offen triggering shard split.
 			payloadSize:  300 * 1024,
 			eventTimeout: time.Minute,
@@ -72,10 +72,11 @@ func TestShardSplitting(t *testing.T) {
 			monitor := newTestShardMonitor(ctx, b, t)
 			go monitor.monitor(ctx)
 
-			tracker := newEventTracker()
-			go tracker.receiveEvents(ctx, t, w)
+			tracker := newEventTracker(t)
+			go tracker.receiveEvents(ctx, w)
 
 			writer := newEventWriter(
+				t,
 				b,
 				tracker,
 				tt.numEvents,
@@ -83,10 +84,10 @@ func TestShardSplitting(t *testing.T) {
 				tt.payloadSize,
 			)
 
-			writer.run(t, ctx)
+			writer.run(ctx)
 
 			// Start monitoring as soon as we start writing.
-			tracker.waitForEvents(ctx, t, tt.numEvents, tt.eventTimeout)
+			tracker.waitForEvents(ctx, tt.numEvents, tt.eventTimeout)
 
 			// Ensure all writers have finished, this may not be the case in a case where unexpected events are
 			// received the the target event count is reached before all writes have completed.
@@ -153,7 +154,7 @@ type testShardCounts struct {
 // testShardMonitor tracks DynamoDB shard topology changes
 type testShardMonitor struct {
 	backend         *Backend
-	lastKnownCounts testShardCounts
+	lastKnownCounts *testShardCounts
 	t               *testing.T
 }
 
@@ -161,6 +162,7 @@ type testShardMonitor struct {
 func newTestShardMonitor(ctx context.Context, b *Backend, t *testing.T) *testShardMonitor {
 	startingCounts, err := fetchShardCounts(ctx, b)
 	require.NoError(t, err)
+	require.NotNil(t, startingCounts)
 	monitor := &testShardMonitor{
 		backend:         b,
 		t:               t,
@@ -178,7 +180,7 @@ func (m *testShardMonitor) monitor(ctx context.Context) {
 		case <-ticker.C:
 			shardCounts, err := fetchShardCounts(ctx, m.backend)
 			if err != nil {
-				m.t.Errorf("Error fetching shard counts: %v", err)
+				m.t.Logf("Error fetching shard counts: %v", err)
 				continue
 			}
 
@@ -204,19 +206,19 @@ func (m *testShardMonitor) monitor(ctx context.Context) {
 }
 
 // fetchShardCounts retrieves the current counts of active, closed, and child shards for the backend's DynamoDB table.
-func fetchShardCounts(ctx context.Context, b *Backend) (testShardCounts, error) {
+func fetchShardCounts(ctx context.Context, b *Backend) (*testShardCounts, error) {
 	status, err := b.svc.DescribeTable(ctx, &dynamodb.DescribeTableInput{
 		TableName: aws.String(b.TableName),
 	})
 	if err != nil {
-		return testShardCounts{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	streamInfo, err := b.streams.DescribeStream(ctx, &dynamodbstreams.DescribeStreamInput{
 		StreamArn: status.Table.LatestStreamArn,
 	})
 	if err != nil {
-		return testShardCounts{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return countShards(streamInfo.StreamDescription.Shards), nil
@@ -224,8 +226,8 @@ func fetchShardCounts(ctx context.Context, b *Backend) (testShardCounts, error) 
 }
 
 // countShards iterates through the list of DynamoDB stream shards and counts how many are active, closed, and child shards.
-func countShards(shards []streamtypes.Shard) testShardCounts {
-	testShardCounts := testShardCounts{}
+func countShards(shards []streamtypes.Shard) *testShardCounts {
+	testShardCounts := &testShardCounts{}
 	for _, shard := range shards {
 		if shard.SequenceNumberRange.EndingSequenceNumber == nil {
 			testShardCounts.active++
@@ -240,6 +242,7 @@ func countShards(shards []streamtypes.Shard) testShardCounts {
 }
 
 type eventTracker struct {
+	t             *testing.T
 	writeMu       sync.Mutex
 	writtenEvents map[string]bool
 
@@ -249,22 +252,22 @@ type eventTracker struct {
 	lastEventTime time.Time
 }
 
-func newEventTracker() *eventTracker {
+func newEventTracker(t *testing.T) *eventTracker {
 	return &eventTracker{
 		writtenEvents:  make(map[string]bool),
 		receivedEvents: make(map[string]int),
 		lastEventTime:  time.Now(),
+		t:              t,
 	}
 }
 
-func (et *eventTracker) receiveEvents(ctx context.Context, t *testing.T, watcher backend.Watcher) {
+func (et *eventTracker) receiveEvents(ctx context.Context, watcher backend.Watcher) {
 	for {
 		select {
 		case event := <-watcher.Events():
 			if event.Type == apitypes.OpPut {
-				et.handleReceivedEvent(t, event)
+				et.handleReceivedEvent(event)
 			}
-
 		case <-ctx.Done():
 			return
 		case <-watcher.Done():
@@ -273,13 +276,13 @@ func (et *eventTracker) receiveEvents(ctx context.Context, t *testing.T, watcher
 	}
 }
 
-func (et *eventTracker) handleReceivedEvent(t *testing.T, event backend.Event) {
+func (et *eventTracker) handleReceivedEvent(event backend.Event) {
 	keyStr := event.Item.Key.String()
 	et.receivedEvents[keyStr]++
 	et.lastEventTime = time.Now()
 }
 
-func (e *eventTracker) waitForEvents(ctx context.Context, t *testing.T, targetCount int, eventTimeout time.Duration) {
+func (e *eventTracker) waitForEvents(ctx context.Context, targetCount int, eventTimeout time.Duration) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
@@ -295,17 +298,17 @@ func (e *eventTracker) waitForEvents(ctx context.Context, t *testing.T, targetCo
 			numWritten := len(e.writtenEvents)
 			e.writeMu.Unlock()
 
-			t.Logf("Received %d/%d (%.1f%%), last event %v ago",
+			e.t.Logf("Received %d/%d (%.1f%%), last event %v ago",
 				currentEventCount, numWritten,
 				float64(currentEventCount)/float64(numWritten)*100,
 				timeSinceLastEvent.Round(time.Second))
 
 			if currentEventCount >= targetCount {
-				t.Logf("Received target of %d events, proceeding with verification", targetCount)
+				e.t.Logf("Received target of %d events, proceeding with verification", targetCount)
 				return
 			}
 			if timeSinceLastEvent > eventTimeout {
-				t.Logf("No events received for %v, stopping wait", eventTimeout)
+				e.t.Logf("No events received for %v, stopping wait", eventTimeout)
 				return
 			}
 
@@ -324,9 +327,11 @@ type eventWriter struct {
 	payloadSize  int
 	seriesPrefix int64
 	wg           sync.WaitGroup
+	t            *testing.T
 }
 
 func newEventWriter(
+	t *testing.T,
 	b *Backend,
 	tracker *eventTracker,
 	numEvents int,
@@ -340,45 +345,35 @@ func newEventWriter(
 		numWriters:   numWriters,
 		payloadSize:  payloadSize,
 		seriesPrefix: time.Now().Unix(),
+		t:            t,
 	}
 }
 
-func (w *eventWriter) run(t *testing.T, ctx context.Context) {
-	t.Logf(
-		"Writing %d events with %d concurrent writers...",
-		w.numEvents,
-		w.numWriters,
-	)
-
+func (w *eventWriter) run(ctx context.Context) {
+	w.t.Logf("Writing %d events with %d concurrent writers...", w.numEvents, w.numWriters)
 	payload := strings.Repeat("A", w.payloadSize)
-
-	var wg sync.WaitGroup
 	eventsPerWriter := w.numEvents / w.numWriters
 
 	for writerID := range w.numWriters {
-		wg.Go(func() {
-			t.Logf("Writer %d started.", writerID)
-			defer t.Logf("Writer %d finished.", writerID)
+		w.wg.Go(func() {
+			w.t.Logf("Writer %d started.", writerID)
+			defer w.t.Logf("Writer %d finished.", writerID)
 			start := writerID * eventsPerWriter
 			end := start + eventsPerWriter
-			w.writeBatch(t, ctx, start, end, payload)
+			w.writeBatch(ctx, start, end, payload)
 		})
 	}
 }
 
-func (w *eventWriter) writeBatch(
-	t *testing.T,
-	ctx context.Context,
-	start, end int,
-	payload string,
-) {
+func (w *eventWriter) writeBatch(ctx context.Context, start, end int, payload string) {
 	for i := start; i < end; i++ {
 		item := backend.Item{
 			Key:   backend.NewKey("shard-split-test", "event", fmt.Sprintf("%d-%d", w.seriesPrefix, i)),
 			Value: []byte(payload),
 		}
 
-		if err := writeWithRetry(ctx, t, w.backend, item); err != nil {
+		if err := w.writeWithRetry(ctx, item); err != nil {
+			w.t.Logf("unexpected write error: %s", err)
 			continue
 		}
 
@@ -388,17 +383,19 @@ func (w *eventWriter) writeBatch(
 	}
 }
 
-func writeWithRetry(ctx context.Context, t *testing.T, b *Backend, item backend.Item) error {
+func (w *eventWriter) writeWithRetry(ctx context.Context, item backend.Item) error {
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
 		First:  1 * time.Second,
 		Driver: retryutils.NewExponentialDriver(2 * time.Second),
 		Max:    60 * time.Second,
 		Jitter: retryutils.HalfJitter,
 	})
-	require.NoError(t, err)
+	if err != nil {
+		panic("unexpected error creating retry strategy (this is a bug): " + err.Error())
+	}
 
 	for {
-		if _, err := b.Put(ctx, item); err != nil {
+		if _, err := w.backend.Put(ctx, item); err != nil {
 			// Log the error if it's not a throughput exceeded error,
 			// which is expected for this test as we are forcing high load to trigger shard splits.
 			var throttled *types.ThrottlingException
@@ -414,8 +411,7 @@ func writeWithRetry(ctx context.Context, t *testing.T, b *Backend, item backend.
 				continue
 			}
 
-			// No other write errors are expected
-			require.NoError(t, err)
+			return trace.Wrap(err, "failed to write item %q", item.Key.String())
 		}
 
 		return nil
