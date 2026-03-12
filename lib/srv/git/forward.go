@@ -267,8 +267,8 @@ func (s *ForwardServer) Serve() {
 		sshutils.NewChanHandlerFunc(s.onChannel),
 		sshutils.StaticHostSigners(s.cfg.HostCertificate),
 		sshutils.AuthMethods{
-			PublicKey:         s.publicKeyCallback,
-			VerifiedPublicKey: s.verifiedPublicKeyCallback,
+			PublicKey:         s.userKeyAuth,
+			VerifiedPublicKey: s.auth.VerifiedPublicKeyCallback,
 		},
 		sshutils.SetFIPS(s.cfg.FIPS),
 		sshutils.SetCiphers(s.cfg.Ciphers),
@@ -296,7 +296,7 @@ func (s *ForwardServer) close() {
 	}
 }
 
-func checkAndSetGitUser(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.ConnMetadata, error) {
+func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		return nil, trace.BadParameter("unsupported key type")
@@ -320,46 +320,19 @@ func checkAndSetGitUser(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.ConnMetad
 		conn = sshutils.NewSSHConnMetadataWithUser(conn, ident.Principals[0])
 	}
 
-	return conn, nil
-}
-
-func (s *ForwardServer) publicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-	conn, err := checkAndSetGitUser(conn, key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	// Use auth.UserKeyAuth to verify user cert is signed by UserCA and to evaluate
+	// RBAC permissions.
 	permissions, err := s.auth.PublicKeyCallback(conn, key)
 	if err != nil {
 		userKeyAuthFailureCounter.Inc()
 		return nil, trace.Wrap(err)
 	}
 
-	return permissions, nil
-}
-
-func (s *ForwardServer) verifiedPublicKeyCallback(
-	conn ssh.ConnMetadata,
-	key ssh.PublicKey,
-	perms *ssh.Permissions,
-	signatureAlgorithm string,
-) (*ssh.Permissions, error) {
-	conn, err := checkAndSetGitUser(conn, key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	perms, err = s.auth.VerifiedPublicKeyCallback(conn, key, perms, signatureAlgorithm)
-	if err != nil {
-		userKeyAuthFailureCounter.Inc()
-		return nil, trace.Wrap(err)
-	}
-
-	if _, ok := perms.Extensions[utils.ExtIntGitForwardingPermit]; !ok {
+	if _, ok := permissions.Extensions[utils.ExtIntGitForwardingPermit]; !ok {
 		return nil, trace.Errorf("missing git forwarding permit (this is a bug)")
 	}
 
-	return perms, nil
+	return permissions, nil
 }
 
 // onRBACFailure is a callback invoked by the auth handler when auth fails specifically due to an RBAC
