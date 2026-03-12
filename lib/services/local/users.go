@@ -537,7 +537,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 			return trace.Wrap(err)
 		}
 
-		if !services.UsersEquals(existingWithoutSecrets, currentWithoutSecrets) {
+		if !existingWithoutSecrets.IsEqual(currentWithoutSecrets) {
 			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
 		}
 

@@ -118,16 +118,16 @@ func runUserResourceTest(
 	require.NoError(t, err)
 	b, err := s.GetUser(ctx, "bob", withSecrets)
 	require.NoError(t, err)
-	require.True(t, services.UsersEquals(bob, b), "dynamically inserted user does not match")
+	require.True(t, bob.IsEqual(b), "dynamically inserted user does not match")
 	allUsers, err := s.GetUsers(ctx, withSecrets)
 	require.NoError(t, err)
 	require.Len(t, allUsers, 2, "expected exactly two users")
 	for _, user := range allUsers {
 		switch user.GetName() {
 		case "alice":
-			require.True(t, services.UsersEquals(alice, user), "alice does not match")
+			require.True(t, alice.IsEqual(user), "alice does not match")
 		case "bob":
-			require.True(t, services.UsersEquals(bob, user), "bob does not match")
+			require.True(t, bob.IsEqual(user), "bob does not match")
 		default:
 			t.Errorf("Unexpected user %q", user.GetName())
 		}
