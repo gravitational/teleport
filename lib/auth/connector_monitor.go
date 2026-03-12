@@ -30,12 +30,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
-	// samlCertCheckCycle is the frequency for the SAML cert expiry check to run.
-	samlCertCheckCycle = 24 * time.Hour
+	// samlCertCheckInterval is the frequency for the SAML cert expiry check to run.
+	samlCertCheckInterval = 24 * time.Hour
 	// samlCertExpiryTimeframe is the duration before expiry at which a SAML cert
 	// is considered to be 'expiring'. Somewhat arbitrarily set to 90 days.
 	// TODO(nixpig): Make timeframe configurable in future.
@@ -45,7 +46,15 @@ const (
 	// samlCertExpiryAlertExpires is the expiration time for the alert.
 	// It's set to 2x the check cycle so any stale alerts will clear automatically without
 	// affecting valid alerts.
-	samlCertExpiryAlertExpires = samlCertCheckCycle * 2
+	samlCertExpiryAlertExpires = samlCertCheckInterval * 2
+	// samlCertMonitorLockTTL is the duration after which the backend lock will be released.
+	samlCertMonitorLockTTL = time.Minute
+	// samlCertMonitorLockRetryInterval is the interval between failing to acquire a backend
+	// lock and trying again.
+	samlCertMonitorLockRetryInterval = 20 * time.Second
+	// samlCertMonitorLockRefreshInterval is the interval at which the backend lock will be
+	// refreshed while the monitor is still running.
+	samlCertMonitorLockRefreshInterval = 20 * time.Second
 )
 
 type SAMLCertExpiryMonitorConfig struct {
@@ -54,6 +63,7 @@ type SAMLCertExpiryMonitorConfig struct {
 	Events     types.Events
 	Clock      clockwork.Clock
 	Logger     *slog.Logger
+	Backend    backend.Backend
 }
 
 // SAMLCertExpiryMonitor watches for changes to SAML connectors and raises a cluster
@@ -74,6 +84,8 @@ func NewSAMLCertExpiryMonitor(cfg SAMLCertExpiryMonitorConfig) (*SAMLCertExpiryM
 		return nil, trace.BadParameter("Events is required")
 	case cfg.Clock == nil:
 		return nil, trace.BadParameter("Clock is required")
+	case cfg.Backend == nil:
+		return nil, trace.BadParameter("Backend is required")
 	}
 
 	if cfg.Logger == nil {
@@ -83,9 +95,25 @@ func NewSAMLCertExpiryMonitor(cfg SAMLCertExpiryMonitorConfig) (*SAMLCertExpiryM
 	return &SAMLCertExpiryMonitor{cfg}, nil
 }
 
-// Run performs an initial SAML cert expiry alert reconciliation, then starts the watch loop that
+// RunWhileLocked acquires a backend lock for the SAML cert expiry monitor and runs the
+// monitor loop while the lock is held.
+func (m *SAMLCertExpiryMonitor) RunWhileLocked(ctx context.Context) error {
+	runWhileLockedConfig := backend.RunWhileLockedConfig{
+		LockConfiguration: backend.LockConfiguration{
+			Backend:            m.Backend,
+			LockNameComponents: []string{"saml-cert-expiry-monitor"},
+			TTL:                samlCertMonitorLockTTL,
+			RetryInterval:      samlCertMonitorLockRetryInterval,
+		},
+		RefreshLockInterval: samlCertMonitorLockRefreshInterval,
+	}
+
+	return trace.Wrap(backend.RunWhileLocked(ctx, runWhileLockedConfig, m.run))
+}
+
+// run performs an initial SAML cert expiry alert reconciliation, then starts the watch loop that
 // reconciles the SAML cert expiry alert periodically, and on every put or delete of SAML connector.
-func (m *SAMLCertExpiryMonitor) Run(ctx context.Context) error {
+func (m *SAMLCertExpiryMonitor) run(ctx context.Context) error {
 	shouldRetryAfterJitterFn := func() bool {
 		select {
 		case <-time.After(retryutils.SeventhJitter(5 * time.Second)):
@@ -99,7 +127,7 @@ func (m *SAMLCertExpiryMonitor) Run(ctx context.Context) error {
 		m.Logger.ErrorContext(ctx, "Failed initial reconciliation of SAML cert expiry alert", "error", err)
 	}
 
-	ticker := m.Clock.NewTicker(samlCertCheckCycle)
+	ticker := m.Clock.NewTicker(samlCertCheckInterval)
 	defer ticker.Stop()
 
 	for {

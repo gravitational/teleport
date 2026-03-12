@@ -71,13 +71,14 @@ func TestSAMLCertExpiryMonitor(t *testing.T) {
 		Events:     srv.Auth().Services,
 		Clock:      srv.Clock(),
 		Logger:     slog.New(slog.DiscardHandler),
+		Backend:    srv.AuthServer.Backend,
 	})
 	require.NoError(t, err)
 
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		monitor.Run(ctx)
+		monitor.RunWhileLocked(ctx)
 	}()
 	t.Cleanup(func() {
 		cancel()

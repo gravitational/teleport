@@ -2943,6 +2943,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Alerts:     authServer.Services,
 		Events:     authServer.Services,
 		Clock:      process.Clock,
+		Backend:    process.backend,
 		Logger: logger.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, "saml-cert-expiry-monitor"),
 		),
@@ -2951,7 +2952,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	process.RegisterFunc("auth.saml.cert-expiry-monitor", func() error {
-		return trace.Wrap(samlCertExpiryMonitor.Run(process.GracefulExitContext()))
+		return trace.Wrap(samlCertExpiryMonitor.RunWhileLocked(process.GracefulExitContext()))
 	})
 
 	expiry, err := expiry.New(&expiry.Config{
