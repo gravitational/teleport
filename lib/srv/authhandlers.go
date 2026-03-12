@@ -414,16 +414,14 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 		return perms, nil
 	}
 
-	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
-
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
-		return nil, trace.BadParameter("unsupported key type: %v", fingerprint)
+		return nil, trace.BadParameter("unsupported key type: %v %v", key.Type(), sshutils.Fingerprint(key))
 	}
 
 	ident, err := sshca.DecodeIdentity(cert)
 	if err != nil {
-		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v", fingerprint)
+		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v %v", key.Type(), sshutils.Fingerprint(key))
 	}
 
 	// Proceed to keyboard-interactive auth to ensure all preconditions are met.
