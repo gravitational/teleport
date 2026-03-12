@@ -151,7 +151,5 @@ func newRDPClientID(id string) rdpClientID {
 	}
 
 	// Fall back to taking a hash of the rdpClientID
-	hash := [16]byte{}
-	copy(hash[:], md5.New().Sum([]byte(id)))
-	return rdpClientID(hash)
+	return md5.Sum([]byte(id))
 }
