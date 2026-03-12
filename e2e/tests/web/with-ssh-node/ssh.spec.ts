@@ -27,5 +27,5 @@ test('verify that a user can SSH into a node', async ({
 
   await terminal.waitForReady();
   await terminal.exec('ls /');
-  await terminal.expectSnapshot('ls-output.png');
+  await terminal.waitForText('bin');
 });

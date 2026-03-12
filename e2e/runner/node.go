@@ -23,47 +23,27 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/docker/go-sdk/container"
-	"github.com/docker/go-sdk/image"
 	apicontainer "github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
 )
 
 type dockerNode struct {
-	config         *e2eConfig
-	imageName      string
-	containerName  string
-	configPath     string
-	dockerfilePath string
+	config        *e2eConfig
+	imageName     string
+	containerName string
+	configPath    string
+	teleportBin   string
 
 	ctr *container.Container
 }
 
 func (d *dockerNode) start(ctx context.Context) error {
-	if err := d.buildImage(ctx); err != nil {
-		return err
-	}
-
 	return d.runContainer(ctx)
-}
-
-func (d *dockerNode) buildImage(ctx context.Context) error {
-	slog.Info("building docker SSH node", "version", d.config.nodeTeleportVersion)
-
-	if _, err := image.BuildFromDir(ctx, filepath.Dir(d.dockerfilePath), filepath.Base(d.dockerfilePath), d.imageName,
-		image.WithBuildOptions(client.ImageBuildOptions{
-			BuildArgs: map[string]*string{"TELEPORT_VERSION": &d.config.nodeTeleportVersion},
-		}),
-	); err != nil {
-		return fmt.Errorf("building docker image: %w", err)
-	}
-
-	return nil
 }
 
 func (d *dockerNode) removeStale(ctx context.Context) {
@@ -83,13 +63,22 @@ func (d *dockerNode) runContainer(ctx context.Context) error {
 
 	ctr, err := container.Run(ctx,
 		container.WithImage(d.imageName),
+		container.WithImagePlatform("linux/amd64"),
 		container.WithName(d.containerName),
+		container.WithEntrypoint("teleport", "start", "--insecure", "-c", "/etc/teleport/node.yaml"),
 		container.WithExposedPorts(fmt.Sprintf("%d/tcp", d.config.sshPort)),
-		container.WithFiles(container.File{
-			HostPath:      d.configPath,
-			ContainerPath: "/etc/teleport/node.yaml",
-			Mode:          0o644,
-		}),
+		container.WithFiles(
+			container.File{
+				HostPath:      d.teleportBin,
+				ContainerPath: "/usr/local/bin/teleport",
+				Mode:          0o755,
+			},
+			container.File{
+				HostPath:      d.configPath,
+				ContainerPath: "/etc/teleport/node.yaml",
+				Mode:          0o644,
+			},
+		),
 		container.WithHostConfigModifier(func(hc *apicontainer.HostConfig) {
 			hc.ExtraHosts = []string{"host.docker.internal:host-gateway"}
 			hc.PortBindings = network.PortMap{

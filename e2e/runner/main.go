@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -67,7 +68,6 @@ type e2eConfig struct {
 	e2eDir   string
 	certsDir string
 
-	nodeTeleportVersion    string
 	nodeConfigTemplate     string
 	teleportConfigTemplate string
 	stateTemplate          string
@@ -107,7 +107,6 @@ func run() error {
 		stateTemplate:          filepath.Join(e2eDir, "config", "state.yaml.tmpl"),
 		teleportConfigTemplate: filepath.Join(e2eDir, "config", "teleport.yaml.tmpl"),
 		nodeConfigTemplate:     filepath.Join(e2eDir, "node", "node.yaml.tmpl"),
-		nodeTeleportVersion:    envOrDefault("TELEPORT_NODE_VERSION", "18"),
 		connectAppDir:          filepath.Join(filepath.Dir(e2eDir), "web", "packages", "teleterm"),
 		connectTshBinPath:      filepath.Join(filepath.Dir(e2eDir), "build", "tsh-e2e-webauthnmock"),
 	}
@@ -213,7 +212,7 @@ func run() error {
 		}
 
 		if sshNode.enabled {
-			slog.Info("running with SSH node fixture enabled", "node_version", config.nodeTeleportVersion)
+			slog.Info("running with SSH node fixture enabled")
 
 			nodeConfig, err := generateTeleportNodeConfig(config.nodeConfigTemplate, config)
 			if err != nil {
@@ -222,13 +221,21 @@ func run() error {
 
 			slog.Debug("generated Teleport node config", "path", nodeConfig)
 
+			nodeBin := config.teleportBin
+			if runtime.GOOS != "linux" {
+				buildDir := config.repoRoot
+				if config.teleportBin == filepath.Join(config.repoRoot, "e", "build", "teleport") {
+					buildDir = filepath.Join(config.repoRoot, "e")
+				}
+				nodeBin = filepath.Join(buildDir, "build", "teleport-node")
+			}
+
 			node := &dockerNode{
-				config:         config,
-				imageName:      "teleport-e2e-node",
-				containerName:  "teleport-e2e-node",
-				configPath:     nodeConfig,
-				dockerfilePath: filepath.Join(config.e2eDir, "node", "Dockerfile"),
-				ctr:            nil,
+				config:        config,
+				imageName:     "debian:bookworm-slim",
+				containerName: "teleport-e2e-node",
+				configPath:    nodeConfig,
+				teleportBin:   nodeBin,
 			}
 
 			if err := node.start(ctx); err != nil {

@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -63,6 +64,38 @@ func build(ctx context.Context, config *e2eConfig) error {
 		} else {
 			slog.Info("tctl binary overridden, skipping build", "path", config.tctlBin)
 		}
+	}
+
+	if sshNode.enabled && !config.noBuild && runtime.GOOS != "linux" {
+		g.Go(func() error {
+			buildDir := config.repoRoot
+			if config.teleportBin == filepath.Join(config.repoRoot, "e", "build", "teleport") {
+				buildDir = filepath.Join(config.repoRoot, "e")
+			}
+
+			slog.Info("cross-compiling teleport for linux (docker node)", "dir", buildDir)
+
+			output := filepath.Join(buildDir, "build", "teleport-node")
+			cmd := exec.CommandContext(ctx, "go", "build",
+				"-o", output,
+				"-buildvcs=false",
+				"./tool/teleport",
+			)
+			cmd.Dir = buildDir
+			env := append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=1")
+			if os.Getenv("CC") == "" {
+				env = append(env, "CC=x86_64-unknown-linux-gnu-gcc")
+			}
+			cmd.Env = env
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("cross-compiling teleport for docker node: %w", err)
+			}
+
+			return nil
+		})
 	}
 
 	if !config.isCI {
