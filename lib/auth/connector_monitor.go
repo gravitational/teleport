@@ -114,7 +114,7 @@ func (m *SAMLCertExpiryMonitor) Run(ctx context.Context) error {
 
 	for {
 		if err := m.runWatchLoop(ctx, ticker); err != nil {
-			m.logger.ErrorContext(ctx, "SAML connector watcher error, retrying", "error", err)
+			m.logger.ErrorContext(ctx, "SAML connector watcher exited unexpectedly, retrying", "error", err)
 			if !shouldRetryAfterJitterFn() {
 				return nil
 			}
@@ -125,7 +125,8 @@ func (m *SAMLCertExpiryMonitor) Run(ctx context.Context) error {
 }
 
 // runWatchLoop creates a watcher for SAML connector events and reconciles the expiry alert on each
-// put or delete event, and on each tick of the provided ticker.
+// put or delete event, and on each tick of the provided ticker. An error is returned if the watcher
+// fails to create or unexpectedly closes.
 func (m *SAMLCertExpiryMonitor) runWatchLoop(ctx context.Context, ticker *time.Ticker) error {
 	watch, err := m.events.NewWatcher(ctx, types.Watch{
 		Name:  "saml_cert_expiry_watcher",
@@ -153,7 +154,7 @@ func (m *SAMLCertExpiryMonitor) runWatchLoop(ctx context.Context, ticker *time.T
 			if err := watch.Error(); err != nil {
 				return trace.Wrap(err)
 			}
-			return nil
+			return trace.Errorf("watcher closed unexpectedly")
 		case <-ctx.Done():
 			return nil
 		}
