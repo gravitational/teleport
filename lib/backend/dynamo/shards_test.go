@@ -386,11 +386,12 @@ func (w *eventWriter) writeBatch(ctx context.Context, start, end int, payload st
 }
 
 func (w *eventWriter) writeWithRetry(ctx context.Context, item backend.Item) error {
-	// This backoff is intentionally aggressive to increase the likelihood of triggering shard splits under test conditions
+	// The retry backoff is only used for non throttling errors.
+	// For throttling errors we want to retry as fast as possible to trigger shard splits faster.
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		First:  10 * time.Millisecond,
-		Driver: retryutils.NewExponentialDriver(20 * time.Millisecond),
-		Max:    2 * time.Second,
+		First:  1 * time.Second,
+		Driver: retryutils.NewExponentialDriver(500 * time.Millisecond),
+		Max:    10 * time.Second,
 		Jitter: retryutils.HalfJitter,
 	})
 	if err != nil {
@@ -398,35 +399,31 @@ func (w *eventWriter) writeWithRetry(ctx context.Context, item backend.Item) err
 	}
 
 	// Max retry for non throttled errors.
-	const maxOtherRetries = 5
-	otherRetries := 0
+	const maxRetry = 5
+	retryCount := 0
 
-	for {
+	for retryCount < maxRetry {
 		if _, err := w.backend.Put(ctx, item); err != nil {
-			// Log the error if it's not a throughput exceeded error,
-			// which is expected for this test as we are forcing high load to trigger shard splits.
 			var throttled *types.ThrottlingException
-			isThrottled := errors.As(err, &throttled)
-
-			if !isThrottled {
-				if otherRetries >= maxOtherRetries {
-					return trace.Wrap(err, "failed to write item %q after %d retries", item.Key.String(), maxOtherRetries)
-				}
-				w.t.Logf("unexpected write error: %s, retrying...", trace.DebugReport(err))
-				otherRetries++
-				select {
-				case <-ctx.Done():
-					return nil
-				case <-time.After(retry.Duration()):
-				}
-				retry.Inc()
+			if errors.As(err, &throttled) {
+				continue
 			}
 
-			continue
+			w.t.Logf("unexpected write error: %s, retrying...", trace.DebugReport(err))
+			retryCount++
+
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(retry.Duration()):
+			}
+			retry.Inc()
 		}
 
 		return nil
 	}
+
+	return trace.Errorf("failed to write item %q after %d retries", item.Key.String(), maxRetry)
 }
 
 func diffKeys[K comparable, V1 any, V2 any](a map[K]V1, b map[K]V2) (onlyInA, onlyInB []K) {
