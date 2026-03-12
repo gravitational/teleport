@@ -34,12 +34,10 @@ import (
 // Summarizer is a service that provides methods to manage summary inference
 // configuration resources in the backend.
 type Summarizer interface {
+	SummarizerServiceGetter
 	// CreateInferenceModel creates a new session summary inference model in the
 	// backend.
 	CreateInferenceModel(ctx context.Context, model *summarizerv1.InferenceModel) (*summarizerv1.InferenceModel, error)
-	// GetInferenceModel retrieves a session summary inference model from the
-	// backend by name.
-	GetInferenceModel(ctx context.Context, name string) (*summarizerv1.InferenceModel, error)
 	// UpdateInferenceModel updates an existing session summary inference model
 	// in the backend.
 	UpdateInferenceModel(ctx context.Context, model *summarizerv1.InferenceModel) (*summarizerv1.InferenceModel, error)
@@ -49,18 +47,11 @@ type Summarizer interface {
 	// DeleteInferenceModel deletes a session summary inference model from the
 	// backend by name.
 	DeleteInferenceModel(ctx context.Context, name string) error
-	// ListInferenceModels lists session summary inference models in the backend
-	// with pagination support. Returns a slice of models and a next page token.
-	ListInferenceModels(ctx context.Context, size int, pageToken string) ([]*summarizerv1.InferenceModel, string, error)
 
 	// CreateInferenceSecret creates a new session summary inference secret in
 	// the backend. The returned object contains the secret value and should be
 	// handled with care.
 	CreateInferenceSecret(ctx context.Context, secret *summarizerv1.InferenceSecret) (*summarizerv1.InferenceSecret, error)
-	// GetInferenceSecret retrieves a session summary inference secret from the
-	// backend by name. The returned object contains the secret value and should
-	// be handled with care.
-	GetInferenceSecret(ctx context.Context, name string) (*summarizerv1.InferenceSecret, error)
 	// UpdateInferenceSecret updates an existing session summary inference secret
 	// in the backend. The returned object contains the secret value and should
 	// be handled with care.
@@ -73,18 +64,10 @@ type Summarizer interface {
 	// DeleteInferenceSecret deletes a session summary inference secret from the
 	// backend by name.
 	DeleteInferenceSecret(ctx context.Context, name string) error
-	// ListInferenceSecrets lists session summary inference secrets in the
-	// backend with pagination support. Returns a slice of secrets and a next
-	// page token. The returned objects contain the secret values and should be
-	// handled with care.
-	ListInferenceSecrets(ctx context.Context, size int, pageToken string) ([]*summarizerv1.InferenceSecret, string, error)
 
 	// CreateInferencePolicy creates a new session summary inference policy in
 	// the backend.
 	CreateInferencePolicy(ctx context.Context, policy *summarizerv1.InferencePolicy) (*summarizerv1.InferencePolicy, error)
-	// GetInferencePolicy retrieves a session summary inference policy from the
-	// backend by name.
-	GetInferencePolicy(ctx context.Context, name string) (*summarizerv1.InferencePolicy, error)
 	// UpdateInferencePolicy updates an existing session summary inference policy
 	// in the backend.
 	UpdateInferencePolicy(ctx context.Context, policy *summarizerv1.InferencePolicy) (*summarizerv1.InferencePolicy, error)
@@ -94,20 +77,10 @@ type Summarizer interface {
 	// DeleteInferencePolicy deletes a session summary inference policy from the
 	// backend by name.
 	DeleteInferencePolicy(ctx context.Context, name string) error
-	// ListInferencePolicies lists session summary inference policies in the
-	// backend with pagination support. Returns a slice of policies and a next
-	// page token.
-	ListInferencePolicies(ctx context.Context, size int, pageToken string) ([]*summarizerv1.InferencePolicy, string, error)
-	// AllInferencePolicies returns an iterator that retrieves all session
-	// summary inference policies from the backend, without pagination.
-	AllInferencePolicies(ctx context.Context) iter.Seq2[*summarizerv1.InferencePolicy, error]
 
 	// CreateRetrievalModel creates the search model in the backend.
 	// Only one RetrievalModel can exist per cluster.
 	CreateRetrievalModel(ctx context.Context, model *summarizerv1.RetrievalModel) (*summarizerv1.RetrievalModel, error)
-	// GetRetrievalModel retrieves the search model from the backend.
-	// Since only one RetrievalModel can exist per cluster, no name is required.
-	GetRetrievalModel(ctx context.Context) (*summarizerv1.RetrievalModel, error)
 	// UpdateRetrievalModel updates the existing search model in the backend.
 	UpdateRetrievalModel(ctx context.Context, model *summarizerv1.RetrievalModel) (*summarizerv1.RetrievalModel, error)
 	// UpsertRetrievalModel creates or updates the search model in the backend.
@@ -116,6 +89,42 @@ type Summarizer interface {
 	// DeleteRetrievalModel deletes the search model from the backend.
 	// Since only one RetrievalModel can exist per cluster, no name is required.
 	DeleteRetrievalModel(ctx context.Context) error
+}
+
+// SummarizerServiceGetter is the interface that defines the methods required for
+// retrieving objects from the cache.
+type SummarizerServiceGetter interface {
+	// GetInferenceModel retrieves a session summary inference model from the
+	// backend by name.
+	GetInferenceModel(ctx context.Context, name string) (*summarizerv1.InferenceModel, error)
+	// ListInferenceModels lists session summary inference models in the backend
+	// with pagination support. Returns a slice of models and a next page token.
+	ListInferenceModels(ctx context.Context, size int, pageToken string) ([]*summarizerv1.InferenceModel, string, error)
+
+	// GetInferenceSecret retrieves a session summary inference secret from the
+	// backend by name. The returned object contains the secret value and should
+	// be handled with care.
+	GetInferenceSecret(ctx context.Context, name string) (*summarizerv1.InferenceSecret, error)
+	// ListInferenceSecrets lists session summary inference secrets in the
+	// backend with pagination support. Returns a slice of secrets and a next
+	// page token. The returned objects contain the secret values and should be
+	// handled with care.
+	ListInferenceSecrets(ctx context.Context, size int, pageToken string) ([]*summarizerv1.InferenceSecret, string, error)
+
+	// GetInferencePolicy retrieves a session summary inference policy from the
+	// backend by name.
+	GetInferencePolicy(ctx context.Context, name string) (*summarizerv1.InferencePolicy, error)
+	// ListInferencePolicies lists session summary inference policies in the
+	// backend with pagination support. Returns a slice of policies and a next
+	// page token.
+	ListInferencePolicies(ctx context.Context, size int, pageToken string) ([]*summarizerv1.InferencePolicy, string, error)
+	// AllInferencePolicies returns an iterator that retrieves all session
+	// summary inference policies from the backend, without pagination.
+	AllInferencePolicies(ctx context.Context) iter.Seq2[*summarizerv1.InferencePolicy, error]
+
+	// GetRetrievalModel retrieves the search model from the backend.
+	// Since only one RetrievalModel can exist per cluster, no name is required.
+	GetRetrievalModel(ctx context.Context) (*summarizerv1.RetrievalModel, error)
 }
 
 // InferencePolicyMatchingContext is a special kind of [RuleContext] that is

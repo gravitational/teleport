@@ -38,6 +38,7 @@ import "teleport/recordingencryption/v1/recording_encryption.proto";
 import "teleport/scopes/access/v1/assignment.proto";
 import "teleport/scopes/access/v1/role.proto";
 import "teleport/secreports/v1/secreports.proto";
+import "teleport/summarizer/v1/summarizer.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
 import "teleport/usertasks/v1/user_tasks.proto";
@@ -243,5 +244,13 @@ message Event {
     teleport.linuxdesktop.v1.LinuxDesktop LinuxDesktop = 87;
     // WorkloadCluster is a resource for defining workload clusters.
     teleport.workloadcluster.v1.WorkloadCluster WorkloadCluster = 88;
+    // InferenceModel is a resource for defining inference models.
+    teleport.summarizer.v1.InferenceModel InferenceModel = 89;
+    // InferenceSecret is a resource for defining inference secrets.
+    teleport.summarizer.v1.InferenceSecret InferenceSecret = 90;
+    // InferencePolicy is a resource for defining inference policies.
+    teleport.summarizer.v1.InferencePolicy InferencePolicy = 91;
+    // RetrievalModel is a resource for defining retrieval models.
+    teleport.summarizer.v1.RetrievalModel RetrievalModel = 92;
   }
 }
