@@ -378,62 +378,6 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 // If the certificate is valid and authorized, this callback returns permissions that will be passed through to
 // VerifiedPublicKeyCallback. If the certificate is invalid or unauthorized, it returns a non-nil error.
 func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-	permissions, err := h.checkUserPublicKey(conn, key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return permissions, nil
-}
-
-// VerifiedPublicKeyCallback performs post-verification auth steering for an already-authorized key.
-//
-// This method is intended to be used as the VerifiedPublicKeyCallback in ssh.ServerConfig after the client proves key
-// possession. Key acceptance decisions are performed in PublicKeyCallback.
-func (h *AuthHandlers) VerifiedPublicKeyCallback(
-	_ ssh.ConnMetadata,
-	key ssh.PublicKey,
-	perms *ssh.Permissions,
-	_ string,
-) (*ssh.Permissions, error) {
-	// Access preconditions are only set in the SSH access permit. For all other permit types, it is expected for this
-	// entry to be unset, so return the input permissions to grant access.
-	rawPermit, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]
-	if !ok {
-		return perms, nil
-	}
-
-	permit := &decisionpb.SSHAccessPermit{}
-	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(rawPermit), permit); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// If there are no preconditions, it means no additional checks are required for access, so return the input
-	// permissions to grant access.
-	if len(permit.GetPreconditions()) == 0 {
-		return perms, nil
-	}
-
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("unsupported key type: %v %v", key.Type(), sshutils.Fingerprint(key))
-	}
-
-	ident, err := sshca.DecodeIdentity(cert)
-	if err != nil {
-		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v %v", key.Type(), sshutils.Fingerprint(key))
-	}
-
-	// Proceed to keyboard-interactive auth to ensure all preconditions are met.
-	return h.KeyboardInteractiveAuth(
-		context.Background(),
-		permit.GetPreconditions(),
-		ident,
-		perms,
-	)
-}
-
-func (h *AuthHandlers) checkUserPublicKey(conn ssh.ConnMetadata, key ssh.PublicKey) (ppms *ssh.Permissions, rerr error) {
 	ctx := context.Background()
 
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
@@ -768,6 +712,53 @@ func (h *AuthHandlers) checkUserPublicKey(conn ssh.ConnMetadata, key ssh.PublicK
 	return outputPermissions, nil
 }
 
+// VerifiedPublicKeyCallback performs post-verification auth steering for an already-authorized key.
+//
+// This method is intended to be used as the VerifiedPublicKeyCallback in ssh.ServerConfig after the client proves key
+// possession. Key acceptance decisions are performed in PublicKeyCallback.
+func (h *AuthHandlers) VerifiedPublicKeyCallback(
+	_ ssh.ConnMetadata,
+	key ssh.PublicKey,
+	perms *ssh.Permissions,
+	_ string,
+) (*ssh.Permissions, error) {
+	// Access preconditions are only set in the SSH access permit. For all other permit types, it is expected for this
+	// entry to be unset, so return the input permissions to grant access.
+	rawPermit, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]
+	if !ok {
+		return perms, nil
+	}
+
+	permit := &decisionpb.SSHAccessPermit{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(rawPermit), permit); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If there are no preconditions, it means no additional checks are required for access, so return the input
+	// permissions to grant access.
+	if len(permit.GetPreconditions()) == 0 {
+		return perms, nil
+	}
+
+	cert, ok := key.(*ssh.Certificate)
+	if !ok {
+		return nil, trace.BadParameter("unsupported key type: %v %v", key.Type(), sshutils.Fingerprint(key))
+	}
+
+	ident, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v %v", key.Type(), sshutils.Fingerprint(key))
+	}
+
+	// Proceed to keyboard-interactive auth to ensure all preconditions are met.
+	return h.KeyboardInteractiveAuth(
+		context.Background(),
+		permit.GetPreconditions(),
+		ident,
+		perms,
+	)
+}
+
 func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
 	if connectionDiagnosticID == "" {
 		return nil
@@ -956,7 +947,7 @@ func (a *ahLoginChecker) evaluateGitForwarding(ident *sshca.Identity, ca types.C
 	ctx := a.c.Server.Context()
 
 	if clusterName != ca.GetClusterName() {
-		// we don't currently support cross-cluster git forwarding (see comments in checkUserPublicKey for details).
+		// we don't currently support cross-cluster git forwarding (see comments in PublicKeyCallback for details).
 		return nil, trace.BadParameter("evaluateGitForwarding called with non-local identity (this is a bug)")
 	}
 
