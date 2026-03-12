@@ -184,15 +184,14 @@ function ClusterLoginForm({
           disableVersionCheck={disableVersionCheck}
           platform={platform}
           clusterGetter={clusterGetter}
-            checkForAppUpdates={checkForAppUpdates}
-            changeAppUpdatesManagingCluster={changeAppUpdatesManagingCluster}
-            appUpdateEvent={appUpdateEvent}
-            cancelAppUpdateDownload={cancelAppUpdateDownload}
-            downloadAppUpdate={downloadAppUpdate}
-            quitAndInstallAppUpdate={quitAndInstallAppUpdate}
-            switchToAppUpdateDetails={next}
-          />
-
+          checkForAppUpdates={checkForAppUpdates}
+          changeAppUpdatesManagingCluster={changeAppUpdatesManagingCluster}
+          appUpdateEvent={appUpdateEvent}
+          cancelAppUpdateDownload={cancelAppUpdateDownload}
+          downloadAppUpdate={downloadAppUpdate}
+          quitAndInstallAppUpdate={quitAndInstallAppUpdate}
+          switchToAppUpdateDetails={next}
+        />
       </DialogContent>
     </Flex>
   );
