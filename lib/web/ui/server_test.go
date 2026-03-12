@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func TestStripProtocolAndPort(t *testing.T) {
@@ -409,7 +410,7 @@ func TestMakeServersHiddenLabels(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for i, srv := range tc.servers {
-				server := MakeServer(tc.clusterName, srv, nil, nil, false, nil)
+				server := MakeServer(tc.clusterName, srv, nil, false, nil)
 				assert.Equal(t, tc.expectedLabels[i], server.Labels)
 			}
 		})
@@ -587,7 +588,7 @@ func TestSortedLabels(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for i, srv := range tc.servers {
-				server := MakeServer(tc.clusterName, srv, nil, nil, false, nil)
+				server := MakeServer(tc.clusterName, srv, nil, false, nil)
 				assert.Equal(t, tc.expectedLabels[i], server.Labels)
 			}
 		})
@@ -603,13 +604,13 @@ func TestMakeServer_SSHLoginsGrantedVsRequestable(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	allLogins := []string{"root", "ubuntu", "admin"}
-	grantedLogins := []string{"ubuntu"}
+	allLogins := set.New("root", "ubuntu", "admin")
+	grantedLogins := set.New("ubuntu")
 
-	server := MakeServer("cluster", srv, allLogins, grantedLogins, false, nil)
+	server := MakeServer("cluster", srv, &PrincipalSet{All: allLogins, Granted: grantedLogins}, false, nil)
 
-	// SSHLogins should still be the plain string list for backwards compatibility.
-	require.Equal(t, allLogins, server.SSHLogins)
+	// SSHLogins should still contain all logins for backwards compatibility.
+	require.ElementsMatch(t, []string{"root", "ubuntu", "admin"}, server.SSHLogins)
 
 	// SSHLoginDetails should contain per-login metadata.
 	require.Len(t, server.SSHLoginDetails, 3)
@@ -635,13 +636,13 @@ func TestMakeServer_SupportedFeatureIDs(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("nil features yields empty SupportedFeatureIDs", func(t *testing.T) {
-		server := MakeServer("cluster", srv, nil, nil, false, nil)
+		server := MakeServer("cluster", srv, nil, false, nil)
 		require.Empty(t, server.SupportedFeatureIDs)
 	})
 
 	t.Run("features are converted to SupportedFeatureIDs", func(t *testing.T) {
 		features := componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1)
-		server := MakeServer("cluster", srv, nil, nil, false, features)
+		server := MakeServer("cluster", srv, nil, false, features)
 		require.ElementsMatch(t, []int{int(componentfeatures.FeatureResourceConstraintsV1)}, server.SupportedFeatureIDs)
 	})
 }
@@ -655,12 +656,12 @@ func TestMakeServer_AllLoginsRequireRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	allLogins := []string{"root", "ubuntu"}
-	grantedLogins := []string{} // empty: all logins require a request
+	allLogins := set.New("root", "ubuntu")
+	grantedLogins := set.New[string]() // empty: all logins require a request
 
-	server := MakeServer("cluster", srv, allLogins, grantedLogins, false, nil)
+	server := MakeServer("cluster", srv, &PrincipalSet{All: allLogins, Granted: grantedLogins}, false, nil)
 
-	require.Equal(t, allLogins, server.SSHLogins)
+	require.ElementsMatch(t, []string{"root", "ubuntu"}, server.SSHLogins)
 	require.Len(t, server.SSHLoginDetails, 2)
 	for _, detail := range server.SSHLoginDetails {
 		assert.True(t, detail.RequiresRequest, "login %q should require request", detail.Login)

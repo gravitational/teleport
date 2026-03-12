@@ -111,6 +111,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -3425,82 +3426,6 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 	}, nil
 }
 
-type loginGetter interface {
-	GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error)
-}
-
-// calculateSSHLoginsOpts contains opts for calculateSSHLogins.
-type calculateSSHLoginsOpts struct {
-	// CertPrincipals are the principals from the user's current certificate.
-	CertPrincipals []string
-	// EnrichedLogins are the logins returned by Auth.
-	EnrichedLogins []string
-	// Server is the SSH node to compute logins for.
-	Server services.AccessCheckable
-	// AccessChecker is the user's base access checker.
-	AccessChecker loginGetter
-	// UseSearchAsRoles indicates the request was made with search_as_roles
-	UseSearchAsRoles bool
-	// IncludeRequestable indicates the response should include resources that
-	// require an access request alongside already-granted ones.
-	IncludeRequestable bool
-}
-
-// calculateSSHLogins computes allLogins and grantedLogins slices for an SSH
-// node resource.
-//
-// When search_as_roles is active (UseSearchAsRoles or IncludeRequestable),
-// EnrichedLogins may contain requestable logins that aren't in the user's
-// certificate. These are returned as-is since they're for display or
-// access-request purposes, not direct SSH connections.
-//
-// When IncludeRequestable is set, grantedLogins is additionally computed
-// using the base access checker and filtered to cert principals, so the
-// caller can tell which logins work immediately vs require a request.
-//
-// In the default mode (neither flag set), all logins are filtered to cert
-// principals so the connect menu only offers logins that will work.
-func calculateSSHLogins(req calculateSSHLoginsOpts) (allLogins, grantedLogins []string, err error) {
-	if req.UseSearchAsRoles || req.IncludeRequestable {
-		allLogins = req.EnrichedLogins
-
-		if req.IncludeRequestable {
-			grantedLogins, err = req.AccessChecker.GetAllowedLoginsForResource(req.Server)
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			grantedLogins, err = client.CalculateSSHLogins(req.CertPrincipals, grantedLogins)
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-		} else {
-			grantedLogins = allLogins
-		}
-		return allLogins, grantedLogins, nil
-	}
-
-	allLogins, err = client.CalculateSSHLogins(req.CertPrincipals, req.EnrichedLogins)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return allLogins, allLogins, nil
-}
-
-// calculateAppLogins determines the app logins allowed for the provided
-// resource.
-//
-// TODO(gabrielcorado): DELETE IN V18.0.0
-// This is here for backward compatibility in case the auth server
-// does not support enriched resources yet.
-func calculateAppLogins(loginGetter loginGetter, r types.AppServer, allowedLogins []string) ([]string, error) {
-	if len(allowedLogins) > 0 {
-		return allowedLogins, nil
-	}
-
-	logins, err := loginGetter.GetAllowedLoginsForResource(r.GetApp())
-	return logins, trace.Wrap(err)
-}
-
 // getUserGroupLookup is a generator to retrieve UserGroupLookup on first call and return it again in subsequent calls.
 // If we encounter an error, we log it once and return an empty UserGroupLookup for the current and subsequent calls.
 // The returned function is not thread safe.
@@ -3568,10 +3493,9 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		case types.Server:
 			switch enriched.GetKind() {
 			case types.KindNode:
-				allLogins, grantedLogins, err := calculateSSHLogins(calculateSSHLoginsOpts{
+				principals, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
+					Resource:           enriched,
 					CertPrincipals:     identity.Principals,
-					EnrichedLogins:     enriched.Logins,
-					Server:             r,
 					AccessChecker:      accessChecker,
 					UseSearchAsRoles:   req.UseSearchAsRoles,
 					IncludeRequestable: req.IncludeRequestable,
@@ -3581,7 +3505,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				}
 
 				nodeComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
-				unifiedResources = append(unifiedResources, ui.MakeServer(cluster.GetName(), r, allLogins, grantedLogins, enriched.RequiresRequest, nodeComponentFeatures))
+				unifiedResources = append(unifiedResources, ui.MakeServer(cluster.GetName(), r, principals.Logins, enriched.RequiresRequest, nodeComponentFeatures))
 			case types.KindGitServer:
 				unifiedResources = append(unifiedResources, ui.MakeGitServer(cluster.GetName(), r, enriched.RequiresRequest))
 			}
@@ -3589,27 +3513,15 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
-			// Get all (granted ∪ requestable) logins
-			visibleAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
+			principals, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
+				Resource:           enriched,
+				AccessChecker:      accessChecker,
+				IncludeRequestable: req.IncludeRequestable,
+				UseSearchAsRoles:   req.UseSearchAsRoles,
+			})
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-
-			var grantedAWSRoles []string
-
-			// If including requestable roles, compute w/ normal accessChecker to
-			// calc difference between sets of requestable and already-granted logins.
-			if req.IncludeRequestable {
-				grantedAWSRoles, err = accessChecker.GetAllowedLoginsForResource(r.GetApp())
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-			} else {
-				grantedAWSRoles = visibleAWSRoles
-			}
-
-			allowedAWSRolesLookup := map[string][]string{r.GetApp().GetName(): visibleAWSRoles}
-			grantedAWSRolesLookup := map[string][]string{r.GetApp().GetName(): grantedAWSRoles}
 
 			proxyDNSName := h.proxyDNSName()
 			if r.GetApp().GetUseAnyProxyPublicAddr() {
@@ -3623,15 +3535,14 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			appComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
 
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
-				LocalClusterName:      h.auth.clusterName,
-				LocalProxyDNSName:     proxyDNSName,
-				AppClusterName:        cluster.GetName(),
-				AllowedAWSRolesLookup: allowedAWSRolesLookup,
-				GrantedAWSRolesLookup: grantedAWSRolesLookup,
-				UserGroupLookup:       getUserGroupLookup(),
-				Logger:                h.logger,
-				RequiresRequest:       enriched.RequiresRequest,
-				SupportedFeatures:     appComponentFeatures,
+				LocalClusterName:  h.auth.clusterName,
+				LocalProxyDNSName: proxyDNSName,
+				AppClusterName:    cluster.GetName(),
+				AWSRoles:          principals.AWSRoleARNs,
+				UserGroupLookup:   getUserGroupLookup(),
+				Logger:            h.logger,
+				RequiresRequest:   enriched.RequiresRequest,
+				SupportedFeatures: appComponentFeatures,
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.SAMLIdPServiceProvider:
@@ -3706,7 +3617,8 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 			return nil, trace.Wrap(err)
 		}
 
-		uiServers = append(uiServers, ui.MakeServer(cluster.GetName(), server, logins, logins, false /* requiresRequest */, nil))
+		loginSet := set.New(logins...)
+		uiServers = append(uiServers, ui.MakeServer(cluster.GetName(), server, &ui.PrincipalSet{All: loginSet, Granted: loginSet}, false /* requiresRequest */, nil))
 	}
 
 	return listResourcesGetResponse{

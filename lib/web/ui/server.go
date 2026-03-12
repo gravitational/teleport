@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -86,11 +85,16 @@ type AWSMetadata struct {
 }
 
 // MakeServer creates a server object for the web ui.
-// allLogins is the full set of logins visible to the user, and grantedLogins is
-// the subset already granted (without an access request). When non-nil,
-// SSHLoginDetails is populated with per-login requiresRequest metadata.
-func MakeServer(clusterName string, server types.Server, allLogins []string, grantedLogins []string, requiresRequest bool, supportedFeatures *componentfeaturesv1.ComponentFeatures) Server {
+// logins contains the full set of visible logins and the granted subset.
+// SSHLoginDetails is populated with per-login requiresRequest metadata derived
+// from the difference between logins.All and logins.Granted.
+func MakeServer(clusterName string, server types.Server, logins *PrincipalSet, requiresRequest bool, supportedFeatures *componentfeaturesv1.ComponentFeatures) Server {
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(server.GetAllLabels())
+
+	var sshLogins []string
+	if logins != nil {
+		sshLogins = logins.All.Elements()
+	}
 
 	uiServer := Server{
 		Kind:                server.GetKind(),
@@ -102,8 +106,8 @@ func MakeServer(clusterName string, server types.Server, allLogins []string, gra
 		Tunnel:              server.GetUseTunnel(),
 		SubKind:             server.GetSubKind(),
 		RequiresRequest:     requiresRequest,
-		SSHLogins:           allLogins,
-		SSHLoginDetails:     buildSshLoginDetails(allLogins, grantedLogins),
+		SSHLogins:           sshLogins,
+		SSHLoginDetails:     buildSSHLoginDetails(logins),
 		SupportedFeatureIDs: componentfeatures.ToIntegers(supportedFeatures),
 	}
 
@@ -122,12 +126,14 @@ func MakeServer(clusterName string, server types.Server, allLogins []string, gra
 	return uiServer
 }
 
-func buildSshLoginDetails(allLogins, grantedLogins []string) []SSHLogin {
-	grantedSet := set.New(grantedLogins...)
-	return slices.Map(allLogins, func(login string) SSHLogin {
+func buildSSHLoginDetails(logins *PrincipalSet) []SSHLogin {
+	if logins == nil {
+		return nil
+	}
+	return slices.Map(logins.All.Elements(), func(login string) SSHLogin {
 		return SSHLogin{
 			Login:           login,
-			RequiresRequest: !grantedSet.Contains(login),
+			RequiresRequest: !logins.Granted.Contains(login),
 		}
 	})
 }

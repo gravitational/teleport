@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/ui"
+	"github.com/gravitational/teleport/lib/utils/set"
 	webui "github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -481,5 +482,6 @@ func (h *Handler) handleNodeCreate(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	return webui.MakeServer(cluster.GetName(), server, logins, logins, false /* requiresRequest */, nil), nil
+	loginSet := set.New(logins...)
+	return webui.MakeServer(cluster.GetName(), server, &webui.PrincipalSet{All: loginSet, Granted: loginSet}, false /* requiresRequest */, nil), nil
 }
