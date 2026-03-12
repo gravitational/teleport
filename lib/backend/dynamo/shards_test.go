@@ -51,7 +51,7 @@ func TestShardSplitting(t *testing.T) {
 			eventTimeout: time.Minute,
 			backendConfig: map[string]any{
 				"table_name":         dynamoDBTestTable(),
-				"poll_stream_period": 50 * time.Millisecond,
+				"poll_stream_period": 250 * time.Millisecond,
 				"read_min_capacity":  10,
 				"read_max_capacity":  20,
 				"read_target_value":  50.0,
@@ -176,7 +176,7 @@ func newTestShardMonitor(ctx context.Context, b *Backend, t *testing.T) *testSha
 
 // monitor continuously polls DynamoDB shard topology and logs any changes in shard counts.
 func (m *testShardMonitor) monitor(ctx context.Context) {
-	ticker := time.NewTicker(time.Second * 4)
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
 	for {
