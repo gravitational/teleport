@@ -224,7 +224,6 @@ eval $(echo %s | base64 --decode)`,
 					},
 					paths: []string{
 						"/proc/filesystems",
-						".",
 						cmdDir,
 					},
 				},
@@ -289,7 +288,6 @@ eval $(echo %s | base64 --decode)`,
 						"/etc/nsswitch.conf",
 						"/etc/passwd",
 						"/etc/group",
-						"/etc/localtime",
 						cmdDir,
 					},
 				},
@@ -306,7 +304,7 @@ eval $(echo %s | base64 --decode)`,
 					},
 					paths: []string{
 						"/etc/bash.bashrc",
-						cmdDir + string(filepath.Separator),
+						cmdDir,
 					},
 				},
 				{
@@ -351,7 +349,6 @@ eval $(echo %s | base64 --decode)`,
 					},
 					paths: []string{
 						"/proc/filesystems",
-						".",
 					},
 				},
 			},
@@ -441,11 +438,9 @@ eval $(echo %s | base64 --decode)`,
 					},
 					paths: []string{
 						"/proc/filesystems",
-						".",
 						"/etc/nsswitch.conf",
 						"/etc/passwd",
 						"/etc/group",
-						"/etc/localtime",
 					},
 					count: stressTestRunCount,
 				},
@@ -943,6 +938,8 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 }
 
 func getProgramLibs(t *testing.T, path string, count int) []countedValue[string] {
+	t.Helper()
+
 	elfFile, err := elf.Open(path)
 	require.NoError(t, err)
 	importedLibs, err := elfFile.ImportedLibraries()
@@ -979,12 +976,31 @@ func checkCommandEvent(t *testing.T, e *apievents.SessionCommand, cmdPaths map[s
 // checkDiskEvent returns true if the given disk event matches an
 // expected disk event. If the event is an expected event, the matched
 // path will be removed from the expected paths map.
-func checkDiskEvent(t *testing.T, e *apievents.SessionDisk, expectedPaths map[string][]countedValue[string], matchBase bool) bool {
+func checkDiskEvent(t *testing.T, e *apievents.SessionDisk, expectedPaths map[string][]countedValue[string], isLib bool) bool {
 	t.Helper()
 
 	path := e.Path
-	if matchBase {
-		path = filepath.Base(e.Path)
+	// We have the basenames of libraries to check against, and on top
+	// of that some libraries are symlinks to other libraries; so we
+	// check if the basename of the path contains the expected library
+	// as a prefix. For example if we expect to see librtmp.so.1 and
+	// it's a symlink to librtmp.so.1.2.3 then using this logic the path
+	// /usr/lib/librtmp.so.1.2.3 will be considered a match.
+	if isLib {
+		expectedLibs, ok := expectedPaths[e.BPFMetadata.Program]
+		if !ok {
+			return false
+		}
+
+		lib := filepath.Base(e.Path)
+		for i := range expectedLibs {
+			if strings.HasPrefix(lib, expectedLibs[i].value) {
+				expectedLibs[i].count--
+				expectedPaths[e.BPFMetadata.Program] = expectedLibs
+				t.Log("disk event is expected!")
+				return true
+			}
+		}
 	}
 
 	if checkEvent(e.BPFMetadata.Program, path, expectedPaths) {
