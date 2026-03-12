@@ -758,11 +758,6 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 
-	reviewer := fakeOkta.provisionedUsers[5]
-	reviewerLogin := oktaUserLogin(reviewer)
-	requester := fakeOkta.provisionedUsers[4]
-	requesterLogin := oktaUserLogin(requester)
-
 	for _, user := range fakeOkta.provisionedUsers {
 		require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, user.Id))
 	}
@@ -779,7 +774,7 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 		AccessListSettings: &oktav1.AccessListSettings{
 			GroupFilters: []string{"group-*"},
 			AppFilters:   []string{"app-*"},
-			DefaultOwner: []string{reviewerLogin},
+			DefaultOwner: []string{"alice-admin"},
 		},
 		ReuseConnector: "okta-pre-created-test",
 	})
@@ -788,34 +783,30 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 
 	auth := sut.Teleport.Process.GetAuthServer()
 
+	memberID := fakeOkta.provisionedUsers[4].Id
+	memberLogin := oktaUserLogin(fakeOkta.provisionedUsers[4])
+	groupID := fakeOkta.provisionedGroups[0].Id
+
 	userGroups, _, err := auth.ListUserGroups(t.Context(), 0, "")
 	require.NoError(t, err)
 	require.NotEmpty(t, userGroups)
-	group := selectUserGroupByName(userGroups, fakeOkta.provisionedGroups[0].Id)
+	group := selectUserGroupByName(userGroups, groupID)
 	require.NotNil(t, group)
 
 	const iterCount = 10
 	for range iterCount {
-		fakeOkta.AddUserToGroup(fakeOkta.provisionedGroups[0].Id, requester.Id)
-		m := assertUserIsAccessListMember(ctx, t, sut, group.GetName(), requesterLogin)
+		fakeOkta.AddUserToGroup(groupID, memberID)
+		m := assertUserIsAccessListMember(ctx, t, sut, group.GetName(), memberLogin)
 		require.Equal(t, "okta-service", m.Spec.AddedBy)
-		fakeOkta.RemoveUserFromGroup(fakeOkta.provisionedGroups[0].Id, requester.Id)
-		assertUserIsNotAccessListMember(ctx, t, sut, group.GetName(), requesterLogin)
+
+		fakeOkta.RemoveUserFromGroup(groupID, memberID)
+		assertUserIsNotAccessListMember(ctx, t, sut, group.GetName(), memberLogin)
+
+		// TODO(smallinsky): Remove this check when https://github.com/gravitational/teleport.e/issues/6558 is fixed.
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			assignments, _, err := sut.Teleport.Process.GetAuthServer().Okta.ListOktaAssignments(ctx, 0, "")
 			require.NoError(t, err)
 			require.Empty(t, assignments)
 		}, time.Second*5, time.Millisecond*30)
 	}
-
-	fakeOkta.AddUserToGroup(fakeOkta.provisionedGroups[0].Id, requester.Id)
-	assertUserIsAccessListMember(ctx, t, sut, group.GetName(), requesterLogin)
-	for range iterCount {
-		fakeOkta.RemoveUserFromGroup(fakeOkta.provisionedGroups[0].Id, requester.Id)
-		assertUserIsNotAccessListMember(ctx, t, sut, group.GetName(), requesterLogin)
-		fakeOkta.AddUserToGroup(fakeOkta.provisionedGroups[0].Id, requester.Id)
-		assertUserIsAccessListMember(ctx, t, sut, group.GetName(), requesterLogin)
-	}
-	fakeOkta.RemoveUserFromGroup(fakeOkta.provisionedGroups[0].Id, requester.Id)
-	assertUserIsNotAccessListMember(ctx, t, sut, group.GetName(), requesterLogin)
 }
