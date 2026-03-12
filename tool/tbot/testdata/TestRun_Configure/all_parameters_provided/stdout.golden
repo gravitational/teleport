@@ -14,5 +14,6 @@ debug: false
 auth_server: example.com
 credential_ttl: 42m0s
 renewal_interval: 21m0s
+leeway: 1m0s
 oneshot: true
 fips: true
