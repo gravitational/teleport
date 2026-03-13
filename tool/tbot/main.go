@@ -58,7 +58,6 @@ const appHelp = `Teleport Machine & Workload Identity issues and renews
 short-lived certificates so your machines can access Teleport protected
 resources in the same way your engineers do.`
 
-// innocent comment for testing
 func Run(args []string, stdout io.Writer) error {
 	ctx := context.Background()
 
