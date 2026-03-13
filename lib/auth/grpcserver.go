@@ -6279,13 +6279,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	legacyJoinServiceServer := legacyjoin.NewJoinServiceGRPCServer(cfg.AuthServer)
 	authpb.RegisterJoinServiceServer(server, legacyJoinServiceServer)
 
-	joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
-		Authorizer:         cfg.Authorizer,
-		AuthService:        cfg.AuthServer,
-		FIPS:               cfg.AuthServer.fips,
-		ScopedTokenService: cfg.AuthServer.Services,
-		OracleHTTPClient:   cfg.OracleHTTPClient,
-	}))
+	if !cfg.DisableJoinV1 {
+		joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
+			Authorizer:         cfg.Authorizer,
+			AuthService:        cfg.AuthServer,
+			FIPS:               cfg.AuthServer.fips,
+			ScopedTokenService: cfg.AuthServer.Services,
+			OracleHTTPClient:   cfg.OracleHTTPClient,
+		}))
+	}
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
 		Authorizer:      cfg.Authorizer,
