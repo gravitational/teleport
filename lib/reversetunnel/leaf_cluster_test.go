@@ -65,6 +65,7 @@ func TestRunValidatedMFAChallengeSync_Success(t *testing.T) {
 			First: time.Second,
 			Step:  time.Second,
 			Max:   time.Second,
+			Clock: clock,
 		},
 	)
 
@@ -111,6 +112,7 @@ func TestRunValidatedMFAChallengeSync_RetriesFailedChallenges(t *testing.T) {
 			First: 10 * time.Millisecond,
 			Step:  10 * time.Millisecond,
 			Max:   10 * time.Millisecond,
+			Clock: clock,
 		},
 	)
 
@@ -249,6 +251,7 @@ func TestRunValidatedMFAChallengeSync_DropsExpiredFailedChallenges(t *testing.T)
 			First: 10 * time.Millisecond,
 			Step:  10 * time.Millisecond,
 			Max:   10 * time.Millisecond,
+			Clock: clock,
 		},
 	)
 
