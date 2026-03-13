@@ -192,6 +192,7 @@ export interface UnifiedResourceViewItem {
   name: string;
   labels: ResourceLabel[];
   primaryIconName: ResourceIconName;
+  PrimaryIconComponent?: typeof Icon;
   SecondaryIcon: typeof Icon;
   ActionButton: React.ReactElement;
   cardViewProps: CardViewSpecificProps;

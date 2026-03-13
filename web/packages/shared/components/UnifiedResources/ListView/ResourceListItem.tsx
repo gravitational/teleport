@@ -63,6 +63,7 @@ export function ResourceListItem({
   const {
     name,
     primaryIconName,
+    PrimaryIconComponent,
     SecondaryIcon,
     listViewProps,
     ActionButton,
@@ -145,16 +146,22 @@ export function ResourceListItem({
         )}
 
         {/* icon */}
-        <ResourceIcon
-          name={primaryIconName}
-          width="36px"
-          height="36px"
-          css={`
-            grid-area: icon;
-            place-self: center center;
-            opacity: ${requiresRequest ? '0.5' : '1'};
-          `}
-        />
+        {PrimaryIconComponent ? (
+          <ListIconWrapper $requiresRequest={requiresRequest}>
+            <PrimaryIconComponent size={36} />
+          </ListIconWrapper>
+        ) : (
+          <ResourceIcon
+            name={primaryIconName}
+            width="36px"
+            height="36px"
+            css={`
+              grid-area: icon;
+              place-self: center center;
+              opacity: ${requiresRequest ? '0.5' : '1'};
+            `}
+          />
+        )}
 
         {/* name and description */}
         <Flex
@@ -468,4 +475,14 @@ const HoverIconButton = styled(ButtonIcon)`
       background: ${props => props.theme.colors.buttons.secondary.active};
     }
   }
+`;
+
+const ListIconWrapper = styled(Flex)<{ $requiresRequest?: boolean }>`
+  grid-area: icon;
+  place-self: center center;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  opacity: ${p => (p.$requiresRequest ? 0.5 : 1)};
 `;
