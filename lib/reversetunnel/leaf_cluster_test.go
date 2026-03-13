@@ -25,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -34,6 +33,7 @@ import (
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
@@ -280,7 +280,7 @@ func newLeafClusterWithMFAWatcher(
 	// Make a copy of the challenges to avoid tests mutating the ones owned by the watcher.
 	copiedChallenges := make([]*mfav1.ValidatedMFAChallenge, 0, len(challenges))
 	for _, challenge := range challenges {
-		copiedChallenges = append(copiedChallenges, proto.Clone(challenge).(*mfav1.ValidatedMFAChallenge))
+		copiedChallenges = append(copiedChallenges, apiutils.CloneProtoMsg(challenge))
 	}
 
 	watcher, err := services.NewGenericResourceWatcher(
@@ -306,13 +306,9 @@ func newLeafClusterWithMFAWatcher(
 					r.GetMetadata().GetName(),
 				).String()
 			},
-			CloneFunc: func(r *mfav1.ValidatedMFAChallenge) *mfav1.ValidatedMFAChallenge {
-				return proto.Clone(r).(*mfav1.ValidatedMFAChallenge)
-			},
-			ReadOnlyFunc: func(r *mfav1.ValidatedMFAChallenge) *mfav1.ValidatedMFAChallenge {
-				return proto.Clone(r).(*mfav1.ValidatedMFAChallenge)
-			},
-			ResourcesC: make(chan []*mfav1.ValidatedMFAChallenge, 1),
+			CloneFunc:    apiutils.CloneProtoMsg[*mfav1.ValidatedMFAChallenge],
+			ReadOnlyFunc: apiutils.CloneProtoMsg[*mfav1.ValidatedMFAChallenge],
+			ResourcesC:   make(chan []*mfav1.ValidatedMFAChallenge, 1),
 		},
 	)
 	require.NoError(t, err)

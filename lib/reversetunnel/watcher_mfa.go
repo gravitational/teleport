@@ -27,6 +27,7 @@ import (
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -65,10 +66,6 @@ func NewValidatedMFAChallengeWatcher(
 		return nil, trace.BadParameter("cfg.ResourceWatcherConfig must be set")
 	}
 
-	cloneFunc := func(r *mfav1.ValidatedMFAChallenge) *mfav1.ValidatedMFAChallenge {
-		return proto.Clone(r).(*mfav1.ValidatedMFAChallenge)
-	}
-
 	paginatedGetFunc := func(ctx context.Context, limit int, startKey string) ([]*mfav1.ValidatedMFAChallenge, string, error) {
 		resp, err := cfg.ValidatedMFAChallengeLister.ListValidatedMFAChallenges(
 			ctx,
@@ -94,8 +91,8 @@ func NewValidatedMFAChallengeWatcher(
 		services.GenericWatcherConfig[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]{
 			ResourceKind:          types.KindValidatedMFAChallenge,
 			ResourceWatcherConfig: *cfg.ResourceWatcherConfig,
-			CloneFunc:             cloneFunc,
-			ReadOnlyFunc:          cloneFunc,
+			CloneFunc:             apiutils.CloneProtoMsg[*mfav1.ValidatedMFAChallenge],
+			ReadOnlyFunc:          apiutils.CloneProtoMsg[*mfav1.ValidatedMFAChallenge],
 			// This watcher's consumer waits on WaitInitialization before it starts reading ResourcesC. Keep one slot
 			// buffered to avoid deadlocking initial broadcast when there are already resources present.
 			ResourcesC:                          make(chan []*mfav1.ValidatedMFAChallenge, 1),
