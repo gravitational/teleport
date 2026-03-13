@@ -362,14 +362,54 @@ else
 ifneq ($(CLOUD_SKIP_BUILD),)
 	@echo "---> Skipping build - use existing teleport binary \"$(BUILDDIR)/teleport\"."
 	@if [[ ! -f "$(BUILDDIR)/teleport" ]]; then \
-		echo "No teleport binary found!"; \
+		echo "No teleport binary found at \"$(BUILDDIR)/teleport\"."; \
 		exit 1; \
 	fi
 else
-	$(MAKE) -C ../ ensure-webassets-e
-	@echo "---> Building teleport binary."
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -buildvcs=false -tags "webassets_embed webassets_ent" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport;
+	@echo "---> No existing teleport binary found, proceeding with building to \"$(BUILDDIR)/teleport\"."
+	$(MAKE) build-cloud-teleport-binary
 endif
+	@echo "---> Building docker image and deploying to cloud tenant."
+	./scripts/deploy-cloud.sh
+endif
+
+# Internal helper: build Linux amd64 teleport binary for cloud image patching.
+.PHONY: build-cloud-teleport-binary
+#
+# Why we run `ensure-webassets-e` with `env -u CC -u CXX MAKEOVERRIDES= ... CC=cc CXX=c++`:
+# - `deploy-cloud` is often run with `CC=<linux-cross-compiler>` for the final Go build.
+# - That CC would otherwise leak into webassets/Rust tool builds.
+# - webassets tools are built for the local machine (macOS), not Linux.
+# - If they use the Linux cross-compiler, they fail.
+# So we force host compilers for webassets, then use cross-CC only for `go build`.
+build-cloud-teleport-binary:
+	@if [[ "$$(uname -s)" == "Darwin" ]]; then \
+		if ! "$(CC)" -dumpmachine 2>/dev/null | grep -q 'linux'; then \
+			echo "CC must be a Linux cross-compiler on macOS (example: /opt/homebrew/bin/x86_64-unknown-linux-gnu-gcc)"; \
+			echo "Current CC: $(CC)"; \
+			exit 1; \
+		fi; \
+	fi
+	env -u CC -u CXX MAKEOVERRIDES= \
+      $(MAKE) -C ../ ensure-webassets-e CC=cc CXX=c++
+	@echo "---> Building teleport binary."
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=1 CC="$(CC)" go build -buildvcs=false -tags "webassets_embed webassets_ent" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+
+# make deploy-cloud-no-build - Uses a pre-compiled teleport binary to produce a docker image and deploys to a cloud
+# tenant in the staging cluster.
+# A linux/amd64 binary is required.
+.PHONY: deploy-cloud-no-build
+deploy-cloud-no-build:
+ifneq ($(RELEASE),)
+	@echo "---> Deploying a published release to cloud tenant."
+	./scripts/deploy-cloud.sh
+else
+	@echo "---> Using caller-provided teleport binary \"$(BUILDDIR)/teleport\"."
+	@if [[ ! -f "$(BUILDDIR)/teleport" ]]; then \
+		echo "No teleport binary found at \"$(BUILDDIR)/teleport\"."; \
+		echo "Provide one before running deploy-cloud-no-build."; \
+		exit 1; \
+	fi
 	@echo "---> Building docker image and deploying to cloud tenant."
 	./scripts/deploy-cloud.sh
 endif
@@ -386,7 +426,7 @@ delete-cloud:
 	./scripts/delete-cloud.sh
 
 # make create-cloud - Provisions a new cloud tenant in the staging cluster.
-.PHONY create-cloud:
+.PHONY: create-cloud
 create-cloud:
 	./scripts/create-cloud.sh
 

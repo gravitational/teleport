@@ -6,7 +6,9 @@
 TELEPORT_CLUSTER=${TELEPORT_CLUSTER:-platform.teleport.sh}
 TELEPORT_PROXY=${TELEPORT_PROXY:-$TELEPORT_CLUSTER:443}
 KUBE_TENANT_CLUSTER=${KUBE_TENANT_CLUSTER:-tc-staging-management}
-KUBE_CONTEXT=$TELEPORT_CLUSTER-$KUBE_TENANT_CLUSTER
+KUBE_TENANT_CONTEXT=$TELEPORT_CLUSTER-$KUBE_TENANT_CLUSTER
+KUBE_AUTH_CLUSTER=${KUBE_AUTH_CLUSTER:-tc-staging-cs-01-usw2}
+KUBE_AUTH_CONTEXT=$TELEPORT_CLUSTER-$KUBE_AUTH_CLUSTER
 TELEPORT_USER=${TELEPORT_USER:-$(git config user.email)}
 TARGET_IMAGE_REPO=${TARGET_IMAGE_REPO:-599519581022.dkr.ecr.us-west-2.amazonaws.com/teleport-local-build}
 AWS_SSO_PROFILE=${AWS_SSO_PROFILE:-tc-stage-core}
@@ -83,7 +85,20 @@ fail_on_exit_code "Unable to retrieve tenant from \"$CLOUD_API_APP\". Ensure the
 
 ns="cloud-gravitational-io-$tenant"
 echo "Checking for permissions to patch tenants via k8s API... (tenant=\"$tenant\", namespace=\"$ns\")"
-kres=$(kubectl auth can-i patch tenant/$tenant -n $ns --context $KUBE_CONTEXT) && [[ "${kres}" == "yes" ]]
+kres=$(kubectl auth can-i patch tenant/$tenant -n $ns --context $KUBE_TENANT_CONTEXT) && [[ "${kres}" == "yes" ]]
 fail_on_exit_code "Insufficient k8s API permissions on cluster \"$KUBE_TENANT_CLUSTER\" - cannot patch tenant \"$tenant\""
+
+echo "Checking rollout monitoring target in auth cluster... (deployment=\"teleport-auth\", namespace=\"$ns\")"
+kubectl get deployment teleport-auth -n "$ns" --context "$KUBE_AUTH_CONTEXT" >/dev/null
+if [[ $? -ne 0 ]]; then
+    error "Unable to reach rollout monitoring target \"deployment/teleport-auth\" on context \"$KUBE_AUTH_CONTEXT\"."
+    echo "Regenerate Teleport/Kubernetes contexts and retry:"
+    if [[ -n "$KUBECONFIG" ]]; then
+        echo "  unset KUBECONFIG"
+    fi
+    echo "  TELEPORT_HOME=\"$TELEPORT_HOME\" tsh login --proxy=$TELEPORT_CLUSTER"
+    echo "  TELEPORT_HOME=\"$TELEPORT_HOME\" tsh kube login --proxy=$TELEPORT_PROXY --all"
+    exit 1
+fi
 
 echo_color $green "Success!"

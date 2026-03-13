@@ -1,6 +1,7 @@
 # Deploying Local Builds to Teleport Cloud
 
 Make targets in this repo are available to build teleport binaries locally and deploy them to new or existing tenants on the Teleport Cloud staging cluster.
+Start with the prerequisites below, then use the New User Quickstart section for the fastest path.
 
 The initial implementation is derived from [cloud/RFD-0026](https://github.com/gravitational/cloud/blob/master/rfd/0026-Teleport-Release-Validation.md).
 
@@ -31,6 +32,19 @@ On macOS a compiler toolchain targeting `x86_64/linux` is required to support `c
   brew tap messense/macos-cross-toolchains
   brew install x86_64-unknown-linux-gnu
   ```
+
+#### Errors
+Dependencies between versions might cause issues when building your binaries. E.g. rustc version required for package installation.
+```shell
+error: cannot install package `wasm-bindgen-cli 0.2.108`, it requires rustc 1.82 or newer, while the currently active rustc version is 1.81.0
+```
+cd into main teleport repo, confirm your version
+```shell
+make --no-print-directory -C build.assets print-rust-version
+rustup override unset            # if you have a stale directory override
+rustup toolchain install <version-from-command>
+make rustup-set-version
+```
 
 #### tc
 
@@ -93,6 +107,115 @@ export AWS_SSO_PROFILE=tc-stage-ro
 
 ## Usage
 
+### New User Quickstart
+
+First, run `make deploy-cloud-login`. It verifies and establishes the authenticated sessions required for Cloud deployments.
+
+#### Minimal first run
+
+```shell
+# 1) Verify/login all required systems (sessions are refreshed if needed)
+make deploy-cloud-login
+
+# 2) Build Linux/amd64 teleport binary
+#    CC is required on macOS ARM; adjust the path for your toolchain installation.
+make CC=/opt/homebrew/bin/x86_64-unknown-linux-gnu-gcc build-cloud-teleport-binary
+
+# 3a) Create a new tenant
+make TENANT=yourtenant create-cloud
+
+# 3b) Or deploy to existing tenant
+make TENANT=yourtenant \
+      BASE_IMAGE_REPO=public.ecr.aws/gravitational/teleport-ent-distroless \
+      BASE_IMAGE_TAG=18.7.3 \
+      CC=/opt/homebrew/bin/x86_64-unknown-linux-gnu-gcc \
+      deploy-cloud
+```
+
+`BASE_IMAGE_REPO` and `BASE_IMAGE_TAG` are optional and default to the published container image matching the local version. On `master`, the scripts attempt to auto-resolve a recent nightly staging image.
+
+#### Required local binary path
+
+When not using `RELEASE=...`, the script expect:
+
+- `build/teleport` (or `${BUILDDIR}/teleport` if `BUILDDIR` is set)
+
+`create-cloud` does not build this binary automatically. If missing, build it first:
+
+```shell
+make build-cloud-teleport-binary
+```
+
+#### Which target should I use?
+
+- `make create-cloud`
+  - Creates a new tenant.
+  - Expects a prebuilt binary at `build/teleport`.
+- `make deploy-cloud`
+  - Patches an existing tenant.
+  - Builds `build/teleport` by default unless `CLOUD_SKIP_BUILD=1` is set.
+- `make build-cloud-teleport-binary`
+  - Builds the required linux/amd64 `teleport` binary for image patching.
+- `make deploy-cloud-login`
+  - Verifies access to `platform.teleport.sh`, the staging tenant-management, auth Kubernetes contexts, and the staging AWS account/ECR repositories used by the cloud deploy.
+
+### Common Flags
+
+These make targets are controlled primarily through environment variables passed inline:
+
+```shell
+make TENANT=yourtenant BASE_IMAGE_TAG=18.7.1 deploy-cloud
+```
+
+The most commonly used flags are:
+
+| Flag | Used by | What it does                                                                                   |
+| --- | --- |------------------------------------------------------------------------------------------------|
+| `TENANT` | `create-cloud`, `deploy-cloud`, `delete-cloud` | Tenant subdomain name (for `mytenant.cloud.gravitational.io`, use `TENANT=mytenant`).          |
+| `RELEASE` | `create-cloud`, `deploy-cloud` | Uses an existing published Teleport release instead of a local `build/teleport` binary.        |
+| `BASE_IMAGE_REPO` | `create-cloud`, `deploy-cloud` | Base container image repository to pull before replacing `/usr/local/bin/teleport`.            |
+| `BASE_IMAGE_TAG` | `create-cloud`, `deploy-cloud` | Base image tag. If not set, defaults to version derived from `version.go`.                     |
+| `TARGET_IMAGE_REPO` | `create-cloud`, `deploy-cloud` | Destination image repository for the patched image. Defaults to the staging ECR repo used for local cloud builds.               |
+| `CLOUD_SKIP_BUILD` | `deploy-cloud` | Skips local binary build and requires an existing `build/teleport`.                            |
+| `CLOUD_SKIP_DEPLOY` | `deploy-cloud` | Builds and pushes image, but does not patch tenant to use it.                                  |
+| `CLOUD_SKIP_ROLLOUT` | `deploy-cloud` | Patches tenant but skips rollout monitoring.                                                   |
+| `KUBE_AUTH_CLUSTER` | `deploy-cloud`, `deploy-cloud-login` | Cluster name used for rollout monitoring checks.            |
+| `REGION` | `create-cloud` | Region where new tenant auth pods are created.                                                 |
+| `CC` | `build-cloud-teleport-binary`, `deploy-cloud` | Linux cross-compiler for macOS CGO cross-builds (for example `x86_64-unknown-linux-gnu-gcc`).  |
+| `TC_PATH` | all cloud targets | Path to `cloud/tc/cmd/tc` source when `tc` binary is not in `PATH`.                            |
+| `TELEPORT_HOME` | all cloud targets | Path to Teleport profile directory used by `tsh`/`tc` auth (`$HOME/.tsh_platform` by default). |
+
+### How Base Image Selection Works
+
+When not using `RELEASE=...`, the scripts patch a container image by replacing `/usr/local/bin/teleport` with your local binary.
+
+- On release branches, `BASE_IMAGE_REPO` defaults to `public.ecr.aws/gravitational/teleport-ent-distroless` and `BASE_IMAGE_TAG` defaults to the local Teleport version.
+- On `master`, if `BASE_IMAGE_TAG` is not set, the scripts attempt to auto-resolve a recent nightly image from the staging container repo.
+- If you want a specific image, set both `BASE_IMAGE_REPO` and `BASE_IMAGE_TAG` explicitly.
+
+Examples:
+
+```shell
+# Use your locally generated teleport binary to patch the targeted BASE_IMAGE_TAG from BASE_IMAGE_REPO.
+# In this specific example, a public image generated from a nightly build run
+make TENANT=yourtenant \
+  BASE_IMAGE_REPO=public.ecr.aws/gravitational-staging/teleport-ent-distroless \
+  BASE_IMAGE_TAG=19.0.0-dev-nightly20260304-1-eef4a4c \
+  deploy-cloud
+
+# Tenant auth region is not us-west-2: override rollout monitoring cluster.
+make TENANT=yourtenant KUBE_AUTH_CLUSTER=tc-staging-cs-01-euc1 deploy-cloud
+
+# Build/push image only; do not patch tenant.
+make TENANT=yourtenant CLOUD_SKIP_DEPLOY=1 deploy-cloud
+
+# Deploy an existing release image directly. 
+make TENANT=yourtenant RELEASE=18.7.1 deploy-cloud
+
+# Create a tenant using default base-image selection for the current branch.
+make TENANT=yourtenant create-cloud
+```
+
 ### Teleport Version caveats
 
 To bump the Teleport version of an existing tenant using a local build, edit the `VERSION` variable in the `Makefile`, and running `make version` prior to making a build.
@@ -118,11 +241,13 @@ In this case, you have to change the teleport version to a production release (i
 
 ### `deploy-cloud-login`
 
-Checks for valid logins and required permissions on platform.teleport.sh teleport cluster, staging kubernetes cluster and AWS ECR (Elastic Container Registry). Interactive steps are invoked only when an existing session is not found. No flags are required with this target.
+Checks for valid logins and required permissions on `platform.teleport.sh`, the staging Kubernetes clusters, and AWS ECR. Interactive steps are invoked only when an existing session is not found. No flags are required with this target.
 
 ```
 make deploy-cloud-login
 ```
+
+`deploy-cloud-login` also validates that rollout monitoring can reach `deployment/teleport-auth` in the auth cluster context used by `deploy-cloud`. If this check fails, the script prints context regeneration commands (`tsh login` and `tsh kube login --all`) to run before retrying.
 
 If the email configured in git doesn't contain a valid platform.teleport.sh SSO username, provide a value via environment variable:
 
@@ -139,7 +264,6 @@ make TENANT=yourtenant deploy-cloud
 ```
 
 ### `create-cloud`
-
 
 Minimally, provide a tenant name in the flag `TENANT`. The tenant name is the subdomain of your teleport cluster (e.g. for `mytenant.cloud.gravitational.io` provide `TENANT=mytenant`)
 
@@ -159,7 +283,7 @@ Creates new tenant with the provided release. The default docker repo is `public
 make TENANT=yourtenant RELEASE=14.0.0 create-cloud
 ```
 
-This make target will copy the `teleport` binary in `build/teleport` into a base release image. The tag for the base image is derived from `version.go`. If you've branched from `master` and no base image is available yet for a new major version, override by providing `BASE_IMAGE_TAG`. The default docker repo is `public.ecr.aws/teleport-ent` (override with `BASE_IMAGE_REPO`).
+`create-cloud` expects a prebuilt Linux/amd64 `teleport` binary at `build/teleport`. Base image selection follows the shared rules in [How Base Image Selection Works](#how-base-image-selection-works).
 
 ```
 make TENANT=yourtenant BASE_IMAGE_TAG=10.1.4 create-cloud
@@ -188,7 +312,7 @@ Minimally, provide a tenant name in the flag `TENANT`. The tenant name is the su
 make TENANT=yourtenant deploy-cloud
 ```
 
-This make target will build the `teleport` binary and copy it into an base release image. The tag for the base image is derived from `version.go`. If you've branched from `master` and no base image is available yet for a new major version, override by providing `BASE_IMAGE_TAG`. The default docker repo is `public.ecr.aws/teleport-ent` (override with `BASE_IMAGE_REPO`).
+By default, `deploy-cloud` builds the local `teleport` binary and patches it into a base image. Base image selection follows the shared rules in [How Base Image Selection Works](#how-base-image-selection-works).
 
 ```
 make TENANT=yourtenant BASE_IMAGE_TAG=10.1.4 deploy-cloud

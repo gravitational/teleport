@@ -29,9 +29,14 @@ function fail_on_exit_code() {
     fi
 }
 
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+source "${script_dir}/deploy-helper.sh"
+
 # input variables
-CURRENT_VERSION=$(perl -n -e'/Version = "(?<version>(?<major>[[:alnum:]]+)\.(?<minor>[[:alnum:]]+)\.(?<patch>[[:alnum:]]+)(?<devtag>-[[:alnum:]\.]+)?)"/ && print "$+{version}"' ../api/version.go)
+CURRENT_VERSION=$(make --no-print-directory -C .. print-version)
+BASE_IMAGE_REPO_WAS_SET=${BASE_IMAGE_REPO+x}
 BASE_IMAGE_REPO=${BASE_IMAGE_REPO:-public.ecr.aws/gravitational/teleport-ent-distroless}
+BASE_IMAGE_TAG_WAS_SET=${BASE_IMAGE_TAG+x}
 BASE_IMAGE_TAG=${BASE_IMAGE_TAG:-$CURRENT_VERSION}
 
 NAMESPACE_PREFIX=${NAMESPACE_PREFIX:-cloud-gravitational-io}
@@ -77,6 +82,8 @@ if [[ -n "$RELEASE" ]]; then
     TARGET_IMAGE_REPO=${BASE_IMAGE_REPO}
     target_image_tag=${RELEASE}
 else
+  ensure_teleport_binary
+  resolve_dev_base_image_for_master "$CURRENT_VERSION" "$BASE_IMAGE_TAG_WAS_SET" "$BASE_IMAGE_REPO_WAS_SET" "$BASE_IMAGE_REPO"
   # generate an image tag for the target docker image
   commit_short=$(cd .. && git rev-parse --short HEAD)
   timestamp=$(date +"%Y%m%d-%H%M")
@@ -84,7 +91,14 @@ else
     git_email=$(git config user.email)
     TENANT=${git_email%%@*}
   fi
-  target_image_tag="${BASE_IMAGE_TAG}-${TENANT}-${commit_short}-${timestamp}"
+  if [[ "${BASE_IMAGE_TAG}" =~ ^([0-9]+)\.[0-9]+\.[0-9]+-dev-nightly([0-9]{8})-[0-9]+-[0-9a-f]+$ ]]; then
+    major="${BASH_REMATCH[1]}"
+    nightly_date="${BASH_REMATCH[2]}"
+    tenant_short="${TENANT:0:16}"
+    target_image_tag="${major}.0.0-nightly${nightly_date}-${tenant_short}-${timestamp}"
+  else
+    target_image_tag="${BASE_IMAGE_TAG}-${TENANT}-${commit_short}-${timestamp}"
+  fi
   echo "-> Generated docker image tag \"$target_image_tag\""
   target_image="${TARGET_IMAGE_REPO}:${target_image_tag}"
 
@@ -93,7 +107,7 @@ else
   # pull base image to local image registry
   echo "-> Retrieving base image \"$base_image\"..."
   docker pull --platform=linux/amd64 "$base_image"
-  fail_on_exit_code "Could not retrieve requested base image \"$base_image\". Try setting \"BASE_IMAGE_TAG\" to override the value derived from version.go."
+  fail_on_exit_code "Could not retrieve requested base image \"$base_image\". Try setting both \"BASE_IMAGE_REPO\" and \"BASE_IMAGE_TAG\" to a published image."
 
   stdin_dockerfile="FROM $base_image\nCOPY teleport /usr/local/bin/teleport\n"
   # ref: https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#pipe-dockerfile-through-stdin
