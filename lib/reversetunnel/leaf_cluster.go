@@ -1047,13 +1047,20 @@ func (s *leafCluster) runValidatedMFAChallengeSync(ctx context.Context, cfg retr
 	desired := newValidatedMFAChallengeSet()
 
 	syncDesiredToLeaf := func() (validatedMFAChallengeSet, <-chan time.Time) {
+		// If there are no challenges to sync, reset the retry and return immediately to avoid unnecessary work.
+		if len(desired) == 0 {
+			retry.Reset()
+			return desired, nil
+		}
+
 		failed := s.syncValidatedMFAChallenges(ctx, desired)
 		if len(failed) > 0 {
 			return failed, retry.After()
 		}
 
+		clear(desired)
 		retry.Reset()
-		return newValidatedMFAChallengeSet(), nil
+		return desired, nil
 	}
 
 	var retryC <-chan time.Time
@@ -1090,11 +1097,15 @@ func (s *leafCluster) runValidatedMFAChallengeSync(ctx context.Context, cfg retr
 	}
 }
 
-// expiredValidatedMFAChallengeGracePeriod defines how long after a ValidatedMFAChallenge has expired that we should
-// still attempt to sync it to the leaf cluster. This is needed to account for potential clock skew between the root and
-// leaf clusters, as well as to prevent potential auth bypass in the case where a challenge expires while we're
-// attempting to sync it to the leaf cluster.
-const expiredValidatedMFAChallengeGracePeriod = -time.Minute
+const (
+	// expiredValidatedMFAChallengeGracePeriod defines how long after a ValidatedMFAChallenge has expired that we should
+	// still attempt to sync it to the leaf cluster.
+	expiredValidatedMFAChallengeGracePeriod = -time.Minute
+
+	// replicateValidatedMFAChallengeTimeout defines the timeout for replicating a ValidatedMFAChallenge to the leaf
+	// cluster.
+	replicateValidatedMFAChallengeTimeout = 30 * time.Second
+)
 
 // syncValidatedMFAChallenges syncs the provided ValidatedMFAChallenge resources to the leaf cluster and returns the
 // resources that failed to sync.
@@ -1113,6 +1124,10 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 	failed := newValidatedMFAChallengeSet()
 
 	for _, challenge := range challenges {
+		// Since replicating resets the TTL of the challenge in the leaf cluster, we want to skip replicating challenges
+		// that have already expired in the root cluster for a certain grace period. This is to prevent potential auth
+		// bypass in the case where a challenge expires while we're attempting to sync it to the leaf cluster, as well
+		// as to account for potential clock skew between the root and leaf clusters.
 		if challenge.GetMetadata().Expiry().Sub(s.clock.Now()) < expiredValidatedMFAChallengeGracePeriod {
 			log.WarnContext(
 				ctx,
@@ -1124,9 +1139,10 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 			continue
 		}
 
-		// Note: Replicating the challenge will reset the TTL in the leaf cluster.
-		_, err := s.leafClient.MFAServiceClient().ReplicateValidatedMFAChallenge(
-			ctx,
+		rpcCtx, cancel := context.WithTimeout(ctx, replicateValidatedMFAChallengeTimeout)
+
+		if _, err := s.leafClient.MFAServiceClient().ReplicateValidatedMFAChallenge(
+			rpcCtx,
 			&mfav1.ReplicateValidatedMFAChallengeRequest{
 				Name:          challenge.GetMetadata().GetName(),
 				Payload:       challenge.GetSpec().GetPayload(),
@@ -1134,17 +1150,17 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 				TargetCluster: challenge.GetSpec().GetTargetCluster(),
 				Username:      challenge.GetSpec().GetUsername(),
 			},
-		)
-		if err != nil && !trace.IsAlreadyExists(err) {
+		); err != nil && !trace.IsAlreadyExists(err) {
 			log.ErrorContext(
 				ctx,
 				"Failed to replicate ValidatedMFAChallenge to leaf cluster",
 				"challenge_name", challenge.GetMetadata().GetName(),
 				"error", err,
 			)
-
 			failed.add(challenge)
 		}
+
+		cancel()
 	}
 
 	log.DebugContext(
