@@ -4743,8 +4743,8 @@ func synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge(t *tes
 	_, err = clt.CreateAuthenticateChallenge(ctx, new(proto.CreateAuthenticateChallengeRequest))
 	require.ErrorAs(t, err, new(*trace.LimitExceededError))
 
-	// waiting 1000 periods should bring us to LimiterBurst but no higher
-	require.Greater(t, 1000*defaults.LimiterAverage, defaults.LimiterBurst)
+	require.Greater(t, 1000*defaults.LimiterAverage, defaults.LimiterBurst,
+		"Waiting 1000 periods should bring us to LimiterBurst but no higher")
 	time.Sleep(1000 * defaults.LimiterPeriod)
 
 	for range defaults.LimiterBurst {
