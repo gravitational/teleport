@@ -109,7 +109,9 @@ func kindAllowed(ruleKind, requestedKind string) bool {
 }
 
 func verbAllowed(allowedVerbs []string, verb string) bool {
-	return slices.Contains(allowedVerbs, types.Wildcard) || slices.Contains(allowedVerbs, verb)
+	// This mirrors utils.isVerbAllowed: wildcard is only recognized as the first element.
+	return len(allowedVerbs) != 0 &&
+		(allowedVerbs[0] == types.Wildcard || slices.Contains(allowedVerbs, verb))
 }
 
 // compileMatchRules pre-compiles already-filtered RBAC rules. The cache map
