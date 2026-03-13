@@ -179,8 +179,8 @@ Worked Examples:
 #### Joining the Scoped Bot
 
 The Scope Admin then creates a Scoped Join Token to allow `tbot` to join as
-the Scoped Bot. The Scoped Join Token MUST have an `spec.assigned_scope` set to
-the scope of the scoped Bot. 
+the Scoped Bot. The Scoped Join Token must have `spec.bot_name` set to the name
+of the scoped Bot, and `spec.bot_scope` set to the same scope as the scoped Bot.
 
 The Scope Admin can now setup `tbot` on a machine to join as the Scoped Bot
 using the Scoped Join Token. To do so, they must configure:
