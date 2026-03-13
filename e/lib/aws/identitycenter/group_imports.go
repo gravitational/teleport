@@ -427,7 +427,10 @@ func accessListReconciler(
 	}
 
 	return services.NewReconciler(services.ReconcilerConfig[*accesslist.AccessList]{
-		Matcher:             matchByOriginAWSIdentityCenterLabel[*accesslist.AccessList],
+		Matcher: matchByOriginAWSIdentityCenterLabel[*accesslist.AccessList],
+		CompareResources: func(al1, al2 *accesslist.AccessList) int {
+			return services.EqualFromBool(accesslist.EqualAccessLists(al1, al2, accesslist.WithIgnoreEphemeralFields()))
+		},
 		GetCurrentResources: func() map[string]*accesslist.AccessList { return listInTeleport },
 		GetNewResources:     func() map[string]*accesslist.AccessList { return newListFromIC },
 		Logger:              logger,

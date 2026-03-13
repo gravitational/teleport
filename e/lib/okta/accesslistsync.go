@@ -271,7 +271,10 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 	// Create the reconcilers we need.
 	var err error
 	a.accessListReconciler, err = services.NewReconciler(services.ReconcilerConfig[*accesslist.AccessList]{
-		Matcher:             MatchByLabels[*accesslist.AccessList](a.orgURL),
+		Matcher: MatchByLabels[*accesslist.AccessList](a.orgURL),
+		CompareResources: func(al1, al2 *accesslist.AccessList) int {
+			return services.EqualFromBool(accesslist.EqualAccessLists(al1, al2, accesslist.WithIgnoreEphemeralFields()))
+		},
 		GetCurrentResources: a.importAccessLists.Clone,
 		GetNewResources:     a.newImportAccessLists.Clone,
 		OnCreate:            a.onUpsertAccessList,
