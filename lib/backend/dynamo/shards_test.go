@@ -3,9 +3,8 @@ package dynamo
 import (
 	"context"
 	"errors"
-	"fmt"
-	"math/rand/v2"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -37,29 +36,32 @@ func TestShardSplitting(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		numEvents     int
-		numWriters    int
-		payloadSize   int
-		eventTimeout  time.Duration
-		backendConfig map[string]any
+		name                string
+		partitionCount      int
+		writersPerPartition int
+		writesPerWriter     int
+		payloadSize         int
+		eventTimeout        time.Duration
+		backendConfig       map[string]any
 	}{
 		{
-			name:       "default shard split load",
-			numEvents:  3000,
-			numWriters: 200,
-			// 300KB (safe margin below 400KB DynamoDB limit) large object are more offen triggering shard split.
-			payloadSize:  300 * 1024,
-			eventTimeout: time.Minute,
+			// Each individual partition is limited to 1,000 write units per second and 3,000 read units per second.
+			// Each WCU is 1 write per second for items up to 1KB in size, so to trigger shard splits with items of 300kB each partion
+			// should trigger splits at around 3-4 events per second. With 4 partitions and 5 writers per partition, we should see splits happening with a total of around 60 events per second.
+			name:                "default shard split load",
+			partitionCount:      4,
+			writersPerPartition: 25,
+			writesPerWriter:     30,
+			payloadSize:         300 * 1024, // 300KB (safe margin below 400KB DynamoDB limit)
+			eventTimeout:        time.Minute,
 			backendConfig: map[string]any{
 				"table_name":         dynamoDBTestTable(),
 				"poll_stream_period": 250 * time.Millisecond,
-				"read_min_capacity":  10,
-				"read_max_capacity":  20,
-				"read_target_value":  50.0,
-				"write_min_capacity": 10,
-				"write_max_capacity": 5000,
-				"write_target_value": 20.0,
+				"retry_period":       250 * time.Millisecond,
+				// "write_min_capacity":   10,
+				// "write_max_capacity":   5000,
+				// "write_target_value":   20.0,
+				// "write_capacity_units": 1000,
 			},
 		},
 	}
@@ -81,15 +83,17 @@ func TestShardSplitting(t *testing.T) {
 				t,
 				b,
 				tracker,
-				tt.numEvents,
-				tt.numWriters,
+				tt.partitionCount,
+				tt.writersPerPartition,
+				tt.writesPerWriter,
 				tt.payloadSize,
 			)
 
 			writer.run(ctx)
 
+			numEvents := tt.writersPerPartition * tt.partitionCount * tt.writesPerWriter
 			// Start monitoring as soon as we start writing.
-			tracker.waitForEvents(ctx, tt.numEvents, tt.eventTimeout)
+			tracker.waitForEvents(ctx, numEvents, tt.eventTimeout)
 
 			// Ensure all writers have finished, this may not be the case in a case where unexpected events are
 			// received the the target event count is reached before all writes have completed.
@@ -361,58 +365,59 @@ func (e *eventTracker) waitForEvents(ctx context.Context, targetCount int, event
 }
 
 type eventWriter struct {
-	backend      *Backend
-	tracker      *eventTracker
-	numEvents    int
-	numWriters   int
-	payloadSize  int
-	seriesPrefix int64
-	wg           sync.WaitGroup
-	t            *testing.T
+	backend *Backend
+	tracker *eventTracker
+
+	partitionCount      int
+	writersPerPartition int
+	writesPerWriter     int
+	payloadSize         int
+
+	wg sync.WaitGroup
+	t  *testing.T
 }
 
 func newEventWriter(
 	t *testing.T,
 	b *Backend,
 	tracker *eventTracker,
-	numEvents int,
-	numWriters int,
+	partitionCount int,
+	writersPerPartition int,
+	writesPerWriter int,
 	payloadSize int,
 ) *eventWriter {
 	return &eventWriter{
-		backend:      b,
-		tracker:      tracker,
-		numEvents:    numEvents,
-		numWriters:   numWriters,
-		payloadSize:  payloadSize,
-		seriesPrefix: time.Now().Unix(),
-		t:            t,
+		backend:             b,
+		tracker:             tracker,
+		partitionCount:      partitionCount,
+		writersPerPartition: writersPerPartition,
+		writesPerWriter:     writesPerWriter,
+		payloadSize:         payloadSize,
+		t:                   t,
 	}
 }
 
 func (w *eventWriter) run(ctx context.Context) {
-	w.t.Logf("Writing %d events with %d concurrent writers...", w.numEvents, w.numWriters)
 	payload := strings.Repeat("A", w.payloadSize)
-	eventsPerWriter := w.numEvents / w.numWriters
 
-	for writerID := range w.numWriters {
-		w.wg.Go(func() {
-			defer w.t.Logf("Writer %d finished.", writerID)
-			start := writerID * eventsPerWriter
-			end := start + eventsPerWriter
-			w.writeBatch(ctx, start, end, payload)
-		})
+	for partition := 0; partition < w.partitionCount; partition++ {
+		for writer := 0; writer < w.writersPerPartition; writer++ {
+			w.wg.Go(func() {
+				defer w.t.Logf("partition %d writer %d done", partition, writer)
+				w.writeBatch(ctx, partition, writer, w.writesPerWriter, payload)
+			})
+		}
 	}
 }
 
-func (w *eventWriter) writeBatch(ctx context.Context, start, end int, payload string) {
-	for i := start; i < end; i++ {
+func (w *eventWriter) writeBatch(ctx context.Context, partition, writer, numEvents int, payload string) {
+	for i := 0; i < numEvents; i++ {
 		item := backend.Item{
-			Key:   backend.NewKey("shard-split-test", "event", fmt.Sprintf("%d-%d", w.seriesPrefix, i)),
+			Key:   backend.NewKey(strconv.Itoa(partition), strconv.Itoa(writer), strconv.Itoa(i)),
 			Value: []byte(payload),
 		}
 
-		if err := w.writeWithRetry(ctx, item); err != nil {
+		if err := w.writeWithRetry(ctx, item, partition); err != nil {
 			continue
 		}
 
@@ -422,9 +427,9 @@ func (w *eventWriter) writeBatch(ctx context.Context, start, end int, payload st
 	}
 }
 
-func (w *eventWriter) wildPut(ctx context.Context, item backend.Item) error { // Intentionally ignore errors here, the purpose of this test is to see how the system behaves under high load and potential throttling, not to guarantee all writes succeed.
+func (w *eventWriter) wildPut(ctx context.Context, item backend.Item, partition int) error {
 	r := record{
-		HashKey:   fmt.Sprintf("%d", rand.N(3)), // split into 3 partitions, each is limited to 1000WCU
+		HashKey:   strconv.Itoa(partition),
 		FullPath:  prependPrefix(item.Key),
 		Value:     item.Value,
 		Timestamp: time.Now().UTC().Unix(),
@@ -444,7 +449,7 @@ func (w *eventWriter) wildPut(ctx context.Context, item backend.Item) error { //
 	return convertError(err)
 }
 
-func (w *eventWriter) writeWithRetry(ctx context.Context, item backend.Item) error {
+func (w *eventWriter) writeWithRetry(ctx context.Context, item backend.Item, partition int) error {
 	// The retry backoff is only used for non throttling errors.
 	// For throttling errors we want to retry as fast as possible to trigger shard splits faster.
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
@@ -462,8 +467,7 @@ func (w *eventWriter) writeWithRetry(ctx context.Context, item backend.Item) err
 	retryCount := 0
 
 	for retryCount < maxRetry {
-		if err := w.wildPut(ctx, item); err != nil {
-			// if _, err := w.backend.Put(ctx, item); err != nil {
+		if err := w.wildPut(ctx, item, partition); err != nil {
 			var throttled *types.ThrottlingException
 			if errors.As(err, &throttled) {
 				continue
