@@ -1,4 +1,4 @@
-.version: &version "18.7.2"
+.version: &version "18.7.3-dev.upload-headroom.1"
 
 name: tbot
 apiVersion: v2
