@@ -24,6 +24,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 )
 
 var sshNode = registerFixture("ssh-node", "start and connect a Teleport SSH node, runs in Docker")
@@ -43,6 +45,8 @@ type e2eFlags struct {
 	teleportLogLevel string
 	testFiles        []string
 }
+
+var validTeleportLogLevels = []string{"DEBUG", "INFO", "WARN", "ERROR"}
 
 func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	var f e2eFlags
@@ -86,7 +90,18 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 		enableAllFixtures()
 	}
 
-	f.testFiles = flag.Args()
+	f.teleportLogLevel = strings.ToUpper(f.teleportLogLevel)
+	if !slices.Contains(validTeleportLogLevels, f.teleportLogLevel) {
+		return nil, 0, fmt.Errorf("invalid --teleport-log-level %q, must be one of: %s", f.teleportLogLevel, strings.Join(validTeleportLogLevels, ", "))
+	}
+
+	e2eDir := filepath.Join(repoRoot, "e2e")
+
+	var err error
+	f.testFiles, err = normalizeTestFiles(e2eDir, flag.Args())
+	if err != nil {
+		return nil, 0, err
+	}
 
 	mode, err := modes.resolve()
 	if err != nil {
@@ -106,6 +121,39 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	}
 
 	return &f, mode, nil
+}
+
+func normalizeTestFiles(e2eDir string, args []string) ([]string, error) {
+	if len(args) == 0 {
+		return nil, nil
+	}
+
+	callerDir := os.Getenv("E2E_CALLER_DIR")
+	if callerDir == "" {
+		var err error
+		callerDir, err = os.Getwd()
+
+		if err != nil {
+			return nil, fmt.Errorf("getting current working directory: %w", err)
+		}
+	}
+
+	normalized := make([]string, 0, len(args))
+	for _, arg := range args {
+		abs := arg
+		if !filepath.IsAbs(abs) {
+			abs = filepath.Join(callerDir, abs)
+		}
+
+		rel, err := filepath.Rel(e2eDir, abs)
+		if err != nil {
+			return nil, fmt.Errorf("making %q relative to e2e dir: %w", arg, err)
+		}
+
+		normalized = append(normalized, rel)
+	}
+
+	return normalized, nil
 }
 
 func stringFlagWithEnv(fs *flag.FlagSet, p *string, name, env, fallback, usage string) {

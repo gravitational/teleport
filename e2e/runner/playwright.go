@@ -44,6 +44,26 @@ func (p *playwrightRunner) startURL() string {
 	return fmt.Sprintf("https://localhost:%d/web", p.config.proxyPort)
 }
 
+// callerRelativePaths returns paths relative to the caller's working directory
+// so that logged paths are cmd+clickable in terminals.
+func (p *playwrightRunner) callerRelativePaths(paths []string) []string {
+	callerDir := os.Getenv("E2E_CALLER_DIR")
+	if callerDir == "" {
+		return paths
+	}
+
+	out := make([]string, len(paths))
+	for i, path := range paths {
+		abs := filepath.Join(p.config.e2eDir, path)
+		if rel, err := filepath.Rel(callerDir, abs); err == nil {
+			out[i] = rel
+		} else {
+			out[i] = path
+		}
+	}
+	return out
+}
+
 func (p *playwrightRunner) run(ctx context.Context, mode runMode) error {
 	switch mode {
 	case modeTest:
@@ -80,7 +100,7 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 	if len(p.config.testFiles) > 0 {
 		args := append([]string{"exec", "playwright", "test"}, extraArgs...)
 		args = append(args, p.config.testFiles...)
-		slog.Info("running e2e tests", "files", p.config.testFiles)
+		slog.Info("running e2e tests", "files", p.callerRelativePaths(p.config.testFiles))
 		return p.pnpm(ctx, args, env)
 	}
 
@@ -124,12 +144,11 @@ func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightC
 		return err
 	}
 
-	slog.Info("opening playwright " + playwrightCmd + " (with auth)")
+	slog.Info("opening playwright " + playwrightCmd + " (with auth and WebAuthn)")
 
 	return p.pnpm(ctx, []string{
-		"exec", "playwright", playwrightCmd,
-		"--load-storage=.auth/user.json",
-		"--ignore-https-errors",
+		"exec", "tsx", "scripts/open-with-webauthn.ts",
+		playwrightCmd,
 		p.startURL(),
 	}, env)
 }
@@ -152,7 +171,8 @@ func (p *playwrightRunner) generateInviteURL(ctx context.Context) (string, error
 
 	out, err := cmd.Output()
 	if err != nil {
-		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			slog.Error("tctl users add failed", "stderr", string(exitErr.Stderr))
 		}
 		return "", fmt.Errorf("tctl users add: %w", err)
@@ -210,7 +230,8 @@ func (p *playwrightRunner) pnpm(ctx context.Context, args []string, env []string
 	cmd.Stdin = os.Stdin
 
 	if err := cmd.Run(); err != nil {
-		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			return fmt.Errorf("command exited with code %d: %w", exitErr.ExitCode(), err)
 		}
 

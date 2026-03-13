@@ -2137,7 +2137,7 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 	return role, nil
 }
 
-var minSupportedRoleV8Version = semver.New(utils.VersionBeforeAlpha("18.0.0"))
+var minSupportedRoleV8Version = &semver.Version{Major: 18, Minor: 0, Patch: 0}
 
 // maybeDowngradeRoleVersionToV7 downgrades the role version to V7 if
 // the client version passed through the gRPC metadata is below the version
