@@ -44,6 +44,7 @@ func TestSessionPostProcessor(t *testing.T) {
 		mock.Anything,
 		sessionID,
 		mock.Anything,
+		mock.Anything,
 	).
 		Return(nil).Once()
 	metadataProvider.SetService(recorderMetadata)
