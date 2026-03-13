@@ -22,8 +22,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
 func TestApplicationTunnelService_YAML(t *testing.T) {
