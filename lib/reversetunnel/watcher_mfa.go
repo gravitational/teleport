@@ -25,10 +25,11 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -99,7 +100,9 @@ func NewValidatedMFAChallengeWatcher(
 			// buffered to avoid deadlocking initial broadcast when there are already resources present.
 			ResourcesC:                          make(chan []*mfav1.ValidatedMFAChallenge, 1),
 			RequireResourcesForInitialBroadcast: false,
-			ResourceGetter:                      pagerFn[*mfav1.ValidatedMFAChallenge](paginatedGetFunc).getAll,
+			ResourceGetter: func(ctx context.Context) ([]*mfav1.ValidatedMFAChallenge, error) {
+				return stream.Collect(clientutils.Resources(ctx, paginatedGetFunc))
+			},
 			ResourceKey: func(r *mfav1.ValidatedMFAChallenge) string {
 				return backend.NewKey(
 					r.GetSpec().GetTargetCluster(),
@@ -129,34 +132,18 @@ func NewValidatedMFAChallengeWatcher(
 	return w, nil
 }
 
-type pagerFn[T any] func(ctx context.Context, limit int, startKey string) ([]T, string, error)
-
-func (fn pagerFn[T]) getAll(ctx context.Context) ([]T, error) {
-	var out []T
-	var token string
-	for {
-		page, nextToken, err := fn(ctx, apidefaults.DefaultChunkSize, token)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, page...)
-		if nextToken == "" {
-			return out, nil
-		}
-		token = nextToken
-	}
-}
-
-// convertResource is a generic helper func that converts a [types.Resource] by
-// direct type assertion or assertion to an [types.Resource153UnwrapperT].
+// convertResource is a generic helper func that converts a [types.Resource] by direct type assertion or assertion to an
+// [types.Resource153UnwrapperT].
 // TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
 func convertResource[T any](resource types.Resource) (T, error) {
 	switch resource := resource.(type) {
-	case T:
-		return resource, nil
 	case interface{ UnwrapT() T }:
 		return resource.UnwrapT(), nil
+
+	case T:
+		return resource, nil
 	}
+
 	var zero T
 	return zero, trace.BadParameter("expected resource type %T, got %T", zero, resource)
 }
