@@ -1,0 +1,418 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "jest", "import"],
+  "jsPlugins": [
+    "eslint-plugin-unused-imports",
+    "eslint-plugin-storybook",
+    "eslint-plugin-testing-library",
+    "eslint-plugin-jest-dom"
+  ],
+  "categories": {
+    "correctness": "off"
+  },
+  "env": {
+    "builtin": true,
+    "es6": true,
+    "browser": true,
+    "node": true
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/*_pb.*",
+    "**/tshd/**/*_pb.js",
+    "**/ironrdp/pkg/**",
+    "web/packages/teleterm/build",
+    "web/.storybook/public/mockServiceWorker.js"
+  ],
+  "globals": {
+    "expect": "readonly",
+    "jest": "readonly"
+  },
+  "rules": {
+    "constructor-super": "error",
+    "for-direction": "error",
+    "no-async-promise-executor": "error",
+    "no-class-assign": "error",
+    "no-compare-neg-zero": "error",
+    "no-cond-assign": "error",
+    "no-const-assign": "error",
+    "no-constant-binary-expression": "error",
+    "no-constant-condition": "error",
+    "no-control-regex": "error",
+    "no-debugger": "error",
+    "no-delete-var": "error",
+    "no-dupe-class-members": "error",
+    "no-dupe-else-if": "error",
+    "no-dupe-keys": "error",
+    "no-duplicate-case": "error",
+    "no-empty": "error",
+    "no-empty-character-class": "error",
+    "no-empty-pattern": "error",
+    "no-empty-static-block": "error",
+    "no-ex-assign": "error",
+    "no-extra-boolean-cast": "error",
+    "no-fallthrough": "error",
+    "no-func-assign": "error",
+    "no-global-assign": "error",
+    "no-import-assign": "error",
+    "no-invalid-regexp": "error",
+    "no-irregular-whitespace": "error",
+    "no-loss-of-precision": "error",
+    "no-misleading-character-class": "error",
+    "no-new-native-nonconstructor": "error",
+    "no-nonoctal-decimal-escape": "error",
+    "no-obj-calls": "error",
+    "no-prototype-builtins": "error",
+    "no-redeclare": "error",
+    "no-regex-spaces": "error",
+    "no-self-assign": "error",
+    "no-setter-return": "error",
+    "no-shadow-restricted-names": "error",
+    "no-sparse-arrays": "error",
+    "no-this-before-super": "error",
+    "no-unexpected-multiline": "error",
+    "no-unsafe-finally": "error",
+    "no-unsafe-negation": "error",
+    "no-unsafe-optional-chaining": "error",
+    "no-unused-labels": "error",
+    "no-unused-private-class-members": "error",
+    "no-useless-backreference": "error",
+    "no-useless-catch": "error",
+    "no-useless-escape": "error",
+    "no-with": "error",
+    "require-yield": "error",
+    "use-isnan": "error",
+    "valid-typeof": "error",
+    "no-case-declarations": "off",
+    "prefer-const": "off",
+    "no-var": "off",
+    "prefer-rest-params": "off",
+    "no-console": "warn",
+
+    "@typescript-eslint/ban-ts-comment": "error",
+    "no-array-constructor": "error",
+    "@typescript-eslint/no-duplicate-enum-values": "error",
+    // with-single-extends is needed to allow for interface extends like we have in jest.d.ts.
+    "@typescript-eslint/no-empty-object-type": [
+      "error",
+      { "allowInterfaces": "with-single-extends" }
+    ],
+    "@typescript-eslint/no-extra-non-null-assertion": "error",
+    "@typescript-eslint/no-misused-new": "error",
+    "@typescript-eslint/no-namespace": "error",
+    "@typescript-eslint/no-non-null-asserted-optional-chain": "error",
+    "@typescript-eslint/no-require-imports": "error",
+    "@typescript-eslint/no-unnecessary-type-constraint": "error",
+    "@typescript-eslint/no-unsafe-declaration-merging": "error",
+    "@typescript-eslint/no-unsafe-function-type": "error",
+    "no-unused-expressions": [
+      "error",
+      {
+        "allowShortCircuit": true,
+        "allowTernary": true,
+        "enforceForJSX": true
+      }
+    ],
+    "@typescript-eslint/no-wrapper-object-types": "error",
+    "@typescript-eslint/prefer-as-const": "error",
+    "@typescript-eslint/prefer-namespace-keyword": "error",
+    "@typescript-eslint/triple-slash-reference": "error",
+    // TODO: Enable these recommended typescript-eslint rules after fixing existing issues.
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/no-this-alias": "off",
+    "unused-imports/no-unused-imports": "error",
+    "no-unused-vars": [
+      "error",
+      {
+        "args": "after-used",
+        "ignoreRestSiblings": true,
+        "varsIgnorePattern": "^_",
+        "argsIgnorePattern": "^_"
+      }
+    ],
+
+    "react/jsx-key": "warn",
+    "react/jsx-no-comment-textnodes": "error",
+    "react/jsx-no-duplicate-props": "error",
+    "react/jsx-no-target-blank": "warn",
+    "react/jsx-no-undef": "error",
+    "react/jsx-pascal-case": "error",
+    "react/no-children-prop": "warn",
+    "react/no-danger": "error",
+    "react/no-danger-with-children": "error",
+    "react/no-direct-mutation-state": "error",
+    "react/no-find-dom-node": "error",
+    "react/no-is-mounted": "error",
+    "react/no-render-return-value": "error",
+    "react/no-string-refs": "error",
+    "react/no-unescaped-entities": "warn",
+    "react/no-unknown-property": "warn",
+    "react/no-did-mount-set-state": "warn",
+    // allowExpressions allows single expressions in a fragment eg: <>{children}</>
+    // https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-no-useless-fragment.html#allowexpressions
+    "react/jsx-no-useless-fragment": ["error", { "allowExpressions": true }],
+    "react/display-name": "off",
+    "react/prop-types": "off",
+
+    "react-hooks/rules-of-hooks": "warn",
+    "react-hooks/exhaustive-deps": "warn",
+
+    "preserve-caught-error": "error"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+      "rules": {
+        "constructor-super": "off",
+        "no-class-assign": "off",
+        "no-const-assign": "off",
+        "no-dupe-class-members": "off",
+        "no-dupe-keys": "off",
+        "no-func-assign": "off",
+        "no-import-assign": "off",
+        "no-new-native-nonconstructor": "off",
+        "no-obj-calls": "off",
+        "no-redeclare": "off",
+        "no-setter-return": "off",
+        "no-this-before-super": "off",
+        "no-unsafe-negation": "off",
+        "no-with": "off",
+        "prefer-spread": "error"
+      }
+    },
+    {
+      "files": ["**/*.test.{ts,tsx,js,jsx}"],
+      "plugins": ["jest"],
+      "env": { "jest": true },
+      "rules": {
+        "jest/expect-expect": "warn",
+        "jest/no-alias-methods": "error",
+        "jest/no-commented-out-tests": "warn",
+        "jest/no-conditional-expect": "error",
+        "jest/no-deprecated-functions": "error",
+        "jest/no-disabled-tests": "off",
+        "jest/no-done-callback": "error",
+        "jest/no-export": "error",
+        "jest/no-focused-tests": "error",
+        "jest/no-identical-title": "error",
+        "jest/no-interpolation-in-snapshots": "error",
+        "jest/no-jasmine-globals": "error",
+        "jest/no-mocks-import": "error",
+        "jest/no-standalone-expect": "error",
+        "jest/no-test-prefixes": "error",
+        "jest/valid-describe-callback": "error",
+        "jest/valid-expect": "error",
+        "jest/valid-title": "error",
+        "jest/no-large-snapshots": ["warn", { "maxSize": 200 }],
+
+        "testing-library/await-async-events": [
+          "error",
+          { "eventModule": "userEvent" }
+        ],
+        "testing-library/await-async-queries": "error",
+        "testing-library/await-async-utils": "error",
+        "testing-library/no-await-sync-events": [
+          "error",
+          { "eventModules": ["fire-event"] }
+        ],
+        "testing-library/no-await-sync-queries": "error",
+        "testing-library/no-container": "error",
+        "testing-library/no-debugging-utils": "warn",
+        "testing-library/no-dom-import": ["error", "react"],
+        "testing-library/no-global-regexp-flag-in-query": "error",
+        "testing-library/no-manual-cleanup": "error",
+        "testing-library/no-node-access": "error",
+        "testing-library/no-promise-in-fire-event": "error",
+        "testing-library/no-render-in-lifecycle": "error",
+        "testing-library/no-unnecessary-act": "error",
+        "testing-library/no-wait-for-multiple-assertions": "error",
+        "testing-library/no-wait-for-side-effects": "error",
+        "testing-library/no-wait-for-snapshot": "error",
+        "testing-library/prefer-find-by": "error",
+        "testing-library/prefer-presence-queries": "error",
+        "testing-library/prefer-query-by-disappearance": "error",
+        "testing-library/prefer-screen-queries": "error",
+        "testing-library/render-result-naming-convention": "error",
+
+        "jest-dom/prefer-checked": "error",
+        "jest-dom/prefer-empty": "error",
+        "jest-dom/prefer-enabled-disabled": "error",
+        "jest-dom/prefer-focus": "error",
+        "jest-dom/prefer-in-document": "error",
+        "jest-dom/prefer-required": "error",
+        "jest-dom/prefer-to-have-attribute": "error",
+        "jest-dom/prefer-to-have-class": "error",
+        "jest-dom/prefer-to-have-style": "error",
+        "jest-dom/prefer-to-have-text-content": "error",
+        "jest-dom/prefer-to-have-value": "error"
+      }
+    },
+    {
+      "files": [
+        "**/*.stories.@(ts|tsx|js|jsx|mjs|cjs)",
+        "**/*.story.@(ts|tsx|js|jsx|mjs|cjs)"
+      ],
+      "rules": {
+        "react-hooks/rules-of-hooks": "off",
+        "storybook/await-interactions": "error",
+        "storybook/context-in-play-function": "error",
+        "storybook/default-exports": "error",
+        "storybook/hierarchy-separator": "warn",
+        "storybook/no-redundant-story-name": "warn",
+        "storybook/no-renderer-packages": "error",
+        "storybook/prefer-pascal-case": "warn",
+        "storybook/story-exports": "error",
+        "storybook/use-storybook-expect": "error",
+        "storybook/use-storybook-testing-library": "error"
+      }
+    },
+    {
+      "files": [".storybook/main.@(js|cjs|mjs|ts)"],
+      "rules": {
+        "storybook/no-uninstalled-addons": "error"
+      }
+    },
+    // Allow require imports in .js files, as migrating our project to ESM modules requires a lot
+    // of changes.
+    {
+      "files": ["**/*.js"],
+      "rules": {
+        "@typescript-eslint/no-require-imports": "warn"
+      }
+    },
+    // Restricted imports
+    //
+    // If an import is caught by these rules, it means that the imported package needs to be moved
+    // elsewhere in the dependency tree.
+    // https://github.com/gravitational/teleport/issues/54872
+    {
+      "files": ["web/packages/shared/**/*.{ts,tsx,js,jsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useResizeObserver"],
+                "message": "Use 'useResizeObserver' from 'design/utils/useResizeObserver' instead."
+              },
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useCopyToClipboard"],
+                "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["web/packages/shared/**/*.{ts,tsx,js,jsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              { "group": ["teleport/**", "e-teleport/**", "teleterm/**"] }
+            ],
+          }
+        ]
+      }
+    },
+    {
+      "files": ["web/packages/teleport/**/*.{ts,tsx,js,jsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [{ "group": ["e-teleport/**", "teleterm/**"] }],
+            "paths": [
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useResizeObserver"],
+                "message": "Use 'useResizeObserver' from 'design/utils/useResizeObserver' instead."
+              },
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useCopyToClipboard"],
+                "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["e/web/teleport/**/*.{ts,tsx,js,jsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [{ "group": ["teleterm/**"] }],
+            "paths": [
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useResizeObserver"],
+                "message": "Use 'useResizeObserver' from 'design/utils/useResizeObserver' instead."
+              },
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useCopyToClipboard"],
+                "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["web/packages/teleterm/**/*.{ts,tsx,js,jsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [{ "group": ["teleport/**", "e-teleport/**"] }],
+            "paths": [
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useResizeObserver"],
+                "message": "Use 'useResizeObserver' from 'design/utils/useResizeObserver' instead."
+              },
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useCopyToClipboard"],
+                "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "web/packages/design/**/*.{ts,tsx,js,jsx}",
+        "web/packages/build/**/*.{ts,tsx,js,jsx}"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useResizeObserver"],
+                "message": "Use 'useResizeObserver' from 'design/utils/useResizeObserver' instead."
+              },
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useCopyToClipboard"],
+                "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+  ]
+}
