@@ -53,10 +53,10 @@ type compiledMatchRule struct {
 
 // maxFastMatcherRules is the maximum number of RBAC rules
 // (allowed + denied combined, after kind/verb filtering) for which the fast matcher is used.
-// Beyond this threshold, compilation cost outweighs the per-item savings
-// and we fall back to the cached matchKubernetesResource path.
-// Benchmarked crossover point is ~400 rules on Apple M4 Pro at 5k items.
-// Chose a lower threshold of 200 to be conservative and account for variability across hardware and workloads.
+// Beyond this threshold we fall back to the cached matchKubernetesResource path.
+// Benchmarks show the fast matcher is faster even at 4000 rules, so this is a
+// conservative safety margin rather than a measured crossover point.
+// It may be removed in a follow-up once we gain more production confidence.
 var maxFastMatcherRules = 200
 
 // tryCompileFastMatcher attempts to compile a fast matcher from the given RBAC rules.
