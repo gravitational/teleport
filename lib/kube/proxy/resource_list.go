@@ -174,7 +174,8 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 
 	// If we requested identity from the upstream but the client wanted gzip,
 	// compress the filtered response before sending it back.
-	if clientAcceptsGzip {
+	alreadyCompressed := memBuffer.Header().Get(contentEncodingHeader) == contentEncodingGZIP
+	if clientAcceptsGzip && !alreadyCompressed {
 		if err := compressMemBuffer(memBuffer); err != nil {
 			return memBuffer.Status(), trace.Wrap(err)
 		}
