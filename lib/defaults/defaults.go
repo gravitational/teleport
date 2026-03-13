@@ -825,25 +825,14 @@ var (
 type HTTPClientOption func(*httpClientOptions) *httpClientOptions
 
 type httpClientOptions struct {
-	useProxyFromEnvironment *bool
+	useProxyFromEnvironment bool
 }
 
 // UseProxyFromEnvironment configures the HTTP client to use proxy
 // settings from the environment variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
 func UseProxyFromEnvironment() HTTPClientOption {
 	return func(opts *httpClientOptions) *httpClientOptions {
-		var enable = true
-		opts.useProxyFromEnvironment = &enable
-		return opts
-	}
-}
-
-// DisableProxyFromEnvironment configures the HTTP client to ignore proxy
-// settings from the environment variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
-func DisableProxyFromEnvironment() HTTPClientOption {
-	return func(opts *httpClientOptions) *httpClientOptions {
-		var enable = false
-		opts.useProxyFromEnvironment = &enable
+		opts.useProxyFromEnvironment = true
 		return opts
 	}
 }
@@ -860,12 +849,8 @@ func HTTPClient(opts ...HTTPClientOption) (*http.Client, error) {
 		httpOpts = o(httpOpts)
 	}
 
-	switch {
-	case httpOpts.useProxyFromEnvironment == nil:
-	case *httpOpts.useProxyFromEnvironment == true:
+	if httpOpts.useProxyFromEnvironment {
 		transport.Proxy = http.ProxyFromEnvironment
-	case *httpOpts.useProxyFromEnvironment == false:
-		transport.Proxy = nil
 	}
 
 	return &http.Client{

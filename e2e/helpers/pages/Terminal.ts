@@ -23,13 +23,12 @@ import { expect } from '../test';
 const TERMINAL_TIMEOUT = 10_000;
 
 export class TerminalPage {
-  private readonly input;
-  private readonly terminal;
+  private readonly input = this.page.getByRole('textbox', {
+    name: 'Terminal input',
+  });
+  private readonly terminal = this.page.getByTestId('terminal');
 
-  constructor(private page: Page) {
-    this.input = page.getByRole('textbox', { name: 'Terminal input' });
-    this.terminal = page.getByTestId('terminal');
-  }
+  constructor(private page: Page) {}
 
   async waitForReady() {
     await expect(this.input).toBeVisible({ timeout: TERMINAL_TIMEOUT });

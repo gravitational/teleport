@@ -33,7 +33,6 @@ const meta: Meta<StoryProps> = {
   args: {
     compatibility: 'compatible',
     showUpdate: true,
-    showMessageOfTheDay: false,
   },
 };
 export default meta;

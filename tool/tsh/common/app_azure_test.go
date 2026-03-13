@@ -92,9 +92,7 @@ func TestAzure(t *testing.T) {
 		return ""
 	}
 
-	versionWithoutMSAL := new(semver.Version)
-	*versionWithoutMSAL = *azureCLIVersionMSALRequirement
-	require.Greater(t, versionWithoutMSAL.Minor, int64(0))
+	versionWithoutMSAL := semver.New(azureCLIVersionMSALRequirement.String())
 	versionWithoutMSAL.Minor -= 1
 
 	for name, tc := range map[string]struct {

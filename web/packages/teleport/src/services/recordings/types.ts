@@ -140,7 +140,6 @@ export interface SessionRecordingRiskEvent extends BaseSessionRecordingEvent {
   type: SessionRecordingEventType.Risk;
   riskLevel: RiskLevel;
   description: string;
-  isError?: boolean;
 }
 
 export interface SessionRecordingResizeEvent extends BaseSessionRecordingEvent {

@@ -6,7 +6,7 @@ teleport:
   data_dir: {{ .DataDir }}
   log:
     output: stderr
-    severity: {{ .LogLevel }}
+    severity: INFO
     format:
       output: text
   auth_server: localhost:{{ .AuthServerPort }}

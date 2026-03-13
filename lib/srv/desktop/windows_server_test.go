@@ -594,12 +594,11 @@ func TestCRLUpdateSchedule(t *testing.T) {
 
 	// Create a "fake" WindowsService instance. This only needs enough setup to do
 	// runCRLUpdateLoop().
-	accessPoint := newWatcherAwareAccessPoint(t, testAuth.AuthServer)
 	winService := &WindowsService{
 		cfg: WindowsServiceConfig{
 			Logger:             logtest.NewLogger(),
 			Clock:              clock,
-			AccessPoint:        accessPoint,
+			AccessPoint:        testAuth.AuthServer,
 			PublishCRLInterval: publishInterval,
 		},
 		// Mock the actual CRL publishing.
@@ -617,16 +616,8 @@ func TestCRLUpdateSchedule(t *testing.T) {
 		winService.runCRLUpdateLoop()
 	})
 
-	select {
-	case <-accessPoint.InitReceived():
-	case <-time.After(10 * time.Second):
-		t.Fatal("Timed out waiting for watcher initialization")
-	}
-
 	var wantUpdates int
 	waitForNextCRLUpdate := func(t *testing.T) {
-		t.Helper()
-
 		wantUpdates++
 		caClient.WaitForUpdate(t, wantUpdates)
 	}
@@ -678,108 +669,6 @@ func TestCRLUpdateSchedule(t *testing.T) {
 	})
 }
 
-// watcherAwareAccessPoint is a WindowsDesktopAccessPoint wrapper that
-// intercepts the creation of watchers, so we can know with certainty that the
-// expected watchers are ready.
-//
-// See [watcherAwareAccessPoint.InitReceived].
-type watcherAwareAccessPoint struct {
-	authclient.WindowsDesktopAccessPoint
-
-	initReceived      chan struct{}
-	initReceivedClose func()
-
-	done <-chan struct{} // signals end of test
-	wg   sync.WaitGroup
-}
-
-func newWatcherAwareAccessPoint(t *testing.T, ap authclient.WindowsDesktopAccessPoint) *watcherAwareAccessPoint {
-	ctx, cancel := context.WithCancel(t.Context())
-
-	watcherAP := &watcherAwareAccessPoint{
-		WindowsDesktopAccessPoint: ap,
-		initReceived:              make(chan struct{}),
-		done:                      ctx.Done(),
-	}
-	watcherAP.initReceivedClose = sync.OnceFunc(func() { close(watcherAP.initReceived) })
-	t.Cleanup(func() {
-		cancel()
-		t.Log("Waiting for watcherAwareAccessPoint sync.WaitGroup")
-		watcherAP.wg.Wait()
-	})
-
-	return watcherAP
-}
-
-func (a *watcherAwareAccessPoint) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
-	w, err := a.WindowsDesktopAccessPoint.NewWatcher(ctx, watch)
-	if err != nil {
-		return nil, err
-	}
-
-	ww := &watcherInitWrapper{
-		Watcher:          w,
-		markInitReceived: a.initReceivedClose,
-		done:             a.done,
-		events:           make(chan types.Event),
-	}
-	a.wg.Go(func() { ww.forwardEvents(ctx, w) })
-
-	return ww, nil
-}
-
-// InitReceived returns a channel that is closed once any watcher created by the
-// watcherAwareAccessPoint receives its first init event.
-//
-// Used as proxy to know that the underlying watcher is ready.
-func (a *watcherAwareAccessPoint) InitReceived() <-chan struct{} {
-	return a.initReceived
-}
-
-// watcherInitWrapper wraps a types.Watcher so it can wait for its first init
-// event.
-//
-// See watcherAwareAccessPoint.
-type watcherInitWrapper struct {
-	types.Watcher
-
-	markInitReceived func()
-
-	done   <-chan struct{} // signals end of test
-	events chan types.Event
-}
-
-func (w *watcherInitWrapper) Events() <-chan types.Event {
-	return w.events
-}
-
-func (w *watcherInitWrapper) forwardEvents(ctx context.Context, other types.Watcher) {
-	for {
-		select {
-		case <-w.done:
-			return
-		case <-ctx.Done():
-			return
-		case <-other.Done():
-			return
-		case e := <-other.Events():
-			if e.Type == types.OpInit {
-				w.markInitReceived()
-			}
-			// Forward event.
-			select {
-			case <-w.done:
-				return
-			case <-ctx.Done():
-				return
-			case <-other.Done():
-				return
-			case w.events <- e:
-			}
-		}
-	}
-}
-
 type mockCertificateStoreClient struct {
 	logf func(string, ...any)
 
@@ -806,24 +695,22 @@ func (c *mockCertificateStoreClient) Update(ctx context.Context, tc *tls.Config)
 }
 
 func (c *mockCertificateStoreClient) WaitForUpdate(t *testing.T, wantCalls int) {
-	t.Helper()
-
-	const timeout = 5 * time.Second // arbitrary
-	ctx, cancel := context.WithTimeout(t.Context(), timeout)
+	// Arbitrary. 1s should be plenty of time for a mocked update.
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel()
 
 	for {
 		c.mu.Lock()
-		num := c.numCalls
-		ch := c.wait
-		c.mu.Unlock()
-		if num == wantCalls {
+		if c.numCalls == wantCalls {
+			c.mu.Unlock()
 			return
 		}
+		ch := c.wait
+		c.mu.Unlock()
 
 		select {
 		case <-ctx.Done():
-			t.Fatalf("Timed out before update: numCalls=%d, wantCalls=%d", c.numCalls, wantCalls)
+			t.Fatal("Timed out before update")
 		case <-ch:
 			continue
 		}

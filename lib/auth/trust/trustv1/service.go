@@ -39,7 +39,7 @@ import (
 )
 
 // TODO(codingllama): DELETE IN 20. All valid clients support WindowsCA by then.
-var minGetUserCASemver = &semver.Version{Major: 18, Minor: 7, Patch: 0}
+var minGetUserCASemver = semver.New("18.7.0")
 
 type authServer interface {
 	// GetClusterName returns cluster name

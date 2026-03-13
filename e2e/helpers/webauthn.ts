@@ -18,7 +18,8 @@
 
 import { Page } from '@playwright/test';
 
-import { webauthnCredentialId, webauthnPrivateKey } from './env';
+const privateKeyBase64 = process.env.E2E_WEBAUTHN_PRIVATE_KEY;
+const credentialIdBase64 = process.env.E2E_WEBAUTHN_CREDENTIAL_ID;
 
 // mockWebAuthn sets up a virtual webauthn authenticator on the page.
 export async function mockWebAuthn(page: Page) {
@@ -41,10 +42,10 @@ export async function mockWebAuthn(page: Page) {
   await cdpSession.send('WebAuthn.addCredential', {
     authenticatorId,
     credential: {
-      credentialId: webauthnCredentialId,
+      credentialId: credentialIdBase64,
       isResidentCredential: false,
       rpId: 'localhost',
-      privateKey: webauthnPrivateKey,
+      privateKey: privateKeyBase64,
       signCount: 0,
     },
   });

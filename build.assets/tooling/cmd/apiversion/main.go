@@ -17,7 +17,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"text/template"
 
@@ -39,12 +38,9 @@ const VersionMetadata = "{{.Metadata}}"
 `))
 
 func main() {
-	v, err := semver.NewVersion(os.Args[1])
-	if err != nil {
-		panic(err)
-	}
+	v := semver.New(os.Args[1])
 	if os.Args[1] != v.String() {
-		panic(fmt.Sprintf("bad semver parsing, expected %+q, got %+q", os.Args[1], v.String()))
+		panic("impossible semver parse")
 	}
 
 	outTemplate.Execute(os.Stdout, v)

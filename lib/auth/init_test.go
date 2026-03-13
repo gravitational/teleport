@@ -2436,16 +2436,12 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			require.NoError(t, err)
 
 			if test.initialProcVersion != "" {
-				ver, err := semver.NewVersion(test.initialProcVersion)
-				require.NoError(t, err)
-				err = authCfg.VersionStorage.WriteTeleportVersion(ctx, *ver)
+				err = authCfg.VersionStorage.WriteTeleportVersion(ctx, *semver.New(test.initialProcVersion))
 				require.NoError(t, err)
 			}
 			if test.initialVersion != "" {
-				ver, err := semver.NewVersion(test.initialVersion)
-				require.NoError(t, err)
 				backendInfo, err := backendinfo.NewBackendInfo(&backendinfov1.BackendInfoSpec{
-					TeleportVersion: ver.String(),
+					TeleportVersion: semver.New(test.initialVersion).String(),
 				})
 				require.NoError(t, err)
 				_, err = service.CreateBackendInfo(ctx, backendInfo)

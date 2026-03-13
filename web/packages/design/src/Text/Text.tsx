@@ -36,8 +36,6 @@ import {
   TextAlignProps,
   typography,
   TypographyProps,
-  whiteSpace,
-  WhiteSpaceProps,
 } from 'design/system';
 import { shouldForwardTypographyProp } from 'design/system/typography';
 import { fontWeights } from 'design/theme/typography';
@@ -53,7 +51,6 @@ export type TextProps<E extends React.ElementType = 'div'> =
     SpaceProps &
     ColorProps &
     TextAlignProps &
-    WhiteSpaceProps &
     FontWeightProps &
     FontFamilyProps;
 
@@ -68,7 +65,6 @@ const Text = styled.div.withConfig({
   ${space}
   ${color}
   ${textAlign}
-  ${whiteSpace}
   ${fontWeight}
   ${fontFamily}
 `;

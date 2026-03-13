@@ -375,7 +375,7 @@ export const makeAuthSettings = (
 ): AuthSettings => ({
   localAuthEnabled: true,
   authProviders: [],
-  messageOfTheDay: '',
+  hasMessageOfTheDay: false,
   authType: 'local',
   allowPasswordless: false,
   localConnectorName: '',
