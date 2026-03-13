@@ -48,7 +48,8 @@ func (a *accessListWithMembers) isEqual(other *accessListWithMembers) bool {
 	}
 	// Members are sorted before reconciliation, so we can compare them in order.
 	for i := range a.Members {
-		if !a.Members[i].IsEqual(other.Members[i]) {
+		if a.Members[i].Spec.Name != other.Members[i].Spec.Name ||
+			a.Members[i].Spec.AccessList != other.Members[i].Spec.AccessList {
 			return false
 		}
 	}

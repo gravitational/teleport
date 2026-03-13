@@ -109,11 +109,19 @@ func NewMemberReconciler(cfg MemberReconcilerConfig) (*MemberReconciler, error) 
 	reconciler.backend, err = services.NewReconciler(services.ReconcilerConfig[*accesslist.AccessListMember]{
 		Matcher:             cfg.Matcher,
 		GetCurrentResources: reconciler.getCurrentMembers,
-		GetNewResources:     reconciler.getNewMembers,
-		OnCreate:            reconciler.upsertMember,
-		OnUpdate:            reconciler.updateMember,
-		OnDelete:            reconciler.deleteMember,
-		Logger:              cfg.Logger,
+		CompareResources: func(alm1, alm2 *accesslist.AccessListMember) int {
+			if alm1.Spec.Name == alm2.Spec.Name &&
+				alm1.Spec.AccessList == alm2.Spec.AccessList {
+				return services.Equal
+			}
+
+			return services.Different
+		},
+		GetNewResources: reconciler.getNewMembers,
+		OnCreate:        reconciler.upsertMember,
+		OnUpdate:        reconciler.updateMember,
+		OnDelete:        reconciler.deleteMember,
+		Logger:          cfg.Logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

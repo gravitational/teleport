@@ -451,7 +451,15 @@ func accessListMembersReconciler(
 	newListMembersFromIC map[string]*accesslist.AccessListMember,
 ) (*services.Reconciler[*accesslist.AccessListMember], error) {
 	return services.NewReconciler(services.ReconcilerConfig[*accesslist.AccessListMember]{
-		Matcher:             wildcardMatcher[*accesslist.AccessListMember],
+		Matcher: wildcardMatcher[*accesslist.AccessListMember],
+		CompareResources: func(alm1, alm2 *accesslist.AccessListMember) int {
+			if alm1.Spec.Name == alm2.Spec.Name &&
+				alm1.Spec.AccessList == alm2.Spec.AccessList {
+				return services.Equal
+			}
+
+			return services.Different
+		},
 		GetCurrentResources: func() map[string]*accesslist.AccessListMember { return listMembersInTeleport },
 		GetNewResources:     func() map[string]*accesslist.AccessListMember { return newListMembersFromIC },
 		OnCreate: func(ctx context.Context, m *accesslist.AccessListMember) error {
