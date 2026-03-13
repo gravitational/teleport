@@ -1,4 +1,4 @@
-.version: &version "17.7.20"
+.version: &version "17.7.20-dev.rhammonds.toolchainbackport.v17.1"
 
 name: teleport-operator
 apiVersion: v2
