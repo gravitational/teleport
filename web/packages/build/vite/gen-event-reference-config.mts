@@ -26,7 +26,7 @@ export default defineConfig(() => ({
       entry: path.resolve(rootDirectory, 'index.ts'),
       formats: ['cjs' as const],
     },
-    rollupOptions: {
+    rolldownOptions: {
       external: ['node:fs'],
     },
   },
