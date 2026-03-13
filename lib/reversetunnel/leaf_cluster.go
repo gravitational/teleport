@@ -1058,7 +1058,7 @@ func (s *leafCluster) runValidatedMFAChallengeSync(ctx context.Context, cfg retr
 				return nil
 
 			case <-s.validatedMFAChallengeWatcher.Done():
-				return trace.Errorf("watcher done channel closed")
+				return trace.Errorf("validated MFA challenge watcher closed")
 
 			case challenges, ok := <-s.validatedMFAChallengeWatcher.ResourcesC:
 				if !ok {
