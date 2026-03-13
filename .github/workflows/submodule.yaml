@@ -17,10 +17,9 @@ jobs:
         with:
           filters: |
             submodule:
-              - 'e'        # The submodule pointer itself
+              - 'e'
             other:
-              - '**'
-              - '!e'      # Anything except the submodule pointer
+              - '!e'
 
       - name: Validate PR
         run: |
