@@ -302,19 +302,24 @@ func (e *eventTracker) waitForEvents(ctx context.Context, targetCount int, event
 		case <-ticker.C:
 			e.receiveMu.Lock()
 			timeSinceLastEvent := time.Since(e.lastEventTime)
-			currentEventCount := len(e.receivedEvents)
+			numReceived := len(e.receivedEvents)
 			e.receiveMu.Unlock()
 
 			e.writeMu.Lock()
 			numWritten := len(e.writtenEvents)
 			e.writeMu.Unlock()
 
-			e.t.Logf("Received %d/%d (%.1f%%), last event %v ago",
-				currentEventCount, numWritten,
-				float64(currentEventCount)/float64(numWritten)*100,
-				timeSinceLastEvent.Round(time.Second))
+			percentage := float64(numReceived) / float64(numWritten) * 100
+			roundedDuration := timeSinceLastEvent.Round(time.Second)
+			e.t.Logf(
+				"Written: %-8d Received: %-8d Percent: %-6.1f%% LastEventAgo: %-10v",
+				numWritten,
+				numReceived,
+				percentage,
+				roundedDuration,
+			)
 
-			if currentEventCount >= targetCount {
+			if numReceived >= targetCount {
 				e.t.Logf("Received target of %d events, proceeding with verification", targetCount)
 				return
 			}
