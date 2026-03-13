@@ -919,6 +919,13 @@ func WithBufconnListener() TestTLSServerOption {
 	}
 }
 
+// WithoutJoinV1 disables the new join gRPC service while keeping legacy join registered.
+func WithoutJoinV1() TestTLSServerOption {
+	return func(cfg *TLSServerConfig) {
+		cfg.APIConfig.DisableJoinV1 = true
+	}
+}
+
 // NewRemoteClient creates new client to the remote server using identity
 // generated for this certificate authority
 func (a *AuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, pool *x509.CertPool) (*authclient.Client, error) {
