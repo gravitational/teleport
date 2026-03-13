@@ -1135,10 +1135,7 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 				Username:      challenge.GetSpec().GetUsername(),
 			},
 		)
-		if trace.IsAlreadyExists(err) {
-			continue
-		}
-		if err != nil {
+		if err != nil && !trace.IsAlreadyExists(err) {
 			log.ErrorContext(
 				ctx,
 				"Failed to replicate ValidatedMFAChallenge to leaf cluster",
