@@ -214,7 +214,7 @@ func (d *dbusDaemon) authorize(sender dbus.Sender) (uint32, error) {
 		return uid, nil
 	}
 
-	authCtx, cancel := context.WithTimeout(context.Background(), polkitAuthorizationTimeout)
+	authCtx, cancel := context.WithTimeout(d.conn.Context(), polkitAuthorizationTimeout)
 	defer cancel()
 
 	subject := polkit.NewSystemBusNameSubject(string(sender))
