@@ -20,6 +20,7 @@ import path from 'node:path';
 
 import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
 import type { Plugin } from 'vite';
+import type { RolldownOptions } from 'rolldown';
 
 import { reactPlugin } from '@gravitational/build/vite/react.mjs';
 
@@ -32,6 +33,22 @@ const outputDirectory = path.resolve(__dirname, 'build', 'app');
 // if Vite complains about a dependency, add it here
 const externalizeDeps = ['strip-ansi', 'ansi-regex', 'd3-color'];
 
+const commonRolldownOptions: RolldownOptions = {
+  onLog(level, log, defaultHandler) {
+    // Suppress direct eval warning from @protobufjs/inquire.
+    // The eval is intentional (to call require without bundler detection) and patching
+    // it to indirect eval would break Electron's module-scoped require.
+    if (
+      log.code === 'EVAL' &&
+      log.id?.includes('@protobufjs/inquire')
+    ) {
+      return;
+    }
+
+    defaultHandler(level, log);
+  },
+};
+
 const config = defineConfig(env => {
   const commonPlugins = [externalizeDepsPlugin({ exclude: externalizeDeps })];
 
@@ -42,7 +59,8 @@ const config = defineConfig(env => {
       },
       build: {
         outDir: path.resolve(outputDirectory, 'main'),
-        rollupOptions: {
+        rolldownOptions: {
+          ...commonRolldownOptions,
           input: {
             index: path.resolve(__dirname, 'src/main.ts'),
             sharedProcess: path.resolve(
@@ -55,6 +73,7 @@ const config = defineConfig(env => {
             ),
           },
           output: {
+            format: 'cjs',
             manualChunks,
           },
         },
@@ -75,11 +94,13 @@ const config = defineConfig(env => {
       },
       build: {
         outDir: path.resolve(outputDirectory, 'preload'),
-        rollupOptions: {
+        rolldownOptions: {
+          ...commonRolldownOptions,
           input: {
             index: path.resolve(__dirname, 'src/preload.ts'),
           },
           output: {
+            format: 'cjs',
             manualChunks,
           },
         },
@@ -98,7 +119,8 @@ const config = defineConfig(env => {
       root: '.',
       build: {
         outDir: path.resolve(outputDirectory, 'renderer'),
-        rollupOptions: {
+        rolldownOptions: {
+          ...commonRolldownOptions,
           input: {
             index: path.resolve(__dirname, 'index.html'),
           },
