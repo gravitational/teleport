@@ -1,5 +1,5 @@
-# This workflow runs some checks on release branches to ensure
-# that the release is ready to be published.
+# This workflow runs some checks on release branches to ensure correctness
+# for the release.
 name: Lint Release
 
 on:
@@ -23,6 +23,7 @@ jobs:
       - name: Ensure Changelog Entry
         run: make ensure-changelog-entry
 
+      # Base branch is only available for Pull Requests
       - name: Fetch base branch
         if: github.event_name == 'pull_request'
         run: git fetch origin ${{ github.base_ref }}
