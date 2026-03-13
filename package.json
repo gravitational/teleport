@@ -20,7 +20,7 @@
     "tdd": "jest --watch",
     "oxlint": "oxlint --quiet --report-unused-disable-directives-severity error web/ e/ e2e/",
     "lint": "pnpm oxlint && pnpm format-check",
-    "lint-fix": "pnpm oxlint --fix && pnpm format-write",
+    "lint-fix": "pnpm oxlint --fix && pnpm format",
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --build",
     "type-check-native": "tsgo --build",
     "optimize-resource-icons": "svgo --multipass --quiet -rf web/packages/design/src/ResourceIcon/assets",
