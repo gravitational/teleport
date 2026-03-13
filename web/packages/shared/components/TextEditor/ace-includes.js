@@ -16,14 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import ace from 'ace-builds/src-min-noconflict/ace';
-
-// Ace extension and mode files (e.g. mode-json.js, ext-searchbox.js) reference
-// `ace` as a bare global identifier (`ace.define(...)`). The ace.js IIFE tries
-// to set `window.ace` via `(function(){ return this })()`, but Vite 8's bundler
-// (Rolldown) can drop or scope that assignment. Explicitly assign it here so
-// that subsequently-evaluated extension modules can resolve the bare `ace` ref.
-// eslint-disable-next-line no-undef
-globalThis.ace = ace;
-
-export default ace;
+// These are in a separate file that is imported after ace.js, so that we can
+// ensure that `ace` is defined as a global.
+// Importing them directly from TextEditor.jsx would result in oxfmt rearranging
+// the imports and putting these above the ace import, which would then cause them
+// to fail to load.
+import 'ace-builds/src-noconflict/ext-searchbox';
+import 'ace-builds/src-noconflict/mode-json';
+import 'ace-builds/src-noconflict/mode-terraform.js';
+import 'ace-builds/src-noconflict/mode-yaml';
