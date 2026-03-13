@@ -1006,6 +1006,19 @@ const (
 
 	// SessionSummarizedEvent is emitted when a session summary is created.
 	SessionSummarizedEvent = "session.summarized"
+
+	// CertAuthOverrideCreateEvent is the create event for cert_auth_override
+	// resources.
+	CertAuthOverrideCreateEvent = "cert_auth_override.create"
+	// CertAuthOverrideUpdateEvent is the update event for cert_auth_override
+	// resources.
+	CertAuthOverrideUpdateEvent = "cert_auth_override.update"
+	// CertAuthOverrideUpsertEvent is the upsert event for cert_auth_override
+	// resources.
+	CertAuthOverrideUpsertEvent = "cert_auth_override.upsert"
+	// CertAuthOverrideDeleteEvent is the delete event for cert_auth_override
+	// resources.
+	CertAuthOverrideDeleteEvent = "cert_auth_override.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

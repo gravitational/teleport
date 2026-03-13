@@ -4977,6 +4977,7 @@ message OneOf {
     events.InferencePolicyUpdate InferencePolicyUpdate = 245;
     events.InferencePolicyDelete InferencePolicyDelete = 246;
     events.SessionSummarized SessionSummarized = 247;
+    events.CertAuthorityOverrideEvent CertAuthorityOverrideEvent = 248;
   }
 }
 

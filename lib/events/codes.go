@@ -867,6 +867,24 @@ const (
 	// SessionSummarizedErrorCode is the session summarized error event code.
 	SessionSummarizedErrorCode = "INF010E"
 
+	// CertAuthOverrideCreateCode is the cert_auth_override create event code.
+	CertAuthOverrideCreateCode = "TCO01I"
+	// CertAuthOverrideUpdateCode is the cert_auth_override update event code.
+	CertAuthOverrideUpdateCode = "TCO02I"
+	// CertAuthOverrideUpsertCode is the cert_auth_override upsert event code.
+	CertAuthOverrideUpsertCode = "TCO03I"
+	// CertAuthOverrideDeleteCode is the cert_auth_override delete event code.
+	CertAuthOverrideDeleteCode = "TCO04I"
+	// CertAuthOverrideCertificatesAddCode is the event code for specialized
+	// AddCertificateOverride operation.
+	CertAuthOverrideCertificatesAddCode = "TCO05I"
+	// CertAuthOverrideCertificatesUpdateCode is the event code for specialized
+	// UpdateCertificateOverride operation.
+	CertAuthOverrideCertificatesUpdateCode = "TCO06I"
+	// CertAuthOverrideCertificatesRemoveCode is the event code for specialized
+	// RemoveCertificateOverride operation.
+	CertAuthOverrideCertificatesRemoveCode = "TCO07I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
