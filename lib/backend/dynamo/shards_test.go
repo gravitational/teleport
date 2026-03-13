@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"strings"
 	"sync"
@@ -16,8 +17,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	streamtypes "github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
-
-	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -424,9 +423,8 @@ func (w *eventWriter) writeBatch(ctx context.Context, start, end int, payload st
 }
 
 func (w *eventWriter) wildPut(ctx context.Context, item backend.Item) error { // Intentionally ignore errors here, the purpose of this test is to see how the system behaves under high load and potential throttling, not to guarantee all writes succeed.
-	id, _ := uuid.NewRandom()
 	r := record{
-		HashKey:   id.String(), // test out random parition throughput
+		HashKey:   fmt.Sprintf("%d", rand.N(3)), // split into 3 partitions, each is limited to 1000WCU
 		FullPath:  prependPrefix(item.Key),
 		Value:     item.Value,
 		Timestamp: time.Now().UTC().Unix(),
