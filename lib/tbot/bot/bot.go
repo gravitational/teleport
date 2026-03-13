@@ -355,6 +355,7 @@ func (b *Bot) buildIdentityService(
 		Destination:     b.cfg.InternalStorage,
 		TTL:             b.cfg.CredentialLifetime.TTL,
 		RenewalInterval: b.cfg.CredentialLifetime.RenewalInterval,
+		Leeway:          b.cfg.Leeway,
 		FIPS:            b.cfg.FIPS,
 		Logger: b.cfg.Logger.With(
 			teleport.ComponentKey,
