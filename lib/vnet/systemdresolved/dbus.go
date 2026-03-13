@@ -141,7 +141,7 @@ func SetLinkDNS(ctx context.Context, conn *dbus.Conn, ifaceIndex int32, addresse
 func DNSAddressForIP(raw string) (DNSAddress, error) {
 	ip := net.ParseIP(raw)
 	if ip == nil {
-		return DNSAddress{}, trace.Errorf("invalid IP address")
+		return DNSAddress{}, trace.BadParameter("invalid IP address: %s", raw)
 	}
 	if ip4 := ip.To4(); ip4 != nil {
 		return DNSAddress{
