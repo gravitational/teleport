@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import ace from './ace';
+import { Component } from 'react';
 import 'ace-builds/src-noconflict/ext-searchbox';
 import 'ace-builds/src-noconflict/mode-json';
 import 'ace-builds/src-noconflict/mode-terraform.js';
 import 'ace-builds/src-noconflict/mode-yaml';
-import { Component } from 'react';
 import styled from 'styled-components';
 
 import { ButtonSecondary } from 'design/Button';
@@ -30,6 +29,7 @@ import { Copy, Download } from 'design/Icon';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { downloadObject } from 'shared/utils/download';
 
+import ace from './ace';
 import StyledTextEditor from './StyledTextEditor';
 
 const { UndoManager } = ace.require('ace/undomanager');
