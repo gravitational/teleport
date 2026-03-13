@@ -135,15 +135,15 @@ func TestHeaderAcceptsEncoding(t *testing.T) {
 		encoding string
 		want     bool
 	}{
-		{"plain gzip", "gzip", "gzip", true},
-		{"gzip with deflate", "deflate, gzip", "gzip", true},
-		{"quality 1", "gzip;q=1", "gzip", true},
-		{"quality 0.5", "gzip;q=0.5", "gzip", true},
-		{"quality 0 rejects", "gzip;q=0", "gzip", false},
-		{"quality 0.0 rejects", "gzip;q=0.0", "gzip", false},
-		{"empty header", "", "gzip", false},
-		{"no gzip", "deflate, br", "gzip", false},
-		{"spaces around", " gzip ; q=1 ", "gzip", true},
+		{name: "plain gzip", header: "gzip", encoding: "gzip", want: true},
+		{name: "gzip with deflate", header: "deflate, gzip", encoding: "gzip", want: true},
+		{name: "quality 1", header: "gzip;q=1", encoding: "gzip", want: true},
+		{name: "quality 0.5", header: "gzip;q=0.5", encoding: "gzip", want: true},
+		{name: "quality 0 rejects", header: "gzip;q=0", encoding: "gzip", want: false},
+		{name: "quality 0.0 rejects", header: "gzip;q=0.0", encoding: "gzip", want: false},
+		{name: "empty header", header: "", encoding: "gzip", want: false},
+		{name: "no gzip", header: "deflate, br", encoding: "gzip", want: false},
+		{name: "spaces around", header: " gzip ; q=1 ", encoding: "gzip", want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
