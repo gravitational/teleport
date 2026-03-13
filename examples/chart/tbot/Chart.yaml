@@ -1,4 +1,4 @@
-.version: &version "18.7.2"
+.version: &version "18.7.2-dev.rhammonds.toolchainbackport.v18.2"
 
 name: tbot
 apiVersion: v2
