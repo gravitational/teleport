@@ -428,7 +428,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 func (l *Log) searchEvents(
 	ctx context.Context,
 	fromTime, toTime time.Time,
-	eventTypes []string, cond *utils.ToFieldsConditionConfig, sessionID string,
+	eventTypes []string, cond *utils.ToFieldsConditionConfig, sessionID, search string,
 	limit int, order types.EventOrder, startKey string,
 ) ([]events.EventFields, string, error) {
 	if limit <= 0 {
@@ -457,6 +457,8 @@ func (l *Log) searchEvents(
 		}
 	}
 
+	searchTerms := strings.Fields(strings.ToLower(search))
+
 	sessionUUID := l.deriveSessionID(ctx, sessionID)
 
 	var qb strings.Builder
@@ -472,6 +474,9 @@ func (l *Log) searchEvents(
 		// hint to the query planner, it can use the partial index on session_id
 		// no matter what the argument is
 		qb.WriteString(" AND events.session_id != '00000000-0000-0000-0000-000000000000' AND events.session_id = @session_id")
+	}
+	for i := range searchTerms {
+		fmt.Fprintf(&qb, " AND POSITION(@search_term_%d IN lower(events.event_data::text)) > 0", i)
 	}
 	if order != types.EventOrderDescending {
 		if startKey != "" {
@@ -493,6 +498,9 @@ func (l *Log) searchEvents(
 		"session_id":  sessionUUID,
 		"start_time":  startTime,
 		"start_id":    startID,
+	}
+	for i, term := range searchTerms {
+		queryArgs[fmt.Sprintf("search_term_%d", i)] = term
 	}
 
 	const fetchSize = defaults.EventsIterationLimit
@@ -588,7 +596,7 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 	var emptyCond *utils.ToFieldsConditionConfig
 	const emptySessionID = ""
 
-	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Limit, req.Order, req.StartKey)
+	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Search, req.Limit, req.Order, req.StartKey)
 	if err != nil {
 		return nil, next, trace.Wrap(err)
 	}
@@ -605,7 +613,7 @@ func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEve
 	var emptyCond *utils.ToFieldsConditionConfig
 	const emptySessionID = ""
 
-	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Limit, req.Order, req.StartKey)
+	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Search, req.Limit, req.Order, req.StartKey)
 	if err != nil {
 		return nil, next, trace.Wrap(err)
 	}
@@ -626,7 +634,8 @@ func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEvent
 
 // SearchSessionEvents implements [events.AuditLogger].
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, events.SessionRecordingEvents, req.Cond, req.SessionID, req.Limit, req.Order, req.StartKey)
+	const emptySearch = ""
+	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, events.SessionRecordingEvents, req.Cond, req.SessionID, emptySearch, req.Limit, req.Order, req.StartKey)
 	if err != nil {
 		return nil, next, trace.Wrap(err)
 	}

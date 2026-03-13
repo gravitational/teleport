@@ -775,7 +775,7 @@ type legacyCheckpointKey struct {
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
+	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes, search: req.Search}, "")
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -787,7 +787,7 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 }
 
 func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
+	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes, search: req.Search}, "")
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -1109,6 +1109,7 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 
 type searchEventsFilter struct {
 	eventTypes []string
+	search     string
 	condExpr   string
 	condParams condFilterParams
 	filterFunc utils.FieldsCondition
@@ -1617,6 +1618,9 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput) ([]even
 		data, err := json.Marshal(e.FieldsMap)
 		if err != nil {
 			return nil, false, trace.Wrap(err)
+		}
+		if l.filter.search != "" && !events.MatchSearch(l.filter.search, string(data)) {
+			continue
 		}
 
 		// Stop early when the fetcher's total size exceeds the response size limit.
