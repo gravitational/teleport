@@ -728,9 +728,11 @@ async function goToAccessTab(
   await user.click(screen.getByTestId(tabId));
   expect(await screen.findByText(/define .* access/i)).toBeInTheDocument();
   act(mio.enterAll);
+  /* oxlint-disable jest/no-conditional-expect */
   if (resourceName) {
     expect(await screen.findByText(resourceName)).toBeInTheDocument();
   } else {
     expect(await screen.findByText(/no access/i)).toBeInTheDocument();
   }
+  /* oxlint-enable jest/no-conditional-expect */
 }

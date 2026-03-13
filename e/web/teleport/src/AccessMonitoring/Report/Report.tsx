@@ -16,6 +16,7 @@ import {
 import { Days } from 'e-teleport/AccessMonitoring/Timeframe';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
+// oxlint-disable-next-line unused-imports/no-unused-imports -- type-only import
 import { ReportState, type Report } from '../types';
 
 const Container = styled.div`

@@ -150,7 +150,6 @@ export function ViewEditAccessList() {
     if (!accessList || accessList.id !== accessListId) {
       fetchAccessList();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessListId]);
 
   const perms = getPerms({

@@ -60,7 +60,6 @@ export function AuthConnectorEditor({ isNew = false }) {
     if (fetchAttempt.status !== 'success') {
       fetchConnector();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const backButtonRoute = isNew

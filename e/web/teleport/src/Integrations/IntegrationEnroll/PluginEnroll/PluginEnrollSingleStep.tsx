@@ -57,7 +57,6 @@ export function PluginEnrollSingleStep({
       },
     });
     // Only send a start event ID once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (enrollResponse) {

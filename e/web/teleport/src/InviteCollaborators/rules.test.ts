@@ -1,3 +1,4 @@
+/* oxlint-disable jest/no-conditional-expect */
 import { Option } from 'shared/components/Select';
 import { requiredAll, Rule } from 'shared/components/Validation/rules';
 
@@ -7,8 +8,6 @@ import {
   requiredMaxDuplicates,
   requiredNoDuplicateUsers,
 } from './rules';
-
-/* eslint-disable jest/no-conditional-expect */
 
 describe('requiredAllEmailLike', () => {
   test.each`

@@ -315,7 +315,6 @@ export const AccessListManagementContextProvider = (
     }
 
     void fetchOktaPlugin();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const processAccessLists = (

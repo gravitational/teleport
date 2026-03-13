@@ -224,6 +224,7 @@ function createTooltipRenderer(graphConfig: BarGraphConfig) {
   return function renderTooltip(props: BarTooltipProps<any>) {
     const data = useMemo(
       () => convertObjectToData(props.data, graphConfig.indexByColumn),
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
       [props.data, graphConfig.indexByColumn]
     );
 

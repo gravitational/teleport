@@ -86,7 +86,6 @@ const WithAccessDefinition: React.FC<WithAccessDefinitionProps> = ({
         allPagesFetched
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return <>{children}</>;

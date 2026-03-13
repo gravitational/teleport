@@ -1,3 +1,4 @@
+/* oxlint-disable jest/no-conditional-expect */
 import {
   act,
   fireEvent,
@@ -31,8 +32,6 @@ import {
   ConfigureServiceProvider,
   ErrMissingEntityIDOrACSURL,
 } from './ConfigureServiceProvider';
-
-/* eslint-disable jest/no-conditional-expect */
 
 const testED = `<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-12-23T03:28:35.58Z" entityID="https://example.com/saml/metadata">
 <SPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-12-23T03:28:35.5797754Z" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol" AuthnRequestsSigned="false" WantAssertionsSigned="true">

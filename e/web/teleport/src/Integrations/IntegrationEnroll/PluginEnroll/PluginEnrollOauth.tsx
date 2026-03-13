@@ -98,7 +98,6 @@ export function PluginEnrollOAuth({ plugin }: { plugin: CloudHostablePlugin }) {
       });
     }
     // Only send an event ID once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (enrollResponse?.success) {

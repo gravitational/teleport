@@ -109,7 +109,7 @@ export function SAMLIdPLogin() {
     return () => {
       signal.abort();
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- Only run the effect once on mount
+  }, []);
 
   if (attempt.status === 'failed') {
     if (attempt.statusCode === 400) {

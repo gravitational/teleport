@@ -128,7 +128,6 @@ export function IntegrationPick() {
 
     // Only requires fetching available/existing plugin types
     // once on init.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const isGuided = (i: Integration) => {

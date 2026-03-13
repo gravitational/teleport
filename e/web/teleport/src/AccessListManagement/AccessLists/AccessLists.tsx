@@ -213,7 +213,6 @@ function MainContent({
       );
     }
     // we only want to cleanse this once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const { setTrigger } = useInfiniteScroll({

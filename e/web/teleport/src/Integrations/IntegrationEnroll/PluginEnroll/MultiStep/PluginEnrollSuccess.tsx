@@ -28,7 +28,6 @@ export function PluginEnrollSuccess() {
     });
 
     // Only send an event ID once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
     <Component

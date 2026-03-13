@@ -105,7 +105,6 @@ export function AuthConnectors() {
     if (fetchAttempt.status !== 'success') {
       fetchConnectors();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const showAuthConnectorsCTA = ctx.lockedFeatures.authConnectors;

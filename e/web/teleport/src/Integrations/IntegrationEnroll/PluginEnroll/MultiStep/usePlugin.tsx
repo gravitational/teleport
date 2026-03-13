@@ -81,7 +81,6 @@ export function PluginProvider<T>({
       },
     });
     // Only send a Start event once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function nextStep() {

@@ -376,9 +376,11 @@ test('entra id group source', async () => {
 
 async function expectInitRender(accessGraphLocked: boolean) {
   const lock = screen.queryByText(/unlock access graph integration/i);
+  /* oxlint-disable jest/no-conditional-expect */
   accessGraphLocked
     ? expect(lock).toBeInTheDocument()
     : expect(lock).not.toBeInTheDocument();
+  /* oxlint-enable jest/no-conditional-expect */
 
   expect(
     screen.queryByText(/integrated successfully/i)

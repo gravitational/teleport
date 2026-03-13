@@ -135,7 +135,6 @@ export function useNewRequest(ctx: Ctx) {
   ) =>
     setAddedResourceConstraints(prev => {
       if (!rc) {
-        //eslint-disable-next-line unused-imports/no-unused-vars
         const { [key]: _, ...rest } = prev;
         return rest;
       }
@@ -152,7 +151,6 @@ export function useNewRequest(ctx: Ctx) {
       if (!(key in prev)) {
         return prev;
       }
-      // eslint-disable-next-line unused-imports/no-unused-vars
       const { [key]: _, ...rest } = prev;
       return rest;
     });

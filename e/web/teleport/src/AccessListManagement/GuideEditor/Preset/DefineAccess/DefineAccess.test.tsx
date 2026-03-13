@@ -1,4 +1,4 @@
-/* eslint-disable jest/no-conditional-expect */
+/* oxlint-disable jest/no-conditional-expect */
 import { act, within } from '@testing-library/react';
 import { UserEvent } from '@testing-library/user-event';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
