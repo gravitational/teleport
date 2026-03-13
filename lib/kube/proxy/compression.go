@@ -127,7 +127,7 @@ func (*nopCloserWrapper) Close() error {
 // headerAcceptsEncoding checks if the Accept-Encoding header includes the specified encoding
 // and that it is not explicitly refused with a q=0 parameter.
 func headerAcceptsEncoding(h http.Header, encoding string) bool {
-	for _, v := range h["Accept-Encoding"] {
+	for _, v := range h.Values("Accept-Encoding") {
 		for part := range strings.SplitSeq(v, ",") {
 			// Split "gzip;q=0.5" into name="gzip" and params="q=0.5".
 			name, params, _ := strings.Cut(strings.TrimSpace(part), ";")
