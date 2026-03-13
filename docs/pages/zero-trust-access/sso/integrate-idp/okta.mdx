@@ -130,6 +130,8 @@ Okta Integration Network support is still in beta. If unsure please proceed with
 
      - Name: `groups`
      - Expression: `user.getGroups({'group.type': {'OKTA_GROUP', 'APP_GROUP', 'BUILT_IN'}}).![profile.name]`
+     - Name: `username`
+     - Expression: `user.profile.login`
 
      {/* NOTE: This image is shared in multiple guides. */}
      ![Set groups attribute](../../../../img/sso/okta/legacy-group-expression.png)
