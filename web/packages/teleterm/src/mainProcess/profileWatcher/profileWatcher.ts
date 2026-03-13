@@ -69,7 +69,6 @@ export async function* watchProfiles({
 }): AsyncGenerator<ProfileChangeSet, void, void> {
   while (!signal?.aborted) {
     try {
-      // eslint-disable-next-line unused-imports/no-unused-vars
       for await (const _ of debounceWatch(
         tshDirectory,
         debounceMs,
