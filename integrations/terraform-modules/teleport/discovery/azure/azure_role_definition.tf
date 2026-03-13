@@ -2,14 +2,25 @@
 # Azure role for Teleport Discovery Service
 ################################################################################
 
+locals {
+  azure_role_assignable_scopes = coalescelist(
+    var.azure_role_assignable_scopes,
+    [local.scope.subscription],
+  )
+  azure_role_assignment_scopes = coalescelist(
+    var.azure_role_assignment_scopes,
+    [local.scope.subscription],
+  )
+}
+
 # Custom role for discovery permissions
 resource "azurerm_role_definition" "teleport_discovery" {
   count = local.create ? 1 : 0
 
-  assignable_scopes = ["/subscriptions/${local.azure_subscription_id}"]
+  assignable_scopes = local.azure_role_assignable_scopes
   description       = "Azure role that allows a Teleport Discovery Service to discover VMs."
   name              = var.azure_role_definition_name
-  scope             = "/subscriptions/${local.azure_subscription_id}"
+  scope             = local.scope.subscription
 
   permissions {
     actions = [
@@ -26,9 +37,9 @@ resource "azurerm_role_definition" "teleport_discovery" {
 
 # Assign the custom role to the managed identity principal
 resource "azurerm_role_assignment" "teleport_discovery" {
-  count = local.create ? 1 : 0
+  for_each = local.create ? toset(local.azure_role_assignment_scopes) : []
 
   principal_id       = one(azurerm_user_assigned_identity.teleport_discovery_service[*].principal_id)
   role_definition_id = one(azurerm_role_definition.teleport_discovery[*].role_definition_resource_id)
-  scope              = "/subscriptions/${local.azure_subscription_id}"
+  scope              = each.value
 }

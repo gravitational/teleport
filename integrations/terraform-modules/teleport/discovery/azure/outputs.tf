@@ -1,21 +1,11 @@
-output "azure_managed_identity_client_id" {
-  description = "Client ID used by the Teleport Azure OIDC integration."
-  value       = one(azurerm_user_assigned_identity.teleport_discovery_service[*].client_id)
+output "azure_discovery_role_definition" {
+  description = "The Azure role definition for Teleport discovery service."
+  value       = one(azurerm_role_definition.teleport_discovery[*])
 }
 
-output "azure_managed_identity_id" {
-  description = "Managed identity resource ID."
-  value       = one(azurerm_user_assigned_identity.teleport_discovery_service[*].id)
-}
-
-output "azure_managed_identity_principal_id" {
-  description = "Principal ID used for role assignment."
-  value       = one(azurerm_user_assigned_identity.teleport_discovery_service[*].principal_id)
-}
-
-output "azure_role_definition_id" {
-  description = "ID of the discovery role definition."
-  value       = one(azurerm_role_definition.teleport_discovery[*].role_definition_resource_id)
+output "azure_oidc_integration_managed_identity" {
+  description = "Managed identity used by the Teleport Azure OIDC integration."
+  value       = one(azurerm_user_assigned_identity.teleport_discovery_service[*])
 }
 
 output "teleport_discovery_config_name" {
