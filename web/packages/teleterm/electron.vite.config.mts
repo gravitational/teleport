@@ -16,11 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { createRequire } from 'node:module';
+import { builtinModules } from 'node:module';
 import path from 'node:path';
 
-import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
-import type { Plugin } from 'vite';
+import { defineConfig, UserConfig } from 'electron-vite';
 import type { RolldownOptions } from 'rolldown';
+import type { Plugin } from 'vite';
 
 import { reactPlugin } from '@gravitational/build/vite/react.mjs';
 
@@ -33,25 +35,35 @@ const outputDirectory = path.resolve(__dirname, 'build', 'app');
 // if Vite complains about a dependency, add it here
 const externalizeDeps = ['strip-ansi', 'ansi-regex', 'd3-color'];
 
+// electron-vite's externalizeDepsPlugin sets build.rollupOptions.external, which
+// Vite 8 ignores (it uses rolldownOptions).
+// TODO(ryan): Remove this once electron-vite supports Vite 8.
+const pkg = createRequire(import.meta.url)('./package.json');
+const deps = Object.keys(pkg.dependencies || {}).filter(
+  dep => !externalizeDeps.includes(dep)
+);
+
 const commonRolldownOptions: RolldownOptions = {
   onLog(level, log, defaultHandler) {
     // Suppress direct eval warning from @protobufjs/inquire.
     // The eval is intentional (to call require without bundler detection) and patching
     // it to indirect eval would break Electron's module-scoped require.
-    if (
-      log.code === 'EVAL' &&
-      log.id?.includes('@protobufjs/inquire')
-    ) {
+    if (log.code === 'EVAL' && log.id?.includes('@protobufjs/inquire')) {
       return;
     }
 
     defaultHandler(level, log);
   },
+  external: [
+    'electron',
+    /^electron\/.+/,
+    ...builtinModules.flatMap(m => [m, `node:${m}`]),
+    ...deps,
+    new RegExp(`^(${deps.join('|')})/.+`),
+  ],
 };
 
 const config = defineConfig(env => {
-  const commonPlugins = [externalizeDepsPlugin({ exclude: externalizeDeps })];
-
   const config: UserConfig = {
     main: {
       resolve: {
@@ -78,7 +90,6 @@ const config = defineConfig(env => {
           },
         },
       },
-      plugins: commonPlugins,
       define: {
         // It's not common to pre-process Node code with NODE_ENV, but this is what our Webpack
         // config used to do, so for compatibility purposes we kept the Vite config this way.
@@ -105,7 +116,6 @@ const config = defineConfig(env => {
           },
         },
       },
-      plugins: commonPlugins,
       define: {
         // Preload is also mean to be run by Node, see the comment for define under main.
         'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
