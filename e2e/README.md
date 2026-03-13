@@ -27,12 +27,13 @@ click through to screenshots and anything else from Playwright's test results.
 
 By default, the runner runs in test mode. Use one of the following flags to change the mode (mutually exclusive):
 
-| Flag        | Description                                       |
-|-------------|---------------------------------------------------|
-| `--ui`      | Open Playwright UI mode                           |
-| `--debug`   | Run tests with Playwright inspector (`PWDEBUG=1`) |
-| `--codegen` | Open Playwright codegen against running Teleport  |
-| `--browse`  | Open a signed-in browser for manual testing       |
+| Flag               | Description                                                                     |
+|--------------------|---------------------------------------------------------------------------------|
+| `--ui`             | Open Playwright UI mode                                                         |
+| `--debug`          | Run tests with Playwright inspector (`PWDEBUG=1`)                               |
+| `--codegen`        | Open Playwright codegen against running Teleport. Available only for web tests. |
+| `--browse-web`     | Open a signed-in browser for manual web testing                                 |
+| `--browse-connect` | Open a signed-in Teleport Connect app for manual testing                        |
 
 ### Flags
 
@@ -63,6 +64,8 @@ Typically, you'll want to run with `--no-build` during test development to skip 
 run. `--quiet` is also useful to reduce the noise from Teleport logs. The logs are captured in `teleport.log` for
 debugging purposes.
 
+Connect is built automatically when running `tests/connect` paths or when using `--browse-connect`, or `--full`.
+
 ```bash
 # Run a specific test, skip rebuilding (fastest iteration loop)
 ./e2e/run.sh --no-build e2e/tests/web/authenticated/roles.spec.ts
@@ -71,7 +74,10 @@ debugging purposes.
 ./e2e/run.sh --no-build e2e/tests/connect
 
 # Open a browser with auth already set up for manual testing
-./e2e/run.sh --browse
+./e2e/run.sh --browse-web
+
+# Open Connect with auth already set up for manual testing
+./e2e/run.sh --browse-connect
 
 # Debug a failing test with the Playwright inspector
 ./e2e/run.sh --debug e2e/tests/web/authenticated/roles.spec.ts
