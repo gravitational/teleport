@@ -331,8 +331,11 @@ jobs:
       - name: Run Type Check
         run: pnpm type-check
 
-      - name: Run lint
-        run: pnpm lint
+      - name: Run oxlint
+        run: pnpm oxlint --format github
+
+      - name: Check formatting
+        run: pnpm format-check
 
       - name: Run Storybook smoke test
         run: pnpm storybook-smoke-test
