@@ -73,7 +73,7 @@ impl CryptContext {
         let encoding = X509_ASN_ENCODING | PKCS_7_ASN_ENCODING;
         let context = unsafe { CertCreateCertificateContext(encoding, &bytes) };
         if context.is_null() {
-            return Err(Error::from_win32()).context("Can't create certificate context");
+            return Err(Error::from_thread()).context("Can't create certificate context");
         }
         self.cert = Some(context);
         Ok(context)
@@ -317,6 +317,6 @@ pub fn checked(res: BOOL) -> Result<()> {
     if res == TRUE {
         Ok(())
     } else {
-        Err(Error::from_win32().into())
+        Err(Error::from_thread().into())
     }
 }

@@ -34,10 +34,10 @@ anyhow = "1.0.102"
 humantime = "2.3.0"
 include-flate = { version = "0.2.0", features = ["stable"] }
 itertools = "0.14.0"
-windows-core = "0.61.2"
+windows-core = "0.62.2"
 
 [dependencies.windows]
-version = "0.61.3"
+version = "0.62.2"
 features = [
     "Foundation",
     "Win32_Foundation",

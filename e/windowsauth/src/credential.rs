@@ -252,6 +252,6 @@ unsafe fn get_tile_image() -> anyhow::Result<HBITMAP> {
     if lines > 0 {
         Ok(dib_section)
     } else {
-        Err(Error::from_win32()).context("No lines written to bitmap")
+        Err(Error::from_thread()).context("No lines written to bitmap")
     }
 }
