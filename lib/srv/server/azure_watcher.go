@@ -195,22 +195,16 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 		return nil, trace.Wrap(err)
 	}
 
-	if f.Subscription != types.Wildcard {
-		return f.getInstances(ctx, azureClients)
-	}
-
 	subscriptions, err := f.getSubscriptions(ctx, azureClients)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to list Azure subscriptions for wildcard subscription matcher")
 	}
 	var allInstances []*AzureInstances
 	for _, sub := range subscriptions {
-		subFetcher := *f
-		subFetcher.Subscription = sub
-		instances, err := subFetcher.getInstances(ctx, azureClients)
+		instances, err := f.getInstances(ctx, azureClients, sub)
 		if err != nil {
 			if !trace.IsNotFound(err) {
-				subFetcher.Logger.ErrorContext(ctx, "Failed to fetch instances",
+				f.Logger.ErrorContext(ctx, "Failed to fetch instances",
 					"subscription_id", sub,
 					"error", err,
 				)
@@ -223,8 +217,8 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 	return allInstances, nil
 }
 
-func (f *azureInstanceFetcher) getInstances(ctx context.Context, azureClients azure.Clients) ([]*AzureInstances, error) {
-	client, err := azureClients.GetVirtualMachinesClient(ctx, f.Subscription)
+func (f *azureInstanceFetcher) getInstances(ctx context.Context, azureClients azure.Clients, subscription string) ([]*AzureInstances, error) {
+	client, err := azureClients.GetVirtualMachinesClient(ctx, subscription)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -258,7 +252,7 @@ func (f *azureInstanceFetcher) getInstances(ctx context.Context, azureClients az
 			resourceMetadata, err := arm.ParseResourceID(azure.StringVal(vm.ID))
 			if err != nil {
 				f.Logger.WarnContext(ctx, "Skipping Teleport installation on Azure VM - failed to infer resource group from vm id",
-					"subscription_id", f.Subscription,
+					"subscription_id", subscription,
 					"vm_id", azure.StringVal(vm.Properties.VMID),
 					"resource_id", azure.StringVal(vm.ID),
 					"error", err,
@@ -283,7 +277,7 @@ func (f *azureInstanceFetcher) getInstances(ctx context.Context, azureClients az
 	var instances []*AzureInstances
 	for batchGroup, vms := range instancesByRegionAndResourceGroup {
 		instances = append(instances, &AzureInstances{
-			SubscriptionID:      f.Subscription,
+			SubscriptionID:      subscription,
 			Region:              batchGroup.location,
 			ResourceGroup:       batchGroup.resourceGroup,
 			Instances:           vms,
@@ -297,6 +291,10 @@ func (f *azureInstanceFetcher) getInstances(ctx context.Context, azureClients az
 }
 
 func (f *azureInstanceFetcher) getSubscriptions(ctx context.Context, azureClients azure.Clients) ([]string, error) {
+	if f.Subscription != types.Wildcard {
+		return []string{f.Subscription}, nil
+	}
+
 	subsClient, err := azureClients.GetSubscriptionClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
