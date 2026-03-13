@@ -34,82 +34,104 @@ import (
 func TestTryCompileFastMatcher(t *testing.T) {
 	t.Parallel()
 
-	t.Run("returns nil for namespace kind", func(t *testing.T) {
-		t.Parallel()
-		fm, err := tryCompileFastMatcher("namespaces", "list", nil, nil)
-		require.NoError(t, err)
-		require.Nil(t, fm, "fast matcher should be nil for namespace kind")
-	})
-
-	t.Run("compiles successfully for pod kind", func(t *testing.T) {
-		t.Parallel()
-		allowed := []types.KubernetesResource{
-			{Kind: types.KindKubePod, Namespace: "default", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
+	manyRules := make([]types.KubernetesResource, maxFastMatcherRules+1)
+	for i := range manyRules {
+		manyRules[i] = types.KubernetesResource{
+			Kind: types.KindKubePod, Namespace: fmt.Sprintf("ns-%d", i),
+			Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "",
 		}
-		fm, err := tryCompileFastMatcher(types.KindKubePod, types.KubeVerbList, allowed, nil)
-		require.NoError(t, err)
-		require.NotNil(t, fm)
-		require.Len(t, fm.allowRules, 1)
-		require.Empty(t, fm.denyRules)
-	})
+	}
 
-	t.Run("filters out rules with non-matching kind", func(t *testing.T) {
-		t.Parallel()
-		allowed := []types.KubernetesResource{
-			{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
-			{Kind: types.KindKubeConfigmap, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
-		}
-		fm, err := tryCompileFastMatcher(types.KindKubePod, types.KubeVerbList, allowed, nil)
-		require.NoError(t, err)
-		require.NotNil(t, fm)
-		require.Len(t, fm.allowRules, 1, "should only include pod rule")
-	})
+	tests := []struct {
+		name           string
+		kind           string
+		verb           string
+		allowed        []types.KubernetesResource
+		wantNil        bool
+		wantErr        bool
+		wantAllowCount int
+		wantDenyCount  int
+	}{
+		{
+			name:    "returns nil for namespace kind",
+			kind:    "namespaces",
+			verb:    types.KubeVerbList,
+			wantNil: true,
+		},
+		{
+			name: "compiles successfully for pod kind",
+			kind: types.KindKubePod,
+			verb: types.KubeVerbList,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "default", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
+			},
+			wantAllowCount: 1,
+		},
+		{
+			name: "filters out rules with non-matching kind",
+			kind: types.KindKubePod,
+			verb: types.KubeVerbList,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+				{Kind: types.KindKubeConfigmap, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			wantAllowCount: 1,
+		},
+		{
+			name: "includes wildcard kind rules",
+			kind: types.KindKubePod,
+			verb: types.KubeVerbList,
+			allowed: []types.KubernetesResource{
+				{Kind: types.Wildcard, Namespace: "*", Name: "*", Verbs: []string{types.Wildcard}, APIGroup: "*"},
+			},
+			wantAllowCount: 1,
+		},
+		{
+			name: "filters out rules with non-matching verb",
+			kind: types.KindKubePod,
+			verb: types.KubeVerbList,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbCreate}, APIGroup: "*"},
+			},
+			wantAllowCount: 0,
+		},
+		{
+			name: "returns error for invalid regex",
+			kind: types.KindKubePod,
+			verb: types.KubeVerbList,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "^[invalid$", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			wantErr: true,
+			wantNil: true,
+		},
+		{
+			name:    "returns nil when matching rules exceed threshold",
+			kind:    types.KindKubePod,
+			verb:    types.KubeVerbList,
+			allowed: manyRules,
+			wantNil: true,
+		},
+	}
 
-	t.Run("includes wildcard kind rules", func(t *testing.T) {
-		t.Parallel()
-		allowed := []types.KubernetesResource{
-			{Kind: types.Wildcard, Namespace: "*", Name: "*", Verbs: []string{types.Wildcard}, APIGroup: "*"},
-		}
-		fm, err := tryCompileFastMatcher(types.KindKubePod, types.KubeVerbList, allowed, nil)
-		require.NoError(t, err)
-		require.NotNil(t, fm)
-		require.Len(t, fm.allowRules, 1)
-	})
-
-	t.Run("filters out rules with non-matching verb", func(t *testing.T) {
-		t.Parallel()
-		allowed := []types.KubernetesResource{
-			{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbCreate}, APIGroup: "*"},
-		}
-		fm, err := tryCompileFastMatcher(types.KindKubePod, types.KubeVerbList, allowed, nil)
-		require.NoError(t, err)
-		require.NotNil(t, fm)
-		require.Empty(t, fm.allowRules, "should exclude rule with non-matching verb")
-	})
-
-	t.Run("returns error for invalid regex", func(t *testing.T) {
-		t.Parallel()
-		allowed := []types.KubernetesResource{
-			{Kind: types.KindKubePod, Namespace: "^[invalid$", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
-		}
-		fm, err := tryCompileFastMatcher(types.KindKubePod, types.KubeVerbList, allowed, nil)
-		require.Error(t, err)
-		require.Nil(t, fm)
-	})
-
-	t.Run("returns nil when matching rules exceed threshold", func(t *testing.T) {
-		t.Parallel()
-		allowed := make([]types.KubernetesResource, maxFastMatcherRules+1)
-		for i := range allowed {
-			allowed[i] = types.KubernetesResource{
-				Kind: types.KindKubePod, Namespace: fmt.Sprintf("ns-%d", i),
-				Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "",
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fm, err := tryCompileFastMatcher(tt.kind, tt.verb, tt.allowed, nil)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
-		}
-		fm, err := tryCompileFastMatcher(types.KindKubePod, types.KubeVerbList, allowed, nil)
-		require.NoError(t, err)
-		require.Nil(t, fm, "should return nil when rule count exceeds threshold")
-	})
+			if tt.wantNil {
+				require.Nil(t, fm)
+				return
+			}
+			require.NotNil(t, fm)
+			require.Len(t, fm.allowRules, tt.wantAllowCount)
+			require.Len(t, fm.denyRules, tt.wantDenyCount)
+		})
+	}
 }
 
 func TestFastResourceMatcher_Match(t *testing.T) {
