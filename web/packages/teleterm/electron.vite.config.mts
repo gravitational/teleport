@@ -22,7 +22,6 @@ import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
 import type { Plugin } from 'vite';
 
 import { reactPlugin } from '@gravitational/build/vite/react.mjs';
-import { tsconfigPathsPlugin } from '@gravitational/build/vite/tsconfigPaths.mjs';
 
 import { getConnectCsp } from './csp';
 
@@ -34,15 +33,13 @@ const outputDirectory = path.resolve(__dirname, 'build', 'app');
 const externalizeDeps = ['strip-ansi', 'ansi-regex', 'd3-color'];
 
 const config = defineConfig(env => {
-  const tsConfigPathsPlugin = tsconfigPathsPlugin();
-
-  const commonPlugins = [
-    externalizeDepsPlugin({ exclude: externalizeDeps }),
-    tsConfigPathsPlugin,
-  ];
+  const commonPlugins = [externalizeDepsPlugin({ exclude: externalizeDeps })];
 
   const config: UserConfig = {
     main: {
+      resolve: {
+        tsconfigPaths: true,
+      },
       build: {
         outDir: path.resolve(outputDirectory, 'main'),
         rollupOptions: {
@@ -73,6 +70,9 @@ const config = defineConfig(env => {
       },
     },
     preload: {
+      resolve: {
+        tsconfigPaths: true,
+      },
       build: {
         outDir: path.resolve(outputDirectory, 'preload'),
         rollupOptions: {
@@ -91,6 +91,9 @@ const config = defineConfig(env => {
       },
     },
     renderer: {
+      resolve: {
+        tsconfigPaths: true,
+      },
       assetsInclude: ['**/shared/libs/ironrdp/**/*.wasm'],
       root: '.',
       build: {
@@ -111,7 +114,6 @@ const config = defineConfig(env => {
       plugins: [
         reactPlugin(env.mode),
         cspPlugin(getConnectCsp(env.mode === 'development')),
-        tsConfigPathsPlugin,
         {
           // The IronRDP wasm module is embedded into the renderer app earlier in the build.
           // Exclude it here, otherwise rollup still emits it as a static asset by default.
