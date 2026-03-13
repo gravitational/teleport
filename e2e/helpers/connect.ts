@@ -82,7 +82,9 @@ export const test = base.extend<{
 }>({
   autoLogin: [false, { option: true }],
   app: async ({ autoLogin }, use) => {
-    await using temp = await mkdtempDisposable(join(tmpdir(), 'foo-'));
+    await using temp = await mkdtempDisposable(
+      join(tmpdir(), 'connect-e2e-test-')
+    );
     await using app = await launchApp(temp.path);
     if (autoLogin) {
       await login(app.page);
