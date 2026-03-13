@@ -68,6 +68,20 @@ variable "azure_managed_identity_name" {
   nullable    = false
 }
 
+variable "azure_role_assignable_scopes" {
+  default     = []
+  description = "The scopes at which the Azure discovery role will be assignable. Defaults to the current subscription."
+  nullable    = false
+  type        = list(string)
+}
+
+variable "azure_role_assignment_scopes" {
+  default     = []
+  description = "The scopes at which the Azure discovery role will be assigned. Must be a management group ID like /providers/Microsoft.Management/managementGroups/<name> to support wildcard ('*') Azure subscription discovery. Defaults to the subscription of the azurerm provider."
+  nullable    = false
+  type        = list(string)
+}
+
 variable "azure_role_definition_name" {
   description = "Name for the Azure custom role definition created for Teleport Discovery."
   type        = string
@@ -92,6 +106,13 @@ variable "match_azure_regions" {
 variable "match_azure_resource_groups" {
   type        = list(string)
   description = "Azure resource groups to scan for VMs. Defaults to [\"*\"] which matches all resource groups."
+  default     = ["*"]
+  nullable    = false
+}
+
+variable "match_azure_subscriptions" {
+  type        = list(string)
+  description = "Azure subscriptions to scan for VMs. Defaults to [\"*\"] which matches all subscriptions."
   default     = ["*"]
   nullable    = false
 }
