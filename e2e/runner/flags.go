@@ -58,7 +58,7 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	modes.register("ui", "open Playwright UI mode", modeUI)
 	modes.register("codegen", "open Playwright codegen against running Teleport (not available for Connect)", modeCodegen)
 	modes.register("debug", "run tests with Playwright inspector (PWDEBUG=1)", modeDebug)
-	modes.register("browse-web", "open a signed-in browser for manual web testing", modeBrowseWeb)
+	modes.register("browse", "open a signed-in browser for manual web testing", modeBrowse)
 	modes.register("browse-connect", "open a signed-in Teleport Connect app for manual testing", modeBrowseConnect)
 
 	flag.BoolVar(&f.verbose, "v", false, "enable debug logging")

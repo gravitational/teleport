@@ -4,7 +4,8 @@ This directory contains end-to-end tests that run against a real Teleport instan
 
 ## Setup
 
-The runner will install the E2E dependencies and Playwright browsers for you on each run. You can also set up your environment manually if you prefer:
+The runner will install the E2E dependencies and Playwright browsers for you on each run. You can also set up your
+environment manually if you prefer:
 
 ```bash
 pnpm install
@@ -32,7 +33,7 @@ By default, the runner runs in test mode. Use one of the following flags to chan
 | `--ui`             | Open Playwright UI mode                                                         |
 | `--debug`          | Run tests with Playwright inspector (`PWDEBUG=1`)                               |
 | `--codegen`        | Open Playwright codegen against running Teleport. Available only for web tests. |
-| `--browse-web`     | Open a signed-in browser for manual web testing                                 |
+| `--browse`         | Open a signed-in browser for manual web testing                                 |
 | `--browse-connect` | Open a signed-in Teleport Connect app for manual testing                        |
 
 ### Flags
@@ -53,10 +54,10 @@ By default, the runner runs in test mode. Use one of the following flags to chan
 
 ### Fixtures
 
-| Flag              | Description                                                                            |
-|-------------------|----------------------------------------------------------------------------------------|
-| `--with-ssh-node` | Start and connect a Teleport SSH node (runs in Docker)                                 |
-| `--with-connect`  | Build Teleport Connect. Enabled by default when running tests in `e2e/tests/connect`   |
+| Flag              | Description                                                                          |
+|-------------------|--------------------------------------------------------------------------------------|
+| `--with-ssh-node` | Start and connect a Teleport SSH node (runs in Docker)                               |
+| `--with-connect`  | Build Teleport Connect. Enabled by default when running tests in `e2e/tests/connect` |
 
 ### Common Commands
 
@@ -74,7 +75,7 @@ Connect is built automatically when running `tests/connect` paths or when using 
 ./e2e/run.sh --no-build e2e/tests/connect
 
 # Open a browser with auth already set up for manual testing
-./e2e/run.sh --browse-web
+./e2e/run.sh --browse
 
 # Open Connect with auth already set up for manual testing
 ./e2e/run.sh --browse-connect

@@ -74,7 +74,7 @@ func (p *playwrightRunner) run(ctx context.Context, mode runMode) error {
 		return p.ui(ctx)
 	case modeCodegen:
 		return p.codegen(ctx)
-	case modeBrowseWeb:
+	case modeBrowse:
 		return p.openWebAuthenticated(ctx, "open")
 	case modeBrowseConnect:
 		return p.openConnectAuthenticated(ctx)

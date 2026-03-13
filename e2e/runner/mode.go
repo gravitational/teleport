@@ -30,7 +30,7 @@ const (
 	modeUI
 	modeCodegen
 	modeDebug
-	modeBrowseWeb
+	modeBrowse
 	modeBrowseConnect
 )
 
@@ -44,8 +44,8 @@ func (m runMode) String() string {
 		return "codegen"
 	case modeDebug:
 		return "debug"
-	case modeBrowseWeb:
-		return "browse-web"
+	case modeBrowse:
+		return "browse"
 	case modeBrowseConnect:
 		return "browse-connect"
 	default:
