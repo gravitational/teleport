@@ -33,8 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tctl/sso/configure/flags"
-	"github.com/gravitational/teleport/tool/tctl/sso/tester"
+	"github.com/gravitational/teleport/tool/tctl/common/sso/configure/flags"
+	"github.com/gravitational/teleport/tool/tctl/common/sso/tester"
 )
 
 type samlPreset struct {
