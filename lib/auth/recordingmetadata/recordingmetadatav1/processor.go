@@ -19,6 +19,7 @@
 package recordingmetadatav1
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"math"
@@ -91,7 +92,7 @@ func (b *baseRecordingProcessor) captureThumbnailIfNeeded(eventTime time.Time) {
 
 	if _, err := protodelim.MarshalTo(b.writer, thumbnail); err != nil {
 		// log the error but continue processing other thumbnails and the session metadata (metadata is more important)
-		b.logger.Warn("Failed to marshal thumbnail entry", "error", err)
+		b.logger.WarnContext(context.Background(), "Failed to marshal thumbnail entry", "error", err)
 	}
 
 	if b.thumbnail == nil {
