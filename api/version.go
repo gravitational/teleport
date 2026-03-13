@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.7.2"
+const Version = "18.7.2-dev.rhammonds.toolchainbackport.v18.1"
 
 const VersionMajor = 18
 const VersionMinor = 7
 const VersionPatch = 2
-const VersionPreRelease = ""
+const VersionPreRelease = "dev.rhammonds.toolchainbackport.v18.1"
 const VersionMetadata = ""
