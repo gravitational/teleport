@@ -29,6 +29,13 @@ import { ContentMinWidth } from 'teleport/Main/Main';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ApiError } from 'teleport/services/api/parseError';
 import { integrationService } from 'teleport/services/integrations';
+import { userEventService } from 'teleport/services/userEvent';
+import {
+  IntegrationEnrollCodeType,
+  IntegrationEnrollEvent,
+  IntegrationEnrollKind,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent/types';
 
 import { EnrollAws } from './EnrollAws';
 
@@ -66,11 +73,27 @@ describe('EnrollAws', () => {
     jest.clearAllMocks();
     queryClient.clear();
     cfg.proxyCluster = 'my-cluster.cloud.gravitational.io';
+    jest
+      .spyOn(userEventService, 'captureIntegrationEnrollEvent')
+      .mockImplementation();
   });
 
   afterEach(() => {
     jest.restoreAllMocks();
     cfg.proxyCluster = defaultProxyCluster;
+  });
+
+  test('emits start event on mount', () => {
+    renderEnrollAws();
+
+    expect(userEventService.captureIntegrationEnrollEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: IntegrationEnrollEvent.Started,
+        eventData: expect.objectContaining({
+          kind: IntegrationEnrollKind.AwsCloud,
+        }),
+      })
+    );
   });
 
   test('terraform template renders', async () => {
@@ -120,6 +143,16 @@ describe('EnrollAws', () => {
     expect(copyToClipboard).toHaveBeenCalledWith(
       expect.stringContaining('"test-integration"')
     );
+
+    expect(userEventService.captureIntegrationEnrollEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: IntegrationEnrollEvent.CodeCopy,
+        eventData: expect.objectContaining({
+          kind: IntegrationEnrollKind.AwsCloud,
+          codeType: IntegrationEnrollCodeType.Terraform,
+        }),
+      })
+    );
   });
 
   test('check integration button validates form', async () => {
@@ -160,8 +193,27 @@ describe('EnrollAws', () => {
     });
     fireEvent.click(checkButton);
 
+    expect(userEventService.captureIntegrationEnrollEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: IntegrationEnrollEvent.Step,
+        eventData: expect.objectContaining({
+          kind: IntegrationEnrollKind.AwsCloud,
+          step: IntegrationEnrollStep.VerifyIntegration,
+        }),
+      })
+    );
+
     const success = await screen.findByText(/successfully added/i);
     expect(success).toBeInTheDocument();
+
+    expect(userEventService.captureIntegrationEnrollEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: IntegrationEnrollEvent.Complete,
+        eventData: expect.objectContaining({
+          kind: IntegrationEnrollKind.AwsCloud,
+        }),
+      })
+    );
 
     const viewIntegrationLinks = screen.getAllByRole('link', {
       name: /^view integration$/i,
@@ -201,6 +253,14 @@ describe('EnrollAws', () => {
     expect(
       screen.getByRole('button', { name: /^view integration$/i })
     ).toBeDisabled();
+
+    expect(
+      userEventService.captureIntegrationEnrollEvent
+    ).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: IntegrationEnrollEvent.Complete,
+      })
+    );
 
     jest.useRealTimers();
   });

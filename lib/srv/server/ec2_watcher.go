@@ -159,9 +159,10 @@ func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCr
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
 	for _, inst := range instances.Instances {
 		events[awsEventPrefix+inst.InstanceID] = &usageeventsv1.ResourceCreateEvent{
-			ResourceType:   resourceType,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  types.CloudAWS,
+			ResourceType:        resourceType,
+			ResourceOrigin:      types.OriginCloud,
+			CloudProvider:       types.CloudAWS,
+			DiscoveryConfigName: instances.DiscoveryConfigName,
 		}
 	}
 	return events

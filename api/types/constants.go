@@ -960,6 +960,8 @@ const (
 	DiscoveryPublicAddr = TeleportNamespace + "/public-addr"
 	// DiscoveryDescription specifies the description for a discovered app created from a Kubernetes service.
 	DiscoveryDescription = TeleportNamespace + "/description"
+	// IACToolLabel is a resource metadata label that identifies which infrastructure-as-code tool created the resource.
+	DiscoveryIACToolLabel = TeleportNamespace + "/iac-tool"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
