@@ -5965,10 +5965,6 @@ type GRPCServerConfig struct {
 	UnaryInterceptors []grpc.UnaryServerInterceptor
 	// StreamInterceptors is the gRPC stream interceptor chain.
 	StreamInterceptors []grpc.StreamServerInterceptor
-	// CreateAuthenticateChallengeLimiterConfig is the optional configuration
-	// for the limiter applied to unauthenticated calls to
-	// CreateAuthenticateChallenge. Used in tests.
-	CreateAuthenticateChallengeLimiterConfig *limiter.Config
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -6250,17 +6246,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	grpcv1pb.RegisterServiceConfigDiscoveryServiceServer(server, grpcClientConfigService)
 
-	limiterConfig := limiter.Config{
+	createAuthenticateChallengeLimiter, err := limiter.NewRateLimiter(limiter.Config{
 		Rates: []limiter.Rate{{
 			Period:  defaults.LimiterPeriod,
 			Average: defaults.LimiterAverage,
 			Burst:   defaults.LimiterBurst,
 		}},
-	}
-	if cfg.CreateAuthenticateChallengeLimiterConfig != nil {
-		limiterConfig = *cfg.CreateAuthenticateChallengeLimiterConfig
-	}
-	createAuthenticateChallengeLimiter, err := limiter.NewRateLimiter(limiterConfig)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

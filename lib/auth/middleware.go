@@ -77,10 +77,6 @@ type TLSServerConfig struct {
 	APIConfig
 	// LimiterConfig is limiter config
 	LimiterConfig limiter.Config
-	// CreateAuthenticateChallengeLimiterConfig is the optional configuration
-	// for the limiter applied to unauthenticated calls to
-	// CreateAuthenticateChallenge. Used in tests.
-	CreateAuthenticateChallengeLimiterConfig *limiter.Config
 	// AccessPoint is a caching access point
 	AccessPoint AccessCacheWithEvents
 	// Component is used for debugging purposes
@@ -238,8 +234,6 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 		APIConfig:          cfg.APIConfig,
 		UnaryInterceptors:  authMiddleware.UnaryInterceptors(),
 		StreamInterceptors: authMiddleware.StreamInterceptors(),
-
-		CreateAuthenticateChallengeLimiterConfig: cfg.CreateAuthenticateChallengeLimiterConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
