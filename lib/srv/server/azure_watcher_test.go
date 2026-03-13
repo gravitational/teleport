@@ -20,71 +20,133 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/trace"
 )
 
 type mockClients struct {
 	azure.Clients
 
-	vmClient azure.VirtualMachinesClient
+	subscriptionClient *azure.SubscriptionClient
+	vmClients          map[string]azure.VirtualMachinesClient
 }
 
 func (c *mockClients) GetVirtualMachinesClient(ctx context.Context, subscription string) (azure.VirtualMachinesClient, error) {
-	return c.vmClient, nil
+	vmClient, ok := c.vmClients[subscription]
+	if !ok {
+		return nil, trace.NotFound("subscription %s not found", subscription)
+	}
+	return vmClient, nil
+}
+
+func (c *mockClients) GetSubscriptionClient(ctx context.Context) (*azure.SubscriptionClient, error) {
+	return c.subscriptionClient, nil
 }
 
 func TestAzureWatcher(t *testing.T) {
 	t.Parallel()
 
+	const (
+		sub1 = "00000000-0000-0000-0000-000000000000"
+		sub2 = "11111111-1111-1111-1111-111111111111"
+	)
 	clients := mockClients{
-		vmClient: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
-			VirtualMachines: map[string][]*armcompute.VirtualMachine{
-				"rg1": {
-					{
-						ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"),
-						Location: to.Ptr("location1"),
-					},
-					{
-						ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm2"),
-						Location: to.Ptr("location1"),
-						Tags: map[string]*string{
-							"teleport": to.Ptr("yes"),
-						},
-					},
-					{
-						ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm5"),
-						Location: to.Ptr("location2"),
-					},
-				},
-				"rg2": {
-					{
-						ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg2/providers/Microsoft.Compute/virtualMachines/vm3"),
-						Location: to.Ptr("location1"),
-					},
-					{
-						ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg2/providers/Microsoft.Compute/virtualMachines/vm4"),
-						Location: to.Ptr("location1"),
-						Tags: map[string]*string{
-							"teleport": to.Ptr("yes"),
-						},
-					},
-					{
-						ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg2/providers/Microsoft.Compute/virtualMachines/vm6"),
-						Location: to.Ptr("location2"),
-					},
-				},
+		subscriptionClient: azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
+			Subscriptions: []*armsubscription.Subscription{
+				makeAzureSubscription(sub1),
+				makeAzureSubscription(sub2),
 			},
-		}, nil /* scaleSetAPI */),
+		}),
+		vmClients: map[string]azure.VirtualMachinesClient{
+			sub1: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
+				VirtualMachines: map[string][]*armcompute.VirtualMachine{
+					"rg1": {
+						{
+							ID:       to.Ptr(makeAzureVMID(sub1, "rg1", "vm1")),
+							Location: to.Ptr("location1"),
+						},
+						{
+							ID:       to.Ptr(makeAzureVMID(sub1, "rg1", "vm2")),
+							Location: to.Ptr("location1"),
+							Tags: map[string]*string{
+								"teleport": to.Ptr("yes"),
+							},
+						},
+						{
+							ID:       to.Ptr(makeAzureVMID(sub1, "rg1", "vm5")),
+							Location: to.Ptr("location2"),
+						},
+					},
+					"rg2": {
+						{
+							ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm3")),
+							Location: to.Ptr("location1"),
+						},
+						{
+							ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm4")),
+							Location: to.Ptr("location1"),
+							Tags: map[string]*string{
+								"teleport": to.Ptr("yes"),
+							},
+						},
+						{
+							ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm6")),
+							Location: to.Ptr("location2"),
+						},
+					},
+				},
+			}, nil /* scaleSetAPI */),
+			sub2: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
+				VirtualMachines: map[string][]*armcompute.VirtualMachine{
+					"rg3": {
+						{
+							ID:       to.Ptr(makeAzureVMID(sub2, "rg3", "vm7")),
+							Location: to.Ptr("location1"),
+						},
+						{
+							ID:       to.Ptr(makeAzureVMID(sub2, "rg3", "vm8")),
+							Location: to.Ptr("location1"),
+							Tags: map[string]*string{
+								"teleport": to.Ptr("yes"),
+							},
+						},
+						{
+							ID:       to.Ptr(makeAzureVMID(sub2, "rg3", "vm9")),
+							Location: to.Ptr("location2"),
+						},
+					},
+					"rg4": {
+						{
+							ID:       to.Ptr(makeAzureVMID(sub2, "rg4", "vm10")),
+							Location: to.Ptr("location1"),
+						},
+						{
+							ID:       to.Ptr(makeAzureVMID(sub2, "rg4", "vm11")),
+							Location: to.Ptr("location1"),
+							Tags: map[string]*string{
+								"teleport": to.Ptr("yes"),
+							},
+						},
+						{
+							ID:       to.Ptr(makeAzureVMID(sub2, "rg4", "vm12")),
+							Location: to.Ptr("location2"),
+						},
+					},
+				},
+			}, nil /* scaleSetAPI */),
+		},
 	}
 
 	tests := []struct {
@@ -93,11 +155,12 @@ func TestAzureWatcher(t *testing.T) {
 		wantVMs []string
 	}{
 		{
-			name: "all vms",
+			name: "all vms in a subscription",
 			matcher: types.AzureMatcher{
 				ResourceGroups: []string{"rg1", "rg2"},
 				Regions:        []string{"location1", "location2"},
 				ResourceTags:   types.Labels{"*": []string{"*"}},
+				Subscriptions:  []string{sub1},
 			},
 			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6"},
 		},
@@ -107,6 +170,7 @@ func TestAzureWatcher(t *testing.T) {
 				ResourceGroups: []string{"rg1"},
 				Regions:        []string{"location1", "location2"},
 				ResourceTags:   types.Labels{"*": []string{"*"}},
+				Subscriptions:  []string{sub1},
 			},
 			wantVMs: []string{"vm1", "vm2", "vm5"},
 		},
@@ -116,6 +180,7 @@ func TestAzureWatcher(t *testing.T) {
 				ResourceGroups: []string{"rg1", "rg2"},
 				Regions:        []string{"location2"},
 				ResourceTags:   types.Labels{"*": []string{"*"}},
+				Subscriptions:  []string{sub1},
 			},
 			wantVMs: []string{"vm5", "vm6"},
 		},
@@ -125,6 +190,7 @@ func TestAzureWatcher(t *testing.T) {
 				ResourceGroups: []string{"rg1", "rg2"},
 				Regions:        []string{"location1", "location2"},
 				ResourceTags:   types.Labels{"teleport": []string{"yes"}},
+				Subscriptions:  []string{sub1},
 			},
 			wantVMs: []string{"vm2", "vm4"},
 		},
@@ -134,6 +200,7 @@ func TestAzureWatcher(t *testing.T) {
 				ResourceGroups: []string{"rg1", "rg2"},
 				Regions:        []string{types.Wildcard},
 				ResourceTags:   types.Labels{"*": []string{"*"}},
+				Subscriptions:  []string{sub1},
 			},
 			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6"},
 		},
@@ -143,15 +210,35 @@ func TestAzureWatcher(t *testing.T) {
 				ResourceGroups: []string{"*"},
 				Regions:        []string{types.Wildcard},
 				ResourceTags:   types.Labels{"*": []string{"*"}},
+				Subscriptions:  []string{sub1},
 			},
 			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6"},
+		},
+		{
+			name: "subscription wildcard",
+			matcher: types.AzureMatcher{
+				ResourceGroups: []string{"rg1", "rg4"},
+				Regions:        []string{types.Wildcard},
+				ResourceTags:   types.Labels{"*": []string{"*"}},
+				Subscriptions:  []string{"*"},
+			},
+			wantVMs: []string{"vm1", "vm2", "vm5", "vm10", "vm11", "vm12"},
+		},
+		{
+			name: "subscription wildcard with resource group wildcard",
+			matcher: types.AzureMatcher{
+				ResourceGroups: []string{"*"},
+				Regions:        []string{types.Wildcard},
+				ResourceTags:   types.Labels{"*": []string{"*"}},
+				Subscriptions:  []string{"*"},
+			},
+			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6", "vm7", "vm8", "vm9", "vm10", "vm11", "vm12"},
 		},
 	}
 
 	logger := logtest.NewLogger()
 	for _, tc := range tests {
 		tc.matcher.Types = []string{"vm"}
-		tc.matcher.Subscriptions = []string{"sub1"}
 
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -180,9 +267,10 @@ func TestAzureWatcher(t *testing.T) {
 						vmID := parsedResource.Name
 						vmIDs = append(vmIDs, vmID)
 					}
-					require.NotEqual(t, "*", results.ResourceGroup)
+					require.NotEqual(t, "*", results.ResourceGroup, "Discovered VM's ResourceGroup should never be the wildcard")
+					require.NotEqual(t, "*", results.SubscriptionID, "Discovered VM's SubscriptionID should never be the wildcard")
 				case <-ctx.Done():
-					require.Fail(t, "Expected %v VMs, got %v", tc.wantVMs, len(vmIDs))
+					require.ElementsMatch(t, tc.wantVMs, vmIDs, "timed out while waiting for expected VMs")
 				}
 			}
 
@@ -356,4 +444,17 @@ func makeAzureNode(t *testing.T, name, subscriptionID, vmID string) types.Server
 	node, err := types.NewServerWithLabels(name, types.KindNode, types.ServerSpecV2{}, labels)
 	require.NoError(t, err)
 	return node
+}
+
+func makeAzureVMID(subscription, resourceGroup, name string) string {
+	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/virtualMachines/%s",
+		subscription, resourceGroup, name,
+	)
+}
+
+func makeAzureSubscription(subID string) *armsubscription.Subscription {
+	return &armsubscription.Subscription{
+		SubscriptionID: &subID,
+		State:          to.Ptr(armsubscription.SubscriptionStateEnabled),
+	}
 }

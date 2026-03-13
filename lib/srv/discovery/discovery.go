@@ -2097,6 +2097,9 @@ func (s *Server) Wait() error {
 func (s *Server) getAzureSubscriptions(ctx context.Context, integration string, subs []string) ([]string, error) {
 	subscriptionIds := subs
 	if slices.Contains(subs, types.Wildcard) {
+		// TODO(gavin): instead of listing subscriptions during init, do it
+		// on every fetch to prevent stale discovery configuration when
+		// subscriptions are added or removed
 		azureClients, err := s.getAzureClients(ctx, integration)
 		if err != nil {
 			return nil, trace.Wrap(err)

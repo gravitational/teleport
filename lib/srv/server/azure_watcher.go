@@ -195,6 +195,35 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 		return nil, trace.Wrap(err)
 	}
 
+	if f.Subscription != types.Wildcard {
+		return f.getInstances(ctx, azureClients)
+	}
+
+	subscriptions, err := f.getSubscriptions(ctx, azureClients)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to list Azure subscriptions for wildcard subscription matcher")
+	}
+	var allInstances []*AzureInstances
+	for _, sub := range subscriptions {
+		subFetcher := *f
+		subFetcher.Subscription = sub
+		instances, err := subFetcher.getInstances(ctx, azureClients)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				subFetcher.Logger.ErrorContext(ctx, "Failed to fetch instances",
+					"subscription_id", sub,
+					"error", err,
+				)
+			}
+			continue
+		}
+		allInstances = append(allInstances, instances...)
+	}
+
+	return allInstances, nil
+}
+
+func (f *azureInstanceFetcher) getInstances(ctx context.Context, azureClients azure.Clients) ([]*AzureInstances, error) {
 	client, err := azureClients.GetVirtualMachinesClient(ctx, f.Subscription)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -265,4 +294,16 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 	}
 
 	return instances, nil
+}
+
+func (f *azureInstanceFetcher) getSubscriptions(ctx context.Context, azureClients azure.Clients) ([]string, error) {
+	subsClient, err := azureClients.GetSubscriptionClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	subscriptions, err := subsClient.ListSubscriptionIDs(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return subscriptions, nil
 }
