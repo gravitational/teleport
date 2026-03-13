@@ -17,8 +17,6 @@
 package local_test
 
 import (
-	"crypto/x509"
-	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -38,57 +36,36 @@ import (
 func TestSubCAService_Create(t *testing.T) {
 	t.Parallel()
 
-	const caType = types.WindowsCA
+	const caType1 = types.DatabaseClientCA // for test table
+	const caType2 = types.WindowsCA        // for "storage key" test
 
-	// sharedEnv is shared by failure tests, since they aren't expected to change
-	// the underlying resource.
-	sharedEnv := subcaenv.New(t, subcaenv.EnvParams{
-		CATypesToCreate:  []types.CertAuthType{caType},
-		SkipExternalRoot: true,
-	})
-
-	// External CA chain.
-	const chainLength = 3
-	caChain := sharedEnv.MakeCAChain(t, chainLength)
-	leafToRootChain := caChain.LeafToRootPEMs()
-	// Create overrides from the tip of the external chain.
-	sharedEnv.ExternalRoot = caChain[len(caChain)-1]
-
-	cloneEnv := func(t *testing.T) *subcaenv.Env {
-		env := subcaenv.New(t, subcaenv.EnvParams{
-			CATypesToCreate:  []types.CertAuthType{caType},
-			SkipExternalRoot: true,
-		})
-		env.ExternalRoot = sharedEnv.ExternalRoot
-		return env
-	}
-
-	// Cloned by failure tests.
-	sharedCAOverride := sharedEnv.NewOverrideForCAType(t, caType)
-
-	// Used to test various public key mismatch scenarios. "Random".
-	const unrelatedPublicKey = `9852b3bbc867cc047e6d894333488da322df27fa96aa20ebb29c0bf44ff6327f`
-
-	// Forge a CA that has the correct Subject to match the override certificate,
-	// but has a different set of keys.
-	forgedExternalRoot, err := subcaenv.NewSelfSignedCA(&subcaenv.CAParams{
-		Clock: sharedEnv.Clock,
-		Template: &x509.Certificate{
-			Subject: sharedEnv.ExternalRoot.Cert.Subject,
+	env := subcaenv.New(t, subcaenv.EnvParams{
+		CATypesToCreate: []types.CertAuthType{
+			caType1,
+			caType2,
 		},
 	})
-	require.NoError(t, err)
+	service := env.SubCA
+
+	// Cloned before every test.
+	sharedCAOverride := env.NewOverrideForCAType(t, caType1)
+
+	t.Run("nil resource", func(t *testing.T) {
+		t.Parallel()
+		_, err := service.CreateCertAuthorityOverride(t.Context(), nil)
+		assert.ErrorContains(t, err, "name/clusterName required", "Create error mismatch")
+	})
 
 	// Verify that resources are written under the correct customized key.
 	t.Run("storage key", func(t *testing.T) {
 		t.Parallel()
 
-		env := cloneEnv(t)
 		be := env.Backend
 		ctx := t.Context()
 
-		// Create resource.
-		caOverride := env.NewOverrideForCAType(t, caType)
+		// Create resource. Uses a different caType from sharedCAOverride to not
+		// interfere in the test table.
+		caOverride := env.NewOverrideForCAType(t, caType2)
 		_, err := env.SubCA.CreateCertAuthorityOverride(ctx, caOverride)
 		require.NoError(t, err, "CreateCertAuthorityOverride errored")
 
@@ -117,7 +94,6 @@ func TestSubCAService_Create(t *testing.T) {
 	tests := []struct {
 		name    string
 		modify  func(ca *subcav1.CertAuthorityOverride)
-		success bool // mutually exclusive with wantErr
 		wantErr string
 	}{
 		{
@@ -125,260 +101,30 @@ func TestSubCAService_Create(t *testing.T) {
 			modify: func(ca *subcav1.CertAuthorityOverride) {
 				// Don't modify anything, take the default testenv override.
 			},
-			success: true,
 		},
 		{
-			name: "OK: Minimal CA override",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				ca.Spec = &subcav1.CertAuthorityOverrideSpec{}
-			},
-			success: true,
-		},
-
-		{
-			name: "empty kind",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				ca.Kind = ""
-			},
-			wantErr: "kind",
-		},
-		{
-			name: "invalid kind",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				ca.Kind = types.KindCertAuthority // wrong type
-			},
-			wantErr: "kind",
-		},
-		{
-			name: "empty sub_kind",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				ca.SubKind = ""
-			},
-			wantErr: "sub_kind",
-		},
-		{
-			name: "invalid sub_kind",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				ca.SubKind = string(types.DatabaseCA) // not allowed
-			},
-			wantErr: "sub_kind",
-		},
-		{
-			name: "empty version",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				ca.Version = ""
-			},
-			wantErr: "version",
-		},
-		{
-			name: "invalid version",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				ca.Version = types.V2
-			},
-			wantErr: "version",
-		},
-		{
-			name: "nil metadata",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				ca.Metadata = nil
-			},
-			wantErr: "name/clusterName required",
-		},
-		{
-			name: "empty name",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				ca.Metadata.Name = ""
-			},
-			wantErr: "name/clusterName required",
-		},
-		{
-			name: "nil spec",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				ca.Spec = nil
-			},
-			wantErr: "spec required",
-		},
-		{
-			name: "nil certificate_override",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				ca.Spec.CertificateOverrides = append(ca.Spec.CertificateOverrides, nil)
-			},
-			wantErr: "nil certificate override",
-		},
-		{
-			name: "certificate_override: empty certificate and public key (enabled)",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				ca.Spec.CertificateOverrides[0].Certificate = ""
-				ca.Spec.CertificateOverrides[0].PublicKey = ""
-				ca.Spec.CertificateOverrides[0].Disabled = false
-			},
-			wantErr: "certificate required",
-		},
-		{
-			name: "certificate_override: empty certificate and public key (disabled)",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				ca.Spec.CertificateOverrides[0].Certificate = ""
-				ca.Spec.CertificateOverrides[0].PublicKey = ""
-				ca.Spec.CertificateOverrides[0].Disabled = true
-			},
-			wantErr: "certificate or public key required",
-		},
-		{
-			name: "certificate_override: invalid certificate",
+			name: "CAOverride is validated",
 			modify: func(ca *subcav1.CertAuthorityOverride) {
 				ca.Spec.CertificateOverrides[0].Certificate = "ceci n'est pas a certificate"
 			},
 			wantErr: "expected PEM",
-		},
-		{
-			name: "certificate_override: invalid public key",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				ca.Spec.CertificateOverrides[0].PublicKey = "not a valid key"
-			},
-			wantErr: "invalid public key",
-		},
-		{
-			name: "certificate_override: certificate and public key mismatch",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				// Doesn't match the Certificate field.
-				ca.Spec.CertificateOverrides[0].PublicKey = unrelatedPublicKey
-			},
-			wantErr: "public key mismatch",
-		},
-		{
-			name: "certificate_override: chain without certificate",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.Chain = leafToRootChain
-				co.Certificate = ""
-				co.Disabled = true
-			},
-			wantErr: "chain not allowed with an empty certificate",
-		},
-		{
-			name: "certificate_override: chain certificate invalid",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.PublicKey = ""
-				co.Chain = []string{
-					leafToRootChain[0],
-					"ceci n'est pas a certificate",
-					leafToRootChain[1],
-					leafToRootChain[2],
-				}
-			},
-			wantErr: "chain[1]: expected PEM",
-		},
-		{
-			name: "certificate_override: certificate included in chain",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.PublicKey = ""
-				co.Chain = append([]string{co.Certificate}, leafToRootChain...)
-			},
-			wantErr: "override certificate should not be included",
-		},
-		{
-			name: "certificate_override: chain out of order",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.PublicKey = ""
-				co.Chain = caChain.RootToLeafPEMs() // reverse order
-			},
-			wantErr: "chain out of order",
-		},
-		{
-			name: "certificate_override: chain signature invalid (forged CA)",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.Chain = append(
-					[]string{string(forgedExternalRoot.CertPEM)},
-					leafToRootChain[1:]...,
-				)
-			},
-			wantErr: "chain signature check failed",
-		},
-		{
-			name: "certificate_override: chain has too many entries",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.PublicKey = ""
-				co.Chain = slices.Repeat([]string{leafToRootChain[0]}, 20)
-			},
-			wantErr: "chain has too many entries",
-		},
-		{
-			name: "certificate_override: duplicate public key",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				ca.Spec.CertificateOverrides = append(
-					ca.Spec.CertificateOverrides,
-					&subcav1.CertificateOverride{PublicKey: co.PublicKey, Disabled: true},
-				)
-			},
-			wantErr: "duplicate override",
-		},
-
-		{
-			name: "OK: Enabled override",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.Disabled = false
-			},
-			success: true,
-		},
-		{
-			name: "OK: Override without public key",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.PublicKey = ""
-			},
-			success: true,
-		},
-		{
-			name: "OK: Disabled override with only public key",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.Certificate = ""
-			},
-			success: true,
-		},
-		{
-			name: "OK: Override with chain",
-			modify: func(ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.Chain = leafToRootChain
-			},
-			success: true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create a distinct env for success tests, but otherwise use shared
-			// resources.
-			env := sharedEnv
-			var caOverride *subcav1.CertAuthorityOverride
-			if test.success {
-				env = cloneEnv(t)
-				caOverride = env.NewOverrideForCAType(t, caType)
-			} else {
-				caOverride = proto.Clone(sharedCAOverride).(*subcav1.CertAuthorityOverride)
-			}
-			service := env.SubCA
-
+			caOverride := proto.Clone(sharedCAOverride).(*subcav1.CertAuthorityOverride)
 			test.modify(caOverride)
 
 			// Take a copy. generic.Service modifies its inputs.
 			want := proto.Clone(caOverride).(*subcav1.CertAuthorityOverride)
 
 			got, err := service.CreateCertAuthorityOverride(t.Context(), caOverride)
-			if !test.success {
+			if test.wantErr != "" {
 				// Assert failures.
-				if assert.ErrorContains(t, err, test.wantErr, "Create error mismatch") {
-					assert.ErrorAs(t, err, new(*trace.BadParameterError), "Create error type mismatch")
-				}
+				require.ErrorContains(t, err, test.wantErr, "Create error mismatch")
+				assert.ErrorAs(t, err, new(*trace.BadParameterError), "Create error type mismatch")
 				return
 			}
 			// Assert success.
