@@ -28,12 +28,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
-	"github.com/gravitational/trace"
 )
 
 type mockClients struct {
