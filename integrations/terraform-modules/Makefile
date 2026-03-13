@@ -56,6 +56,7 @@ PLUGIN_TYPE := terraform-module
 # This list controls which modules are actually published.
 PUBLISHED_TF_MODULES := \
 	teleport/discovery/aws \
+	teleport/discovery/azure \
 
 MODULE_TARBALLS:=$(addsuffix .tar.gz, $(subst /,_,$(PUBLISHED_TF_MODULES)))
 BUILD_TARGETS:=$(addprefix $(BUILD_DIR)/$(PLUGIN_TYPE)_, $(MODULE_TARBALLS))
