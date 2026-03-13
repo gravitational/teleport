@@ -144,6 +144,8 @@ func TestHeaderAcceptsEncoding(t *testing.T) {
 		{name: "empty header", header: "", encoding: "gzip", want: false},
 		{name: "no gzip", header: "deflate, br", encoding: "gzip", want: false},
 		{name: "spaces around", header: " gzip ; q=1 ", encoding: "gzip", want: true},
+		{name: "uppercase token GZIP", header: "GZIP", encoding: "gzip", want: true},
+		{name: "mixed case token Gzip", header: "Gzip", encoding: "gzip", want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
