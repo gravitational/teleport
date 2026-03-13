@@ -131,7 +131,7 @@ func headerAcceptsEncoding(h http.Header, encoding string) bool {
 		for part := range strings.SplitSeq(v, ",") {
 			// Split "gzip;q=0.5" into name="gzip" and params="q=0.5".
 			name, params, _ := strings.Cut(strings.TrimSpace(part), ";")
-			if strings.TrimSpace(name) != encoding {
+			if !strings.EqualFold(strings.TrimSpace(name), encoding) {
 				continue
 			}
 			params = strings.TrimSpace(params)
