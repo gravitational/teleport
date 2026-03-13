@@ -80,8 +80,6 @@ func startExec(bufferSize int) (e *exec, err error) {
 		objs: objs,
 		lost: objs.LostCounter,
 	}
-
-	// clean up in case of partial initialization
 	defer func() {
 		if err != nil {
 			e.close()
