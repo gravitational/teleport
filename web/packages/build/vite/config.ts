@@ -82,7 +82,10 @@ export function createViteConfig(
             // Suppress direct eval warning from @protobufjs/inquire.
             // The eval is intentional (to call require without bundler detection) and patching
             // it to indirect eval would break Electron's module-scoped require.
-            if (log.code === 'EVAL' && log.id?.includes('@protobufjs/inquire')) {
+            if (
+              log.code === 'EVAL' &&
+              log.id?.includes('@protobufjs/inquire')
+            ) {
               return;
             }
 
