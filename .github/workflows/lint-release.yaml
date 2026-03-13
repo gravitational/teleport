@@ -11,8 +11,8 @@ on:
       - release/*
 
 jobs:
-  ensure-changelog-entry:
-    name: Ensure Changelog Entry
+  lint-release:
+    name: Check Release Correctness
     runs-on: ubuntu-latest
     permissions:
       contents: read
