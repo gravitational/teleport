@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* oxlint-disable typescript/no-require-imports */
+
 import 'whatwg-fetch';
 
 const crypt = require('crypto');

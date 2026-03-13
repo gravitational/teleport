@@ -181,9 +181,11 @@ describe('open', () => {
     otherInput.focus();
 
     expect(screen.getByTestId('is-open')).toHaveTextContent('false');
+    // oxlint-disable-next-line testing-library/no-node-access
     act(() => screen.getByTestId('open').click());
     expect(screen.getByTestId('is-open')).toHaveTextContent('true');
 
+    // oxlint-disable-next-line testing-library/no-node-access
     act(() => screen.getByTestId('close').click());
     expect(otherInput).toHaveFocus();
   });

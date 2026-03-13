@@ -54,6 +54,7 @@ import {
 } from 'shared/hooks/useInfiniteScroll';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
+// oxlint-disable-next-line no-restricted-imports
 import { ResourcesResponse } from 'teleport/services/agents';
 
 import { CardsView } from './CardsView/CardsView';

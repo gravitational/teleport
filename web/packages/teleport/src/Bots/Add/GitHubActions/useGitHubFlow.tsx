@@ -220,7 +220,7 @@ export function parseRepoAddress(repoAddr: string): {
   try {
     url = new URL(repoAddr);
   } catch (e) {
-    throw new Error('Must be a valid URL');
+    throw new Error('Must be a valid URL', { cause: e });
   }
 
   const paths = url.pathname.split('/');
