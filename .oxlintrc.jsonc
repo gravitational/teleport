@@ -439,6 +439,23 @@
           }
         ]
       }
+    },
+    {
+      "files": ["e2e/tests/connect/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@playwright/test",
+                "importNames": ["test", "expect"],
+                "message": "Import 'test' and 'expect' from '../../helpers/connect' instead."
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

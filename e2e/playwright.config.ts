@@ -63,5 +63,9 @@ export default defineConfig({
       use: { ...webUse, storageState: '.auth/user.json' },
       dependencies: ['setup'],
     },
+    {
+      name: 'connect',
+      testDir: './tests/connect',
+    },
   ],
 });
