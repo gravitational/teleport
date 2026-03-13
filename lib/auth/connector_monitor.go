@@ -249,7 +249,11 @@ func (m *SAMLCertExpiryMonitor) upsertAlert(ctx context.Context, message string)
 		samlCertExpiryAlertID,
 		message,
 		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
-		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindSAML, types.VerbRead)),
+		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf(
+			"%s:%s|%s:%s",
+			types.KindSAML, types.VerbRead,
+			types.KindSAMLConnector, types.VerbRead,
+		)),
 		types.WithAlertExpires(m.Clock.Now().Add(samlCertExpiryAlertExpires)),
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
 		// TODO: Link to better documentation page when it's created.
