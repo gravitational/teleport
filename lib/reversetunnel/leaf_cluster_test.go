@@ -223,21 +223,20 @@ func TestRunValidatedMFAChallengeSync_DropsExpiredFailedChallenges(t *testing.T)
 
 	clock := clockwork.NewFakeClock()
 
-	chal := newValidatedMFAChallenge(clock, "challenge-for-leaf")
+	expired := newValidatedMFAChallenge(clock, "challenge-for-leaf")
+	expired.GetMetadata().SetExpiry(clock.Now().Add(-20 * time.Millisecond))
 
 	leafMFAClient := &mockMFAServiceClient{
 		requests: make([]*mfav1.ReplicateValidatedMFAChallengeRequest, 0),
 		attempts: make(chan struct{}, 2),
 		errByName: map[string][]error{
-			chal.GetMetadata().GetName(): {
+			expired.GetMetadata().GetName(): {
 				trace.ConnectionProblem(nil, "some transient error"),
 			},
 		},
 	}
 
-	leaf := newLeafClusterWithMFAWatcher(t, clock, leafMFAClient, chal)
-
-	chal.GetMetadata().SetExpiry(clock.Now().Add(20 * time.Millisecond))
+	leaf := newLeafClusterWithMFAWatcher(t, clock, leafMFAClient, expired)
 
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	t.Cleanup(cancel)
@@ -293,7 +292,13 @@ func newLeafClusterWithMFAWatcher(
 				},
 			},
 			ResourceGetter: func(context.Context) ([]*mfav1.ValidatedMFAChallenge, error) {
-				return challenges, nil
+				// Make a copy of the challenges to avoid tests mutating the ones owned by the watcher.
+				out := make([]*mfav1.ValidatedMFAChallenge, 0, len(challenges))
+				for _, challenge := range challenges {
+					out = append(out, proto.Clone(challenge).(*mfav1.ValidatedMFAChallenge))
+				}
+
+				return out, nil
 			},
 			ResourceKey: func(r *mfav1.ValidatedMFAChallenge) string {
 				return backend.NewKey(
