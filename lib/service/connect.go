@@ -726,7 +726,7 @@ func (process *TeleportProcess) legacyJoinWithHostUUID(role types.SystemRole, ho
 // initBoundKeypairClientState attempts to initialize or load an existing bound
 // keypair client state. This state could be static or stored in the local
 // process storage.
-func (process *TeleportProcess) initBoundKeypairClientState() (boundkeypair.ClientState, error) {
+func (process *TeleportProcess) initBoundKeypairClientState() (boundkeypair.ClientState, string, error) {
 	cfg := process.Config.JoinParams.BoundKeypair
 
 	staticKey, err := cfg.StaticPrivateKeyBytes()
@@ -737,12 +737,12 @@ func (process *TeleportProcess) initBoundKeypairClientState() (boundkeypair.Clie
 			"error", err,
 		)
 	} else if staticKey != nil {
-		return boundkeypair.NewStaticClientState(staticKey), nil
+		return boundkeypair.NewStaticClientState(staticKey), "", nil
 	}
 
 	registrationSecret, err := cfg.RegistrationSecret()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	adapter := process.boundKeypairStorageAdapter()
@@ -761,10 +761,10 @@ func (process *TeleportProcess) initBoundKeypairClientState() (boundkeypair.Clie
 				"could be loaded and no registration secret was configured",
 			"error", err,
 		)
-		return nil, trace.Wrap(err, "loading bound keypair client state")
+		return nil, "", trace.Wrap(err, "loading bound keypair client state")
 	}
 
-	return state, nil
+	return state, registrationSecret, nil
 }
 
 func (process *TeleportProcess) makeJoinParams(
@@ -811,12 +811,13 @@ func (process *TeleportProcess) makeJoinParams(
 		}
 	}
 	if joinParams.JoinMethod == types.JoinMethodBoundKeypair {
-		boundKeypairState, err := process.initBoundKeypairClientState()
+		boundKeypairState, regSecret, err := process.initBoundKeypairClientState()
 		if err != nil {
 			return nil, trace.Wrap(err, "initializing bound keypair client state")
 		}
 
 		joinParams.BoundKeypairState = boundKeypairState
+		joinParams.BoundKeypairRegistrationSecret = regSecret
 	}
 	return joinParams, nil
 }
