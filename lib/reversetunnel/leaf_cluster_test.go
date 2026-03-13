@@ -277,6 +277,12 @@ func newLeafClusterWithMFAWatcher(
 	events := make(chan types.Event, 1)
 	events <- types.Event{Type: types.OpInit}
 
+	// Make a copy of the challenges to avoid tests mutating the ones owned by the watcher.
+	copiedChallenges := make([]*mfav1.ValidatedMFAChallenge, 0, len(challenges))
+	for _, challenge := range challenges {
+		copiedChallenges = append(copiedChallenges, proto.Clone(challenge).(*mfav1.ValidatedMFAChallenge))
+	}
+
 	watcher, err := services.NewGenericResourceWatcher(
 		t.Context(),
 		services.GenericWatcherConfig[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]{
@@ -292,13 +298,7 @@ func newLeafClusterWithMFAWatcher(
 				},
 			},
 			ResourceGetter: func(context.Context) ([]*mfav1.ValidatedMFAChallenge, error) {
-				// Make a copy of the challenges to avoid tests mutating the ones owned by the watcher.
-				out := make([]*mfav1.ValidatedMFAChallenge, 0, len(challenges))
-				for _, challenge := range challenges {
-					out = append(out, proto.Clone(challenge).(*mfav1.ValidatedMFAChallenge))
-				}
-
-				return out, nil
+				return copiedChallenges, nil
 			},
 			ResourceKey: func(r *mfav1.ValidatedMFAChallenge) string {
 				return backend.NewKey(
