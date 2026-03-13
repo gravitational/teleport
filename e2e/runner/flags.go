@@ -114,7 +114,7 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	}
 	for _, file := range f.testFiles {
 		slashPath := filepath.ToSlash(file)
-		if slashPath == "tests/connect" || strings.HasPrefix(slashPath, "tests/connect/") {
+		if slashPath == "tests" || slashPath == "tests/connect" || strings.HasPrefix(slashPath, "tests/connect/") {
 			connect.enabled = true
 			break
 		}
