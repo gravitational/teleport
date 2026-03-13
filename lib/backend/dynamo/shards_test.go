@@ -93,6 +93,11 @@ func TestShardSplitting(t *testing.T) {
 			// received the the target event count is reached before all writes have completed.
 			writer.wg.Wait()
 
+			t.Logf("Starting shard status: %d active, %d closed, %d child shards ",
+				monitor.initialCounts.active, monitor.initialCounts.closed, monitor.initialCounts.child)
+			t.Logf("Ending shard status: %d active, %d closed, %d child shards ",
+				monitor.lastKnownCounts.active, monitor.lastKnownCounts.closed, monitor.lastKnownCounts.child)
+
 			// This test relies on at least 1 shard split happening.
 			require.Less(t, monitor.initialCounts.child, monitor.lastKnownCounts.child, "Expected last known child shard count to be larger than initial!")
 
