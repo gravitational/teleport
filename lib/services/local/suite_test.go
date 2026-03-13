@@ -2538,7 +2538,7 @@ skiploop:
 		var deleteResource types.Resource
 		switch r := resource.(type) {
 		case *types.SAMLConnectorV2:
-			meta := resource.GetMetadata()
+			meta := r.GetMetadata()
 			deleteResource = &types.SAMLConnectorV2{
 				Kind:    r.GetKind(),
 				Version: r.GetVersion(),
@@ -2548,11 +2548,11 @@ skiploop:
 				},
 			}
 		default:
-			meta := resource.GetMetadata()
+			meta := r.GetMetadata()
 			deleteResource = &types.ResourceHeader{
-				Kind:    resource.GetKind(),
-				SubKind: resource.GetSubKind(),
-				Version: resource.GetVersion(),
+				Kind:    r.GetKind(),
+				SubKind: r.GetSubKind(),
+				Version: r.GetVersion(),
 				Metadata: types.Metadata{
 					Name:      meta.Name,
 					Namespace: meta.Namespace,
