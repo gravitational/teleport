@@ -204,6 +204,9 @@ func (p *playwrightRunner) startEnv(ctx context.Context) ([]string, error) {
 	}
 	env = append(env, "E2E_INVITE_URL="+inviteURL)
 
+	env = append(env, "E2E_CONNECT_TSH_BIN="+p.config.connectTshBinPath)
+	env = append(env, "E2E_CONNECT_APP_DIR="+p.config.connectAppDir)
+
 	return env, nil
 }
 

@@ -52,9 +52,10 @@ By default, the runner runs in test mode. Use one of the following flags to chan
 
 ### Fixtures
 
-| Flag              | Description                                            |
-|-------------------|--------------------------------------------------------|
-| `--with-ssh-node` | Start and connect a Teleport SSH node (runs in Docker) |
+| Flag              | Description                                                                            |
+|-------------------|----------------------------------------------------------------------------------------|
+| `--with-ssh-node` | Start and connect a Teleport SSH node (runs in Docker)                                 |
+| `--with-connect`  | Build Teleport Connect. Enabled by default when running tests in `e2e/tests/connect`   |
 
 ### Common Commands
 
@@ -65,6 +66,9 @@ debugging purposes.
 ```bash
 # Run a specific test, skip rebuilding (fastest iteration loop)
 ./e2e/run.sh --no-build e2e/tests/web/authenticated/roles.spec.ts
+
+# Run only Connect tests, skip rebuilding of both Teleport and Connect
+./e2e/run.sh --no-build e2e/tests/connect
 
 # Open a browser with auth already set up for manual testing
 ./e2e/run.sh --browse

@@ -29,6 +29,7 @@ import (
 )
 
 var sshNode = registerFixture("ssh-node", "start and connect a Teleport SSH node, runs in Docker")
+var connect = registerFixture("connect", "build Teleport Connect")
 
 type e2eFlags struct {
 	noBuild          bool
@@ -102,8 +103,20 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	}
 
 	mode, err := modes.resolve()
+	if err != nil {
+		return nil, 0, err
+	}
 
-	return &f, mode, err
+	// Auto-enable Connect if intent is explicit via mode or selected test paths.
+	for _, file := range f.testFiles {
+		slashPath := filepath.ToSlash(file)
+		if slashPath == "tests/connect" || strings.HasPrefix(slashPath, "tests/connect/") {
+			connect.enabled = true
+			break
+		}
+	}
+
+	return &f, mode, nil
 }
 
 func normalizeTestFiles(e2eDir string, args []string) ([]string, error) {
