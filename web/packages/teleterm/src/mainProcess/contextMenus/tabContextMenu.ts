@@ -168,18 +168,16 @@ export function subscribeToTabContextMenuEvent(
               sublabel:
                 shellsWithCustom.find(s => defaultShellId === s.id)
                   ?.friendlyName || defaultShellId,
-              submenu: [
-                ...shellsWithCustom.map(shell => ({
-                  label: shell.friendlyName,
-                  id: shell.id,
-                  checked: shell.id === defaultShellId,
-                  type: 'radio' as const,
-                  click: () => {
-                    configService.set('terminal.shell', shell.id);
-                    resolve(undefined);
-                  },
-                })),
-              ],
+              submenu: shellsWithCustom.map(shell => ({
+                label: shell.friendlyName,
+                id: shell.id,
+                checked: shell.id === defaultShellId,
+                type: 'radio' as const,
+                click: () => {
+                  configService.set('terminal.shell', shell.id);
+                  resolve(undefined);
+                },
+              })),
             },
           ];
         }

@@ -52,7 +52,6 @@ describe('getServerUri', () => {
     },
   ];
 
-  /* eslint-disable jest/no-conditional-expect */
   test.each(tests)('$name', ({ input, output, wantErr }) => {
     if (wantErr) {
       expect(() => routing.getServerUri(input)).toThrow(wantErr);
@@ -60,7 +59,6 @@ describe('getServerUri', () => {
       expect(routing.getServerUri(input)).toEqual(output);
     }
   });
-  /* eslint-enable jest/no-conditional-expect */
 });
 
 describe('getKubeResourceNamespaceUri', () => {

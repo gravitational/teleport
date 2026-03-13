@@ -288,7 +288,6 @@ const tests: {
   },
 ];
 
-// eslint-disable-next-line jest/expect-expect
 test.each(tests)('$name', async ({ setup, expect: testExpect }) => {
   const mockTshdClient = new MockTshClient();
   const mockAppUpdater = {
