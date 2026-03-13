@@ -93,7 +93,7 @@ export default function useReAuthenticate({
             totpCode
           );
         } catch (err) {
-          throw new Error(getReAuthenticationErrorMessage(err));
+          throw new Error(getReAuthenticationErrorMessage(err), { cause: err });
         }
 
         try {

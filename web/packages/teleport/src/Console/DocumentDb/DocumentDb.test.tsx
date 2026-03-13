@@ -35,6 +35,7 @@ import { DocumentDb } from './DocumentDb';
 
 // Mock Terminal component to avoid WebGL errors in jsdom
 jest.mock('teleport/Console/DocumentSsh/Terminal', () => {
+  // oxlint-disable-next-line typescript/no-require-imports
   const React = require('react');
   return {
     Terminal: React.forwardRef((_props: any, ref: any) => {

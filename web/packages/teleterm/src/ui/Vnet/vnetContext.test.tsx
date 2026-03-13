@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* oxlint-disable jest/no-standalone-expect */
+
 import { act, renderHook, waitFor } from '@testing-library/react';
 import {
   ComponentType,
@@ -211,7 +213,6 @@ it('registers a callback for unexpected shutdown', async () => {
   expect(reason.errorMessage).toEqual('lorem ipsum dolor sit amet');
 });
 
-/* eslint-disable jest/no-standalone-expect */
 describe('diag notification', () => {
   const noIssuesFoundReport = makeReport();
   const issuesFoundReport = makeReportWithIssuesFound();
@@ -440,7 +441,6 @@ describe('diag notification', () => {
     },
   ];
 
-  // eslint-disable-next-line jest/expect-expect
   test.each(tests)('$it', async test => {
     const appContext = new MockAppContext();
     // Set up a proper workspace so that the diag report can be opened.
@@ -471,7 +471,6 @@ describe('diag notification', () => {
     await test.verify(appContext, result, test.controlConnectionsRef);
   });
 });
-/* eslint-enable jest/no-standalone-expect */
 
 const Wrapper = (
   props: PropsWithChildren<{

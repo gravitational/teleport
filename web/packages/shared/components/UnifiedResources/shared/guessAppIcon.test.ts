@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// oxlint-disable-next-line no-restricted-imports
 import { App } from 'teleport/services/apps';
+// oxlint-disable-next-line no-restricted-imports
 import makeApp from 'teleport/services/apps/makeApps';
 
 import { guessAppIcon } from './guessAppIcon';
