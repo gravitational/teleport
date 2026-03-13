@@ -1,18 +1,18 @@
 # GHA workflows and custom actions control merging and CI/CD processes.
 # Protect the `.github` directory using CODEOWNERS.
-/.github/ @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @rosstimothy
-/.environments/ @klizhentas @russjones @r0mant @mjsmithnh @doggydogworld
+/.github/ @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @aadc-dev @rosstimothy
+/.environments/ @klizhentas @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
 
 
 # Owners for Go dependency updates.
-/tooling/os-package-repo-tool/go.mod @russjones @r0mant @zmb3 @rosstimothy @mjsmithnh @doggydogworld
+/tooling/os-package-repo-tool/go.mod @russjones @r0mant @zmb3 @rosstimothy @mjsmithnh @doggydogworld @aadc-dev
 
 # Internal Tools files
-/tooling/ @russjones @r0mant @mjsmithnh @doggydogworld
-/.sops.yaml @russjones @r0mant @mjsmithnh @doggydogworld
-/scripts/check-unencrypted-sops.sh @russjones @r0mant @mjsmithnh @doggydogworld
-/scripts/configure-git.sh @russjones @r0mant @mjsmithnh @doggydogworld
-/scripts/shared-pre-commit.sh @russjones @r0mant @mjsmithnh @doggydogworld
+/tooling/ @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
+/.sops.yaml @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
+/scripts/check-unencrypted-sops.sh @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
+/scripts/configure-git.sh @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
+/scripts/shared-pre-commit.sh @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
 
 # Owners for Rust dependency updates.
 /windowsauth/Cargo.toml @russjones @r0mant @zmb3 @rosstimothy @fspmarshall @espadolini @probakowski
