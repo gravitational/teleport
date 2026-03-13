@@ -46,7 +46,7 @@ jobs:
               - '**.rs'
               - 'Cargo.toml'
               - 'Cargo.lock'
-              - 'build.assets/versions.mk'
+              - 'rust-toolchain.toml'
               - 'Makefile'
             has_proto:
               # workflow changes
