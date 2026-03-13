@@ -37,6 +37,12 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
+// DefaultMaxBufferSize is the default maximum number of events retained
+// in the SessionWriter's in-memory buffer while waiting for upload
+// confirmation. When reached, the writer stops consuming from its
+// internal channel, creating backpressure through to RecordEvent callers.
+const DefaultMaxBufferSize = 4096
+
 // NewSessionWriter returns a new instance of session writer
 func NewSessionWriter(cfg SessionWriterConfig) (*SessionWriter, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -100,6 +106,14 @@ type SessionWriterConfig struct {
 
 	// BackoffDuration is a duration of the backoff before the next try
 	BackoffDuration time.Duration
+
+	// MaxBufferSize is the maximum number of events to retain in the
+	// in-memory buffer while waiting for upload confirmation. When the
+	// buffer reaches this size, processEvents stops reading new events
+	// from the channel, which creates backpressure through the
+	// unbuffered eventsCh all the way back to RecordEvent callers.
+	// Zero or negative means use DefaultMaxBufferSize.
+	MaxBufferSize int
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -127,6 +141,9 @@ func (cfg *SessionWriterConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.MakeEvents == nil {
 		cfg.MakeEvents = bytesToSessionPrintEvents
+	}
+	if cfg.MaxBufferSize <= 0 {
+		cfg.MaxBufferSize = DefaultMaxBufferSize
 	}
 	return nil
 }
@@ -174,6 +191,10 @@ type SessionWriter struct {
 	lostEvents     atomic.Int64
 	acceptedEvents atomic.Int64
 	slowWrites     atomic.Int64
+	// bufferFull tracks whether the buffer cap warning has been
+	// logged. It resets when the buffer drops below capacity so the
+	// warning fires again if the buffer refills.
+	bufferFull bool
 }
 
 // SessionWriterStats provides stats about lost events and slow writes
@@ -428,6 +449,29 @@ func (a *SessionWriter) processEvents() {
 			a.updateStatus(status)
 		default:
 		}
+		// When the buffer is at capacity, stop reading new events and
+		// only wait for status updates (which trim the buffer) or
+		// shutdown signals. This creates backpressure through the
+		// unbuffered eventsCh back to RecordEvent callers.
+		if len(a.buffer) >= a.cfg.MaxBufferSize {
+			if !a.bufferFull {
+				a.bufferFull = true
+				a.log.WarnContext(a.cfg.Context, "Session writer buffer at capacity, applying backpressure.",
+					"buffer_size", len(a.buffer), "max_buffer_size", a.cfg.MaxBufferSize)
+			}
+			select {
+			case status := <-a.stream.Status():
+				a.updateStatus(status)
+			case <-a.stream.Done():
+				if !a.handleStreamDone() {
+					return
+				}
+			case <-a.closeCtx.Done():
+				a.completeStream(a.stream)
+				return
+			}
+			continue
+		}
 		select {
 		case status := <-a.stream.Status():
 			a.updateStatus(status)
@@ -454,14 +498,7 @@ func (a *SessionWriter) processEvents() {
 				a.log.DebugContext(a.cfg.Context, "Recovered stream", "duration", time.Since(start))
 			}
 		case <-a.stream.Done():
-			if a.closeCtx.Err() != nil {
-				// don't attempt recovery if we're closing
-				return
-			}
-			a.log.DebugContext(a.cfg.Context, "Stream was closed by the server, attempting to recover.")
-			if err := a.recoverStream(); err != nil {
-				a.log.WarnContext(a.cfg.Context, "Failed to recover stream.", "error", err)
-
+			if !a.handleStreamDone() {
 				return
 			}
 		case <-a.closeCtx.Done():
@@ -469,6 +506,21 @@ func (a *SessionWriter) processEvents() {
 			return
 		}
 	}
+}
+
+// handleStreamDone attempts to recover a server-closed stream. It
+// returns true if recovery succeeded and the caller should continue
+// the event loop, or false if the caller should return.
+func (a *SessionWriter) handleStreamDone() bool {
+	if a.closeCtx.Err() != nil {
+		return false
+	}
+	a.log.DebugContext(a.cfg.Context, "Stream was closed by the server, attempting to recover.")
+	if err := a.recoverStream(); err != nil {
+		a.log.WarnContext(a.cfg.Context, "Failed to recover stream.", "error", err)
+		return false
+	}
+	return true
 }
 
 // IsPermanentEmitError checks if the error contains either a sole
@@ -612,10 +664,15 @@ func (a *SessionWriter) updateStatus(status apievents.StreamStatus) {
 		}
 		lastIndex = i
 	}
-	if lastIndex > 0 {
+	if lastIndex >= 0 {
 		before := len(a.buffer)
 		a.buffer = a.buffer[lastIndex+1:]
 		a.log.DebugContext(a.closeCtx, "Removed saved events", "removed", before-len(a.buffer), "remaining", len(a.buffer))
+		if a.bufferFull && len(a.buffer) < a.cfg.MaxBufferSize {
+			a.bufferFull = false
+			a.log.InfoContext(a.closeCtx, "Session writer buffer below capacity, backpressure released.",
+				"buffer_size", len(a.buffer), "max_buffer_size", a.cfg.MaxBufferSize)
+		}
 	}
 }
 

@@ -124,12 +124,21 @@ type ConnectionsHandlerConfig struct {
 
 	// InsecureMode defines whether insecure connections are allowed.
 	InsecureMode bool
+
+	// MaxActiveSessionChunks limits the number of concurrently active
+	// session chunks on this agent. Each active chunk holds an open
+	// recording stream. Zero or negative means use
+	// DefaultMaxActiveSessionChunks.
+	MaxActiveSessionChunks int
 }
 
 // CheckAndSetDefaults validates the config values and sets defaults.
 func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+	if c.MaxActiveSessionChunks <= 0 {
+		c.MaxActiveSessionChunks = DefaultMaxActiveSessionChunks
 	}
 	if c.DataDir == "" {
 		return trace.BadParameter("data dir missing")
@@ -211,6 +220,9 @@ type ConnectionsHandler struct {
 
 	// getAppByPublicAddress returns a types.Application using the public address as matcher.
 	getAppByPublicAddress func(context.Context, string) (types.Application, error)
+
+	// chunkSem limits concurrent active session chunks.
+	chunkSem chan struct{}
 }
 
 // NewConnectionsHandler returns a new ConnectionsHandler.
@@ -244,6 +256,8 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
+	chunkSem := make(chan struct{}, cfg.MaxActiveSessionChunks)
+
 	c := &ConnectionsHandler{
 		cfg:          cfg,
 		closeContext: closeContext,
@@ -252,6 +266,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		gcpHandler:   gcpHandler,
 		connAuth:     make(map[net.Conn]error),
 		log:          slog.With(teleport.ComponentKey, cfg.ServiceComponent),
+		chunkSem:     chunkSem,
 		getAppByPublicAddress: func(ctx context.Context, s string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
 		},
@@ -265,6 +280,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		Clock:           c.cfg.Clock,
 		CleanupInterval: time.Second,
 		OnExpiry:        c.onSessionExpired,
+		ReloadOnErr:     true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

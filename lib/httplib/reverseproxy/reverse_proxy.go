@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -32,6 +33,27 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
+
+// bufferPool is a sync.Pool-backed implementation of httputil.BufferPool.
+// It reuses 32 KiB buffers across proxied requests to reduce GC pressure
+// under high concurrency.
+type bufferPool struct {
+	pool sync.Pool
+}
+
+func (b *bufferPool) Get() []byte {
+	if v := b.pool.Get(); v != nil {
+		return v.([]byte)
+	}
+	return make([]byte, 32*1024)
+}
+
+func (b *bufferPool) Put(buf []byte) {
+	b.pool.Put(buf) //nolint:staticcheck // SA6002: []byte is already a reference type; boxing cost is negligible
+}
+
+// defaultBufferPool is shared across all Forwarder instances.
+var defaultBufferPool = &bufferPool{}
 
 // X-* Header names.
 const (
@@ -77,6 +99,7 @@ func New(opts ...Option) (*Forwarder, error) {
 		ReverseProxy: &httputil.ReverseProxy{
 			ErrorHandler: DefaultHandler.ServeHTTP,
 			ErrorLog:     log.Default(),
+			BufferPool:   defaultBufferPool,
 		},
 		logger: slog.Default(),
 	}

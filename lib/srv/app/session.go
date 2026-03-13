@@ -45,6 +45,21 @@ import (
 // sessionChunkCloseTimeout is the default timeout used for sessionChunk.closeTimeout
 const sessionChunkCloseTimeout = 1 * time.Hour
 
+// DefaultMaxActiveSessionChunks is the default limit on concurrently
+// active session chunks per agent. Each chunk holds an open recording
+// stream whose in-memory footprint depends on upload throughput.
+// The dominant cost is the ProtoStreamer upload buffer (~7 MiB per
+// stream). 256 chunks at 7 MiB is ~1.8 GiB, which caps memory
+// without restricting normal workloads.
+//
+// Under an IOPS stall, each slot is held for up to
+// sessionChunkCloseTimeout (1 hour) because the recording stream
+// cannot flush. With a 5-minute chunk TTL, all 256 slots fill in
+// roughly 5 minutes, and new sessions are rejected with
+// LimitExceeded for the duration of the incident. This is the
+// intended tradeoff: cap memory at the cost of availability.
+const DefaultMaxActiveSessionChunks = 256
+
 var errSessionChunkAlreadyClosed = errors.New("session chunk already closed")
 
 // sessionChunk holds an open request handler and stream closer for an app session.
@@ -81,6 +96,14 @@ type sessionChunk struct {
 	// for ~7 minutes at most.
 	closeTimeout time.Duration
 
+	// chunkSem is an optional semaphore shared across all session
+	// chunks on the same agent. A slot is acquired in newSessionChunk
+	// before opening the recording stream (returning LimitExceeded if
+	// full) and released in close after the stream shuts down. This
+	// bounds the number of concurrently open recording streams to
+	// prevent unbounded memory growth.
+	chunkSem chan struct{}
+
 	log *slog.Logger
 }
 
@@ -92,11 +115,36 @@ type sessionOpt func(context.Context, *sessionChunk, *tlsca.Identity, types.Appl
 // and as such expects `release()` to eventually be called
 // by the caller of this function.
 func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application, startTime time.Time, opts ...sessionOpt) (*sessionChunk, error) {
+	// Acquire a semaphore slot before opening the recording stream.
+	// Each chunk holds an open stream that consumes memory; bounding
+	// the number of concurrent chunks prevents OOM under load. The
+	// slot is released in close() when the chunk shuts down.
+	if c.chunkSem != nil {
+		select {
+		case c.chunkSem <- struct{}{}:
+		default:
+			c.log.WarnContext(ctx, "Rejecting session chunk, semaphore full.",
+				"max_active_chunks", cap(c.chunkSem),
+			)
+			return nil, trace.LimitExceeded("too many active session chunks")
+		}
+	}
+
+	// If chunk creation fails after acquiring the semaphore slot,
+	// release it so we do not leak slots on error paths.
+	success := false
+	defer func() {
+		if !success && c.chunkSem != nil {
+			<-c.chunkSem
+		}
+	}()
+
 	sess := &sessionChunk{
 		id:           uuid.New().String(),
 		closeC:       make(chan struct{}),
 		inflightCond: sync.NewCond(&sync.Mutex{}),
 		closeTimeout: sessionChunkCloseTimeout,
+		chunkSem:     c.chunkSem,
 		log:          c.log,
 	}
 
@@ -137,6 +185,7 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 		return nil, trace.Wrap(err)
 	}
 
+	success = true
 	sess.log.DebugContext(ctx, "Created app session chunk", "session_id", sess.id)
 	return sess, nil
 }
@@ -197,9 +246,9 @@ func (c *ConnectionsHandler) withGCPHandler(ctx context.Context, sess *sessionCh
 	return nil
 }
 
-// acquire() increments in-flight request count by 1.
-// It is supposed to be paired with a `release()` call,
-// after the chunk is done with for the individual request
+// acquire increments in-flight request count by 1. It is supposed to
+// be paired with a release call once the individual request finishes
+// using the chunk.
 func (s *sessionChunk) acquire() error {
 	s.inflightCond.L.Lock()
 	defer s.inflightCond.L.Unlock()
@@ -251,7 +300,13 @@ func (s *sessionChunk) close(ctx context.Context) error {
 	s.inflightCond.L.Unlock()
 	close(s.closeC)
 	s.log.DebugContext(ctx, "Closed session chunk", "session_id", s.id)
-	return trace.Wrap(s.streamCloser.Close(ctx))
+	err := s.streamCloser.Close(ctx)
+	// Release the semaphore slot after the stream is closed, not
+	// before, so the slot accurately reflects an open stream.
+	if s.chunkSem != nil {
+		<-s.chunkSem
+	}
+	return trace.Wrap(err)
 }
 
 func (c *ConnectionsHandler) onSessionExpired(ctx context.Context, key, expired any) {
