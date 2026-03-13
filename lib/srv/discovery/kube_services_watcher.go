@@ -133,8 +133,9 @@ func (s *Server) onAppCreate(ctx context.Context, app types.Application) error {
 	}
 	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
 		appEventPrefix + app.GetName(): {
-			ResourceType:   types.DiscoveredResourceApp,
-			ResourceOrigin: types.OriginKubernetes,
+			ResourceType:        types.DiscoveredResourceApp,
+			ResourceOrigin:      types.OriginKubernetes,
+			DiscoveryConfigName: app.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
 			// CloudProvider is not set for apps created from Kubernetes services
 		},
 	})

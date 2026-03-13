@@ -171,10 +171,15 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 type ResourceCreateEvent prehogv1a.ResourceCreateEvent
 
 func (u *ResourceCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	var discoveryConfigName string
+	if u.DiscoveryConfigName != "" {
+		discoveryConfigName = a.AnonymizeString(u.DiscoveryConfigName)
+	}
 	event := &prehogv1a.ResourceCreateEvent{
-		ResourceType:   u.ResourceType,
-		ResourceOrigin: u.ResourceOrigin,
-		CloudProvider:  u.CloudProvider,
+		ResourceType:        u.ResourceType,
+		ResourceOrigin:      u.ResourceOrigin,
+		CloudProvider:       u.CloudProvider,
+		DiscoveryConfigName: discoveryConfigName,
 	}
 	if db := u.Database; db != nil {
 		event.Database = &prehogv1a.DiscoveredDatabaseMetadata{
@@ -1443,13 +1448,18 @@ func (u *SPIFFESVIDIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEv
 type UserTaskStateEvent prehogv1a.UserTaskStateEvent
 
 func (u *UserTaskStateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	var discoveryConfigName string
+	if u.DiscoveryConfigName != "" {
+		discoveryConfigName = a.AnonymizeString(u.DiscoveryConfigName)
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UserTaskState{
 			UserTaskState: &prehogv1a.UserTaskStateEvent{
-				TaskType:       u.TaskType,
-				IssueType:      u.IssueType,
-				State:          u.State,
-				InstancesCount: u.InstancesCount,
+				TaskType:            u.TaskType,
+				IssueType:           u.IssueType,
+				State:               u.State,
+				InstancesCount:      u.InstancesCount,
+				DiscoveryConfigName: discoveryConfigName,
 			},
 		},
 	}
@@ -1877,9 +1887,10 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_ResourceCreateEvent:
 		ret := &ResourceCreateEvent{
-			ResourceType:   e.ResourceCreateEvent.ResourceType,
-			ResourceOrigin: e.ResourceCreateEvent.ResourceOrigin,
-			CloudProvider:  e.ResourceCreateEvent.CloudProvider,
+			ResourceType:        e.ResourceCreateEvent.ResourceType,
+			ResourceOrigin:      e.ResourceCreateEvent.ResourceOrigin,
+			CloudProvider:       e.ResourceCreateEvent.CloudProvider,
+			DiscoveryConfigName: e.ResourceCreateEvent.DiscoveryConfigName,
 		}
 		if db := e.ResourceCreateEvent.Database; db != nil {
 			ret.Database = &prehogv1a.DiscoveredDatabaseMetadata{
@@ -2102,6 +2113,24 @@ func (e *SessionSummaryCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.Subm
 				Success:             e.Success,
 				ResourceName:        a.AnonymizeString(e.ResourceName),
 				IsCloudDefaultModel: e.IsCloudDefaultModel,
+			},
+		},
+	}
+}
+
+// DiscoveryConfigEvent is emitted when a DiscoveryConfig resource is created, updated, or deleted.
+type DiscoveryConfigEvent prehogv1a.DiscoveryConfigEvent
+
+// Anonymize anonymizes the event.
+func (e *DiscoveryConfigEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DiscoveryConfig{
+			DiscoveryConfig: &prehogv1a.DiscoveryConfigEvent{
+				Action:              e.Action,
+				DiscoveryConfigName: a.AnonymizeString(e.DiscoveryConfigName),
+				ResourceTypes:       e.ResourceTypes,
+				CloudProviders:      e.CloudProviders,
+				CreationMethod:      e.CreationMethod,
 			},
 		},
 	}
