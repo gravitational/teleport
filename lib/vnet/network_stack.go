@@ -225,7 +225,7 @@ func (f *filteredUpstreamSource) UpstreamNameservers(ctx context.Context) ([]str
 		f.slog.DebugContext(ctx, "Loaded upstream nameservers (post-filter)", "nameservers", nameservers)
 		return nameservers, nil
 	}
-	filtered := nameservers[:0]
+	filtered := make([]string, 0, len(nameservers))
 	for _, nameserver := range nameservers {
 		if _, ok := f.exclude[nameserver]; ok {
 			continue
