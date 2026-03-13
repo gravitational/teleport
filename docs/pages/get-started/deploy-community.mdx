@@ -286,7 +286,7 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
    Service:
 
    ```code
-   $ sudo tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
+   $ sudo tctl users add teleport-admin --roles=editor,access,auditor --logins=root,ubuntu,ec2-user
    ```
 
    The command prints a message similar to the following:
@@ -302,10 +302,14 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
 
 1. Visit the provided URL in order to create your Teleport user.
 
-   The signup flow creates a local Teleport user with the `editor` and `access`
-   roles, allowing the user to perform administrative tasks in your cluster and
-   connect to any Teleport-protected resource.
+   The signup flow creates a local Teleport user with the following preset roles:
    
+   |Role|Permissions|
+   |---|---|
+   |`editor`|Perform administrative tasks in your cluster|
+   |`access`|Connect to any Teleport-protected resource|
+   |`auditor`|View audit events and session recordings|
+
    Since this user has almost total privileges, you should treat this identity
    as a fallback after completing initial setup operations, and define other
    roles and identities for day-to-day usage.
@@ -327,6 +331,11 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
      authenticate as the user that you have currently logged in as.
    
    </Admonition>
+
+1. [Recommended] Repeat these steps to create a second local user with
+   administrative privileges. We recommend more than one local user to prevent
+   lockout. As with the first identity you created, treat this one as a fallback
+   rather than an identity for day-to-day usage.
 
 1. Teleport enforces the use of multi-factor authentication by default. It
    supports one-time passwords (OTP) and multi-factor authenticators (WebAuthn).
