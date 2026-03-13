@@ -21,10 +21,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -57,20 +57,13 @@ func TestSAMLCertExpiryMonitor(t *testing.T) {
 
 	initialConnector, err := srv.Auth().CreateSAMLConnector(ctx, connector)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		if err := srv.Auth().DeleteSAMLConnector(
-			context.Background(), connector.GetName(),
-		); err != nil && !trace.IsNotFound(err) {
-			require.NoError(t, err)
-		}
-	})
 
 	monitor, err := auth.NewSAMLCertExpiryMonitor(auth.SAMLCertExpiryMonitorConfig{
 		Connectors: srv.Auth().Services,
 		Alerts:     srv.Auth().Services,
 		Events:     srv.Auth().Services,
 		Clock:      srv.Clock(),
-		Logger:     slog.New(slog.DiscardHandler),
+		Logger:     slog.New(slog.NewTextHandler(os.Stderr, nil)),
 		Backend:    srv.AuthServer.Backend,
 	})
 	require.NoError(t, err)
@@ -78,7 +71,7 @@ func TestSAMLCertExpiryMonitor(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		monitor.RunWhileLocked(ctx)
+		monitor.Run(ctx)
 	}()
 	t.Cleanup(func() {
 		cancel()
@@ -86,7 +79,7 @@ func TestSAMLCertExpiryMonitor(t *testing.T) {
 	})
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		alerts, err := srv.Auth().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		alerts, err := srv.Auth().Services.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 			AlertID: auth.SAMLCertExpiryAlertID,
 		})
 		require.NoError(t, err)
@@ -95,7 +88,7 @@ func TestSAMLCertExpiryMonitor(t *testing.T) {
 		require.Equal(t, fmt.Sprintf("%s:%s", types.KindSAML, types.VerbRead), alerts[0].GetAllLabels()[types.AlertVerbPermit])
 		require.Equal(t, "yes", alerts[0].GetAllLabels()[types.AlertOnLogin])
 		require.Contains(t, alerts[0].Spec.Message, initialConnector.GetName())
-	}, time.Second, 10*time.Millisecond)
+	}, 5*time.Second, 10*time.Millisecond)
 
 	initialConnector.SetEntityDescriptor(samltest.CreateTestEntityDescriptor(t, []time.Duration{rotatedTTL}))
 

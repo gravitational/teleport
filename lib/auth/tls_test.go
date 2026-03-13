@@ -80,7 +80,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/samltest"
 	"github.com/gravitational/teleport/lib/sshca"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -4734,66 +4733,6 @@ func TestEvents(t *testing.T) {
 		Kinds:               append(eventsTestKinds(testCases), types.WatchKind{Kind: "unknown"}),
 		AllowPartialSuccess: true,
 	})
-
-	testCases = []eventTest{
-		{
-			name: "SAML connector with secrets",
-			kind: types.WatchKind{
-				Kind:        types.KindSAMLConnector,
-				LoadSecrets: true,
-			},
-			crud: func(ctx context.Context) types.Resource {
-				connector, err := types.NewSAMLConnector("saml-with-secrets", types.SAMLConnectorSpecV2{
-					AssertionConsumerService: "https://localhost:65535/acs",
-					EntityDescriptor:         samltest.CreateTestEntityDescriptor(t, []time.Duration{24 * time.Hour}),
-					SSO:                      "https://localhost.com/sso",
-					AttributesToRoles:        []types.AttributeMapping{{Name: "group", Value: "devs", Roles: []string{"$1"}}},
-				})
-				require.NoError(t, err)
-
-				_, err = testSrv.Auth().CreateSAMLConnector(ctx, connector)
-				require.NoError(t, err)
-
-				out, err := testSrv.Auth().GetSAMLConnector(ctx, connector.GetName(), true)
-				require.NoError(t, err)
-
-				require.NoError(t, testSrv.Auth().DeleteSAMLConnector(ctx, connector.GetName()))
-
-				return out
-			},
-		},
-	}
-	runEventsTests(t, testCases, clt, types.Watch{Kinds: eventsTestKinds(testCases)})
-
-	testCases = []eventTest{
-		{
-			name: "SAML connector without secrets",
-			kind: types.WatchKind{
-				Kind:        types.KindSAMLConnector,
-				LoadSecrets: false,
-			},
-			crud: func(ctx context.Context) types.Resource {
-				connector, err := types.NewSAMLConnector("saml-without-secrets", types.SAMLConnectorSpecV2{
-					AssertionConsumerService: "https://localhost:65535/acs",
-					EntityDescriptor:         samltest.CreateTestEntityDescriptor(t, []time.Duration{24 * time.Hour}),
-					SSO:                      "https://localhost.com/sso",
-					AttributesToRoles:        []types.AttributeMapping{{Name: "group", Value: "devs", Roles: []string{"$1"}}},
-				})
-				require.NoError(t, err)
-
-				_, err = testSrv.Auth().CreateSAMLConnector(ctx, connector)
-				require.NoError(t, err)
-
-				out, err := testSrv.Auth().GetSAMLConnector(ctx, connector.GetName(), false)
-				require.NoError(t, err)
-
-				require.NoError(t, testSrv.Auth().DeleteSAMLConnector(ctx, connector.GetName()))
-
-				return out
-			},
-		},
-	}
-	runEventsTests(t, testCases, clt, types.Watch{Kinds: eventsTestKinds(testCases)})
 
 	// tests that a watch fails given an unknown kind when the partial success mode is not enabled
 	runUnknownEventsTest(t, clt, types.Watch{Kinds: []types.WatchKind{

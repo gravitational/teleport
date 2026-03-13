@@ -1169,11 +1169,6 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(kind types.WatchKind) error 
 		if !kind.LoadSecrets {
 			verb = types.VerbReadNoSecrets
 		}
-	case types.KindSAMLConnector:
-		if !kind.LoadSecrets {
-			verb = types.VerbReadNoSecrets
-		}
-		return trace.Wrap(a.authConnectorAction(types.KindSAML, verb))
 	case types.KindAccessRequest:
 		var filter types.AccessRequestFilter
 		if err := filter.FromMap(kind.Filter); err != nil {
