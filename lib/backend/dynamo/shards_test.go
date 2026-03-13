@@ -11,10 +11,13 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	streamtypes "github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
+
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,8 +59,8 @@ func TestShardSplitting(t *testing.T) {
 				"read_max_capacity":  20,
 				"read_target_value":  50.0,
 				"write_min_capacity": 10,
-				"write_max_capacity": 20,
-				"write_target_value": 50.0,
+				"write_max_capacity": 5000,
+				"write_target_value": 20.0,
 			},
 		},
 	}
@@ -420,6 +423,29 @@ func (w *eventWriter) writeBatch(ctx context.Context, start, end int, payload st
 	}
 }
 
+func (w *eventWriter) wildPut(ctx context.Context, item backend.Item) error { // Intentionally ignore errors here, the purpose of this test is to see how the system behaves under high load and potential throttling, not to guarantee all writes succeed.
+	id, _ := uuid.NewRandom()
+	r := record{
+		HashKey:   id.String(), // test out random parition throughput
+		FullPath:  prependPrefix(item.Key),
+		Value:     item.Value,
+		Timestamp: time.Now().UTC().Unix(),
+		Revision:  backend.CreateRevision(),
+	}
+
+	av, err := attributevalue.MarshalMap(r)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	input := dynamodb.PutItemInput{
+		Item:      av,
+		TableName: aws.String(w.backend.TableName),
+	}
+
+	_, err = w.backend.svc.PutItem(ctx, &input)
+	return convertError(err)
+}
+
 func (w *eventWriter) writeWithRetry(ctx context.Context, item backend.Item) error {
 	// The retry backoff is only used for non throttling errors.
 	// For throttling errors we want to retry as fast as possible to trigger shard splits faster.
@@ -438,7 +464,8 @@ func (w *eventWriter) writeWithRetry(ctx context.Context, item backend.Item) err
 	retryCount := 0
 
 	for retryCount < maxRetry {
-		if _, err := w.backend.Put(ctx, item); err != nil {
+		if err := w.wildPut(ctx, item); err != nil {
+			// if _, err := w.backend.Put(ctx, item); err != nil {
 			var throttled *types.ThrottlingException
 			if errors.As(err, &throttled) {
 				continue
