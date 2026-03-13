@@ -47,12 +47,6 @@ type SAMLConnectorGetter interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 }
 
-type SAMLConnectorCert struct {
-	Field string
-	Cert  *x509.Certificate
-	TTL   time.Duration
-}
-
 const ErrMsgHowToFixMissingPrivateKey = "You must either specify the signing key pair (obtain the existing one with `tctl get saml --with-secrets`) or let Teleport generate a new one (remove signing_key_pair in the resource you're trying to create)."
 
 // ValidateSAMLConnector validates the SAMLConnector and sets default values.
@@ -465,8 +459,16 @@ func FillSAMLSigningKeyFromExisting(ctx context.Context, connector types.SAMLCon
 	return nil
 }
 
+// SAMLConnectorCert stores a certificate from a SAML connector, along with
+// it's TTL and field from from the connector (e.g. entity_descriptor).
+type SAMLConnectorCert struct {
+	Field string
+	Cert  *x509.Certificate
+	TTL   time.Duration
+}
+
 // GetExpiringSAMLCertsAt returns a list of SAML certs from the connector where the expiry is within the
-// timeframe
+// given timeframe.
 func GetExpiringSAMLCertsAt(connector types.SAMLConnector, at time.Time, timeframe time.Duration) ([]SAMLConnectorCert, error) {
 	var expiringCerts []SAMLConnectorCert
 
@@ -477,11 +479,7 @@ func GetExpiringSAMLCertsAt(connector types.SAMLConnector, at time.Time, timefra
 	for _, cert := range certs {
 		ttl := cert.NotAfter.Sub(at)
 		if ttl <= timeframe {
-			expiringCerts = append(expiringCerts, SAMLConnectorCert{
-				Field: "entity_descriptor",
-				Cert:  cert,
-				TTL:   ttl,
-			})
+			expiringCerts = append(expiringCerts, SAMLConnectorCert{Field: "entity_descriptor", Cert: cert, TTL: ttl})
 		}
 	}
 
@@ -493,13 +491,11 @@ func GetExpiringSAMLCertsAt(connector types.SAMLConnector, at time.Time, timefra
 
 		ttl := cert.NotAfter.Sub(at)
 		if ttl <= timeframe {
-			expiringCerts = append(expiringCerts, SAMLConnectorCert{
-				Field: "cert",
-				Cert:  cert,
-				TTL:   ttl,
-			})
+			expiringCerts = append(expiringCerts, SAMLConnectorCert{Field: "cert", Cert: cert, TTL: ttl})
 		}
 	}
+
+	// TODO: Check certs from signing key pair field.
 
 	return expiringCerts, nil
 }

@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -155,19 +156,8 @@ func (m *SAMLCertExpiryMonitor) runSyncLoop(ctx context.Context, ticker clockwor
 	}
 	defer watch.Close()
 
-	select {
-	case <-watch.Done():
-		if err := watch.Error(); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
-	case evt := <-watch.Events():
-		if evt.Type == types.OpInit {
-			break
-		}
-		return trace.BadParameter("expected init event, got %v", evt.Type)
-	case <-ctx.Done():
-		return nil
+	if err := waitForWatcherInit(ctx, watch); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := m.reconcileAlert(ctx); err != nil {
@@ -207,6 +197,7 @@ func (m *SAMLCertExpiryMonitor) runSyncLoop(ctx context.Context, ticker clockwor
 func (m *SAMLCertExpiryMonitor) reconcileAlert(ctx context.Context) error {
 	var expiringConnectors []string
 	var expiredConnectors []string
+
 	for connector, err := range m.Connectors.RangeSAMLConnectorsWithOptions(ctx, "", "", false, types.SAMLConnectorValidationFollowURLs(false)) {
 		if err != nil {
 			return trace.Wrap(err)
@@ -221,14 +212,9 @@ func (m *SAMLCertExpiryMonitor) reconcileAlert(ctx context.Context) error {
 			continue
 		}
 
-		var isExpired bool
-		for _, cert := range certs {
-			if cert.TTL <= 0 {
-				isExpired = true
-				break
-			}
-
-		}
+		isExpired := slices.ContainsFunc(certs, func(c services.SAMLConnectorCert) bool {
+			return c.TTL <= 0
+		})
 
 		if isExpired {
 			expiredConnectors = append(expiredConnectors, connector.GetName())
@@ -290,4 +276,21 @@ func buildAlertMessage(expiringConnectors, expiredConnectors []string) string {
 	}
 
 	return strings.Join(messageParts, " ")
+}
+
+func waitForWatcherInit(ctx context.Context, watch types.Watcher) error {
+	select {
+	case <-watch.Done():
+		if err := watch.Error(); err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Errorf("watcher closed unexpectedly")
+	case evt := <-watch.Events():
+		if evt.Type != types.OpInit {
+			return trace.BadParameter("expected init event, got %v", evt.Type)
+		}
+		return nil
+	case <-ctx.Done():
+		return nil
+	}
 }

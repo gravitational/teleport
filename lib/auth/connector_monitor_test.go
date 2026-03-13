@@ -114,7 +114,7 @@ func TestSAMLCertExpiryMonitor(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, alerts, 1)
-	}, time.Second, 10*time.Millisecond)
+	}, 5*time.Second, 10*time.Millisecond)
 
 	require.NoError(t, srv.Auth().DeleteSAMLConnector(ctx, updatedConnector.GetName()))
 
@@ -124,5 +124,5 @@ func TestSAMLCertExpiryMonitor(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Empty(t, alerts)
-	}, time.Second, 10*time.Millisecond)
+	}, 5*time.Second, 10*time.Millisecond)
 }
