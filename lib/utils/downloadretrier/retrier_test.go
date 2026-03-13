@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"sync"
 	"testing"
 
@@ -149,7 +150,7 @@ func TestRead_CancelledContext(t *testing.T) {
 	defer r.Close()
 
 	_, err := r.Read(make([]byte, 1))
-	require.ErrorIs(t, err, context.Canceled)
+	require.ErrorIs(t, err, os.ErrClosed)
 }
 
 func TestClose_ConcurrentWithRead(t *testing.T) {

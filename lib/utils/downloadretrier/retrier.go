@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -38,15 +39,17 @@ type DownloadFunc func(ctx context.Context, offset int64) (io.ReadCloser, error)
 // up to maxDownloadAttempts times, resuming from the last successfully read
 // byte offset.
 type Retrier struct {
-	mu            sync.Mutex
 	download      DownloadFunc
 	ctx           context.Context
 	cancel        context.CancelFunc
-	reader        io.ReadCloser
 	lastErr       error
 	offset        int64
 	contentLength int64
 	attempts      int
+
+	// mu protects access to reader and attempts, which are modified by Read and Close.
+	mu     sync.Mutex
+	reader io.ReadCloser
 }
 
 // New creates a Retrier. The provided ctx can be used to cancel the download;
@@ -74,7 +77,10 @@ func (r *Retrier) Read(p []byte) (_ int, err error) {
 	for {
 		r.mu.Lock()
 		reader := r.reader
-
+		if r.ctx.Err() != nil {
+			r.mu.Unlock()
+			return 0, os.ErrClosed
+		}
 		if reader == nil {
 			if r.attempts >= maxDownloadAttempts {
 				r.mu.Unlock()
@@ -87,9 +93,9 @@ func (r *Retrier) Read(p []byte) (_ int, err error) {
 			if err != nil {
 				r.mu.Unlock()
 				if trace.IsAccessDenied(err) {
-					return 0, trace.Wrap(err, "access denied")
+					return 0, trace.Wrap(err)
 				} else if r.ctx.Err() != nil {
-					return 0, trace.Wrap(r.ctx.Err())
+					return 0, os.ErrClosed
 				}
 				r.lastErr = err
 				// Count this as a failed attempt and try again.
@@ -130,7 +136,7 @@ func (r *Retrier) Read(p []byte) (_ int, err error) {
 		r.mu.Unlock()
 
 		if r.ctx.Err() != nil {
-			return n, trace.Wrap(r.ctx.Err())
+			return n, os.ErrClosed
 		}
 
 		// Return any bytes that were already read; the retry happens on the
@@ -152,7 +158,7 @@ func (r *Retrier) Close() error {
 	r.reader = nil
 
 	if reader != nil {
-		return trace.Wrap(reader.Close())
+		return reader.Close()
 	}
 	return nil
 }

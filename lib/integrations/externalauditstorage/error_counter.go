@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -537,7 +538,7 @@ func (e errorReportReader) Read(buf []byte) (int, error) {
 	n, err := e.ReadCloser.Read(buf)
 	if errors.Is(err, io.EOF) {
 		e.reporter.observe(nil)
-	} else if err != nil && !errors.Is(err, context.Canceled) {
+	} else if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, os.ErrClosed) {
 		e.reporter.observe(err)
 	}
 	return n, err

@@ -421,7 +421,7 @@ func (h *Handler) blobRetrier(ctx context.Context, sessionID session.ID, blobCli
 	// Check existence upfront so NotFound is returned before any reads.
 	props, err := cErr(blobClient.GetProperties(ctx, nil))
 	if err != nil {
-		return nil, trace.Wrap(trace.ConvertSystemError(err))
+		return nil, trace.Wrap(err)
 	}
 	var size int64
 	if props.ContentLength != nil {
