@@ -114,8 +114,12 @@ local image into k3d.
    This creates an image like `teleport:19.0.0-dev-arm64`. By default, if you have the e/ directory available,
    you're going to need to also include the license when deploying your teleport pods.
 
-   > **Note:** If the buildbox is stale (e.g. Go/Rust version mismatches), you
+   > **Troubleshooting local image build:**
+   > If you're having issues running make image:
+   > If the buildbox is stale (e.g. Go/Rust version mismatches), you
    > may need to rebuild it first with `make -C build.assets buildbox-centos7`.
+   > Make sure your e ref is up to date. There may be issues with some thing being no longer needed in oss that is still in e/.
+   > Run rustup override unset if having issues with Rust
 
 2. **Create a k3d cluster** (if you don't already have one):
 
