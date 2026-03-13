@@ -102,3 +102,40 @@ See full `tctl acl` command reference in [References](../../reference/cli/tctl.m
 
 ## Reviewing Access Lists using Claude Code
 
+You can use an LLM client such as Claude Code to help you automate bulk access
+list reviews. Provided with a CLI interface, like described above, an AI model
+is able to figure out the correct command usage so you can tailor it to your
+specific use-case however for convenience Teleport maintains an example [Claude
+Skill](https://github.com/gravitational/teleport/tree/roman/acldocs/examples/skills/teleport-acl-review)
+that you can install in your local client to get the reasonable behavior out of
+the box.
+
+To install the skill for Claude Code, copy the skill directory to `~/.claude/skills`.
+
+```
+$ ls -l ~/.claude/skills
+total 0
+drwxr-xr-x  1 example  staff  95 Mar 13 14:13 teleport-acl-review
+```
+
+This works for Claude Code in the terminal. If you're using Code in Claude
+Desktop, you can upload the skill's mardown file using Claude Desktop's
+Customize menu.
+
+Once the skill has been installed, your Claude Code environment will invoke it
+every time you ask it to help you review Teleport access lists. Note that `tctl`
+should be installed and available in PATH for Claude to be able to find and use
+it.
+
+![claude review lists](../../../img/identity-governance/access-lists/claude-code-review-lists.png)
+
+After reviewing your lists, it will attempt to categorize them into low-risk
+lists that can be auto-recertified and lists that require human review. Note
+that in the default skill the categorization is best-effort and takes into
+account things like access list metadata, granted roles and past audits so
+it is still an owner's responsibility to verify the model's reasoning.
+
+![claude review result](../../../img/identity-governance/access-lists/claude-code-result.png)
+
+You can ask Claude to submit reviews for any access list and it will do so using
+appropriate `tctl` CLI commands.
