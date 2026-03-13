@@ -182,53 +182,7 @@ cluster from scratch, so choose carefully. A good example might be something lik
 $ export TF_VAR_ami_name="teleport-ent-(=teleport.version=)-x86_64"
 ```
 
-Teleport (Gravitational) automatically builds and publishes Teleport Community Edition, Enterprise, and Enterprise FIPS
-AMIs when we release a new version of Teleport. The AMI names follow the format: `teleport-<type>-<version>-<arch>`
-where `<type>` is either `oss` or `ent` (Enterprise), `<version>` is the version of Teleport, e.g. `(=teleport.version=)`,
-and `<arch>` is either `x86_64` or `arm64`.
-
-FIPS 140 compatible AMIs (which deploy Teleport in FIPS mode by default) have the `-fips` suffix after `<arch>`,
-e.g. `teleport-ent-(=teleport.version=)-x86_64-fips`.
-
-The AWS account ID that publishes these AMIs is `146628656107`. You can list the available AMIs with
-the example `awscli` commands below. The output is in JSON format by default.
-
-<Admonition
-  type="tip"
-  title="List Teleport AMIs"
->
-  OSS AMIs<br/>
-  ```code
-  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-oss-(=teleport.version=)-*'
-  ```
-
-  Enterprise AMIs<br/>
-  ```code
-  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-(=teleport.version=)-*'
-  ```
-
-  Enterprise FIPS AMIs<br/>
-  ```code
-  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-(=teleport.version=)-*-fips-*'
-  ```
-</Admonition>
-
-The image names all include the build timestamp (shown as `$TIMESTAMP` in the
-table below), and are tagged for easier searching.
-
-| Image name | Edition | Architecture | FIPS support | AMI Tags |
-| - | - | - | - | - |
-| `teleport-oss-(=teleport.version=)-x86_64-$TIMESTAMP` | OSS | amd64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` |
-| `teleport-oss-(=teleport.version=)-arm64-$TIMESTAMP` | OSS | arm64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` |
-| `teleport-ent-(=teleport.version=)-x86_64-$TIMESTAMP` | Enterprise | amd64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: false` |
-| `teleport-ent-(=teleport.version=)-arm64-$TIMESTAMP` | Enterprise | arm64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: false` |
-| `teleport-ent-(=teleport.version=)-x86_64-fips-$TIMESTAMP` | Enterprise | amd64 | Yes | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: true` |
-| `teleport-ent-(=teleport.version=)-arm64-fips-$TIMESTAMP` | Enterprise | arm64 | Yes | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: true` |
-
-All images are based on Amazon Linux 2023 and have been hardened using the
-Amazon EC2 ImageBuilder [STIG](https://public.cyber.mil/stigs/) hardening
-component. Teleport AMIs are automatically published to all [non-opt-in AWS
-regions](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html#concepts-available-regions).
+(!docs/pages/includes/teleport-amis.mdx!)
 
 ### key_name
 
