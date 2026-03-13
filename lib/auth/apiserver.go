@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/debug/debugv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -66,6 +68,17 @@ type APIConfig struct {
 	// OracleHTTPClient (optional) overrides the HTTP client used to make
 	// requests to the Oracle API for the Oracle join method.
 	OracleHTTPClient utils.HTTPDoClient
+	// ClusterDialer provides access to the reverse tunnel for routing
+	// typed debug RPCs to target nodes. Optional.
+	ClusterDialer debugv1.ClusterDialer
+	// ClusterName is the local cluster name for tunnel routing. Optional.
+	ClusterName string
+	// LocalDebugDialer provides local connections for the debug service
+	// in combined processes where no reverse tunnel is used. Optional.
+	LocalDebugDialer *debugv1.LazyLocalDebugDialer
+	// DebugForwarder forwards debug connections to remote servers in split
+	// deployments where the cluster dialer is not available. Optional.
+	DebugForwarder func(ctx context.Context, serverID string) (net.Conn, error)
 }
 
 // CheckAndSetDefaults checks and sets default values

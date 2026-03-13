@@ -1,0 +1,184 @@
+---
+title: Remote Diagnostics
+description: Remotely access diagnostics on any Teleport instance using tctl debug.
+tags:
+ - how-to
+ - platform-wide
+---
+
+The `tctl debug` command group lets administrators remotely access the debug
+service on any Teleport instance connected to the Auth Server. It tunnels
+requests through the inventory control stream, so no additional network ports
+or SSH access are required.
+
+## Prerequisites
+
+- A running Teleport cluster with instances connected to the Auth Server.
+- The `tctl` client configured to connect to your cluster.
+- A role with permission to use the debug service (the preset `editor` role
+  includes this by default):
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: debugger
+spec:
+  allow:
+    rules:
+      - resources: [debug_service]
+        verbs: [create]
+```
+
+## Targeting an instance
+
+You can target an instance by **hostname** or **server ID**:
+
+```code
+# By hostname
+$ tctl debug get-log-level node-1
+
+# By server ID (UUID)
+$ tctl debug get-log-level ab9a35ea-1234-5678-abcd-000000000000
+```
+
+If a hostname matches multiple instances, `tctl` will ask you to use the
+server ID instead and list the matches.
+
+To find server IDs and hostnames, use the inventory:
+
+```code
+$ tctl inventory ls
+Server ID                            Hostname        Services Version
+------------------------------------ --------------- -------- -------
+ab9a35ea-1234-5678-abcd-000000000000 node-1          Node     v17.0.0
+5678abcd-ef01-1234-5678-000000000000 auth-1          Auth     v17.0.0
+```
+
+## Commands
+
+### Get log level
+
+Print the current log level of an instance:
+
+```code
+$ tctl debug get-log-level node-1
+INFO
+```
+
+### Set log level
+
+Change the log level at runtime without restarting the instance:
+
+```code
+$ tctl debug set-log-level node-1 DEBUG
+Log level set to DEBUG
+```
+
+Supported levels: `DEBUG`, `INFO`, `WARN`, `ERROR`.
+
+### Collect profiles
+
+Download pprof profiles from a remote instance. By default, collects
+`goroutine`, `heap`, and `profile` (CPU):
+
+```code
+$ tctl debug profile node-1
+Collecting profile "goroutine"...
+Saved node-1-goroutine.pb.gz (8201 bytes)
+Collecting profile "heap"...
+Saved node-1-heap.pb.gz (12045 bytes)
+Collecting profile "profile"...
+Saved node-1-profile.pb.gz (45231 bytes)
+```
+
+Specify profile names and duration:
+
+```code
+$ tctl debug profile node-1 --seconds 60 trace mutex
+Collecting profile "trace"...
+Saved node-1-trace.pb.gz (102400 bytes)
+Collecting profile "mutex"...
+Saved node-1-mutex.pb.gz (3012 bytes)
+```
+
+Analyze collected profiles with standard Go tools:
+
+```code
+# Interactive terminal explorer
+$ go tool pprof node-1-heap.pb.gz
+
+# Web-based visualizer
+$ go tool pprof -http : node-1-profile.pb.gz
+
+# Trace viewer
+$ go tool trace node-1-trace.pb.gz
+```
+
+### Check readiness
+
+Check whether an instance is ready to serve traffic:
+
+```code
+$ tctl debug readyz node-1
+Ready (PID 12345, status: ok)
+```
+
+### Fetch metrics
+
+Dump Prometheus metrics from a remote instance:
+
+```code
+# Print to stdout
+$ tctl debug metrics node-1
+
+# Save to a file
+$ tctl debug metrics node-1 > metrics.prom
+```
+
+### Stream logs
+
+Stream live log output from a remote instance. Press Ctrl+C to stop:
+
+```code
+$ tctl debug log-stream node-1
+{"time":"2025-01-15T10:30:00Z","level":"INFO","msg":"Heartbeat sent","component":"node"}
+{"time":"2025-01-15T10:30:01Z","level":"DEBUG","msg":"Connection accepted","component":"proxy"}
+...
+```
+
+This is useful for real-time troubleshooting. Combine with `set-log-level` to
+temporarily increase verbosity:
+
+```code
+# In one terminal: enable debug logging
+$ tctl debug set-log-level node-1 DEBUG
+
+# In another terminal: watch the logs
+$ tctl debug log-stream node-1
+
+# When done, restore the original level
+$ tctl debug set-log-level node-1 INFO
+```
+
+## How it works
+
+The `tctl debug` commands do not require direct network access to the target
+instance. Instead, they use typed gRPC RPCs routed through the cluster's
+reverse tunnel infrastructure:
+
+```
+tctl debug <command> <target>
+  |
+  | gRPC (DebugService RPCs)
+  v
+Auth/Proxy Server
+  |
+  | Reverse tunnel (DebugTunnel)
+  v
+Target Instance (gRPC debug service)
+```
+
+Each command sends a typed gRPC request (e.g., `GetLogLevel`, `SetLogLevel`,
+`CollectProfile`) to the Auth or Proxy server, which routes it through the
+reverse tunnel to the target instance's gRPC debug service.

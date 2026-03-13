@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/srv/debug"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type diagnosticHandlerConfig struct {
@@ -32,6 +33,7 @@ type diagnosticHandlerConfig struct {
 	enableProfiling  bool
 	enableHealth     bool
 	enableLogLeveler bool
+	logBroadcaster   *logutils.LogBroadcaster
 }
 
 func (process *TeleportProcess) newDiagnosticHandler(config diagnosticHandlerConfig, logger *slog.Logger) (http.Handler, error) {
@@ -53,7 +55,15 @@ func (process *TeleportProcess) newDiagnosticHandler(config diagnosticHandlerCon
 	}
 
 	if config.enableLogLeveler {
-		debug.RegisterLogLevelHandlers(mux, logger, process.Config)
+		svc := debug.NewService(debug.ServiceConfig{
+			Logger:      logger,
+			Leveler:     process.Config,
+			Broadcaster: config.logBroadcaster,
+		})
+		debug.RegisterLogLevelHandlers(mux, svc)
+		if config.logBroadcaster != nil {
+			debug.RegisterLogStreamHandler(mux, svc)
+		}
 	}
 
 	return mux, nil

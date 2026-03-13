@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	debugpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/debug/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -92,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/debug/debugv1"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/keystore/health"
@@ -176,6 +178,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/db"
+	"github.com/gravitational/teleport/lib/srv/debug"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/srv/mcp"
@@ -724,6 +727,15 @@ type TeleportProcess struct {
 	// resolver is used to identify the reverse tunnel address when connecting via
 	// the proxy.
 	resolver reversetunnelclient.Resolver
+
+	// debugClusterDialer is a lazy cluster dialer for routing debug RPCs
+	// through the reverse tunnel. Created during auth init and set when the
+	// proxy's reverse tunnel server becomes available.
+	debugClusterDialer *debugv1.LazyClusterDialer
+	// localDebugDialer provides a local connection path for the auth debug
+	// service to reach the node's gRPC debug service in combined processes
+	// where no reverse tunnel is used.
+	localDebugDialer *debugv1.LazyLocalDebugDialer
 
 	// metricRegistry is the prometheus metric registry for the process.
 	// Every teleport service that wants to register metrics should use this
@@ -2661,6 +2673,46 @@ func (process *TeleportProcess) initAuthService() error {
 			return trace.Wrap(err)
 		}
 	}
+	// Create a lazy cluster dialer for the debug service. The actual reverse
+	// tunnel server is not available yet (it's created during proxy init), so
+	// we use a lazy wrapper that will be set later.
+	process.debugClusterDialer = &debugv1.LazyClusterDialer{}
+	process.localDebugDialer = &debugv1.LazyLocalDebugDialer{}
+
+	// Set up a ConnListener-based debug HTTP server for the auth process so
+	// that the debug gRPC service can handle requests targeting this server
+	// without requiring a reverse tunnel. In combined processes the node init
+	// will overwrite this with the node's own ConnListener, which is fine.
+	if cfg.DebugService.Enabled {
+		authDebugConnListener := debug.NewConnListener()
+		debugSvc := debug.NewService(debug.ServiceConfig{
+			Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDebug, process.id)),
+			Leveler:     process.Config,
+			Broadcaster: process.Config.LogBroadcaster,
+		})
+		debugMux := http.NewServeMux()
+		debug.RegisterProfilingHandlers(debugMux, process.logger)
+		debug.RegisterLogLevelHandlers(debugMux, debugSvc)
+		if process.Config.LogBroadcaster != nil {
+			debug.RegisterLogStreamHandler(debugMux, debugSvc)
+		}
+		debugMux.HandleFunc("/readyz", process.HandleReadiness)
+		debugMux.Handle("/metrics", process.newMetricsHandler())
+		authDebugHTTPServer := &http.Server{Handler: debugMux}
+		go func() {
+			if err := authDebugHTTPServer.Serve(authDebugConnListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				process.logger.ErrorContext(process.ExitContext(), "Auth debug HTTP server exited with error", "error", err)
+			}
+		}()
+		process.OnExit("auth.debug.http.shutdown", func(payload any) {
+			authDebugHTTPServer.Close()
+			authDebugConnListener.Close()
+		})
+		process.localDebugDialer.Set(authDebugConnListener, hostUUID)
+	}
+
+	debugForwarder := newDebugForwarder(authServer, connector, clusterName)
+
 	apiConf := &auth.APIConfig{
 		AuthServer:       authServer,
 		Authorizer:       authorizer,
@@ -2675,6 +2727,10 @@ func (process *TeleportProcess) initAuthService() error {
 			CA:       accessGraphCAData,
 			Insecure: cfg.AccessGraph.Insecure,
 		},
+		ClusterDialer:    process.debugClusterDialer,
+		ClusterName:      clusterName,
+		LocalDebugDialer: process.localDebugDialer,
+		DebugForwarder:   debugForwarder,
 	}
 
 	// Auth initialization is done (including creation/updating of all singleton
@@ -3685,6 +3741,42 @@ func (process *TeleportProcess) initSSH() error {
 			}
 		}
 
+		// Create the HTTP debug server for tunnel connections. This is
+		// outside the tunnel-mode block so that combined auth+proxy+node
+		// processes can reach it via a local in-process connection.
+		var debugConnListener *debug.ConnListener
+		if cfg.DebugService.Enabled {
+			debugConnListener = debug.NewConnListener()
+			debugSvc := debug.NewService(debug.ServiceConfig{
+				Logger:      logger,
+				Leveler:     process.Config,
+				Broadcaster: process.Config.LogBroadcaster,
+			})
+			debugMux := http.NewServeMux()
+			debug.RegisterProfilingHandlers(debugMux, logger)
+			debug.RegisterLogLevelHandlers(debugMux, debugSvc)
+			if process.Config.LogBroadcaster != nil {
+				debug.RegisterLogStreamHandler(debugMux, debugSvc)
+			}
+			debugMux.HandleFunc("/readyz", process.HandleReadiness)
+			debugMux.Handle("/metrics", process.newMetricsHandler())
+			debugHTTPServer := &http.Server{Handler: debugMux}
+			go func() {
+				if err := debugHTTPServer.Serve(debugConnListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+					logger.ErrorContext(process.ExitContext(), "Debug HTTP server exited with error", "error", err)
+				}
+			}()
+			process.OnExit("node.debug.http.shutdown", func(payload any) {
+				debugHTTPServer.Close()
+				debugConnListener.Close()
+			})
+			// Store the listener so the auth debug service can use it for
+			// local connections in combined processes.
+			if process.localDebugDialer != nil {
+				process.localDebugDialer.Set(debugConnListener, conn.HostID())
+			}
+		}
+
 		if conn.UseTunnel() {
 			var serverHandler reversetunnel.ServerHandler = s
 			if resumableServer != nil {
@@ -3704,6 +3796,7 @@ func (process *TeleportProcess) initSSH() error {
 					AuthMethods:              conn.ClientAuthMethods(),
 					Cluster:                  conn.ClusterName(),
 					Server:                   serverHandler,
+					DebugHandler:             debugConnListener,
 					FIPS:                     process.Config.FIPS,
 					ConnectedProxyGetter:     proxyGetter,
 					StaleConnTimeoutDisabled: reversetunnel.IsAgentStaleConnTimeoutDisabledByEnv(),
@@ -4202,11 +4295,16 @@ func (process *TeleportProcess) initDebugService(exposeDebugRoutes bool) error {
 
 	// Users can disable the debug service for compliance reasons but not the health
 	// routes because the updater relies on them.
+	var logBroadcaster *logutils.LogBroadcaster
+	if exposeDebugRoutes {
+		logBroadcaster = process.Config.LogBroadcaster
+	}
 	config := diagnosticHandlerConfig{
 		enableMetrics:    exposeDebugRoutes,
 		enableProfiling:  exposeDebugRoutes,
 		enableHealth:     true,
 		enableLogLeveler: exposeDebugRoutes,
+		logBroadcaster:   logBroadcaster,
 	}
 	mux, err := process.newDiagnosticHandler(config, logger)
 	if err != nil {
@@ -4850,6 +4948,153 @@ func (process *TeleportProcess) muxPostgresOnWebPort(cfg *servicecfg.Config, lis
 	}
 }
 
+// debugServerLister provides access to server lists for debug forwarding.
+type debugServerLister interface {
+	GetAuthServers() ([]types.Server, error)
+	GetProxies() ([]types.Server, error)
+}
+
+// debugTLSProvider provides TLS certificate and CA pool for debug forwarding.
+type debugTLSProvider interface {
+	ClientGetCertificate() (*tls.Certificate, error)
+	ClientGetPool() (*x509.CertPool, error)
+}
+
+// debugStreamToConn bridges a Debug.Connect gRPC stream to a net.Conn using
+// net.Pipe. It sends the initial server_id frame and starts bidirectional
+// copying goroutines. The returned conn carries raw HTTP traffic.
+func debugStreamToConn(stream grpc.BidiStreamingClient[debugpb.Frame, debugpb.Frame], grpcConn *grpc.ClientConn, serverID string) (net.Conn, error) {
+	if err := stream.Send(&debugpb.Frame{
+		Payload: &debugpb.Frame_ServerId{ServerId: serverID},
+	}); err != nil {
+		grpcConn.Close()
+		return nil, trace.Wrap(err, "sending server ID to server %s", serverID)
+	}
+
+	pipeClient, pipeServer := net.Pipe()
+	go func() {
+		defer pipeServer.Close()
+		for {
+			frame, err := stream.Recv()
+			if err != nil {
+				return
+			}
+			if _, err := pipeServer.Write(frame.GetData()); err != nil {
+				return
+			}
+		}
+	}()
+	go func() {
+		defer func() {
+			stream.CloseSend()
+			grpcConn.Close()
+		}()
+		buf := make([]byte, 32*1024)
+		for {
+			n, err := pipeServer.Read(buf)
+			if n > 0 {
+				if sendErr := stream.Send(&debugpb.Frame{
+					Payload: &debugpb.Frame_Data{Data: append([]byte(nil), buf[:n]...)},
+				}); sendErr != nil {
+					return
+				}
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	return pipeClient, nil
+}
+
+// dialDebugGRPC opens a Debug.Connect stream to the given address and bridges
+// it to a net.Conn. nextProtos sets the TLS ALPN protocols (nil for auth,
+// ProtocolProxySSHGRPC for proxies).
+func dialDebugGRPC(ctx context.Context, addr string, serverID string, tlsProvider debugTLSProvider, clusterName string, nextProtos []string) (net.Conn, error) {
+	cert, err := tlsProvider.ClientGetCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting TLS certificate for debug forwarding")
+	}
+	pool, err := tlsProvider.ClientGetPool()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting TLS CA pool for debug forwarding")
+	}
+	tlsCfg := &tls.Config{
+		Certificates: []tls.Certificate{*cert},
+		RootCAs:      pool,
+		ServerName:   apiutils.EncodeClusterName(clusterName),
+		NextProtos:   nextProtos,
+	}
+
+	grpcConn, err := grpc.NewClient(addr,
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "dialing server %s at %s", serverID, addr)
+	}
+
+	debugClient := debugpb.NewDebugServiceClient(grpcConn)
+	stream, err := debugClient.Connect(ctx)
+	if err != nil {
+		grpcConn.Close()
+		return nil, trace.Wrap(err, "opening debug stream to server %s", serverID)
+	}
+	return debugStreamToConn(stream, grpcConn, serverID)
+}
+
+// newDebugForwarder creates a forwarder function for the auth server. All
+// non-local targets are forwarded through any available proxy's Debug.Connect
+// RPC. The proxy can reach nodes and other proxies via its reverse tunnel, and
+// auth servers via direct cluster-internal connections. The auth server never
+// dials raw IPs itself.
+func newDebugForwarder(lister debugServerLister, tlsProvider debugTLSProvider, clusterName string) func(ctx context.Context, serverID string) (net.Conn, error) {
+	return func(ctx context.Context, serverID string) (net.Conn, error) {
+		proxies, err := lister.GetProxies()
+		if err != nil {
+			return nil, trace.Wrap(err, "looking up proxies for debug forwarding")
+		}
+		if len(proxies) == 0 {
+			return nil, trace.NotFound("no proxies are available for forwarding debug request to %s", serverID)
+		}
+
+		alpnProtos := []string{string(alpncommon.ProtocolProxySSHGRPC)}
+		var lastErr error
+		for _, p := range proxies {
+			addr := p.GetPublicAddr()
+			if addr == "" {
+				addr = p.GetAddr()
+			}
+			conn, err := dialDebugGRPC(ctx, addr, serverID, tlsProvider, clusterName, alpnProtos)
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			return conn, nil
+		}
+		return nil, trace.Wrap(lastErr, "failed to forward debug request for %s through any proxy", serverID)
+	}
+}
+
+// newProxyDebugForwarder creates a forwarder function for the proxy server.
+// It only handles auth server targets by dialing them directly. All other
+// targets (nodes, other proxies) are reached via the reverse tunnel, so the
+// forwarder is not needed for those.
+func newProxyDebugForwarder(lister debugServerLister, tlsProvider debugTLSProvider, clusterName string) func(ctx context.Context, serverID string) (net.Conn, error) {
+	return func(ctx context.Context, serverID string) (net.Conn, error) {
+		authServers, err := lister.GetAuthServers()
+		if err != nil {
+			return nil, trace.Wrap(err, "looking up auth servers for debug forwarding")
+		}
+		for _, as := range authServers {
+			if as.GetName() == serverID {
+				return dialDebugGRPC(ctx, as.GetAddr(), serverID, tlsProvider, clusterName, nil)
+			}
+		}
+		return nil, trace.NotFound("server %s is not a known auth server; nodes and proxies should be reached via the reverse tunnel", serverID)
+	}
+}
+
 func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// clean up unused descriptors passed for proxy, but not used by it
 	defer func() {
@@ -5273,6 +5518,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 		process.tsrv = tsrv
+		// Set the reverse tunnel server on the lazy cluster dialer so the
+		// auth debug service can route typed RPCs through the tunnel.
+		if process.debugClusterDialer != nil {
+			process.debugClusterDialer.Set(tsrv)
+		}
 		process.RegisterCriticalFunc("proxy.reversetunnel.server", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting reverse tunnel server", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", cfg.Proxy.ReverseTunnelListenAddr.Addr, "cache_policy", process.Config.CachePolicy)
 			if err := tsrv.Start(); err != nil {
@@ -5812,6 +6062,49 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 	transportpb.RegisterTransportServiceServer(sshGRPCServer, transportService)
+
+	// Register the debug gRPC service on the proxy's SSH gRPC server so that
+	// tctl can reach nodes and proxies through the reverse tunnel.
+	proxyDebugDialer := &debugv1.LazyLocalDebugDialer{}
+	if cfg.DebugService.Enabled {
+		proxyDebugConnListener := debug.NewConnListener()
+		debugSvc := debug.NewService(debug.ServiceConfig{
+			Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDebug, process.id)),
+			Leveler:     process.Config,
+			Broadcaster: process.Config.LogBroadcaster,
+		})
+		debugMux := http.NewServeMux()
+		debug.RegisterProfilingHandlers(debugMux, process.logger)
+		debug.RegisterLogLevelHandlers(debugMux, debugSvc)
+		if process.Config.LogBroadcaster != nil {
+			debug.RegisterLogStreamHandler(debugMux, debugSvc)
+		}
+		debugMux.HandleFunc("/readyz", process.HandleReadiness)
+		debugMux.Handle("/metrics", process.newMetricsHandler())
+		proxyDebugHTTPServer := &http.Server{Handler: debugMux}
+		go func() {
+			if err := proxyDebugHTTPServer.Serve(proxyDebugConnListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				process.logger.ErrorContext(process.ExitContext(), "Proxy debug HTTP server exited with error", "error", err)
+			}
+		}()
+		process.OnExit("proxy.debug.http.shutdown", func(payload any) {
+			proxyDebugHTTPServer.Close()
+			proxyDebugConnListener.Close()
+		})
+		proxyDebugDialer.Set(proxyDebugConnListener, conn.HostUUID())
+	}
+	proxyForwarder := newProxyDebugForwarder(accessPoint, conn, clusterName)
+	debugService, err := debugv1.NewService(debugv1.ServiceConfig{
+		Authorizer:       authorizer,
+		ClusterDialer:    tsrv,
+		ClusterName:      clusterName,
+		LocalDebugDialer: proxyDebugDialer,
+		Forwarder:        proxyForwarder,
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating proxy debug service")
+	}
+	debugpb.RegisterDebugServiceServer(sshGRPCServer, debugService)
 
 	process.RegisterCriticalFunc("proxy.ssh", func() error {
 		sshListenerAddr := listeners.ssh.Addr().String()

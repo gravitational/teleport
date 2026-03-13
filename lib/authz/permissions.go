@@ -1006,6 +1006,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
 						types.NewRule(types.KindAuthServer, services.RW()),
+						types.NewRule(types.KindDebugService, []string{types.VerbCreate}),
 					},
 				},
 			})

@@ -882,12 +882,14 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
+	cfg.LogBroadcaster = logutils.NewLogBroadcaster()
 	cfg.LogConfig = logutils.Config{
-		Output:       loggerConfig.Output,
-		Severity:     loggerConfig.Severity,
-		Format:       loggerConfig.Format.Output,
-		ExtraFields:  loggerConfig.Format.ExtraFields,
-		EnableColors: utils.IsTerminal(os.Stderr),
+		Output:         loggerConfig.Output,
+		Severity:       loggerConfig.Severity,
+		Format:         loggerConfig.Format.Output,
+		ExtraFields:    loggerConfig.Format.ExtraFields,
+		EnableColors:   utils.IsTerminal(os.Stderr),
+		LogBroadcaster: cfg.LogBroadcaster,
 	}
 
 	var err error

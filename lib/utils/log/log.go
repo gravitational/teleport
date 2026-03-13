@@ -50,6 +50,9 @@ type Config struct {
 	// "os_log". If used from within a packaged app, this should include the identifier of the app in
 	// reverse DNS notation, e.g., "com.goteleport.tshdev", "com.goteleport.tshdev.vnet".
 	OSLogSubsystem string
+	// LogBroadcaster, if set, receives a copy of all formatted log output.
+	// When it has no subscribers the overhead is negligible.
+	LogBroadcaster *LogBroadcaster
 }
 
 const (
@@ -143,27 +146,30 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, io.Writer, e
 	}
 
 	format := strings.ToLower(loggerConfig.Format)
-	var logger *slog.Logger
+	var handler slog.Handler
 	switch format {
-	case "":
-		fallthrough // not set. defaults to 'text'
-	case "text":
-		logger = slog.New(NewSlogTextHandler(w, SlogTextHandlerConfig{
+	case "", "text":
+		handler = NewSlogTextHandler(w, SlogTextHandlerConfig{
 			Level:            level,
 			EnableColors:     loggerConfig.EnableColors,
 			ConfiguredFields: configuredFields,
 			Padding:          loggerConfig.Padding,
-		}))
-		slog.SetDefault(logger)
+		})
 	case "json":
-		logger = slog.New(NewSlogJSONHandler(w, SlogJSONHandlerConfig{
+		handler = NewSlogJSONHandler(w, SlogJSONHandlerConfig{
 			Level:            level,
 			ConfiguredFields: configuredFields,
-		}))
-		slog.SetDefault(logger)
+		})
 	default:
 		return nil, nil, nil, trace.BadParameter("unsupported log output format : %q", loggerConfig.Format)
 	}
+
+	if loggerConfig.LogBroadcaster != nil {
+		handler = NewBroadcastHandler(handler, loggerConfig.LogBroadcaster)
+	}
+
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
 
 	return logger, level, w, nil
 }

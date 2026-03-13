@@ -62,6 +62,7 @@ import (
 	crownjewelv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	debugpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/debug/v1"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	discoveryconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
@@ -109,6 +110,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/crownjewel/crownjewelv1"
 	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
+	"github.com/gravitational/teleport/lib/auth/debug/debugv1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	"github.com/gravitational/teleport/lib/auth/dynamicwindows/dynamicwindowsv1"
 	"github.com/gravitational/teleport/lib/auth/gitserver/gitserverv1"
@@ -6049,6 +6051,18 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "creating inventory service")
 	}
 	inventorypb.RegisterInventoryServiceServer(server, inventoryService)
+
+	debugService, err := debugv1.NewService(debugv1.ServiceConfig{
+		Authorizer:       cfg.Authorizer,
+		ClusterDialer:    cfg.ClusterDialer,
+		ClusterName:      cfg.ClusterName,
+		LocalDebugDialer: cfg.LocalDebugDialer,
+		Forwarder:        cfg.DebugForwarder,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating debug service")
+	}
+	debugpb.RegisterDebugServiceServer(server, debugService)
 
 	botService, err := machineidv1.NewBotService(machineidv1.BotServiceConfig{
 		Authorizer: cfg.Authorizer,

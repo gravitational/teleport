@@ -59,21 +59,14 @@ func onSetLogLevel(configPath string, level string) error {
 		return trace.Wrap(err)
 	}
 
-	setMessage, err := setLogLevel(ctx, clt, level)
-	if err != nil {
+	if !slices.Contains(logutils.SupportedLevelsText, strings.ToUpper(level)) {
+		return trace.BadParameter("%q log level not supported", level)
+	}
+
+	if err := debugclient.WriteSetLogLevel(ctx, os.Stdout, clt, level); err != nil {
 		return convertToReadableErr(err, dataDir, clt.SocketPath())
 	}
-
-	fmt.Println(setMessage)
 	return nil
-}
-
-func setLogLevel(ctx context.Context, clt DebugClient, level string) (string, error) {
-	if contains := slices.Contains(logutils.SupportedLevelsText, strings.ToUpper(level)); !contains {
-		return "", trace.BadParameter("%q log level not supported", level)
-	}
-
-	return clt.SetLogLevel(ctx, level)
 }
 
 func onGetLogLevel(configPath string) error {
@@ -83,17 +76,10 @@ func onGetLogLevel(configPath string) error {
 		return trace.Wrap(err)
 	}
 
-	currentLogLevel, err := getLogLevel(ctx, clt)
-	if err != nil {
+	if err := debugclient.WriteLogLevel(ctx, os.Stdout, clt); err != nil {
 		return convertToReadableErr(err, dataDir, clt.SocketPath())
 	}
-
-	fmt.Printf("Current log level %q\n", currentLogLevel)
 	return nil
-}
-
-func getLogLevel(ctx context.Context, clt DebugClient) (string, error) {
-	return clt.GetLogLevel(ctx)
 }
 
 // defaultCollectProfileSeconds defines the default collect profiles seconds
@@ -178,24 +164,9 @@ func onReadyz(ctx context.Context, configPath string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := readyz(ctx, clt); err != nil {
+	if err := debugclient.WriteReadiness(ctx, os.Stdout, clt); err != nil {
 		return convertToReadableErr(err, dataDir, clt.SocketPath())
 	}
-
-	return nil
-}
-
-func readyz(ctx context.Context, clt DebugClient) error {
-	readiness, err := clt.GetReadiness(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if !readiness.Ready {
-		return trace.Errorf("not ready (PID:%d): %s", readiness.PID, readiness.Status)
-	}
-
-	fmt.Printf("ready (PID:%d)\n", readiness.PID)
 	return nil
 }
 
@@ -206,16 +177,9 @@ func onMetrics(ctx context.Context, configPath string) error {
 		return trace.Wrap(err)
 	}
 
-	metrics, err := clt.GetRawMetrics(ctx)
-	if err != nil {
+	if err := debugclient.WriteMetrics(ctx, os.Stdout, clt); err != nil {
 		return convertToReadableErr(err, dataDir, clt.SocketPath())
 	}
-	defer metrics.Close()
-
-	if _, err := io.Copy(os.Stdout, metrics); err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 

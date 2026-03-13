@@ -4,6 +4,9 @@ gitref.go
 debug
 !/lib/srv/debug
 !/lib/client/debug
+!/lib/auth/debug
+!/api/proto/teleport/debug
+!/api/gen/proto/go/teleport/debug
 default.etcd
 /darwin
 

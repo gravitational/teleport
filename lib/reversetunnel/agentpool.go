@@ -119,6 +119,10 @@ type AgentPoolConfig struct {
 	// Server is either an SSH or application server. It can handle a connection
 	// (perform handshake and handle request).
 	Server ServerHandler
+	// DebugHandler is an optional handler for DebugTunnel connections.
+	// When set, connections with ConnType DebugTunnel are routed to this
+	// handler instead of the default Server.
+	DebugHandler ServerHandler
 	// Component is the Teleport component this agent pool is running in. It can
 	// either be proxy (trusted clusters) or node (dial back).
 	Component string
@@ -585,7 +589,16 @@ func (p *AgentPool) handleTransport(ctx context.Context, channel ssh.Channel, re
 }
 
 func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channel, reqC <-chan *ssh.Request, sconn sshutils.Conn) {
-	defer channel.Close()
+	// closeChannel tracks whether we should close the SSH channel when this
+	// function returns. For most connection types the handler blocks for the
+	// lifetime of the session, but DebugTunnel connections are handed off to
+	// the HTTP server which closes the channel when it finishes.
+	closeChannel := true
+	defer func() {
+		if closeChannel {
+			channel.Close()
+		}
+	}()
 	go io.Copy(io.Discard, channel.Stderr())
 
 	// the only valid teleport-transport-dial request here is to reach the local service
@@ -632,6 +645,16 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 	}
 	if src, err := utils.ParseAddr(dialReq.ClientSrcAddr); err == nil {
 		conn = utils.NewConnWithSrcAddr(conn, getTCPAddr(src))
+	}
+
+	// Route DebugTunnel connections to the dedicated handler. The handler
+	// accepts the connection and returns immediately; the HTTP server
+	// processes the request asynchronously and closes the connection when
+	// done, so we must not close the SSH channel here.
+	if dialReq.ConnType == types.DebugTunnel && p.DebugHandler != nil {
+		closeChannel = false
+		p.DebugHandler.HandleConnection(conn)
+		return
 	}
 
 	p.Server.HandleConnection(conn)
