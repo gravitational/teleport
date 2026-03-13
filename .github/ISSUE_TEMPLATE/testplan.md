@@ -1569,9 +1569,10 @@ manualy testing.
   - [ ] Azure SQL Server.
   - [ ] Snowflake.
   - [ ] MongoDB Atlas.
-- [ ] Connect to a database within a remote cluster via a trusted cluster (smoke check).
+- [ ] Connect to a database within a remote trusted cluster via `tsh db connect` (smoke check).
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
+  - [ ] Self-hosted Oracle.
 - [ ] Verify auto user provisioning.
   Verify all supported modes: `keep`, `best_effort_drop`
   - [ ] Self-hosted Postgres.
