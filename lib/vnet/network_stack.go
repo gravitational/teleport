@@ -50,6 +50,7 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, logComponent)
 
 const (
 	logComponent                     = "vnet"
+	dnsLogComponent                  = "dns"
 	nicID                            = 1
 	mtu                              = 1500
 	tcpReceiveBufferSize             = 0 // 0 means a default will be used.
@@ -190,14 +191,16 @@ type filteredUpstreamSource struct {
 	base    dns.UpstreamNameserverSource
 	mu      sync.RWMutex
 	exclude map[string]struct{}
+	slog    *slog.Logger
 }
 
 // filteredUpstreamSource wraps an upstream source and excludes addresses added via AddExclude.
 // It is mainly used to filter VNet's own DNS addresses.
-func newFilteredUpstreamSource(base dns.UpstreamNameserverSource) *filteredUpstreamSource {
+func newFilteredUpstreamSource(base dns.UpstreamNameserverSource, slog *slog.Logger) *filteredUpstreamSource {
 	return &filteredUpstreamSource{
 		base:    base,
 		exclude: make(map[string]struct{}),
+		slog:    slog,
 	}
 }
 
@@ -215,11 +218,11 @@ func (f *filteredUpstreamSource) UpstreamNameservers(ctx context.Context) ([]str
 	if err != nil {
 		return nil, err
 	}
-	slog.DebugContext(ctx, "Loaded upstream nameservers (pre-filter)", "nameservers", nameservers)
+	f.slog.DebugContext(ctx, "Loaded upstream nameservers (pre-filter)", "nameservers", nameservers)
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	if len(f.exclude) == 0 {
-		slog.DebugContext(ctx, "Loaded upstream nameservers (post-filter)", "nameservers", nameservers)
+		f.slog.DebugContext(ctx, "Loaded upstream nameservers (post-filter)", "nameservers", nameservers)
 		return nameservers, nil
 	}
 	filtered := nameservers[:0]
@@ -229,7 +232,7 @@ func (f *filteredUpstreamSource) UpstreamNameservers(ctx context.Context) ([]str
 		}
 		filtered = append(filtered, nameserver)
 	}
-	slog.DebugContext(ctx, "Loaded upstream nameservers (post-filter)", "nameservers", filtered)
+	f.slog.DebugContext(ctx, "Loaded upstream nameservers (post-filter)", "nameservers", filtered)
 	return filtered, nil
 }
 
@@ -265,7 +268,8 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	slog := slog.With(teleport.ComponentKey, logComponent)
+	logger := slog.With(teleport.ComponentKey, logComponent)
+	dnsLogger := slog.With(teleport.ComponentKey, teleport.Component(logComponent, dnsLogComponent))
 
 	stack, linkEndpoint, err := createStack()
 	if err != nil {
@@ -284,17 +288,17 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 		tcpHandlerResolver: cfg.tcpHandlerResolver,
 		destroyed:          make(chan struct{}),
 		state:              newState(),
-		slog:               slog,
+		slog:               logger,
 	}
 
 	upstreamNameserverSource := cfg.upstreamNameserverSource
 	if upstreamNameserverSource == nil {
-		upstreamNameserverSource, err = dns.NewOSUpstreamNameserverSource()
+		upstreamNameserverSource, err = dns.NewOSUpstreamNameserverSource(dnsLogger)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	upstreamFilter := newFilteredUpstreamSource(upstreamNameserverSource)
+	upstreamFilter := newFilteredUpstreamSource(upstreamNameserverSource, dnsLogger)
 	ns.upstreamFilter = upstreamFilter
 	if cfg.dnsIPv6 != (tcpip.Address{}) {
 		addr, ok := netip.AddrFromSlice(cfg.dnsIPv6.AsSlice())
@@ -303,7 +307,7 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 		}
 		upstreamFilter.AddExclude(dns.AddrWithDNSPort(addr))
 	}
-	dnsServer, err := dns.NewServer(ns, upstreamFilter)
+	dnsServer, err := dns.NewServer(ns, upstreamFilter, dnsLogger)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -319,7 +323,7 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 		if err := ns.assignUDPHandler(cfg.dnsIPv6, dnsServer); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		slog.DebugContext(context.Background(), "Serving DNS on IPv6.", "dns_addr", cfg.dnsIPv6)
+		logger.DebugContext(context.Background(), "Serving DNS on IPv6.", "dns_addr", cfg.dnsIPv6)
 	}
 
 	return ns, nil

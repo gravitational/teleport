@@ -29,7 +29,7 @@ import (
 )
 
 // platformLoadUpstreamNameservers returns the list of DNS upstreams configured in systemd-resolved.
-func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
+func platformLoadUpstreamNameservers(ctx context.Context, slog *slog.Logger) ([]string, error) {
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
 		return nil, trace.NotFound("system D-Bus is unavailable: %v", err)

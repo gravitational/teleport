@@ -30,7 +30,7 @@ import (
 // platformLoadUpstreamNameservers attempts to find the default DNS nameservers
 // that VNet should forward unmatched queries to. To do this, it finds the
 // nameservers configured for each interface and sorts by the interface metric.
-func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
+func platformLoadUpstreamNameservers(ctx context.Context, slog *slog.Logger) ([]string, error) {
 	interfaces, err := winipcfg.GetIPInterfaceTable(windows.AF_INET)
 	if err != nil {
 		return nil, trace.Wrap(err, "looking up local network interfaces")
