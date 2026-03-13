@@ -424,7 +424,7 @@
       }
     },
     {
-      "files": ["e2e/tests/**/*.ts"],
+      "files": ["e2e/tests/web/**/*.ts"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -433,7 +433,7 @@
               {
                 "name": "@playwright/test",
                 "importNames": ["test", "expect"],
-                "message": "Import 'test' and 'expect' from '../helpers/test' instead."
+                "message": "Import 'test' and 'expect' from '../../helpers/test' instead."
               }
             ]
           }

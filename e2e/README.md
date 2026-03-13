@@ -64,13 +64,13 @@ debugging purposes.
 
 ```bash
 # Run a specific test, skip rebuilding (fastest iteration loop)
-./e2e/run.sh --no-build e2e/tests/authenticated/roles.spec.ts
+./e2e/run.sh --no-build e2e/tests/web/authenticated/roles.spec.ts
 
 # Open a browser with auth already set up for manual testing
 ./e2e/run.sh --browse
 
 # Debug a failing test with the Playwright inspector
-./e2e/run.sh --debug e2e/tests/authenticated/roles.spec.ts
+./e2e/run.sh --debug e2e/tests/web/authenticated/roles.spec.ts
 
 # Open Playwright UI mode (pick and run tests interactively)
 ./e2e/run.sh --ui
@@ -79,7 +79,7 @@ debugging purposes.
 ./e2e/run.sh --codegen
 
 # Update snapshot baselines after a visual change
-./e2e/run.sh --update-snapshots --with-ssh-node e2e/tests/with-ssh-node/ssh.spec.ts
+./e2e/run.sh --update-snapshots --with-ssh-node e2e/tests/web/with-ssh-node/ssh.spec.ts
 ```
 
 ### More Examples
@@ -89,7 +89,7 @@ debugging purposes.
 ./e2e/run.sh
 
 # Run SSH node tests with the fixture enabled
-./e2e/run.sh --with-ssh-node e2e/tests/with-ssh-node/ssh.spec.ts
+./e2e/run.sh --with-ssh-node e2e/tests/web/with-ssh-node/ssh.spec.ts
 
 # Run tests with all fixtures enabled, skipping the Teleport build
 ./e2e/run.sh --full --no-build

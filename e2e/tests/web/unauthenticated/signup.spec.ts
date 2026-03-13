@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { signup } from '../../helpers/signup';
-import { expect, test } from '../../helpers/test';
+import { signup } from '../../../helpers/signup';
+import { expect, test } from '../../../helpers/test';
 
 test('verify that a user can sign up with webauthn and login', async ({
   page,

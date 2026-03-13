@@ -1,4 +1,4 @@
-/*
+/**
  * Teleport
  * Copyright (C) 2026  Gravitational, Inc.
  *
@@ -16,19 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { test } from '../../../helpers/test';
 
-import { login } from '../helpers/login';
-import { test as setup } from '../helpers/test';
+test('verify that a user can SSH into a node', async ({
+  unifiedResourcesPage,
+}) => {
+  await unifiedResourcesPage.goto();
 
-const authFile = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '../.auth/user.json'
-);
+  const terminal = await unifiedResourcesPage.connect('docker-node', 'root');
 
-setup('authenticate', async ({ page }) => {
-  await login(page);
-
-  await page.context().storageState({ path: authFile });
+  await terminal.waitForReady();
+  await terminal.exec('ls /');
+  await terminal.expectSnapshot('ls-output.png');
 });
