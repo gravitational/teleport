@@ -37,8 +37,17 @@ $ cd teleport/examples/aws/terraform/ecs-agent
 ```
 
 ## Step 2/3. Configure the deployment
-The file `variables.tf` contains all the configurable parameters for the Teleport Agent deployment, ensure you review and create a `.tfvars` file that overrides the default values.
 
+The file `variables.tf` contains all the configurable parameters for the
+Teleport Agent deployment. Ensure you review and create a `.tfvars` file that
+overrides the default values.
+
+In `variables.tf`, the `teleport_agent_config` block configures Teleport Agent
+services on the ECS service. Note that the Teleport container image run by the
+ECS service does not include a shell, and does not support the Teleport SSH
+Service.
+
+Pick an example depending on your use case.
 
 <Tabs>
   <TabItem label="Auto Discover Amazon EKS clusters">
@@ -150,7 +159,9 @@ The file `variables.tf` contains all the configurable parameters for the Telepor
   </TabItem>
   
   <TabItem label="Basic deployment example">
+
   Here's an example of a basic ECS Teleport Agent configuration you can use to tailor to your use-case.
+
   ```hcl
   teleport_proxy_server = "proxy.example.com:443"
 
@@ -191,7 +202,16 @@ The file `variables.tf` contains all the configurable parameters for the Telepor
       enabled = "no"
     }
     ssh_service = {
+      enabled = "no"
+    }
+    app_service = {
       enabled = "yes"
+      apps = [
+        {
+          name = "example-app"
+          uri  = "http://localhost:8080"
+        }
+      ]
     }
   }
 
