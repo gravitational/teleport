@@ -47,6 +47,12 @@ type SAMLConnectorGetter interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 }
 
+type SAMLConnectorCert struct {
+	Field string
+	Cert  *x509.Certificate
+	TTL   time.Duration
+}
+
 const ErrMsgHowToFixMissingPrivateKey = "You must either specify the signing key pair (obtain the existing one with `tctl get saml --with-secrets`) or let Teleport generate a new one (remove signing_key_pair in the resource you're trying to create)."
 
 // ValidateSAMLConnector validates the SAMLConnector and sets default values.
@@ -459,24 +465,41 @@ func FillSAMLSigningKeyFromExisting(ctx context.Context, connector types.SAMLCon
 	return nil
 }
 
-// CheckSAMLCertExpiry returns true if any certs for the connector from the entity descriptor or
-// cert field have expired or will expire within the given timeframe.
-func CheckSAMLCertExpiry(connector types.SAMLConnector, timeframe time.Duration) (bool, error) {
+// GetExpiringSAMLCertsAt returns a list of SAML certs from the connector where the expiry is within the
+// timeframe
+func GetExpiringSAMLCertsAt(connector types.SAMLConnector, at time.Time, timeframe time.Duration) ([]SAMLConnectorCert, error) {
+	var expiringCerts []SAMLConnectorCert
+
 	certs, err := CheckSAMLEntityDescriptor(connector.GetEntityDescriptor())
 	if err != nil {
-		return false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+	for _, cert := range certs {
+		ttl := cert.NotAfter.Sub(at)
+		if ttl <= timeframe {
+			expiringCerts = append(expiringCerts, SAMLConnectorCert{
+				Field: "entity_descriptor",
+				Cert:  cert,
+				TTL:   ttl,
+			})
+		}
 	}
 
 	if connector.GetCert() != "" {
 		cert, err := tlsca.ParseCertificatePEM([]byte(connector.GetCert()))
 		if err != nil {
-			return false, trace.Wrap(err, "failed to parse certificate defined in cert")
+			return nil, trace.Wrap(err, "failed to parse certificate defined in cert")
 		}
 
-		certs = append(certs, cert)
+		ttl := cert.NotAfter.Sub(at)
+		if ttl <= timeframe {
+			expiringCerts = append(expiringCerts, SAMLConnectorCert{
+				Field: "cert",
+				Cert:  cert,
+				TTL:   ttl,
+			})
+		}
 	}
 
-	return slices.ContainsFunc(certs, func(c *x509.Certificate) bool {
-		return time.Until(c.NotAfter) <= timeframe
-	}), nil
+	return expiringCerts, nil
 }

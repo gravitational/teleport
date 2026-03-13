@@ -313,15 +313,20 @@ func Test_ValidateSAMLConnector(t *testing.T) {
 	}
 }
 
-func TestCheckSAMLCertExpiry(t *testing.T) {
+func TestGetExpiringSAMLCertsAt(t *testing.T) {
 	t.Parallel()
+
+	type wantCert struct {
+		Field   string
+		Expired bool
+	}
 
 	testCases := []struct {
 		name         string
 		timeframe    time.Duration
 		edTTLs       []time.Duration
 		certTTL      time.Duration
-		assertResult bool
+		assertResult []wantCert
 		assertErr    require.ErrorAssertionFunc
 	}{
 		{
@@ -329,7 +334,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 			timeframe:    30 * 24 * time.Hour,
 			edTTLs:       []time.Duration{45 * 24 * time.Hour},
 			certTTL:      75 * 24 * time.Hour,
-			assertResult: false,
+			assertResult: nil,
 			assertErr:    require.NoError,
 		},
 		{
@@ -337,7 +342,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 			timeframe:    30 * 24 * time.Hour,
 			edTTLs:       []time.Duration{45 * 24 * time.Hour},
 			certTTL:      0,
-			assertResult: false,
+			assertResult: nil,
 			assertErr:    require.NoError,
 		},
 		{
@@ -345,7 +350,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 			timeframe:    30 * 24 * time.Hour,
 			edTTLs:       []time.Duration{},
 			certTTL:      75 * 24 * time.Hour,
-			assertResult: false,
+			assertResult: nil,
 			assertErr:    require.NoError,
 		},
 		{
@@ -356,7 +361,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 				15 * 24 * time.Hour, // Expiring.
 			},
 			certTTL:      75 * 24 * time.Hour,
-			assertResult: true,
+			assertResult: []wantCert{{Field: "entity_descriptor", Expired: false}},
 			assertErr:    require.NoError,
 		},
 		{
@@ -366,9 +371,12 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 				-24 * 24 * time.Hour, // Expired.
 				15 * 24 * time.Hour,
 			},
-			certTTL:      75 * 24 * time.Hour,
-			assertResult: true,
-			assertErr:    require.NoError,
+			certTTL: 75 * 24 * time.Hour,
+			assertResult: []wantCert{
+				{Field: "entity_descriptor", Expired: true},
+				{Field: "entity_descriptor", Expired: false},
+			},
+			assertErr: require.NoError,
 		},
 		{
 			name:      "connector field cert expiring within timeframe",
@@ -378,7 +386,7 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 				60 * 24 * time.Hour,
 			},
 			certTTL:      15 * 24 * time.Hour, // Expiring.
-			assertResult: true,
+			assertResult: []wantCert{{Field: "cert", Expired: false}},
 			assertErr:    require.NoError,
 		},
 		{
@@ -388,15 +396,18 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 				15 * 24 * time.Hour,
 				60 * 24 * time.Hour,
 			},
-			certTTL:      -24 * 24 * time.Hour, // Expired.
-			assertResult: true,
-			assertErr:    require.NoError,
+			certTTL: -24 * 24 * time.Hour, // Expired.
+			assertResult: []wantCert{
+				{Field: "cert", Expired: true},
+				{Field: "entity_descriptor", Expired: false},
+			},
+			assertErr: require.NoError,
 		},
 		{
 			name:         "invalid entity descriptor",
 			timeframe:    30 * 24 * time.Hour,
 			edTTLs:       nil, // Absence of edTTLs is used to generate an invalid entity descriptor.
-			assertResult: false,
+			assertResult: nil,
 			assertErr:    require.Error,
 		},
 	}
@@ -426,8 +437,13 @@ func TestCheckSAMLCertExpiry(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			result, err := CheckSAMLCertExpiry(connector, tc.timeframe)
-			require.Equal(t, tc.assertResult, result)
+			certs, err := GetExpiringSAMLCertsAt(connector, time.Now(), tc.timeframe)
+
+			got := make([]wantCert, 0, len(certs))
+			for _, c := range certs {
+				got = append(got, wantCert{Field: c.Field, Expired: c.TTL <= 0})
+			}
+			require.ElementsMatch(t, got, tc.assertResult)
 			tc.assertErr(t, err)
 		})
 	}
