@@ -116,6 +116,18 @@ func TestRequestCancelWithoutPanic(t *testing.T) {
 
 }
 
+// TestForwarderUsesBufferPool verifies that the reverse proxy Forwarder
+// is configured with a BufferPool. Without a pool, every proxied request
+// allocates a fresh 32 KiB buffer for io.Copy that becomes garbage
+// immediately after the request completes. Under high concurrency (e.g.,
+// hundreds of concurrent app sessions), this creates significant GC
+// pressure and contributes to memory growth.
+func TestForwarderUsesBufferPool(t *testing.T) {
+	fwd, err := New()
+	require.NoError(t, err)
+	require.NotNil(t, fwd.ReverseProxy.BufferPool, "Forwarder must set a BufferPool to reuse io.Copy buffers and reduce GC pressure under high concurrency")
+}
+
 func newSingleHostReverseProxy(target *url.URL) *Forwarder {
 	return &Forwarder{
 		ReverseProxy: httputil.NewSingleHostReverseProxy(target),
