@@ -154,6 +154,19 @@ func TestHeaderAcceptsEncoding(t *testing.T) {
 			assert.Equal(t, tt.want, headerAcceptsEncoding(h, tt.encoding))
 		})
 	}
+
+	// Verify that random capitalizations of the header key work.
+	for _, key := range []string{
+		"accept-encoding",
+		"ACCEPT-ENCODING",
+		"aCcEpT-eNcOdInG",
+	} {
+		t.Run("key_"+key, func(t *testing.T) {
+			h := http.Header{}
+			h.Set(key, "gzip")
+			assert.True(t, headerAcceptsEncoding(h, "gzip"))
+		})
+	}
 }
 
 // TestCompressMemBuffer verifies that compressMemBuffer gzip-compresses the
