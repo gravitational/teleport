@@ -75,11 +75,9 @@ func CheckAuthorization(
 	allowUserInteraction bool,
 	cancellationID string,
 ) (AuthorizationResult, error) {
-	var flags uint32
+	flags := CheckAuthorizationFlagNone
 	if allowUserInteraction {
 		flags = CheckAuthorizationFlagAllowUserInteraction
-	} else {
-		flags = CheckAuthorizationFlagNone
 	}
 	var result AuthorizationResult
 	if err := conn.Object(AuthorityServiceName, dbus.ObjectPath(AuthorityObjectPath)).

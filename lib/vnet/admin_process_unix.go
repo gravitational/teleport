@@ -126,6 +126,7 @@ func createTUNDevice(ctx context.Context, interfaceName string) (tun.Device, str
 	}
 	name, err := dev.Name()
 	if err != nil {
+		dev.Close()
 		return nil, "", trace.Wrap(err, "getting TUN device name")
 	}
 	return dev, name, nil
