@@ -99,13 +99,9 @@ func tryCompileFastMatcher(kind, verb string, allowed, denied []types.Kubernetes
 
 // filterRulesByKindVerb returns the subset of rules that match the given kind and verb.
 func filterRulesByKindVerb(kind, verb string, rules []types.KubernetesResource) []types.KubernetesResource {
-	filtered := make([]types.KubernetesResource, 0, len(rules))
-	for _, r := range rules {
-		if kindAllowed(r.Kind, kind) && verbAllowed(r.Verbs, verb) {
-			filtered = append(filtered, r)
-		}
-	}
-	return filtered
+	return slices.DeleteFunc(slices.Clone(rules), func(r types.KubernetesResource) bool {
+		return !kindAllowed(r.Kind, kind) || !verbAllowed(r.Verbs, verb)
+	})
 }
 
 func kindAllowed(ruleKind, requestedKind string) bool {
