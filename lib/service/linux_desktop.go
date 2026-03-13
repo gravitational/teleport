@@ -25,7 +25,10 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -230,6 +233,7 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 			PublicAddr:  publicAddr,
 			OnHeartbeat: process.OnHeartbeat(teleport.ComponentLinuxDesktop),
 		},
+		ChildLogConfig: getChildLogConfig(cfg),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -290,4 +294,17 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
 	return nil
+}
+
+func getChildLogConfig(cfg *servicecfg.Config) *srv.ChildLogConfig {
+	return &srv.ChildLogConfig{
+		ExecLogConfig: srv.ExecLogConfig{
+			Level:        cfg.LoggerLevel,
+			Format:       strings.ToLower(cfg.LogConfig.Format),
+			ExtraFields:  cfg.LogConfig.ExtraFields,
+			EnableColors: cfg.LogConfig.EnableColors,
+			Padding:      cfg.LogConfig.Padding,
+		},
+		Writer: cfg.LogWriter,
+	}
 }

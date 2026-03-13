@@ -102,6 +102,7 @@ type LinuxServiceConfig struct {
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
 	Labels               map[string]string
+	ChildLogConfig       *srv.ChildLogConfig
 }
 
 func (cfg *LinuxServiceConfig) CheckAndSetDefaults() error {
@@ -131,6 +132,9 @@ func (cfg *LinuxServiceConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.ConnectedProxyGetter == nil {
 		return trace.BadParameter("LinuxServiceConfig is missing ConnectedProxyGetter")
+	}
+	if cfg.ChildLogConfig == nil {
+		return trace.BadParameter("LinuxServiceConfig is missing ChildLogConfig")
 	}
 
 	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, teleport.ComponentLinuxDesktop))
