@@ -79,7 +79,7 @@ Personas:
 Overarching user story:
 
 > As a Cluster Admin, I would like to delegate responsibility for managing MWI
-> configuration to a Scope Admins, they should be able to create Bots, assign
+> configuration to a Scope Admin, they should be able to create Bots, assign
 > them privileges within their own scope, generate join tokens and troubleshoot
 > arising issues. This means I will no longer need to be a bottleneck for these
 > teams. In doing so, I need to be confident that this will not compromise the
