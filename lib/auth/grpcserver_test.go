@@ -4723,24 +4723,35 @@ func synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge(t *tes
 	require.NoError(t, err)
 	defer clt.Close()
 
+	nonContextUserRequest := &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+			UserCredentials: new(proto.UserCredentials),
+		},
+	}
+	contextUserRequest := &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: new(proto.ContextUser),
+		},
+	}
+
 	for range defaults.LimiterBurst {
-		_, err := clt.CreateAuthenticateChallenge(ctx, new(proto.CreateAuthenticateChallengeRequest))
+		_, err := clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
 		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
 	}
-	_, err = clt.CreateAuthenticateChallenge(ctx, new(proto.CreateAuthenticateChallengeRequest))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
 	require.ErrorAs(t, err, new(*trace.LimitExceededError))
-	_, err = clt.CreateAuthenticateChallenge(ctx, new(proto.CreateAuthenticateChallengeRequest))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
 	require.ErrorAs(t, err, new(*trace.LimitExceededError))
 
 	time.Sleep(defaults.LimiterPeriod)
 
 	for range defaults.LimiterBurst - defaults.LimiterAverage {
-		_, err := clt.CreateAuthenticateChallenge(ctx, new(proto.CreateAuthenticateChallengeRequest))
+		_, err := clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
 		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
 	}
-	_, err = clt.CreateAuthenticateChallenge(ctx, new(proto.CreateAuthenticateChallengeRequest))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
 	require.ErrorAs(t, err, new(*trace.LimitExceededError))
-	_, err = clt.CreateAuthenticateChallenge(ctx, new(proto.CreateAuthenticateChallengeRequest))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
 	require.ErrorAs(t, err, new(*trace.LimitExceededError))
 
 	require.Greater(t, 1000*defaults.LimiterAverage, defaults.LimiterBurst,
@@ -4748,12 +4759,12 @@ func synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge(t *tes
 	time.Sleep(1000 * defaults.LimiterPeriod)
 
 	for range defaults.LimiterBurst {
-		_, err := clt.CreateAuthenticateChallenge(ctx, new(proto.CreateAuthenticateChallengeRequest))
+		_, err := clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
 		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
 	}
-	_, err = clt.CreateAuthenticateChallenge(ctx, new(proto.CreateAuthenticateChallengeRequest))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
 	require.ErrorAs(t, err, new(*trace.LimitExceededError))
-	_, err = clt.CreateAuthenticateChallenge(ctx, new(proto.CreateAuthenticateChallengeRequest))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
 	require.ErrorAs(t, err, new(*trace.LimitExceededError))
 
 	// no time has passed, but we can do a full burst and more if we pretend to
@@ -4761,11 +4772,7 @@ func synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge(t *tes
 	// limiter)
 
 	for range defaults.LimiterBurst + 1 {
-		_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
-				ContextUser: &proto.ContextUser{},
-			},
-		})
+		_, err := clt.CreateAuthenticateChallenge(ctx, contextUserRequest)
 		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
 	}
 }
