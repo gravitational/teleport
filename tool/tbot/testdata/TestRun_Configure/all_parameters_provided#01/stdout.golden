@@ -11,5 +11,6 @@ debug: false
 proxy_server: proxy.example.com:443
 credential_ttl: 1h0m0s
 renewal_interval: 20m0s
+leeway: 1m0s
 oneshot: false
 fips: false

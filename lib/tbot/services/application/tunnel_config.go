@@ -23,6 +23,7 @@ import (
 	"net/url"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -54,6 +55,14 @@ type TunnelConfig struct {
 	// Listener overrides "listen" and directly provides an opened listener to
 	// use.
 	Listener net.Listener `yaml:"-"`
+
+	// Clock is a clock. If unset, the standard system clock is used. Used in
+	// tests.
+	clock clockwork.Clock `yaml:"-"`
+
+	// certIssuedHook is an optional hook called when the tunnel requests a new
+	// certificate. Used in tests.
+	certIssuedHook func() `yaml:"-"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -94,6 +103,10 @@ func (s *TunnelConfig) CheckAndSetDefaults() error {
 	if _, err := url.Parse(s.Listen); err != nil {
 		return trace.Wrap(err, "parsing listen")
 	}
+	if s.clock == nil {
+		s.clock = clockwork.NewRealClock()
+	}
+
 	return nil
 }
 

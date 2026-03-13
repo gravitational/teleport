@@ -20,7 +20,10 @@ package gcp
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -209,4 +212,25 @@ func TestGetTags(t *testing.T) {
 			require.Equal(t, tc.expectedTags, tags)
 		})
 	}
+}
+
+func TestGCPIsInstanceMetadataAvailableWithHTTPProxyEnv(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/computeMetadata/v1/instance/id" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("12345678"))
+		}
+	}))
+	defer server.Close()
+
+	t.Setenv("HTTP_PROXY", "http://127.0.0.1:0")
+
+	// We need to use a hostname that is not localhost or net/IP.IsLoopback, because Go's default HTTP proxy implementation ignores calls to those hosts even if HTTP_PROXY is set.
+	// httptest can only provide an http server at localhost, so we have to use a workaround to get a non-localhost host that still resolves to the HTTP Server above.
+	serverHost := strings.Replace(strings.TrimPrefix(server.URL, "http://"), "127.0.0.1", "127.0.0.1.nip.io", 1)
+	t.Setenv("GCE_METADATA_HOST", serverHost)
+
+	client, err := NewInstanceMetadataClient(nil)
+	require.NoError(t, err)
+	require.True(t, client.IsAvailable(t.Context()), "instance metadata should be available even with HTTP_PROXY set")
 }

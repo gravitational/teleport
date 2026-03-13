@@ -17,7 +17,6 @@
  */
 
 import 'jest-canvas-mock';
-
 import Logger, { NullService } from 'teleterm/logger';
 import { createMockConfigService } from 'teleterm/services/config/fixtures/mocks';
 import { MockPtyProcess } from 'teleterm/services/pty/fixtures/mocks';

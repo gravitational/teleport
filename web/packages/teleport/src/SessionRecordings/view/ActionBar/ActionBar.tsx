@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 
 import { ButtonPrimary, Flex } from 'design';
 import * as Icons from 'design/Icon';

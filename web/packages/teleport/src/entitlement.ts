@@ -18,11 +18,13 @@
 
 // entitlement list should be 1:1 with EntitlementKinds in entitlements/entitlements.go
 type entitlement =
+  | 'AccessGraph'
+  | 'AccessGraphDemoMode'
   | 'AccessLists'
   | 'AccessMonitoring'
   | 'AccessRequests'
-  | 'AccessGraphDemoMode'
   | 'App'
+  | 'ClientIPRestrictions'
   | 'CloudAuditLogRetention'
   | 'DB'
   | 'Desktop'
@@ -42,18 +44,19 @@ type entitlement =
   | 'SessionLocks'
   | 'UnrestrictedManagedUpdates'
   | 'UpsellAlert'
-  | 'UsageReporting'
-  | 'ClientIPRestrictions';
+  | 'UsageReporting';
 
 export const defaultEntitlements: Record<
   entitlement,
   { enabled: boolean; limit: number }
 > = {
+  AccessGraph: { enabled: false, limit: 0 },
+  AccessGraphDemoMode: { enabled: false, limit: 0 },
   AccessLists: { enabled: false, limit: 0 },
   AccessMonitoring: { enabled: false, limit: 0 },
-  AccessGraphDemoMode: { enabled: false, limit: 0 },
   AccessRequests: { enabled: false, limit: 0 },
   App: { enabled: false, limit: 0 },
+  ClientIPRestrictions: { enabled: false, limit: 0 },
   CloudAuditLogRetention: { enabled: false, limit: 0 },
   DB: { enabled: false, limit: 0 },
   Desktop: { enabled: false, limit: 0 },
@@ -74,5 +77,4 @@ export const defaultEntitlements: Record<
   UnrestrictedManagedUpdates: { enabled: false, limit: 0 },
   UpsellAlert: { enabled: false, limit: 0 },
   UsageReporting: { enabled: false, limit: 0 },
-  ClientIPRestrictions: { enabled: false, limit: 0 },
 };

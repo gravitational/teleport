@@ -30,7 +30,7 @@ jobs:
           make binaries
 
       - name: Upload binaries
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v7
         with:
           name: build
           path: ${{ github.workspace }}/build/
@@ -43,7 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           name: build
           path: ${{ github.workspace }}/build/

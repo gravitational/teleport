@@ -16,10 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { PropsWithChildren } from 'react';
-
 import '@testing-library/jest-dom';
-
 import {
   act,
   createEvent,
@@ -28,6 +25,7 @@ import {
   renderHook,
   screen,
 } from '@testing-library/react';
+import { PropsWithChildren } from 'react';
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';

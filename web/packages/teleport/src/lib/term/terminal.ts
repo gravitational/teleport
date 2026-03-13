@@ -16,14 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import '@xterm/xterm/css/xterm.css';
-
 import { FitAddon } from '@xterm/addon-fit';
 import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { ITheme, Terminal } from '@xterm/xterm';
-
+import '@xterm/xterm/css/xterm.css';
 import {
   SearchAddon,
   TerminalSearcher,
