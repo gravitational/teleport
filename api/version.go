@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "19.0.0-dev.osslfips.3"
+const Version = "19.0.0-dev.osslfips.4"
 
 const VersionMajor = 19
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev.osslfips.3"
+const VersionPreRelease = "dev.osslfips.4"
 const VersionMetadata = ""
