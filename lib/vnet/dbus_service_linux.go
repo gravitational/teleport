@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/godbus/dbus/v5"
@@ -119,26 +118,33 @@ func newDBusDaemon() (_ *dbusDaemon, err error) {
 }
 
 type dbusDaemon struct {
-	conn      *dbus.Conn
-	started   atomic.Bool
-	closing   atomic.Bool
-	done      chan error // buffered 1; receives the admin process error or nil
-	closeOnce sync.Once
+	mu      sync.Mutex
+	conn    *dbus.Conn
+	started bool
+	closing bool
+	done    chan error // buffered 1; receives the admin process error or nil
 
 	startAdminProcess  func(addr, credPath string) error
 	cancelAdminProcess context.CancelFunc
 }
 
 func (d *dbusDaemon) Close() {
-	d.closing.Store(true)
-	d.closeOnce.Do(func() {
-		d.cancelAdminProcess()
-		_ = d.conn.Close()
-		// If no admin process goroutine was started, unblock Wait.
-		if !d.started.Load() {
-			d.done <- nil
-		}
-	})
+	d.mu.Lock()
+	if d.closing {
+		d.mu.Unlock()
+		return
+	}
+	d.closing = true
+	started := d.started
+	d.mu.Unlock()
+
+	d.cancelAdminProcess()
+	_ = d.conn.Close()
+
+	// If no admin process goroutine was started, unblock Wait.
+	if !started {
+		d.done <- nil
+	}
 }
 
 func (d *dbusDaemon) Wait() error {
@@ -158,13 +164,18 @@ func (d *dbusDaemon) Start(addr, credPath string, sender dbus.Sender) *dbus.Erro
 		return dbus.MakeFailedError(trace.Wrap(err, "authorization failed"))
 	}
 
-	if d.closing.Load() {
+	d.mu.Lock()
+	if d.closing {
+		d.mu.Unlock()
 		return dbus.MakeFailedError(trace.Errorf("VNet D-Bus daemon is shutting down"))
 	}
 
-	if !d.started.CompareAndSwap(false, true) {
+	if d.started {
+		d.mu.Unlock()
 		return dbus.MakeFailedError(trace.Errorf("VNet admin process already started"))
 	}
+	d.started = true
+	d.mu.Unlock()
 
 	log.InfoContext(context.Background(), "Starting VNet admin process", "uid", uid)
 
@@ -232,9 +243,9 @@ func (d *dbusDaemon) authorize(sender dbus.Sender) (uint32, error) {
 	}
 	if !result.Authorized {
 		if result.Challenge {
-			return 0, trace.Errorf("polkit authentication required")
+			return 0, trace.AccessDenied("polkit authentication required")
 		}
-		return 0, trace.Errorf("polkit authorization denied")
+		return 0, trace.AccessDenied("polkit authorization denied")
 	}
 	return uid, nil
 }
