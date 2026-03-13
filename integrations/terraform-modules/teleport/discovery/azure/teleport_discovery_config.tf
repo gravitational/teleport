@@ -29,7 +29,7 @@ resource "teleport_discovery_config" "azure" {
       integration     = try(teleport_integration.azure_oidc[0].metadata.name, "")
       regions         = var.match_azure_regions
       resource_groups = compact(var.match_azure_resource_groups)
-      subscriptions   = [local.azure_subscription_id]
+      subscriptions   = var.match_azure_subscriptions
       tags            = var.match_azure_tags
       types           = ["vm"]
     }]
