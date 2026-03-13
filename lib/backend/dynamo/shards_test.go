@@ -265,15 +265,22 @@ type eventTracker struct {
 	receiveMu      sync.Mutex
 	receivedEvents map[string]int
 
+	startTime       time.Time
+	lastWriteSample time.Time
+	lastWriteCount  int
+
 	lastEventTime time.Time
 }
 
 func newEventTracker(t *testing.T) *eventTracker {
+	now := time.Now()
 	return &eventTracker{
-		writtenEvents:  make(map[string]bool),
-		receivedEvents: make(map[string]int),
-		lastEventTime:  time.Now(),
-		t:              t,
+		writtenEvents:   make(map[string]bool),
+		receivedEvents:  make(map[string]int),
+		lastEventTime:   now,
+		startTime:       now,
+		lastWriteSample: now,
+		t:               t,
 	}
 }
 
@@ -312,15 +319,26 @@ func (e *eventTracker) waitForEvents(ctx context.Context, targetCount int, event
 
 			e.writeMu.Lock()
 			numWritten := len(e.writtenEvents)
+			now := time.Now()
+			interval := now.Sub(e.lastWriteSample).Seconds()
+			writesSinceLast := numWritten - e.lastWriteCount
+			var writesPerSec float64
+			if interval > 0 {
+				writesPerSec = float64(writesSinceLast) / interval
+			}
+			e.lastWriteSample = now
+			e.lastWriteCount = numWritten
+
 			e.writeMu.Unlock()
 
 			percentage := float64(numReceived) / float64(numWritten) * 100
 			roundedDuration := timeSinceLastEvent.Round(time.Second)
 			e.t.Logf(
-				"Written: %-8d Received: %-8d Percent: %-6.1f%% LastEventAgo: %-10v",
+				"Written: %-8d Received: %-8d Percent: %-6.1f%% Write/s: %-8.1f LastEventAgo: %-10v",
 				numWritten,
 				numReceived,
 				percentage,
+				writesPerSec,
 				roundedDuration,
 			)
 
