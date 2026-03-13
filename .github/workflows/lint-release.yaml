@@ -1,0 +1,32 @@
+# This workflow runs some checks on release branches to ensure
+# that the release is ready to be published.
+name: Lint Release
+
+on:
+  push:
+    branches:
+      - release/*
+  pull_request:
+    branches:
+      - release/*
+
+jobs:
+  ensure-changelog-entry:
+    name: Ensure Changelog Entry
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Ensure Changelog Entry
+        run: make ensure-changelog-entry
+
+      - name: Fetch base branch
+        if: github.event_name == 'pull_request'
+        run: git fetch origin ${{ github.base_ref }}
+
+      - name: Ensure Version Changed
+        if: github.event_name == 'pull_request'
+        run: make ensure-version-changed BASE_REF=origin/${{ github.base_ref }}
