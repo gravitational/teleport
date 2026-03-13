@@ -185,14 +185,14 @@ func GetProtoEntitlement(f *proto.Features, e entitlements.EntitlementKind) *pro
 	fE := f.GetEntitlements()
 	al, ok := fE[string(e)]
 	if !ok {
-		// TODO(emargetis): Policy fallback DELETE IN 21.0.0
+		// TODO(emargetis): Policy fallback DELETE IN 20.0.0
 		if e == entitlements.AccessGraph && f.GetPolicy().GetEnabled() {
 			return &proto.EntitlementInfo{Enabled: true}
 		}
 		return &proto.EntitlementInfo{}
 	}
 
-	// TODO(emargetis): Policy fallback DELETE IN 21.0.0
+	// TODO(emargetis): Policy fallback DELETE IN 20.0.0
 	if e == entitlements.AccessGraph && !al.Enabled && f.GetPolicy().GetEnabled() {
 		return &proto.EntitlementInfo{Enabled: true, Limit: al.Limit}
 	}
