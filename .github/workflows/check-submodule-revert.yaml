@@ -1,0 +1,27 @@
+name: Check Submodule Revert
+on:
+  pull_request:
+    types: [opened, synchronize, labeled, unlabeled]
+
+jobs:
+  check-submodule-revert:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - run: |
+          BASE=$(git rev-parse origin/${{ github.base_ref }}:e)
+          PR=$(git rev-parse HEAD:e)
+          [ "$BASE" = "$PR" ] && exit 0
+
+          cd e
+          git fetch --depth=1 origin "$BASE" 2>/dev/null
+          BASE_DATE=$(git log -1 --format=%ct "$BASE")
+          PR_DATE=$(git log -1 --format=%ct "$PR")
+          [ "$PR_DATE" -ge "$BASE_DATE" ] && exit 0
+
+          echo '${{ toJson(github.event.pull_request.labels.*.name) }}' | grep -q '"allow-submodule-revert"' && exit 0
+          echo "❌ Submodule 'e' is being reverted. Add 'allow-submodule-revert' label to override." && exit 1
