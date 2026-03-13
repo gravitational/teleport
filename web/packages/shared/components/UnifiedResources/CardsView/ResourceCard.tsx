@@ -238,10 +238,7 @@ export function ResourceCard({
             </Box>
           )}
           {PrimaryIconComponent ? (
-            <IconWrapper
-              ml={2}
-              $requiresRequest={requiresRequest}
-            >
+            <IconWrapper ml={2} $requiresRequest={requiresRequest}>
               <PrimaryIconComponent size={45} />
             </IconWrapper>
           ) : (
