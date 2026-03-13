@@ -116,10 +116,14 @@ local image into k3d.
 
    > **Troubleshooting local image build:**
    > If you're having issues running make image:
-   > If the buildbox is stale (e.g. Go/Rust version mismatches), you
-   > may need to rebuild it first with `make -C build.assets buildbox-centos7`.
+   >
+   > Run `docker builder prune -af` to clear build cache entries.
+   > If the buildbox is stale (e.g. Go/Rust version mismatches), you may need to rebuild it first with `make -C build.assets buildbox-centos7`.
+   > 
    > Make sure your e ref is up to date. There may be issues with some thing being no longer needed in oss that is still in e/.
-   > Run rustup override unset if having issues with Rust
+   >
+   > Run `rustup override unset` if having issues with Rust or `make ensure-wasm-bindgen FORCE=true`. 
+   >
 
 2. **Create a k3d cluster** (if you don't already have one):
 
