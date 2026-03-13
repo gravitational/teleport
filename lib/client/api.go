@@ -2037,15 +2037,9 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		return nodeClient, nil
 	}
 
-	// If the direct connection attempt failed for any reason other than MFA requirement, return the error and don't
-	// attempt to connect with per-session MFA certs.
-	if !errors.Is(directErr, services.ErrSessionMFARequired) {
-		return nil, trace.Wrap(directErr)
-	}
-
 	log.DebugContext(
 		ctx,
-		"Direct connection failed due to MFA requirement and node does not support in-band MFA, attempting to connect with legacy per-session MFA certs",
+		"Direct connection failed and node does not support in-band MFA, attempting to connect with legacy per-session MFA certs",
 		"cluster", nodeDetails.Cluster,
 		"node", node,
 	)
@@ -3264,9 +3258,6 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	hostKeyCallback := tc.HostKeyCallback
 	authMethods := slices.Clone(tc.Config.AuthMethods)
 
-	// XXX: Hack to workaround recent behavior changes to ssh.ClientConfig.AuthCallback.
-	var authMethodForPublicKey ssh.AuthMethod
-
 	clusterName := func() string { return tc.SiteName }
 	if len(tc.JumpHosts) > 0 {
 		log.DebugContext(ctx, "Overriding SSH proxy to JumpHosts's address", "addr", logutils.StringerAttr(&tc.JumpHosts[0].Addr))
@@ -3280,11 +3271,7 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			// callback to load the appropriate SSH certificate for that cluster.
 			clusterGuesser := newProxyClusterGuesser(hostKeyCallback, tc.SignersForClusterWithReissue)
 			hostKeyCallback = clusterGuesser.hostKeyCallback
-
-			// Set authMethodForPublicKey here so that it's available in the auth callback closure.
-			authMethodForPublicKey = clusterGuesser.authMethod(ctx)
-
-			authMethods = append(authMethods, authMethodForPublicKey)
+			authMethods = append(authMethods, clusterGuesser.authMethod(ctx))
 
 			rootClusterName, err := tc.rootClusterName()
 			if err != nil {
@@ -3312,10 +3299,7 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			return nil, trace.Wrap(err)
 		}
 		if len(signers) > 0 {
-			// Set authMethodForPublicKey here so that it's available in the auth callback closure.
-			authMethodForPublicKey = ssh.PublicKeys(signers...)
-
-			authMethods = append(authMethods, authMethodForPublicKey)
+			authMethods = append(authMethods, ssh.PublicKeys(signers...))
 		}
 	}
 
@@ -3323,30 +3307,11 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 		return nil, trace.BadParameter("no SSH auth methods loaded, are you logged in?")
 	}
 
-	authCallback := func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
-		slog.Info(
-			"Inside authCallback, checking if MFA is required based on SSH server response",
-			"allowed_methods", authCtx.AllowedMethods,
-			"partial_success_methods", authCtx.PartialSuccessMethods,
-			"tried_methods", authCtx.TriedMethods,
-		)
-
+	_ = func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
 		switch {
-		case authMethodForPublicKey != nil &&
-			slices.Contains(authCtx.AllowedMethods, "publickey") &&
-			!slices.Contains(authCtx.TriedMethods, "publickey") &&
-			!slices.Contains(authCtx.PartialSuccessMethods, "publickey"):
-			slog.Info(
-				"SSH server allows publickey and no partial success yet. Selecting publickey authentication via callback.",
-				"allowed_methods", authCtx.AllowedMethods,
-				"partial_success_methods", authCtx.PartialSuccessMethods,
-				"tried_methods", authCtx.TriedMethods,
-			)
-			return authMethodForPublicKey, nil
-
 		case slices.Contains(authCtx.PartialSuccessMethods, "publickey") && slices.Contains(authCtx.AllowedMethods, "keyboard-interactive"):
-			slog.Info(
-				"SSH server accepted public key authentication but requires additional keyboard-interactive authentication. Attempting MFA.",
+			slog.Debug(
+				"SSH server accepted public key auth and requires additional keyboard-interactive authentication",
 				"allowed_methods", authCtx.AllowedMethods,
 				"partial_success_methods", authCtx.PartialSuccessMethods,
 				"tried_methods", authCtx.TriedMethods,
@@ -3356,8 +3321,8 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			return clientssh.KeyboardInteractive(ctx, ceremony, authCtx.Metadata), nil
 
 		default:
-			slog.Info(
-				"SSH server did not accept any of the provided SSH certificates, and did not indicate that it would accept more. Falling back to default SSH auth methods...",
+			slog.Debug(
+				"Using default SSH auth methods since the SSH server did not indicate support for any more specific method",
 				"allowed_methods", authCtx.AllowedMethods,
 				"partial_success_methods", authCtx.PartialSuccessMethods,
 				"tried_methods", authCtx.TriedMethods,
@@ -3370,9 +3335,9 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 		ClientConfig: &ssh.ClientConfig{
 			User:            tc.getProxySSHPrincipal(),
 			HostKeyCallback: hostKeyCallback,
-			Auth:            []ssh.AuthMethod{},
-			AuthCallback:    authCallback,
-			Timeout:         tc.SSHDialTimeout,
+			Auth:            authMethods,
+			// AuthCallback:    authCallback,
+			Timeout: tc.SSHDialTimeout,
 		},
 		proxyAddress: proxyAddr,
 		clusterName:  clusterName,
