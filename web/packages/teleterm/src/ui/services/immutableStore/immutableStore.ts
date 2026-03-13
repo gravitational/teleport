@@ -28,6 +28,7 @@ enableMapSet();
 export class ImmutableStore<T> extends Store<T> {
   protected logger = new Logger(this.constructor.name);
 
+  // oxlint-disable-next-line typescript/ban-ts-comment
   // @ts-ignore
   setState(nextState: Producer<T>): void {
     const prevState = this.state;
