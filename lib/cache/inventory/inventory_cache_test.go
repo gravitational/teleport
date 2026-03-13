@@ -1670,8 +1670,10 @@ func TestGetVersionKeyOrdering(t *testing.T) {
 	// Sort with semver.Compare
 	semverSorted := slices.Clone(versions)
 	slices.SortFunc(semverSorted, func(a, b string) int {
-		semverA := semver.New(strings.TrimPrefix(a, "v"))
-		semverB := semver.New(strings.TrimPrefix(b, "v"))
+		semverA, err := semver.NewVersion(strings.TrimPrefix(a, "v"))
+		require.NoError(t, err)
+		semverB, err := semver.NewVersion(strings.TrimPrefix(b, "v"))
+		require.NoError(t, err)
 		return semverA.Compare(*semverB)
 	})
 

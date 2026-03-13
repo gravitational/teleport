@@ -155,7 +155,6 @@ test.each(testCases)(
     const call = downloadAgent(fileDownloader, runtimeSettings, env);
     await expect(call).resolves.toBeUndefined();
 
-    /* oxlint-disable jest/no-conditional-expect */
     if (shouldDownloadBinary) {
       expect(fileDownloader.run).toHaveBeenCalledWith(
         `https://cdn.teleport.dev/${shouldDownloadBinary}`,
@@ -177,7 +176,6 @@ test.each(testCases)(
       expect(tarFs.extract).not.toHaveBeenCalled();
       expect(fsPromises.rm).not.toHaveBeenCalled();
     }
-    /* oxlint-enable jest/no-conditional-expect */
   }
 );
 

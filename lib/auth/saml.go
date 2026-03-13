@@ -186,7 +186,6 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorID string) er
 	if err := a.Services.DeleteSAMLConnector(ctx, connectorID); err != nil {
 		return trace.Wrap(err)
 	}
-
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorDelete{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLConnectorDeletedEvent,

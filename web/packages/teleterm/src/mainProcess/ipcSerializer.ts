@@ -32,6 +32,7 @@ export function serializeError(error: Error): SerializedError {
     stack,
     message,
     // functions must be skipped, otherwise structuredClone will fail to clone the object
+    // eslint-disable-next-line no-unused-vars
     toString,
     ...enumerableFields
   } = error;
