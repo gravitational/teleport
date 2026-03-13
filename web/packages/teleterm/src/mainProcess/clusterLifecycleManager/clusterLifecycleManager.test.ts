@@ -35,6 +35,8 @@ import {
   ClusterLifecycleManager,
 } from './clusterLifecycleManager';
 
+/* oxlint-disable jest/no-standalone-expect */
+
 beforeAll(() => {
   Logger.init(new NullService());
 });

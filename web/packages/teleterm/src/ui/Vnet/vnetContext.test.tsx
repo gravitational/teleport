@@ -51,6 +51,8 @@ import {
   VnetStoppedReason,
 } from './vnetContext';
 
+/* oxlint-disable jest/no-standalone-expect */
+
 describe('autostart', () => {
   it('starts VNet if turned on', async () => {
     const appContext = new MockAppContext();

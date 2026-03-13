@@ -430,6 +430,7 @@ it('passes props with stable identity to <Resources>', async () => {
   await expect(
     screen.findByText(serverResource.hostname)
   ).resolves.toBeInTheDocument();
+  // oxlint-disable-next-line testing-library/render-result-naming-convention
   const renderCountBeforeRerender = renderCount;
 
   rerender(<Component />);
