@@ -4834,8 +4834,9 @@ func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *authp
 		return nil, trace.Wrap(err)
 	}
 
-	if req.GetContextUser() == nil {
-		// requests with a user context will be checked for legitimacy by
+	if req.GetContextUser() == nil && req.GetRequest() != nil {
+		// requests with a user context (or with an empty request, which is
+		// considered to be the same) will be checked for legitimacy by
 		// ServerWithRoles later, so we only need to care about adding an
 		// additional rate limit for the non-user-context requests here
 
