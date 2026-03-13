@@ -1,6 +1,8 @@
 # Changelog
 
-## 19.0.0 (xx/xx/xx)
+## 19.0.0 (xx/xx/26)
+
+** Not yet released **
 
 ### Breaking changes
 
@@ -3609,7 +3611,7 @@ as numerous other bug fixes and improvements.
   username case when running RBAC checks. As such, it was possible to establish
   a connection using an explicitly denied username when using a different case.
   [#41823](https://github.com/gravitational/teleport/pull/41823).
- 
+
 * **[High]** Fixed Long-lived connection persistence issue with expired
   certificates. Teleport did not terminate some long-running mTLS-authenticated
   connections past the expiry of client certificates for users with the
@@ -3622,11 +3624,11 @@ as numerous other bug fixes and improvements.
   who run multiple PagerDuty access plugins with auto-approval, this could
   result in a request for a different role being inadvertently auto-approved
   than the one which corresponds to the user’s active on-call schedule. [#41837](https://github.com/gravitational/teleport/pull/41837).
- 
+
 * **[High]** Fixed SAML IdP session privilege escalation. When using Teleport as
   SAML IdP, authorization wasn’t properly enforced on the SAML IdP session
   creation. As such, authenticated users could use an internal API to escalate
-  their own privileges by crafting a malicious program. [#41846](https://github.com/gravitational/teleport/pull/41846). 
+  their own privileges by crafting a malicious program. [#41846](https://github.com/gravitational/teleport/pull/41846).
 
 We strongly recommend all customers upgrade to the latest releases of Teleport.
 

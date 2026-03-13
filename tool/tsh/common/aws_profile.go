@@ -111,7 +111,7 @@ func writeAWSConfig(configPath, ssoRegionOverride string, identityCenterApps []t
 			// set by the Identity Center sync.
 			region := ssoRegionOverride
 			if region == "" {
-				region, _ = app.GetLabel("teleport.dev/aws-sso-region")
+				region, _ = app.GetLabel(types.AWSSSORegionLabel)
 			}
 			if region == "" {
 				return nil, trace.BadParameter("could not determine SSO region for app %q; use --aws-sso-region to specify it", app.GetName())
@@ -125,7 +125,7 @@ func writeAWSConfig(configPath, ssoRegionOverride string, identityCenterApps []t
 
 		awsIC := app.GetIdentityCenter()
 
-		accountName, _ := app.GetLabel("teleport.dev/account-name")
+		accountName, _ := app.GetLabel(types.AWSAccountNameLabel)
 		if accountName == "" {
 			accountName = awsIC.AccountID
 		}

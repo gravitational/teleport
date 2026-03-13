@@ -115,7 +115,6 @@ describe('opening links to', () => {
     });
 
     expect(result).toEqual({ action: 'deny' });
-    /* eslint-disable jest/no-conditional-expect */
     if (test.allowed) {
       expect(shell.openExternal).toHaveBeenCalledWith(test.url);
       expect(dialog.showErrorBox).not.toHaveBeenCalled();

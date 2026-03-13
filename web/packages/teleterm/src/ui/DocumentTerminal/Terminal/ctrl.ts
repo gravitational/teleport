@@ -16,11 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import '@xterm/xterm/css/xterm.css';
-
 import { FitAddon } from '@xterm/addon-fit';
 import { IDisposable, ITheme, Terminal } from '@xterm/xterm';
-
+import '@xterm/xterm/css/xterm.css';
 import {
   SearchAddon,
   TerminalSearcher,

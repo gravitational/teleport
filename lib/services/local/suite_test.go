@@ -98,7 +98,7 @@ func userSlicesEqual(t *testing.T, a []types.User, b []types.User) {
 }
 
 func usersEqual(t *testing.T, a types.User, b types.User) {
-	require.True(t, services.UsersEquals(a, b), cmp.Diff(a, b))
+	require.True(t, a.IsEqual(b), cmp.Diff(a, b))
 }
 
 func newUser(name string, roles []string) types.User {

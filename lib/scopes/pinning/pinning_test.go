@@ -19,10 +19,12 @@
 package pinning
 
 import (
+	"context"
 	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -883,6 +885,230 @@ func TestAssignmentTreeMapConversions(t *testing.T) {
 			}
 
 			require.Equal(t, tt.input, got, "round-trip conversion should preserve all assignments")
+		})
+	}
+}
+
+// TestPruneAssignmentTree verifies that assignment tree pruning correctly removes
+// entire depth levels (by Scope of Origin) to fit within size constraints, preserving
+// higher authority assignments.
+func TestPruneAssignmentTree(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		before          map[string]map[string][]string
+		after           map[string]map[string][]string
+		maxBytes        int
+		expectPruned    int
+		expectOversized bool
+	}{
+		{
+			name: "no pruning needed",
+			before: map[string]map[string][]string{
+				"/": {
+					"/staging": {"role1"},
+				},
+			},
+			after: map[string]map[string][]string{
+				"/": {
+					"/staging": {"role1"},
+				},
+			},
+			maxBytes:     10000,
+			expectPruned: 0,
+		},
+		{
+			name: "prune deepest level only",
+			before: map[string]map[string][]string{
+				"/": {
+					"/staging":      {"root-staging"},
+					"/staging/west": {"root-west"},
+				},
+				"/staging": {
+					"/staging/west": {"staging-west"},
+				},
+				"/staging/west": {
+					"/staging/west": {"west-local"},
+				},
+			},
+			after: map[string]map[string][]string{
+				"/": {
+					"/staging":      {"root-staging"},
+					"/staging/west": {"root-west"},
+				},
+				"/staging": {
+					"/staging/west": {"staging-west"},
+				},
+			},
+			maxBytes:     110,
+			expectPruned: 1,
+		},
+		{
+			name: "prune two deepest levels",
+			before: map[string]map[string][]string{
+				"/": {
+					"/":                  {"global"},
+					"/staging":           {"root-staging"},
+					"/staging/west":      {"root-west"},
+					"/staging/west/rack": {"root-rack"},
+				},
+				"/staging": {
+					"/staging/west":      {"staging-west"},
+					"/staging/west/rack": {"staging-rack"},
+				},
+				"/staging/west": {
+					"/staging/west/rack": {"west-rack"},
+				},
+				"/staging/west/rack": {
+					"/staging/west/rack": {"rack-local"},
+				},
+			},
+			after: map[string]map[string][]string{
+				"/": {
+					"/":                  {"global"},
+					"/staging":           {"root-staging"},
+					"/staging/west":      {"root-west"},
+					"/staging/west/rack": {"root-rack"},
+				},
+				"/staging": {
+					"/staging/west":      {"staging-west"},
+					"/staging/west/rack": {"staging-rack"},
+				},
+			},
+			maxBytes:     160,
+			expectPruned: 2,
+		},
+		{
+			name: "uniform pruning across branches",
+			before: map[string]map[string][]string{
+				"/": {
+					"/staging": {"root-staging"},
+					"/prod":    {"root-prod"},
+				},
+				"/staging": {
+					"/staging/west": {"west-admin"},
+					"/staging/east": {"east-admin"},
+				},
+				"/prod": {
+					"/prod/us": {"us-admin"},
+					"/prod/eu": {"eu-admin"},
+				},
+			},
+			after: map[string]map[string][]string{
+				"/": {
+					"/staging": {"root-staging"},
+					"/prod":    {"root-prod"},
+				},
+			},
+			maxBytes:     150,
+			expectPruned: 4,
+		},
+		{
+			name: "prune everything except root",
+			before: map[string]map[string][]string{
+				"/": {
+					"/":        {"global"},
+					"/staging": {"root-staging"},
+				},
+				"/staging": {
+					"/staging": {"staging-admin"},
+				},
+			},
+			after: map[string]map[string][]string{
+				"/": {
+					"/":        {"global"},
+					"/staging": {"root-staging"},
+				},
+			},
+			maxBytes:     40,
+			expectPruned: 1,
+		},
+		{
+			name:         "empty tree",
+			before:       nil,
+			after:        nil,
+			maxBytes:     100,
+			expectPruned: 0,
+		},
+		{
+			// verify that an oversized assignment tree consisting solely of root-origin assignments
+			// is left unmodified (root assignments are never pruned).
+			name: "only root assignments, oversized",
+			before: map[string]map[string][]string{
+				"/": {
+					"/a": {"role1"},
+					"/b": {"role2"},
+					"/c": {"role3"},
+				},
+			},
+			after: map[string]map[string][]string{
+				"/": {
+					"/a": {"role1"},
+					"/b": {"role2"},
+					"/c": {"role3"},
+				},
+			},
+			maxBytes:        1,
+			expectPruned:    0,
+			expectOversized: true,
+		},
+		{
+			// verify that an oversized assignment tree is pruned down to root-origin assignments
+			// even when the root-origin assignments alone still exceed the size limit.
+			name: "still oversized after pruning to root",
+			before: map[string]map[string][]string{
+				"/": {
+					"/a": {"role1"},
+					"/b": {"role2"},
+					"/c": {"role3"},
+				},
+				"/a": {
+					"/a": {"a-role1"},
+					"/b": {"a-role2"},
+				},
+			},
+			after: map[string]map[string][]string{
+				"/": {
+					"/a": {"role1"},
+					"/b": {"role2"},
+					"/c": {"role3"},
+				},
+			},
+			maxBytes:        1,
+			expectPruned:    2,
+			expectOversized: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// set up pin with assignment tree
+			pin := &scopesv1.Pin{
+				Scope:          "/staging/west",
+				AssignmentTree: AssignmentTreeFromMap(tt.before),
+			}
+
+			// perform pruning
+			prunedCount := PruneAssignmentTree(context.Background(), pin, tt.maxBytes)
+
+			// verify resulting tree matches expected
+			afterMap := AssignmentTreeIntoMap(pin.AssignmentTree)
+			require.Equal(t, tt.after, afterMap, "tree after pruning should match expected")
+
+			// verify pruned count (this is more about making sure the function returns the expected
+			// count, the assertion above is the more important check for correctness of pruning)
+			require.Equal(t, tt.expectPruned, prunedCount, "pruned count should match expected")
+
+			// verify final size is on the expected side of the limit
+			if pin.AssignmentTree != nil {
+				finalSize := proto.Size(pin.AssignmentTree)
+				if tt.expectOversized {
+					require.Greater(t, finalSize, tt.maxBytes, "pruned tree should still exceed size limit")
+				} else {
+					require.LessOrEqual(t, finalSize, tt.maxBytes, "pruned tree should fit within size limit")
+				}
+			}
 		})
 	}
 }

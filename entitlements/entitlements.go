@@ -18,17 +18,20 @@ package entitlements
 
 type EntitlementKind string
 
-// The EntitlementKind list should be 1:1 with the Features & FeatureStrings in salescenter/product/product.go,
+// The EntitlementKind list should be 1:1 with the Features & FeatureStrings in cloud/cloud/product/product.go,
 // except CustomTheme which is dropped. CustomTheme entitlement only toggles the ability to "set" a theme;
 // the value of that theme, if set, is stored and accessed outside of entitlements.
 //
 // All EntitlementKinds added here should also be added to AllEntitlements below and defaultEntitlements in
 // web/packages/teleport/src/entitlement.ts.
 const (
+	AccessGraph                EntitlementKind = "AccessGraph"
+	AccessGraphDemoMode        EntitlementKind = "AccessGraphDemoMode"
 	AccessLists                EntitlementKind = "AccessLists"
 	AccessMonitoring           EntitlementKind = "AccessMonitoring"
 	AccessRequests             EntitlementKind = "AccessRequests"
 	App                        EntitlementKind = "App"
+	ClientIPRestrictions       EntitlementKind = "ClientIPRestrictions"
 	CloudAuditLogRetention     EntitlementKind = "CloudAuditLogRetention"
 	DB                         EntitlementKind = "DB"
 	Desktop                    EntitlementKind = "Desktop"
@@ -39,6 +42,7 @@ const (
 	Identity                   EntitlementKind = "Identity"
 	JoinActiveSessions         EntitlementKind = "JoinActiveSessions"
 	K8s                        EntitlementKind = "K8s"
+	LicenseAutoUpdate          EntitlementKind = "LicenseAutoUpdate"
 	MobileDeviceManagement     EntitlementKind = "MobileDeviceManagement"
 	OIDC                       EntitlementKind = "OIDC"
 	OktaSCIM                   EntitlementKind = "OktaSCIM"
@@ -49,16 +53,14 @@ const (
 	UnrestrictedManagedUpdates EntitlementKind = "UnrestrictedManagedUpdates"
 	UpsellAlert                EntitlementKind = "UpsellAlert"
 	UsageReporting             EntitlementKind = "UsageReporting"
-	LicenseAutoUpdate          EntitlementKind = "LicenseAutoUpdate"
-	AccessGraphDemoMode        EntitlementKind = "AccessGraphDemoMode"
-	ClientIPRestrictions       EntitlementKind = "ClientIPRestrictions"
 	WorkloadClusters           EntitlementKind = "WorkloadClusters"
 )
 
 // AllEntitlements returns all Entitlements; should be 1:1 with the const declared above.
 var AllEntitlements = []EntitlementKind{
-	AccessLists, AccessMonitoring, AccessRequests, App, CloudAuditLogRetention, DB, Desktop, DeviceTrust,
-	ExternalAuditStorage, FeatureHiding, HSM, Identity, JoinActiveSessions, K8s, MobileDeviceManagement, OIDC, OktaSCIM,
-	OktaUserSync, Policy, SAML, SessionLocks, UnrestrictedManagedUpdates, UpsellAlert, UsageReporting, LicenseAutoUpdate, AccessGraphDemoMode,
-	ClientIPRestrictions, WorkloadClusters,
+	AccessGraph, AccessGraphDemoMode, AccessLists, AccessMonitoring, AccessRequests, App,
+	ClientIPRestrictions, CloudAuditLogRetention, DB, Desktop, DeviceTrust,
+	ExternalAuditStorage, FeatureHiding, HSM, Identity, JoinActiveSessions, K8s, LicenseAutoUpdate,
+	MobileDeviceManagement, OIDC, OktaSCIM, OktaUserSync, Policy, SAML, SessionLocks,
+	UnrestrictedManagedUpdates, UpsellAlert, UsageReporting, WorkloadClusters,
 }
