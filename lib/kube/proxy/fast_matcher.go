@@ -29,8 +29,7 @@ import (
 // fastResourceMatcher is a precompiled per-request RBAC matcher that reduces per-item matching overhead.
 // Instead of calling matchKubernetesResource per item (which does cache lookups, rule iteration, per-field matching),
 // the fast matcher pre-filters rules by kind and verb at compile time and pre-compiles all regex patterns.
-// Per-item cost becomes direct regex matching against only
-// the relevant rules.
+// Per-item cost becomes direct regex matching against only the relevant rules.
 //
 // The fast matcher handles the common "default" case in KubeResourceMatchesRegex.
 // It cannot handle namespace special cases (when the requested kind is "namespaces"),
