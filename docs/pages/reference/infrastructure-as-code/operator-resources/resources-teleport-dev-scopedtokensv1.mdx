@@ -1,0 +1,132 @@
+---
+title: TeleportScopedTokenV1
+description: Provides a comprehensive list of fields in the TeleportScopedTokenV1 resource available through the Teleport Kubernetes operator
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+This guide is a comprehensive reference to the fields in the `TeleportScopedTokenV1`
+resource, which you can apply after installing the Teleport Kubernetes operator.
+
+
+## resources.teleport.dev/v1
+
+**apiVersion:** resources.teleport.dev/v1
+
+|Field|Type|Description|
+|---|---|---|
+|apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
+|kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
+|metadata|object||
+|scope|string|Scope is the scope of the token resource.|
+|spec|[object](#spec)|ScopedToken resource definition v1 from Teleport|
+
+### spec
+
+|Field|Type|Description|
+|---|---|---|
+|assigned_scope|string|The scope to which this token is assigned.  Must be equivalent or descendent to the scope of the token itself.|
+|aws|[object](#specaws)|The AWS-specific configuration used with the "ec2" and "iam" join methods.|
+|azure|[object](#specazure)|The Azure-specific configuration used with the "azure" join method.|
+|azure_devops|[object](#specazure_devops)|The Azure Devops-specific configuration used with the "azure_devops" join method.|
+|gcp|[object](#specgcp)|The GCP-specific configuration used with the "gcp" join method.|
+|immutable_labels|[object](#specimmutable_labels)|Immutable labels that should be applied to any resulting resources provisioned using this token.|
+|join_method|string|The joining method required in order to use this token. Supported joining methods for scoped tokens only include 'token'.|
+|oracle|[object](#specoracle)|The Oracle-specific configuration used with the "oracle" join method.|
+|roles|[]string|The list of roles associated with the token. They will be converted to metadata in the SSH and X509 certificates issued to the user of the token.|
+|usage_mode|string|The usage mode of the token. Can be "single_use" or "unlimited". Single use tokens can only be used to provision a single resource. Unlimited tokens can be be used to provision any number of resources until it expires.|
+
+### spec.aws
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specawsallow-items)|A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.|
+|iid_ttl|string|The TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token. This should be a duration string such as "8h" or "6mo".|
+|integration|string|Integration name which provides credentials for validating join attempts. Currently only in use for validating the AWS Organization ID in the IAM Join method.|
+
+### spec.aws.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|aws_account|string||
+|aws_arn|string||
+|aws_organization_id|string||
+|aws_regions|[]string||
+|aws_role|string||
+
+### spec.azure
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specazureallow-items)|A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.|
+
+### spec.azure.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|resource_groups|[]string||
+|subscription|string||
+
+### spec.azure_devops
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specazure_devopsallow-items)|A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.|
+|organization_id|string|The UUID of the Azure DevOps organization that this join token will grant access to. This is used to identify the correct issuer verification of the ID token. This is a required field.|
+
+### spec.azure_devops.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|definition_id|string||
+|pipeline_name|string||
+|project_id|string||
+|project_name|string||
+|repository_ref|string||
+|repository_uri|string||
+|repository_version|string||
+|sub|string||
+
+### spec.gcp
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specgcpallow-items)|A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.|
+
+### spec.gcp.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|locations|[]string||
+|project_ids|[]string||
+|service_accounts|[]string||
+
+### spec.immutable_labels
+
+|Field|Type|Description|
+|---|---|---|
+|ssh|[object](#specimmutable_labelsssh)|Labels that should be applied to SSH nodes.|
+
+### spec.immutable_labels.ssh
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.oracle
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specoracleallow-items)|A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.|
+
+### spec.oracle.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|instances|[]string||
+|parent_compartments|[]string||
+|regions|[]string||
+|tenancy|string||
+

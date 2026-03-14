@@ -173,5 +173,14 @@ spec:
           - read
           - update
           - delete
+      - resources:
+          - scoped_token
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+
   deny: {}
 version: v7
