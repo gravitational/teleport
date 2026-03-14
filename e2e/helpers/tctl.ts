@@ -35,7 +35,6 @@ export function generateInviteURL(username: string, roles = 'access,editor') {
   }
 
   let inviteURL = match[0];
-
   // tctl may output a placeholder like https://<proxyhost>:3080/... when it can't determine
   // the proxy public address. Replace the host with the known proxy address.
   if (proxyOrigin) {

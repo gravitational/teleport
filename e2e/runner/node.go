@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -35,8 +34,15 @@ import (
 	"github.com/moby/moby/client"
 )
 
+const nodeImage = "debian:bookworm-slim"
+
 type dockerNode struct {
-	config        *e2eConfig
+	log                *slog.Logger
+	sshPort            int
+	tctlBin            string
+	teleportConfigPath string
+	logFilePath        string
+
 	imageName     string
 	containerName string
 	configPath    string
@@ -60,16 +66,20 @@ func (d *dockerNode) removeStale(ctx context.Context) {
 }
 
 func (d *dockerNode) runContainer(ctx context.Context) error {
-	slog.Info("starting docker SSH node")
+	d.log.Info("starting docker SSH node")
 
 	d.removeStale(ctx)
 
 	ctr, err := container.Run(ctx,
 		container.WithImage(d.imageName),
 		container.WithImagePlatform("linux/amd64"),
+		container.WithPullHandler(func(r io.ReadCloser) error {
+			_, err := io.Copy(io.Discard, r)
+			return err
+		}),
 		container.WithName(d.containerName),
 		container.WithEntrypoint("teleport", "start", "--insecure", "-c", "/etc/teleport/node.yaml"),
-		container.WithExposedPorts(fmt.Sprintf("%d/tcp", d.config.sshPort)),
+		container.WithExposedPorts(fmt.Sprintf("%d/tcp", d.sshPort)),
 		container.WithFiles(
 			container.File{
 				HostPath:      d.teleportBin,
@@ -87,8 +97,8 @@ func (d *dockerNode) runContainer(ctx context.Context) error {
 				hc.ExtraHosts = []string{"host.docker.internal:host-gateway"}
 			}
 			hc.PortBindings = network.PortMap{
-				network.MustParsePort(fmt.Sprintf("%d/tcp", d.config.sshPort)): []network.PortBinding{
-					{HostPort: fmt.Sprintf("%d", d.config.sshPort)},
+				network.MustParsePort(fmt.Sprintf("%d/tcp", d.sshPort)): []network.PortBinding{
+					{HostPort: fmt.Sprintf("%d", d.sshPort)},
 				},
 			}
 		}),
@@ -104,11 +114,11 @@ func (d *dockerNode) runContainer(ctx context.Context) error {
 }
 
 func (d *dockerNode) waitJoined(ctx context.Context, timeout time.Duration) error {
-	slog.Debug("waiting for docker node to join cluster")
+	d.log.Debug("waiting for docker node to join cluster")
 
 	probe := func(ctx context.Context) (bool, error) {
-		cmd := exec.CommandContext(ctx, d.config.tctlBin, "nodes", "ls",
-			"-c", d.config.teleportConfigPath)
+		cmd := exec.CommandContext(ctx, d.tctlBin, "nodes", "ls",
+			"-c", d.teleportConfigPath)
 		out, err := cmd.Output()
 		if err != nil {
 			return false, nil
@@ -121,7 +131,7 @@ func (d *dockerNode) waitJoined(ctx context.Context, timeout time.Duration) erro
 		return fmt.Errorf("docker node failed to join cluster: %w", err)
 	}
 
-	slog.Info("docker SSH node is ready")
+	d.log.Info("docker SSH node is ready")
 
 	return nil
 }
@@ -131,28 +141,28 @@ func (d *dockerNode) saveLogs(ctx context.Context) {
 		return
 	}
 
-	logPath := filepath.Join(d.config.e2eDir, "docker-node.log")
+	logPath := d.logFilePath
 
 	logs, err := d.ctr.Logs(ctx)
 	if err != nil {
-		slog.Warn("could not get docker node logs", "error", err)
+		d.log.Warn("could not get docker node logs", "error", err)
 		return
 	}
 	defer logs.Close()
 
 	f, err := os.Create(logPath)
 	if err != nil {
-		slog.Warn("could not create docker node log file", "error", err)
+		d.log.Warn("could not create docker node log file", "error", err)
 		return
 	}
 	defer f.Close()
 
 	if _, err := io.Copy(f, logs); err != nil {
-		slog.Warn("could not write docker node logs", "error", err)
+		d.log.Warn("could not write docker node logs", "error", err)
 		return
 	}
 
-	slog.Info("saved docker node logs", "path", logPath)
+	d.log.Info("saved docker node logs", "path", logPath)
 }
 
 func (d *dockerNode) stop(ctx context.Context) {
@@ -160,8 +170,27 @@ func (d *dockerNode) stop(ctx context.Context) {
 		return
 	}
 
-	slog.Info("stopping docker SSH node")
+	d.log.Info("stopping docker SSH node")
 
 	d.saveLogs(ctx)
 	_ = d.ctr.Terminate(ctx, container.TerminateTimeout(10*time.Second))
+}
+
+func pullImage(ctx context.Context, image string) error {
+	slog.Info("pulling docker image", "image", image)
+
+	cli, err := client.New(client.WithAPIVersionNegotiation())
+	if err != nil {
+		return fmt.Errorf("creating docker client: %w", err)
+	}
+	defer cli.Close()
+
+	rc, err := cli.ImagePull(ctx, image, client.ImagePullOptions{})
+	if err != nil {
+		return fmt.Errorf("pulling image: %w", err)
+	}
+	defer rc.Close()
+
+	_, err = io.Copy(io.Discard, rc)
+	return err
 }

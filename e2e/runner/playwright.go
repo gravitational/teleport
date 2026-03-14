@@ -29,6 +29,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/sync/errgroup"
 )
 
 type playwrightRunner struct {
@@ -36,12 +38,12 @@ type playwrightRunner struct {
 	extraProjects []string
 }
 
-func (p *playwrightRunner) startURL() string {
+func (p *playwrightRunner) startURL(inst *browserInstance) string {
 	if p.config.teleportURL != "" {
 		return p.config.teleportURL + "/web"
 	}
 
-	return fmt.Sprintf("https://localhost:%d/web", p.config.proxyPort)
+	return fmt.Sprintf("https://localhost:%d/web", inst.proxyPort)
 }
 
 // callerRelativePaths returns paths relative to the caller's working directory
@@ -84,53 +86,79 @@ func (p *playwrightRunner) run(ctx context.Context, mode runMode) error {
 }
 
 func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
-	env, err := p.startEnv(ctx)
-	if err != nil {
-		return err
+	blobBaseDir := filepath.Join(p.config.e2eDir, "blob-reports")
+	if err := os.RemoveAll(blobBaseDir); err != nil {
+		return fmt.Errorf("cleaning blob-reports directory: %w", err)
 	}
-	if debug {
-		env = append(env, "PWDEBUG=1")
-	}
+
+	baseProjects := make([]string, 0, 2+len(p.extraProjects))
+	baseProjects = append(baseProjects, "authenticated", "unauthenticated")
+	baseProjects = append(baseProjects, p.extraProjects...)
 
 	var extraArgs []string
 	if p.config.updateSnapshots {
 		extraArgs = append(extraArgs, "--update-snapshots")
 	}
 
-	if len(p.config.testFiles) > 0 {
-		args := append([]string{"exec", "playwright", "test"}, extraArgs...)
-		args = append(args, p.config.testFiles...)
-		slog.Info("running e2e tests", "files", p.callerRelativePaths(p.config.testFiles))
-		return p.pnpm(ctx, args, env)
-	}
-
-	baseProjects := append([]string{"authenticated", "unauthenticated"}, p.extraProjects...)
-
-	var projects []string
-	if len(p.config.browsers) > 1 {
-		for _, browser := range p.config.browsers {
-			for _, proj := range baseProjects {
-				projects = append(projects, browser+":"+proj)
+	var g errgroup.Group
+	for _, inst := range p.config.instances {
+		g.Go(func() error {
+			env, err := p.startEnv(inst)
+			if err != nil {
+				return fmt.Errorf("building env for %s: %w", inst.browser, err)
 			}
+			if debug {
+				env = append(env, "PWDEBUG=1")
+			}
+
+			env = append(env, "PLAYWRIGHT_BLOB_OUTPUT_FILE="+filepath.Join(blobBaseDir, inst.browser+".zip"))
+
+			args := []string{"exec", "playwright", "test"}
+			args = append(args, extraArgs...)
+			reporter := "blob"
+			if p.config.isCI {
+				reporter = "blob,dot"
+			}
+			args = append(args, "--reporter="+reporter)
+
+			for _, proj := range baseProjects {
+				args = append(args, "--project="+inst.browser+":"+proj)
+			}
+
+			if len(p.config.testFiles) > 0 {
+				args = append(args, p.config.testFiles...)
+			}
+
+			inst.log.Info("running e2e tests", "projects", baseProjects)
+
+			if err := p.pnpm(ctx, args, env); err != nil {
+				return fmt.Errorf("playwright tests failed for %s: %w", inst.browser, err)
+			}
+			return nil
+		})
+	}
+
+	testErr := g.Wait()
+
+	slog.Info("merging blob reports")
+	mergeArgs := []string{"exec", "playwright", "merge-reports", "--config=playwright.config.ts", blobBaseDir}
+	mergeEnv := os.Environ()
+	mergeEnv = append(mergeEnv, "FORCE_COLOR=1")
+	if err := p.pnpm(ctx, mergeArgs, mergeEnv); err != nil {
+		slog.Warn("failed to merge reports", "error", err)
+		if testErr == nil {
+			return err
 		}
-	} else {
-		projects = baseProjects
 	}
 
-	args := append([]string{"exec", "playwright", "test"}, extraArgs...)
-	for _, project := range projects {
-		args = append(args, "--project="+project)
-	}
-
-	slog.Info("running e2e tests", "projects", projects)
-
-	return p.pnpm(ctx, args, env)
+	return testErr
 }
 
 func (p *playwrightRunner) ui(ctx context.Context) error {
 	slog.Info("starting playwright in UI mode")
 
-	env, err := p.startEnv(ctx)
+	inst := p.config.instances[0]
+	env, err := p.startEnv(inst)
 	if err != nil {
 		return err
 	}
@@ -146,13 +174,14 @@ func (p *playwrightRunner) codegen(ctx context.Context) error {
 // a Chromium browser with a virtual WebAuthn authenticator pre-loaded so that
 // MFA challenges resolve automatically.
 func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightCmd string) error {
-	env, err := p.startEnv(ctx)
+	inst := p.config.instances[0]
+	env, err := p.startEnv(inst)
 	if err != nil {
 		return err
 	}
 
 	slog.Debug("running setup project to generate auth state")
-	if err := p.pnpm(ctx, []string{"exec", "playwright", "test", "--project=setup"}, env); err != nil {
+	if err := p.pnpm(ctx, []string{"exec", "playwright", "test", "--project=" + inst.browser + ":setup"}, env); err != nil {
 		return err
 	}
 
@@ -161,12 +190,13 @@ func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightC
 	return p.pnpm(ctx, []string{
 		"exec", "tsx", "scripts/open-with-webauthn.ts",
 		playwrightCmd,
-		p.startURL(),
+		p.startURL(inst),
 	}, env)
 }
 
 func (p *playwrightRunner) openConnectAuthenticated(ctx context.Context) error {
-	env, err := p.startEnv(ctx)
+	inst := p.config.instances[0]
+	env, err := p.startEnv(inst)
 	if err != nil {
 		return err
 	}
@@ -179,13 +209,13 @@ func (p *playwrightRunner) openConnectAuthenticated(ctx context.Context) error {
 
 // startEnv builds the environment variables that Playwright tests need,
 // including START_URL, credentials, and tctl paths for invite URL generation.
-func (p *playwrightRunner) startEnv(ctx context.Context) ([]string, error) {
+func (p *playwrightRunner) startEnv(inst *browserInstance) ([]string, error) {
 	env := os.Environ()
 	// Force color output since Playwright's TTY detection won't work
 	// when stdout/stderr are wrapped by the rewrite writer.
 	env = append(env, "FORCE_COLOR=1")
 	if os.Getenv("START_URL") == "" {
-		env = append(env, "START_URL="+p.startURL())
+		env = append(env, "START_URL="+p.startURL(inst))
 	}
 
 	if creds := p.config.creds; creds != nil {
@@ -197,7 +227,7 @@ func (p *playwrightRunner) startEnv(ctx context.Context) ([]string, error) {
 	}
 
 	env = append(env, "E2E_TCTL_BIN="+p.config.tctlBin)
-	env = append(env, "E2E_TELEPORT_CONFIG="+p.config.teleportConfigPath)
+	env = append(env, "E2E_TELEPORT_CONFIG="+inst.teleportConfigPath)
 	env = append(env, "E2E_BROWSERS="+strings.Join(p.config.browsers, ","))
 
 	env = append(env, "E2E_CONNECT_TSH_BIN="+p.config.connectTshBinPath)
@@ -270,4 +300,3 @@ func (rw rewriteWriter) Write(p []byte) (int, error) {
 	}
 	return len(p), nil
 }
-

@@ -44,7 +44,6 @@ export async function mockWebAuthn(page: Page) {
   const jwk = privateKey.export({ format: 'jwk' });
   const x = Buffer.from(jwk.x!, 'base64url');
   const y = Buffer.from(jwk.y!, 'base64url');
-
   const pubKeyCOSE = encodeEC2PublicKeyCOSE(x, y);
   const spkiPubicKey = createPublicKey(privateKey).export({
     format: 'der',
@@ -54,7 +53,6 @@ export async function mockWebAuthn(page: Page) {
   const spkiPublicKeyB64 = spkiPubicKey.toString('base64');
 
   let signCount = 0;
-
   await page.exposeFunction('__e2eWebAuthn', async (optionsJSON: string) => {
     const opts: WebAuthnRequest = JSON.parse(optionsJSON);
 
@@ -224,7 +222,6 @@ function initWebAuthnOverride() {
 
   const cred = navigator.credentials;
   const proto: CredentialsContainer = Object.getPrototypeOf(cred); // we have to override the prototype because WebKit doesn't allow own property overrides on the instance
-
   const origCreate = cred.create.bind(cred);
   const origGet = cred.get.bind(cred);
 
