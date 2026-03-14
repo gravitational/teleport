@@ -199,7 +199,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 		// taint the resource not reapply on the next run.
 
 	} else { // configEntityDescriptor.IsNull()
-		// For updates, the API requries a valid `entity_descriptor`, but here the user hasn't
+		// For updates, the API requires a valid `entity_descriptor`, but here the user hasn't
 		// provided one in Terraform. We therefore start with the state and add in the entity_id and acs_url
 		// provided in Terraform. For entity_id, this is required to ensure updates aren't rejected because
 		// the values don't match. The API performs no such checks for `acs_url`, but replacing it here
