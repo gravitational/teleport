@@ -5329,7 +5329,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		},
 		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(storedAuthPref, newAuthPref),
 	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit auth preference update event event", "error", auditErr)
+		a.authServer.logger.WarnContext(ctx, "Failed to emit auth preference update event", "error", auditErr)
 	}
 
 	return trace.Wrap(err)
@@ -5379,7 +5379,7 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		},
 		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(storedAuthPref, defaultAuthPref),
 	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit auth preference update event event", "error", auditErr)
+		a.authServer.logger.WarnContext(ctx, "Failed to emit auth preference update event", "error", auditErr)
 	}
 
 	return trace.Wrap(err)
@@ -5465,7 +5465,7 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 			UserMessage: msg,
 		},
 	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit cluster networking config update event event", "error", auditErr)
+		a.authServer.logger.WarnContext(ctx, "Failed to emit cluster networking config update event", "error", auditErr)
 	}
 	return trace.Wrap(err)
 }
@@ -5517,7 +5517,7 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 			UserMessage: msg,
 		},
 	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit cluster networking config update event event", "error", auditErr)
+		a.authServer.logger.WarnContext(ctx, "Failed to emit cluster networking config update event", "error", auditErr)
 	}
 
 	return trace.Wrap(err)
@@ -5572,7 +5572,7 @@ func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecC
 			UserMessage: msg,
 		},
 	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit session recording config update event event", "error", auditErr)
+		a.authServer.logger.WarnContext(ctx, "Failed to emit session recording config update event", "error", auditErr)
 	}
 
 	return trace.Wrap(err)
@@ -5617,7 +5617,7 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 			UserMessage: msg,
 		},
 	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit session recording config update event event", "error", auditErr)
+		a.authServer.logger.WarnContext(ctx, "Failed to emit session recording config update event", "error", auditErr)
 	}
 
 	return trace.Wrap(err)
