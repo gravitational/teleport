@@ -399,9 +399,9 @@ type matchInput struct {
 	apiGroup  string
 }
 
-// TestFastMatcherEquivalence verifies that the fast matcher produces the same
-// results as matchKubernetesResource for the common (non-namespace) case.
-func TestFastMatcherEquivalence(t *testing.T) {
+// TestMatcherEquivalence verifies that fastResourceMatcher and defaultMatcher
+// produce the same results as matchKubernetesResource for the common (non-namespace) case.
+func TestMatcherEquivalence(t *testing.T) {
 	t.Parallel()
 
 	allowed := []types.KubernetesResource{
@@ -417,9 +417,17 @@ func TestFastMatcherEquivalence(t *testing.T) {
 		requestedResource: apiResource{resourceKind: types.KindKubePod},
 		verb:              types.KubeVerbList,
 	}
+
 	fm, err := tryCompileFastMatcher(mr, allowed, denied)
 	require.NoError(t, err)
 	require.NotNil(t, fm)
+
+	dm := &defaultMatcher{
+		kind:             types.KindKubePod,
+		verb:             types.KubeVerbList,
+		allowedResources: allowed,
+		deniedResources:  denied,
+	}
 
 	inputs := []struct {
 		resource              types.KubernetesResource
@@ -438,14 +446,20 @@ func TestFastMatcherEquivalence(t *testing.T) {
 	for _, tt := range inputs {
 		t.Run(fmt.Sprintf("%s/%s", tt.resource.Namespace, tt.resource.Name), func(t *testing.T) {
 			t.Parallel()
+
+			// Use the original matchKubernetesResource function as the source of truth for expected results.
 			expected, err := matchKubernetesResource(tt.resource, tt.isClusterWideResource, allowed, denied)
 			require.NoError(t, err)
-			got, err := fm.match(tt.resource.Name, tt.resource.Namespace, tt.resource.APIGroup)
+
+			// Verify that both matchers produce the same result as the original function.
+
+			fastResult, err := fm.match(tt.resource.Name, tt.resource.Namespace, tt.resource.APIGroup)
 			require.NoError(t, err)
-			require.Equal(t, expected, got,
-				"mismatch for %s/%s: matchKubernetesResource=%v, fastMatcher=%v",
-				tt.resource.Namespace, tt.resource.Name, expected, got,
-			)
+			require.Equal(t, expected, fastResult, "fastMatcher mismatch for %s/%s", tt.resource.Namespace, tt.resource.Name)
+
+			defaultResult, err := dm.match(tt.resource.Name, tt.resource.Namespace, tt.resource.APIGroup)
+			require.NoError(t, err)
+			require.Equal(t, expected, defaultResult, "defaultMatcher mismatch for %s/%s", tt.resource.Namespace, tt.resource.Name)
 		})
 	}
 }
