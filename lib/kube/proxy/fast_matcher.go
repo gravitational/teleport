@@ -64,18 +64,18 @@ const maxFastMatcherRules = 200
 // tryCompileFastMatcher attempts to compile a fast matcher from the given RBAC rules.
 // Returns nil (without error) if the fast matcher cannot handle the request,
 // signaling the caller to fall back to matchKubernetesResource.
-func tryCompileFastMatcher(kind, verb, apiGroup, namespace string, allowed, denied []types.KubernetesResource) (*fastResourceMatcher, error) {
+func tryCompileFastMatcher(mr metaResource, allowed, denied []types.KubernetesResource) (*fastResourceMatcher, error) {
 	// The fast matcher cannot handle namespace special cases in KubeResourceMatchesRegex
 	// (read-only namespace visibility, namespace kind matching with different target selection).
-	if kind == "namespaces" {
+	if mr.requestedResource.resourceKind == "namespaces" {
 		return nil, nil
 	}
 
 	// Pre-filter rules that cannot match this request.
 	// Kind, verb, API group, and namespace (when targeting a specific namespace)
 	// are uniform for all items in a list response, so rules that don't match can be dropped.
-	allowed = filterRules(kind, verb, apiGroup, namespace, allowed)
-	denied = filterRules(kind, verb, apiGroup, namespace, denied)
+	allowed = filterRules(mr, allowed)
+	denied = filterRules(mr, denied)
 
 	// If too many rules survive kind/verb filtering, fall back to per-item matching.
 	if len(allowed)+len(denied) > maxFastMatcherRules {
@@ -107,12 +107,12 @@ func compileFastMatcher(allowed, denied []types.KubernetesResource) (*fastResour
 }
 
 // filterRules returns the subset of rules that match the given request parameters.
-func filterRules(kind, verb, apiGroup, namespace string, rules []types.KubernetesResource) []types.KubernetesResource {
+func filterRules(mr metaResource, rules []types.KubernetesResource) []types.KubernetesResource {
 	return slices.DeleteFunc(slices.Clone(rules), func(r types.KubernetesResource) bool {
-		return !kindAllowed(r.Kind, kind) ||
-			!verbAllowed(r.Verbs, verb) ||
-			!apiGroupAllowed(r.APIGroup, apiGroup) ||
-			!namespaceAllowed(r.Namespace, namespace)
+		return !kindAllowed(r.Kind, mr.requestedResource.resourceKind) ||
+			!verbAllowed(r.Verbs, mr.verb) ||
+			!apiGroupAllowed(r.APIGroup, mr.requestedResource.apiGroup) ||
+			!namespaceAllowed(r.Namespace, mr.requestedResource.namespace)
 	})
 }
 

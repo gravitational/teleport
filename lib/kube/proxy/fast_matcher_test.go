@@ -182,7 +182,11 @@ func TestTryCompileFastMatcher(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			fm, err := tryCompileFastMatcher(tt.kind, tt.verb, tt.apiGroup, tt.namespace, tt.allowed, nil)
+			mr := metaResource{
+				requestedResource: apiResource{resourceKind: tt.kind, apiGroup: tt.apiGroup, namespace: tt.namespace},
+				verb:              tt.verb,
+			}
+			fm, err := tryCompileFastMatcher(mr, tt.allowed, nil)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -375,7 +379,11 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			fm, err := tryCompileFastMatcher(tt.kind, types.KubeVerbList, tt.input.apiGroup, "", tt.allowed, tt.denied)
+			mr := metaResource{
+				requestedResource: apiResource{resourceKind: tt.kind, apiGroup: tt.input.apiGroup},
+				verb:              types.KubeVerbList,
+			}
+			fm, err := tryCompileFastMatcher(mr, tt.allowed, tt.denied)
 			require.NoError(t, err)
 			require.NotNil(t, fm)
 			got := fm.match(tt.input.name, tt.input.namespace, tt.input.apiGroup)
@@ -404,7 +412,11 @@ func TestFastMatcherEquivalence(t *testing.T) {
 		{Kind: types.KindKubePod, Namespace: "staging", Name: "secret-*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
 	}
 
-	fm, err := tryCompileFastMatcher(types.KindKubePod, types.KubeVerbList, "", "", allowed, denied)
+	mr := metaResource{
+		requestedResource: apiResource{resourceKind: types.KindKubePod},
+		verb:              types.KubeVerbList,
+	}
+	fm, err := tryCompileFastMatcher(mr, allowed, denied)
 	require.NoError(t, err)
 	require.NotNil(t, fm)
 
@@ -512,8 +524,8 @@ func BenchmarkFilterObj(b *testing.B) {
 		if useFastMatcher && rf.fastMatcher == nil {
 			// For high rule counts that exceed maxFastMatcherRules, compile the fast
 			// matcher directly so we can benchmark it against the fallback path.
-			filteredAllowed := filterRules(types.KindKubePod, types.KubeVerbList, "", "", allowed)
-			filteredDenied := filterRules(types.KindKubePod, types.KubeVerbList, "", "", denied)
+			filteredAllowed := filterRules(mr, allowed)
+			filteredDenied := filterRules(mr, denied)
 			fm, err := compileFastMatcher(filteredAllowed, filteredDenied)
 			require.NoError(b, err)
 			rf.fastMatcher = fm
