@@ -20,7 +20,6 @@ package reversetunnel_test
 
 import (
 	"context"
-	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -28,7 +27,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -54,6 +52,8 @@ func TestValidatedMFAChallengeWatcher_Success(t *testing.T) {
 		},
 	}
 
+	clock := clockwork.NewFakeClock()
+
 	watcher, err := reversetunnel.NewValidatedMFAChallengeWatcher(
 		t.Context(),
 		reversetunnel.ValidatedMFAChallengeWatcherConfig{
@@ -61,45 +61,27 @@ func TestValidatedMFAChallengeWatcher_Success(t *testing.T) {
 			ClusterName:                 "leaf",
 			ResourceWatcherConfig: &services.ResourceWatcherConfig{
 				Client:    newWatcherer,
-				Clock:     clockwork.NewRealClock(),
+				Clock:     clock,
 				Component: "test-watcher",
 			},
 		},
 	)
 	require.NoError(t, err)
 
-	require.EventuallyWithTf(
+	clock.Advance(time.Second)
+
+	challenges, err := watcher.CurrentResources(t.Context())
+	require.NoError(t, err)
+	require.Len(t, challenges, 1)
+	require.Len(t, lister.challenges, 1)
+
+	require.NotSame(
 		t,
-		func(c *assert.CollectT) {
-			challenges, err := watcher.CurrentResources(t.Context())
-			assert.NoError(c, err)
-
-			// Ensure that the challenges returned by CurrentResources are clones of the original challenges returned by
-			// the lister, and not the same pointers.
-			assert.False(
-				c,
-				slices.Equal(
-					lister.challenges,
-					challenges,
-				),
-				"CurrentResources should return clones of the original challenges, not the same pointers",
-			)
-
-			// Ensure that the challenges returned by CurrentResources are deeply equal to the original challenges
-			// returned by the lister.
-			assert.Empty(
-				c,
-				cmp.Diff(
-					lister.challenges,
-					challenges,
-				),
-				"CurrentResources mismatch (-want +got)",
-			)
-		},
-		100*time.Millisecond,
-		10*time.Millisecond,
-		"CurrentResources did not return expected challenges",
+		lister.challenges[0],
+		challenges[0],
+		"CurrentResources should return clones of the original challenges, not the same pointers",
 	)
+	require.Empty(t, cmp.Diff(lister.challenges[0], challenges[0]), "CurrentResources mismatch (-want +got)")
 }
 
 func TestNewValidatedMFAChallengeWatcher_Validation(t *testing.T) {
