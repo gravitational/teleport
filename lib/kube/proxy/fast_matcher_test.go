@@ -399,8 +399,10 @@ type matchInput struct {
 	apiGroup  string
 }
 
-// TestMatcherEquivalence verifies that fastResourceMatcher and defaultMatcher
-// produce the same results as matchKubernetesResource for the common (non-namespace) case.
+// TestMatcherEquivalence verifies that fastMatcher and defaultMatcher
+// produce the same results as matchKubernetesResource.
+// Only covers non-namespace kinds because the fast matcher cannot handle the
+// special namespace matching logic in KubeResourceMatchesRegex.
 func TestMatcherEquivalence(t *testing.T) {
 	t.Parallel()
 
@@ -538,7 +540,7 @@ func BenchmarkFilterObj(b *testing.B) {
 		require.NoError(b, err)
 		rf := filter.(*resourceFilterer)
 		if useFastMatcher {
-			if _, ok := rf.matcher.(*fastResourceMatcher); !ok {
+			if _, ok := rf.matcher.(*fastMatcher); !ok {
 				// For high rule counts that exceed maxFastMatcherRules, compile the fast
 				// matcher directly so we can benchmark it against the fallback path.
 				filteredAllowed := filterRules(mr, allowed)
@@ -569,7 +571,7 @@ func BenchmarkFilterObj(b *testing.B) {
 
 			b.Run(prefix+"/fast_matcher", func(b *testing.B) {
 				rf, obj := newFilterer(b, items, allowed, denied, true)
-				require.IsType(b, &fastResourceMatcher{}, rf.matcher)
+				require.IsType(b, &fastMatcher{}, rf.matcher)
 				b.ReportAllocs()
 				b.ResetTimer()
 				for b.Loop() {

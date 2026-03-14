@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// fastResourceMatcher is a precompiled per-request RBAC matcher that reduces per-item matching overhead.
+// fastMatcher is a precompiled per-request RBAC matcher that reduces per-item matching overhead.
 // Instead of calling matchKubernetesResource per item (which does cache lookups, rule iteration, per-field matching),
 // the fast matcher pre-filters rules by kind, verb, and API group at compile time and pre-compiles all regex patterns.
 // Per-item cost becomes direct regex matching against only the relevant rules.
@@ -37,7 +37,7 @@ import (
 // The fast matcher handles the common "default" case in KubeResourceMatchesRegex.
 // It cannot handle namespace special cases (when the requested kind is "namespaces"),
 // so tryCompileFastMatcher returns nil for those requests and the caller falls back to matchKubernetesResource.
-type fastResourceMatcher struct {
+type fastMatcher struct {
 	allowRules []compiledMatchRule
 	denyRules  []compiledMatchRule
 }
@@ -77,7 +77,7 @@ const maxFastMatcherRules = 200
 // tryCompileFastMatcher attempts to compile a fast matcher from the given RBAC rules.
 // Returns nil (without error) if the fast matcher cannot handle the request,
 // signaling the caller to fall back to matchKubernetesResource.
-func tryCompileFastMatcher(mr metaResource, allowed, denied []types.KubernetesResource) (*fastResourceMatcher, error) {
+func tryCompileFastMatcher(mr metaResource, allowed, denied []types.KubernetesResource) (*fastMatcher, error) {
 	// The fast matcher cannot handle namespace special cases in KubeResourceMatchesRegex
 	// (read-only namespace visibility, namespace kind matching with different target selection).
 	if mr.requestedResource.resourceKind == "namespaces" {
@@ -99,7 +99,7 @@ func tryCompileFastMatcher(mr metaResource, allowed, denied []types.KubernetesRe
 }
 
 // compileFastMatcher compiles a fast matcher from pre-filtered RBAC rules.
-func compileFastMatcher(allowed, denied []types.KubernetesResource) (*fastResourceMatcher, error) {
+func compileFastMatcher(allowed, denied []types.KubernetesResource) (*fastMatcher, error) {
 	// Local cache for this compilation pass. Many rules share the same patterns (e.g., apiGroup="*", name="*"),
 	// so this avoids compiling the same expression multiple times.
 	compiled := make(map[string]*regexp.Regexp)
@@ -113,7 +113,7 @@ func compileFastMatcher(allowed, denied []types.KubernetesResource) (*fastResour
 		return nil, trace.Wrap(err)
 	}
 
-	return &fastResourceMatcher{
+	return &fastMatcher{
 		allowRules: allowRules,
 		denyRules:  denyRules,
 	}, nil
@@ -212,7 +212,7 @@ func compileFieldMatcher(expression string, cache map[string]*regexp.Regexp) (fi
 }
 
 // match checks if a resource with the given name, namespace, and apiGroup is allowed by the precompiled RBAC rules.
-func (m *fastResourceMatcher) match(name, namespace, apiGroup string) (bool, error) {
+func (m *fastMatcher) match(name, namespace, apiGroup string) (bool, error) {
 	for i := range m.denyRules {
 		if m.denyRules[i].matches(name, namespace, apiGroup) {
 			return false, nil
