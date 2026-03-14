@@ -90,12 +90,34 @@ func printTestSummary(e2eDir string) {
 			dim(fmt.Sprintf(" (%s)", formatDuration(report.Stats.Duration))))
 	}
 
-	showReportCmd := "pnpm show-report"
-	if pathPrefix != "" {
-		showReportCmd = fmt.Sprintf("(cd %s && pnpm show-report)", pathPrefix[:len(pathPrefix)-1])
+	ciPR := ciPRNumber()
+
+	var showReportCmd string
+	if ciPR > 0 {
+		showReportCmd = fmt.Sprintf("e2e/run.sh --report %d", ciPR)
+	} else {
+		showReportCmd = "pnpm show-report"
+		if pathPrefix != "" {
+			showReportCmd = fmt.Sprintf("(cd %s && pnpm show-report)", pathPrefix[:len(pathPrefix)-1])
+		}
 	}
 
 	fmt.Fprintf(w, "\n  To open last HTML report run:\n\n    %s\n\n", cyan(showReportCmd))
+
+	traces := collectTraces(failed, e2eDir)
+	if len(traces) > 0 {
+		fmt.Fprintln(w, "  Traces:")
+		for _, t := range traces {
+			var traceCmd string
+			if ciPR > 0 {
+				traceCmd = fmt.Sprintf("e2e/run.sh --test-results %d %s", ciPR, t.relPath)
+			} else {
+				traceCmd = fmt.Sprintf("pnpm exec playwright show-trace %s", pathPrefix+t.relPath)
+			}
+			fmt.Fprintf(w, "    %s\n      %s\n", dim(t.title), cyan(traceCmd))
+		}
+		fmt.Fprintln(w)
+	}
 }
 
 func printFailureErrors(w io.Writer, f pwFailure, e2eDir, pathPrefix string) {
@@ -231,6 +253,34 @@ type pwFailure struct {
 	column      int
 	projectName string
 	results     []pwResult
+}
+
+type traceInfo struct {
+	title   string
+	relPath string
+}
+
+func collectTraces(failures []pwFailure, e2eDir string) []traceInfo {
+	var traces []traceInfo
+	for _, f := range failures {
+		for _, result := range f.results {
+			for _, a := range result.Attachments {
+				if a.Name != "trace" || a.Path == "" {
+					continue
+				}
+				rel, err := filepath.Rel(filepath.Join(e2eDir, "test-results"), a.Path)
+				if err != nil {
+					continue
+				}
+				title := fmt.Sprintf("[%s] %s › %s", f.projectName, f.file, f.title)
+				if result.Retry > 0 {
+					title += fmt.Sprintf(" (retry #%d)", result.Retry)
+				}
+				traces = append(traces, traceInfo{title: title, relPath: rel})
+			}
+		}
+	}
+	return traces
 }
 
 func collectFailures(suites []pwSuite) []pwFailure {

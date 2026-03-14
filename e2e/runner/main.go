@@ -55,6 +55,33 @@ func main() {
 		os.Exit(1)
 	}
 
+	if mode == modeReport || mode == modeTestResults {
+		repo := flags.reportRepo
+		if repo == "" {
+			repo = detectRepo(e2eDir)
+		}
+
+		cfg := &reportConfig{
+			prNumber:  flags.reportPR,
+			repo:      repo,
+			e2eDir:    e2eDir,
+			tracePath: flags.tracePath,
+		}
+
+		var runErr error
+		if mode == modeReport {
+			runErr = runReport(cfg)
+		} else {
+			runErr = runTestResults(cfg)
+		}
+
+		if runErr != nil {
+			slog.Error("runner exited with error", "error", runErr)
+			os.Exit(1)
+		}
+		return
+	}
+
 	_ = os.Remove(filepath.Join(e2eDir, "test-results", ".results.json"))
 
 	isCI := os.Getenv("CI") != ""
