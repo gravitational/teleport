@@ -438,13 +438,21 @@ func BenchmarkFilterObj(b *testing.B) {
 		return items, saved
 	}
 
-	newFilterer := func(b *testing.B, items []map[string]any, allowed, denied []types.KubernetesResource, disableFastMatcher bool) (*resourceFilterer, *unstructured.Unstructured) {
+	newFilterer := func(b *testing.B, items []map[string]any, allowed, denied []types.KubernetesResource, useFastMatcher bool) (*resourceFilterer, *unstructured.Unstructured) {
 		b.Helper()
 		wrapper := newResourceFilterer(mr, &globalKubeCodecs, allowed, denied, log)
 		filter, err := wrapper(responsewriters.DefaultContentType, 200)
 		require.NoError(b, err)
 		rf := filter.(*resourceFilterer)
-		if disableFastMatcher {
+		if useFastMatcher && rf.fastMatcher == nil {
+			// For high rule counts that exceed maxFastMatcherRules, compile the fast
+			// matcher directly so we can benchmark it against the fallback path.
+			filteredAllowed := filterRulesByKindVerb(types.KindKubePod, types.KubeVerbList, allowed)
+			filteredDenied := filterRulesByKindVerb(types.KindKubePod, types.KubeVerbList, denied)
+			fm, err := compileFastMatcher(filteredAllowed, filteredDenied)
+			require.NoError(b, err)
+			rf.fastMatcher = fm
+		} else if !useFastMatcher {
 			rf.fastMatcher = nil
 		}
 		obj := buildUnstructuredList("PodList", "v1", items)
@@ -459,12 +467,7 @@ func BenchmarkFilterObj(b *testing.B) {
 			prefix := fmt.Sprintf("%d_rules/%d_items", ruleCount, itemCount)
 
 			b.Run(prefix+"/fast_matcher", func(b *testing.B) {
-				// Temporarily raise the threshold so the fast matcher is compiled
-				// even for high rule counts, allowing direct comparison.
-				orig := maxFastMatcherRules
-				maxFastMatcherRules = ruleCount + 1
-				b.Cleanup(func() { maxFastMatcherRules = orig })
-				rf, obj := newFilterer(b, items, allowed, denied, false)
+				rf, obj := newFilterer(b, items, allowed, denied, true)
 				require.NotNil(b, rf.fastMatcher)
 				b.ReportAllocs()
 				b.ResetTimer()
@@ -475,7 +478,7 @@ func BenchmarkFilterObj(b *testing.B) {
 			})
 
 			b.Run(prefix+"/fallback", func(b *testing.B) {
-				rf, obj := newFilterer(b, items, allowed, denied, true)
+				rf, obj := newFilterer(b, items, allowed, denied, false)
 				require.Nil(b, rf.fastMatcher)
 				b.ReportAllocs()
 				b.ResetTimer()

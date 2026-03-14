@@ -22,6 +22,8 @@ import (
 	"regexp"
 	"slices"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -56,7 +58,7 @@ type compiledMatchRule struct {
 // Benchmarks show the fast matcher is faster even at 4000 rules, so this is a
 // conservative safety margin rather than a measured crossover point.
 // It may be removed in a follow-up once we gain more production confidence.
-var maxFastMatcherRules = 200
+const maxFastMatcherRules = 200
 
 // tryCompileFastMatcher attempts to compile a fast matcher from the given RBAC rules.
 // Returns nil (without error) if the fast matcher cannot handle the request,
@@ -72,11 +74,16 @@ func tryCompileFastMatcher(kind, verb string, allowed, denied []types.Kubernetes
 	allowed = filterRulesByKindVerb(kind, verb, allowed)
 	denied = filterRulesByKindVerb(kind, verb, denied)
 
-	// If too many rules survive kind/verb filtering, compilation cost exceeds the per-item savings.
+	// If too many rules survive kind/verb filtering, fall back to per-item matching.
 	if len(allowed)+len(denied) > maxFastMatcherRules {
 		return nil, nil
 	}
 
+	return compileFastMatcher(allowed, denied)
+}
+
+// compileFastMatcher compiles a fast matcher from pre-filtered RBAC rules.
+func compileFastMatcher(allowed, denied []types.KubernetesResource) (*fastResourceMatcher, error) {
 	// Local cache for this compilation pass. Many rules share the same patterns (e.g., apiGroup="*", name="*"),
 	// so this avoids compiling the same expression multiple times.
 	compiled := make(map[string]*regexp.Regexp)
