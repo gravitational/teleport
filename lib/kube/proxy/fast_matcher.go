@@ -83,11 +83,11 @@ func tryCompileFastMatcher(kind, verb string, allowed, denied []types.Kubernetes
 
 	allowRules, err := compileMatchRules(allowed, compiled)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	denyRules, err := compileMatchRules(denied, compiled)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	return &fastResourceMatcher{
@@ -121,15 +121,15 @@ func compileMatchRules(resources []types.KubernetesResource, cache map[string]*r
 	for _, r := range resources {
 		apiGroupRe, err := compileCached(r.APIGroup, cache)
 		if err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 		nameRe, err := compileCached(r.Name, cache)
 		if err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 		nsRe, err := compileCached(r.Namespace, cache)
 		if err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 
 		rules = append(rules, compiledMatchRule{
@@ -150,7 +150,7 @@ func compileCached(expression string, cache map[string]*regexp.Regexp) (*regexp.
 	}
 	re, err := utils.CompileExpression(expression)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	cache[expression] = re
 	return re, nil
