@@ -56,6 +56,7 @@ func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allow
 		mr.requestedResource.resourceKind,
 		mr.verb,
 		mr.requestedResource.apiGroup,
+		mr.requestedResource.namespace,
 		allowedResources,
 		deniedResources,
 	)

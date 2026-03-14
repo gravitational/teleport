@@ -64,17 +64,18 @@ const maxFastMatcherRules = 200
 // tryCompileFastMatcher attempts to compile a fast matcher from the given RBAC rules.
 // Returns nil (without error) if the fast matcher cannot handle the request,
 // signaling the caller to fall back to matchKubernetesResource.
-func tryCompileFastMatcher(kind, verb, apiGroup string, allowed, denied []types.KubernetesResource) (*fastResourceMatcher, error) {
+func tryCompileFastMatcher(kind, verb, apiGroup, namespace string, allowed, denied []types.KubernetesResource) (*fastResourceMatcher, error) {
 	// The fast matcher cannot handle namespace special cases in KubeResourceMatchesRegex
 	// (read-only namespace visibility, namespace kind matching with different target selection).
 	if kind == "namespaces" {
 		return nil, nil
 	}
 
-	// Pre-filter rules that cannot match this request. Kind, verb, and API group are
-	// uniform for all items in a list response, so rules that don't match can be dropped.
-	allowed = filterRules(kind, verb, apiGroup, allowed)
-	denied = filterRules(kind, verb, apiGroup, denied)
+	// Pre-filter rules that cannot match this request.
+	// Kind, verb, API group, and namespace (when targeting a specific namespace)
+	// are uniform for all items in a list response, so rules that don't match can be dropped.
+	allowed = filterRules(kind, verb, apiGroup, namespace, allowed)
+	denied = filterRules(kind, verb, apiGroup, namespace, denied)
 
 	// If too many rules survive kind/verb filtering, fall back to per-item matching.
 	if len(allowed)+len(denied) > maxFastMatcherRules {
@@ -105,11 +106,13 @@ func compileFastMatcher(allowed, denied []types.KubernetesResource) (*fastResour
 	}, nil
 }
 
-// filterRules returns the subset of rules that match the given kind, verb, and API group.
-// API group is only filtered when the rule's pattern is a literal (no wildcards or regex).
-func filterRules(kind, verb, apiGroup string, rules []types.KubernetesResource) []types.KubernetesResource {
+// filterRules returns the subset of rules that match the given request parameters.
+func filterRules(kind, verb, apiGroup, namespace string, rules []types.KubernetesResource) []types.KubernetesResource {
 	return slices.DeleteFunc(slices.Clone(rules), func(r types.KubernetesResource) bool {
-		return !kindAllowed(r.Kind, kind) || !verbAllowed(r.Verbs, verb) || !apiGroupAllowed(r.APIGroup, apiGroup)
+		return !kindAllowed(r.Kind, kind) ||
+			!verbAllowed(r.Verbs, verb) ||
+			!apiGroupAllowed(r.APIGroup, apiGroup) ||
+			!namespaceAllowed(r.Namespace, namespace)
 	})
 }
 
@@ -121,11 +124,27 @@ func verbAllowed(allowedVerbs []string, verb string) bool {
 	return utils.IsVerbAllowed(allowedVerbs, verb)
 }
 
-func apiGroupAllowed(ruleAPIGroup, requestedAPIGroup string) bool {
-	if utils.IsRegexp(ruleAPIGroup) || strings.Contains(ruleAPIGroup, "*") {
+func namespaceAllowed(ruleNamespace, requestedNamespace string) bool {
+	if requestedNamespace == "" {
+		// Cluster-wide request: all rules pass since items may come from any namespace.
 		return true
 	}
-	return ruleAPIGroup == requestedAPIGroup
+	// Empty rule namespace matches any namespace.
+	if ruleNamespace == "" {
+		return true
+	}
+	return patternCanMatch(ruleNamespace, requestedNamespace)
+}
+
+func apiGroupAllowed(ruleAPIGroup, requestedAPIGroup string) bool {
+	return patternCanMatch(ruleAPIGroup, requestedAPIGroup)
+}
+
+func patternCanMatch(pattern, value string) bool {
+	if strings.Contains(pattern, "*") || utils.IsRegexp(pattern) {
+		return true
+	}
+	return pattern == value
 }
 
 // compileMatchRules pre-compiles already-filtered RBAC rules. The cache map
