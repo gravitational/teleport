@@ -3307,7 +3307,7 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 		return nil, trace.BadParameter("no SSH auth methods loaded, are you logged in?")
 	}
 
-	_ = func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
+	authCallback := func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
 		switch {
 		case slices.Contains(authCtx.PartialSuccessMethods, "publickey") && slices.Contains(authCtx.AllowedMethods, "keyboard-interactive"):
 			slog.Debug(
@@ -3336,8 +3336,8 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			User:            tc.getProxySSHPrincipal(),
 			HostKeyCallback: hostKeyCallback,
 			Auth:            authMethods,
-			// AuthCallback:    authCallback,
-			Timeout: tc.SSHDialTimeout,
+			AuthCallback:    authCallback,
+			Timeout:         tc.SSHDialTimeout,
 		},
 		proxyAddress: proxyAddr,
 		clusterName:  clusterName,

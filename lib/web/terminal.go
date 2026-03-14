@@ -947,41 +947,46 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.P
 	}
 
 	authCallback := func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
-		if !slices.Contains(authCtx.PartialSuccessMethods, "publickey") {
-			return nil, nil
-		}
-
-		t.logger.DebugContext(ctx, "connectToNode: keyboard-interactive auth is supported by server")
-
-		// Assert that the ws is of type terminal.Stream to access the WSStream.
-		stream, ok := ws.(*terminal.Stream)
-		if !ok {
-			return nil, trace.BadParameter("expected terminal.Stream type for ws connection")
-		}
-
-		t.logger.DebugContext(ctx, "connectToNode:Returning keyboard-interactive auth method")
-
-		mfaClient := t.userAuthClient.MFAServiceClient()
-
-		return clientssh.KeyboardInteractive(
-			ctx,
-			newMFACeremony(
+		switch {
+		case slices.Contains(authCtx.PartialSuccessMethods, "publickey") && slices.Contains(authCtx.AllowedMethods, "keyboard-interactive"):
+			slog.Debug(
+				"SSH server accepted public key auth and requires additional keyboard-interactive authentication",
+				"allowed_methods", authCtx.AllowedMethods,
+				"partial_success_methods", authCtx.PartialSuccessMethods,
+				"tried_methods", authCtx.TriedMethods,
+			)
+			stream, ok := ws.(*terminal.Stream)
+			if !ok {
+				return nil, trace.BadParameter("expected terminal.Stream type for ws connection (this is a bug)")
+			}
+			mfaClient := t.userAuthClient.MFAServiceClient()
+			ceremony := newMFACeremony(
 				stream.WSStream,
 				nil, // Only the session challenge methods are needed for keyboard-interactive auth.
 				mfaClient.CreateSessionChallenge,
 				mfaClient.ValidateSessionChallenge,
 				t.proxyPublicAddr,
-			),
-			authCtx.Metadata,
-		), nil
+			)
+			ceremony.TargetCluster = tc.SiteName
+			return clientssh.KeyboardInteractive(ctx, ceremony, authCtx.Metadata), nil
+
+		default:
+			slog.Debug(
+				"Using default SSH auth methods since the SSH server did not indicate support for any more specific method",
+				"allowed_methods", authCtx.AllowedMethods,
+				"partial_success_methods", authCtx.PartialSuccessMethods,
+				"tried_methods", authCtx.TriedMethods,
+			)
+			return nil, nil
+		}
 	}
 
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.HostLogin,
 		Auth:            tc.AuthMethods,
+		AuthCallback:    authCallback,
 		HostKeyCallback: tc.HostKeyCallback,
 		Timeout:         t.sshDialTimeout,
-		AuthCallback:    authCallback,
 	}
 
 	clt, err := client.NewNodeClient(ctx, sshConfig, conn,
