@@ -386,7 +386,8 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 			fm, err := tryCompileFastMatcher(mr, tt.allowed, tt.denied)
 			require.NoError(t, err)
 			require.NotNil(t, fm)
-			got := fm.match(tt.input.name, tt.input.namespace, tt.input.apiGroup)
+			got, err := fm.match(tt.input.name, tt.input.namespace, tt.input.apiGroup)
+			require.NoError(t, err)
 			require.Equal(t, tt.wantMatch, got)
 		})
 	}
@@ -439,7 +440,8 @@ func TestFastMatcherEquivalence(t *testing.T) {
 			t.Parallel()
 			expected, err := matchKubernetesResource(tt.resource, tt.isClusterWideResource, allowed, denied)
 			require.NoError(t, err)
-			got := fm.match(tt.resource.Name, tt.resource.Namespace, tt.resource.APIGroup)
+			got, err := fm.match(tt.resource.Name, tt.resource.Namespace, tt.resource.APIGroup)
+			require.NoError(t, err)
 			require.Equal(t, expected, got,
 				"mismatch for %s/%s: matchKubernetesResource=%v, fastMatcher=%v",
 				tt.resource.Namespace, tt.resource.Name, expected, got,
@@ -521,16 +523,24 @@ func BenchmarkFilterObj(b *testing.B) {
 		filter, err := wrapper(responsewriters.DefaultContentType, 200)
 		require.NoError(b, err)
 		rf := filter.(*resourceFilterer)
-		if useFastMatcher && rf.fastMatcher == nil {
-			// For high rule counts that exceed maxFastMatcherRules, compile the fast
-			// matcher directly so we can benchmark it against the fallback path.
-			filteredAllowed := filterRules(mr, allowed)
-			filteredDenied := filterRules(mr, denied)
-			fm, err := compileFastMatcher(filteredAllowed, filteredDenied)
-			require.NoError(b, err)
-			rf.fastMatcher = fm
-		} else if !useFastMatcher {
-			rf.fastMatcher = nil
+		if useFastMatcher {
+			if _, ok := rf.matcher.(*fastResourceMatcher); !ok {
+				// For high rule counts that exceed maxFastMatcherRules, compile the fast
+				// matcher directly so we can benchmark it against the fallback path.
+				filteredAllowed := filterRules(mr, allowed)
+				filteredDenied := filterRules(mr, denied)
+				fm, err := compileFastMatcher(filteredAllowed, filteredDenied)
+				require.NoError(b, err)
+				rf.matcher = fm
+			}
+		} else {
+			rf.matcher = &defaultMatcher{
+				kind:             mr.requestedResource.resourceKind,
+				verb:             mr.verb,
+				isClusterWide:    mr.isClusterWideResource(),
+				allowedResources: allowed,
+				deniedResources:  denied,
+			}
 		}
 		obj := buildUnstructuredList("PodList", "v1", items)
 		return rf, obj
@@ -545,7 +555,7 @@ func BenchmarkFilterObj(b *testing.B) {
 
 			b.Run(prefix+"/fast_matcher", func(b *testing.B) {
 				rf, obj := newFilterer(b, items, allowed, denied, true)
-				require.NotNil(b, rf.fastMatcher)
+				require.IsType(b, &fastResourceMatcher{}, rf.matcher)
 				b.ReportAllocs()
 				b.ResetTimer()
 				for b.Loop() {
@@ -556,7 +566,7 @@ func BenchmarkFilterObj(b *testing.B) {
 
 			b.Run(prefix+"/fallback", func(b *testing.B) {
 				rf, obj := newFilterer(b, items, allowed, denied, false)
-				require.Nil(b, rf.fastMatcher)
+				require.IsType(b, &defaultMatcher{}, rf.matcher)
 				b.ReportAllocs()
 				b.ResetTimer()
 				for b.Loop() {

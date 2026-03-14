@@ -212,18 +212,18 @@ func compileFieldMatcher(expression string, cache map[string]*regexp.Regexp) (fi
 }
 
 // match checks if a resource with the given name, namespace, and apiGroup is allowed by the precompiled RBAC rules.
-func (m *fastResourceMatcher) match(name, namespace, apiGroup string) bool {
+func (m *fastResourceMatcher) match(name, namespace, apiGroup string) (bool, error) {
 	for i := range m.denyRules {
 		if m.denyRules[i].matches(name, namespace, apiGroup) {
-			return false
+			return false, nil
 		}
 	}
 	for i := range m.allowRules {
 		if m.allowRules[i].matches(name, namespace, apiGroup) {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // matches checks whether a single compiled rule matches the given fields.

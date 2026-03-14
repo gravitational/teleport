@@ -52,9 +52,22 @@ func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allow
 
 	// Try to compile a fast matcher that pre-filters rules by kind/verb and pre-compiles all regex patterns.
 	// This reduces per-item overhead from cache lookups + rule iteration to direct regex matching.
+	// Falls back to per-item matchKubernetesResource when the fast matcher cannot handle the request.
+	var matcher resourceMatcher
 	fm, err := tryCompileFastMatcher(mr, allowedResources, deniedResources)
 	if err != nil {
 		log.DebugContext(context.Background(), "Failed to compile fast matcher, falling back to per-item matching", "error", err)
+	}
+	if fm != nil {
+		matcher = fm
+	} else {
+		matcher = &defaultMatcher{
+			kind:             mr.requestedResource.resourceKind,
+			verb:             mr.verb,
+			isClusterWide:    mr.isClusterWideResource(),
+			allowedResources: allowedResources,
+			deniedResources:  deniedResources,
+		}
 	}
 
 	return func(contentType string, responseCode int) (responsewriters.Filter, error) {
@@ -64,16 +77,14 @@ func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allow
 			return nil, trace.Wrap(err)
 		}
 		return &resourceFilterer{
-			encoder:          encoder,
-			decoder:          decoder,
-			contentType:      contentType,
-			responseCode:     responseCode,
-			negotiator:       negotiator,
-			allowedResources: allowedResources,
-			deniedResources:  deniedResources,
-			log:              log,
-			metaResource:     mr,
-			fastMatcher:      fm,
+			encoder:      encoder,
+			decoder:      decoder,
+			contentType:  contentType,
+			responseCode: responseCode,
+			negotiator:   negotiator,
+			log:          log,
+			metaResource: mr,
+			matcher:      matcher,
 		}, nil
 	}
 }
@@ -113,20 +124,19 @@ type resourceFilterer struct {
 	// negotiator is an instance of a client negotiator.
 	negotiator runtime.ClientNegotiator
 
-	// allowedResources is the list of kubernetes resources the user has access to.
-	allowedResources []types.KubernetesResource
-	// deniedResources is the list of kubernetes resources the user must not access.
-	deniedResources []types.KubernetesResource
-
 	// log is the logger.
 	log *slog.Logger
 
 	// metaResource contains the information about the resource being filtered.
 	metaResource metaResource
 
-	// fastMatcher is a precompiled per-request RBAC matcher.
-	// When non-nil, it is used instead of calling matchKubernetesResource per item.
-	fastMatcher *fastResourceMatcher
+	// matcher is the per-item RBAC matcher (either fast precompiled or fallback per-item).
+	matcher resourceMatcher
+}
+
+// resourceMatcher matches a Kubernetes resource by name, namespace, and API group.
+type resourceMatcher interface {
+	match(name, namespace, apiGroup string) (bool, error)
 }
 
 // FilterBuffer receives a byte array, decodes the response into the appropriate
@@ -179,18 +189,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 			return hasElemts, true, nil
 		}
 
-		if d.fastMatcher != nil {
-			return d.fastMatcher.match(
-				o.GetName(),
-				o.GetNamespace(),
-				d.metaResource.requestedResource.apiGroup,
-			), false, nil
-		}
-		r := getKubeResource(d.metaResource.requestedResource.resourceKind, d.metaResource.requestedResource.apiGroup, d.metaResource.verb, o)
-		result, err := matchKubernetesResource(
-			r, d.metaResource.isClusterWideResource(),
-			d.allowedResources, d.deniedResources,
-		)
+		result, err := d.matcher.match(o.GetName(), o.GetNamespace(), d.metaResource.requestedResource.apiGroup)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -198,7 +197,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		return result, false, nil
 
 	case *metav1.Table:
-		_, err := d.filterMetaV1Table(o, d.allowedResources, d.deniedResources)
+		_, err := d.filterMetaV1Table(o)
 		if err != nil {
 			return false, false, trace.Wrap(err)
 		}
@@ -298,19 +297,7 @@ type kubeObjectInterface interface {
 
 // filterResource validates if the user should access the current resource.
 func (d *resourceFilterer) filterResource(resource kubeObjectInterface) (bool, error) {
-	if d.fastMatcher != nil {
-		return d.fastMatcher.match(
-			resource.GetName(),
-			resource.GetNamespace(),
-			d.metaResource.requestedResource.apiGroup,
-		), nil
-	}
-	result, err := matchKubernetesResource(
-		getKubeResource(d.metaResource.requestedResource.resourceKind, d.metaResource.requestedResource.apiGroup, d.metaResource.verb, resource),
-		d.metaResource.isClusterWideResource(),
-		d.allowedResources, d.deniedResources,
-	)
-	return result, trace.Wrap(err)
+	return d.matcher.match(resource.GetName(), resource.GetNamespace(), d.metaResource.requestedResource.apiGroup)
 }
 
 func getKubeResource(kind, group, verb string, obj kubeObjectInterface) types.KubernetesResource {
@@ -325,7 +312,7 @@ func getKubeResource(kind, group, verb string, obj kubeObjectInterface) types.Ku
 
 // filterMetaV1Table filters the serverside printed table to exclude resources
 // that the user must not have access to.
-func (d *resourceFilterer) filterMetaV1Table(table *metav1.Table, allowedResources, deniedResources []types.KubernetesResource) (*metav1.Table, error) {
+func (d *resourceFilterer) filterMetaV1Table(table *metav1.Table) (*metav1.Table, error) {
 	resources := make([]metav1.TableRow, 0, len(table.Rows))
 	for i := range table.Rows {
 		row := &(table.Rows[i])
@@ -336,16 +323,10 @@ func (d *resourceFilterer) filterMetaV1Table(table *metav1.Table, allowedResourc
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if d.fastMatcher != nil {
-			if d.fastMatcher.match(resource.Name, resource.Namespace, resource.APIGroup) {
-				resources = append(resources, *row)
-			}
-			continue
-		}
-		if result, err := matchKubernetesResource(resource, d.metaResource.isClusterWideResource(), allowedResources, deniedResources); err == nil && result {
-			resources = append(resources, *row)
-		} else if err != nil {
+		if result, err := d.matcher.match(resource.Name, resource.Namespace, resource.APIGroup); err != nil {
 			d.log.WarnContext(context.Background(), "Unable to compile regex expression", "error", err)
+		} else if result {
+			resources = append(resources, *row)
 		}
 	}
 	table.Rows = resources
@@ -474,23 +455,32 @@ func (d *resourceFilterer) filterUnstructuredList(obj *unstructured.Unstructured
 
 	filteredList := make([]any, 0, len(objList.Items))
 	for _, resource := range objList.Items {
-		if d.fastMatcher != nil {
-			if d.fastMatcher.match(resource.GetName(), resource.GetNamespace(), resource.GroupVersionKind().Group) {
-				filteredList = append(filteredList, resource.Object)
-			}
-			continue
-		}
-		gvk := resource.GroupVersionKind()
-		r := getKubeResource(d.metaResource.requestedResource.resourceKind, gvk.Group, d.metaResource.verb, &resource)
-		if result, err := matchKubernetesResource(
-			r, d.metaResource.isClusterWideResource(),
-			d.allowedResources, d.deniedResources,
-		); result {
-			filteredList = append(filteredList, resource.Object)
-		} else if err != nil {
+		if result, err := d.matcher.match(resource.GetName(), resource.GetNamespace(), resource.GroupVersionKind().Group); err != nil {
 			slog.WarnContext(context.Background(), "Unable to compile regex expressions within kubernetes_resources", "error", err)
+		} else if result {
+			filteredList = append(filteredList, resource.Object)
 		}
 	}
 	obj.Object[itemsKey] = filteredList
 	return len(filteredList) > 0
+}
+
+// defaultMatcher uses the existing matchKubernetesResource path for per-item matching.
+type defaultMatcher struct {
+	kind             string
+	verb             string
+	isClusterWide    bool
+	allowedResources []types.KubernetesResource
+	deniedResources  []types.KubernetesResource
+}
+
+func (m *defaultMatcher) match(name, namespace, apiGroup string) (bool, error) {
+	resource := types.KubernetesResource{
+		Kind:      m.kind,
+		Namespace: namespace,
+		Name:      name,
+		Verbs:     []string{m.verb},
+		APIGroup:  apiGroup,
+	}
+	return matchKubernetesResource(resource, m.isClusterWide, m.allowedResources, m.deniedResources)
 }
