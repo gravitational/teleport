@@ -178,7 +178,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		{{if .ConvertPackagePath -}}
 	var {{.VarName}}I = {{.VarName}}Resource
 		{{- else }}
-	// Not really an inferface, just using the same name for easier templating.
+	// Not really an interface, just using the same name for easier templating.
 	var {{.VarName}}I {{.ProtoPackage}}.{{ if ne .IfaceName ""}}{{.IfaceName}}{{else}}{{.Name}}{{end}}
 		{{- end}}
 	{{- end }}
@@ -436,7 +436,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		{{if .ConvertPackagePath -}}
 	var {{.VarName}}I = {{.VarName}}Resource
 		{{- else }}
-	// Not really an inferface, just using the same name for easier templating.
+	// Not really an interface, just using the same name for easier templating.
 	var {{.VarName}}I {{.ProtoPackage}}.{{ if ne .IfaceName ""}}{{.IfaceName}}{{else}}{{.Name}}{{end}}
 		{{- end}}
 	{{- end }}
@@ -483,6 +483,11 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}", {{.VarName}}I), "{{.Kind}}"))
 		return
 	}
+	{{- end}}
+	{{- if .ConvertPackagePath}}
+	{{.VarName}} = convert.{{ if .ConvertToProtoFunc }}{{.ConvertToProtoFunc}}{{ else }}ToProto{{ end }}({{.VarName}}Resource)
+	{{- else}}
+	{{.VarName}} = {{.VarName}}Resource
 	{{- end}}
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &plan)
 	resp.Diagnostics.Append(diags...)
