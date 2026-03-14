@@ -235,9 +235,7 @@ func (r *compiledMatchRule) matches(name, namespace, apiGroup string) bool {
 	if !r.name.match(name) {
 		return false
 	}
-	// Mirror the check: if input namespace is empty but rule requires a
-	// specific namespace, this rule cannot match.
-	if namespace == "" && r.requiresNamespace {
+	if r.requiresNamespace && namespace == "" {
 		return false
 	}
 	return r.namespace.match(namespace)
