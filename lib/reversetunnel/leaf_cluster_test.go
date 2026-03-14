@@ -225,10 +225,16 @@ func TestSyncValidatedMFAChallenges_SkipsExpiredChallenges(t *testing.T) {
 func TestRunValidatedMFAChallengeSync_DropsExpiredFailedChallenges(t *testing.T) {
 	t.Parallel()
 
+	const (
+		retryDelay     = 10 * time.Millisecond
+		initialExpiry  = -time.Second
+		advancePastTTL = time.Minute + time.Second + retryDelay
+	)
+
 	clock := clockwork.NewFakeClock()
 
 	expired := newValidatedMFAChallenge(clock, "challenge-for-leaf")
-	expired.GetMetadata().SetExpiry(clock.Now().Add(-20 * time.Millisecond))
+	expired.GetMetadata().SetExpiry(clock.Now().Add(initialExpiry))
 
 	leafMFAClient := &mockMFAServiceClient{
 		requests: make([]*mfav1.ReplicateValidatedMFAChallengeRequest, 0),
@@ -250,9 +256,9 @@ func TestRunValidatedMFAChallengeSync_DropsExpiredFailedChallenges(t *testing.T)
 		leaf,
 		ctx,
 		retryutils.LinearConfig{
-			First: 10 * time.Millisecond,
-			Step:  10 * time.Millisecond,
-			Max:   10 * time.Millisecond,
+			First: retryDelay,
+			Step:  retryDelay,
+			Max:   retryDelay,
 			Clock: clock,
 		},
 	)
@@ -266,7 +272,7 @@ func TestRunValidatedMFAChallengeSync_DropsExpiredFailedChallenges(t *testing.T)
 
 	// Wait until the retry loop is blocked on the fake clock before advancing time.
 	require.NoError(t, clock.BlockUntilContext(ctx, 1))
-	clock.Advance(2*time.Minute + 10*time.Millisecond)
+	clock.Advance(advancePastTTL)
 
 	cancel()
 	require.NoError(t, <-errC)
