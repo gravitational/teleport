@@ -564,7 +564,7 @@ func BenchmarkFilterObj(b *testing.B) {
 				}
 			})
 
-			b.Run(prefix+"/fallback", func(b *testing.B) {
+			b.Run(prefix+"/default_matcher", func(b *testing.B) {
 				rf, obj := newFilterer(b, items, allowed, denied, false)
 				require.IsType(b, &defaultMatcher{}, rf.matcher)
 				b.ReportAllocs()
