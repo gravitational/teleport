@@ -123,6 +123,8 @@ func TestRunValidatedMFAChallengeSync_RetriesFailedChallenges(t *testing.T) {
 	case <-leafMFAClient.attempts:
 	}
 
+	// Wait until the retry loop is blocked on the fake clock before advancing time.
+	require.NoError(t, clock.BlockUntilContext(ctx, 1))
 	clock.Advance(10 * time.Millisecond)
 
 	select {
@@ -262,6 +264,8 @@ func TestRunValidatedMFAChallengeSync_DropsExpiredFailedChallenges(t *testing.T)
 	case <-leafMFAClient.attempts:
 	}
 
+	// Wait until the retry loop is blocked on the fake clock before advancing time.
+	require.NoError(t, clock.BlockUntilContext(ctx, 1))
 	clock.Advance(2*time.Minute + 10*time.Millisecond)
 
 	cancel()
