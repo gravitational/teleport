@@ -21,6 +21,7 @@ package proxy
 import (
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -30,7 +31,7 @@ import (
 
 // fastResourceMatcher is a precompiled per-request RBAC matcher that reduces per-item matching overhead.
 // Instead of calling matchKubernetesResource per item (which does cache lookups, rule iteration, per-field matching),
-// the fast matcher pre-filters rules by kind and verb at compile time and pre-compiles all regex patterns.
+// the fast matcher pre-filters rules by kind, verb, and API group at compile time and pre-compiles all regex patterns.
 // Per-item cost becomes direct regex matching against only the relevant rules.
 //
 // The fast matcher handles the common "default" case in KubeResourceMatchesRegex.
@@ -42,7 +43,7 @@ type fastResourceMatcher struct {
 }
 
 // compiledMatchRule is a single RBAC rule with pre-compiled regex patterns
-// and pre-filtered kind/verb (only rules matching the request's kind and verb are included).
+// and pre-filtered kind/verb/apiGroup (only rules matching the request are included).
 type compiledMatchRule struct {
 	apiGroup  *regexp.Regexp
 	name      *regexp.Regexp
@@ -63,16 +64,17 @@ const maxFastMatcherRules = 200
 // tryCompileFastMatcher attempts to compile a fast matcher from the given RBAC rules.
 // Returns nil (without error) if the fast matcher cannot handle the request,
 // signaling the caller to fall back to matchKubernetesResource.
-func tryCompileFastMatcher(kind, verb string, allowed, denied []types.KubernetesResource) (*fastResourceMatcher, error) {
+func tryCompileFastMatcher(kind, verb, apiGroup string, allowed, denied []types.KubernetesResource) (*fastResourceMatcher, error) {
 	// The fast matcher cannot handle namespace special cases in KubeResourceMatchesRegex
 	// (read-only namespace visibility, namespace kind matching with different target selection).
 	if kind == "namespaces" {
 		return nil, nil
 	}
 
-	// This is a quick check that eliminates irrelevant rules before compilation.
-	allowed = filterRulesByKindVerb(kind, verb, allowed)
-	denied = filterRulesByKindVerb(kind, verb, denied)
+	// Pre-filter rules that cannot match this request. Kind, verb, and API group are
+	// uniform for all items in a list response, so rules that don't match can be dropped.
+	allowed = filterRules(kind, verb, apiGroup, allowed)
+	denied = filterRules(kind, verb, apiGroup, denied)
 
 	// If too many rules survive kind/verb filtering, fall back to per-item matching.
 	if len(allowed)+len(denied) > maxFastMatcherRules {
@@ -103,10 +105,11 @@ func compileFastMatcher(allowed, denied []types.KubernetesResource) (*fastResour
 	}, nil
 }
 
-// filterRulesByKindVerb returns the subset of rules that match the given kind and verb.
-func filterRulesByKindVerb(kind, verb string, rules []types.KubernetesResource) []types.KubernetesResource {
+// filterRules returns the subset of rules that match the given kind, verb, and API group.
+// API group is only filtered when the rule's pattern is a literal (no wildcards or regex).
+func filterRules(kind, verb, apiGroup string, rules []types.KubernetesResource) []types.KubernetesResource {
 	return slices.DeleteFunc(slices.Clone(rules), func(r types.KubernetesResource) bool {
-		return !kindAllowed(r.Kind, kind) || !verbAllowed(r.Verbs, verb)
+		return !kindAllowed(r.Kind, kind) || !verbAllowed(r.Verbs, verb) || !apiGroupAllowed(r.APIGroup, apiGroup)
 	})
 }
 
@@ -115,9 +118,14 @@ func kindAllowed(ruleKind, requestedKind string) bool {
 }
 
 func verbAllowed(allowedVerbs []string, verb string) bool {
-	// This mirrors utils.isVerbAllowed: wildcard is only recognized as the first element.
-	return len(allowedVerbs) != 0 &&
-		(allowedVerbs[0] == types.Wildcard || slices.Contains(allowedVerbs, verb))
+	return utils.IsVerbAllowed(allowedVerbs, verb)
+}
+
+func apiGroupAllowed(ruleAPIGroup, requestedAPIGroup string) bool {
+	if utils.IsRegexp(ruleAPIGroup) || strings.Contains(ruleAPIGroup, "*") {
+		return true
+	}
+	return ruleAPIGroup == requestedAPIGroup
 }
 
 // compileMatchRules pre-compiles already-filtered RBAC rules. The cache map

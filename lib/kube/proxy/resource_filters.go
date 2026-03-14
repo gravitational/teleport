@@ -55,6 +55,7 @@ func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allow
 	fm, err := tryCompileFastMatcher(
 		mr.requestedResource.resourceKind,
 		mr.verb,
+		mr.requestedResource.apiGroup,
 		allowedResources,
 		deniedResources,
 	)

@@ -46,6 +46,7 @@ func TestTryCompileFastMatcher(t *testing.T) {
 		name           string
 		kind           string
 		verb           string
+		apiGroup       string
 		allowed        []types.KubernetesResource
 		wantNil        bool
 		wantErr        bool
@@ -112,12 +113,43 @@ func TestTryCompileFastMatcher(t *testing.T) {
 			allowed: manyRules,
 			wantNil: true,
 		},
+		{
+			name:     "filters out rules with non-matching literal API group",
+			kind:     types.KindKubePod,
+			verb:     types.KubeVerbList,
+			apiGroup: "",
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "apps"},
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
+			},
+			wantAllowCount: 1,
+		},
+		{
+			name:     "keeps rules with wildcard API group",
+			kind:     types.KindKubePod,
+			verb:     types.KubeVerbList,
+			apiGroup: "",
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			wantAllowCount: 1,
+		},
+		{
+			name:     "keeps rules with regex API group",
+			kind:     types.KindKubePod,
+			verb:     types.KubeVerbList,
+			apiGroup: "apps",
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "^apps|extensions$"},
+			},
+			wantAllowCount: 1,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			fm, err := tryCompileFastMatcher(tt.kind, tt.verb, tt.allowed, nil)
+			fm, err := tryCompileFastMatcher(tt.kind, tt.verb, tt.apiGroup, tt.allowed, nil)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -310,7 +342,7 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			fm, err := tryCompileFastMatcher(tt.kind, types.KubeVerbList, tt.allowed, tt.denied)
+			fm, err := tryCompileFastMatcher(tt.kind, types.KubeVerbList, tt.input.apiGroup, tt.allowed, tt.denied)
 			require.NoError(t, err)
 			require.NotNil(t, fm)
 			got := fm.match(tt.input.name, tt.input.namespace, tt.input.apiGroup)
@@ -339,7 +371,7 @@ func TestFastMatcherEquivalence(t *testing.T) {
 		{Kind: types.KindKubePod, Namespace: "staging", Name: "secret-*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
 	}
 
-	fm, err := tryCompileFastMatcher(types.KindKubePod, types.KubeVerbList, allowed, denied)
+	fm, err := tryCompileFastMatcher(types.KindKubePod, types.KubeVerbList, "", allowed, denied)
 	require.NoError(t, err)
 	require.NotNil(t, fm)
 
@@ -447,8 +479,8 @@ func BenchmarkFilterObj(b *testing.B) {
 		if useFastMatcher && rf.fastMatcher == nil {
 			// For high rule counts that exceed maxFastMatcherRules, compile the fast
 			// matcher directly so we can benchmark it against the fallback path.
-			filteredAllowed := filterRulesByKindVerb(types.KindKubePod, types.KubeVerbList, allowed)
-			filteredDenied := filterRulesByKindVerb(types.KindKubePod, types.KubeVerbList, denied)
+			filteredAllowed := filterRules(types.KindKubePod, types.KubeVerbList, "", allowed)
+			filteredDenied := filterRules(types.KindKubePod, types.KubeVerbList, "", denied)
 			fm, err := compileFastMatcher(filteredAllowed, filteredDenied)
 			require.NoError(b, err)
 			rf.fastMatcher = fm
