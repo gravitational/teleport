@@ -1768,7 +1768,7 @@ export const formatters: Formatters = {
     type: 'access_list.review',
     desc: 'Access list review failed',
     format: ({ access_list_title, name, updated_by }) => {
-      return `User [${updated_by}] failed to to review access list [${access_list_title || name}]`;
+      return `User [${updated_by}] failed to review access list [${access_list_title || name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_MEMBER_CREATE]: {
