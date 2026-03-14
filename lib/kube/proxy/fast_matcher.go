@@ -42,15 +42,28 @@ type fastResourceMatcher struct {
 	denyRules  []compiledMatchRule
 }
 
-// compiledMatchRule is a single RBAC rule with pre-compiled regex patterns
+// compiledMatchRule is a single RBAC rule with pre-compiled matchers
 // and pre-filtered kind/verb/apiGroup (only rules matching the request are included).
 type compiledMatchRule struct {
-	apiGroup  *regexp.Regexp
-	name      *regexp.Regexp
-	namespace *regexp.Regexp
+	apiGroup  fieldMatcher
+	name      fieldMatcher
+	namespace fieldMatcher
 	// requiresNamespace is true when the original rule had a non-empty, non-wildcard namespace pattern.
 	// When true, resources with an empty namespace cannot match this rule.
 	requiresNamespace bool
+}
+
+// fieldMatcher matches a string either by exact literal comparison or by compiled regex.
+type fieldMatcher struct {
+	literal string         // set for exact match
+	re      *regexp.Regexp // set for pattern match
+}
+
+func (f fieldMatcher) match(s string) bool {
+	if f.re == nil {
+		return f.literal == s
+	}
+	return f.re.MatchString(s)
 }
 
 // maxFastMatcherRules is the maximum number of RBAC rules
@@ -141,10 +154,14 @@ func apiGroupAllowed(ruleAPIGroup, requestedAPIGroup string) bool {
 }
 
 func patternCanMatch(pattern, value string) bool {
-	if strings.Contains(pattern, "*") || utils.IsRegexp(pattern) {
+	if isGlobOrRegexp(pattern) {
 		return true
 	}
 	return pattern == value
+}
+
+func isGlobOrRegexp(expr string) bool {
+	return strings.Contains(expr, "*") || utils.IsRegexp(expr)
 }
 
 // compileMatchRules pre-compiles already-filtered RBAC rules. The cache map
@@ -153,41 +170,45 @@ func patternCanMatch(pattern, value string) bool {
 func compileMatchRules(resources []types.KubernetesResource, cache map[string]*regexp.Regexp) ([]compiledMatchRule, error) {
 	var rules []compiledMatchRule
 	for _, r := range resources {
-		apiGroupRe, err := compileCached(r.APIGroup, cache)
+		apiGroupM, err := compileFieldMatcher(r.APIGroup, cache)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		nameRe, err := compileCached(r.Name, cache)
+		nameM, err := compileFieldMatcher(r.Name, cache)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		nsRe, err := compileCached(r.Namespace, cache)
+		nsM, err := compileFieldMatcher(r.Namespace, cache)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		rules = append(rules, compiledMatchRule{
-			apiGroup:          apiGroupRe,
-			name:              nameRe,
-			namespace:         nsRe,
+			apiGroup:          apiGroupM,
+			name:              nameM,
+			namespace:         nsM,
 			requiresNamespace: r.Namespace != "" && r.Namespace != types.Wildcard,
 		})
 	}
 	return rules, nil
 }
 
-// compileCached compiles a regex expression,
-// caching the result in the given map to deduplicate patterns that appear in multiple rules (e.g., apiGroup="*").
-func compileCached(expression string, cache map[string]*regexp.Regexp) (*regexp.Regexp, error) {
+// compileFieldMatcher returns a fieldMatcher for the given expression.
+// Literal expressions (no wildcards or regex) use direct string comparison.
+// Patterns are compiled to regex, with results cached across rules.
+func compileFieldMatcher(expression string, cache map[string]*regexp.Regexp) (fieldMatcher, error) {
+	if !isGlobOrRegexp(expression) {
+		return fieldMatcher{literal: expression}, nil
+	}
 	if re, ok := cache[expression]; ok {
-		return re, nil
+		return fieldMatcher{re: re}, nil
 	}
 	re, err := utils.CompileExpression(expression)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return fieldMatcher{}, trace.Wrap(err)
 	}
 	cache[expression] = re
-	return re, nil
+	return fieldMatcher{re: re}, nil
 }
 
 // match checks if a resource with the given name, namespace, and apiGroup is allowed by the precompiled RBAC rules.
@@ -208,10 +229,10 @@ func (m *fastResourceMatcher) match(name, namespace, apiGroup string) bool {
 // matches checks whether a single compiled rule matches the given fields.
 // This mirrors the "default" case in KubeResourceMatchesRegex.
 func (r *compiledMatchRule) matches(name, namespace, apiGroup string) bool {
-	if !r.apiGroup.MatchString(apiGroup) {
+	if !r.apiGroup.match(apiGroup) {
 		return false
 	}
-	if !r.name.MatchString(name) {
+	if !r.name.match(name) {
 		return false
 	}
 	// Mirror the check: if input namespace is empty but rule requires a
@@ -219,5 +240,5 @@ func (r *compiledMatchRule) matches(name, namespace, apiGroup string) bool {
 	if namespace == "" && r.requiresNamespace {
 		return false
 	}
-	return r.namespace.MatchString(namespace)
+	return r.namespace.match(namespace)
 }
