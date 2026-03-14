@@ -54,7 +54,7 @@ func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allow
 	// This reduces per-item overhead from cache lookups + rule iteration to direct regex matching.
 	fm, err := tryCompileFastMatcher(mr, allowedResources, deniedResources)
 	if err != nil {
-		log.WarnContext(context.Background(), "Failed to compile fast matcher, falling back to per-item matching", "error", err)
+		log.DebugContext(context.Background(), "Failed to compile fast matcher, falling back to per-item matching", "error", err)
 	}
 
 	return func(contentType string, responseCode int) (responsewriters.Filter, error) {
