@@ -685,13 +685,19 @@ func HandleBoundKeypairJoin(
 	// internally consistent
 	switch {
 	case hasIncomingBotInstance && hasIncomingHostID:
+		// Can't have both parameters set.
 		return nil, trace.AccessDenied("cannot join with invalid identity")
-	case systemRole == types.RoleBot && hasIncomingHostID:
+	case systemRole == types.RoleBot && (hasIncomingHostID || hasBoundHostID):
 		// Note: this hasn't traditionally been enforced but bots have never
 		// self reported a host UUID. Given how new this join method is, it
 		// should be fairly safe to add this restriction.
 		fallthrough
-	case systemRole == types.RoleInstance && hasIncomingBotInstance:
+	case systemRole == types.RoleInstance && (hasIncomingBotInstance || hasBoundBotInstance):
+		fallthrough
+	case hasIncomingBotInstance && hasBoundHostID:
+		// Similarly, don't allow switching client types.
+		fallthrough
+	case hasIncomingHostID && hasBoundBotInstance:
 		return nil, trace.AccessDenied("cannot join with mismatched unique identifier")
 	}
 
@@ -894,7 +900,7 @@ func HandleBoundKeypairJoin(
 		// is required. Consumes a rejoin.
 		if recoveryMode == boundkeypair.RecoveryModeStandard && !hasJoinsRemaining {
 			// Recovery limit only applies in "standard" mode.
-			return nil, trace.AccessDenied("no rejoins remaining")
+			return nil, trace.AccessDenied("no recovery attempts remaining")
 		}
 
 		// Verify locks here now that we've verified private key ownership but
