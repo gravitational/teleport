@@ -44,7 +44,7 @@ func printTestSummary(e2eDir string) {
 		return
 	}
 
-	failed := collectFailures(report.Suites)
+	failed := collectTests(report.Suites, "unexpected")
 
 	// rewrite the paths relative to the caller directory
 	pathPrefix := ""
@@ -283,14 +283,14 @@ func collectTraces(failures []pwFailure, e2eDir string) []traceInfo {
 	return traces
 }
 
-func collectFailures(suites []pwSuite) []pwFailure {
-	var failures []pwFailure
+func collectTests(suites []pwSuite, status string) []pwFailure {
+	var tests []pwFailure
 
 	for _, suite := range suites {
 		for _, spec := range suite.Specs {
 			for _, test := range spec.Tests {
-				if test.Status == "unexpected" {
-					failures = append(failures, pwFailure{
+				if test.Status == status {
+					tests = append(tests, pwFailure{
 						title:       spec.Title,
 						file:        spec.File,
 						line:        spec.Line,
@@ -302,10 +302,10 @@ func collectFailures(suites []pwSuite) []pwFailure {
 			}
 		}
 
-		failures = append(failures, collectFailures(suite.Suites)...)
+		tests = append(tests, collectTests(suite.Suites, status)...)
 	}
 
-	return failures
+	return tests
 }
 
 func formatTestHeader(f pwFailure, indent string) string {

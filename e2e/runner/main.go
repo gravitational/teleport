@@ -97,7 +97,15 @@ func main() {
 		tty.Close()
 	}
 
-	printTestSummary(e2eDir)
+	if isCI {
+		if err := writeGitHubReport(e2eDir); err != nil {
+			slog.Error("failed to write GitHub report", "error", err)
+		}
+	}
+
+	if !flags.quiet {
+		printTestSummary(e2eDir)
+	}
 
 	if runErr != nil {
 		slog.Error("runner exited with error", "error", runErr)
