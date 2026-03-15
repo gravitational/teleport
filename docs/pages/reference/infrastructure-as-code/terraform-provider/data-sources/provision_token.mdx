@@ -228,7 +228,7 @@ Optional:
 - `environment` (String) The name of the environment used by the job.
 - `ref` (String) The git ref that triggered the workflow run.
 - `ref_type` (String) The type of ref, for example: "branch".
-- `repository` (String) The repository from where the workflow is running. This includes the name of the owner e.g `gravitational/teleport`
+- `repository` (String) The repository from where the workflow is running. This includes the name of the owner e.g.`gravitational/teleport`
 - `repository_owner` (String) The name of the organization in which the repository is stored.
 - `sub` (String) Sub also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of github action run.
 - `workflow` (String) The name of the workflow.
@@ -240,7 +240,7 @@ Optional:
 Optional:
 
 - `allow` (Attributes List) Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specgitlaballow))
-- `domain` (String) Domain is the domain of your GitLab instance. This will default to `gitlab.com` - but can be set to the domain of your self-hosted GitLab e.g `gitlab.example.com`.
+- `domain` (String) Domain is the domain of your GitLab instance. This will default to `gitlab.com` - but can be set to the domain of your self-hosted GitLab e.g.`gitlab.example.com`.
 - `static_jwks` (String) StaticJWKS disables fetching of the GitLab signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitLab CI instances that are not reachable by the Teleport Auth Service.
 
 ### Nested Schema for `spec.gitlab.allow`
@@ -367,7 +367,7 @@ Optional:
 
 Optional:
 
-- `description` (String) Description is a human-readable description of the rule. It has no bearing on whether or not a TPM is allowed to join, but can be used to associate a rule with a specific host (e.g the asset tag of the server in which the TPM resides). Example: "build-server-100"
+- `description` (String) Description is a human-readable description of the rule. It has no bearing on whether or not a TPM is allowed to join, but can be used to associate a rule with a specific host (e.g.the asset tag of the server in which the TPM resides). Example: "build-server-100"
 - `ek_certificate_serial` (String) EKCertificateSerial is the serial number of the EKCert in hexadecimal with colon separated nibbles. This value will not be checked when a TPM does not have an EKCert configured. Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
 - `ek_public_hash` (String) EKPublicHash is the SHA256 hash of the EKPub marshaled in PKIX format and encoded in hexadecimal. This value will also be checked when a TPM has submitted an EKCert, and the public key in the EKCert will be used for this check. Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
 
