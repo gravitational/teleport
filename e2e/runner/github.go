@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/google/go-github/v84/github"
@@ -93,9 +94,12 @@ func mergeFailures(failures []pwFailure) []mergedFailure {
 	groups := map[testKey]*mergedFailure{}
 
 	for _, f := range failures {
+		browser, _, _ := strings.Cut(f.projectName, ":")
 		k := testKey{file: f.file, line: f.line, title: f.title, firstErr: firstErrorMsg(f.results)}
 		if m, ok := groups[k]; ok {
-			m.projects = append(m.projects, f.projectName)
+			if !slices.Contains(m.projects, browser) {
+				m.projects = append(m.projects, browser)
+			}
 		} else {
 			order = append(order, k)
 			groups[k] = &mergedFailure{
@@ -103,7 +107,7 @@ func mergeFailures(failures []pwFailure) []mergedFailure {
 				file:     f.file,
 				line:     f.line,
 				column:   f.column,
-				projects: []string{f.projectName},
+				projects: []string{browser},
 				results:  f.results,
 			}
 		}
@@ -195,16 +199,7 @@ func renderMarkdownReport(w io.Writer, report pwReport, failures, flaky []merged
 			fmt.Fprintf(w, "<details>\n<summary><code>[%s]</code> <code>%s:%d</code>\n\n**%s**</summary>\n\n\n",
 				escapeHTML(browsers), escapeHTML(f.file), f.line, escapeHTML(f.title))
 
-			for _, r := range f.results {
-				for _, e := range r.Errors {
-					if e.Message != "" {
-						writeCodeFence(w, e.Message)
-					}
-					if e.Snippet != "" {
-						writeCodeFence(w, e.Snippet)
-					}
-				}
-			}
+			writeFailureErrors(w, f.results)
 
 			fmt.Fprint(w, "</details>\n\n")
 		}
@@ -434,6 +429,54 @@ func stripANSI(s string) string {
 	}
 
 	return b.String()
+}
+
+func writeFailureErrors(w io.Writer, results []pwResult) {
+	if len(results) == 0 {
+		return
+	}
+
+	// Show the first attempt's errors.
+	first := results[0]
+	for _, e := range first.Errors {
+		if e.Message != "" {
+			writeCodeFence(w, e.Message)
+		}
+		if e.Snippet != "" {
+			writeCodeFence(w, e.Snippet)
+		}
+	}
+
+	// Check retries.
+	retries := 0
+	var differentRetry *pwResult
+
+	for i := 1; i < len(results); i++ {
+		retries++
+		if firstErrorMsg(results[i:i+1]) != firstErrorMsg(results[:1]) {
+			differentRetry = &results[i]
+		}
+	}
+
+	if retries == 0 {
+		return
+	}
+
+	if differentRetry != nil {
+		fmt.Fprintf(w, "**Retry #%d failed with a different error:**\n", differentRetry.Retry)
+		for _, e := range differentRetry.Errors {
+			if e.Message != "" {
+				writeCodeFence(w, e.Message)
+			}
+			if e.Snippet != "" {
+				writeCodeFence(w, e.Snippet)
+			}
+		}
+	} else if retries == 1 {
+		fmt.Fprint(w, "*Retried once and failed with the same error.*\n\n")
+	} else {
+		fmt.Fprintf(w, "*Retried %d times and failed with the same error.*\n\n", retries)
+	}
 }
 
 func firstErrorLine(f mergedFailure) string {
