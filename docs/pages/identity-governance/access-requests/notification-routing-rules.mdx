@@ -12,7 +12,7 @@ enterprise: Identity Governance
 ---
 
 With Teleport's Access Monitoring Rules, Access Request notifications can be
-routed to plugins based on based on several conditions. For example, you may
+routed to plugins based on several conditions. For example, you may
 wish to send notifications to different Slack channels based on what roles or
 resources are being accessed, or based on what user is making the request.
 
@@ -22,7 +22,7 @@ The Access Monitoring Rule (AMR) is a dynamic Teleport resource that matches
 audit events with certain characteristics and instructs Teleport plugins to take
 action when it receives these events. Teleport plugins connect to the Teleport
 Auth Service and listen for AMRs. If an AMR matches the plugin, the plugin loads
-the the AMR and uses it to process incoming events. 
+the AMR and uses it to process incoming events. 
 
 Plugins implement AMR handling logic separately from one another. Currently,
 only a subset of hosted plugins support notification routing rules. We are
