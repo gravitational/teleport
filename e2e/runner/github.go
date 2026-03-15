@@ -56,34 +56,96 @@ func writeGitHubReport(e2eDir string) error {
 		flaky[i].file = "e2e/tests/" + flaky[i].file
 	}
 
-	emitAnnotations(failures, flaky)
+	mergedFailures := mergeFailures(failures)
+	mergedFlaky := mergeFailures(flaky)
 
-	if err := writeJobSummary(report, failures, flaky); err != nil {
+	emitAnnotations(mergedFailures, mergedFlaky)
+
+	if err := writeJobSummary(report, mergedFailures, mergedFlaky); err != nil {
 		slog.Warn("could not write job summary", "error", err)
 	}
 
-	if err := managePRComment(report, failures, flaky); err != nil {
+	if err := managePRComment(report, mergedFailures, mergedFlaky); err != nil {
 		slog.Warn("could not manage PR comment", "error", err)
 	}
 
 	return nil
 }
 
-func emitAnnotations(failures, flaky []pwFailure) {
+type mergedFailure struct {
+	title    string
+	file     string
+	line     int
+	column   int
+	projects []string
+	results  []pwResult
+}
+
+type testKey struct {
+	file     string
+	line     int
+	title    string
+	firstErr string
+}
+
+func mergeFailures(failures []pwFailure) []mergedFailure {
+	var order []testKey
+	groups := map[testKey]*mergedFailure{}
+
 	for _, f := range failures {
-		msg := fmt.Sprintf("[%s] %s", f.projectName, firstErrorLine(f))
+		k := testKey{file: f.file, line: f.line, title: f.title, firstErr: firstErrorMsg(f.results)}
+		if m, ok := groups[k]; ok {
+			m.projects = append(m.projects, f.projectName)
+		} else {
+			order = append(order, k)
+			groups[k] = &mergedFailure{
+				title:    f.title,
+				file:     f.file,
+				line:     f.line,
+				column:   f.column,
+				projects: []string{f.projectName},
+				results:  f.results,
+			}
+		}
+	}
+
+	merged := make([]mergedFailure, 0, len(order))
+	for _, k := range order {
+		merged = append(merged, *groups[k])
+	}
+
+	return merged
+}
+
+func firstErrorMsg(results []pwResult) string {
+	for _, r := range results {
+		for _, e := range r.Errors {
+			if e.Message != "" {
+				return stripANSI(e.Message)
+			}
+		}
+	}
+
+	return ""
+}
+
+func emitAnnotations(failures, flaky []mergedFailure) {
+	for _, f := range failures {
+		browsers := strings.Join(f.projects, ", ")
+		msg := fmt.Sprintf("[%s] %s", browsers, firstErrorLine(f))
 		fmt.Printf("::error file=%s,line=%d,col=%d::%s\n",
 			escapeProp(f.file), f.line, f.column, escapeData(msg))
 	}
 
 	for _, f := range flaky {
-		msg := fmt.Sprintf("[%s] Flaky: %s", f.projectName, f.title)
+		browsers := strings.Join(f.projects, ", ")
+		msg := fmt.Sprintf("[%s] Flaky: %s", browsers, f.title)
 		fmt.Printf("::warning file=%s,line=%d,col=%d::%s\n",
 			escapeProp(f.file), f.line, f.column, escapeData(msg))
 	}
 }
 
-func writeJobSummary(report pwReport, failures, flaky []pwFailure) error {
+func writeJobSummary(report pwReport, failures, flaky []mergedFailure) error {
 	summaryPath := os.Getenv("GITHUB_STEP_SUMMARY")
 	if summaryPath == "" {
 		slog.Warn("GITHUB_STEP_SUMMARY not set, skipping job summary")
@@ -108,7 +170,7 @@ func writeJobSummary(report pwReport, failures, flaky []pwFailure) error {
 	return nil
 }
 
-func renderMarkdownReport(w io.Writer, report pwReport, failures, flaky []pwFailure) {
+func renderMarkdownReport(w io.Writer, report pwReport, failures, flaky []mergedFailure) {
 	fmt.Fprint(w, "### E2E Test Results\n\n")
 
 	fmt.Fprint(w, "```diff\n")
@@ -129,8 +191,9 @@ func renderMarkdownReport(w io.Writer, report pwReport, failures, flaky []pwFail
 		fmt.Fprint(w, "\n#### Failures\n\n")
 
 		for _, f := range failures {
-			fmt.Fprintf(w, "<details>\n<summary><code>-</code> <code>[%s]</code> <code>%s:%d</code> \u2014 %s</summary>\n<br>\n\n",
-				escapeHTML(f.projectName), escapeHTML(f.file), f.line, escapeHTML(f.title))
+			browsers := strings.Join(f.projects, ", ")
+			fmt.Fprintf(w, "<details>\n<summary><code>[%s]</code> <code>%s:%d</code>\n\n**%s**</summary>\n\n\n",
+				escapeHTML(browsers), escapeHTML(f.file), f.line, escapeHTML(f.title))
 
 			for _, r := range f.results {
 				for _, e := range r.Errors {
@@ -151,8 +214,9 @@ func renderMarkdownReport(w io.Writer, report pwReport, failures, flaky []pwFail
 		fmt.Fprint(w, "\n---\n\n#### Flaky\n\n")
 
 		for _, f := range flaky {
-			fmt.Fprintf(w, "<details>\n<summary><code>!</code> <code>[%s]</code> <code>%s:%d</code> \u2014 %s</summary>\n<br>\n\n",
-				escapeHTML(f.projectName), escapeHTML(f.file), f.line, escapeHTML(f.title))
+			browsers := strings.Join(f.projects, ", ")
+			fmt.Fprintf(w, "<details>\n<summary><code>[%s]</code> <code>%s:%d</code>\n\n**%s**</summary>\n\n\n",
+				escapeHTML(browsers), escapeHTML(f.file), f.line, escapeHTML(f.title))
 
 			for _, r := range f.results {
 				if r.Retry == 0 {
@@ -175,7 +239,7 @@ func renderMarkdownReport(w io.Writer, report pwReport, failures, flaky []pwFail
 	}
 }
 
-func managePRComment(report pwReport, failures, flaky []pwFailure) error {
+func managePRComment(report pwReport, failures, flaky []mergedFailure) error {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
 		return fmt.Errorf("GITHUB_TOKEN not set")
@@ -334,6 +398,7 @@ func escapeHTML(s string) string {
 }
 
 func writeCodeFence(w io.Writer, text string) {
+	text = stripANSI(text)
 	fence := "```"
 	for strings.Contains(text, fence) {
 		fence += "`"
@@ -344,15 +409,43 @@ func writeCodeFence(w io.Writer, text string) {
 	fmt.Fprint(w, "\n"+fence+"\n\n")
 }
 
-func firstErrorLine(f pwFailure) string {
+func stripANSI(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+
+	inEsc := false
+
+	for _, r := range s {
+		if r == '\033' {
+			inEsc = true
+
+			continue
+		}
+
+		if inEsc {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				inEsc = false
+			}
+
+			continue
+		}
+
+		b.WriteRune(r)
+	}
+
+	return b.String()
+}
+
+func firstErrorLine(f mergedFailure) string {
 	for _, r := range f.results {
 		for _, e := range r.Errors {
 			if e.Message != "" {
-				if line, _, ok := strings.Cut(e.Message, "\n"); ok {
+				msg := stripANSI(e.Message)
+				if line, _, ok := strings.Cut(msg, "\n"); ok {
 					return line
 				}
 
-				return e.Message
+				return msg
 			}
 		}
 	}
