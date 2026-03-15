@@ -6,7 +6,7 @@ fails.
 **If tbot was installed using the Teleport install script or `teleport-update`
 command, the `tbot` systemd service is automatically created for you.**
 
-After `tbot.yaml` is created, enable and start the service::
+After `tbot.yaml` is created, enable and start the service:
 
 ```code
 $ sudo systemctl enable tbot --now
@@ -18,7 +18,7 @@ Check the service has started successfully:
 $ sudo systemctl status tbot
 ```
 
-Service properties like `User` and `Group` may be configured using `systemctl edit tbot`.`
+Service properties like `User` and `Group` may be configured using `systemctl edit tbot`.
 
 **If tbot was installed manually, service configuration will need to be
 performed manually as well.**
