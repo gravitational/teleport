@@ -345,8 +345,9 @@ func (h *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID
 	// Happy path: the final summary exists.
 	rc, err := h.gcsRetrier(ctx, h.summaryPath(sessionID))
 	if trace.IsNotFound(err) {
-		// Final summary doesn't exist, try the pending one.
-		rc, err = h.gcsRetrier(ctx, h.pendingSummaryPath(sessionID))
+		// Final summary doesn't exist, try the pending one. We don't retry
+		// here since the pending summary can be overwritten at any time.
+		rc, err = h.gcsStream(ctx, h.pendingSummaryPath(sessionID))
 		if trace.IsNotFound(err) {
 			// One more check for the final summary to prevent a race condition where
 			// the final one got created and the pending one got removed between the
@@ -355,6 +356,17 @@ func (h *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID
 		}
 	}
 	return rc, trace.Wrap(err)
+}
+
+// gcsStream downloads an object in a single shot without retry logic.
+func (h *Handler) gcsStream(ctx context.Context, objectPath string) (io.ReadCloser, error) {
+	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", objectPath)
+	obj := h.gcsClient.Bucket(h.Config.Bucket).Object(objectPath)
+	reader, err := obj.NewReader(ctx)
+	if err != nil {
+		return nil, convertGCSError(err)
+	}
+	return reader, nil
 }
 
 // StreamSessionMetadata downloads a session's metadata from a GCS bucket and

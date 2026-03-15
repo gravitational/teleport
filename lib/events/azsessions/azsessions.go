@@ -393,8 +393,9 @@ func (h *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID
 	// Happy path: the final summary exists.
 	rc, err := h.blobRetrier(ctx, sessionID, h.summaryBlob(sessionID))
 	if trace.IsNotFound(err) {
-		// Final summary doesn't exist, try the pending one.
-		rc, err = h.blobRetrier(ctx, sessionID, h.pendingSummaryBlob(sessionID))
+		// Final summary doesn't exist, try the pending one. We don't retry
+		// here since the pending summary can be overwritten at any time.
+		rc, err = h.blobStream(ctx, h.pendingSummaryBlob(sessionID))
 		if trace.IsNotFound(err) {
 			// One more check for the final summary to prevent a race condition where
 			// the final one got created and the pending one got removed between the
@@ -403,6 +404,15 @@ func (h *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID
 		}
 	}
 	return rc, trace.Wrap(err)
+}
+
+// blobStream downloads a blob in a single shot without retry logic.
+func (h *Handler) blobStream(ctx context.Context, blobClient *blockblob.Client) (io.ReadCloser, error) {
+	resp, err := cErr(blobClient.DownloadStream(ctx, nil))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.Body, nil
 }
 
 // StreamSessionMetadata implements [events.UploadHandler] and downloads a session's metadata.
