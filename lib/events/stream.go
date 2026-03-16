@@ -401,30 +401,41 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 	return stream, nil
 }
 
-// ProtoStream implements concurrent safe event emitter
-// that uploads the parts in parallel to S3
+// ProtoStream is a concurrent-safe event emitter that uploads
+// session recording data in parallel slices.
+//
+// Callers create a stream, emit events via RecordEvent, and then
+// call exactly one of Complete or Close to finish:
+//
+//   - Complete finalizes the recording in upstream storage.
+//   - Close flushes pending data without finalizing, so the
+//     upload can be resumed later.
+//
+// Both are terminal operations. When either returns, all resources
+// are released and all background goroutines are stopped. Callers
+// must not use the stream after calling Complete or Close.
 type ProtoStream struct {
 	cfg ProtoStreamConfig
 
 	eventsCh chan protoEvent
 
-	// cancelCtx is canceled when the stream's goroutines should exit.
-	// This happens on all exit paths: successful completion, timeout,
-	// error, or explicit close.
+	// cancelCtx is canceled when Complete or Close returns,
+	// stopping all background goroutines.
 	cancelCtx context.Context
 	cancel    context.CancelFunc
 	cancelErr error
 	cancelMtx *sync.RWMutex
 
-	// completeCtx is used to signal completion of the operation
+	// completeCtx is canceled to signal the upload loop that it
+	// should flush remaining data and finish.
 	completeCtx    context.Context
 	complete       context.CancelFunc
 	completeType   atomic.Uint32
 	completeResult error
 	completeMtx    *sync.RWMutex
 
-	// uploadLoopDoneCh is closed when the slice exits the upload loop.
-	// The exit might be an indication of completion or a cancelation
+	// uploadLoopDoneCh is closed when the upload loop exits,
+	// either from completion or cancellation.
 	uploadLoopDoneCh chan struct{}
 
 	// statusCh sends updates on the stream status
@@ -501,10 +512,9 @@ func (s *ProtoStream) RecordEvent(ctx context.Context, pe apievents.PreparedSess
 	}
 }
 
-// Complete completes the upload, waits for completion and returns
-// all allocated resources. The stream's internal context is always
-// canceled when Complete returns (via defer), regardless of whether
-// the upload finished successfully or the caller's context timed out.
+// Complete finalizes the recording in upstream storage and
+// releases all resources held by the stream. The caller must
+// not use the stream after calling Complete.
 func (s *ProtoStream) Complete(ctx context.Context) error {
 	defer s.cancel()
 	s.complete()
@@ -522,11 +532,10 @@ func (s *ProtoStream) Status() <-chan apievents.StreamStatus {
 	return s.statusCh
 }
 
-// Close flushes non-uploaded in-flight stream data without marking
-// the stream completed and closes the stream instance. The stream's
-// internal context is always canceled when Close returns (via defer),
-// regardless of whether the flush finished or the caller's context
-// timed out.
+// Close flushes pending data without finalizing the recording
+// and releases all resources held by the stream. The upload can
+// be resumed later via ResumeAuditStream. The caller must not
+// use the stream after calling Close.
 func (s *ProtoStream) Close(ctx context.Context) error {
 	defer s.cancel()
 	s.completeType.Store(completeTypeFlush)
