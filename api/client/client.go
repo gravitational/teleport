@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
+	"github.com/gravitational/teleport/api/client/balancer"
 	crownjewelapi "github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/dynamicwindows"
@@ -134,6 +135,7 @@ func init() {
 	if err := ggzip.SetLevel(gzip.BestSpeed); err != nil {
 		panic(err)
 	}
+	balancer.RegisterTeleportPickHealthyBalancer()
 }
 
 // AuthServiceClient keeps the interfaces implemented by the auth service.
@@ -674,6 +676,10 @@ type Config struct {
 	// SSOMFACeremonyConstructor is used to handle SSO MFA when needed.
 	// If nil, the client will not prompt for MFA.
 	SSOMFACeremonyConstructor mfa.SSOMFACeremonyConstructor
+	// LocalAuth indicates whether the client is connecting to a auth service
+	// running locally. This ensures local clients ignore health checking and
+	// reconnecting.
+	LocalAuth bool
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -715,6 +721,12 @@ func (c *Config) CheckAndSetDefaults() error {
 			// necessary for connection route selection to work properly.
 			grpc.WithReturnConnectionError(),
 		)
+	}
+	// Avoid using the custom client load balancer when auth is running locally
+	// since local clients can't benefit from failover.
+	if !c.LocalAuth {
+		serviceConfig := `{"loadBalancingConfig":[{"teleport_pick_healthy":{}}],"healthCheckConfig":{"serviceName":""}}`
+		c.DialOpts = append(c.DialOpts, grpc.WithDefaultServiceConfig(serviceConfig))
 	}
 
 	return nil

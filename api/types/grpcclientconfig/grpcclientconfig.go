@@ -24,10 +24,34 @@ func DefaultServiceConfig() *grpcv1.ServiceConfig {
 	return &grpcv1.ServiceConfig{
 		LoadBalancingConfig: []*grpcv1.LoadBalancerConfig{{
 			Config: &grpcv1.LoadBalancerConfig_TeleportPickHealthy{
-				TeleportPickHealthy: &grpcv1.TeleportPickHealthyConfig{
-					Mode: grpcv1.Mode_MODE_PICK_FIRST,
-				},
+				TeleportPickHealthy: defaultTeleportPickHealthy(),
 			},
 		}},
 	}
+}
+
+func defaultTeleportPickHealthy() *grpcv1.TeleportPickHealthyConfig {
+	return &grpcv1.TeleportPickHealthyConfig{
+		Mode: grpcv1.Mode_MODE_PICK_FIRST,
+	}
+}
+
+// TeleportPickHealthy searches for a [grpcv1.TeleportPickHealthConfig] in the
+// service config or returns the default configuration.
+func TeleportPickHealthy(config *grpcv1.ServiceConfig) *grpcv1.TeleportPickHealthyConfig {
+	for _, c := range config.GetLoadBalancingConfig() {
+		if tc := c.GetTeleportPickHealthy(); tc != nil {
+			return tc
+		}
+	}
+	return defaultTeleportPickHealthy()
+}
+
+// HealthCheckingEnabled checks if healthchecking is enabled in the service
+// config, defaulting to false.
+func HealthCheckingEnabled(config *grpcv1.ServiceConfig) bool {
+	if config == nil || config.HealthCheckConfig == nil || config.HealthCheckConfig.ServiceName == nil {
+		return false
+	}
+	return true
 }
