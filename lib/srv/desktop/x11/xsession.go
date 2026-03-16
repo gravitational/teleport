@@ -134,14 +134,14 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 
 	env := envutils.SafeEnv{}
 	env.AddTrusted("DISPLAY", cfg.Display)
-	env.AddExecEnvironment()
 
 	cmdmsg := &srv.ExecCommand{
-		Command:     cfg.Command,
-		RequestType: sshutils.ExecRequest,
-		Login:       cfg.Login,
-		Username:    cfg.Username,
-		Environment: env,
+		Command:         cfg.Command,
+		ForceLoginShell: true,
+		RequestType:     sshutils.ExecRequest,
+		Login:           cfg.Login,
+		Username:        cfg.Username,
+		Environment:     env,
 		LogConfig: srv.ExecLogConfig{
 			Level:        logCfg.Level,
 			Format:       logCfg.Format,
@@ -159,6 +159,8 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 		readyw,
 		killr,
 	}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	cmd.Cancel = killw.Close
 	if err := cmd.Start(); err != nil {
 		killw.Close()
@@ -176,7 +178,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := waitForChildReadySignal(readyr, 10*time.Second); err != nil {
+	if err := waitForChildReadySignal(readyr, 1*time.Second); err != nil {
 		_ = cmd.Cancel()
 		return nil, trace.Wrap(err)
 	}

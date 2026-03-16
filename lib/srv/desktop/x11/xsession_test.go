@@ -2,7 +2,6 @@ package x11
 
 import (
 	"errors"
-	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -53,22 +52,24 @@ func TestStartTeleportExecXSession(t *testing.T) {
 
 	logger := slog.Default()
 	cfg := func() *XSessionConfig {
+		config := srv.ExecLogConfig{
+			Level: &slog.LevelVar{},
+		}
+		config.Level.Set(slog.LevelInfo)
 		return &XSessionConfig{
 			Logger:   logger,
 			Username: username,
 			Login:    username,
 			LogConfig: &srv.ChildLogConfig{
-				ExecLogConfig: srv.ExecLogConfig{
-					Level: &slog.LevelVar{},
-				},
-				Writer: io.Discard,
+				ExecLogConfig: config,
+				Writer:        os.Stderr,
 			},
 			Display: ":0",
 		}
 	}
 	t.Run("valid command", func(t *testing.T) {
 		config := cfg()
-		config.Command = "sh -c 'echo a'"
+		config.Command = "echo a"
 		cmd, err := StartTeleportExecXSession(t.Context(), config)
 		require.NoError(t, err)
 		err = cmd.Wait()
@@ -87,7 +88,7 @@ func TestStartTeleportExecXSession(t *testing.T) {
 	})
 	t.Run("invalid user", func(t *testing.T) {
 		config := cfg()
-		config.Command = "sh -c 'echo a'"
+		config.Command = "echo a"
 		config.Login = "invalid-username"
 		cmd, err := StartTeleportExecXSession(t.Context(), config)
 		require.NoError(t, err)
@@ -99,7 +100,7 @@ func TestStartTeleportExecXSession(t *testing.T) {
 	})
 	t.Run("correct DISPLAY", func(t *testing.T) {
 		config := cfg()
-		config.Command = "sh -c '[ \"$DISPLAY\" = \":0\" ]'"
+		config.Command = "[ \"$DISPLAY\" = \":0\" ]"
 		cmd, err := StartTeleportExecXSession(t.Context(), config)
 		require.NoError(t, err)
 		err = cmd.Wait()

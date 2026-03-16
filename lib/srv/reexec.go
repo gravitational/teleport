@@ -113,6 +113,10 @@ type ExecCommand struct {
 	// the subsystem name.
 	Command string `json:"command"`
 
+	// ForceLoginShell indicates if we should use login shell even when
+	// command is provided.
+	ForceLoginShell bool `json:"force_login_shell"`
+
 	// DestinationAddress is the target address to dial to.
 	DestinationAddress string `json:"dst_addr"`
 
@@ -1100,6 +1104,11 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 		// this is a login shell."
 		// https://github.com/openssh/openssh-portable/blob/master/session.c
 		cmd.Args = []string{"-" + filepath.Base(shellPath)}
+	} else if c.ForceLoginShell {
+		// Configure the shell to run in 'login' mode even though command
+		// was provided
+		cmd.Path = shellPath
+		cmd.Args = []string{"-" + filepath.Base(shellPath), "-c", c.Command}
 	} else {
 		// Execute commands like OpenSSH does:
 		// https://github.com/openssh/openssh-portable/blob/master/session.c
