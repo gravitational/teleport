@@ -595,6 +595,90 @@ func TestMatcherEquivalence(t *testing.T) {
 	}
 }
 
+// TestMatcherEquivalenceMatrix generates a cross product of rule patterns and resource inputs.
+// Then verifies fastMatcher, defaultMatcher and the original matchKubernetesResource all agree.
+// This catches regressions that hand-picked cases might miss.
+func TestMatcherEquivalenceMatrix(t *testing.T) {
+	t.Parallel()
+
+	// Rule patterns covering literals, globs, regexes, wildcards, and empty strings.
+	namePatterns := []string{"nginx", "nginx-*", "^nginx-[a-z]+$", "*", ""}
+	nsPatterns := []string{"default", "kube-*", "^staging-.*$", "*", ""}
+	apiGroupPatterns := []string{"", "apps", "*"}
+
+	// Resources to match against each rule set.
+	names := []string{"nginx", "nginx-web", "nginx-123", "redis", ""}
+	namespaces := []string{"default", "kube-system", "staging-prod", "other", ""}
+	apiGroups := []string{"", "apps"}
+
+	kind := types.KindKubePod
+	verb := types.KubeVerbList
+
+	for _, nameP := range namePatterns {
+		for _, nsP := range nsPatterns {
+			for _, agP := range apiGroupPatterns {
+				allowed := []types.KubernetesResource{
+					{Kind: kind, Namespace: nsP, Name: nameP, Verbs: []string{verb}, APIGroup: agP},
+				}
+
+				for _, inputName := range names {
+					for _, inputNS := range namespaces {
+						for _, inputAG := range apiGroups {
+							mr := metaResource{
+								requestedResource: apiResource{resourceKind: kind, apiGroup: inputAG},
+								verb:              verb,
+							}
+							fm, err := tryCompileFastMatcher(mr, allowed, nil)
+							if err != nil {
+								// Invalid regex — fast matcher falls back to default. Skip.
+								continue
+							}
+							if fm == nil {
+								// Threshold exceeded or namespace kind. Skip.
+								continue
+							}
+
+							resource := types.KubernetesResource{
+								Kind: kind, Namespace: inputNS, Name: inputName,
+								Verbs: []string{verb}, APIGroup: inputAG,
+							}
+
+							expected, err := matchKubernetesResource(resource, false, allowed, nil)
+							if err != nil {
+								continue
+							}
+
+							fastResult, err := fm.match(inputName, inputNS, inputAG)
+							if err != nil {
+								continue
+							}
+
+							dm := &defaultMatcher{
+								kind: kind, verb: verb,
+								allowedResources: allowed,
+							}
+							defaultResult, err := dm.match(inputName, inputNS, inputAG)
+							if err != nil {
+								continue
+							}
+
+							label := fmt.Sprintf("allow[ns=%q,name=%q,ag=%q]/input[ns=%q,name=%q,ag=%q]",
+								nsP, nameP, agP, inputNS, inputName, inputAG)
+
+							if fastResult != expected {
+								t.Errorf("fastMatcher mismatch: %s: got %v, want %v", label, fastResult, expected)
+							}
+							if defaultResult != expected {
+								t.Errorf("defaultMatcher mismatch: %s: got %v, want %v", label, defaultResult, expected)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 // buildUnstructuredList creates an unstructured list with the given items for benchmarks.
 func buildUnstructuredList(listKind, apiVersion string, items []map[string]any) *unstructured.Unstructured {
 	anyItems := make([]any, len(items))
