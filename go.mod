@@ -290,6 +290,8 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.6.0
 )
 
+require github.com/jezek/xgb v1.3.0
+
 require (
 	cel.dev/expr v0.25.1 // indirect
 	cloud.google.com/go v0.121.6 // indirect

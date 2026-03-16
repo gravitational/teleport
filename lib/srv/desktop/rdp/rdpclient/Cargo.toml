@@ -45,6 +45,13 @@ reqwest = { version = "0.13", default-features = false }
 rustls = { version = "0.23.35", default-features = false, features = [
     "aws-lc-rs",
 ] }
+qoi = "0.4.1"
+zstd = "0.13.3"
+
+[dev-dependencies]
+ironrdp-graphics.workspace = true
+ironrdp-session.workspace = true
+ironrdp-session.features = ["qoiz"]
 
 [build-dependencies]
 cbindgen = "0.29.2"

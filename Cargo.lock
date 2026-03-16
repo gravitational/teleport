@@ -346,6 +346,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
+name = "bytemuck"
+version = "1.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8efb64bd706a16a1bdde310ae86b351e4d21550d98d056f22f8a7f7a2183fec"
+
+[[package]]
 name = "byteorder"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1565,7 +1571,9 @@ dependencies = [
  "ironrdp-graphics",
  "ironrdp-pdu",
  "ironrdp-svc",
+ "qoicoubeh",
  "tracing",
+ "zstd-safe",
 ]
 
 [[package]]
@@ -2205,6 +2213,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "qoi"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f6d64c71eb498fe9eae14ce4ec935c555749aef511cca85b5568910d6e48001"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
+name = "qoicoubeh"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9b82aa3fef8a980075775b8c46f874823b5b4a15de327d2dbb3b6fd818480ba"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2303,6 +2329,7 @@ dependencies = [
  "ironrdp-core",
  "ironrdp-displaycontrol",
  "ironrdp-dvc",
+ "ironrdp-graphics",
  "ironrdp-pdu",
  "ironrdp-rdpdr",
  "ironrdp-rdpsnd",
@@ -2316,6 +2343,7 @@ dependencies = [
  "picky",
  "picky-asn1-der",
  "picky-asn1-x509 0.15.2",
+ "qoi",
  "rand 0.9.2",
  "rdp-decoder",
  "reqwest 0.13.1",
@@ -2328,6 +2356,7 @@ dependencies = [
  "url",
  "utf16string",
  "uuid",
+ "zstd",
 ]
 
 [[package]]
@@ -3959,4 +3988,32 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "zstd"
+version = "0.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a"
+dependencies = [
+ "zstd-safe",
+]
+
+[[package]]
+name = "zstd-safe"
+version = "7.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f49c4d5f0abb602a93fb8736af2a4f4dd9512e36f7f570d66e65ff867ed3b9d"
+dependencies = [
+ "zstd-sys",
+]
+
+[[package]]
+name = "zstd-sys"
+version = "2.0.16+zstd.1.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91e19ebc2adc8f83e43039e79776e3fda8ca919132d68a1fed6a5faca2683748"
+dependencies = [
+ "cc",
+ "pkg-config",
 ]

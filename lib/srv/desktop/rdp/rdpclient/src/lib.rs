@@ -48,6 +48,7 @@ use std::ptr;
 use util::{from_c_string, from_go_array};
 pub mod client;
 mod cliprdr;
+mod encoder;
 mod license;
 mod network_client;
 mod piv;
