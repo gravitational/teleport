@@ -26,6 +26,7 @@ import {
   expect,
   test as base,
   type Page,
+  TestInfo,
 } from '@playwright/test';
 
 import { connectTshBin, connectAppDir, password, inviteUrl } from './env';
@@ -92,7 +93,23 @@ export const test = base.extend<{
       await login(app.page);
     }
     await use(app);
+
+    if (testInfo.status !== testInfo.expectedStatus) {
+      await attachLogs(temp.path, testInfo);
+    }
   },
 });
+
+const logFiles = ['main.log', 'renderer.log', 'shared.log', 'tshd.log'];
+async function attachLogs(dataDir: string, testInfo: TestInfo) {
+  const logsDir = path.join(dataDir, 'userData', 'logs');
+  await Promise.all(
+    logFiles.map(logFile =>
+      testInfo.attach(logFile, {
+        path: path.join(logsDir, logFile),
+      })
+    )
+  );
+}
 
 export { expect };
