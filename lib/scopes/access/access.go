@@ -310,6 +310,12 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 	if !botSet && assignment.GetSpec().BotScope != "" {
 		return trace.BadParameter("scoped role assignment %q with spec.bot_scope set must also have spec.bot_name set", assignment.GetMetadata().GetName())
 	}
+	// Now check that if bot_scope is set, it's valid.
+	if botSet {
+		if err := scopes.StrongValidate(assignment.GetSpec().GetBotScope()); err != nil {
+			return trace.BadParameter("scoped role assignment %q has invalid spec.bot_scope: %v", assignment.GetMetadata().GetName(), err)
+		}
+	}
 
 	for i, subAssignment := range assignment.GetSpec().GetAssignments() {
 		if subAssignment.GetRole() == "" {
@@ -329,7 +335,7 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		}
 
 		// If this assignment is to a bot, we want to ensure that the assigned scope is within the bot's declared scope.
-		if botSet && !scopes.PolicyAssignmentScope((subAssignment.GetScope())).IsSubjectToPolicyResourceScope(assignment.GetSpec().GetBotScope()) {
+		if botSet && !scopes.PolicyAssignmentScope(subAssignment.GetScope()).IsSubjectToPolicyResourceScope(assignment.GetSpec().GetBotScope()) {
 			return trace.BadParameter(
 				"scoped role assignment %q has sub-assignment %d with scope %q that is not a sub-scope of the bot's declared scope %q",
 				assignment.GetMetadata().GetName(),
