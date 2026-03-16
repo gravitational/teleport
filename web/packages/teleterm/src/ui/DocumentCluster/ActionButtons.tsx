@@ -30,6 +30,7 @@ import {
   MenuItemSectionLabel,
   MenuItemSectionSeparator,
 } from 'design/Menu/MenuItem';
+import { HoverTooltip } from 'design/Tooltip';
 import { App, PortRange } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
@@ -213,8 +214,8 @@ export function ConnectDatabaseActionButton(props: {
   const appContext = useAppContext();
   const { database } = props;
 
-  const shouldShowFilterInput =
-    !database.wildcardUserAllowed && database.databaseUsers.length > 0;
+  const noUsersAvailable =
+    !database.wildcardUserAllowed && database.databaseUsers.length === 0;
 
   function connect(dbUser: string): void {
     const { uri, name, protocol, gcpProjectId, autoUserProvisioning } =
@@ -242,11 +243,28 @@ export function ConnectDatabaseActionButton(props: {
     );
   }
 
+  if (noUsersAvailable) {
+    return (
+      <HoverTooltip tipContent="No db username available">
+        <ButtonBorder
+          disabled
+          size="small"
+          textTransform="none"
+          width={buttonWidth}
+        >
+          Connect
+        </ButtonBorder>
+      </HoverTooltip>
+    );
+  }
+
   return (
     <MenuLogin
       {...getDatabaseMenuLoginOptions(database)}
       inputType={
-        shouldShowFilterInput ? MenuInputType.FILTER : MenuInputType.INPUT
+        !database.wildcardUserAllowed
+          ? MenuInputType.FILTER
+          : MenuInputType.INPUT
       }
       textTransform="none"
       width="195px"
@@ -278,14 +296,10 @@ function getDatabaseMenuLoginOptions(
     };
   }
 
-  const isSearchable = databaseUsers.length > 0 && !wildcardUserAllowed;
-
-  let placeholder = 'Enter username';
-  if (isSearchable) {
-    placeholder = 'Search by username';
-  } else if (databaseUsers.length === 0 && !wildcardUserAllowed) {
-    placeholder = 'No db username available';
-  }
+  const placeholder =
+    !wildcardUserAllowed && databaseUsers.length > 0
+      ? 'Search by username'
+      : 'Enter username';
 
   return { placeholder, required: true };
 }

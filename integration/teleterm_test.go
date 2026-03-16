@@ -149,6 +149,10 @@ func TestTeleterm(t *testing.T) {
 		testSettingSiteName(t, pack, creds)
 	})
 
+	t.Run("ListUnifiedResources returns database users", func(t *testing.T) {
+		testListDatabaseUsersFromUnifiedResources(t, pack)
+	})
+
 	t.Run("with MFA", func(t *testing.T) {
 		authServer := pack.Root.Cluster.Process.GetAuthServer()
 		rpID, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
@@ -1246,6 +1250,113 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeID)
 		return trace.IsNotFound(err)
 	}, time.Minute, time.Second, "waiting for node to be deleted")
+}
+
+func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.DatabasePack) {
+	ctx := context.Background()
+
+	mustAddDBUserToUserRole := func(ctx context.Context, t *testing.T, cluster *helpers.TeleInstance, user, dbUser string) {
+		t.Helper()
+		authServer := cluster.Process.GetAuthServer()
+		roleName := services.RoleNameForUser(user)
+		role, err := authServer.GetRole(ctx, roleName)
+		require.NoError(t, err)
+
+		dbUsers := role.GetDatabaseUsers(types.Allow)
+		dbUsers = append(dbUsers, dbUser)
+		role.SetDatabaseUsers(types.Allow, dbUsers)
+		_, err = authServer.UpdateRole(ctx, role)
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			role, err := authServer.GetRole(ctx, roleName)
+			require.NoError(t, err)
+			require.Equal(t, dbUsers, role.GetDatabaseUsers(types.Allow))
+		}, 10*time.Second, 100*time.Millisecond)
+	}
+
+	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
+	require.NoError(t, err)
+	rootDatabaseURI := uri.NewClusterURI(rootClusterName).AppendDB(pack.Root.PostgresService.Name)
+	leafDatabaseURI := uri.NewClusterURI(rootClusterName).AppendLeafCluster(pack.Leaf.Cluster.Secrets.SiteName).AppendDB(pack.Leaf.PostgresService.Name)
+
+	rootDBUser := fmt.Sprintf("root-db-user-%s", uuid.NewString())
+	leafDBUser := fmt.Sprintf("leaf-db-user-%s", uuid.NewString())
+
+	rootUserName := pack.Root.User.GetName()
+	leafUserName := pack.Leaf.User.GetName()
+
+	tests := []struct {
+		name       string
+		dbURI      uri.ResourceURI
+		wantDBUser string
+	}{
+		{
+			name:       "root cluster",
+			dbURI:      rootDatabaseURI,
+			wantDBUser: rootDBUser,
+		},
+		{
+			name:       "leaf cluster",
+			dbURI:      leafDatabaseURI,
+			wantDBUser: leafDBUser,
+		},
+	}
+
+	mustAddDBUserToUserRole(ctx, t, pack.Root.Cluster, rootUserName, rootDBUser)
+	mustAddDBUserToUserRole(ctx, t, pack.Leaf.Cluster, leafUserName, leafDBUser)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
+				Process:  pack.Root.Cluster.Process,
+				Username: rootUserName,
+			})
+			require.NoError(t, err)
+
+			tc := mustLogin(t, rootUserName, pack, creds)
+
+			storage, err := clusters.NewStorage(clusters.Config{
+				ClientStore:        tc.ClientStore,
+				InsecureSkipVerify: tc.InsecureSkipVerify,
+			})
+			require.NoError(t, err)
+
+			daemonService, err := daemon.New(daemon.Config{
+				Storage:        storage,
+				KubeconfigsDir: t.TempDir(),
+				AgentsDir:      t.TempDir(),
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				daemonService.Stop()
+			})
+
+			handler, err := handler.New(
+				handler.Config{
+					DaemonService: daemonService,
+				},
+			)
+			require.NoError(t, err)
+
+			res, err := handler.ListUnifiedResources(ctx, &api.ListUnifiedResourcesRequest{
+				ClusterUri: test.dbURI.GetClusterURI().String(),
+				Kinds:      []string{types.KindDatabase},
+			})
+			require.NoError(t, err)
+
+			var matchedDatabase *api.Database
+			for _, resource := range res.Resources {
+				database := resource.GetDatabase()
+				if database != nil && database.Uri == test.dbURI.String() {
+					matchedDatabase = database
+					break
+				}
+			}
+			require.NotNil(t, matchedDatabase, "database %q not found in unified resources response", test.dbURI.String())
+			require.Contains(t, matchedDatabase.DatabaseUsers, test.wantDBUser)
+		})
+	}
 }
 
 // mustLogin logs in as the given user by completely skipping the actual login flow and saving valid

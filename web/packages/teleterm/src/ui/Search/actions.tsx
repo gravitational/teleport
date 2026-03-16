@@ -255,10 +255,11 @@ export function mapToAction(
               value: dbUser,
               displayText: dbUser,
             })),
-          placeholder:
-            databaseUsers.length === 0 && !wildcardUserAllowed
-              ? 'No db username available'
-              : 'Provide db username',
+          allowOnlySuggestions: !wildcardUserAllowed,
+          noSuggestionsAvailableMessage: 'No db username available',
+          placeholder: wildcardUserAllowed
+            ? 'Provide db username'
+            : 'Search by username',
         },
         perform: dbUser =>
           connectToDatabase(
