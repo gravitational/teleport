@@ -32,7 +32,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	libevent "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 )
 
 type mockSSMClient struct {
@@ -399,6 +401,104 @@ func TestSSMInstaller(t *testing.T) {
 			}},
 		},
 		{
+			name: "ssm run failed in run shell script with join failure exit code",
+			req: SSMRunRequest{
+				DocumentName: document,
+				Instances: []EC2Instance{
+					{InstanceID: "instance-id-1"},
+				},
+				Params:    map[string]string{"token": "abcdefg"},
+				Region:    "eu-central-1",
+				AccountID: "account-id",
+			},
+			client: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssmtypes.Command{
+						CommandId: aws.String("command-id-1"),
+						Status:    ssmtypes.CommandStatusFailed,
+					},
+				},
+				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
+					"downloadContent": {
+						Status:       ssmtypes.CommandInvocationStatusSuccess,
+						ResponseCode: 0,
+					},
+					"runShellScript": {
+						Status:                ssmtypes.CommandInvocationStatusFailed,
+						ResponseCode:          150,
+						StandardErrorContent:  aws.String("ERROR: join failure: token is expired or not found; readyz reported not ready: bad token"),
+						StandardOutputContent: aws.String(""),
+					},
+				},
+			},
+			expectedInstallations: []*SSMInstallationResult{{
+				SSMRunEvent: &events.SSMRun{
+					Metadata: events.Metadata{
+						Type: libevent.SSMRunEvent,
+						Code: libevent.SSMRunFailCode,
+					},
+					CommandID:      "command-id-1",
+					InstanceID:     "instance-id-1",
+					AccountID:      "account-id",
+					Region:         "eu-central-1",
+					ExitCode:       150,
+					Status:         installstatus.JoinFailure.String(),
+					StandardOutput: "",
+					StandardError:  "ERROR: join failure: token is expired or not found; readyz reported not ready: bad token",
+					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
+				},
+				IssueType:       "ec2-join-failure",
+				SSMDocumentName: "ssmdocument",
+			}},
+		},
+		{
+			name: "non-failed command invocation status with join failure exit code remains script failure",
+			req: SSMRunRequest{
+				DocumentName: document,
+				Instances: []EC2Instance{
+					{InstanceID: "instance-id-1"},
+				},
+				Region:    "eu-central-1",
+				AccountID: "account-id",
+			},
+			client: &mockSSMClient{
+				waiterTimeout: true,
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssmtypes.Command{
+						CommandId: aws.String("command-id-1"),
+						Status:    ssmtypes.CommandStatusInProgress,
+					},
+				},
+				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
+					"downloadContent": {
+						Status:                ssmtypes.CommandInvocationStatusInProgress,
+						ResponseCode:          150,
+						StandardErrorContent:  aws.String("still running"),
+						StandardOutputContent: aws.String(""),
+					},
+				},
+			},
+			expectedInstallations: []*SSMInstallationResult{{
+				SSMRunEvent: &events.SSMRun{
+					Metadata: events.Metadata{
+						Type: libevent.SSMRunEvent,
+						Code: libevent.SSMRunFailCode,
+					},
+					CommandID:      "command-id-1",
+					InstanceID:     "instance-id-1",
+					AccountID:      "account-id",
+					Region:         "eu-central-1",
+					ExitCode:       150,
+					Status:         string(ssmtypes.CommandInvocationStatusInProgress),
+					StandardOutput: "",
+					StandardError:  "still running",
+					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
+				},
+				IssueType:       "ec2-ssm-script-failure",
+				SSMDocumentName: "ssmdocument",
+			}},
+		},
+		{
 			name: "detailed events if ssm:DescribeInstanceInformation is available",
 			req: SSMRunRequest{
 				Instances: []EC2Instance{
@@ -650,6 +750,42 @@ func TestSSMInstaller(t *testing.T) {
 			}
 
 			require.ElementsMatch(t, tc.expectedInstallations, installationResultsCollector.installations)
+		})
+	}
+}
+
+func TestClassifyEC2SSMInvocationIssueType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		status   ssmtypes.CommandInvocationStatus
+		exitCode int64
+		want     string
+	}{
+		{
+			name:     "failed with join failure exit code maps to join failure issue",
+			status:   ssmtypes.CommandInvocationStatusFailed,
+			exitCode: int64(installstatus.JoinFailure),
+			want:     usertasks.AutoDiscoverEC2IssueJoinFailure,
+		},
+		{
+			name:     "failed with other exit code maps to script failure issue",
+			status:   ssmtypes.CommandInvocationStatusFailed,
+			exitCode: 1,
+			want:     usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+		},
+		{
+			name:     "in progress with join failure exit code stays script failure issue",
+			status:   ssmtypes.CommandInvocationStatusInProgress,
+			exitCode: int64(installstatus.JoinFailure),
+			want:     usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, classifyEC2SSMInvocationIssueType(tt.status, tt.exitCode))
 		})
 	}
 }

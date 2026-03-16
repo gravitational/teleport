@@ -21,6 +21,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -278,6 +279,67 @@ func TestDumpConfigFile(t *testing.T) {
 			tc.assert(t, err)
 		})
 	}
+}
+
+func TestWriteInstallJoinFailureError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("trace messages are printed without sentinel join failure", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		writeInstallJoinFailureError(&stderr, &trace.TraceErr{
+			Err:      errors.New("join failure"),
+			Messages: []string{"failed to join cluster", "journal line 1\njournal line 2"},
+		})
+
+		require.Equal(t, "ERROR: failed to join cluster\njournal line 1\njournal line 2\n", stderr.String())
+		require.NotContains(t, stderr.String(), "join failure")
+	})
+
+	t.Run("trace messages filter standalone sentinel line", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		writeInstallJoinFailureError(&stderr, &trace.TraceErr{
+			Err:      errors.New("join failure"),
+			Messages: []string{"token is expired", "\tjoin failure"},
+		})
+
+		require.Equal(t, "ERROR: token is expired\n", stderr.String())
+	})
+
+	t.Run("trace messages filter standalone sentinel line embedded in message text", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		writeInstallJoinFailureError(&stderr, &trace.TraceErr{
+			Err:      errors.New("join failure"),
+			Messages: []string{"token is expired\n\tjoin failure\nmore detail"},
+		})
+
+		require.Equal(t, "ERROR: token is expired\nmore detail\n", stderr.String())
+	})
+
+	t.Run("falls back to user message for plain errors", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		writeInstallJoinFailureError(&stderr, errors.New("plain failure"))
+
+		require.Equal(t, "ERROR: plain failure\n", stderr.String())
+		require.NotContains(t, stderr.String(), "join failure")
+	})
+
+	t.Run("falls back to user message when trace messages are empty", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		writeInstallJoinFailureError(&stderr, &trace.TraceErr{Err: errors.New("join failure")})
+
+		require.Equal(t, "ERROR: join failure\n", stderr.String())
+		require.Contains(t, stderr.String(), "join failure")
+	})
 }
 
 const configData = `

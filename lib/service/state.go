@@ -68,8 +68,6 @@ type processState struct {
 	// lastState stores the last state sent to callbacks. this is used to determine
 	// whether the next state change should be sent to callbacks.
 	lastState componentStateEnum
-	// joinErrorGetter returns the last join error message, if any.
-	joinErrorGetter func() string
 }
 
 type componentState struct {
@@ -215,14 +213,8 @@ func (f *processState) handleReadiness(w http.ResponseWriter, r *http.Request) {
 			PID:    os.Getpid(),
 		})
 	case stateStarting:
-		status := "teleport is starting and hasn't joined the cluster yet"
-		if f.joinErrorGetter != nil {
-			if errMsg := f.joinErrorGetter(); errMsg != "" {
-				status = errMsg
-			}
-		}
 		roundtrip.ReplyJSON(w, http.StatusBadRequest, debug.Readiness{
-			Status: status,
+			Status: "teleport is starting and hasn't joined the cluster yet",
 			PID:    os.Getpid(),
 		})
 	// 200
