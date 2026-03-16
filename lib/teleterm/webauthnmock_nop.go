@@ -22,6 +22,7 @@ package teleterm
 
 import "github.com/gravitational/teleport/lib/client"
 
+// In builds without the webauthnmock tag (default), no WebAuthn login mock is provided.
 func webauthnLoginMock() (client.WebauthnLoginFunc, error) {
 	return nil, nil
 }

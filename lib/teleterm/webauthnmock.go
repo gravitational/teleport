@@ -41,6 +41,7 @@ const (
 	credentialIDEnv = "E2E_WEBAUTHN_CREDENTIAL_ID"
 )
 
+// In builds with the webauthnmock tag, provide a WebAuthn login mock for E2E tests.
 func webauthnLoginMock() (client.WebauthnLoginFunc, error) {
 	privateKeyB64 := os.Getenv(privateKeyEnv)
 	credentialIDB64 := os.Getenv(credentialIDEnv)
