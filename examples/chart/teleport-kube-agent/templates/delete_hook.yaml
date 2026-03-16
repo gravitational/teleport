@@ -1,3 +1,4 @@
+{{- if not .Values.skipHooks }}
 {{- if .Values.serviceAccount.create }}
 apiVersion: v1
 kind: ServiceAccount
@@ -121,3 +122,4 @@ spec:
         {{- if .Values.resources }}
         resources: {{- toYaml .Values.resources | nindent 10 }}
         {{- end }}
+{{- end }}
