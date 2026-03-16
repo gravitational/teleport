@@ -98,6 +98,33 @@ func TestTryCompileFastMatcher(t *testing.T) {
 			wantAllowCount: 0,
 		},
 		{
+			name: "wildcard verb only recognized as first element",
+			kind: types.KindKubePod,
+			verb: types.KubeVerbList,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbGet, types.Wildcard}, APIGroup: "*"},
+			},
+			wantAllowCount: 0,
+		},
+		{
+			name: "wildcard verb as first element matches any verb",
+			kind: types.KindKubePod,
+			verb: types.KubeVerbList,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.Wildcard}, APIGroup: "*"},
+			},
+			wantAllowCount: 1,
+		},
+		{
+			name: "empty verbs matches nothing",
+			kind: types.KindKubePod,
+			verb: types.KubeVerbList,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{}, APIGroup: "*"},
+			},
+			wantAllowCount: 0,
+		},
+		{
 			name: "returns error for invalid regex",
 			kind: types.KindKubePod,
 			verb: types.KubeVerbList,
@@ -374,6 +401,90 @@ func TestFastResourceMatcher_Match(t *testing.T) {
 			input:     matchInput{name: "nginx", namespace: "default", apiGroup: ""},
 			wantMatch: false,
 		},
+		{
+			name: "deny with regex namespace blocks matching resources",
+			kind: types.KindKubePod,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			denied: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "^kube-.*$", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			input:     matchInput{name: "coredns", namespace: "kube-system", apiGroup: ""},
+			wantMatch: false,
+		},
+		{
+			name: "deny with regex namespace does not block non-matching namespace",
+			kind: types.KindKubePod,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			denied: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "^kube-.*$", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			input:     matchInput{name: "nginx", namespace: "default", apiGroup: ""},
+			wantMatch: true,
+		},
+		{
+			name: "deny with regex name blocks matching resources",
+			kind: types.KindKubePod,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			denied: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "^secret-.*$", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			input:     matchInput{name: "secret-data", namespace: "default", apiGroup: ""},
+			wantMatch: false,
+		},
+		{
+			name: "deny with regex name does not block non-matching name",
+			kind: types.KindKubePod,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			denied: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "^secret-.*$", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			input:     matchInput{name: "nginx", namespace: "default", apiGroup: ""},
+			wantMatch: true,
+		},
+		{
+			name: "deny with glob name blocks matching resources",
+			kind: types.KindKubePod,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			denied: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "secret-*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			input:     matchInput{name: "secret-data", namespace: "default", apiGroup: ""},
+			wantMatch: false,
+		},
+		{
+			name: "deny with exact name blocks only that name",
+			kind: types.KindKubePod,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			denied: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "secret-data", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			input:     matchInput{name: "secret-data", namespace: "default", apiGroup: ""},
+			wantMatch: false,
+		},
+		{
+			name: "deny with exact name does not block different name",
+			kind: types.KindKubePod,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			denied: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "secret-data", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
+			},
+			input:     matchInput{name: "secret-other", namespace: "default", apiGroup: ""},
+			wantMatch: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -406,62 +517,161 @@ type matchInput struct {
 func TestMatcherEquivalence(t *testing.T) {
 	t.Parallel()
 
-	allowed := []types.KubernetesResource{
-		{Kind: types.KindKubePod, Namespace: "default", Name: "nginx-*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
-		{Kind: types.KindKubePod, Namespace: "staging", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
-		{Kind: types.Wildcard, Namespace: "monitoring", Name: "*", Verbs: []string{types.Wildcard}, APIGroup: "*"},
-	}
-	denied := []types.KubernetesResource{
-		{Kind: types.KindKubePod, Namespace: "staging", Name: "secret-*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
-	}
-
-	mr := metaResource{
-		requestedResource: apiResource{resourceKind: types.KindKubePod},
-		verb:              types.KubeVerbList,
-	}
-
-	fm, err := tryCompileFastMatcher(mr, allowed, denied)
-	require.NoError(t, err)
-	require.NotNil(t, fm)
-
-	dm := &defaultMatcher{
-		kind:             types.KindKubePod,
-		verb:             types.KubeVerbList,
-		allowedResources: allowed,
-		deniedResources:  denied,
-	}
-
-	inputs := []struct {
-		resource              types.KubernetesResource
-		isClusterWideResource bool
+	tests := []struct {
+		name    string
+		kind    string
+		verb    string
+		allowed []types.KubernetesResource
+		denied  []types.KubernetesResource
+		inputs  []struct {
+			resource              types.KubernetesResource
+			isClusterWideResource bool
+		}
 	}{
-		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "nginx-abc", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
-		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "redis", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
-		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "staging", Name: "app", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
-		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "staging", Name: "secret-data", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
-		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "monitoring", Name: "prometheus", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
-		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "production", Name: "app", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
-		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "", Name: "orphan", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
-		{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "", Name: "cluster-wide-pod", Verbs: []string{types.KubeVerbList}, APIGroup: ""}, isClusterWideResource: true},
+		{
+			name: "glob and exact patterns",
+			kind: types.KindKubePod,
+			verb: types.KubeVerbList,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "default", Name: "nginx-*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
+				{Kind: types.KindKubePod, Namespace: "staging", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
+				{Kind: types.Wildcard, Namespace: "monitoring", Name: "*", Verbs: []string{types.Wildcard}, APIGroup: "*"},
+			},
+			denied: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "staging", Name: "secret-*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
+			},
+			inputs: []struct {
+				resource              types.KubernetesResource
+				isClusterWideResource bool
+			}{
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "nginx-abc", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "redis", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "staging", Name: "app", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "staging", Name: "secret-data", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "monitoring", Name: "prometheus", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "production", Name: "app", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "", Name: "orphan", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "", Name: "cluster-wide-pod", Verbs: []string{types.KubeVerbList}, APIGroup: ""}, isClusterWideResource: true},
+			},
+		},
+		{
+			name: "deny with regex namespace pattern",
+			kind: types.KindKubePod,
+			verb: types.KubeVerbList,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
+			},
+			denied: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "^kube-.*$", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
+			},
+			inputs: []struct {
+				resource              types.KubernetesResource
+				isClusterWideResource bool
+			}{
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "coredns", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-public", Name: "info", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "nginx", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+			},
+		},
+		{
+			name: "deny with regex name pattern",
+			kind: types.KindKubePod,
+			verb: types.KubeVerbList,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
+			},
+			denied: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "^(secret|internal)-.*$", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
+			},
+			inputs: []struct {
+				resource              types.KubernetesResource
+				isClusterWideResource bool
+			}{
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "secret-data", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "internal-api", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "nginx", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "secret", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+			},
+		},
+		{
+			name: "multiple deny rules with mixed patterns",
+			kind: types.KindKubePod,
+			verb: types.KubeVerbList,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
+			},
+			denied: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "kube-system", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
+				{Kind: types.KindKubePod, Namespace: "*", Name: "secret-*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
+			},
+			inputs: []struct {
+				resource              types.KubernetesResource
+				isClusterWideResource bool
+			}{
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "coredns", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "secret-data", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "nginx", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "secret-data", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+			},
+		},
+		{
+			name: "allow with empty namespace rule and empty namespace input",
+			kind: types.KindKubePod,
+			verb: types.KubeVerbList,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: ""},
+			},
+			denied: []types.KubernetesResource{},
+			inputs: []struct {
+				resource              types.KubernetesResource
+				isClusterWideResource bool
+			}{
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "nginx", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "", Name: "orphan", Verbs: []string{types.KubeVerbList}, APIGroup: ""}},
+				{resource: types.KubernetesResource{Kind: types.KindKubePod, Namespace: "", Name: "orphan", Verbs: []string{types.KubeVerbList}, APIGroup: ""}, isClusterWideResource: true},
+			},
+		},
 	}
 
-	for _, tt := range inputs {
-		t.Run(fmt.Sprintf("%s/%s", tt.resource.Namespace, tt.resource.Name), func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Use the original matchKubernetesResource function as the source of truth for expected results.
-			expected, err := matchKubernetesResource(tt.resource, tt.isClusterWideResource, allowed, denied)
-			require.NoError(t, err)
+			mr := metaResource{
+				requestedResource: apiResource{resourceKind: tc.kind},
+				verb:              tc.verb,
+			}
 
-			// Verify that both matchers produce the same result as the original function.
-
-			fastResult, err := fm.match(tt.resource.Name, tt.resource.Namespace, tt.resource.APIGroup)
+			fm, err := tryCompileFastMatcher(mr, tc.allowed, tc.denied)
 			require.NoError(t, err)
-			require.Equal(t, expected, fastResult, "fastMatcher mismatch for %s/%s", tt.resource.Namespace, tt.resource.Name)
+			require.NotNil(t, fm)
 
-			defaultResult, err := dm.match(tt.resource.Name, tt.resource.Namespace, tt.resource.APIGroup)
-			require.NoError(t, err)
-			require.Equal(t, expected, defaultResult, "defaultMatcher mismatch for %s/%s", tt.resource.Namespace, tt.resource.Name)
+			dm := &defaultMatcher{
+				kind:             tc.kind,
+				verb:             tc.verb,
+				allowedResources: tc.allowed,
+				deniedResources:  tc.denied,
+			}
+
+			for _, tt := range tc.inputs {
+				t.Run(fmt.Sprintf("%s/%s", tt.resource.Namespace, tt.resource.Name), func(t *testing.T) {
+					t.Parallel()
+
+					// Use the original matchKubernetesResource function as the source of truth for expected results.
+					expected, err := matchKubernetesResource(tt.resource, tt.isClusterWideResource, tc.allowed, tc.denied)
+					require.NoError(t, err)
+
+					// Verify that both matchers produce the same result as the original function.
+
+					fastResult, err := fm.match(tt.resource.Name, tt.resource.Namespace, tt.resource.APIGroup)
+					require.NoError(t, err)
+					require.Equal(t, expected, fastResult, "fastMatcher mismatch for %s/%s", tt.resource.Namespace, tt.resource.Name)
+
+					defaultResult, err := dm.match(tt.resource.Name, tt.resource.Namespace, tt.resource.APIGroup)
+					require.NoError(t, err)
+					require.Equal(t, expected, defaultResult, "defaultMatcher mismatch for %s/%s", tt.resource.Namespace, tt.resource.Name)
+				})
+			}
 		})
 	}
 }
