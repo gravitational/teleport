@@ -90,6 +90,10 @@ service SummarizerService {
   rpc UpsertRetrievalModel(UpsertRetrievalModelRequest) returns (UpsertRetrievalModelResponse);
   // DeleteRetrievalModel deletes the existing RetrievalModel by name.
   rpc DeleteRetrievalModel(DeleteRetrievalModelRequest) returns (DeleteRetrievalModelResponse);
+  // TestRetrievalModel tests a RetrievalModel configuration by generating a
+  // test embedding using the configured embeddings provider (AWS Bedrock or
+  // OpenAI).
+  rpc TestRetrievalModel(TestRetrievalModelRequest) returns (TestRetrievalModelResponse);
 }
 
 // Summarization inference models
@@ -370,6 +374,25 @@ message TestInferenceModelRequest {
 
 // TestInferenceModelResponse is a response from testing an InferenceModel.
 message TestInferenceModelResponse {
+  // Success indicates whether the test request was successful.
+  bool success = 1;
+  // Message provides additional information about the test result.
+  // If success is false, this contains the error message.
+  string message = 2;
+}
+
+// TestRetrievalModelRequest is a request to test a RetrievalModel configuration.
+message TestRetrievalModelRequest {
+  // Model is the RetrievalModelSpec to test. The embeddings provider
+  // configuration will be used to generate a test embedding.
+  RetrievalModelSpec model = 1;
+  // Secret is the InferenceSecretSpec containing the API key or credentials.
+  // Required for OpenAI models. Optional for Bedrock models when using IAM.
+  InferenceSecretSpec secret = 2;
+}
+
+// TestRetrievalModelResponse is a response from testing a RetrievalModel.
+message TestRetrievalModelResponse {
   // Success indicates whether the test request was successful.
   bool success = 1;
   // Message provides additional information about the test result.
