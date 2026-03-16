@@ -83,7 +83,7 @@ like `tctl edit`. With touch required, hardware key support provides better secu
   Currently, this feature is only guaranteed to support YubiKey series 5+.
 </Admonition>
 
-- Install a smart card driver for you operating system. Teleport clients will connect to your YubiKey through the smart card driver to generate keys and perform cryptographic operations.
+- Install a smart card driver for your operating system. Teleport clients will connect to your YubiKey through the smart card driver to generate keys and perform cryptographic operations.
   - macOS and Windows both ship with smart card drivers.
     - If you run into problems on Windows, try the official [YubiKey Smart Card Minidriver](https://www.yubico.com/support/download/smart-card-drivers-tools/).
   - On Linux distributions, download the [YubiKey Manager or Yubico PIV tool](https://www.yubico.com/support/download/smart-card-drivers-tools/), which both include the Linux smart card driver as a dependency.
@@ -312,14 +312,14 @@ If you want to use a different management key, follow the [custom PIV setup inst
 
 ### `ERROR: ssh: handshake failed: command failed: transmitting request: an attempt was made to end a non-existent transaction`
 
-Sometimes, PIV interactions with your Yubikey can fail in unexpected ways.
+Sometimes, PIV interactions with your YubiKey can fail in unexpected ways.
 
-For example, if you tap your Yubikey for MFA and then subsequently tap your
-Yubikey for Hardware Key support, you might get an error on rare occasions.
+For example, if you tap your YubiKey for MFA and then subsequently tap your
+YubiKey for Hardware Key support, you might get an error on rare occasions.
 
 ### Why am I being asked to tap several times to login?
 
-Depending on your settings, you might be asked to tap your Yubikey many times.
+Depending on your settings, you might be asked to tap your YubiKey many times.
 Each tap is necessary to safely authenticate you.
 
 For example, if you have `second_factors: ["webauthn"]` set in your `cluster_auth_preference`,
@@ -346,7 +346,7 @@ Unmet private key policy "hardware_key_touch".
 
 Relogging in with hardware-backed private key.
 
-# This time, `tsh` uses the Yubikey-backed private key in the login request to
+# This time, `tsh` uses the YubiKey-backed private key in the login request to
 # get certificates which pass the private key policy for the user's role.
 
 Enter password for Teleport user dev:
