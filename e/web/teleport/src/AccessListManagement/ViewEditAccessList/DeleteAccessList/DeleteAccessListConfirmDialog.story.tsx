@@ -187,12 +187,14 @@ const baseAccessList: AccessListModified = {
     traits: { team: ['engineering'] },
     traitLabels: [],
     traitList: [],
+    scopedRoles: [],
   },
   ownerGrants: {
     roles: ['admin'],
     traits: {},
     traitLabels: [],
     traitList: [],
+    scopedRoles: [],
   },
   ownershipRequires: {
     roles: ['admin'],
@@ -223,7 +225,7 @@ const baseAccessList: AccessListModified = {
     },
   ],
   requiresReview: false,
-  inheritedMemberGrants: { roles: [], traits: {} },
+  inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
 };
 
 const mockAccessListOkta: AccessListModified = {

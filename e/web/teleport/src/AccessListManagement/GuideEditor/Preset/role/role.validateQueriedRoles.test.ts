@@ -46,7 +46,7 @@ function makeAccessList(
   return {
     id,
     preset,
-    grants: { roles: memberRolesGranted, traits: {} },
+    grants: { roles: memberRolesGranted, traits: {}, scopedRoles: [] },
   } as AccessListModified;
 }
 

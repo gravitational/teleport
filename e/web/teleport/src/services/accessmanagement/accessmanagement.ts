@@ -30,7 +30,9 @@ import {
   ReviewAccessListRequest,
   ReviewFrequency,
   ReviewFrequencyBackendParsableValue,
+  ScopedRoleGrant,
   UpsertAccessListRequest,
+  makeAccessListGrantRequest,
 } from './types';
 
 export const accessManagementService = {
@@ -294,17 +296,11 @@ export function makeAccessListForUpdate({
           },
         },
     grants: req.grants
-      ? {
-          roles: req.grants.roles,
-          traits: req.grants.traits,
-        }
-      : original.grants,
+      ? makeAccessListGrantRequest(req.grants)
+      : makeAccessListGrantRequest(original.grants),
     owner_grants: req.ownerGrants
-      ? {
-          roles: req.ownerGrants.roles,
-          traits: req.ownerGrants.traits,
-        }
-      : original.ownerGrants,
+      ? makeAccessListGrantRequest(req.ownerGrants)
+      : makeAccessListGrantRequest(original.ownerGrants),
     ...(!withoutMembers && {
       members: makeAccessListMembersForUpdate({ req, original }),
     }),
@@ -418,10 +414,12 @@ export function makeAccessList(json: any): AccessList {
     grants: {
       roles: spec.grants?.roles?.sort() || [],
       traits: makeTraits(spec.grants?.traits),
+      scopedRoles: makeScopedRoleGrants(spec.grants?.scoped_roles),
     },
     ownerGrants: {
       roles: spec.owner_grants?.roles?.sort() || [],
       traits: makeTraits(spec.owner_grants?.traits),
+      scopedRoles: makeScopedRoleGrants(spec.owner_grants?.scoped_roles),
     },
     audit: {
       recurrence: {
@@ -443,6 +441,9 @@ export function makeAccessList(json: any): AccessList {
     inheritedMemberGrants: {
       roles: json?.inherited_member_grants?.roles || [],
       traits: makeTraits(json?.inherited_member_grants?.traits),
+      scopedRoles: makeScopedRoleGrants(
+        json?.inherited_member_grants?.scoped_roles
+      ),
     },
     currentUserAssignments: makeAccessListCurrentUserAssignments(
       json?.current_user_assignments
@@ -561,3 +562,16 @@ export function convertReviewFrequencyIntoBackendParsableValue(
       return null;
   }
 }
+
+const makeScopedRoleGrants = (json: any): ScopedRoleGrant[] => {
+  if (!json) {
+    return [];
+  }
+
+  return json.map((grant: any): ScopedRoleGrant => {
+    return {
+      role: grant.role,
+      scope: grant.scope,
+    };
+  });
+};

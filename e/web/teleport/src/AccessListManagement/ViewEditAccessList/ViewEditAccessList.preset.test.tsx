@@ -199,7 +199,11 @@ test('shows warning when role has unsupported fields (e.g. deny rules)', async (
 
   const accessListWithDenyRole: AccessList = {
     ...accessListWithPreset,
-    grants: { roles: [standardRoleWithDeny.metadata.name], traits: {} },
+    grants: {
+      roles: [standardRoleWithDeny.metadata.name],
+      traits: {},
+      scopedRoles: [],
+    },
   };
 
   jest
@@ -291,8 +295,8 @@ const accessListWithPreset: AccessList = {
   ],
   membersCount: 1,
   memberListCount: 0,
-  grants: { roles: [''], traits: {} },
-  ownerGrants: { roles: [''], traits: {} },
+  grants: { roles: [''], traits: {}, scopedRoles: [] },
+  ownerGrants: { roles: [''], traits: {}, scopedRoles: [] },
   audit: {
     recurrence: {
       frequency: ReviewFrequency.SixMonths,
@@ -302,7 +306,7 @@ const accessListWithPreset: AccessList = {
   },
   ownershipRequires: { roles: [], traits: {} },
   membershipRequires: { roles: [], traits: {} },
-  inheritedMemberGrants: { roles: [], traits: {} },
+  inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
 };
 
 const accessListWithoutPreset: AccessList = {

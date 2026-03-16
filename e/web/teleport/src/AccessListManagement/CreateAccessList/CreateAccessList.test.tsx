@@ -65,8 +65,8 @@ const rawAccessList = {
     title: 'All Employees',
     description: 'Adding new hires!',
     owners: [],
-    grants: { roles: ['core-apps'], traits: {} },
-    owner_grants: { roles: ['admin', 'root'], traits: {} },
+    grants: { roles: ['core-apps'], traits: {}, scoped_roles: [] },
+    owner_grants: { roles: ['admin', 'root'], traits: {}, scoped_roles: [] },
     audit: {},
     ownership_requires: {},
     membership_requires: {},
@@ -714,6 +714,7 @@ function getExpectedRequest() {
     description: '',
     grants: {
       roles: [],
+      scoped_roles: [],
       traits: {},
     },
     members: [
@@ -730,6 +731,7 @@ function getExpectedRequest() {
     },
     owner_grants: {
       roles: [],
+      scoped_roles: [],
       traits: {},
     },
     owners: [

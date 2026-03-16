@@ -248,11 +248,13 @@ const mockAccessList: AccessListModified = {
   grants: {
     roles: ['foo', 'bar', 'baz'],
     traits: { os: ['window'] },
+    scopedRoles: [],
     ...convertToTraitConvenience({ os: ['window'] }),
   },
   ownerGrants: {
     roles: ['admin'],
     traits: { status: ['root'] },
+    scopedRoles: [],
     ...convertToTraitConvenience({ status: ['root'] }),
   },
   ownershipRequires: {
@@ -274,5 +276,5 @@ const mockAccessList: AccessListModified = {
   ],
   members: [...keepMembers, ...deleteMembers],
   requiresReview: true,
-  inheritedMemberGrants: { roles: [], traits: {} },
+  inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
 };

@@ -42,14 +42,17 @@ test('fetch access lists, empty responses does not throw error', async () => {
       grants: {
         roles: [],
         traits: {},
+        scopedRoles: [],
       },
       ownerGrants: {
         roles: [],
         traits: {},
+        scopedRoles: [],
       },
       inheritedMemberGrants: {
         roles: [],
         traits: {},
+        scopedRoles: [],
       },
       audit: {
         recurrence: {
@@ -83,9 +86,9 @@ test('fetch an access list, empty response does not throw error', async () => {
     },
     metadata: {},
     description: '',
-    grants: { roles: [], traits: {} },
-    ownerGrants: { roles: [], traits: {} },
-    inheritedMemberGrants: { roles: [], traits: {} },
+    grants: { roles: [], traits: {}, scopedRoles: [] },
+    ownerGrants: { roles: [], traits: {}, scopedRoles: [] },
+    inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
     id: '',
     type: AccessListType.Default,
     members: [],
@@ -144,10 +147,22 @@ test('fetch an access list', async () => {
         grants: {
           roles: ['access'],
           traits: { fruit: ['apple'] },
+          scoped_roles: [
+            {
+              role: 'scopedaccess',
+              scope: '/test',
+            },
+          ],
         },
         owner_grants: {
           roles: ['admin'],
           traits: { fruit: ['pro'] },
+          scoped_roles: [
+            {
+              role: 'scopedowner',
+              scope: '/test',
+            },
+          ],
         },
         membership_requires: {
           roles: ['intern'],
@@ -206,14 +221,27 @@ test('fetch an access list', async () => {
     grants: {
       roles: ['access'],
       traits: { fruit: ['apple'] },
+      scopedRoles: [
+        {
+          role: 'scopedaccess',
+          scope: '/test',
+        },
+      ],
     },
     ownerGrants: {
       roles: ['admin'],
       traits: { fruit: ['pro'] },
+      scopedRoles: [
+        {
+          role: 'scopedowner',
+          scope: '/test',
+        },
+      ],
     },
     inheritedMemberGrants: {
       roles: [],
       traits: {},
+      scopedRoles: [],
     },
     membershipRequires: {
       roles: ['intern'],
@@ -275,10 +303,22 @@ describe('update an access list', () => {
     grants: {
       roles: ['access'],
       traits: { fruit: ['apple'] },
+      scopedRoles: [
+        {
+          role: 'scopedaccess',
+          scope: '/test',
+        },
+      ],
     },
     ownerGrants: {
       roles: ['admin'],
       traits: { status: ['pro'] },
+      scopedRoles: [
+        {
+          role: 'scopedowner',
+          scope: '/test',
+        },
+      ],
     },
     membershipRequires: {
       roles: ['intern'],
@@ -308,7 +348,7 @@ describe('update an access list', () => {
         title: '',
       },
     ],
-    inheritedMemberGrants: { roles: [], traits: {} },
+    inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
   };
 
   const madeForAccessListUpdate: UpsertAccessListRequest = {
@@ -327,10 +367,22 @@ describe('update an access list', () => {
     grants: {
       roles: ['access'],
       traits: { fruit: ['apple'] },
+      scoped_roles: [
+        {
+          role: 'scopedaccess',
+          scope: '/test',
+        },
+      ],
     },
     owner_grants: {
       roles: ['admin'],
       traits: { status: ['pro'] },
+      scoped_roles: [
+        {
+          role: 'scopedowner',
+          scope: '/test',
+        },
+      ],
     },
     membership_requires: {
       roles: ['intern'],
@@ -415,6 +467,7 @@ describe('update an access list', () => {
         grants: {
           roles: ['different-role1', 'different-role2'],
           traits: { different1: ['different'], different2: ['different2'] },
+          scopedRoles: [],
         },
       },
       constructed: {
@@ -422,6 +475,7 @@ describe('update an access list', () => {
         grants: {
           roles: ['different-role1', 'different-role2'],
           traits: { different1: ['different'], different2: ['different2'] },
+          scoped_roles: [],
         },
       },
     },
@@ -431,6 +485,7 @@ describe('update an access list', () => {
         ownerGrants: {
           roles: ['different-role5', 'different-role6'],
           traits: { different1: ['different1'], different2: ['different3'] },
+          scopedRoles: [],
         },
       },
       constructed: {
@@ -438,6 +493,7 @@ describe('update an access list', () => {
         owner_grants: {
           roles: ['different-role5', 'different-role6'],
           traits: { different1: ['different1'], different2: ['different3'] },
+          scoped_roles: [],
         },
       },
     },

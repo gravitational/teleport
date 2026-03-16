@@ -178,8 +178,8 @@ const mockAccessListApple: AccessList = {
   members: [],
   membersCount: 0,
   memberListCount: 0,
-  grants: { roles: ['access'], traits: {} },
-  ownerGrants: { roles: [], traits: {} },
+  grants: { roles: ['access'], traits: {}, scopedRoles: [] },
+  ownerGrants: { roles: [], traits: {}, scopedRoles: [] },
   audit: {
     recurrence: {
       frequency: ReviewFrequency.SixMonths,
@@ -189,7 +189,7 @@ const mockAccessListApple: AccessList = {
   },
   ownershipRequires: { roles: [], traits: {} },
   membershipRequires: { roles: [], traits: {} },
-  inheritedMemberGrants: { roles: [], traits: {} },
+  inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
 };
 
 test(`should show access list if backend returns it, even if user lacks list and read permission`, async () => {

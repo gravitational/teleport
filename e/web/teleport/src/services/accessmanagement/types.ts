@@ -166,6 +166,13 @@ export type AccessListAudit = {
 export type AccessListGrant = {
   roles: string[];
   traits: AllUserTraits;
+  scopedRoles: ScopedRoleGrant[];
+};
+
+// ScopedRoleGrant describes a scoped role granted at a specific scope.
+export type ScopedRoleGrant = {
+  role: string;
+  scope: string;
 };
 
 // AccessListCurrentUserAssignments describes the current user's
@@ -195,14 +202,26 @@ export type MemberSpecRequest = Omit<
   added_by: string;
   membership_kind: AccessListMemberKind;
 };
+export type AccessListGrantRequest = Omit<AccessListGrant, 'scopedRoles'> & {
+  scoped_roles: ScopedRoleGrant[];
+};
+export const makeAccessListGrantRequest = (
+  grant: AccessListGrant
+): AccessListGrantRequest => {
+  return {
+    roles: grant.roles,
+    traits: grant.traits,
+    scoped_roles: grant.scopedRoles,
+  };
+};
 
 export type AccessListSpecRequest = {
   type: string;
   title: string;
   description?: string;
-  grants: AccessListGrant;
+  grants: AccessListGrantRequest;
   owners: OwnerRequest[];
-  owner_grants: AccessListGrant;
+  owner_grants: AccessListGrantRequest;
   ownership_requires: AccessListRequires;
   membership_requires?: AccessListRequires;
   audit: {

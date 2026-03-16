@@ -490,8 +490,8 @@ const accessList: AccessList = {
   ],
   membersCount: 0,
   memberListCount: 0,
-  grants: { roles: [''], traits: {} }, // member grant
-  ownerGrants: { roles: [''], traits: {} },
+  grants: { roles: [''], traits: {}, scopedRoles: [] }, // member grant
+  ownerGrants: { roles: [''], traits: {}, scopedRoles: [] },
   audit: {
     recurrence: {
       frequency: ReviewFrequency.SixMonths,
@@ -501,7 +501,7 @@ const accessList: AccessList = {
   },
   ownershipRequires: { roles: [], traits: {} },
   membershipRequires: { roles: [], traits: {} },
-  inheritedMemberGrants: { roles: [], traits: {} },
+  inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
 };
 
 const viewingAsOwner: AccessList = {

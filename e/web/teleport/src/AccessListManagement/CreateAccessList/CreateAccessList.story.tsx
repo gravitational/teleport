@@ -245,9 +245,9 @@ const createdAccessList: AccessList = {
     },
     nextDate: new Date(),
   },
-  grants: { roles: [], traits: {} },
-  inheritedMemberGrants: { roles: [], traits: {} },
-  ownerGrants: { roles: [], traits: {} },
+  grants: { roles: [], traits: {}, scopedRoles: [] },
+  inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
+  ownerGrants: { roles: [], traits: {}, scopedRoles: [] },
   ownershipRequires: {
     roles: [],
     traits: {},

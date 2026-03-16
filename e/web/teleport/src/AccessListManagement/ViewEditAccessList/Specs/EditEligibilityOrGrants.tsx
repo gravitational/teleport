@@ -111,11 +111,15 @@ export function EditEligibilityOrGrantRoles({
       };
     } else if (editKind === 'Grants') {
       req = {
-        grants: { roles, traits },
+        grants: { roles, traits, scopedRoles: accessList.grants.scopedRoles },
       };
     } else if (editKind === 'OwnerGrants') {
       req = {
-        ownerGrants: { roles, traits },
+        ownerGrants: {
+          roles,
+          traits,
+          scopedRoles: accessList.ownerGrants.scopedRoles,
+        },
       };
     }
 

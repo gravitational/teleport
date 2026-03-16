@@ -185,11 +185,13 @@ const mockAccessListFull: AccessListModified = {
   grants: {
     roles: ['foo', 'bar', 'baz'],
     traits: { os: ['window'] },
+    scopedRoles: [],
     ...convertToTraitConvenience({ os: ['window'] }),
   },
   ownerGrants: {
     roles: ['admin', 'root'],
     traits: { os: ['mac'] },
+    scopedRoles: [],
     ...convertToTraitConvenience({ os: ['mac'] }),
   },
   ownershipRequires: {
@@ -242,7 +244,7 @@ const mockAccessListFull: AccessListModified = {
     },
   ],
   requiresReview: true,
-  inheritedMemberGrants: { roles: [], traits: {} },
+  inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
 };
 
 const mockAccessListScim: AccessListModified = {
@@ -272,8 +274,20 @@ const mockAccessListSparse: AccessListModified = {
     },
     nextDate: addWeeks(new Date(), 1),
   },
-  grants: { roles: ['access'], traits: {}, traitLabels: [], traitList: [] },
-  ownerGrants: { roles: ['admin'], traits: {}, traitLabels: [], traitList: [] },
+  grants: {
+    roles: ['access'],
+    traits: {},
+    traitLabels: [],
+    traitList: [],
+    scopedRoles: [],
+  },
+  ownerGrants: {
+    roles: ['admin'],
+    traits: {},
+    traitLabels: [],
+    traitList: [],
+    scopedRoles: [],
+  },
   ownershipRequires: { roles: [], traits: {}, traitLabels: [], traitList: [] },
   owners: [],
   members: [],
@@ -284,5 +298,5 @@ const mockAccessListSparse: AccessListModified = {
     traitList: [],
   },
   requiresReview: true,
-  inheritedMemberGrants: { roles: [], traits: {} },
+  inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
 };
