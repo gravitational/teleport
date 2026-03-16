@@ -1,9 +1,8 @@
 kind: saml
-version: v2
 metadata:
   name: OneLogin
 spec:
-  acs: https://teleport.example.com/v1/webapi/saml/acs/onelogin
+  acs: https://teleport.example.com:443/v1/webapi/saml/acs/onelogin
   attributes_to_roles:
   - name: groups
     roles:
