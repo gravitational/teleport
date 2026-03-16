@@ -165,18 +165,14 @@ func (d *dbusDaemon) Start(addr, credPath string, sender dbus.Sender) *dbus.Erro
 	}
 
 	d.mu.Lock()
+	defer d.mu.Unlock()
 	if d.closing {
-		d.mu.Unlock()
 		return dbus.MakeFailedError(trace.Errorf("VNet D-Bus daemon is shutting down"))
 	}
-
 	if d.started {
-		d.mu.Unlock()
 		return dbus.MakeFailedError(trace.Errorf("VNet admin process already started"))
 	}
 	d.started = true
-	d.mu.Unlock()
-
 	log.InfoContext(context.Background(), "Starting VNet admin process", "uid", uid)
 
 	go func() {

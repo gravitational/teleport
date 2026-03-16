@@ -32,6 +32,5 @@ var (
 )
 
 func platformLoadUpstreamNameservers(ctx context.Context, slog *slog.Logger) ([]string, error) {
-	_ = slog
 	return nil, trace.Wrap(vnetNotImplemented)
 }
