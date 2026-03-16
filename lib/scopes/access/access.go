@@ -44,6 +44,12 @@ const (
 	// KindScopedToken is the kind of a scoped token resource.
 	KindScopedToken = "scoped_token"
 
+	// SubKindDynamic is the sub kind of a scoped role assignment created via the API.
+	SubKindDynamic = "dynamic"
+
+	// SubKindMaterialized is the sub kind of a scoped role assignment that has been materialized.
+	SubKindMaterialized = "materialized"
+
 	// maxAssignableScopes is the maximum number of assignable scopes that a given scoped role resource may contain. Note that
 	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than
 	// to avoid excess resource size and to keep our options open for the future.
@@ -358,7 +364,11 @@ func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q has invalid kind %q, expected %q", assignment.GetMetadata().GetName(), assignment.GetKind(), KindScopedRoleAssignment)
 	}
 
-	if assignment.GetSubKind() != "" {
+	switch assignment.GetSubKind() {
+	case SubKindDynamic, SubKindMaterialized:
+	case "":
+		return trace.BadParameter("scoped role assignment %q has empty sub_kind", assignment.GetMetadata().GetName())
+	default:
 		return trace.BadParameter("scoped role assignment %q has unknown sub_kind %q", assignment.GetMetadata().GetName(), assignment.GetSubKind())
 	}
 

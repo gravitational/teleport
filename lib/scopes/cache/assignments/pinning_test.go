@@ -41,7 +41,8 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 
 	assignments := []*scopedaccessv1.ScopedRoleAssignment{
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-01",
 			},
@@ -62,7 +63,8 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-02",
 			},
@@ -83,7 +85,8 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "bob-01",
 			},
@@ -104,7 +107,8 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "bob-02",
 			},
@@ -125,7 +129,8 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-03",
 			},
@@ -146,7 +151,8 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "bob-03",
 			},
@@ -167,7 +173,8 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "carol-01",
 			},
@@ -192,7 +199,8 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 	cache := NewAssignmentCache(AssignmentCacheConfig{})
 	for _, assignment := range assignments {
 		_, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name: assignment.GetMetadata().GetName(),
+			Name:    assignment.GetMetadata().GetName(),
+			SubKind: assignment.GetSubKind(),
 		})
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
@@ -200,7 +208,8 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 		cache.Put(assignment)
 
 		rsp, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name: assignment.GetMetadata().GetName(),
+			Name:    assignment.GetMetadata().GetName(),
+			SubKind: assignment.GetSubKind(),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, rsp.GetAssignment())
@@ -284,7 +293,8 @@ func TestAssignmentTreePruning(t *testing.T) {
 	// must have a mix of resource scopes to provide a natural pruning boundary.
 	assignments := []*scopedaccessv1.ScopedRoleAssignment{
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-root",
 			},
@@ -298,7 +308,8 @@ func TestAssignmentTreePruning(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-staging",
 			},
@@ -312,7 +323,8 @@ func TestAssignmentTreePruning(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-staging-west",
 			},

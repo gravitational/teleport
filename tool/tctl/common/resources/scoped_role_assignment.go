@@ -16,6 +16,7 @@
 package resources
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -52,7 +53,7 @@ func (c *scopedRoleAssignmentCollection) Resources() []types.Resource {
 }
 
 func (c *scopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Scope", "Name", "User", "Assigns"}
+	headers := []string{"SubKind", "Scope", "Name", "User", "Assigns"}
 	rows := make([][]string, len(c.roleAssignments))
 
 	for i, item := range c.roleAssignments {
@@ -62,6 +63,7 @@ func (c *scopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) er
 		}
 
 		rows[i] = []string{
+			item.GetSubKind(),
 			item.GetScope(),
 			item.GetMetadata().GetName(),
 			item.GetSpec().GetUser(),
@@ -112,8 +114,11 @@ func createScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 
 func getScopedRoleAssignment(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
 	if ref.Name != "" {
+		// Default to dynamic if the user didn't specify a subkind.
+		subKind := cmp.Or(ref.SubKind, scopedaccess.SubKindDynamic)
 		rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name: ref.Name,
+			Name:    ref.Name,
+			SubKind: subKind,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -130,8 +135,11 @@ func getScopedRoleAssignment(ctx context.Context, client *authclient.Client, ref
 }
 
 func deleteScopedRoleAssignment(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	// Default to dynamic if the user didn't specify a subkind.
+	subKind := cmp.Or(ref.SubKind, scopedaccess.SubKindDynamic)
 	if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name: ref.Name,
+		Name:    ref.Name,
+		SubKind: subKind,
 	}); err != nil {
 		return trace.Wrap(err)
 	}

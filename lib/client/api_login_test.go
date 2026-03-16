@@ -761,7 +761,8 @@ func createAndAssignScopedRoles(t *testing.T, ctx context.Context, authServer *a
 	for _, role := range scopedRoles {
 		_, err = authServer.ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: scopedaccess.KindScopedRoleAssignment,
+				Kind:    scopedaccess.KindScopedRoleAssignment,
+				SubKind: scopedaccess.SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.NewString(),
 				},
