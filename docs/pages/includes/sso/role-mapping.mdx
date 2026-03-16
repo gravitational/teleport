@@ -1,0 +1,27 @@
+When a user authenticates to Teleport, the Teleport Auth Service issues SSH and
+TLS certificates to the user that contain the user's Teleport roles.
+
+For SSO authentication connectors, the Auth Service determines which roles to
+encode in the certificate by reading the authentication connector's **role
+mapping**. The role mapping indicates which Teleport roles to assign based on
+data that your identity provider stores about the user.
+
+When you configure an authentication connector using the `tctl` CLI, a role
+mapping takes the following format:
+
+```text
+<{{fieldType}}_name>,<{{fieldType}}_value>,<teleport_role_1>,<teleport_role_2>,...,<teleport_role_n>
+```
+
+For example, the following role mapping means that any user with the {{fieldType}}
+`groups` with the value `admins` receives the Teleport roles `auditor` and
+`editor`:
+
+```text
+groups,admins,auditor,editor
+```
+
+For the purpose of this guide, assign two separate role mappings:
+
+- A more permissive role mapping: <Var name="mapping_1" initial="groups,admins,auditor,editor" />
+- A more restrictive role mapping: <Var name="mapping_2" initial="groups,devs,access" />
