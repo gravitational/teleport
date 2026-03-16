@@ -90,6 +90,7 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 	}
 
 	// populate the scope pin with the user's assigned scoped roles
+	// TODO: if bot, use PopulatePinnedAssignmentsForBot rather than for user.
 	if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, userState.GetName(), scopePin); err != nil {
 		return nil, trace.Wrap(err)
 	}
