@@ -3,6 +3,7 @@ package x11
 import (
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"regexp"
 	"sync/atomic"
@@ -19,7 +20,7 @@ import (
 )
 
 func TestNewXvfb(t *testing.T) {
-	if !IsXvfbPresent() {
+	if !IsBackendPresent() {
 		t.Skip("this test requires Xvfb to be installed")
 	}
 	xvfb, err := NewXvfb(t.Context(), Config{})
@@ -40,7 +41,7 @@ func TestNewXvfb(t *testing.T) {
 }
 
 func TestResize(t *testing.T) {
-	if !IsXvfbPresent() {
+	if !IsBackendPresent() {
 		t.Skip("this test requires Xvfb to be installed")
 	}
 
@@ -73,7 +74,7 @@ func TestResize(t *testing.T) {
 }
 
 func TestGetChanges(t *testing.T) {
-	if !IsXvfbPresent() {
+	if !IsBackendPresent() {
 		t.Skip("this test requires Xvfb to be installed")
 	}
 
@@ -121,7 +122,7 @@ func TestGetChanges(t *testing.T) {
 }
 
 func TestGetImage(t *testing.T) {
-	if !IsXvfbPresent() {
+	if !IsBackendPresent() {
 		t.Skip("this test requires Xvfb to be installed")
 	}
 
@@ -149,7 +150,7 @@ func TestGetImage(t *testing.T) {
 }
 
 func TestInputs(t *testing.T) {
-	if !IsXvfbPresent() {
+	if !IsBackendPresent() {
 		t.Skip("this test requires Xvfb to be installed")
 	}
 
@@ -212,7 +213,7 @@ func TestInputs(t *testing.T) {
 }
 
 func TestClipboard(t *testing.T) {
-	if !IsXvfbPresent() {
+	if !IsBackendPresent() {
 		t.Skip("this test requires Xvfb to be installed")
 	}
 
@@ -292,4 +293,17 @@ func drawRectangle(t *testing.T, conn *xgb.Conn, setup *xproto.SetupInfo, rect x
 	// Draw a filled rectangle on the root window
 	err = xproto.PolyFillRectangleChecked(conn, xproto.Drawable(root), gc, []xproto.Rectangle{rect}).Check()
 	require.NoError(t, err)
+}
+
+func TestGenerateMagicCookie(t *testing.T) {
+	host, err := os.Hostname()
+	require.NoError(t, err)
+	cookie, err := generateMagicCookie(":0")
+	require.NoError(t, err)
+	require.Len(t, cookie, 45+len(host))
+	require.Equal(t, []byte{1, 0}, cookie[0:2])
+	clen := len(cookie)
+	require.Equal(t, []byte(MagicCookieString), cookie[clen-18-18:clen-18])
+	require.Equal(t, []byte{0, 18}, cookie[clen-18-18-2:clen-18-18])
+	require.Equal(t, []byte{0, 16}, cookie[clen-16-2:clen-16])
 }

@@ -2,11 +2,13 @@ package x11
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
@@ -14,11 +16,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils/envutils"
 	"github.com/gravitational/trace"
 )
-
-var executablePath = os.Executable
-var currentUser = user.Current
 
 func GetAvailableXSessions() (map[string]string, error) {
 	path, exists := os.LookupEnv("TELEPORT_XSESSIONS_PATH")
@@ -57,23 +57,22 @@ func GetAvailableXSessions() (map[string]string, error) {
 	return entries, nil
 }
 
+type XSessionConfig struct {
+	Logger    *slog.Logger
+	Command   string
+	Username  string
+	Login     string
+	LogConfig *srv.ChildLogConfig
+	Display   string
+}
+
 // StartTeleportExecXSession reexecs the current Teleport binary using
 // `teleport exec` and runs the provided start command.
 //
 // It wires the same control-pipe protocol used by SSH reexecs in
 // lib/srv/reexec.go.
-func StartTeleportExecXSession(startCommand string) (*exec.Cmd, error) {
-	startCommand = strings.TrimSpace(startCommand)
-	if startCommand == "" {
-		return nil, trace.BadParameter("start command is required")
-	}
-
-	usr, err := currentUser()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	executable, err := executablePath()
+func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.Cmd, error) {
+	executable, err := os.Executable()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -83,64 +82,85 @@ func StartTeleportExecXSession(startCommand string) (*exec.Cmd, error) {
 		return nil, trace.Wrap(err)
 	}
 	defer cmdw.Close()
+	defer cmdr.Close()
 
 	contr, contw, err := os.Pipe()
 	if err != nil {
-		cmdr.Close()
 		return nil, trace.Wrap(err)
 	}
-	defer contw.Close()
+	contw.Close()
+	defer contr.Close()
 
 	readyr, readyw, err := os.Pipe()
 	if err != nil {
-		cmdr.Close()
-		contr.Close()
 		return nil, trace.Wrap(err)
 	}
 	defer readyr.Close()
+	defer readyw.Close()
+
+	var logw *os.File
+
+	// If the log writer is a file, we can pass it directly to the child
+	// process to write to. Otherwise, we need to create a pipe to the child
+	// process and stream the logs to the log writer.
+	logCfg := cfg.LogConfig
+
+	if fileWriter, ok := logCfg.Writer.(*os.File); ok {
+		logw = fileWriter
+	} else {
+		// Create a pipe so we can pass the writing side as an *os.File to the child process.
+		// Then we can copy from the reading side to the log writer (e.g. syslog, log file w/ concurrency protection).
+		r, w, err := os.Pipe()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer w.Close()
+		logw = w
+
+		// Copy logs from the child process to the parent process over
+		// the pipe until it is closed by the child context.
+		go func() {
+			if _, err := io.Copy(logCfg.Writer, r); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+				cfg.Logger.ErrorContext(ctx, "Failed to copy logs over pipe", "error", err)
+			}
+		}()
+	}
 
 	killr, killw, err := os.Pipe()
 	if err != nil {
-		cmdr.Close()
-		contr.Close()
-		readyw.Close()
 		return nil, trace.Wrap(err)
 	}
+	defer killr.Close()
+
+	env := envutils.SafeEnv{}
+	env.AddTrusted("DISPLAY", cfg.Display)
+	env.AddExecEnvironment()
 
 	cmdmsg := &srv.ExecCommand{
-		Command:     startCommand,
+		Command:     cfg.Command,
 		RequestType: sshutils.ExecRequest,
-		Login:       usr.Username,
-		Username:    usr.Username,
-	}
-	if err := json.NewEncoder(cmdw).Encode(cmdmsg); err != nil {
-		cmdr.Close()
-		contr.Close()
-		readyw.Close()
-		killr.Close()
-		killw.Close()
-		return nil, trace.Wrap(err)
+		Login:       cfg.Login,
+		Username:    cfg.Username,
+		Environment: env,
+		LogConfig: srv.ExecLogConfig{
+			Level:        logCfg.Level,
+			Format:       logCfg.Format,
+			ExtraFields:  logCfg.ExtraFields,
+			EnableColors: logCfg.EnableColors,
+			Padding:      logCfg.Padding,
+		},
 	}
 
-	cmd := &exec.Cmd{
-		Path: executable,
-		Args: []string{executable, teleport.ExecSubCommand},
-		ExtraFiles: []*os.File{
-			cmdr,
-			os.Stderr,
-			contr,
-			readyw,
-			killr,
-		},
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+	cmd := exec.CommandContext(ctx, executable, teleport.ExecSubCommand)
+	cmd.ExtraFiles = []*os.File{
+		cmdr,
+		logw,
+		contr,
+		readyw,
+		killr,
 	}
+	cmd.Cancel = killw.Close
 	if err := cmd.Start(); err != nil {
-		cmdr.Close()
-		contr.Close()
-		readyw.Close()
-		killr.Close()
 		killw.Close()
 		return nil, trace.Wrap(err)
 	}
@@ -151,12 +171,12 @@ func StartTeleportExecXSession(startCommand string) (*exec.Cmd, error) {
 	readyw.Close()
 	killr.Close()
 
-	// The terminate writer must remain open while the child runs.
-	cmd.Cancel = func() error {
-		return killw.Close()
+	if err := json.NewEncoder(cmdw).Encode(cmdmsg); err != nil {
+		killw.Close()
+		return nil, trace.Wrap(err)
 	}
 
-	if err := waitForPipeClose(readyr, 10*time.Second); err != nil {
+	if err := waitForChildReadySignal(readyr, 10*time.Second); err != nil {
 		_ = cmd.Cancel()
 		return nil, trace.Wrap(err)
 	}
@@ -164,7 +184,7 @@ func StartTeleportExecXSession(startCommand string) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-func waitForPipeClose(f *os.File, timeout time.Duration) error {
+func waitForChildReadySignal(f *os.File, timeout time.Duration) error {
 	waitCh := make(chan error, 1)
 	go func() {
 		_, err := f.Read(make([]byte, 1))

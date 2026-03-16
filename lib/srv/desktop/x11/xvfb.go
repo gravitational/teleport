@@ -3,6 +3,7 @@ package x11
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -50,39 +51,58 @@ type Xvfb struct {
 	clipboardData   atomic.Pointer[[]byte]
 }
 
-// IsXvfbPresent reports whether the Xvfb binary is available in PATH.
-func IsXvfbPresent() bool {
-	_, err := exec.LookPath("Xvfb")
-	return err == nil
+// IsBackendPresent reports whether the binary required by selected backend is available in PATH.
+func IsBackendPresent() bool {
+	switch backend := os.Getenv("TELEPORT_LINUX_DESKTOP_BACKEND"); backend {
+	case "", "xvfb", "xvfb-tcp":
+		_, err := exec.LookPath("Xvfb")
+		return err == nil
+	case "xephyr":
+		_, err := exec.LookPath("Xephyr")
+		return err == nil
+	default:
+		return false
+	}
+}
+
+func getBackendCommand(ctx context.Context) (*exec.Cmd, error) {
+	switch backend := os.Getenv("TELEPORT_LINUX_DESKTOP_BACKEND"); backend {
+	case "", "xvfb":
+		return exec.CommandContext(ctx, "Xvfb",
+			"-displayfd", "1",
+			"-screen", "0", "8192x8192x24",
+			"-nolock",
+			"-nolisten", "tcp"), nil
+	case "xvfb-tcp":
+		// This backend allows to run multiple sessions on MacOS, otherwise displayfd always return 0.
+		// This will open TCP socket so it's less secure and it can only handle around 64K display at
+		// once - it's intended only for testing
+		return exec.CommandContext(ctx, "Xvfb",
+			"-displayfd", "1",
+			"-screen", "0", "8192x8192x24",
+			"-nolock",
+			"-listen", "tcp"), nil
+	case "xephyr":
+		// This backend starts nested X11 server using Xephyr. It requires already present server and
+		// DISPLAY environment variable defined. It's intended only for testing and debugging to see
+		// what's happening in the session
+		return exec.CommandContext(ctx, "Xephyr",
+			"-displayfd", "1",
+			"-screen", "8192x8192x24",
+			"-nolock",
+			"-listen", "tcp"), nil
+	default:
+		return nil, trace.BadParameter("unsupported backend: %q", backend)
+	}
 }
 
 // NewXvfb starts a Xvfb server and returns a connected client wrapper for interacting with the display.
 func NewXvfb(ctx context.Context, config Config) (*Xvfb, error) {
-	if !IsXvfbPresent() {
+	if !IsBackendPresent() {
 		return nil, trace.NotFound("Xvfb is not installed")
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
-
-	cmd := exec.CommandContext(ctx, "Xvfb",
-		"-displayfd", "1",
-		"-screen", "0", "8192x8192x24",
-		"-dpi", "50",
-		"-nolock",
-		"-nolisten", "tcp",
-		"-iglx")
-
-	if os.Getenv("TELEPORT_UNSTABLE_USE_XEPHYR") != "" {
-		cmd = exec.CommandContext(ctx, "Xephyr",
-			"-displayfd", "1",
-			"-screen", "8192x8192x24",
-			"-dpi", "50",
-			"-nolock",
-			"-nolisten", "tcp",
-			"-iglx")
-	}
-
-	cmd.WaitDelay = 5 * time.Second
 
 	var success bool
 	defer func() {
@@ -90,6 +110,15 @@ func NewXvfb(ctx context.Context, config Config) (*Xvfb, error) {
 			cancel()
 		}
 	}()
+
+	os.CreateTemp("", "")
+
+	cmd, err := getBackendCommand(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cmd.WaitDelay = 5 * time.Second
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -399,4 +428,28 @@ func (x *Xvfb) SetClipboardData(data []byte) error {
 	x.clipboardData.Store(&data)
 	err := xproto.SetSelectionOwnerChecked(x.conn, x.clipboardWindow, x.clipboardAtom, 0).Check()
 	return trace.Wrap(err)
+}
+
+const MagicCookieString = "MIT-MAGIC-COOKIE-1"
+
+func generateMagicCookie(display string) ([]byte, error) {
+	host, err := os.Hostname()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	data := make([]byte, 0, 2+2+len(host)+2+len(display)+2+len(MagicCookieString)+2+16)
+	data = binary.BigEndian.AppendUint16(data, 256)                            // address family: local
+	data = binary.BigEndian.AppendUint16(data, uint16(len(host)))              // host name length
+	data = append(data, host...)                                               // host name
+	data = binary.BigEndian.AppendUint16(data, uint16(len(display[1:])))       // display length
+	data = append(data, display[1:]...)                                        //display
+	data = binary.BigEndian.AppendUint16(data, uint16(len(MagicCookieString))) // magic cookie string length
+	data = append(data, MagicCookieString...)
+	data = binary.BigEndian.AppendUint16(data, 16)
+
+	r := make([]byte, 16)
+	rand.Read(r)
+	data = append(data, r...) // random secret data
+	return data, nil
 }

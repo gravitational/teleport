@@ -97,25 +97,29 @@ func createConfig(conn *tdp.Conn) Config {
 }
 
 func TestEncodeQOIZ(t *testing.T) {
-	// this test aim is to verify we get the same data as in tests on Rust side:
-	// encode_qoiz_single in encoder.rs
-	frames, err := EncodeQOIZ([]byte{0xFF, 0xFF, 0xFF, 0xFF}, 0, 0, 1, 1)
-	require.NoError(t, err)
-	require.Len(t, frames, 1)
-	require.Equal(t, []byte{0, 59, 4, 54, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 11, 1, 0, 1, 0, 32, 0, 0,
-		0, 40, 181, 47, 253, 0, 88, 185, 0, 0, 113, 111, 105, 102, 0, 0, 0, 1, 0, 0, 0, 1,
-		3, 0, 85, 0, 0, 0, 0, 0, 0, 0, 1}, frames[0].Pdu)
+	t.Run("single pixel", func(t *testing.T) {
+		// this test aim is to verify we get the same data as in tests on Rust side:
+		// encode_qoiz_single in encoder.rs
+		frames, err := EncodeQOIZ([]byte{0xFF, 0xFF, 0xFF, 0xFF}, 0, 0, 1, 1)
+		require.NoError(t, err)
+		require.Len(t, frames, 1)
+		require.Equal(t, []byte{0, 59, 4, 54, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 11, 1, 0, 1, 0, 32, 0, 0,
+			0, 40, 181, 47, 253, 0, 88, 185, 0, 0, 113, 111, 105, 102, 0, 0, 0, 1, 0, 0, 0, 1,
+			3, 0, 85, 0, 0, 0, 0, 0, 0, 0, 1}, frames[0].Pdu)
+	})
 
-	// test with random data to verify we get correct number of frames from Rust
-	data := make([]byte, 4*500*500)
-	for i := 0; i < 4*500*500; i += 4 {
-		data[i] = byte(rand.IntN(256))
-		data[i+1] = byte(rand.IntN(256))
-		data[i+2] = byte(rand.IntN(256))
-		data[i+3] = 0xFF
-	}
+	t.Run("random", func(t *testing.T) {
+		// test with random data to verify we get correct number of frames from Rust
+		data := make([]byte, 4*500*500)
+		for i := 0; i < 4*500*500; i += 4 {
+			data[i] = byte(rand.IntN(256))
+			data[i+1] = byte(rand.IntN(256))
+			data[i+2] = byte(rand.IntN(256))
+			data[i+3] = 0xFF
+		}
 
-	frames, err = EncodeQOIZ(data, 0, 0, 500, 500)
-	require.NoError(t, err)
-	require.Len(t, frames, 27)
+		frames, err := EncodeQOIZ(data, 0, 0, 500, 500)
+		require.NoError(t, err)
+		require.Len(t, frames, 27)
+	})
 }
