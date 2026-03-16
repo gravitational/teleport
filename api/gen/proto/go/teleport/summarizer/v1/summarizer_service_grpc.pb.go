@@ -59,6 +59,7 @@ const (
 	SummarizerService_UpdateRetrievalModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/UpdateRetrievalModel"
 	SummarizerService_UpsertRetrievalModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/UpsertRetrievalModel"
 	SummarizerService_DeleteRetrievalModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/DeleteRetrievalModel"
+	SummarizerService_TestRetrievalModel_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/TestRetrievalModel"
 )
 
 // SummarizerServiceClient is the client API for SummarizerService service.
@@ -129,6 +130,10 @@ type SummarizerServiceClient interface {
 	UpsertRetrievalModel(ctx context.Context, in *UpsertRetrievalModelRequest, opts ...grpc.CallOption) (*UpsertRetrievalModelResponse, error)
 	// DeleteRetrievalModel deletes the existing RetrievalModel by name.
 	DeleteRetrievalModel(ctx context.Context, in *DeleteRetrievalModelRequest, opts ...grpc.CallOption) (*DeleteRetrievalModelResponse, error)
+	// TestRetrievalModel tests a RetrievalModel configuration by generating a
+	// test embedding using the configured embeddings provider (AWS Bedrock or
+	// OpenAI).
+	TestRetrievalModel(ctx context.Context, in *TestRetrievalModelRequest, opts ...grpc.CallOption) (*TestRetrievalModelResponse, error)
 }
 
 type summarizerServiceClient struct {
@@ -399,6 +404,16 @@ func (c *summarizerServiceClient) DeleteRetrievalModel(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *summarizerServiceClient) TestRetrievalModel(ctx context.Context, in *TestRetrievalModelRequest, opts ...grpc.CallOption) (*TestRetrievalModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TestRetrievalModelResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_TestRetrievalModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SummarizerServiceServer is the server API for SummarizerService service.
 // All implementations must embed UnimplementedSummarizerServiceServer
 // for forward compatibility.
@@ -467,6 +482,10 @@ type SummarizerServiceServer interface {
 	UpsertRetrievalModel(context.Context, *UpsertRetrievalModelRequest) (*UpsertRetrievalModelResponse, error)
 	// DeleteRetrievalModel deletes the existing RetrievalModel by name.
 	DeleteRetrievalModel(context.Context, *DeleteRetrievalModelRequest) (*DeleteRetrievalModelResponse, error)
+	// TestRetrievalModel tests a RetrievalModel configuration by generating a
+	// test embedding using the configured embeddings provider (AWS Bedrock or
+	// OpenAI).
+	TestRetrievalModel(context.Context, *TestRetrievalModelRequest) (*TestRetrievalModelResponse, error)
 	mustEmbedUnimplementedSummarizerServiceServer()
 }
 
@@ -554,6 +573,9 @@ func (UnimplementedSummarizerServiceServer) UpsertRetrievalModel(context.Context
 }
 func (UnimplementedSummarizerServiceServer) DeleteRetrievalModel(context.Context, *DeleteRetrievalModelRequest) (*DeleteRetrievalModelResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteRetrievalModel not implemented")
+}
+func (UnimplementedSummarizerServiceServer) TestRetrievalModel(context.Context, *TestRetrievalModelRequest) (*TestRetrievalModelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TestRetrievalModel not implemented")
 }
 func (UnimplementedSummarizerServiceServer) mustEmbedUnimplementedSummarizerServiceServer() {}
 func (UnimplementedSummarizerServiceServer) testEmbeddedByValue()                           {}
@@ -1044,6 +1066,24 @@ func _SummarizerService_DeleteRetrievalModel_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SummarizerService_TestRetrievalModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestRetrievalModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).TestRetrievalModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_TestRetrievalModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).TestRetrievalModel(ctx, req.(*TestRetrievalModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SummarizerService_ServiceDesc is the grpc.ServiceDesc for SummarizerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1154,6 +1194,10 @@ var SummarizerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteRetrievalModel",
 			Handler:    _SummarizerService_DeleteRetrievalModel_Handler,
+		},
+		{
+			MethodName: "TestRetrievalModel",
+			Handler:    _SummarizerService_TestRetrievalModel_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
