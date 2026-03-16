@@ -378,8 +378,8 @@ func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q is missing scope", assignment.GetMetadata().GetName())
 	}
 
-	if assignment.GetSpec().GetUser() == "" {
-		return trace.BadParameter("scoped role assignment %q is missing spec.user", assignment.GetMetadata().GetName())
+	if assignment.GetSpec().GetUser() == "" && assignment.GetSpec().GetBotName() == "" {
+		return trace.BadParameter("scoped role assignment %q is missing spec.user or spec.bot_name", assignment.GetMetadata().GetName())
 	}
 
 	return nil
