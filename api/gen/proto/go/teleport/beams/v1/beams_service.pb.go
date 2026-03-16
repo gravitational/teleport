@@ -129,8 +129,11 @@ func (*CreateBeamRequest) Descriptor() ([]byte, []int) {
 // GetBeamRequest contains the parameters to GetBeam.
 type GetBeamRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// BeamID identifies the beam that will be read.
-	BeamId        string `protobuf:"bytes,1,opt,name=beam_id,json=beamId,proto3" json:"beam_id,omitempty"`
+	// Types that are valid to be assigned to Selector:
+	//
+	//	*GetBeamRequest_Id
+	//	*GetBeamRequest_Alias
+	Selector      isGetBeamRequest_Selector `protobuf_oneof:"selector"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -165,12 +168,48 @@ func (*GetBeamRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_beams_v1_beams_service_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetBeamRequest) GetBeamId() string {
+func (x *GetBeamRequest) GetSelector() isGetBeamRequest_Selector {
 	if x != nil {
-		return x.BeamId
+		return x.Selector
+	}
+	return nil
+}
+
+func (x *GetBeamRequest) GetId() string {
+	if x != nil {
+		if x, ok := x.Selector.(*GetBeamRequest_Id); ok {
+			return x.Id
+		}
 	}
 	return ""
 }
+
+func (x *GetBeamRequest) GetAlias() string {
+	if x != nil {
+		if x, ok := x.Selector.(*GetBeamRequest_Alias); ok {
+			return x.Alias
+		}
+	}
+	return ""
+}
+
+type isGetBeamRequest_Selector interface {
+	isGetBeamRequest_Selector()
+}
+
+type GetBeamRequest_Id struct {
+	// ID identifies the beam that will be read.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3,oneof"`
+}
+
+type GetBeamRequest_Alias struct {
+	// Alias identifies the beam that will be read.
+	Alias string `protobuf:"bytes,2,opt,name=alias,proto3,oneof"`
+}
+
+func (*GetBeamRequest_Id) isGetBeamRequest_Selector() {}
+
+func (*GetBeamRequest_Alias) isGetBeamRequest_Selector() {}
 
 // DeleteBeamRequest contains the parameters to DeleteBeam.
 type DeleteBeamRequest struct {
@@ -554,9 +593,12 @@ var File_teleport_beams_v1_beams_service_proto protoreflect.FileDescriptor
 const file_teleport_beams_v1_beams_service_proto_rawDesc = "" +
 	"\n" +
 	"%teleport/beams/v1/beams_service.proto\x12\x11teleport.beams.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cteleport/beams/v1/beam.proto\"\x13\n" +
-	"\x11CreateBeamRequest\")\n" +
-	"\x0eGetBeamRequest\x12\x17\n" +
-	"\abeam_id\x18\x01 \x01(\tR\x06beamId\",\n" +
+	"\x11CreateBeamRequest\"F\n" +
+	"\x0eGetBeamRequest\x12\x10\n" +
+	"\x02id\x18\x01 \x01(\tH\x00R\x02id\x12\x16\n" +
+	"\x05alias\x18\x02 \x01(\tH\x00R\x05aliasB\n" +
+	"\n" +
+	"\bselector\",\n" +
 	"\x11DeleteBeamRequest\x12\x17\n" +
 	"\abeam_id\x18\x01 \x01(\tR\x06beamId\"N\n" +
 	"\x10ListBeamsRequest\x12\x1b\n" +
@@ -650,6 +692,10 @@ func file_teleport_beams_v1_beams_service_proto_init() {
 		return
 	}
 	file_teleport_beams_v1_beam_proto_init()
+	file_teleport_beams_v1_beams_service_proto_msgTypes[1].OneofWrappers = []any{
+		(*GetBeamRequest_Id)(nil),
+		(*GetBeamRequest_Alias)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

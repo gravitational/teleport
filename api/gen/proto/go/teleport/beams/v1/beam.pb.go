@@ -180,6 +180,8 @@ type BeamStatus struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// User to which this beam belongs.
 	User string `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	// Alias is the human-friendly identifier for the beam.
+	Alias string `protobuf:"bytes,11,opt,name=alias,proto3" json:"alias,omitempty"`
 	// SSHAddr is the `host:port` address on which Teleport proxies can dial the
 	// beam's OpenSSH server.
 	SshAddr string `protobuf:"bytes,2,opt,name=ssh_addr,json=sshAddr,proto3" json:"ssh_addr,omitempty"`
@@ -242,6 +244,13 @@ func (*BeamStatus) Descriptor() ([]byte, []int) {
 func (x *BeamStatus) GetUser() string {
 	if x != nil {
 		return x.User
+	}
+	return ""
+}
+
+func (x *BeamStatus) GetAlias() string {
+	if x != nil {
+		return x.Alias
 	}
 	return ""
 }
@@ -322,10 +331,11 @@ const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	"\x04spec\x18\x05 \x01(\v2\x1b.teleport.beams.v1.BeamSpecR\x04spec\x125\n" +
 	"\x06status\x18\x06 \x01(\v2\x1d.teleport.beams.v1.BeamStatusR\x06status\"3\n" +
 	"\bBeamSpec\x12'\n" +
-	"\x0fallowed_domains\x18\x01 \x03(\tR\x0eallowedDomains\"\xe2\x02\n" +
+	"\x0fallowed_domains\x18\x01 \x03(\tR\x0eallowedDomains\"\xf8\x02\n" +
 	"\n" +
 	"BeamStatus\x12\x12\n" +
-	"\x04user\x18\x01 \x01(\tR\x04user\x12\x19\n" +
+	"\x04user\x18\x01 \x01(\tR\x04user\x12\x14\n" +
+	"\x05alias\x18\v \x01(\tR\x05alias\x12\x19\n" +
 	"\bssh_addr\x18\x02 \x01(\tR\asshAddr\x12\"\n" +
 	"\rapp_addr_http\x18\x03 \x01(\tR\vappAddrHttp\x12\x19\n" +
 	"\bbot_name\x18\x04 \x01(\tR\abotName\x12&\n" +

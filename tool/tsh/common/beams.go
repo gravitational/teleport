@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dustin/go-humanize"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
@@ -48,10 +50,7 @@ func onBeamsAdd(cf *CLIConf) error {
 	tc.AllowHeadless = true
 
 	stopCreating := startBeamSpinner(cf.Stdout(), "creating...")
-	var (
-		beamID   string
-		beamNode string
-	)
+	var beam *beamsv1.Beam
 	createErr := client.RetryWithRelogin(cf.Context, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
@@ -59,12 +58,10 @@ func onBeamsAdd(cf *CLIConf) error {
 		}
 		defer clusterClient.Close()
 
-		beam, err := clusterClient.AuthClient.BeamsServiceClient().CreateBeam(cf.Context, &beamsv1.CreateBeamRequest{})
+		beam, err = clusterClient.AuthClient.BeamsServiceClient().CreateBeam(cf.Context, &beamsv1.CreateBeamRequest{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		beamID = beam.GetMetadata().GetName()
-		beamNode = beam.GetStatus().GetNodeId()
 		return nil
 	})
 	if createErr != nil {
@@ -73,13 +70,20 @@ func onBeamsAdd(cf *CLIConf) error {
 	}
 	idStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	diamondStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
-	stopCreating(fmt.Sprintf("%s created %s", diamondStyle.Render("◆"), idStyle.Render(beamID)))
+
+	// TODO(boxofrad): Remove this once all tenants have been updated to a
+	// version that supports beam aliases.
+	name := beam.GetMetadata().GetName()
+	if alias := beam.GetStatus().GetAlias(); alias != "" {
+		name = alias
+	}
+	stopCreating(fmt.Sprintf("%s created %s", diamondStyle.Render("◆"), idStyle.Render(name)))
 
 	if !cf.BeamConsole {
 		return nil
 	}
 
-	if err = connectToBeamSSHWithRetry(cf, tc, beamNode, nil); err != nil {
+	if err = connectToBeamSSHWithRetry(cf, tc, beam.GetStatus().GetNodeId(), nil); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -155,6 +159,10 @@ func onBeamsDelete(cf *CLIConf) error {
 	}
 
 	tc.AllowHeadless = true
+	beamID, err := resolveBeamID(cf.Context, tc, cf.BeamID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
@@ -164,7 +172,7 @@ func onBeamsDelete(cf *CLIConf) error {
 		defer clusterClient.Close()
 
 		_, err = clusterClient.AuthClient.BeamsServiceClient().DeleteBeam(cf.Context, &beamsv1.DeleteBeamRequest{
-			BeamId: cf.BeamID,
+			BeamId: beamID,
 		})
 		return trace.Wrap(err)
 	}); err != nil {
@@ -182,6 +190,10 @@ func onBeamsAllow(cf *CLIConf) error {
 	}
 
 	tc.AllowHeadless = true
+	beamID, err := resolveBeamID(cf.Context, tc, cf.BeamID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
@@ -191,7 +203,7 @@ func onBeamsAllow(cf *CLIConf) error {
 		defer clusterClient.Close()
 
 		_, err = clusterClient.AuthClient.BeamsServiceClient().AllowDomain(cf.Context, &beamsv1.AllowDomainRequest{
-			BeamId: cf.BeamID,
+			BeamId: beamID,
 			Fqdns:  []string{cf.BeamDomain},
 		})
 		return trace.Wrap(err)
@@ -216,6 +228,10 @@ func onBeamsPublish(cf *CLIConf) error {
 	if cf.BeamTCP {
 		protocol = beamsv1.Protocol_PROTOCOL_TCP
 	}
+	beamID, err := resolveBeamID(cf.Context, tc, cf.BeamID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	var addr string
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
@@ -226,7 +242,7 @@ func onBeamsPublish(cf *CLIConf) error {
 		defer clusterClient.Close()
 
 		resp, err := clusterClient.AuthClient.BeamsServiceClient().Publish(cf.Context, &beamsv1.PublishRequest{
-			BeamId:   cf.BeamID,
+			BeamId:   beamID,
 			Port:     port,
 			Protocol: protocol,
 		})
@@ -255,7 +271,7 @@ func onBeamsPublish(cf *CLIConf) error {
 		const usageText = "Connect to your TCP application from another beam by dialing:\n%s\n\n" +
 			"Or start a local tunnel to the application with:\n" +
 			"tsh proxy app beam-%s\n"
-		fmt.Fprintf(cf.Stdout(), usageText, dialAddr, cf.BeamID)
+		fmt.Fprintf(cf.Stdout(), usageText, dialAddr, beamID)
 	}
 
 	return nil
@@ -345,7 +361,7 @@ func parseBeamCopySpec(rawSpec []string) (beamCopySpec, error) {
 	}
 
 	if !source.IsBeam && !destination.IsBeam {
-		return beamCopySpec{}, trace.BadParameter("one of source or destination must be a beam path in the form BEAM_ID:PATH")
+		return beamCopySpec{}, trace.BadParameter("one of source or destination must be a beam path in the form BEAM:PATH")
 	}
 
 	return beamCopySpec{
@@ -361,7 +377,7 @@ func parseBeamCopyTarget(rawTarget string) (beamCopyTarget, error) {
 
 	beamID, path, _ := strings.Cut(rawTarget, ":")
 	if beamID == "" {
-		return beamCopyTarget{}, trace.BadParameter("%q is missing a beam ID, use the form BEAM_ID:PATH", rawTarget)
+		return beamCopyTarget{}, trace.BadParameter("%q is missing a beam reference, use the form BEAM:PATH", rawTarget)
 	}
 
 	return beamCopyTarget{
@@ -384,8 +400,19 @@ func resolveBeamCopyTarget(cf *CLIConf, tc *client.TeleportClient, target beamCo
 	return beamRemotePath(cf, tc, nodeID, target.Path), nil
 }
 
-func getBeamNodeID(ctx context.Context, tc *client.TeleportClient, beamID string) (string, error) {
-	var nodeID string
+func resolveBeamID(ctx context.Context, tc *client.TeleportClient, beamRef string) (string, error) {
+	beam, err := getBeam(ctx, tc, beamRef)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if beam.GetMetadata().GetName() == "" {
+		return "", trace.NotFound("beam %q has no ID", beamRef)
+	}
+	return beam.GetMetadata().GetName(), nil
+}
+
+func getBeam(ctx context.Context, tc *client.TeleportClient, beamRef string) (*beamsv1.Beam, error) {
+	var beam *beamsv1.Beam
 	err := client.RetryWithRelogin(ctx, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(ctx)
 		if err != nil {
@@ -393,21 +420,36 @@ func getBeamNodeID(ctx context.Context, tc *client.TeleportClient, beamID string
 		}
 		defer clusterClient.Close()
 
-		beam, err := clusterClient.AuthClient.BeamsServiceClient().
-			GetBeam(ctx, &beamsv1.GetBeamRequest{
-				BeamId: beamID,
-			})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		nodeID = beam.GetStatus().GetNodeId()
-		if nodeID == "" {
-			return trace.NotFound("beam %q has no node", beamID)
-		}
-		return nil
+		beam, err = clusterClient.AuthClient.BeamsServiceClient().GetBeam(ctx, getBeamRequest(beamRef))
+		return trace.Wrap(err)
 	})
-	return nodeID, trace.Wrap(err)
+	return beam, trace.Wrap(err)
+}
+
+func getBeamRequest(beamRef string) *beamsv1.GetBeamRequest {
+	if _, err := uuid.Parse(beamRef); err == nil {
+		return &beamsv1.GetBeamRequest{
+			Selector: &beamsv1.GetBeamRequest_Id{Id: beamRef},
+		}
+	}
+
+	return &beamsv1.GetBeamRequest{
+		Selector: &beamsv1.GetBeamRequest_Alias{Alias: beamRef},
+	}
+}
+
+func getBeamNodeID(ctx context.Context, tc *client.TeleportClient, beamID string) (string, error) {
+	beam, err := getBeam(ctx, tc, beamID)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	nodeID := beam.GetStatus().GetNodeId()
+	if nodeID == "" {
+		return "", trace.NotFound("beam %q has no node", beamID)
+	}
+
+	return nodeID, nil
 }
 
 func copyBeamFile(cf *CLIConf, tc *client.TeleportClient, sources []string, destination string) error {
@@ -471,9 +513,10 @@ func connectToBeamSSHWithRetry(cf *CLIConf, tc *client.TeleportClient, nodeID st
 }
 
 func renderBeamsTable(beams []*beamsv1.Beam, proxyHost string) string {
-	table := asciitable.MakeTable([]string{"Name", "Expiry"})
+	table := asciitable.MakeTable([]string{"Alias", "Name", "Expires"})
 	for _, beam := range beams {
 		table.AddRow([]string{
+			beam.GetStatus().GetAlias(),
 			beam.GetMetadata().GetName(),
 			beamExpiry(beam),
 		})
@@ -490,7 +533,7 @@ func beamExpiry(beam *beamsv1.Beam) string {
 	if t.IsZero() {
 		return ""
 	}
-	return t.UTC().Format(time.RFC3339)
+	return humanize.Time(t)
 }
 
 // startBeamSpinner prints an animated braille spinner with msg to w.

@@ -21,6 +21,7 @@ package local
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -32,10 +33,12 @@ import (
 )
 
 const beamPrefix = "beams"
+const beamAliasPrefix = "beams_alias"
 
 // BeamService manages [beamsv1.Beam] resources in the backend.
 type BeamService struct {
-	svc *generic.ServiceWrapper[*beamsv1.Beam]
+	backend backend.Backend
+	svc     *generic.ServiceWrapper[*beamsv1.Beam]
 }
 
 // NewBeamService creates a new BeamService.
@@ -54,7 +57,10 @@ func NewBeamService(b backend.Backend) (*BeamService, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &BeamService{svc: service}, nil
+	return &BeamService{
+		backend: b,
+		svc:     service,
+	}, nil
 }
 
 // CreateBeam creates a new Beam resource.
@@ -70,6 +76,23 @@ func (s *BeamService) GetBeam(ctx context.Context, name string) (*beamsv1.Beam, 
 		return nil, trace.Wrap(err)
 	}
 	return item, nil
+}
+
+// GetBeamByAlias returns the specified Beam resource by alias.
+func (s *BeamService) GetBeamByAlias(ctx context.Context, alias string) (*beamsv1.Beam, error) {
+	if alias == "" {
+		return nil, trace.BadParameter("alias: must be non-empty")
+	}
+
+	item, err := s.backend.Get(ctx, beamAliasKey(alias))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("beam %q doesn't exist", alias)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	return s.GetBeam(ctx, string(item.Value))
 }
 
 // ListBeams returns a paginated list of Beam resources.
@@ -99,9 +122,42 @@ func (s *BeamService) DeleteBeam(ctx context.Context, name string) error {
 	return trace.Wrap(s.svc.DeleteResource(ctx, name))
 }
 
+// CreateBeamAliasLease creates a new alias lease for a beam.
+func (s *BeamService) CreateBeamAliasLease(ctx context.Context, alias, beamID string, expiry time.Time) error {
+	if alias == "" {
+		return trace.BadParameter("alias: must be non-empty")
+	}
+	if beamID == "" {
+		return trace.BadParameter("beamID: must be non-empty")
+	}
+
+	_, err := s.backend.Create(ctx, backend.Item{
+		Key:     beamAliasKey(alias),
+		Value:   []byte(beamID),
+		Expires: expiry,
+	})
+	if trace.IsAlreadyExists(err) {
+		return trace.AlreadyExists("beam alias %q already exists", alias)
+	}
+	return trace.Wrap(err)
+}
+
+// DeleteBeamAliasLease deletes an alias lease for a beam.
+func (s *BeamService) DeleteBeamAliasLease(ctx context.Context, alias string) error {
+	if alias == "" {
+		return trace.BadParameter("alias: must be non-empty")
+	}
+
+	return trace.Wrap(s.backend.Delete(ctx, beamAliasKey(alias)))
+}
+
 // DeleteAllBeams removes all Beam resources.
 func (s *BeamService) DeleteAllBeams(ctx context.Context) error {
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))
+}
+
+func beamAliasKey(alias string) backend.Key {
+	return backend.NewKey(beamAliasPrefix, alias)
 }
 
 func newBeamParser() resourceParser {

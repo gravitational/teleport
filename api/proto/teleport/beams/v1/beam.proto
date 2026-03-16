@@ -54,6 +54,9 @@ message BeamStatus {
   // User to which this beam belongs.
   string user = 1;
 
+  // Alias is the human-friendly identifier for the beam.
+  string alias = 11;
+
   // SSHAddr is the `host:port` address on which Teleport proxies can dial the
   // beam's OpenSSH server.
   string ssh_addr = 2;
