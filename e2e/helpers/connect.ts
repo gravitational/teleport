@@ -84,6 +84,8 @@ export const test = base.extend<{
   app: App;
 }>({
   autoLogin: [false, { option: true }],
+  // Playwright fixture callbacks receive `use` to provide the fixture value:
+  // https://playwright.dev/docs/test-fixtures
   app: async ({ autoLogin }, use, testInfo) => {
     await using temp = await fs.mkdtempDisposable(
       path.join(os.tmpdir(), 'connect-e2e-test-')
