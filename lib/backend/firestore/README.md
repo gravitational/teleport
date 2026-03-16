@@ -7,17 +7,6 @@ This package enables Teleport auth server to store secrets in
 
 WARNING: Using Firestore involves recurring charge from GCP.
 
-### Building
-
-Firestore backend is not enabled by default. To enable it you have to 
-compile Teleport with `firestore` build flag.
-
-To build Teleport with Firestore enabled, run:
-
-```
-ADDFLAGS='-tags firestore' make teleport
-```
-
 ### Quick Start
 
 There are currently two Firestore mode options for any given GCP Project; `Native mode` and
