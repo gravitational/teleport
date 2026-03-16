@@ -49,27 +49,6 @@ func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allow
 	if containsWildcard(allowedResources) && len(deniedResources) == 0 {
 		return nil
 	}
-
-	// Try to compile a fast matcher that pre-filters rules by kind/verb and pre-compiles all regex patterns.
-	// This reduces per-item overhead from cache lookups + rule iteration to direct regex matching.
-	// Falls back to per-item matchKubernetesResource when the fast matcher cannot handle the request.
-	var matcher resourceMatcher
-	fm, err := tryCompileFastMatcher(mr, allowedResources, deniedResources)
-	if err != nil {
-		log.DebugContext(context.Background(), "Failed to compile fast matcher, falling back to per-item matching", "error", err)
-	}
-	if fm != nil {
-		matcher = fm
-	} else {
-		matcher = &defaultMatcher{
-			kind:             mr.requestedResource.resourceKind,
-			verb:             mr.verb,
-			isClusterWide:    mr.isClusterWideResource(),
-			allowedResources: allowedResources,
-			deniedResources:  deniedResources,
-		}
-	}
-
 	return func(contentType string, responseCode int) (responsewriters.Filter, error) {
 		negotiator := newClientNegotiator(codecs)
 		encoder, decoder, err := newEncoderAndDecoderForContentType(contentType, negotiator)
@@ -84,7 +63,7 @@ func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allow
 			negotiator:   negotiator,
 			log:          log,
 			metaResource: mr,
-			matcher:      matcher,
+			matcher:      newMatcher(mr, allowedResources, deniedResources, log),
 		}, nil
 	}
 }
@@ -137,6 +116,23 @@ type resourceFilterer struct {
 // resourceMatcher matches a Kubernetes resource by name, namespace, and API group.
 type resourceMatcher interface {
 	match(name, namespace, apiGroup string) (bool, error)
+}
+
+func newMatcher(mr metaResource, allowed, denied []types.KubernetesResource, log *slog.Logger) resourceMatcher {
+	fm, err := tryCompileFastMatcher(mr, allowed, denied)
+	if err != nil {
+		log.DebugContext(context.Background(), "Failed to compile fast matcher, falling back to per-item matching", "error", err)
+	}
+	if fm != nil {
+		return fm
+	}
+	return &defaultMatcher{
+		kind:             mr.requestedResource.resourceKind,
+		verb:             mr.verb,
+		isClusterWide:    mr.isClusterWideResource(),
+		allowedResources: allowed,
+		deniedResources:  denied,
+	}
 }
 
 // FilterBuffer receives a byte array, decodes the response into the appropriate
