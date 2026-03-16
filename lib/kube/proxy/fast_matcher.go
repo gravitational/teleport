@@ -35,8 +35,7 @@ import (
 // Per-item cost becomes direct regex matching against only the relevant rules.
 //
 // The fast matcher handles the common "default" case in KubeResourceMatchesRegex.
-// It cannot handle namespace special cases (when the requested kind is "namespaces"),
-// so tryCompileFastMatcher returns nil for those requests and the caller falls back to matchKubernetesResource.
+// It cannot handle namespace special cases (when the requested kind is "namespaces").
 type fastMatcher struct {
 	allowRules []compiledMatchRule
 	denyRules  []compiledMatchRule
@@ -64,25 +63,6 @@ func (f fieldMatcher) match(s string) bool {
 		return f.literal == s
 	}
 	return f.re.MatchString(s)
-}
-
-// tryCompileFastMatcher attempts to compile a fast matcher from the given RBAC rules.
-// Returns nil (without error) if the fast matcher cannot handle the request,
-// signaling the caller to fall back to matchKubernetesResource.
-func tryCompileFastMatcher(mr metaResource, allowed, denied []types.KubernetesResource) (*fastMatcher, error) {
-	// The fast matcher cannot handle namespace special cases in KubeResourceMatchesRegex
-	// (read-only namespace visibility, namespace kind matching with different target selection).
-	if mr.requestedResource.resourceKind == "namespaces" {
-		return nil, nil
-	}
-
-	// Pre-filter rules that cannot match this request.
-	// Kind, verb, API group, and namespace (when targeting a specific namespace)
-	// are uniform for all items in a list response, so rules that don't match can be dropped.
-	allowed = filterRules(mr, allowed)
-	denied = filterRules(mr, denied)
-
-	return compileFastMatcher(allowed, denied)
 }
 
 // compileFastMatcher compiles a fast matcher from pre-filtered RBAC rules.

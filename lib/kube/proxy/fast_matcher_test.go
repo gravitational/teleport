@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 )
 
-func TestTryCompileFastMatcher(t *testing.T) {
+func TestNewMatcher(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -41,16 +41,15 @@ func TestTryCompileFastMatcher(t *testing.T) {
 		apiGroup       string
 		namespace      string
 		allowed        []types.KubernetesResource
-		wantNil        bool
-		wantErr        bool
+		wantDefault    bool
 		wantAllowCount int
 		wantDenyCount  int
 	}{
 		{
-			name:    "returns nil for namespace kind",
-			kind:    "namespaces",
-			verb:    types.KubeVerbList,
-			wantNil: true,
+			name:        "returns defaultMatcher for namespace kind",
+			kind:        "namespaces",
+			verb:        types.KubeVerbList,
+			wantDefault: true,
 		},
 		{
 			name: "compiles successfully for pod kind",
@@ -117,14 +116,13 @@ func TestTryCompileFastMatcher(t *testing.T) {
 			wantAllowCount: 0,
 		},
 		{
-			name: "returns error for invalid regex",
+			name: "returns defaultMatcher for invalid regex",
 			kind: types.KindKubePod,
 			verb: types.KubeVerbList,
 			allowed: []types.KubernetesResource{
 				{Kind: types.KindKubePod, Namespace: "^[invalid$", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
 			},
-			wantErr: true,
-			wantNil: true,
+			wantDefault: true,
 		},
 		{
 			name:     "filters out rules with non-matching literal API group",
@@ -198,17 +196,14 @@ func TestTryCompileFastMatcher(t *testing.T) {
 				requestedResource: apiResource{resourceKind: tt.kind, apiGroup: tt.apiGroup, namespace: tt.namespace},
 				verb:              tt.verb,
 			}
-			fm, err := tryCompileFastMatcher(mr, tt.allowed, nil)
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-			if tt.wantNil {
-				require.Nil(t, fm)
+			log := slog.New(slog.DiscardHandler)
+			m := newMatcher(mr, tt.allowed, nil, log)
+			if tt.wantDefault {
+				require.IsType(t, &defaultMatcher{}, m)
 				return
 			}
-			require.NotNil(t, fm)
+			fm, ok := m.(*fastMatcher)
+			require.True(t, ok, "expected *fastMatcher, got %T", m)
 			require.Len(t, fm.allowRules, tt.wantAllowCount)
 			require.Len(t, fm.denyRules, tt.wantDenyCount)
 		})
@@ -548,9 +543,9 @@ func TestMatcherEquivalence(t *testing.T) {
 				verb:              tc.verb,
 			}
 
-			fm, err := tryCompileFastMatcher(mr, tc.allowed, tc.denied)
-			require.NoError(t, err)
-			require.NotNil(t, fm)
+			log := slog.New(slog.DiscardHandler)
+			fm := newMatcher(mr, tc.allowed, tc.denied, log)
+			require.IsType(t, &fastMatcher{}, fm)
 
 			dm := &defaultMatcher{
 				kind:             tc.kind,
@@ -613,13 +608,11 @@ func TestMatcherEquivalenceMatrix(t *testing.T) {
 								requestedResource: apiResource{resourceKind: kind, apiGroup: inputAG},
 								verb:              verb,
 							}
-							fm, err := tryCompileFastMatcher(mr, allowed, nil)
-							if err != nil {
-								// Invalid regex — fast matcher falls back to default. Skip.
-								continue
-							}
-							if fm == nil {
-								// Threshold exceeded or namespace kind. Skip.
+							log := slog.New(slog.DiscardHandler)
+							m := newMatcher(mr, allowed, nil, log)
+							fm, ok := m.(*fastMatcher)
+							if !ok {
+								// Invalid regex — fell back to defaultMatcher. Skip.
 								continue
 							}
 

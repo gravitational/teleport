@@ -119,12 +119,21 @@ type resourceMatcher interface {
 }
 
 func newMatcher(mr metaResource, allowed, denied []types.KubernetesResource, log *slog.Logger) resourceMatcher {
-	fm, err := tryCompileFastMatcher(mr, allowed, denied)
-	if err != nil {
-		log.DebugContext(context.Background(), "Failed to compile fast matcher, falling back to per-item matching", "error", err)
-	}
-	if fm != nil {
-		return fm
+	// The fast matcher cannot handle namespace special cases in KubeResourceMatchesRegex
+	// (read-only namespace visibility, namespace kind matching with different target selection).
+	if mr.requestedResource.resourceKind != "namespaces" {
+		// Pre-filter rules that cannot match this request.
+		// Kind, verb, API group, and namespace (when targeting a specific namespace)
+		// are uniform for all items in a list response, so rules that don't match can be dropped.
+		filteredAllowed := filterRules(mr, allowed)
+		filteredDenied := filterRules(mr, denied)
+
+		fm, err := compileFastMatcher(filteredAllowed, filteredDenied)
+		if err != nil {
+			log.DebugContext(context.Background(), "Failed to compile fast matcher, falling back to per-item matching", "error", err)
+		} else {
+			return fm
+		}
 	}
 	return &defaultMatcher{
 		kind:             mr.requestedResource.resourceKind,
