@@ -370,7 +370,7 @@ func (o *OktaAssignmentV1) Copy() OktaAssignment {
 // String returns the Okta assignment rule string representation.
 func (o *OktaAssignmentV1) String() string {
 	return fmt.Sprintf("OktaAssignmentV1(Name=%v, Labels=%v, User=%s, Status=%s, LastTransition=%s, CleanupTime=%s)",
-		o.GetName(), o.GetAllLabels(), o.Spec.User, o.Spec.Status, o.Spec.LastTransition.Format(time.RFC3339), o.Spec.CleanupTime.UTC().Format(time.RFC3339))
+		o.GetName(), o.GetAllLabels(), o.GetUser(), o.GetStatus(), o.Spec.LastTransition.UTC().Format(time.RFC3339), o.Spec.CleanupTime.UTC().Format(time.RFC3339))
 }
 
 // MatchSearch goes through select field values and tries to
