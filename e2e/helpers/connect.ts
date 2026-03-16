@@ -48,18 +48,23 @@ export async function launchApp(homeDir: string) {
     },
   });
 
-  const page = await app.firstWindow();
-  await page.waitForLoadState('domcontentloaded');
+  try {
+    const page = await app.firstWindow();
+    await page.waitForLoadState('domcontentloaded');
 
-  const usageData = page.getByText('Anonymous usage data');
-  await usageData.isVisible();
-  const declineUsageData = page.getByRole('button', {
-    name: 'Decline',
-    exact: true,
-  });
-  await declineUsageData.click();
+    const usageData = page.getByText('Anonymous usage data');
+    await usageData.isVisible();
+    const declineUsageData = page.getByRole('button', {
+      name: 'Decline',
+      exact: true,
+    });
+    await declineUsageData.click();
 
-  return { app, page, [Symbol.asyncDispose]: async () => app.close() };
+    return { app, page, [Symbol.asyncDispose]: async () => app.close() };
+  } catch (err) {
+    await app.close();
+    throw err;
+  }
 }
 
 export async function login(page: Page): Promise<void> {
