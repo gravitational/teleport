@@ -123,6 +123,15 @@ export interface BoxShadowProps<TLength = TLengthStyledSystem> {
   boxShadow?: ResponsiveValue<Property.Gap<TLength>>;
 }
 
+export const whiteSpace = style({
+  prop: 'whiteSpace',
+  cssProperty: 'white-space',
+});
+
+export interface WhiteSpaceProps {
+  whiteSpace?: Property.WhiteSpace;
+}
+
 export {
   alignItems,
   type AlignItemsProps,

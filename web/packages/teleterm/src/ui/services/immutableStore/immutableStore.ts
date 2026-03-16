@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
+/* oxlint-disable @typescript-eslint/ban-ts-comment*/
 
 import { enableMapSet, produce } from 'immer';
 
