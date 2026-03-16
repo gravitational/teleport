@@ -308,6 +308,10 @@ func (s *State) GetSessions() (map[string]int64, error) {
 
 		// Assume 0 if byte count is incorrect
 		if len(b) != 8 {
+			s.log.WarnContext(
+				context.TODO(),
+				"Malformed session state key found in storage. Starting over at index 0.", "session", key,
+			)
 			b = make([]byte, 8)
 			binary.BigEndian.PutUint64(b, uint64(0))
 		}
