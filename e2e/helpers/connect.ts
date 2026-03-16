@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { mkdtempDisposable } from 'node:fs/promises';
-import { createRequire } from 'node:module';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import fs from 'node:fs/promises';
+import module from 'node:module';
+import os from 'node:os';
+import path from 'node:path';
 
 import {
   _electron as electron,
@@ -31,7 +31,9 @@ import {
 import { connectTshBin, connectAppDir, password, inviteUrl } from './env';
 
 export async function launchApp(homeDir: string) {
-  const requireFromApp = createRequire(join(connectAppDir, 'package.json'));
+  const requireFromApp = module.createRequire(
+    path.join(connectAppDir, 'package.json')
+  );
   const executablePath = requireFromApp('electron');
 
   const app = await electron.launch({
@@ -81,9 +83,9 @@ export const test = base.extend<{
   app: App;
 }>({
   autoLogin: [false, { option: true }],
-  app: async ({ autoLogin }, use) => {
-    await using temp = await mkdtempDisposable(
-      join(tmpdir(), 'connect-e2e-test-')
+  app: async ({ autoLogin }, use, testInfo) => {
+    await using temp = await fs.mkdtempDisposable(
+      path.join(os.tmpdir(), 'connect-e2e-test-')
     );
     await using app = await launchApp(temp.path);
     if (autoLogin) {
