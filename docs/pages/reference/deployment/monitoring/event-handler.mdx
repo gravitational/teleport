@@ -24,20 +24,43 @@ The Event Handler plugin accepts configuration from three sources:
 - Environment variables prefixed with `FDFWD_`.
 - TOML configuration files specified with the `--config` flag.
 
-TOML keys correspond to command-line argument names. You can group Teleport and
-Fluentd settings into `[teleport]` and `[fluentd]` sections within the TOML
-file.
+TOML configuration keys are the same as CLI args. Teleport and Fluentd variables can be grouped into sections. 
+You can specify TOML file location using `--config` CLI flag.
 
+```code
+storage = "./storage" # Plugin will save its state here
+timeout = "10s"
+batch = 20
+
+[forward.fluentd]
+cert = "testdata/fake-file"
+key = "testdata/fake-file"
+ca = "testdata/fake-file"
+url = "https://localhost:8888/test.log"
+session-url = "https://localhost:8888/session"
+
+[teleport]
+addr = "localhost:3025"
+identity = "testdata/fake-file"
+refresh.enabled = true
+refresh.interval = "2m"
+```
+
+You could use `--dry-run` argument if you want event handler to simulate event export (it will not connect to Fluentd). 
+`--exit-on-last-event` can be used to terminate service after the last event is processed.
+`--skip-session-types` is `['print', 'desktop.recording']` by default. 
+
+Please note that if you enable forwarding of these events (`--skip-session-types=''`) the recorded data would also be sent.
 
 ## Teleport connection settings
 
 | CLI argument | Environment variable | Default | Description |
 |---|---|---|---|
-| `teleport-addr` | `FDFWD_TELEPORT_ADDR` | None | Teleport Auth Service or Proxy Service host and port. |
+| `teleport-addr` | `FDFWD_TELEPORT_ADDR` | localhost:3025 | Teleport Auth Service or Proxy Service host and port. |
 | `teleport-ca` | `FDFWD_TELEPORT_CA` | None | Path to the Teleport TLS CA certificate file. |
 | `teleport-cert` | `FDFWD_TELEPORT_CERT` | None | Path to the Teleport TLS certificate file. |
 | `teleport-key` | `FDFWD_TELEPORT_KEY` | None | Path to the Teleport TLS private key file. |
-| `teleport-identity` | `FDFWD_TELEPORT_IDENTITY` | None | Path to a Teleport identity file. Mutually exclusive with `cert`/`key`. |
+| `teleport-identity` | `FDFWD_TELEPORT_IDENTITY` | None | Path to a Teleport identity file. |
 | `teleport-refresh-enabled` | `FDFWD_TELEPORT_REFRESH_ENABLED` | `false` | Reload the identity file from disk on an interval. |
 | `teleport-refresh-interval` | `FDFWD_TELEPORT_REFRESH_INTERVAL` | `1m` | How often to reload the identity file. |
 
@@ -45,12 +68,12 @@ file.
 
 | CLI argument | Environment variable | Default | Description |
 |---|---|---|---|
-| `fluentd-url` | `FDFWD_FLUENTD_URL` | None | Fluentd URL for forwarding audit events. |
-| `fluentd-session-url` | `FDFWD_FLUENTD_SESSION_URL` | None | Base URL for session events. Appends `.<session-id>.log`. |
+| `fluentd-url` | `FDFWD_FLUENTD_URL` | Required | Fluentd URL for forwarding audit events. |
+| `fluentd-session-url` | `FDFWD_FLUENTD_SESSION_URL` | Required | Base URL for session events. Appends `.<session-id>.log`. |
 | `fluentd-ca` | `FDFWD_FLUENTD_CA` | None | Path to the Fluentd TLS CA certificate file. |
 | `fluentd-cert` | `FDFWD_FLUENTD_CERT` | None | Path to the Fluentd TLS client certificate file. |
 | `fluentd-key` | `FDFWD_FLUENTD_KEY` | None | Path to the Fluentd TLS client private key file. |
-| `fluentd-max-connections` | `FDFWD_MAX_CONNECTIONS` | None | Maximum number of concurrent connections to Fluentd. |
+| `fluentd-max-connections` | `FDFWD_MAX_CONNECTIONS` | 2x Concurrency | Max number of concurrent connections to Fluentd. Defaults to double the concurrency value if not set. |
 
 ## Event processing settings
 
@@ -58,12 +81,12 @@ file.
 |---|---|---|---|
 | `batch` | `FDFWD_BATCH` | `20` | Number of events to fetch per batch. |
 | `timeout` | `FDFWD_TIMEOUT` | `5s` | Timeout for polling the Teleport event API. |
-| `types` | `FDFWD_TYPES` | `*` | Comma-separated list of event types to forward. |
+| `types` | `FDFWD_TYPES` | None | Comma-separated list of event types to forward. If not set, all event types are forwarded. Do not use wildcards (like *); only exact type names are matched. |
 |`skip-session-types` | FDFWD_SKIP_SESSION_TYPES | `print`, `desktop.recording` | Comma-separated list of session event types to skip | 
-| `skip-event-types` | `FDFWD_SKIP_EVENT_TYPES` | None | Comma-separated list of session event types to skip. |
+| `skip-event-types` | `FDFWD_SKIP_EVENT_TYPES` | None | Comma-separated list of audit log event types to skip (e.g., user.login, access_request.create). |
 | `start-time` | `FDFWD_START_TIME` | `now` | Minimum event time in RFC 3339 format. |
 | `concurrency` | `FDFWD_CONCURRENCY` | `5` | Number of concurrent sessions. |
-| `window-size` | `FDFWD_WINDOW_SIZE` | None | Exit when last event is processed. | 
+| `window-size` | `FDFWD_WINDOW_SIZE` | `24h` | Window size to process events. | 
 | `storage` | `FDFWD_STORAGE` | Required | Directory for persisting event processing state. |
 
 ## Operational settings
