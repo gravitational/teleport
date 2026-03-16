@@ -26,10 +26,10 @@ Teleport.
 
 Authentication is based on the [interactive sign-in](
 https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively) 
-process. User audit events in Azure are tagged on behalf of Teleport user account,
+process. User audit events in Azure are tagged on behalf of the Teleport user account,
 providing better audit visibility.
 
-Alternatively, you can also manage access to Azure API and CLI by deploying the 
+Alternatively, you can also manage access to the Azure API and CLI by deploying the 
 [Teleport Application Service](../../../enroll-resources/application-access/cloud-apis/azure.mdx). 
 This approach supports access based on [managed identity](
 https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-managed-identity), 
@@ -100,7 +100,7 @@ You can locate **Microsoft Entra External ID** in Azure portal under Azure servi
 
 ![Add new SAML IdP in Microsoft Entra External ID](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-add-idp.png)
 
-Note that while adding Teleport as an identity provider, you need to provide domain name 
+Note that while adding Teleport as an identity provider, you need to provide a domain name 
 as explained in the Step 1 of this guide.
 
 Once you add Teleport as SAML IdP in Microsoft Entra External ID, you will need to copy the Entra ID `Tenant ID` from
@@ -136,7 +136,7 @@ From the **Users** page, click `+ New User` button and select "Invite external u
 
 ![Invite External User](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-invite-user.png)
 
-Enter the details for this user as needed to set up the account. You will notice that the a default value for
+Enter the details for this user as needed to set up the account. You will notice that the default value for
 the "Invite redirect URL" field that points to `https://myapplications.microsoft.com/` is set for this user. 
 This URL is where Microsoft will redirect the user after their first authentication. You can update this URL 
 if you wish to redirect user to a different URL or keep it as it is.
@@ -193,7 +193,7 @@ resource under the `teleport-dev-vm-pool` resource group with the privilege gran
 
 The Microsoft Entra External ID must be linked with an existing billing subscription. 
 
-This is required so the users can access and billed for Azure resources available under the linked subscription. 
+This is required so the users can access and be billed for Azure resources available under the linked subscription. 
 
 ![Microsoft Entra External ID link subscription](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-link-subscription.png)
 
@@ -258,7 +258,7 @@ Note that the rules of DNS update apply here as well.
 
 ### Issues related to identity provider configuration
 
-Refer to official the [Microsoft Entra External ID SAML federation](https://learn.microsoft.com/en-us/entra/external-id/direct-federation) docs for general configuration.
+Refer to the official [Microsoft Entra External ID SAML federation](https://learn.microsoft.com/en-us/entra/external-id/direct-federation) docs for general configuration.
 
 ### Issues related to user invitation and user type conversion
 For issues related to user invitation, or internal to external user type conversion, refer to the [Microsoft Entra B2B collaboration](https://learn.microsoft.com/en-us/entra/external-id/troubleshoot) troubleshooting docs.

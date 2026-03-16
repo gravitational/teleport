@@ -193,7 +193,7 @@ $ DEPLOY_OUTPUT=$(az deployment group create \
 --resource-group <your-resource-group> \
 --template-file teleport-create-identity.json)
 $ PRINCIPAL_ID=$(echo $DEPLOY_OUTPUT | jq -r '.properties.outputs.principalID.value')
-$ CLIENT_ID=$(echo $DEPLOY_OUTPUT | jq -r '.properties.outputs.principalID.value')
+$ CLIENT_ID=$(echo $DEPLOY_OUTPUT | jq -r '.properties.outputs.clientID.value')
 $ ROLE_NAME=$(echo $DEPLOY_OUTPUT | jq -r '.properties.outputs.roleName.value')
 ```
 

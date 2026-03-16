@@ -182,7 +182,7 @@ on-call team for `My Critical Service`.
 Create the resources:
 
 ```code
-$ tctl create -f demo-role-requester.yaml;
+$ tctl create -f demo-role-requester.yaml
 ```
 
 <Admonition type="warning">
@@ -540,7 +540,7 @@ $ kubectl logs deploy/teleport-plugin-pagerduty
 ```
 
 Debug logs can be enabled by setting `log.severity` to `DEBUG` in
-`teleport-pagerduty-helm.yaml` and executing the `helm upgrade ...` command
+`teleport-pagerduty-values.yaml` and executing the `helm upgrade ...` command
 above again. Then you can restart the plugin with the following command:
 
 ```code
@@ -634,9 +634,3 @@ Enable and start the plugin:
 $ sudo systemctl enable teleport-pagerduty
 $ sudo systemctl start teleport-pagerduty
 ```
-
-## Troubleshooting
-
-(!docs/pages/includes/plugins/access-plugin-troubleshooting.mdx!)
-
-

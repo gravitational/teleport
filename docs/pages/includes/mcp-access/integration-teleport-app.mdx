@@ -37,7 +37,7 @@ spec:
 
 Create the `app` resource with:
 ```code
-$ tctl create -f app-{{service}}-app.yaml
+$ tctl create -f app-{{service}}-mcp.yaml
 ```
 </TabItem>
 
@@ -45,10 +45,10 @@ $ tctl create -f app-{{service}}-app.yaml
 Create a `teleport_app` resource in terraform. Replace <Var name="MCP_HOST" />
 with the host running the {{serviceName}} MCP server:
 ```hcl
-resource "teleport_app" "grafana" {
+resource "teleport_app" "{{ service }}" {
   version = "v3"
   metadata = {
-    name = "grafana"
+    name = "{{ service }}"
     labels = {
       "teleport.dev/origin" = "dynamic"
       "env"                 = "dev"
