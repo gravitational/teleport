@@ -298,6 +298,19 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q contains too many sub-assignments (max %d)", assignment.GetMetadata().GetName(), MaxRolesPerAssignment)
 	}
 
+	botSet := assignment.GetSpec().BotName != ""
+	if botSet && assignment.GetSpec().User != "" {
+		return trace.BadParameter("scoped role assignment %q cannot have both spec.bot_name and spec.user set", assignment.GetMetadata().GetName())
+	}
+
+	if botSet && assignment.GetSpec().BotScope == "" {
+		return trace.BadParameter("scoped role assignment %q with spec.bot_name set must also have spec.bot_scope set", assignment.GetMetadata().GetName())
+	}
+	// and inverse:
+	if !botSet && assignment.GetSpec().BotScope != "" {
+		return trace.BadParameter("scoped role assignment %q with spec.bot_scope set must also have spec.bot_name set", assignment.GetMetadata().GetName())
+	}
+
 	for i, subAssignment := range assignment.GetSpec().GetAssignments() {
 		if subAssignment.GetRole() == "" {
 			return trace.BadParameter("scoped role assignment %q is missing role in sub-assignment %d", assignment.GetMetadata().GetName(), i)
@@ -314,6 +327,9 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		if !scopes.PolicyAssignmentScope(subAssignment.GetScope()).IsSubjectToPolicyResourceScope(assignment.GetScope()) {
 			return trace.BadParameter("scoped role assignment %q has sub-assignment %d with scope %q that is not a sub-scope of the assignment's scope %q", assignment.GetMetadata().GetName(), i, subAssignment.GetScope(), assignment.GetScope())
 		}
+
+		// If this assignment is to a bot, we want to ensure that the assigned scope is within the bot's declared scope.
+		// TODO: this.
 	}
 
 	return nil
