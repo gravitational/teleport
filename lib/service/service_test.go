@@ -21,12 +21,14 @@ package service
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -63,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/client/debug"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -984,6 +987,56 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 			t.Fatalf("timeout waiting for failure %d", i)
 		}
 	}
+
+	supervisor, ok := process.Supervisor.(*LocalSupervisor)
+	require.True(t, ok)
+	supervisor.signalExit()
+	wg.Wait()
+}
+
+func TestTeleportProcessReconnectFailuresDoNotOverrideStartingReadiness(t *testing.T) {
+	t.Parallel()
+
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+	cfg.Clock = clockwork.NewRealClock()
+	cfg.DataDir = makeTempDir(t)
+	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
+	cfg.SSH.Enabled = true
+	cfg.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(5 * time.Millisecond)
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
+	cfg.Testing.ClientTimeout = time.Millisecond
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	cfg.Logger = logtest.NewLogger()
+
+	process, err := NewTeleport(cfg)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		// This test must use RoleInstance because all other roles wait for the
+		// Instance connector without a timeout.
+		c, err := process.reconnectToAuthService(types.RoleInstance)
+		require.Equal(t, ErrTeleportExited, err)
+		require.Nil(t, c)
+	})
+
+	select {
+	case <-process.Config.Testing.ConnectFailureC:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timeout waiting for initial auth reconnect failure")
+	}
+
+	w := httptest.NewRecorder()
+	process.Supervisor.HandleReadiness(w, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	require.Equal(t, http.StatusBadRequest, w.Code)
+
+	var readiness debug.Readiness
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&readiness))
+	require.False(t, readiness.Ready)
+	require.Equal(t, "teleport is starting and hasn't joined the cluster yet", readiness.Status)
 
 	supervisor, ok := process.Supervisor.(*LocalSupervisor)
 	require.True(t, ok)

@@ -32,15 +32,22 @@ set -eu`
 	execGenericInstallScript = `
 INSTALL_SCRIPT_URL="https://{{.PublicProxyAddr}}/scripts/install.sh"
 
-echo "Offloading the installation part to the generic Teleport install script hosted at: $INSTALL_SCRIPT_URL"
+TELEPORT_BINARY=/usr/local/bin/teleport
+[ -z "${TELEPORT_INSTALL_SUFFIX:-}" ] || TELEPORT_BINARY=/opt/teleport/${TELEPORT_INSTALL_SUFFIX}/bin/teleport
 
-TEMP_INSTALLER_SCRIPT="$(mktemp)"
-curl -sSf "$INSTALL_SCRIPT_URL" -o "$TEMP_INSTALLER_SCRIPT"
+if [ -x "$TELEPORT_BINARY" ]; then
+  echo "Teleport binary already present at $TELEPORT_BINARY, skipping generic install script"
+else
+  echo "Offloading the installation part to the generic Teleport install script hosted at: $INSTALL_SCRIPT_URL"
 
-chmod +x "$TEMP_INSTALLER_SCRIPT"
+  TEMP_INSTALLER_SCRIPT="$(mktemp)"
+  curl -sSf "$INSTALL_SCRIPT_URL" -o "$TEMP_INSTALLER_SCRIPT"
 
-sudo -E "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
-rm "$TEMP_INSTALLER_SCRIPT"`
+  chmod +x "$TEMP_INSTALLER_SCRIPT"
+
+  sudo -E "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
+  rm "$TEMP_INSTALLER_SCRIPT"
+fi`
 )
 
 // LegacyDefaultInstaller represents the default installer script provided by teleport.

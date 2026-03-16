@@ -477,27 +477,18 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 	}
 
 	for i, step := range invocationSteps {
-		stepResultEvent, err := si.getCommandStepStatusEvent(ctx, step, req, commandID, instanceMetadata)
+		outcome, err := si.getCommandStepOutcome(ctx, step, req, commandID, instanceMetadata)
 		if err != nil {
 			var invalidPluginNameErr *ssmtypes.InvalidPluginName
 			if errors.As(err, &invalidPluginNameErr) {
 				// If using a custom SSM Document and the client does not have access to ssm:ListCommandInvocations
 				// the list of invocationSteps (ie plugin name) might be wrong.
 				// If that's the case, emit an event with the overall invocation result (ignoring specific steps' stdout and stderr).
-				invocationResultEvent, err := si.getCommandStepStatusEvent(ctx, "" /*no step*/, req, commandID, instanceMetadata)
+				outcome, err = si.getCommandStepOutcome(ctx, "" /*no step*/, req, commandID, instanceMetadata)
 				if err != nil {
 					return trace.Wrap(err)
 				}
-
-				return trace.Wrap(si.ReportSSMInstallationResultFunc(ctx, &SSMInstallationResult{
-					SSMRunEvent:         invocationResultEvent,
-					IntegrationName:     req.IntegrationName,
-					DiscoveryConfigName: req.DiscoveryConfigName,
-					IssueType:           installstatus.ExitCode(invocationResultEvent.ExitCode).IssueType(),
-					SSMDocumentName:     req.DocumentName,
-					InstallerScript:     req.InstallerScriptName(),
-					InstanceName:        instanceMetadata.InstanceName,
-				}))
+				return trace.Wrap(si.reportCommandStepOutcome(ctx, req, instanceMetadata, outcome))
 			}
 
 			return trace.Wrap(err)
@@ -505,16 +496,8 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 
 		// Emit an event for the first failed step or for the latest step.
 		lastStep := i+1 == len(invocationSteps)
-		if stepResultEvent.Metadata.Code != libevents.SSMRunSuccessCode || lastStep {
-			return trace.Wrap(si.ReportSSMInstallationResultFunc(ctx, &SSMInstallationResult{
-				SSMRunEvent:         stepResultEvent,
-				IntegrationName:     req.IntegrationName,
-				DiscoveryConfigName: req.DiscoveryConfigName,
-				IssueType:           installstatus.ExitCode(stepResultEvent.ExitCode).IssueType(),
-				SSMDocumentName:     req.DocumentName,
-				InstallerScript:     req.InstallerScriptName(),
-				InstanceName:        instanceMetadata.InstanceName,
-			}))
+		if outcome.SSMRunEvent.Metadata.Code != libevents.SSMRunSuccessCode || lastStep {
+			return trace.Wrap(si.reportCommandStepOutcome(ctx, req, instanceMetadata, outcome))
 		}
 	}
 
@@ -557,7 +540,40 @@ func (si *SSMInstaller) getInvocationSteps(ctx context.Context, req SSMRunReques
 	return documentSteps, nil
 }
 
-func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step string, req SSMRunRequest, commandID *string, instanceMetadata instanceMetadata) (*apievents.SSMRun, error) {
+// classifyEC2SSMInvocationIssueType maps SSM command-invocation outcomes to Discover EC2 issue types.
+//
+// Classification matrix:
+//   - status=Failed + exit=150 => ec2-join-failure
+//   - status=Failed + any other exit => ec2-ssm-script-failure
+//   - any non-Failed status (TimedOut/Canceling/InProgress/...) => ec2-ssm-script-failure
+//
+// This ensures only definitive terminal failures are eligible for join-failure issue typing.
+func classifyEC2SSMInvocationIssueType(status ssmtypes.CommandInvocationStatus, exitCode int64) string {
+	if status != ssmtypes.CommandInvocationStatusFailed {
+		return usertasks.AutoDiscoverEC2IssueSSMScriptFailure
+	}
+
+	return installstatus.ExitCode(exitCode).IssueType()
+}
+
+type commandStepOutcome struct {
+	SSMRunEvent *apievents.SSMRun
+	IssueType   string
+}
+
+func (si *SSMInstaller) reportCommandStepOutcome(ctx context.Context, req SSMRunRequest, instanceMetadata instanceMetadata, outcome commandStepOutcome) error {
+	return si.ReportSSMInstallationResultFunc(ctx, &SSMInstallationResult{
+		SSMRunEvent:         outcome.SSMRunEvent,
+		IntegrationName:     req.IntegrationName,
+		DiscoveryConfigName: req.DiscoveryConfigName,
+		IssueType:           outcome.IssueType,
+		SSMDocumentName:     req.DocumentName,
+		InstallerScript:     req.InstallerScriptName(),
+		InstanceName:        instanceMetadata.InstanceName,
+	})
+}
+
+func (si *SSMInstaller) getCommandStepOutcome(ctx context.Context, step string, req SSMRunRequest, commandID *string, instanceMetadata instanceMetadata) (commandStepOutcome, error) {
 	getCommandInvocationReq := &ssm.GetCommandInvocationInput{
 		CommandId:  commandID,
 		InstanceId: aws.String(instanceMetadata.InstanceID),
@@ -567,11 +583,12 @@ func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step stri
 	}
 	stepResult, err := req.SSM.GetCommandInvocation(ctx, getCommandInvocationReq)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return commandStepOutcome{}, trace.Wrap(err)
 	}
 
 	status := string(stepResult.Status)
 	exitCode := int64(stepResult.ResponseCode)
+	issueType := classifyEC2SSMInvocationIssueType(stepResult.Status, exitCode)
 
 	eventCode := libevents.SSMRunSuccessCode
 	if stepResult.Status != ssmtypes.CommandInvocationStatusSuccess {
@@ -592,7 +609,7 @@ func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step stri
 		req.Region, aws.ToString(commandID), instanceMetadata.InstanceID,
 	)
 
-	return &apievents.SSMRun{
+	return commandStepOutcome{SSMRunEvent: &apievents.SSMRun{
 		Metadata: apievents.Metadata{
 			Type: libevents.SSMRunEvent,
 			Code: eventCode,
@@ -609,5 +626,5 @@ func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step stri
 		PlatformName:    instanceMetadata.PlatformName,
 		PlatformType:    instanceMetadata.PlatformType,
 		PlatformVersion: instanceMetadata.PlatformVersion,
-	}, nil
+	}, IssueType: issueType}, nil
 }

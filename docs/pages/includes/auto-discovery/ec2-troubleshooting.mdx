@@ -10,6 +10,7 @@ When enrolling an instance into Teleport, the installation script returns a spec
 - 102: `curl` binary is missing
 - 103: `/opt` or `/` do not have the required minimum space to install Teleport, at least 1250MB is required
 - 104: host is unable to connect to the Teleport Proxy Services's HTTPS endpoint
+- 150: Teleport was installed but the agent failed to join the cluster
 
 You can customize the installation script - as describe in the **Use a custom installation script** section above - and implement other checks with specific exit codes.
 
@@ -31,6 +32,36 @@ Example of the `ssm.run` event with an exit code:
   "stderr": "failed to run commands: exit status 102",
   "stdout": "curl is missing\n",
   "exit_code": 102
+}
+```
+
+### Interpreting exit code `150` (`join failure`)
+
+Exit code `150` means Teleport installed successfully, but join health checks did not complete.
+The `status` field is intentionally high-level; use `stderr` for root-cause details.
+
+Common `stderr` patterns:
+- `readyz remained in starting state after ...` means the agent process kept starting but did not become ready within the retry window.
+- `readyz reported not ready: bad token` means Auth rejected join credentials.
+- `service teleport remained in transition ... state="deactivating"` means systemd stayed in a transition state across retries.
+- `systemd reported service teleport is not active (state: "failed"|"inactive")` means the service stopped or failed before join completed.
+- `join failure: token is expired or not found; ...` means Teleport detected an explicit token failure signal in journal logs and surfaced it in the primary error line.
+
+Example `ssm.run` event for exit code `150`:
+```json
+{
+  "code": "TDS01E",
+  "event": "ssm.run",
+  "instance_id": "i-0000",
+  "region": "<region>",
+  "invocation_url": "https://<region>.console.aws.amazon.com/systems-manager/run-command/<uuid>/i-0000",
+  "platform_name": "Ubuntu",
+  "platform_type": "Linux",
+  "platform_version": "24.04",
+  "status": "Teleport was installed successfully but the agent failed to join the cluster. Check the readyz status in the standard error output for details.",
+  "stderr": "ERROR: join failure: token is expired or not found; readyz remained in starting state after wait (attempts=2, status=\"teleport is starting and hasn't joined the cluster yet\")\n\nJournal output:\n...",
+  "stdout": "",
+  "exit_code": 150
 }
 ```
 

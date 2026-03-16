@@ -90,10 +90,8 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 				// client, so it does not make sense to call reconnectToAuthService.
 				return nil, trace.BadParameter("reconnectToAuthService got a connector with no client, this is a logic error")
 			}
-			process.joinStatus.setError(nil)
 			return connector, nil
 		} else {
-			process.joinStatus.setError(connectErr)
 			switch {
 			case errors.As(connectErr, &invalidVersionErr{}):
 				return nil, trace.Wrap(connectErr)

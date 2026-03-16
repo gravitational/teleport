@@ -783,7 +783,10 @@ Examples:
 	case systemdInstall.FullCommand():
 		err = onDumpSystemdUnitFile(systemdInstallFlags)
 	case installAutoDiscoverNode.FullCommand():
-		err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags)
+		if err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags); errors.Is(err, installer.ErrJoinFailure) {
+			writeInstallJoinFailureError(os.Stderr, err)
+			os.Exit(int(installstatus.JoinFailure))
+		}
 	case discoveryBootstrapCmd.FullCommand():
 		configureDiscoveryBootstrapFlags.config.Service = configurators.DiscoveryService
 		err = onConfigureDiscoveryBootstrap(ctx, configureDiscoveryBootstrapFlags)
@@ -887,24 +890,42 @@ Examples:
 		err = onBackendEdit(ctx, conf.Auth.StorageConfig, ccf.BackendKey)
 	}
 	if err != nil {
-		// The agent was installed but failed to join the cluster.
-		if errors.Is(err, installer.ErrJoinFailure) {
-			// Print only the annotation message, not the sentinel "join failure" text that trace.UserMessage
-			// appends from the wrapped error chain. Route through UserMessageFromError on a plain error so the
-			// output gets the same colored "ERROR: " prefix as every other error path.
-			var traceErr *trace.TraceErr
-			if errors.As(err, &traceErr) && len(traceErr.Messages) > 0 {
-				msg := traceErr.Messages[0]
-				fmt.Fprintln(os.Stderr, utils.UserMessageFromError(errors.New(msg)))
-			} else {
-				fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-			}
-			os.Exit(int(installstatus.JoinFailure))
-		}
 		utils.FatalError(err)
 	}
 
 	return app, command, conf
+}
+
+// writeInstallJoinFailureError writes a user-facing join-failure error message to w.
+func writeInstallJoinFailureError(w io.Writer, err error) {
+	var traceErr *trace.TraceErr
+	if errors.As(err, &traceErr) && len(traceErr.Messages) > 0 {
+		messages := slices.DeleteFunc(slices.Clone(traceErr.Messages), func(m string) bool {
+			return len(traceErr.Messages) > 1 && strings.TrimSpace(m) == installer.ErrJoinFailure.Error()
+		})
+		msg := stripStandaloneJoinFailureLines(strings.Join(messages, "\n"))
+		fmt.Fprintf(w, "ERROR: %s\n", utils.AllowWhitespace(msg))
+		return
+	}
+
+	fmt.Fprintf(w, "ERROR: %s\n", err.Error())
+}
+
+func stripStandaloneJoinFailureLines(msg string) string {
+	lines := strings.Split(msg, "\n")
+	filtered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == installer.ErrJoinFailure.Error() {
+			continue
+		}
+		filtered = append(filtered, line)
+	}
+
+	if len(filtered) == 0 {
+		return msg
+	}
+
+	return strings.Trim(strings.Join(filtered, "\n"), "\n")
 }
 
 // OnStart is the handler for "start" CLI command

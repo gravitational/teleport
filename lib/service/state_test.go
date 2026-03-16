@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -179,53 +180,69 @@ func TestProcessStateCallback(t *testing.T) {
 	}
 }
 
-// TestHandleReadinessJoinError verifies that the readyz handler surfaces the actual join error message.
-func TestHandleReadinessJoinError(t *testing.T) {
+func TestHandleReadiness(t *testing.T) {
 	t.Parallel()
-
-	const genericMsg = "hasn't joined the cluster yet"
 
 	tests := []struct {
 		name       string
-		getter     func() string
-		wantMsgHas string
+		states     map[string]*componentState
+		wantCode   int
+		wantReady  bool
+		wantStatus string
 	}{
 		{
-			name:       "no getter uses generic message",
-			getter:     nil,
-			wantMsgHas: genericMsg,
+			name: "degraded",
+			states: map[string]*componentState{
+				"component": {state: stateDegraded},
+			},
+			wantCode:   http.StatusServiceUnavailable,
+			wantReady:  false,
+			wantStatus: "teleport is in a degraded state, check logs for details",
 		},
 		{
-			name:       "getter returning empty string uses generic message",
-			getter:     func() string { return "" },
-			wantMsgHas: genericMsg,
+			name: "recovering",
+			states: map[string]*componentState{
+				"component": {state: stateRecovering},
+			},
+			wantCode:   http.StatusBadRequest,
+			wantReady:  false,
+			wantStatus: "teleport is recovering from a degraded state, check logs for details",
 		},
 		{
-			name:       "getter returning error surfaces it",
-			getter:     func() string { return "connection refused: bad token" },
-			wantMsgHas: "connection refused: bad token",
+			name:       "starting",
+			states:     map[string]*componentState{},
+			wantCode:   http.StatusBadRequest,
+			wantReady:  false,
+			wantStatus: "teleport is starting and hasn't joined the cluster yet",
+		},
+		{
+			name: "ok",
+			states: map[string]*componentState{
+				"component": {state: stateOK},
+			},
+			wantCode:   http.StatusOK,
+			wantReady:  false,
+			wantStatus: "ok",
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// An empty states map puts the process in stateStarting.
-			ps := &processState{
-				states:          map[string]*componentState{},
-				joinErrorGetter: tt.getter,
-			}
+			ps := &processState{states: tt.states}
 
 			w := httptest.NewRecorder()
 			ps.handleReadiness(w, httptest.NewRequest(http.MethodGet, "/readyz", nil))
 
-			require.Equal(t, http.StatusBadRequest, w.Code)
+			require.Equal(t, tt.wantCode, w.Code)
 
 			var readiness debug.Readiness
 			require.NoError(t, json.NewDecoder(w.Body).Decode(&readiness))
-			require.False(t, readiness.Ready)
-			require.Contains(t, readiness.Status, tt.wantMsgHas)
+			require.Equal(t, tt.wantReady, readiness.Ready)
+			require.Equal(t, os.Getpid(), readiness.PID)
+			require.Equal(t, tt.wantStatus, readiness.Status)
 		})
 	}
 }
