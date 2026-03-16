@@ -329,7 +329,15 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		}
 
 		// If this assignment is to a bot, we want to ensure that the assigned scope is within the bot's declared scope.
-		// TODO: this.
+		if botSet && !scopes.PolicyAssignmentScope((subAssignment.GetScope())).IsSubjectToPolicyResourceScope(assignment.GetSpec().GetBotScope()) {
+			return trace.BadParameter(
+				"scoped role assignment %q has sub-assignment %d with scope %q that is not a sub-scope of the bot's declared scope %q",
+				assignment.GetMetadata().GetName(),
+				i,
+				subAssignment.GetScope(),
+				assignment.GetSpec().GetBotScope(),
+			)
+		}
 	}
 
 	return nil
