@@ -132,6 +132,7 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 		AuthType:           preferences.AuthType,
 		AllowPasswordless:  preferences.AllowPasswordless,
 		LocalConnectorName: preferences.LocalConnectorName,
+		MessageOfTheDay:    preferences.MOTD,
 	}
 
 	for _, provider := range preferences.Providers {
