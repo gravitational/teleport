@@ -434,38 +434,44 @@ func TestEC2Watcher(t *testing.T) {
 
 	expectedInstances := []*EC2Instances{
 		{
-			Region:     "us-west-2",
-			Instances:  []EC2Instance{toEC2Instance(present)},
-			Parameters: map[string]string{"token": "", "scriptName": ""},
+			Region:          "us-west-2",
+			Instances:       []EC2Instance{toEC2Instance(present)},
+			Parameters:      map[string]string{"token": "", "scriptName": ""},
+			InstallerParams: &types.InstallerParams{InstallTeleport: true},
 		},
 		{
-			Region:     "us-west-2",
-			Instances:  []EC2Instance{toEC2Instance(presentOther)},
-			Parameters: map[string]string{"token": "", "scriptName": ""},
+			Region:          "us-west-2",
+			Instances:       []EC2Instance{toEC2Instance(presentOther)},
+			Parameters:      map[string]string{"token": "", "scriptName": ""},
+			InstallerParams: &types.InstallerParams{InstallTeleport: true},
 		},
 		{
-			Region:      "us-west-2",
-			Instances:   []EC2Instance{toEC2Instance(presentForEICE)},
-			Parameters:  map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
-			Integration: "my-aws-integration",
+			Region:          "us-west-2",
+			Instances:       []EC2Instance{toEC2Instance(presentForEICE)},
+			Parameters:      map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
+			Integration:     "my-aws-integration",
+			InstallerParams: &types.InstallerParams{},
 		},
 		{
-			Region:        "us-west-2",
-			Instances:     []EC2Instance{toEC2Instance(altAccountPresent)},
-			Parameters:    map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
-			AssumeRoleARN: "alternate-role-arn",
+			Region:          "us-west-2",
+			Instances:       []EC2Instance{toEC2Instance(altAccountPresent)},
+			Parameters:      map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
+			AssumeRoleARN:   "alternate-role-arn",
+			InstallerParams: &types.InstallerParams{},
 		},
 		{
-			Region:        "eu-south-1",
-			Instances:     []EC2Instance{toEC2Instance(instanceImplicitRegion)},
-			Parameters:    map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
-			AssumeRoleARN: "implicit-region",
+			Region:          "eu-south-1",
+			Instances:       []EC2Instance{toEC2Instance(instanceImplicitRegion)},
+			Parameters:      map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
+			AssumeRoleARN:   "implicit-region",
+			InstallerParams: &types.InstallerParams{},
 		},
 		{
-			Region:        "eu-south-2",
-			Instances:     []EC2Instance{toEC2Instance(instanceImplicitRegion)},
-			Parameters:    map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
-			AssumeRoleARN: "implicit-region",
+			Region:          "eu-south-2",
+			Instances:       []EC2Instance{toEC2Instance(instanceImplicitRegion)},
+			Parameters:      map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
+			AssumeRoleARN:   "implicit-region",
+			InstallerParams: &types.InstallerParams{},
 		},
 	}
 
@@ -604,16 +610,18 @@ func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
 
 	expectedInstances := []EC2Instances{
 		{
-			Region:        "us-west-2",
-			Instances:     []EC2Instance{toEC2Instance(instance01Account01)},
-			Parameters:    map[string]string{"token": "", "scriptName": ""},
-			AssumeRoleARN: "arn:aws:iam::000000000001:role/MyRole",
+			Region:          "us-west-2",
+			Instances:       []EC2Instance{toEC2Instance(instance01Account01)},
+			Parameters:      map[string]string{"token": "", "scriptName": ""},
+			AssumeRoleARN:   "arn:aws:iam::000000000001:role/MyRole",
+			InstallerParams: &types.InstallerParams{InstallTeleport: true},
 		},
 		{
-			Region:        "us-west-2",
-			Instances:     []EC2Instance{toEC2Instance(instance02Account02)},
-			Parameters:    map[string]string{"token": "", "scriptName": ""},
-			AssumeRoleARN: "arn:aws:iam::000000000002:role/MyRole",
+			Region:          "us-west-2",
+			Instances:       []EC2Instance{toEC2Instance(instance02Account02)},
+			Parameters:      map[string]string{"token": "", "scriptName": ""},
+			AssumeRoleARN:   "arn:aws:iam::000000000002:role/MyRole",
+			InstallerParams: &types.InstallerParams{InstallTeleport: true},
 		},
 	}
 
@@ -691,7 +699,9 @@ func TestMakeEvents(t *testing.T) {
 		{
 			name: "script mode with teleport agents, returns node resource type",
 			insts: &EC2Instances{
-				EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				InstallerParams: &types.InstallerParams{
+					EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
 				Instances: []EC2Instance{{
 					InstanceID: "i-123456789012",
 				}},
@@ -708,7 +718,9 @@ func TestMakeEvents(t *testing.T) {
 		{
 			name: "script mode with openssh config, returns node.openssh resource type",
 			insts: &EC2Instances{
-				EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				InstallerParams: &types.InstallerParams{
+					EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
 				Instances: []EC2Instance{{
 					InstanceID: "i-123456789012",
 				}},
@@ -725,7 +737,9 @@ func TestMakeEvents(t *testing.T) {
 		{
 			name: "eice mode, returns node.openssh-eice resource type",
 			insts: &EC2Instances{
-				EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE,
+				InstallerParams: &types.InstallerParams{
+					EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE,
+				},
 				Instances: []EC2Instance{{
 					InstanceID: "i-123456789012",
 				}},

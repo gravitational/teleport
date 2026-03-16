@@ -79,8 +79,8 @@ type EC2Instances struct {
 	// Empty if using static matchers (coming from the `teleport.yaml`).
 	DiscoveryConfigName string
 
-	// EnrollMode is the mode used to enroll the instance into Teleport.
-	EnrollMode types.InstallParamEnrollMode
+	// InstallerParams are the installation params for installing teleport in the instance.
+	InstallerParams *types.InstallerParams
 }
 
 // EC2Instance represents an AWS EC2 instance that has been
@@ -146,7 +146,12 @@ func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
 
-	switch instances.EnrollMode {
+	enrollMode := types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT
+	if instances.InstallerParams != nil {
+		enrollMode = instances.InstallerParams.EnrollMode
+	}
+
+	switch enrollMode {
 	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE:
 		resourceType = types.DiscoveredResourceEICENode
 
@@ -409,6 +414,7 @@ func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []t
 				Integration:         f.Matcher.Integration,
 				DiscoveryConfigName: f.DiscoveryConfigName,
 				AccountID:           accountID,
+				InstallerParams:     f.Matcher.Params,
 			}
 		}
 		insts := instancesByRegion[region]
@@ -442,6 +448,7 @@ func chunkInstances(instancesByRegion map[string]EC2Instances) []*EC2Instances {
 				Rotation:            insts.Rotation,
 				Integration:         insts.Integration,
 				DiscoveryConfigName: insts.DiscoveryConfigName,
+				InstallerParams:     insts.InstallerParams,
 			}
 			instColl = append(instColl, inst)
 		}
@@ -674,7 +681,7 @@ func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, params ge
 					AssumeRoleARN:       params.assumeRole.RoleARN,
 					ExternalID:          params.assumeRole.ExternalID,
 					DiscoveryConfigName: f.DiscoveryConfigName,
-					EnrollMode:          f.Matcher.Params.EnrollMode,
+					InstallerParams:     f.Matcher.Params,
 				}
 				for _, ec2inst := range res.Instances[i:end] {
 					f.cachedInstances.add(ownerID, aws.ToString(ec2inst.InstanceId))
