@@ -31,6 +31,7 @@ const (
 	modeCodegen
 	modeDebug
 	modeBrowse
+	modeBrowseConnect
 )
 
 func (m runMode) String() string {
@@ -45,6 +46,8 @@ func (m runMode) String() string {
 		return "debug"
 	case modeBrowse:
 		return "browse"
+	case modeBrowseConnect:
+		return "browse-connect"
 	default:
 		return fmt.Sprintf("unknown(%d)", m)
 	}

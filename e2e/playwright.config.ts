@@ -21,8 +21,13 @@ import { defineConfig, devices } from '@playwright/test';
 // Default to localhost:3080/web/login if START_URL is not defined.
 const baseURL = process.env.START_URL || 'http://localhost:3080/web/login';
 
+const webUse = {
+  ...devices['Desktop Chrome'],
+  ignoreHTTPSErrors: true,
+  baseURL,
+};
+
 export default defineConfig({
-  testDir: './tests',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -30,33 +35,37 @@ export default defineConfig({
   reporter: [['html', { open: 'never' }]],
 
   use: {
-    ignoreHTTPSErrors: true,
-    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
 
   projects: [
-    { name: 'setup', testMatch: /.*\.setup\.ts/ },
-
+    {
+      name: 'setup',
+      testDir: './tests/web',
+      testMatch: /.*\.setup\.ts/,
+      use: webUse,
+    },
     {
       name: 'authenticated',
-      testDir: './tests/authenticated',
-      use: { ...devices['Desktop Chrome'], storageState: '.auth/user.json' },
+      testDir: './tests/web/authenticated',
+      use: { ...webUse, storageState: '.auth/user.json' },
       dependencies: ['setup'],
     },
-
     {
       name: 'unauthenticated',
-      testDir: './tests/unauthenticated',
-      use: { ...devices['Desktop Chrome'] },
+      testDir: './tests/web/unauthenticated',
+      use: webUse,
     },
-
     {
       name: 'with-ssh-node',
-      testDir: './tests/with-ssh-node',
-      use: { ...devices['Desktop Chrome'], storageState: '.auth/user.json' },
+      testDir: './tests/web/with-ssh-node',
+      use: { ...webUse, storageState: '.auth/user.json' },
       dependencies: ['setup'],
+    },
+    {
+      name: 'connect',
+      testDir: './tests/connect',
     },
   ],
 });

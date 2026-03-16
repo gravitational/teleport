@@ -73,6 +73,9 @@ type e2eConfig struct {
 	stateTemplate          string
 	teleportConfigPath     string
 
+	connectAppDir     string
+	connectTshBinPath string
+
 	creds *credentials
 
 	proxyPort, authPort, sshPort int
@@ -105,6 +108,8 @@ func run() error {
 		teleportConfigTemplate: filepath.Join(e2eDir, "config", "teleport.yaml.tmpl"),
 		nodeConfigTemplate:     filepath.Join(e2eDir, "node", "node.yaml.tmpl"),
 		nodeTeleportVersion:    envOrDefault("TELEPORT_NODE_VERSION", "18"),
+		connectAppDir:          filepath.Join(filepath.Dir(e2eDir), "web", "packages", "teleterm"),
+		connectTshBinPath:      filepath.Join(filepath.Dir(e2eDir), "build", "tsh-e2e-webauthnmock"),
 	}
 
 	slog.Info("running playwright in mode", "mode", mode)
@@ -227,8 +232,12 @@ func run() error {
 	}
 
 	var extraProjects []string
+	// Project names from playwright.config.ts.
 	if sshNode.enabled {
 		extraProjects = append(extraProjects, "with-ssh-node")
+	}
+	if connect.enabled {
+		extraProjects = append(extraProjects, "connect")
 	}
 
 	pw := &playwrightRunner{

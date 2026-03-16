@@ -16,21 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// This file provides helper functions to read required environment variables for the E2E tests.
+import { test } from '../../../helpers/test';
 
-function required(name: string) {
-  const value = process.env[name];
+test('verify that a user can SSH into a node', async ({
+  unifiedResourcesPage,
+}) => {
+  await unifiedResourcesPage.goto();
 
-  if (!value) {
-    throw new Error(`required environment variable ${name} is not set`);
-  }
+  const terminal = await unifiedResourcesPage.connect('docker-node', 'root');
 
-  return value;
-}
-
-export const password = required('E2E_PASSWORD');
-export const webauthnPrivateKey = required('E2E_WEBAUTHN_PRIVATE_KEY');
-export const webauthnCredentialId = required('E2E_WEBAUTHN_CREDENTIAL_ID');
-export const inviteUrl = required('E2E_INVITE_URL');
-export const connectTshBin = required('E2E_CONNECT_TSH_BIN');
-export const connectAppDir = required('E2E_CONNECT_APP_DIR');
+  await terminal.waitForReady();
+  await terminal.exec('ls /');
+  await terminal.expectSnapshot('ls-output.png');
+});

@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,19 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { test, expect } from '../../helpers/connect';
 
-import { login } from '../helpers/login';
-import { test as setup } from '../helpers/test';
+test.use({ autoLogin: true });
 
-const authFile = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '../.auth/user.json'
-);
-
-setup('authenticate', async ({ page }) => {
-  await login(page);
-
-  await page.context().storageState({ path: authFile });
+test('logging out', async ({ app }) => {
+  const { page } = app;
+  await page.getByTitle(/Open Profiles/).click();
+  await page.getByTitle(/Log out/).click();
+  await expect(
+    page.getByText('Are you sure you want to log out?')
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Log Out', exact: true }).click();
+  await expect(page.getByText('Connect a Cluster')).toBeVisible();
 });

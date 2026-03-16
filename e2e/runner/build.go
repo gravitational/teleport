@@ -60,6 +60,26 @@ func build(ctx context.Context, config *e2eConfig) error {
 		})
 	}
 
+	if connect.enabled && !config.noBuild {
+		g.Go(func() error {
+			slog.Info("building Teleport Connect")
+			if err := runInDir(ctx, config.repoRoot, "pnpm", "--filter=@gravitational/teleterm", "build"); err != nil {
+				return fmt.Errorf("pnpm --filter=@gravitational/teleterm build: %w", err)
+			}
+
+			return nil
+		})
+
+		g.Go(func() error {
+			slog.Info("building tsh with webauthnmock tag for Teleport Connect e2e")
+			if err := runInDir(ctx, config.repoRoot, "go", "build", "-tags", "webauthnmock", "-o", config.connectTshBinPath, "./tool/tsh"); err != nil {
+				return fmt.Errorf("go build -tags webauthnmock ./tool/tsh: %w", err)
+			}
+
+			return nil
+		})
+	}
+
 	return g.Wait()
 }
 
