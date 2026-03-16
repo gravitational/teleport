@@ -66,14 +66,6 @@ func (f fieldMatcher) match(s string) bool {
 	return f.re.MatchString(s)
 }
 
-// maxFastMatcherRules is the maximum number of RBAC rules
-// (allowed + denied combined, after kind/verb filtering) for which the fast matcher is used.
-// Beyond this threshold we fall back to the cached matchKubernetesResource path.
-// Benchmarks show the fast matcher is faster even at 4000 rules, so this is a
-// conservative safety margin rather than a measured crossover point.
-// It may be removed in a follow-up once we gain more production confidence.
-const maxFastMatcherRules = 200
-
 // tryCompileFastMatcher attempts to compile a fast matcher from the given RBAC rules.
 // Returns nil (without error) if the fast matcher cannot handle the request,
 // signaling the caller to fall back to matchKubernetesResource.
@@ -89,11 +81,6 @@ func tryCompileFastMatcher(mr metaResource, allowed, denied []types.KubernetesRe
 	// are uniform for all items in a list response, so rules that don't match can be dropped.
 	allowed = filterRules(mr, allowed)
 	denied = filterRules(mr, denied)
-
-	// If too many rules survive kind/verb filtering, fall back to per-item matching.
-	if len(allowed)+len(denied) > maxFastMatcherRules {
-		return nil, nil
-	}
 
 	return compileFastMatcher(allowed, denied)
 }

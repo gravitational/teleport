@@ -34,14 +34,6 @@ import (
 func TestTryCompileFastMatcher(t *testing.T) {
 	t.Parallel()
 
-	manyRules := make([]types.KubernetesResource, maxFastMatcherRules+1)
-	for i := range manyRules {
-		manyRules[i] = types.KubernetesResource{
-			Kind: types.KindKubePod, Namespace: fmt.Sprintf("ns-%d", i),
-			Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "",
-		}
-	}
-
 	tests := []struct {
 		name           string
 		kind           string
@@ -132,13 +124,6 @@ func TestTryCompileFastMatcher(t *testing.T) {
 				{Kind: types.KindKubePod, Namespace: "^[invalid$", Name: "*", Verbs: []string{types.KubeVerbList}, APIGroup: "*"},
 			},
 			wantErr: true,
-			wantNil: true,
-		},
-		{
-			name:    "returns nil when matching rules exceed threshold",
-			kind:    types.KindKubePod,
-			verb:    types.KubeVerbList,
-			allowed: manyRules,
 			wantNil: true,
 		},
 		{
@@ -753,15 +738,7 @@ func BenchmarkFilterObj(b *testing.B) {
 		require.NoError(b, err)
 		rf := filter.(*resourceFilterer)
 		if useFastMatcher {
-			if _, ok := rf.matcher.(*fastMatcher); !ok {
-				// For high rule counts that exceed maxFastMatcherRules, compile the fast
-				// matcher directly so we can benchmark it against the fallback path.
-				filteredAllowed := filterRules(mr, allowed)
-				filteredDenied := filterRules(mr, denied)
-				fm, err := compileFastMatcher(filteredAllowed, filteredDenied)
-				require.NoError(b, err)
-				rf.matcher = fm
-			}
+			require.IsType(b, &fastMatcher{}, rf.matcher)
 		} else {
 			rf.matcher = &defaultMatcher{
 				kind:             mr.requestedResource.resourceKind,
