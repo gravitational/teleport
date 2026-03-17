@@ -159,6 +159,6 @@ func requireClusterAlerts(t *testing.T, ctx context.Context, srv *auth.Server, w
 			samlCount++
 		}
 
-		require.Equal(t, samlCount, wantSAML)
+		require.Equal(t, wantSAML, samlCount)
 	}, 5*time.Second, 10*time.Millisecond)
 }
