@@ -116,7 +116,7 @@ func TestSAMLCertExpiryMonitor(t *testing.T) {
 	removedCertConnector, err := srv.Auth().UpdateSAMLConnector(ctx, rotatedCertConnector)
 	require.NoError(t, err)
 
-	// Should have 1 alerts:
+	// Should have 1 alert:
 	//   - one pre-existing unrelated alert.
 	requireClusterAlerts(t, ctx, srv.Auth(), 1, 0, "")
 
@@ -134,7 +134,7 @@ func TestSAMLCertExpiryMonitor(t *testing.T) {
 	// Delete the SAML connector.
 	require.NoError(t, srv.Auth().DeleteSAMLConnector(ctx, updatedConnector.GetName()))
 
-	// Should have 1 alerts:
+	// Should have 1 alert:
 	//   - one pre-existing unrelated alert.
 	requireClusterAlerts(t, ctx, srv.Auth(), 1, 0, "")
 }

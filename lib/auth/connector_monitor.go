@@ -137,7 +137,7 @@ func (m *SAMLCertExpiryMonitor) Run(ctx context.Context) error {
 }
 
 // run creates the ticker used for periodic reconcilliation and starts the watch loop
-// that reconciles the SAML cert expiry alert.
+// that reconciles the SAML cert expiry alerts.
 func (m *SAMLCertExpiryMonitor) run(ctx context.Context) error {
 	// Start ticker upfront so none are missed due to sparseness of interval.
 	ticker := m.Clock.NewTicker(samlCertCheckInterval)
@@ -146,7 +146,7 @@ func (m *SAMLCertExpiryMonitor) run(ctx context.Context) error {
 	return trace.Wrap(m.runSyncLoop(ctx, ticker))
 }
 
-// runSyncLoop creates a watcher for SAML connector events and reconciles the expiry alert on each
+// runSyncLoop creates a watcher for SAML connector events and reconciles the expiry alerts on each
 // put or delete event, and on each tick of the provided ticker. An error is returned if the watcher
 // fails to create or unexpectedly closes.
 func (m *SAMLCertExpiryMonitor) runSyncLoop(ctx context.Context, ticker clockwork.Ticker) error {
@@ -196,7 +196,7 @@ func (m *SAMLCertExpiryMonitor) runSyncLoop(ctx context.Context, ticker clockwor
 }
 
 // reconcileAlerts checks all SAML connectors for any that have certs expiring or expired
-// and creates or updates an alert. If none are expiring, then any existing alert is deleted.
+// and creates or updates alerts. If none are expiring, then any existing alerts are deleted.
 func (m *SAMLCertExpiryMonitor) reconcileAlerts(ctx context.Context) error {
 	alerts := map[string]string{}
 
@@ -260,7 +260,7 @@ func (m *SAMLCertExpiryMonitor) reconcileAlerts(ctx context.Context) error {
 	return nil
 }
 
-// upsertAlert creates or updates the SAML cert expiry cluster alert with the provided message.
+// upsertAlert creates or updates a SAML cert expiry cluster alert by id with the provided message.
 func (m *SAMLCertExpiryMonitor) upsertAlert(ctx context.Context, id, message string) error {
 	alert, err := types.NewClusterAlert(
 		id,
@@ -280,7 +280,7 @@ func (m *SAMLCertExpiryMonitor) upsertAlert(ctx context.Context, id, message str
 	return trace.Wrap(m.Alerts.UpsertClusterAlert(ctx, alert))
 }
 
-// buildAlertMessage returns a SAML cert expiry alert message for the given connector names.
+// buildAlertMessage returns a SAML cert expiry alert message for the given connector name and cert.
 func (m *SAMLCertExpiryMonitor) buildAlertMessage(connectorName string, cert *x509.Certificate) string {
 	expiredTemplate := "SAML SSO users are no longer able to authenticate to Teleport. Connector '%s' references a certificate that expired at %s. Please rotate the expired certificate. %s"
 	expiringTemplate := "SAML SSO users will no longer be able to authenticate to Teleport in %d days. Connector '%s' references a certificate that expires at %s. Please rotate the expiring certificate. %s"
@@ -296,6 +296,7 @@ func (m *SAMLCertExpiryMonitor) buildAlertMessage(connectorName string, cert *x5
 	return fmt.Sprintf(expiringTemplate, int(remaining.Hours()/24), connectorName, expiry, learnMore)
 }
 
+// waitForWatcherInit waits to receive the OpInit event from the watcher.
 func waitForWatcherInit(ctx context.Context, watch types.Watcher) error {
 	select {
 	case <-watch.Done():
@@ -313,6 +314,7 @@ func waitForWatcherInit(ctx context.Context, watch types.Watcher) error {
 	}
 }
 
+// buildAlertID creates an ID to use for a SAML cert expiry alert.
 func buildAlertID(connectorName string, cert *x509.Certificate) string {
 	sum := sha256.Sum256(cert.Raw)
 	return samlCertExpiryAlertIDPrefix + connectorName + "-" + hex.EncodeToString(sum[:12])
