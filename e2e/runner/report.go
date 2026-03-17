@@ -108,27 +108,37 @@ func downloadArtifact(prNumber int, repo, artifactName string) (string, error) {
 		return "", fmt.Errorf("getting PR #%d: %w", prNumber, err)
 	}
 
-	branch := pr.GetHead().GetRef()
-	slog.Debug("resolved PR head branch", "branch", branch)
+	headSHA := pr.GetHead().GetSHA()
+	slog.Debug("resolved PR head SHA", "sha", headSHA)
 
-	artifacts, _, err := client.Actions.ListArtifacts(ctx, owner, repoName, &github.ListArtifactsOptions{
+	opts := &github.ListArtifactsOptions{
 		Name: github.Ptr(artifactName),
-	})
-	if err != nil {
-		return "", fmt.Errorf("listing artifacts: %w", err)
 	}
 
 	var target *github.Artifact
-	for _, a := range artifacts.Artifacts {
-		if a.GetWorkflowRun().GetHeadBranch() == branch {
-			target = a
+	for {
+		artifacts, resp, err := client.Actions.ListArtifacts(ctx, owner, repoName, opts)
+		if err != nil {
+			return "", fmt.Errorf("listing artifacts: %w", err)
+		}
 
+		for _, a := range artifacts.Artifacts {
+			if a.GetWorkflowRun().GetHeadSHA() == headSHA {
+				target = a
+
+				break
+			}
+		}
+
+		if target != nil || resp.NextPage == 0 {
 			break
 		}
+
+		opts.Page = resp.NextPage
 	}
 
 	if target == nil {
-		return "", fmt.Errorf("no artifact %q found for branch %q", artifactName, branch)
+		return "", fmt.Errorf("no artifact %q found for PR head SHA %q", artifactName, headSHA)
 	}
 
 	slog.Debug("found artifact", "id", target.GetID(), "run_id", target.GetWorkflowRun().GetID())
