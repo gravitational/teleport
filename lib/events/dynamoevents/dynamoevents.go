@@ -327,7 +327,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 			},
 		}),
 		config.WithAPIOptions(awsmetrics.MetricsMiddleware()),
-		config.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Backend)),
+		config.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Events)),
 	}
 
 	if cfg.CredentialsProvider != nil {
