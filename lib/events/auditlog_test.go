@@ -433,7 +433,7 @@ func TestCallingSummarizerMetadata(t *testing.T) {
 	require.NoError(t, err)
 	metadataProvider := recordingmetadata.NewProvider()
 	recorderMetadata := &fakeRecordingMetadata{}
-	recorderMetadata.On("ProcessSessionRecording", mock.Anything, session.ID(sessionID.String()), mock.Anything).
+	recorderMetadata.On("ProcessSessionRecording", mock.Anything, session.ID(sessionID.String()), mock.Anything, mock.Anything).
 		Return(nil).Once()
 	metadataProvider.SetService(recorderMetadata)
 

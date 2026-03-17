@@ -346,7 +346,7 @@ func TestSessionCompleter(t *testing.T) {
 
 	metadataProvider := recordingmetadata.NewProvider()
 	recorderMetadata := &fakeRecordingMetadata{}
-	recorderMetadata.On("ProcessSessionRecording", mock.Anything, sessionID, mock.Anything).
+	recorderMetadata.On("ProcessSessionRecording", mock.Anything, sessionID, mock.Anything, mock.Anything).
 		Return(nil).Once()
 	metadataProvider.SetService(recorderMetadata)
 
