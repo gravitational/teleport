@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,7 +27,7 @@ func TestSummarizeReconstructedCommand_SingleChunk(t *testing.T) {
 
 	pool := newWorkerPool(5)
 
-	result, err := summarizeReconstructedCommand(ctx, sessionID, &provider, pool, cmd, "testuser", "ubuntu")
+	result, err := summarizeReconstructedCommand(ctx, sessionID, &provider, pool, cmd, "testuser", "ubuntu", "", "")
 	require.NoError(t, err)
 
 	require.Equal(t, "ls -la", result.Command)
@@ -49,7 +50,7 @@ func TestSummarizeReconstructedCommand_MultipleChunks(t *testing.T) {
 
 	pool := newWorkerPool(5)
 
-	result, err := summarizeReconstructedCommand(ctx, sessionID, &provider, pool, cmd, "testuser", "ubuntu")
+	result, err := summarizeReconstructedCommand(ctx, sessionID, &provider, pool, cmd, "testuser", "ubuntu", "", "")
 	require.NoError(t, err)
 
 	require.Equal(t, "combined command", result.Command)
@@ -72,7 +73,7 @@ func TestSummarizeReconstructedCommand_ErrorFromProvider(t *testing.T) {
 
 	pool := newWorkerPool(5)
 
-	result, err := summarizeReconstructedCommand(ctx, sessionID, &provider, pool, cmd, "testuser", "ubuntu")
+	result, err := summarizeReconstructedCommand(ctx, sessionID, &provider, pool, cmd, "testuser", "ubuntu", "", "")
 	require.ErrorContains(t, err, "provider error")
 	require.Nil(t, result)
 }
@@ -90,7 +91,7 @@ func TestSummarizeReconstructedCommand_EmptyCommand(t *testing.T) {
 
 	pool := newWorkerPool(5)
 
-	result, err := summarizeReconstructedCommand(ctx, sessionID, &provider, pool, cmd, "testuser", "ubuntu")
+	result, err := summarizeReconstructedCommand(ctx, sessionID, &provider, pool, cmd, "testuser", "ubuntu", "", "")
 	require.NoError(t, err)
 
 	require.Empty(t, result.Command)
@@ -98,6 +99,54 @@ func TestSummarizeReconstructedCommand_EmptyCommand(t *testing.T) {
 	require.Equal(t, "low", result.RiskLevel)
 	require.Equal(t, 0, result.RiskScore)
 	require.False(t, result.Success)
+}
+
+func TestSummarizeReconstructedCommand_SingleChunk_PrependsPrefixes(t *testing.T) {
+	ctx := t.Context()
+	provider := &recordingProvider{}
+	pool := newWorkerPool(5)
+
+	cmd := &mockCommand{chunks: []string{"analyze this"}}
+
+	_, err := summarizeReconstructedCommand(ctx, "sid", provider, pool, cmd, "u", "l",
+		"SESSION METADATA:\nServer hostname: prod\n\n",
+		"PRIOR COMMAND CONTEXT:\n================\n1. Command: ls\n================\n\n",
+	)
+	require.NoError(t, err)
+
+	require.Len(t, provider.prompts, 1)
+	require.True(t, strings.HasPrefix(provider.prompts[0], "SESSION METADATA:"))
+	require.Contains(t, provider.prompts[0], "PRIOR COMMAND CONTEXT:")
+	require.True(t, strings.HasSuffix(provider.prompts[0], "analyze this"))
+}
+
+func TestSummarizeReconstructedCommand_MultiChunk_PrependsPrefixes(t *testing.T) {
+	ctx := t.Context()
+	provider := &recordingProvider{}
+	pool := newWorkerPool(5)
+
+	cmd := &mockCommand{chunks: []string{"chunk-a", "chunk-b"}}
+	metadata := "SESSION METADATA:\nServer hostname: prod\n\n"
+	trail := "PRIOR COMMAND CONTEXT:\n================\n1. Command: ls\n================\n\n"
+
+	_, err := summarizeReconstructedCommand(ctx, "sid", provider, pool, cmd, "u", "l", metadata, trail)
+	require.NoError(t, err)
+
+	// 2 individual chunk calls + 1 synthesis call = 3 total.
+	require.Len(t, provider.prompts, 3)
+
+	// Individual chunk prompts should have metadata and no context trail.
+	for _, p := range provider.prompts[:2] {
+		require.True(t, strings.HasPrefix(p, "SESSION METADATA:"), "chunk prompt should start with session metadata")
+		require.NotContains(t, p, "PRIOR COMMAND CONTEXT:", "chunk prompt should not contain context trail")
+	}
+
+	// Synthesis prompt should have both metadata and context trail.
+	synthPrompt := provider.prompts[2]
+
+	require.True(t, strings.HasPrefix(synthPrompt, "SESSION METADATA:"), "synthesis prompt should start with session metadata")
+	require.Contains(t, synthPrompt, "PRIOR COMMAND CONTEXT:", "synthesis prompt should contain context trail")
+	require.Contains(t, synthPrompt, "Synthesize", "synthesis prompt should contain synthesis instructions")
 }
 
 type mockCommand struct {
@@ -172,4 +221,29 @@ func (m *mockInferenceProvider) SummarizeCommand(
 		}
 		return nil, errors.New("unexpected prompt: " + prompt)
 	}
+}
+
+// recordingProvider captures all prompts sent to SummarizeCommand for assertion.
+type recordingProvider struct {
+	mu      sync.Mutex
+	prompts []string
+}
+
+func (r *recordingProvider) SummarizeCommand(
+	_ context.Context,
+	_ session.ID,
+	_, _,
+	prompt string,
+) (*schema.CommandAnalysis, error) {
+	r.mu.Lock()
+	r.prompts = append(r.prompts, prompt)
+	r.mu.Unlock()
+
+	return &schema.CommandAnalysis{
+		Command:          "test",
+		ShortDescription: "test command",
+		RiskLevel:        "low",
+		RiskScore:        5,
+		Success:          true,
+	}, nil
 }

@@ -461,7 +461,7 @@ func (s *SessionSummarizer) summarizeSession(
 		return s.summarizeSimple(ctx, log, result, details)
 	}
 
-	analysis, commands, err := analyzeSessionCommands(ctx, details.sessionID, details.provider, s.pool, stream.Commands(), details.username, details.loginName)
+	analysis, commands, err := analyzeSessionCommands(ctx, details.provider, s.pool, stream.Commands(), details)
 	if err != nil {
 		return handleError(ctx, log, result, err, "Failed to analyze session commands")
 	}

@@ -25,10 +25,12 @@ func summarizeReconstructedCommand(
 	pool *workerPool,
 	cmd ttyterminal.Command,
 	username,
-	loginName string,
+	loginName,
+	sessionMetadata,
+	contextTrailPrompt string,
 ) (*schema.CommandAnalysis, error) {
 	if cmd.ChunkCount() < 2 {
-		prompt := cmd.PromptForChunk(0)
+		prompt := sessionMetadata + contextTrailPrompt + cmd.PromptForChunk(0)
 
 		response, err := provider.SummarizeCommand(ctx, sessionID, username, loginName, prompt)
 		if err != nil {
@@ -39,12 +41,14 @@ func summarizeReconstructedCommand(
 	}
 
 	cs := &commandSummarizer{
-		cmd:       cmd,
-		pool:      pool,
-		provider:  provider,
-		sessionID: sessionID,
-		username:  username,
-		loginName: loginName,
+		cmd:                cmd,
+		pool:               pool,
+		provider:           provider,
+		sessionID:          sessionID,
+		username:           username,
+		loginName:          loginName,
+		sessionMetadata:    sessionMetadata,
+		contextTrailPrompt: contextTrailPrompt,
 	}
 
 	responses, err := cs.summarizeCommandInChunks(ctx)
@@ -61,12 +65,14 @@ func summarizeReconstructedCommand(
 }
 
 type commandSummarizer struct {
-	cmd       ttyterminal.Command
-	pool      *workerPool
-	provider  commandInferenceProvider
-	sessionID session.ID
-	username  string
-	loginName string
+	cmd                ttyterminal.Command
+	pool               *workerPool
+	provider           commandInferenceProvider
+	sessionID          session.ID
+	username           string
+	loginName          string
+	sessionMetadata    string
+	contextTrailPrompt string
 }
 
 type summarizedCommandResult struct {
@@ -93,7 +99,10 @@ func (c *commandSummarizer) summarizeCommandInChunks(ctx context.Context) ([]*su
 			c.pool.acquire()
 			defer c.pool.release()
 
-			prompt := c.cmd.PromptForChunk(i)
+			// Individual chunks get session metadata (so the LLM knows what server it's analyzing) but not the
+			// context trail — these are parallel analyses of segments of a single command's output.
+			// The trail is included in the synthesis step instead.
+			prompt := c.sessionMetadata + c.cmd.PromptForChunk(chunkIndex)
 
 			response, err := c.provider.SummarizeCommand(ctx, c.sessionID, c.username, c.loginName, prompt)
 
@@ -110,7 +119,7 @@ func (c *commandSummarizer) summarizeCommandInChunks(ctx context.Context) ([]*su
 }
 
 func (c *commandSummarizer) synthesizeCommandChunks(ctx context.Context, chunkResponses []*summarizedCommandResult) (*schema.CommandAnalysis, error) {
-	synthesisPrompt := createSynthesisPrompt(chunkResponses)
+	synthesisPrompt := c.sessionMetadata + c.contextTrailPrompt + createSynthesisPrompt(chunkResponses)
 
 	synthesizedResponse, err := c.provider.SummarizeCommand(ctx, c.sessionID, c.username, c.loginName, synthesisPrompt)
 	if err != nil {

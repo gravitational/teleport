@@ -16,8 +16,6 @@ import (
 func TestAnalyseSessionCommands_NoCommands(t *testing.T) {
 	ctx := t.Context()
 
-	sessionID := session.ID("test-session-empty")
-
 	commands := make(chan ttyterminal.Command)
 	close(commands)
 
@@ -25,7 +23,8 @@ func TestAnalyseSessionCommands_NoCommands(t *testing.T) {
 
 	pool := newWorkerPool(5)
 
-	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, sessionID, &provider, pool, commands, "testuser", "ubuntu")
+	details := createSessionDetails("test-session-empty")
+	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, details)
 	require.ErrorContains(t, err, "no commands to analyze")
 
 	require.Nil(t, sessionAnalysis)
@@ -35,8 +34,6 @@ func TestAnalyseSessionCommands_NoCommands(t *testing.T) {
 func TestAnalyseSessionCommands_SingleCommand(t *testing.T) {
 	ctx := t.Context()
 
-	sessionID := session.ID("test-session-single")
-
 	commands := make(chan ttyterminal.Command, 1)
 	commands <- &mockCommand{[]string{"ls -la"}}
 	close(commands)
@@ -45,7 +42,8 @@ func TestAnalyseSessionCommands_SingleCommand(t *testing.T) {
 
 	pool := newWorkerPool(5)
 
-	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, sessionID, &provider, pool, commands, "testuser", "ubuntu")
+	details := createSessionDetails("test-session-single")
+	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, details)
 	require.NoError(t, err)
 
 	require.NotNil(t, sessionAnalysis)
@@ -60,8 +58,6 @@ func TestAnalyseSessionCommands_SingleCommand(t *testing.T) {
 func TestAnalyseSessionCommands_MultipleCommands(t *testing.T) {
 	ctx := t.Context()
 
-	sessionID := session.ID("test-session-multiple")
-
 	commands := make(chan ttyterminal.Command, 3)
 	commands <- &mockCommand{[]string{"ls -la"}}
 	commands <- &mockCommand{[]string{"cat /etc/passwd"}}
@@ -72,7 +68,8 @@ func TestAnalyseSessionCommands_MultipleCommands(t *testing.T) {
 
 	pool := newWorkerPool(5)
 
-	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, sessionID, &provider, pool, commands, "testuser", "ubuntu")
+	details := createSessionDetails("test-session-multiple")
+	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, details)
 	require.NoError(t, err)
 
 	require.NotNil(t, sessionAnalysis)
@@ -82,8 +79,6 @@ func TestAnalyseSessionCommands_MultipleCommands(t *testing.T) {
 func TestAnalyseSessionCommands_ErrorFromProvider(t *testing.T) {
 	ctx := t.Context()
 
-	sessionID := session.ID("test-session-error")
-
 	commands := make(chan ttyterminal.Command, 1)
 	commands <- &mockCommand{[]string{"error command"}}
 	close(commands)
@@ -92,7 +87,8 @@ func TestAnalyseSessionCommands_ErrorFromProvider(t *testing.T) {
 
 	pool := newWorkerPool(5)
 
-	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, sessionID, &provider, pool, commands, "testuser", "ubuntu")
+	details := createSessionDetails("test-session-error")
+	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, details)
 	require.ErrorContains(t, err, "command analysis error")
 	require.Nil(t, sessionAnalysis)
 	require.Nil(t, commandAnalyses)
@@ -287,4 +283,12 @@ func (m *mockSessionInferenceProvider) SummarizeMultipleCommands(
 		RiskLevel:        "low",
 		RiskScore:        10,
 	}, nil
+}
+
+func createSessionDetails(sessionID session.ID) sessionDetails {
+	return sessionDetails{
+		sessionID: sessionID,
+		username:  "testuser",
+		loginName: "ubuntu",
+	}
 }

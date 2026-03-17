@@ -26,28 +26,28 @@ type sessionInferenceProvider interface {
 }
 
 type sessionAnalyzer struct {
-	pool      *workerPool
-	provider  sessionInferenceProvider
-	sessionID session.ID
-	username  string
-	loginName string
+	pool            *workerPool
+	provider        sessionInferenceProvider
+	sessionID       session.ID
+	username        string
+	loginName       string
+	sessionMetadata string
 }
 
 func analyzeSessionCommands(
 	ctx context.Context,
-	sessionID session.ID,
 	provider sessionInferenceProvider,
 	pool *workerPool,
 	commands <-chan ttyterminal.Command,
-	username,
-	loginName string,
+	details sessionDetails,
 ) (*schema.SessionAnalysis, []*schema.CommandAnalysis, error) {
 	sa := &sessionAnalyzer{
-		pool:      pool,
-		provider:  provider,
-		sessionID: sessionID,
-		username:  username,
-		loginName: loginName,
+		pool:            pool,
+		provider:        provider,
+		sessionID:       details.sessionID,
+		username:        details.username,
+		loginName:       details.loginName,
+		sessionMetadata: buildSessionMetadata(details.sessionEnd, details.kind),
 	}
 
 	return sa.analyzeCommands(ctx, commands)
@@ -76,11 +76,15 @@ func (s *sessionAnalyzer) analyzeCommands(
 
 	var commandAnalyses []*schema.CommandAnalysis
 
+	trail := &contextTrail{}
+
 	commandIndex := 0
 	for cmd := range commands {
 		commandIndex++
 
-		result, err := summarizeReconstructedCommand(ctx, s.sessionID, s.provider, s.pool, cmd, s.username, s.loginName)
+		trailPrompt := trail.buildContextPrompt()
+
+		result, err := summarizeReconstructedCommand(ctx, s.sessionID, s.provider, s.pool, cmd, s.username, s.loginName, s.sessionMetadata, trailPrompt)
 		if err != nil {
 			return nil, nil, trace.Wrap(err, "summarizing command %d", commandIndex)
 		}
@@ -90,6 +94,8 @@ func (s *sessionAnalyzer) analyzeCommands(
 			shortDescription: result.ShortDescription,
 			analysis:         result,
 		}
+
+		trail.add(commandIndex, entry)
 
 		result.StartOffset = cmd.StartOffset()
 		result.EndOffset = cmd.EndOffset()
