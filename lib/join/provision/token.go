@@ -68,4 +68,8 @@ type Token interface {
 	GetOracle() *types.ProvisionTokenSpecV2Oracle
 	// GetKubernetes returns the Kubernetes-specific configuration for this token.
 	GetKubernetes() *types.ProvisionTokenSpecV2Kubernetes
+	// GetBoundKeypair returns bound keypair specific configuration for this token.
+	GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair
+	// GetBoundKeypairStatus returns bound keypair status for this token.
+	GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair
 }
