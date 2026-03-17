@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -26,7 +27,7 @@ import { wait } from 'shared/utils/wait';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
-import { watchProfiles } from './profileWatcher';
+import { CreateFsWatcher, FsWatcher, watchProfiles } from './profileWatcher';
 
 let tempDir: string;
 
@@ -136,6 +137,46 @@ function mockClusterStore(initial: { clusters: Cluster[] }) {
   };
 }
 
+class VirtualWatcher extends EventEmitter implements FsWatcher {
+  private closed = false;
+  constructor(
+    private readonly onEvent: () => void,
+    signal?: AbortSignal
+  ) {
+    super();
+    signal?.addEventListener('abort', () => this.close(), { once: true });
+  }
+
+  emitFileSystemEvent(): void {
+    if (!this.closed) {
+      this.onEvent();
+    }
+  }
+
+  close(): void {
+    if (this.closed) {
+      return;
+    }
+    this.closed = true;
+    this.emit('close');
+  }
+}
+
+function makeVirtualWatcher(): {
+  createFsWatcher: CreateFsWatcher;
+  emitEvent: () => void;
+} {
+  let watcher: VirtualWatcher | undefined;
+
+  return {
+    createFsWatcher: ({ onEvent, signal }) => {
+      watcher = new VirtualWatcher(onEvent, signal);
+      return watcher;
+    },
+    emitEvent: () => watcher?.emitFileSystemEvent(),
+  };
+}
+
 test('yields an "added" change when new cluster appears', async () => {
   const tshDir = await makePerTestDir();
   const tshClientMock = await mockTshClient(tshDir, { clusters: [] });
@@ -239,7 +280,7 @@ test('file system events are debounced', async () => {
   const tshDir = await makePerTestDir();
   const tshClientMock = await mockTshClient(tshDir, { clusters: [] });
   const clusterStoreMock = mockClusterStore({ clusters: [] });
-  const handler = jest.fn().mockImplementation(() => Promise.resolve());
+  const fsWatcher = makeVirtualWatcher();
   const testDebounceMs = 100;
   const watcher = watchProfiles({
     tshDirectory: tshDir,
@@ -247,22 +288,43 @@ test('file system events are debounced', async () => {
     clusterStore: clusterStoreMock,
     signal: abortController.signal,
     debounceMs: testDebounceMs,
+    createFsWatcher: fsWatcher.createFsWatcher,
   });
 
-  void (async () => {
-    for await (let e of watcher) {
-      await handler(e);
-    }
-  })();
+  const cluster1 = makeRootCluster({ uri: '/clusters/new-cluster' });
+  const cluster2 = makeRootCluster();
+  jest.useFakeTimers();
+  try {
+    // Start watching before writing to the filesystem.
+    const firstEventPromise = watcher.next();
 
-  const cluster = makeRootCluster();
+    await tshClientMock.insertOrUpdateCluster(cluster1);
+    fsWatcher.emitEvent();
+    await tshClientMock.insertOrUpdateCluster(cluster2);
+    fsWatcher.emitEvent();
 
-  // Insert two rapid events within debounce interval.
-  await tshClientMock.insertOrUpdateCluster(cluster);
-  await tshClientMock.insertOrUpdateCluster(cluster);
-  // Wait slightly longer than debounce interval to ensure a single handler is called.
-  await wait(2 * testDebounceMs);
-  expect(handler).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(testDebounceMs);
+    expect(await firstEventPromise).toEqual({
+      done: false,
+      value: [
+        { op: 'added', cluster: cluster1 },
+        { op: 'added', cluster: cluster2 },
+      ],
+    });
+
+    const secondEvent = Promise.race([
+      watcher.next(),
+      wait(testDebounceMs).then(() => 'timeout'),
+    ]);
+    await jest.advanceTimersByTimeAsync(testDebounceMs);
+    // Only one event is expected.
+    expect(await secondEvent).toBe('timeout');
+  } finally {
+    jest.useRealTimers();
+  }
+
+  // Cancel the watcher with the abort signal, it's blocked on `watcher.next()`.
+  abortController.abort();
 });
 
 test('no events are lost when handler is slow', async () => {
