@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,22 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createRoot } from 'react-dom/client';
+import ace from 'ace-builds/src-min-noconflict/ace';
 
-import cfg from './config';
-import { KeysEnum } from './services/storageService';
-import Teleport from './Teleport';
-import TeleportContext from './teleportContext';
+// Ace extension and mode files (e.g. mode-json.js, ext-searchbox.js) reference
+// `ace` as a bare global identifier (`ace.define(...)`). The ace.js IIFE tries
+// to set `window.ace` via `(function(){ return this })()`, but Vite 8's bundler
+// (Rolldown) can drop or scope that assignment. Explicitly assign it here so
+// that subsequently-evaluated extension modules can resolve the bare `ace` ref.
+globalThis.ace = ace;
 
-// apply configuration received from the server
-cfg.init(window['GRV_CONFIG']);
-
-if (localStorage.getItem(KeysEnum.ENABLE_TELEMETRY) === 'true') {
-  import('./telemetry-boot').then(m => m.instantiateTelemetry());
-}
-
-const teleportContext = new TeleportContext();
-
-createRoot(document.getElementById('app')).render(
-  <Teleport ctx={teleportContext} />
-);
+export default ace;
