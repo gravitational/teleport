@@ -54,15 +54,16 @@ func (c *leafClusterCache) getLeafClustersUncached(ctx context.Context, rootClie
 	var leafClusters []string
 	nextPage := ""
 	for {
-		remoteClusters, nextPage, err := rootClient.CurrentCluster().ListRemoteClusters(ctx, 0, nextPage)
+		remoteClusters, next, err := rootClient.CurrentCluster().ListRemoteClusters(ctx, 0, nextPage)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		for _, rc := range remoteClusters {
 			leafClusters = append(leafClusters, rc.GetName())
 		}
-		if nextPage == "" {
+		if next == "" {
 			return leafClusters, nil
 		}
+		nextPage = next
 	}
 }
