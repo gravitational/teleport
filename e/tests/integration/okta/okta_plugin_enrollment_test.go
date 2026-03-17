@@ -15,7 +15,6 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/durationpb"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -84,7 +83,6 @@ func TestPluginEnrollmentFullIntegration(t *testing.T) {
 
 	resp, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 		OktaOrganizationUrl:       fakeOkta2.URL(),
-		TimeBetweenImports:        durationpb.New(1 * time.Second),
 		ApiCredentials:            apiCredentials,
 		EnableAccessListSync:      true,
 		EnableAppGroupSync:        true,
@@ -115,7 +113,6 @@ func TestPluginEnrollmentFullIntegration(t *testing.T) {
 			DisableBidirectionalSync: false,
 			SyncAccessLists:          true,
 			DefaultOwners:            []string{"alice-admin"},
-			TimeBetweenImports:       "1s",
 		},
 		CredentialsInfo: &types.PluginOktaCredentialsInfo{
 			HasOauthCredentials: true,
@@ -148,7 +145,6 @@ func TestPluginEnrollmentSSOMetadataURLOnly(t *testing.T) {
 
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
 	_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		TimeBetweenImports:        durationpb.New(1 * time.Second),
 		ScimToken:                 "12345",
 		SsoMetadataUrl:            fakeOkta.URL() + "/sso/saml/metadata",
 		DisableAssignDefaultRoles: false,
@@ -257,7 +253,6 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 	scimToken := uuid.NewString()
 	t.Run("enroll okta integration with SCIM only", func(t *testing.T) {
 		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-			TimeBetweenImports:        durationpb.New(1 * time.Second),
 			ScimToken:                 scimToken,
 			EnableAccessListSync:      false,
 			EnableAppGroupSync:        false,
@@ -279,7 +274,6 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 				UserSyncSource:           "saml_app",
 				DisableSyncAppGroups:     true,
 				DisableBidirectionalSync: true,
-				TimeBetweenImports:       "1s",
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
 				HasScimToken: true,
@@ -518,7 +512,6 @@ func TestPluginEnrollment_OktaRequester_Role(t *testing.T) {
 
 	t.Run("New integration with okta-requester role assignment disabled and non-existing SAML connector fails", func(t *testing.T) {
 		_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-			TimeBetweenImports:        durationpb.New(1 * time.Second),
 			ReuseConnector:            "test-connector-does-not-exist",
 			SsoMetadataUrl:            fakeOkta.URL() + "/sso/saml/metadata",
 			ApiCredentials:            apiCredentials,
@@ -530,13 +523,16 @@ func TestPluginEnrollment_OktaRequester_Role(t *testing.T) {
 
 	t.Run("New integration with okta-requester role assignment disabled", func(t *testing.T) {
 		_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-			TimeBetweenImports:        durationpb.New(1 * time.Second),
 			ReuseConnector:            "okta-pre-created-test",
 			ApiCredentials:            apiCredentials,
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: true,
 		})
 		require.NoError(t, err)
+		updateOktaDelays(t, sut, delays{
+			timeBetweenImports:                1 * time.Second,
+			timeBetweenAssignmentProcessLoops: 1 * time.Second,
+		})
 
 		mustWaitForEvent(t, sut, events.OktaUserSyncEvent)
 
@@ -634,7 +630,6 @@ func TestPluginEnrollmentErrors(t *testing.T) {
 
 	t.Run("try to configure scim integration without any okta connector", func(t *testing.T) {
 		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-			TimeBetweenImports:      durationpb.New(1 * time.Second),
 			OktaOrganizationUrl:     fakeOkta.URL(),
 			ScimToken:               scimToken,
 			EnableAccessListSync:    false,
@@ -648,7 +643,6 @@ func TestPluginEnrollmentErrors(t *testing.T) {
 	t.Run("okta client is missing permission to create okta SAML application", func(t *testing.T) {
 		fakeOkta.SetScopes([]string{oktaapi.ScopeAppsRead, oktaapi.ScopeGroupsRead, oktaapi.ScopeUserRead})
 		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-			TimeBetweenImports:      durationpb.New(1 * time.Second),
 			ApiCredentials:          &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_OauthId{OauthId: "12345"}},
 			OktaOrganizationUrl:     fakeOkta.URL(),
 			ScimToken:               scimToken,
@@ -705,7 +699,6 @@ func TestEnrollmentPartialStepsFromLegacyConnector(t *testing.T) {
 
 	t.Run("enroll okta integration with user sync and legacy credentials", func(t *testing.T) {
 		resp, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-			TimeBetweenImports:        durationpb.New(1 * time.Second),
 			ApiCredentials:            &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_SswsBearerToken{SswsBearerToken: "token"}},
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: false,
@@ -726,7 +719,6 @@ func TestEnrollmentPartialStepsFromLegacyConnector(t *testing.T) {
 				UserSyncSource:           "saml_app",
 				DisableSyncAppGroups:     true,
 				DisableBidirectionalSync: true,
-				TimeBetweenImports:       "1s",
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
 				HasSsmToken: true,
@@ -840,7 +832,6 @@ func Test_PluginEnrollment_OAuthScopes(t *testing.T) {
 	fakeOkta.SetScopes([]string{oktaapi.ScopeUserRead})
 
 	_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		TimeBetweenImports:  durationpb.New(1 * time.Second),
 		ReuseConnector:      "okta-pre-created-test",
 		OktaOrganizationUrl: fakeOkta.URL(),
 		ApiCredentials:      apiCredentials,
@@ -859,7 +850,6 @@ func Test_PluginEnrollment_OAuthScopes(t *testing.T) {
 	})
 
 	_, err = oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		TimeBetweenImports:  durationpb.New(1 * time.Second),
 		ReuseConnector:      "okta-pre-created-test",
 		OktaOrganizationUrl: fakeOkta.URL(),
 		ApiCredentials:      apiCredentials,

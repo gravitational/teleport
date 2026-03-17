@@ -65,7 +65,7 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 		enableAccessListSync:    false,
 		enableBidirectionalSync: true,
 	}
-	mustCreateIntegration(t, oktaAuthClient, createIntegrationSettings{
+	mustCreateIntegration(t, sut, oktaAuthClient, createIntegrationSettings{
 		integrationSettings: integrationSettings,
 		apiCredentials:      apiCredentials,
 		reuseConnector:      "okta-pre-created-test",
@@ -127,7 +127,7 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 
 	// Disable bidirectional sync
 	integrationSettings.enableBidirectionalSync = false
-	mustUpdateIntegration(t, oktaAuthClient, integrationSettings)
+	mustUpdateIntegration(t, sut, oktaAuthClient, integrationSettings)
 
 	t.Run("lock access request to group1 and wait for the okta_assignment to be marked for cleanup", func(t *testing.T) {
 		lock, err := types.NewLock(accessRequestName, types.LockSpecV2{Target: types.LockTarget{AccessRequest: accessRequestName}})
@@ -152,7 +152,7 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 
 	// Enable bidirectional sync
 	integrationSettings.enableBidirectionalSync = true
-	mustUpdateIntegration(t, oktaAuthClient, integrationSettings)
+	mustUpdateIntegration(t, sut, oktaAuthClient, integrationSettings)
 
 	t.Run("okta_assignment is cleaned up", func(t *testing.T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {

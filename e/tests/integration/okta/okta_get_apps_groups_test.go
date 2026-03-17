@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -59,11 +58,14 @@ func Test_GetApps_GetGroups_withPluginCredentials(t *testing.T) {
 	// Create an integration and the plugin with credentials as a result.
 
 	_, err = oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		TimeBetweenImports:  durationpb.New(1 * time.Second),
 		ReuseConnector:      "okta-pre-created-test",
 		OktaOrganizationUrl: fakeOkta.URL(),
 		ApiCredentials:      apiCredentials,
 		EnableUserSync:      true,
+	})
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                1 * time.Second,
+		timeBetweenAssignmentProcessLoops: 1 * time.Second,
 	})
 	require.NoError(t, err)
 

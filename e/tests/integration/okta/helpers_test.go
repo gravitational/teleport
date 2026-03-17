@@ -19,7 +19,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -270,12 +269,11 @@ type createIntegrationSettings struct {
 	reuseConnector string
 }
 
-func mustCreateIntegration(t *testing.T, oktaAuthClient oktav1.OktaServiceClient, settings createIntegrationSettings) {
+func mustCreateIntegration(t *testing.T, sut *common.SUT, oktaAuthClient oktav1.OktaServiceClient, settings createIntegrationSettings) {
 	t.Helper()
 	ctx := t.Context()
 
 	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		TimeBetweenImports:      durationpb.New(1 * time.Second),
 		ApiCredentials:          settings.apiCredentials,
 		ReuseConnector:          settings.reuseConnector,
 		EnableUserSync:          settings.enableUserSync,
@@ -284,18 +282,25 @@ func mustCreateIntegration(t *testing.T, oktaAuthClient oktav1.OktaServiceClient
 		EnableBidirectionalSync: settings.enableBidirectionalSync,
 	})
 	require.NoError(t, err)
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                1 * time.Second,
+		timeBetweenAssignmentProcessLoops: 1 * time.Second,
+	})
 }
 
-func mustUpdateIntegration(t *testing.T, oktaAuthClient oktav1.OktaServiceClient, settings integrationSettings) {
+func mustUpdateIntegration(t *testing.T, sut *common.SUT, oktaAuthClient oktav1.OktaServiceClient, settings integrationSettings) {
 	t.Helper()
 	ctx := t.Context()
 
 	mustUpdateOktaIntegration(ctx, t, oktaAuthClient, &oktav1.UpdateIntegrationRequest{
-		TimeBetweenImports:      durationpb.New(1 * time.Second),
 		EnableUserSync:          settings.enableUserSync,
 		EnableAppGroupSync:      settings.enableAppGroupSync,
 		EnableAccessListSync:    settings.enableAccessListSync,
 		EnableBidirectionalSync: settings.enableBidirectionalSync,
+	})
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                1 * time.Second,
+		timeBetweenAssignmentProcessLoops: 1 * time.Second,
 	})
 }
 
@@ -306,12 +311,19 @@ func mustUpdateOktaIntegration(ctx context.Context, t *testing.T, client oktav1.
 	}, time.Second*6, time.Millisecond*30)
 }
 
-func setOktaTimeBetweenImports(t *testing.T, plugins services.Plugins, d time.Duration) {
-	updateOktaPlugin(t, plugins, func(p *types.PluginV1) {
-		p.Spec.GetOkta().SyncSettings.TimeBetweenImports = d.String()
-	})
+type delays struct {
+	timeBetweenImports                time.Duration
+	timeBetweenAssignmentProcessLoops time.Duration
 }
 
+func updateOktaDelays(t *testing.T, sut *common.SUT, delays delays) {
+	t.Helper()
+	authServer := sut.Teleport.Process.GetAuthServer().Services
+	updateOktaPlugin(t, authServer, func(p *types.PluginV1) {
+		p.Spec.GetOkta().SyncSettings.TimeBetweenImports = delays.timeBetweenImports.String()
+		p.Spec.GetOkta().SyncSettings.TimeBetweenAssignmentProcessLoops = delays.timeBetweenAssignmentProcessLoops.String()
+	})
+}
 func updateOktaPlugin(t *testing.T, plugins services.Plugins, updateFn func(p *types.PluginV1)) {
 	t.Helper()
 	ctx := t.Context()

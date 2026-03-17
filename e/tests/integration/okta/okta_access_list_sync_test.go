@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -53,7 +52,6 @@ func TestAccessListSync(t *testing.T) {
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
 
 	_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		TimeBetweenImports:        durationpb.New(1 * time.Second),
 		ApiCredentials:            apiCredentials,
 		SsoMetadataUrl:            fakeOkta.URL() + "/sso/saml/metadata",
 		EnableUserSync:            true,
@@ -66,6 +64,10 @@ func TestAccessListSync(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                1 * time.Second,
+		timeBetweenAssignmentProcessLoops: 1 * time.Second,
+	})
 
 	// Before assigning user to application, we should have:
 	// - Access List for the application
@@ -191,7 +193,6 @@ func TestAccessListSync_bidirectionalSync(t *testing.T) {
 	// 1. Create integration with bidirectional sync disabled.
 
 	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		TimeBetweenImports:      durationpb.New(1 * time.Second),
 		ApiCredentials:          apiCredentials,
 		EnableUserSync:          true,
 		EnableAppGroupSync:      true,
@@ -203,6 +204,10 @@ func TestAccessListSync_bidirectionalSync(t *testing.T) {
 		ReuseConnector: "okta-pre-created-test",
 	})
 	require.NoError(t, err)
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                1 * time.Second,
+		timeBetweenAssignmentProcessLoops: 1 * time.Second,
+	})
 
 	// 2. Wait for the connector SAML app users to be syncrhonized.
 

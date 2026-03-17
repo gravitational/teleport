@@ -16,7 +16,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -102,7 +101,6 @@ func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, fakeOkta *fa
 	}
 
 	req := &oktav1.CreateIntegrationRequest{
-		TimeBetweenImports:  durationpb.New(1 * time.Second),
 		OktaOrganizationUrl: fakeOkta.URL(),
 		ScimToken:           scimToken,
 		ApiCredentials:      opts.ApiCredentials,
@@ -119,6 +117,12 @@ func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, fakeOkta *fa
 
 	_, err := oktaClient.CreateIntegration(t.Context(), req)
 	require.NoError(t, err)
+
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                1 * time.Second,
+		timeBetweenAssignmentProcessLoops: 1 * time.Second,
+	})
+
 	pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
 	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {

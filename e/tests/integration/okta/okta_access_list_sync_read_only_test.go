@@ -7,7 +7,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
@@ -54,7 +53,6 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 
 	// 1. Create the integration with bidirectional sync disabled
 	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		TimeBetweenImports:      durationpb.New(1 * time.Second),
 		ApiCredentials:          apiCredentials,
 		EnableUserSync:          true,
 		EnableAppGroupSync:      true,
@@ -66,6 +64,10 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 		ReuseConnector: "okta-pre-created-test",
 	})
 	require.NoError(t, err)
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                1 * time.Second,
+		timeBetweenAssignmentProcessLoops: 1 * time.Second,
+	})
 
 	// 2. Verify users (user1 - ghost) are synchronized
 	var oktaUsers []types.User
@@ -236,7 +238,6 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 	beforeCreationTime := time.Now()
 
 	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		TimeBetweenImports:      durationpb.New(1 * time.Second),
 		ApiCredentials:          apiCredentials,
 		EnableUserSync:          true,
 		EnableAppGroupSync:      true,
@@ -248,6 +249,10 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 		ReuseConnector: "okta-pre-created-test",
 	})
 	require.NoError(t, err)
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                1 * time.Second,
+		timeBetweenAssignmentProcessLoops: 1 * time.Second,
+	})
 
 	waitForOktaSync(t, sut, withTimePoint(beforeCreationTime))
 

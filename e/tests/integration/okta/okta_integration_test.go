@@ -10,7 +10,6 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
@@ -87,10 +86,12 @@ func TestBasicAssignmentFlow(t *testing.T) {
 		"--owner="+ownerLogin)
 	require.NoError(t, err)
 
-	authServer := sut.Teleport.Process.GetAuthServer()
 	// TODO(smallinsky) Align timer when https://github.com/gravitational/teleport.e/issues/6558 issue is fixed
 	// to test the flow with overlapping Okta sync.
-	setOktaTimeBetweenImports(t, authServer, time.Minute)
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                time.Minute,
+		timeBetweenAssignmentProcessLoops: time.Minute,
+	})
 
 	waitForOktaSync(t, sut, withTimeout(time.Minute), withStep(time.Millisecond*100), withTimePoint(beforeInstall))
 	waitForOktaFirstOktaAssignment(t, sut)
@@ -169,7 +170,10 @@ func TestNestedAclAssignment(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	setOktaTimeBetweenImports(t, authServer, time.Second)
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                time.Second,
+		timeBetweenAssignmentProcessLoops: time.Second,
+	})
 	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(beforeInstall))
 	waitForOktaFirstOktaAssignment(t, sut)
 	userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), ownerLogin)
@@ -266,8 +270,10 @@ func TestAccessRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set time between imports to 1s
-	authServer := sut.Teleport.Process.GetAuthServer()
-	setOktaTimeBetweenImports(t, authServer.Plugins, time.Second)
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                time.Second,
+		timeBetweenAssignmentProcessLoops: time.Second,
+	})
 
 	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(beforeInstall))
 
@@ -473,9 +479,6 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
 	start := time.Now()
 	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		// TODO(smallinsky) Align timer when https://github.com/gravitational/teleport.e/issues/6558 issue is fixed
-		// to test the flow with overlapping Okta sync.
-		TimeBetweenImports:        durationpb.New(time.Minute * 5),
 		ApiCredentials:            apiCredentials,
 		EnableUserSync:            true,
 		DisableAssignDefaultRoles: false,
@@ -488,6 +491,12 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 			DefaultOwner: []string{reviewerLogin},
 		},
 		ReuseConnector: "okta-pre-created-test",
+	})
+	updateOktaDelays(t, sut, delays{
+		// TODO(smallinsky) Align timer when https://github.com/gravitational/teleport.e/issues/6558 issue is fixed
+		// to test the flow with overlapping Okta sync.
+		timeBetweenImports:                5 * time.Minute,
+		timeBetweenAssignmentProcessLoops: 5 * time.Minute,
 	})
 	require.NoError(t, err)
 	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(start))
@@ -648,7 +657,7 @@ func assertUserIsAccessListMember(ctx context.Context, t require.TestingT, sut *
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		member, err = sut.Teleport.Process.GetAuthServer().AccessListsInternal.GetAccessListMember(ctx, acl, user)
 		require.NoError(t, err)
-	}, time.Minute, 200*time.Millisecond)
+	}, time.Minute, 500*time.Millisecond)
 	return member
 }
 
@@ -765,7 +774,6 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
 	start := time.Now()
 	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		TimeBetweenImports:      durationpb.New(1 * time.Second),
 		ApiCredentials:          apiCredentials,
 		EnableUserSync:          true,
 		EnableAppGroupSync:      true,
@@ -777,6 +785,10 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 			DefaultOwner: []string{"alice-admin"},
 		},
 		ReuseConnector: "okta-pre-created-test",
+	})
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                1 * time.Second,
+		timeBetweenAssignmentProcessLoops: 1 * time.Second,
 	})
 	require.NoError(t, err)
 	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(start))
