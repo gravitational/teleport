@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { makeEvent } from 'teleport/services/audit';
+import makeEvent from 'teleport/services/audit/makeEvent';
 
 // events contains sample JSON's of ALL supported event types
 export const events = [
