@@ -114,8 +114,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 	}
 
 	t.Run("with an invalid region must return bad parameter error", func(t *testing.T) {
-		ctx := context.Background()
-		_, err := provider.GetConfig(ctx, "test-region-1", WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}))
+		_, err := provider.GetConfig(t.Context(), "test-region-1", WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}))
 		require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
 		require.ErrorContains(t, err, "region \"test-region-1\" is invalid")
 	})
