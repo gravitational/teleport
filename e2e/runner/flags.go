@@ -126,6 +126,7 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	// Auto-enable Connect if intent is explicit via mode or selected test paths.
 	if mode == modeBrowseConnect {
 		connect.enabled = true
+		f.browsers = []string{}
 	}
 	for _, file := range f.testFiles {
 		slashPath := filepath.ToSlash(file)
