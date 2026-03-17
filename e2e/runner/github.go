@@ -322,6 +322,9 @@ func findExistingComment(ctx context.Context, client *github.Client, owner, repo
 		}
 
 		for _, c := range comments {
+			if c.GetUser().GetType() != "Bot" {
+				continue
+			}
 			if strings.Contains(c.GetBody(), commentMarker) {
 				return c
 			}
