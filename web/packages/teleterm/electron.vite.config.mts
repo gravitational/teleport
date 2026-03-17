@@ -38,6 +38,10 @@ const externalizeDeps = ['strip-ansi', 'ansi-regex', 'd3-color'];
 // electron-vite's externalizeDepsPlugin sets build.rollupOptions.external, which
 // Vite 8 ignores (it uses rolldownOptions).
 // TODO(ryan): Remove this once electron-vite supports Vite 8.
+//
+// electron-vite externalizes electron, Node.js built-in modules, and package.json
+// dependencies for main and preload, but bundles everything for the renderer.
+// See https://electron-vite.org/guide/dependency-handling.
 const pkg = createRequire(import.meta.url)('./package.json');
 const deps = Object.keys(pkg.dependencies || {}).filter(
   dep => !externalizeDeps.includes(dep)
@@ -54,6 +58,11 @@ const commonRolldownOptions: RolldownOptions = {
 
     defaultHandler(level, log);
   },
+};
+
+// Main and preload run in Node.js, so we externalize electron, Node.js built-in
+// modules, and package.json dependencies (they'll be included during packaging).
+const nodeExternalOptions: RolldownOptions = {
   external: [
     'electron',
     /^electron\/.+/,
@@ -73,6 +82,7 @@ const config = defineConfig(env => {
         outDir: path.resolve(outputDirectory, 'main'),
         rolldownOptions: {
           ...commonRolldownOptions,
+          ...nodeExternalOptions,
           input: {
             index: path.resolve(__dirname, 'src/main.ts'),
             sharedProcess: path.resolve(
@@ -107,6 +117,7 @@ const config = defineConfig(env => {
         outDir: path.resolve(outputDirectory, 'preload'),
         rolldownOptions: {
           ...commonRolldownOptions,
+          ...nodeExternalOptions,
           input: {
             index: path.resolve(__dirname, 'src/preload.ts'),
           },
