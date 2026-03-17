@@ -194,7 +194,7 @@ func formatAWSProfileName(accountName, roleName string) string {
 	accName := strings.ReplaceAll(accountName, " ", "-")
 	rName := strings.ReplaceAll(roleName, " ", "-")
 	combined := fmt.Sprintf("teleport-awsic-%s-%s", accName, rName)
-	
+
 	// Replace invalid characters with their hex equivalent (e.g., "@" -> "_x40")
 	// to maintain uniqueness while strictly using safe characters.
 	sanitized := invalidAWSProfileCharRegex.ReplaceAllStringFunc(combined, func(match string) string {
@@ -204,7 +204,7 @@ func formatAWSProfileName(accountName, roleName string) string {
 		}
 		return sb.String()
 	})
-	
+
 	return strings.ToLower(sanitized)
 }
 
