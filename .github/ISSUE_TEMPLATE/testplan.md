@@ -2250,6 +2250,20 @@ Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guid
     - [ ] Verify that users/groups are flattened on import, and are not duplicated on sync when their membership is inherited via nested Access Lists.
   - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in Okta.
   - [ ] Verify access to Okta apps granted by access_list/access_request.
+  
+- [ ] Entra ID integration
+  - [ ] Docs (including screenshots) are up to date.
+    - [ ] Verify that guided (Web UI) installation method is working as expected. 
+    - [ ] Verify that manual Entra ID configuration using Azure portal is working as expected.
+    - [ ] Verify that terraform-based Entra ID configuration is working as expected.  
+  - [ ] User sync - verify that all the users that exist in Entra ID directory are synced to Teleport.
+  - [ ] Group sync - verify that all the groups that exist in the Entra ID directory are synced to Teleport.
+      - [ ] Verify that group members are synced to Teleport.
+      - [ ] Verify that group id and name regexp based include/exclude filters are working as expected (refer to docs for filter settings).
+      - [ ] Verify that Access List owner's source configuration is working as expected. Test all the three source types including `plugin`, `entraid` and `plugin-and-entraid`.
+      - [ ] Verify that all the group import settings can be configured and updated using both the Web UI and `tctl`.
+  - [ ] Veriy that when Access Graph sync is enabled, Entra ID policies are synced to Teleport.
+
 
 ## Teleport SAML Identity Provider
 Verify SAML IdP service provider resource management.
