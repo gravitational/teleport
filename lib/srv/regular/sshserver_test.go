@@ -20,6 +20,7 @@ package regular
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -336,10 +337,13 @@ func newCustomFixture(t testing.TB, mutateCfg func(*authtest.ServerConfig), sshO
 // responded to appropriately. Namely, it ensures that a response is sent if the client
 // requests a reply whether processing the request was successful or not.
 func TestTerminalSizeRequest(t *testing.T) {
+	t.Parallel()
+
 	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := t.Context()
 
 	t.Run("Invalid session", func(t *testing.T) {
+		t.Parallel()
 		ok, resp, err := f.ssh.clt.SendRequest(ctx, teleport.TerminalSizeRequest, true, []byte("1234"))
 		require.NoError(t, err)
 		require.False(t, ok)
@@ -347,6 +351,7 @@ func TestTerminalSizeRequest(t *testing.T) {
 	})
 
 	t.Run("Active session", func(t *testing.T) {
+		t.Parallel()
 		se, err := f.ssh.clt.NewSession(ctx)
 		require.NoError(t, err)
 		defer se.Close()
@@ -370,7 +375,7 @@ func TestTerminalSizeRequest(t *testing.T) {
 			size, err := f.ssh.srv.termHandlers.SessionRegistry.GetTerminalSize(sessionID)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(expectedSize, *size, cmp.AllowUnexported(term.Winsize{})))
-		}, 10*time.Second, 100*time.Millisecond)
+		}, 10*time.Second, 10*time.Millisecond)
 
 		// Send a request for the window size now that we know the window change
 		// request was honored.
@@ -403,6 +408,7 @@ func TestTerminalSizeRequest(t *testing.T) {
 //   - and we give the race detector a chance to detect any possible race
 //     conditions on this code path.
 func TestMultipleExecCommands(t *testing.T) {
+	t.Parallel()
 	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := t.Context()
 
@@ -526,14 +532,17 @@ func TestSessionAuditLog(t *testing.T) {
 	err = sshagent.RequestAgentForwarding(ctx, se)
 	require.NoError(t, err)
 
-	// Request x11 forwarding, event should be emitted immediately.
-	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
-	require.NoError(t, err)
-	err = x11forward.RequestForwarding(ctx, se, clientXAuthEntry)
-	require.NoError(t, err)
+	// Only run this part of the test if xauth is available on the host.
+	if os.Getenv("TELEPORT_XAUTH_TEST") != "" {
+		// Request x11 forwarding, event should be emitted immediately.
+		clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
+		require.NoError(t, err)
+		err = x11forward.RequestForwarding(ctx, se, clientXAuthEntry)
+		require.NoError(t, err)
 
-	x11Event := <-emitter.C()
-	require.IsType(t, &apievents.X11Forward{}, x11Event, "expected X11Forward event but got event of tgsype %T", x11Event)
+		x11Event := <-emitter.C()
+		require.IsType(t, &apievents.X11Forward{}, x11Event, "expected X11Forward event but got event of tgsype %T", x11Event)
+	}
 
 	// LOCAL PORT FORWARDING
 	// Start up a test server that doesn't do any remote port forwarding
@@ -681,6 +690,7 @@ func waitForBytes(ctx context.Context, ch <-chan []byte) ([]byte, error) {
 }
 
 func TestInactivityTimeout(t *testing.T) {
+	t.Parallel()
 	const timeoutMessage = "You snooze, you lose."
 
 	// Given
@@ -716,7 +726,7 @@ func TestInactivityTimeout(t *testing.T) {
 				return false
 			}
 		}
-		require.Eventually(t, sessionHasFinished, 6*time.Second, 100*time.Millisecond,
+		require.Eventually(t, sessionHasFinished, 6*time.Second, 10*time.Millisecond,
 			"Timed out waiting for session to finish")
 
 		// Expect that the idle timeout has been delivered via stderr
@@ -726,6 +736,7 @@ func TestInactivityTimeout(t *testing.T) {
 	}
 
 	t.Run("Normal timeout", func(t *testing.T) {
+		t.Parallel()
 		f := newCustomFixture(t, mutateCfg)
 
 		// If all goes well, the client will be closed by the time cleanup happens,
@@ -738,6 +749,7 @@ func TestInactivityTimeout(t *testing.T) {
 	})
 
 	t.Run("Reset timeout on input", func(t *testing.T) {
+		t.Parallel()
 		f := newCustomFixture(t, mutateCfg)
 
 		// If all goes well, the client will be closed by the time cleanup happens,
@@ -839,14 +851,19 @@ func TestLockInForce(t *testing.T) {
 	// As long as the lock is in force, new sessions cannot be opened.
 	newClient, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		// The client is expected to be closed by the lock monitor therefore expect
-		// an error on this second attempt.
-		require.Error(t, newClient.Close())
-	})
 	_, err = newClient.NewSession(ctx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), lockInForceMsg)
+	t.Cleanup(func() {
+		// The client is expected to be closed by the lock monitor therefore
+		// expect an error on this second attempt.
+		//
+		// Wait before calling Close() to allow the server to close the
+		// connection. Wait here under the hood will just try and read from the
+		// connection until it gets an EOF.
+		require.Error(t, newClient.Wait())
+		require.Error(t, newClient.Close())
+	})
 
 	// Once the lock is lifted, new sessions should go through without error.
 	require.NoError(t, f.testSrv.Auth().DeleteLock(ctx, "test-lock"))
@@ -883,10 +900,11 @@ func setPortForwarding(t *testing.T, ctx context.Context, f *sshTestFixture, leg
 	require.NoError(t, err)
 }
 
-// TestDirectTCPIP ensures that the server can create a "direct-tcpip"
-// channel to the target address. The "direct-tcpip" channel is what port
-// forwarding is built upon.
+// TestDirectTCPIP ensures that the server can create a "direct-tcpip" channel
+// to the target address. The "direct-tcpip" channel is what port forwarding is
+// built upon.
 func TestDirectTCPIP(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 
 	setup := func(t *testing.T) (*sshTestFixture, *httptest.Server, *url.URL) {
@@ -905,6 +923,7 @@ func TestDirectTCPIP(t *testing.T) {
 	}
 
 	t.Run("Local forwarding is successful", func(t *testing.T) {
+		t.Parallel()
 		f, ts, u := setup(t)
 		defer ts.Close()
 
@@ -931,6 +950,7 @@ func TestDirectTCPIP(t *testing.T) {
 	})
 
 	t.Run("Local forwarding fails when access is denied", func(t *testing.T) {
+		t.Parallel()
 		f, ts, u := setup(t)
 		defer ts.Close()
 
@@ -959,6 +979,7 @@ func TestDirectTCPIP(t *testing.T) {
 	})
 
 	t.Run("Local forwarding fails when access is denied by legacy config", func(t *testing.T) {
+		t.Parallel()
 		f, ts, u := setup(t)
 		defer ts.Close()
 
@@ -987,6 +1008,7 @@ func TestDirectTCPIP(t *testing.T) {
 	})
 
 	t.Run("SessionJoinPrincipal cannot use direct-tcpip", func(t *testing.T) {
+		t.Parallel()
 		f, ts, u := setup(t)
 		defer ts.Close()
 
@@ -1048,9 +1070,9 @@ func TestTCPIPForward(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			f := newFixtureWithoutDiskBasedLogging(t)
 			setPortForwarding(t, t.Context(), f, tc.legacyAllow, tc.remoteAllow, tc.localAllow)
-
 			// create a new client connection to the node which will have its permissions
 			// calculated with the updated rules.
 			clientConn, err := tracessh.Dial(t.Context(), "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
@@ -1066,12 +1088,17 @@ func TestTCPIPForward(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// Start up a test server that uses the port forwarded listener.
-			ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Create and configure httptest.Server instead of calling
+			// httptest.NewUnstartedServer. Calling httptest.NewUnstartedServer
+			// creates an extra listener that is unneeded.
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintln(w, "hello, world")
-			}))
+			})
+			ts := &httptest.Server{
+				Listener: listener,
+				Config:   &http.Server{Handler: handler},
+			}
 			t.Cleanup(ts.Close)
-			ts.Listener = listener
 			ts.Start()
 
 			// Dial the test server over the SSH connection.
@@ -1094,6 +1121,7 @@ func TestTCPIPForward(t *testing.T) {
 	}
 
 	t.Run("SessionJoinPrincipal cannot use tcpip-forward", func(t *testing.T) {
+		t.Parallel()
 		// Ensure that ssh client using SessionJoinPrincipal as Login, cannot
 		// connect using "tcpip-forward".
 		f := newFixtureWithoutDiskBasedLogging(t)
@@ -1257,8 +1285,9 @@ func TestOpenExecSessionSetsSession(t *testing.T) {
 // TestAgentForward tests agent forwarding via unix sockets
 func TestAgentForward(t *testing.T) {
 	t.Parallel()
-	f := newFixtureWithoutDiskBasedLogging(t)
 
+	// Create and configure a cluster.
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := t.Context()
 	roleName := services.RoleNameForUser(f.user)
 	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
@@ -1269,47 +1298,43 @@ func TestAgentForward(t *testing.T) {
 	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
+	// Create new session, request agent forwarding on it, then close out agent.
+	// This is done to verify agent can run run across multiple sessions on a
+	// single connection.
 	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() { se.Close() })
 
 	err = sshagent.RequestAgentForwarding(ctx, se)
 	require.NoError(t, err)
 
-	// prepare to send virtual "keyboard input" into the shell:
-	keyboard, err := se.StdinPipe()
-	require.NoError(t, err)
-	t.Cleanup(func() { keyboard.Close() })
-
-	// start interactive SSH session (new shell):
-	err = se.Shell(ctx)
+	err = se.Close()
 	require.NoError(t, err)
 
-	// create a temp file to collect the shell output into:
-	tmpFile, err := os.CreateTemp(t.TempDir(), "teleport-agent-forward-test")
-	require.NoError(t, err)
-	tmpFile.Close()
-
-	// type 'printenv SSH_AUTH_SOCK > /path/to/tmp/file' into the session (dumping the value of SSH_AUTH_STOCK into the temp file)
-	_, err = fmt.Fprintf(keyboard, "printenv %v >> %s\n\r", teleport.SSHAuthSock, tmpFile.Name())
+	// Create another session (on same connection) extract path to agent.
+	se, err = f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
 
-	// wait for the output
-	var socketPath string
-	require.Eventually(t, func() bool {
-		output, err := os.ReadFile(tmpFile.Name())
-		if err == nil && len(output) != 0 {
-			socketPath = strings.TrimSpace(string(output))
-			return true
-		}
-		return false
-	}, 10*time.Second, 100*time.Millisecond, "failed to read socket path")
+	buf, err := se.Output(context.Background(), "printenv "+teleport.SSHAuthSock)
+	require.NoError(t, err)
+	socketPath := strings.TrimSpace(string(buf))
 
-	// try dialing the ssh agent socket:
+	// Close out this session. Calling Close() after Output() is expected to
+	// return EOF. See the following for more details:
+	// https://github.com/golang/go/issues/38115
+	err = se.Close()
+	if err != nil && err.Error() != "EOF" {
+		require.NoError(t, err)
+	}
+
+	// All sessions have been closed, verify agent can still be connected to.
 	file, err := net.Dial("unix", socketPath)
 	require.NoError(t, err)
 
 	clientAgent := agent.NewClient(file)
+
+	_, err = clientAgent.List()
+	require.NoError(t, err)
+
 	signers, err := clientAgent.Signers()
 	require.NoError(t, err)
 
@@ -1324,31 +1349,14 @@ func TestAgentForward(t *testing.T) {
 	err = client.Close()
 	require.NoError(t, err)
 
-	// make sure the socket persists after the session is closed.
-	// (agents are started from specific sessions, but apply to all
-	// sessions on the connection).
-	err = se.Close()
-	require.NoError(t, err)
-
-	// Pause to allow closure to propagate.
-	time.Sleep(150 * time.Millisecond)
-	_, err = net.Dial("unix", socketPath)
-	require.NoError(t, err)
-
-	// make sure the socket is gone after we closed the connection. Note that
-	// we now expect the client close to fail during the test cleanup, so we
-	// change the assertion accordingly
+	// Close the connection, after this errors are expected during cleanup,
+	// change assertion accordingly.
 	require.NoError(t, f.ssh.clt.Close())
 	f.ssh.assertCltClose = require.Error
 
-	// clt must be nullified to prevent double-close during test cleanup
-	f.ssh.clt = nil
-	require.Eventually(t, func() bool {
-		_, err := clientAgent.List()
-		return err != nil
-	},
-		10*time.Second, 100*time.Millisecond,
-		"expected socket to be closed, still could dial")
+	// Connection has been closed, agent should no longer be available.
+	_, err = clientAgent.List()
+	require.Error(t, err)
 }
 
 // TestX11Forward tests x11 forwarding via unix sockets
@@ -1503,7 +1511,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 				return true
 			}
 			return false
-		}, time.Second, 100*time.Millisecond, "failed to read display")
+		}, time.Second, 10*time.Millisecond, "failed to read display")
 	}, 10*time.Second, 1*time.Second)
 
 	// Make a new connection to the XServer proxy, the client
@@ -1613,8 +1621,14 @@ func TestAllowedLabels(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			up, err := newUpack(t.Context(), f.testSrv, f.user, []string{f.user}, tt.inLabelMap)
+			t.Parallel()
+
+			// Each case above requires updating the role. When run in parallel
+			// this becomes racy. Instead create a new user/role for each using
+			// rand.Text() so this test does not race.
+			up, err := newUpack(t.Context(), f.testSrv, rand.Text(), []string{f.user}, tt.inLabelMap)
 			require.NoError(t, err)
 
 			sshConfig := &ssh.ClientConfig{
@@ -2235,7 +2249,7 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, clt.Close())
 	require.ErrorIs(t, clt.Wait(), net.ErrClosed)
 
-	require.Eventually(t, getConns(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
+	require.Eventually(t, getConns(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*10)
 
 	// current connections = 1
 	clt, err = tracessh.Dial(ctx, "tcp", srv.Addr(), config)
@@ -2254,7 +2268,7 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, clt.Close())
 	require.ErrorIs(t, clt.Wait(), net.ErrClosed)
 
-	require.Eventually(t, getConns(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
+	require.Eventually(t, getConns(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*10)
 
 	// current connections = 1
 	// requests rate should exceed now
@@ -2559,6 +2573,7 @@ func requireNoErrors(t *testing.T, errsCh <-chan []error) {
 
 // TestParseSubsystemRequest verifies parseSubsystemRequest accepts the correct subsystems in depending on the runtime configuration.
 func TestParseSubsystemRequest(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 
 	// start a listener to accept connections; this will be needed for the proxy test to pass, otherwise nothing will be there to handle the call.
@@ -2740,6 +2755,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			subsystem := tt.name
 			if tt.subsystemOverride != "" {
 				subsystem = tt.subsystemOverride
@@ -3032,6 +3048,7 @@ func TestHandlePuTTYWinadj(t *testing.T) {
 }
 
 func TestEventMetadata(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
@@ -3325,6 +3342,7 @@ func newSigner(t testing.TB, ctx context.Context, testServer *authtest.Server) s
 const maxPipeSize = 65536 + 1
 
 func TestHostUserCreationProxy(t *testing.T) {
+	t.Parallel()
 	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := t.Context()
 
@@ -3612,6 +3630,7 @@ func (f *fakeHostUsersBackend) SetHostUserDeletionGrace(grace time.Duration) {
 }
 
 func TestSessionParams(t *testing.T) {
+	t.Parallel()
 	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := t.Context()
 
@@ -3725,6 +3744,7 @@ func TestSessionParams(t *testing.T) {
 }
 
 func TestServerInfo(t *testing.T) {
+	t.Parallel()
 	scope := "/aa"
 	f := newFixtureWithoutDiskBasedLogging(t, SetScope(scope))
 	require.Equal(t, f.ssh.srv.scope, scope)

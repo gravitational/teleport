@@ -2370,21 +2370,20 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer scx.Close()
 	listener, err := s.listenTCPIP(scx, scx.SrcAddr)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.NewAggregate(scx.Close(), err)
 	}
 
 	// If the client didn't request a specific port, the chosen port needs to
 	// be reported back.
 	srcHost, _, err := sshutils.SplitHostPort(scx.SrcAddr)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.NewAggregate(listener.Close(), scx.Close(), err)
 	}
 	_, listenPort, err := sshutils.SplitHostPort(listener.Addr().String())
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.NewAggregate(listener.Close(), scx.Close(), err)
 	}
 	scx.SrcAddr = sshutils.JoinHostPort(srcHost, listenPort)
 
@@ -2393,6 +2392,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 
 	// spawn remote forwarding handler to multiplex connections to the forwarded port
 	go func() {
+		defer scx.Close()
 		stopEvent := scx.GetPortForwardEvent(events.PortForwardRemoteEvent, events.PortForwardStopCode, scx.SrcAddr)
 		defer s.emitAuditEventWithLog(ctx, &stopEvent)
 
