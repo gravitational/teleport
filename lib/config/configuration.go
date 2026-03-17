@@ -2352,7 +2352,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert(s)")
 		}
 		if len(pemCerts) == 0 {
-			return trace.Errorf("ldap_ca_cert is set, but no certificates were parsed")
+			return trace.BadParameter("ldap_ca_cert is set, but no certificates were parsed")
 		}
 		certs = pemCerts
 	}
