@@ -229,7 +229,13 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 			mfaKinds = append(mfaKinds, kind)
 		}
 	}
-	mfaRequired := rc.withSecrets && slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
+
+	withSecrets := rc.withSecrets || slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
+		// tokens cannot be retrieved without secrets.
+		return r.Kind == types.KindToken
+	})
+
+	mfaRequired := withSecrets && slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
 		return slices.Contains(mfaKinds, r.Kind)
 	})
 
