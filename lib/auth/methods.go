@@ -103,6 +103,9 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 		if botScope == "" {
 			return nil, trace.BadParameter("unscoped bot may not generate scoped certs")
 		}
+		// nb: we could enforce that botScope == scope here - but we already
+		// enforce this in PopulatePinnedAssignmentsForBot.
+		// todo: where is most appropriate to enforce this.
 		if botName == "" {
 			// impossible code path - IsBot is predicated on this label.
 			return nil, trace.BadParameter("bot without a name may not generate certs")
