@@ -146,7 +146,7 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 			}
 		}
 		if allConnect {
-			f.browsers = nil
+			f.browsers = []string{}
 		}
 	}
 

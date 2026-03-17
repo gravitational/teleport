@@ -117,7 +117,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		connectTshBinPath:      filepath.Join(filepath.Dir(e2eDir), "build", "tsh-e2e-webauthnmock"),
 	}
 
-	if len(flags.browsers) == 0 {
+	if flags.browsers == nil {
 		if config.isCI {
 			config.browsers = []string{"chromium", "firefox", "webkit"}
 		} else {
