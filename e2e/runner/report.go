@@ -48,6 +48,7 @@ func runReport(cfg *reportConfig) error {
 	if err != nil {
 		return err
 	}
+	defer os.RemoveAll(tmpDir)
 
 	showCmd := exec.Command("pnpm", "exec", "playwright", "show-report", tmpDir, "--port", "0")
 	showCmd.Dir = cfg.e2eDir
@@ -63,6 +64,7 @@ func runTestResults(cfg *reportConfig) error {
 	if err != nil {
 		return err
 	}
+	defer os.RemoveAll(tmpDir)
 
 	tracePath := filepath.Join(tmpDir, cfg.tracePath)
 	slog.Info("opening trace", "path", tracePath)
