@@ -92,18 +92,16 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 		// Too large error messages will cause failures when clients (which use the default MaxCallRecvMsgSize of 4MB) try to read DiscoveryConfigs.
 		discoveryConfigStatus.ErrorMessage = truncateErrorMessage(discoveryConfigStatus)
 
-		func() {
-			ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
-			defer cancel()
+		// Update the sync times and server ID for each integration summary.
+		for _, integrationSummary := range discoveryConfigStatus.IntegrationDiscoveredResources {
+			integrationSummary.ServerId = s.Config.ServerID
+			//integrationSummary.SyncStart = timestamppb.New(discoveryConfigStatus.LastSyncTime)
+			integrationSummary.SyncEnd = timestamppb.New(s.Config.clock.Now())
+		}
 
-			_, err := s.AccessPoint.UpdateDiscoveryConfigStatus(ctx, discoveryConfigName, discoveryConfigStatus)
-			switch {
-			case trace.IsNotImplemented(err):
-				s.Log.WarnContext(ctx, "UpdateDiscoveryConfigStatus method is not implemented in Auth Server. Please upgrade it to a recent version.")
-			case err != nil:
-				s.Log.WarnContext(ctx, "Error updating discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
-			}
-		}()
+		if err := s.discoveryConfigStatusUpdater().update(s.ctx, discoveryConfigName, discoveryConfigStatus); err != nil {
+			s.Log.WarnContext(s.ctx, "Failed to update discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
+		}
 	}
 }
 
@@ -255,6 +253,8 @@ type awsResourcesStatus struct {
 	// awsResourcesResults maps the DiscoveryConfig name and integration to a summary of discovered/enrolled resources.
 	awsResourcesResults map[awsResourceGroup]awsResourceGroupResult
 	resourceType        string
+	syncStartTime       time.Time
+	syncEndTime         time.Time
 }
 
 // awsResourceGroup is the key for the summary
@@ -299,7 +299,9 @@ func (ars *awsResourcesStatus) mergeIntoGlobalStatus(discoveryConfigName string,
 		// Update counters specific to AWS resources discovered.
 		existingIntegrationResources, ok := existingStatus.IntegrationDiscoveredResources[group.integration]
 		if !ok {
-			existingIntegrationResources = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+			existingIntegrationResources = &discoveryconfigv1.IntegrationDiscoveredSummary{
+				//SyncEnd: timestamppb.New(syncTime),
+			}
 		}
 
 		resourcesSummary := &discoveryconfigv1.ResourcesDiscoveredSummary{
@@ -327,13 +329,24 @@ func (ars *awsResourcesStatus) incrementFailed(g awsResourceGroup, count int) {
 	ars.awsResourcesResults[g] = groupStats
 }
 
-func (ars *awsResourcesStatus) iterationStarted(g awsResourceGroup) {
+func (ars *awsResourcesStatus) iterationStarted(g awsResourceGroup, syncStartTime time.Time) {
 	ars.mu.Lock()
 	defer ars.mu.Unlock()
 	if ars.awsResourcesResults == nil {
 		ars.awsResourcesResults = make(map[awsResourceGroup]awsResourceGroupResult)
 	}
 	ars.awsResourcesResults[g] = awsResourceGroupResult{}
+	ars.syncStartTime = syncStartTime
+}
+
+func (ars *awsResourcesStatus) iterationEnded(g awsResourceGroup, syncEndTime time.Time) {
+	ars.mu.Lock()
+	defer ars.mu.Unlock()
+	if ars.awsResourcesResults == nil {
+		ars.awsResourcesResults = make(map[awsResourceGroup]awsResourceGroupResult)
+	}
+	ars.awsResourcesResults[g] = awsResourceGroupResult{}
+	ars.syncEndTime = syncEndTime
 }
 
 func (ars *awsResourcesStatus) incrementFound(g awsResourceGroup, count int) {
@@ -1113,7 +1126,9 @@ func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, ex
 		var summary *discoveryconfigv1.IntegrationDiscoveredSummary
 		summary = existingStatus.IntegrationDiscoveredResources[key.integration]
 		if summary == nil {
-			summary = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+			summary = &discoveryconfigv1.IntegrationDiscoveredSummary{
+				//SyncEnd: timestamppb.New(syncEnd),
+			}
 		}
 
 		resourcesSummary := &discoveryconfigv1.ResourcesDiscoveredSummary{

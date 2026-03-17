@@ -68,14 +68,15 @@ func (s *Server) startDatabaseWatchers() error {
 
 	watcher, err := common.NewWatcher(s.ctx,
 		common.WatcherConfig{
-			FetchersFn:     s.getAllDatabaseFetchers,
-			Logger:         s.Log.With("kind", types.KindDatabase),
-			DiscoveryGroup: s.DiscoveryGroup,
-			Interval:       s.PollInterval,
-			TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
-			Origin:         types.OriginCloud,
-			Clock:          s.clock,
-			PreFetchHookFn: s.databaseWatcherIterationStarted,
+			FetchersFn:      s.getAllDatabaseFetchers,
+			Logger:          s.Log.With("kind", types.KindDatabase),
+			DiscoveryGroup:  s.DiscoveryGroup,
+			Interval:        s.PollInterval,
+			TriggerFetchC:   s.newDiscoveryConfigChangedSub(),
+			Origin:          types.OriginCloud,
+			Clock:           s.clock,
+			PreFetchHookFn:  s.databaseWatcherIterationStarted,
+			PostFetchHookFn: s.databaseWatcherIterationEnded,
 		},
 	)
 	if err != nil {
@@ -178,6 +179,12 @@ func (s *Server) collectRDSIssuesAsUserTasks(db types.Database, integration, dis
 	)
 }
 
+func (s *Server) databaseWatcherIterationEnded() {
+	for resourceGroup := range s.awsRDSResourcesStatus.awsResourcesResults {
+		s.awsRDSResourcesStatus.iterationEnded(resourceGroup, s.clock.Now())
+	}
+}
+
 func (s *Server) databaseWatcherIterationStarted() {
 	allFetchers := s.getAllDatabaseFetchers()
 	if len(allFetchers) == 0 {
@@ -204,7 +211,7 @@ func (s *Server) databaseWatcherIterationStarted() {
 	s.updateDiscoveryConfigStatus(discoveryConfigs...)
 	s.awsRDSResourcesStatus.reset()
 	for _, g := range awsResultGroups {
-		s.awsRDSResourcesStatus.iterationStarted(g)
+		s.awsRDSResourcesStatus.iterationStarted(g, s.clock.Now())
 	}
 
 	s.awsRDSTasks.reset()

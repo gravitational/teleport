@@ -231,7 +231,7 @@ func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
 	s.updateDiscoveryConfigStatus(discoveryConfigs...)
 	s.awsEKSResourcesStatus.reset()
 	for _, g := range awsResultGroups {
-		s.awsEKSResourcesStatus.iterationStarted(g)
+		s.awsEKSResourcesStatus.iterationStarted(g, s.clock.Now())
 	}
 
 	s.awsEKSTasks.reset()

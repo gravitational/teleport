@@ -85,6 +85,9 @@ type Status struct {
 	LastSyncTime time.Time `json:"last_sync_time,omitempty" yaml:"last_sync_time,omitempty"`
 	// IntegrationDiscoveredResources maps an integration to a summary of resources that were found using that integration.
 	IntegrationDiscoveredResources map[string]*discoveryconfigv1.IntegrationDiscoveredSummary `json:"integration_discovered_resources,omitempty" yaml:"integration_discovered_resources,omitempty"`
+	// IntegrationDiscoveredResourcesHistory maps an integration to a summary of resources that were found using that integration.
+	// Only the most recent 5 summaries are kept for each integration.
+	IntegrationDiscoveredResourcesHistory map[string]*discoveryconfigv1.IntegrationDiscoveredSummaryHistory `json:"integration_discovered_resources_history,omitempty" yaml:"integration_discovered_resources_history,omitempty"`
 }
 
 // NewDiscoveryConfig will create a new discovery config.

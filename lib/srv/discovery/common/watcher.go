@@ -66,6 +66,8 @@ type WatcherConfig struct {
 	Origin string
 	// PreFetchHookFn is called before starting a new fetch cycle.
 	PreFetchHookFn func()
+	// PostFetchHookFn is called after completing a fetch cycle.
+	PostFetchHookFn func()
 }
 
 // CheckAndSetDefaults validates the config.
@@ -87,6 +89,12 @@ func (c *WatcherConfig) CheckAndSetDefaults() error {
 	}
 	if c.Origin == "" {
 		return trace.BadParameter("origin is not set")
+	}
+	if c.PreFetchHookFn == nil {
+		c.PreFetchHookFn = func() {}
+	}
+	if c.PostFetchHookFn == nil {
+		c.PostFetchHookFn = func() {}
 	}
 	return nil
 }
@@ -144,9 +152,8 @@ func (w *Watcher) Start() {
 
 // fetchAndSend fetches resources from all fetchers and sends them to the channel.
 func (w *Watcher) fetchAndSend() {
-	if w.cfg.PreFetchHookFn != nil {
-		w.cfg.PreFetchHookFn()
-	}
+	w.cfg.PreFetchHookFn()
+	defer w.cfg.PostFetchHookFn()
 
 	var (
 		newFetcherResources = make(types.ResourcesWithLabels, 0, 50)

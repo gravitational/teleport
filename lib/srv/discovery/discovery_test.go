@@ -936,7 +936,13 @@ func TestDiscoveryServer(t *testing.T) {
 					require.Equal(t, want.ErrorMessage, got.ErrorMessage)
 					for expectedKey, expectedValue := range want.IntegrationDiscoveredResources {
 						require.Contains(t, got.IntegrationDiscoveredResources, expectedKey)
-						require.Equal(t, expectedValue, got.IntegrationDiscoveredResources[expectedKey])
+						diff := cmp.Diff(
+							expectedValue,
+							got.IntegrationDiscoveredResources[expectedKey],
+							protocmp.IgnoreFields(&discoveryconfigv1.IntegrationDiscoveredSummary{}, "sync_end"),
+							protocmp.Transform(),
+						)
+						require.Empty(t, diff, "unexpected difference in IntegrationDiscoveredSummary")
 					}
 					return true
 				}, 1*time.Second, 50*time.Millisecond)
@@ -4041,6 +4047,20 @@ func (d *combinedDiscoveryClient) UpdateDiscoveryConfigStatus(ctx context.Contex
 	return nil, trace.BadParameter("not implemented.")
 }
 
+func (d *combinedDiscoveryClient) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
+	return nil, trace.NotFound("discovery config not found")
+}
+
+func (d *combinedDiscoveryClient) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+	return &types.SemaphoreLease{
+		Expires: params.Expires,
+	}, nil
+}
+
+func (d *combinedDiscoveryClient) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
+	return nil
+}
+
 func getDiscoveryAccessPointWithEKSEnroller(authServer *auth.Server, authClient authclient.ClientI, eksEnroller eksClustersEnroller) authclient.DiscoveryAccessPoint {
 	return &combinedDiscoveryClient{Server: authServer, eksClustersEnroller: eksEnroller, discoveryConfigStatusUpdater: authClient.DiscoveryConfigClient()}
 }
@@ -4068,6 +4088,10 @@ type fakeAccessPoint struct {
 func (f *fakeAccessPoint) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
 	f.reports[name] = append(f.reports[name], status)
 	return nil, nil
+}
+
+func (f *fakeAccessPoint) GetDiscoveryConfig(_ context.Context, _ string) (*discoveryconfig.DiscoveryConfig, error) {
+	return nil, trace.NotFound("discovery config not found")
 }
 
 func newFakeAccessPoint() *fakeAccessPoint {
@@ -4144,6 +4168,16 @@ func (f *fakeAccessPoint) NewWatcher(ctx context.Context, watch types.Watch) (ty
 		return f.DiscoveryAccessPoint.NewWatcher(ctx, watch)
 	}
 	return newFakeWatcher(), nil
+}
+
+func (f *fakeAccessPoint) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+	return &types.SemaphoreLease{
+		Expires: params.Expires,
+	}, nil
+}
+
+func (f *fakeAccessPoint) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
+	return nil
 }
 
 type fakeWatcher struct{}

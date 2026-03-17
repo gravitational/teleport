@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"testing"
 
 	"github.com/jonboulle/clockwork"
@@ -246,6 +247,8 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 				Config: &Config{
 					AccessPoint: accessPoint,
 					clock:       clock,
+					ServerID:    "server-id",
+					Log:         slog.New(slog.DiscardHandler),
 				},
 				tagSyncStatus: newTagSyncStatus(),
 			}

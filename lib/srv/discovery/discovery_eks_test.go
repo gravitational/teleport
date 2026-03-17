@@ -453,6 +453,13 @@ func (m *mockAuthServer) UpsertUserTask(ctx context.Context, req *usertasksv1.Us
 	return req, nil
 }
 
+func (m *mockAuthServer) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
+	if dc, ok := m.storeDiscoveryConfigs[name]; ok {
+		return dc, nil
+	}
+	return nil, trace.NotFound("discovery config %q not found", name)
+}
+
 type mockEKSClusterEnroller struct {
 	resp *integrationpb.EnrollEKSClustersResponse
 	err  error

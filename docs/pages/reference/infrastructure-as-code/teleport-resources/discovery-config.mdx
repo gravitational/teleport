@@ -621,6 +621,9 @@ aws_ec2: # [...]
 aws_rds: # [...]
 aws_eks: # [...]
 azure_vms: # [...]
+server_id: "string"
+sync_start: # See description
+sync_end: # See description
 ```
 
 |Field Name|Description|Type|
@@ -629,6 +632,27 @@ azure_vms: # [...]
 |aws_eks|AWSEKS contains the summary for the AWS EKS discovered clusters.|[Resources Discovered Summary](#resources-discovered-summary)|
 |aws_rds|AWSRDS contains the summary for the AWS RDS discovered databases.|[Resources Discovered Summary](#resources-discovered-summary)|
 |azure_vms|The summary for the Azure VM discovered instances.|[Resources Discovered Summary](#resources-discovered-summary)|
+|server_id|ServerID identifies the server where this summary was generated. When multiple discovery services are watching this Discovery Config, this field identifies which server generated the summary.|string|
+|sync_end|Timestmap of when the discovery iteration ended.||
+|sync_start|Timestmap of when the discovery iteration started.||
+
+## Integration Discovered Summary History
+
+Contains the a summary for each resource type that was discovered at a specific time in the past.
+
+
+Example:
+
+```yaml
+summaries: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|summaries|List of summaries for past iterations. Contains at most 5 summaries of the past iterations, ordered from the most recent to the oldest.|[][Integration Discovered Summary](#integration-discovered-summary)|
 
 ## Join Method
 
@@ -763,6 +787,10 @@ integration_discovered_resources:
   "string": # [...]
   "string": # [...]
   "string": # [...]
+integration_discovered_resources_history: 
+  "string": # [...]
+  "string": # [...]
+  "string": # [...]
 ```
 
 |Field Name|Description|Type|
@@ -770,6 +798,7 @@ integration_discovered_resources:
 |discovered_resources|Holds the count of the discovered resources in the previous iteration.|number|
 |error_message|Holds the error message when state is DISCOVERY_CONFIG_STATE_ERROR.|string|
 |integration_discovered_resources|Maps an integration to a summary of resources that were found using that integration.|map[string][Integration Discovered Summary](#integration-discovered-summary)|
+|integration_discovered_resources_history|Maps an integration to a summary of resources that were found using that integration. Only the most recent 5 summaries are kept for each integration.|map[string][Integration Discovered Summary History](#integration-discovered-summary-history)|
 |last_sync_time|The timestamp when the Discovery Config was last sync.||
 |state|The current state of the discovery config.|string|
 
