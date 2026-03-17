@@ -154,9 +154,15 @@ func downloadArtifact(prNumber int, repo, artifactName string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	zipFile, err := os.CreateTemp("", artifactName+"-*.zip")
 	if err != nil {
-		return "", fmt.Errorf("reading artifact response: %w", err)
+		return "", fmt.Errorf("creating temp zip file: %w", err)
+	}
+	defer os.Remove(zipFile.Name())
+	defer zipFile.Close()
+
+	if _, err := io.Copy(zipFile, resp.Body); err != nil {
+		return "", fmt.Errorf("downloading artifact to disk: %w", err)
 	}
 
 	tmpDir, err := os.MkdirTemp("", artifactName+"-*")
@@ -166,10 +172,11 @@ func downloadArtifact(prNumber int, repo, artifactName string) (string, error) {
 
 	slog.Info("extracting artifact", "artifact", artifactName, "dir", tmpDir)
 
-	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	zr, err := zip.OpenReader(zipFile.Name())
 	if err != nil {
 		return "", fmt.Errorf("opening artifact zip: %w", err)
 	}
+	defer zr.Close()
 
 	for _, f := range zr.File {
 		dest := filepath.Join(tmpDir, f.Name)
