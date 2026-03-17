@@ -2343,7 +2343,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if err != nil {
 			return trace.WrapWithMessage(err, "parsing the LDAP root CA file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		}
-		certs = append(certs, derCert)
+		certs = []*x509.Certificate{derCert}
 	}
 
 	if fc.WindowsDesktop.LDAP.PEMEncodedCACerts != "" {
@@ -2351,7 +2351,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if err != nil {
 			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert")
 		}
-		certs = append(certs, pemCerts...)
+		certs = pemCerts
 	}
 
 	locateServer := servicecfg.LocateServer{
