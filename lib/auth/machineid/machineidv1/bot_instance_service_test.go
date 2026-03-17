@@ -261,6 +261,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 
 	tests := []struct {
 		name              string
+		scoped            bool
 		identity          tlsca.Identity
 		req               *machineidv1.SubmitHeartbeatRequest
 		createBotInstance bool
@@ -405,6 +406,21 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			},
 			wantHeartbeat: false,
 		},
+		// basically just check a scoped identity is able to call the RPC
+		// todo: when we add scope propagation, we should check scope propagates
+		{
+			name:              "scoped bot identity success",
+			scoped:            true,
+			createBotInstance: true,
+			req: &machineidv1.SubmitHeartbeatRequest{
+				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+					Hostname: "llama",
+				},
+			},
+			identity:      goodIdentity,
+			assertErr:     assert.NoError,
+			wantHeartbeat: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -413,12 +429,12 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			service, err := NewBotInstanceService(BotInstanceServiceConfig{
 				Backend: backend,
 				Cache:   backend,
-				Authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-					return &authz.Context{
-						Identity: identityGetterFn(func() tlsca.Identity {
-							return tt.identity
-						}),
-					}, nil
+				Authorizer: fakeScopedAuthorizerFunc(func(ctx context.Context) (*authz.ScopedContext, error) {
+					identity := identityGetterFn(func() tlsca.Identity { return tt.identity })
+					if tt.scoped {
+						return &authz.ScopedContext{Identity: identity}, nil
+					}
+					return authz.ScopedContextFromUnscopedContext(&authz.Context{Identity: identity}), nil
 				}),
 			})
 			require.NoError(t, err)
@@ -478,15 +494,15 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 	service, err := NewBotInstanceService(BotInstanceServiceConfig{
 		Backend: backend,
 		Cache:   backend,
-		Authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-			return &authz.Context{
+		Authorizer: fakeScopedAuthorizerFunc(func(ctx context.Context) (*authz.ScopedContext, error) {
+			return authz.ScopedContextFromUnscopedContext(&authz.Context{
 				Identity: identityGetterFn(func() tlsca.Identity {
 					return tlsca.Identity{
 						BotName:       botName,
 						BotInstanceID: botInstanceID,
 					}
 				}),
-			}, nil
+			}), nil
 		}),
 	})
 	require.NoError(t, err)
@@ -654,17 +670,17 @@ func newBotInstanceService(
 ) *BotInstanceService {
 	t.Helper()
 
-	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+	authorizer := fakeScopedAuthorizerFunc(func(ctx context.Context) (*authz.ScopedContext, error) {
 		user, err := types.NewUser("example")
 		if err != nil {
 			return nil, err
 		}
 
-		return &authz.Context{
+		return authz.ScopedContextFromUnscopedContext(&authz.Context{
 			User:                 user,
 			Checker:              checker,
 			AdminActionAuthState: authState,
-		}, nil
+		}), nil
 	})
 
 	service, err := NewBotInstanceService(BotInstanceServiceConfig{
@@ -678,3 +694,9 @@ func newBotInstanceService(
 }
 
 func ptr[T any](v T) *T { return &v }
+
+type fakeScopedAuthorizerFunc func(ctx context.Context) (*authz.ScopedContext, error)
+
+func (f fakeScopedAuthorizerFunc) AuthorizeScoped(ctx context.Context) (*authz.ScopedContext, error) {
+	return f(ctx)
+}
