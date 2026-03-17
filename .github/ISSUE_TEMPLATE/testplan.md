@@ -1557,9 +1557,11 @@ manualy testing.
   - [ ] Amazon Keyspaces
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Amazon RDS Oracle (with Kerberos keytab)
+  - [ ] Amazon RDS SQL Server (with AD/Kerberos keytab)
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] GCP Cloud Spanner.
+  - [ ] GCP AlloyDB.
   - [ ] Azure Cache for Redis.
   - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
   - [ ] Azure flexible-server MySQL
@@ -1567,43 +1569,10 @@ manualy testing.
   - [ ] Azure SQL Server.
   - [ ] Snowflake.
   - [ ] MongoDB Atlas.
-- [ ] Connect to a database within a remote cluster via a trusted cluster.
+- [ ] Connect to a database within a remote trusted cluster via `tsh db connect` (smoke check).
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
-  - [ ] Self-hosted MariaDB.
-  - [ ] Self-hosted MongoDB.
-  - [ ] Self-hosted CockroachDB.
-  - [ ] Self-hosted Redis/Valkey.
-  - [ ] Self-hosted Redis Cluster.
-  - [ ] Self-hosted MSSQL.
-  - [ ] Self-hosted MSSQL with PKINIT authentication.
-  - [ ] Self-hosted Elasticsearch.
-  - [ ] Self-hosted Cassandra/ScyllaDB.
   - [ ] Self-hosted Oracle.
-  - [ ] Self-hosted ClickHouse.
-  - [ ] Amazon Aurora Postgres.
-  - [ ] Amazon Aurora MySQL.
-  - [ ] Amazon RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
-  - [ ] Amazon Redshift.
-  - [ ] Amazon Redshift Serverless.
-  - [ ] Amazon ElastiCache.
-  - [ ] Amazon ElastiCache Serverless.
-  - [ ] Amazon MemoryDB.
-  - [ ] Amazon OpenSearch.
-  - [ ] Amazon Dynamodb.
-  - [ ] Amazon DocumentDB
-  - [ ] Amazon Keyspaces
-  - [ ] Amazon RDS Oracle (with Kerberos keytab)
-  - [ ] GCP Cloud SQL Postgres.
-  - [ ] GCP Cloud SQL MySQL.
-  - [ ] GCP Cloud Spanner.
-  - [ ] Azure Cache for Redis.
-  - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
-  - [ ] Azure flexible-server MySQL
-  - [ ] Azure flexible-server Postgres
-  - [ ] Azure SQL Server.
-  - [ ] Snowflake.
-  - [ ] MongoDB Atlas.
 - [ ] Verify auto user provisioning.
   Verify all supported modes: `keep`, `best_effort_drop`
   - [ ] Self-hosted Postgres.
@@ -1614,8 +1583,10 @@ manualy testing.
   - [x] Amazon RDS MySQL. (coverved by E2E test)
   - [ ] Amazon RDS MariaDB.
   - [x] Amazon Redshift (coverved by E2E test).
-- [ ] Verify Database Access Control
-  - [ ] Postgres (tables)
+- [ ] Verify Database Access Control (`db_permissions`)
+  - [ ] Postgres (tables): object-level permissions (SELECT/INSERT/UPDATE/DELETE) are enforced.
+  - [ ] Permissions are granted per-connection and revoked on disconnect.
+  - [ ] Simultaneous connections require identical permissions.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -1680,22 +1651,35 @@ manualy testing.
   - [ ] Database servers (`$ tctl get db_server`) include `db_server.status.target_health` info
   - [ ] Updating `health_check_config` resets `db_server.status.target_health.status` for matching databases (may take several minutes)
   - [ ] Updating a `health_check_config` (or deleting it), such that a database should no longer have health checks enabled, resets that database's `db_server.status.target_health` to "unknown/disabled" (may take several minutes)
+  - [ ] `tctl db ls --query 'health.status == "unhealthy"'` filters to unhealthy databases.
+  - [ ] Configurable health check parameters are respected.
+    - [ ] Custom `interval` changes time between health checks.
+    - [ ] Custom `timeout` changes health check connection timeout.
+    - [ ] Custom `unhealthy_threshold` (e.g. 3) requires that many consecutive failures before status becomes "unhealthy".
+    - [ ] Custom `healthy_threshold` requires that many consecutive passes before status becomes "healthy".
   - [ ] Verify health check web UI indicators
     Configure a database agent with a database that has an unreachable URI (e.g. localhost:5432).
     - [ ] The web UI resource page shows an warning indicator for that database with error details.
     - [ ] Without restarting the agent, make the database endpoint reachable and observe that the indicator in the web UI resources page disappears after some time.
+- [ ] Verify `tsh db` CLI commands.
+  - [ ] `tsh db config` prints connection info (host, port, CA, cert paths) for use with GUI clients.
+  - [ ] `tsh db env` outputs environment variables for database connection.
+  - [ ] `tsh db login --db-roles` selects a subset of allowed roles for an auto-provisioned user.
+  - [ ] `tsh db exec` executes a command against multiple databases.
+    - [ ] `tsh db exec --parallel` runs commands in parallel across databases.
+    - [ ] `tsh db exec --output-dir` writes per-database output files and a summary.json.
 - [ ] Verify [database access via MCP](https://goteleport.com/docs/connect-your-client/model-context-protocol/database-access/)
   - [ ] Postgres
   - [ ] Redshift
   - [ ] CockroachDB
   - [ ] Verify Teleport MCP servers can be configured and function correctly across various clients
-   - [ ]`tsh mcp db config`
-    - [ ] Claude Desktop
-    - [ ] VSCode
-    - [ ] Cursor
-    - [ ] `claude`
-    - [ ] `codex`
-   - [ ] Dev testing via MCP inspector
+    - [ ] `tsh mcp db config`
+      - [ ] Claude Desktop
+      - [ ] VSCode
+      - [ ] Cursor
+      - [ ] `claude`
+      - [ ] `codex`
+    - [ ] Dev testing via MCP inspector
 
 ## Git Proxy
 - [ ] [GitHub proxy](https://goteleport.com/docs/admin-guides/management/guides/github-integration/)
@@ -2071,6 +2055,34 @@ also managed, but not considered for role-based host user creation.
   - [ ] Windows Desktop
   - [ ] App Access
 
+## Relay service
+
+[Relay docs](https://goteleport.com/docs/reference/architecture/relay/)
+
+[Relay chart](https://goteleport.com/docs/reference/helm-reference/teleport-relay/)
+
+- Relay service and relay tunnels
+  - [ ] Relay agents can start and join the cluster
+  - [ ] SSH agents (from the previous and current major version) can open tunnels to the Relay group
+    - Verify this through the agent logs and from the `relay_ids` in the `node` heartbeats
+  - [ ] Kube agents (from the previous and current major version) can open tunnels to the Relay group
+    - Verify this through the agent logs and from the `relay_ids` in the `kube_server` heartbeats
+- `tsh` can be configured to use the relay
+  - [ ] `tsh login` with the `default_relay_addr` user trait
+  - [ ] `tsh login --relay`
+  - [ ] `tsh ssh` goes through the relay if an address is configured with the above
+    - [ ] `tsh ssh --relay none` does not
+  - [ ] `tsh ssh --relay` goes through the relay
+  - [ ] `tsh proxy ssh` goes through the relay if appropriate (as called by `ProxyCommand` in `tsh config`)
+  - [ ] `tsh kube login` generates a kubeconfig file that uses the appropriate relay
+  - [ ] `tsh proxy kube` goes through the relay
+- Relay rollouts and relay peering
+  - [ ] Different relay agents bounce connections between them correctly
+    - Verify this by setting the `target_connection_count` to less than the replica count and checking logs
+  - [ ] Rolling the relay chart results in agents maintaining no less than `target_connection_count` tunnels open
+  - [ ] SSH (with connection resumption) can keep a connection going through a relay rollout
+
+
 ## SSH Connection Resumption
 
 Verify that SSH works, and that resumable SSH is not interrupted across a Teleport Cloud tenant upgrade.
@@ -2306,35 +2318,35 @@ The following should work with SSO MFA, automatically opening the SSO MFA redire
 
 ## MCP Access
 - [ ] Verify Teleport supports MCP servers in various transports
- - [ ] Teleport demo server (special in-memory MCP)
- - [ ] stdio
-  - [ ] Verify Teleport/tsh can automatically reconnect if client connection is disrupted
-  - [ ] Verify the MCP process (node, python, etc.) is stopped after session is done
-  - [ ] Verify docker containers are removed after session is done for docker-based MCPs.
-  - [ ] Verify `run_as_host_user` with a different user than caller.
- - [ ] streamable-HTTP
-  - [ ] Verify custom headers can be set via `app.rewrite.headers`
-  - [ ] Verify Teleport can passthrough custom headers from client side (e.g. github PAT via `tsh db connect --header`)
-  - [ ] Verify Teleport can passthrough 3rd party OAuth flow (e.g. Cloudflare OAuth)
-  - [ ] Verify egress auth with JWT token (e.g. Grafana that trust's Teleport JWT)
-  - [ ] Verify egress auth with OpenID token (e.g. AWS AgentCore MCP Gateway)
- - [ ] SSE (deprecated but still in-use)
+  - [ ] Teleport demo server (special in-memory MCP)
+  - [ ] stdio
+    - [ ] Verify Teleport/tsh can automatically reconnect if client connection is disrupted
+    - [ ] Verify the MCP process (node, python, etc.) is stopped after session is done
+    - [ ] Verify docker containers are removed after session is done for docker-based MCPs.
+    - [ ] Verify `run_as_host_user` with a different user than caller.
+  - [ ] streamable-HTTP
+    - [ ] Verify custom headers can be set via `app.rewrite.headers`
+    - [ ] Verify Teleport can passthrough custom headers from client side (e.g. github PAT via `tsh db connect --header`)
+    - [ ] Verify Teleport can passthrough 3rd party OAuth flow (e.g. Cloudflare OAuth)
+    - [ ] Verify egress auth with JWT token (e.g. Grafana that trust's Teleport JWT)
+    - [ ] Verify egress auth with OpenID token (e.g. AWS AgentCore MCP Gateway)
+  - [ ] SSE (deprecated but still in-use)
 - [ ] Verify Teleport MCP servers can be configured and function correctly across various clients
- - [ ] `tsh mcp config`
-  - [ ] Claude Desktop
-  - [ ] VSCode
-  - [ ] Cursor
-  - [ ] `claude`
-  - [ ] `codex`
- - [ ] Web UI deep links
-  - [ ] VSCode
-  - [ ] Cursor
- - [ ] Dev testing via MCP inspector
+  - [ ] `tsh mcp config`
+    - [ ] Claude Desktop
+    - [ ] VSCode
+    - [ ] Cursor
+    - [ ] `claude`
+    - [ ] `codex`
+  - [ ] Web UI deep links
+    - [ ] VSCode
+    - [ ] Cursor
+  - [ ] Dev testing via MCP inspector
 - [ ] Verify Teleport MCP servers hint on "tsh login" when tsh session is expired (via chat/prompt)
 - [ ] RBAC
- - [ ] Verify users can only see MCP servers allowed by `allow.app_labels`
- - [ ] Verify MCP client can only see allowed tools
- - [ ] Verify `deny.mcp.tools` is greedy (deny overrides allow)
+  - [ ] Verify users can only see MCP servers allowed by `allow.app_labels`
+  - [ ] Verify MCP client can only see allowed tools
+  - [ ] Verify `deny.mcp.tools` is greedy (deny overrides allow)
 
 ## Resources
 

@@ -18,9 +18,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceStrict, formatDistanceToNowStrict } from 'date-fns';
-import { useEffect, useState, type ReactNode } from 'react';
-import { useParams } from 'react-router';
-import { Link as RouterLink } from 'react-router-dom';
+import { useState, useEffect, type ReactNode } from 'react';
+import { Link as RouterLink, useParams } from 'react-router';
 
 import { Box, Card, Flex, H2, Indicator, Text } from 'design';
 import { Danger } from 'design/Alert';

@@ -118,6 +118,8 @@ type AuthServerConfig struct {
 	// KeystoreConfig is configuration for the CA keystore.
 	KeystoreConfig servicecfg.KeystoreConfig
 	InsecureMode   bool
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -143,6 +145,12 @@ func (cfg *AuthServerConfig) CheckAndSetDefaults() error {
 	if cfg.UploadHandler == nil {
 		cfg.UploadHandler = eventstest.NewMemoryUploader()
 	}
+
+	if cfg.Modules == nil {
+		// TODO(tross) return an error after all callers are updated
+		cfg.Modules = modules.GetModules()
+	}
+
 	return nil
 }
 
@@ -336,8 +344,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 
 	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
 		Backend: srv.Backend,
-		// TODO(tross): replace with cfg.Modules
-		Modules: modules.GetModules(),
+		Modules: cfg.Modules,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -351,8 +358,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(tross): replace with cfg.Modules.BuildType
-	authority, err := authority.NewKeygen(modules.GetModules().BuildType(), cfg.Clock.Now)
+	authority, err := authority.NewKeygen(cfg.Modules.BuildType(), cfg.Clock.Now)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -916,6 +922,13 @@ func WithBufconnListener() TestTLSServerOption {
 		cfg.AuthDialer = client.ContextDialerFunc(func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return listener.DialContext(ctx)
 		})
+	}
+}
+
+// WithoutJoinV1 disables the new join gRPC service while keeping legacy join registered.
+func WithoutJoinV1() TestTLSServerOption {
+	return func(cfg *TLSServerConfig) {
+		cfg.APIConfig.DisableJoinV1 = true
 	}
 }
 

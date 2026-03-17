@@ -22,13 +22,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
 	"github.com/gravitational/teleport/api/utils"
 )
-
-var _ compare.IsEqual[*AccessListMember] = (*AccessListMember)(nil)
 
 // AccessListMember is an access list member resource.
 type AccessListMember struct {
@@ -104,16 +101,6 @@ func (a *AccessListMember) CheckAndSetDefaults() error {
 // and should be removed when possible.
 func (a *AccessListMember) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(a.Metadata)
-}
-
-// IsEqual defines AccessListMember equality for use with
-// `services.CompareResources()` (and hence the services.Reconciler).
-//
-// For the purposes of reconciliation, we only care that the user and target
-// AccessList match.
-func (a *AccessListMember) IsEqual(other *AccessListMember) bool {
-	return a.Spec.Name == other.Spec.Name &&
-		a.Spec.AccessList == other.Spec.AccessList
 }
 
 // MatchSearch goes through select field values of a resource

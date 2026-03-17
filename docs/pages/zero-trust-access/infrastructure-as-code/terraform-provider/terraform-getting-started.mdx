@@ -629,8 +629,8 @@ module "prod_role" {
 |`db_roles`|Roles the user can access on a database when they authenticate to a database server.|
 |`db_users`|Users the user can access on a database when they authenticate to a database server.|
 |`gcp_service_accounts`|Google Cloud service accounts the user can access when authenticating to a Google Cloud API.|
-|`kubernetes_groups`|Kubernetes groups the Teleport Database Service can impersonate when proxying requests from the user.|
-|`kubernetes_users`|Kubernetes users the Teleport Database Service can impersonate when proxying requests from the user.|
+|`kubernetes_groups`|Kubernetes groups the Teleport Kubernetes Service can impersonate when proxying requests from the user.|
+|`kubernetes_users`|Kubernetes users the Teleport Kubernetes Service can impersonate when proxying requests from the user.|
 |`logins`|Operating system logins the user can access when authenticating to a Linux server.|
 |`windows_desktop_logins`|Operating system logins the user can access when authenticating to a Windows desktop.|
 
@@ -689,7 +689,7 @@ If you plan to skip this step, make sure to remove the `module "saml"` or
    `https://example.teleport.sh:443/v1/webapi/oidc/callback`, replacing
    `example.teleport.sh` with the domain name of your Teleport cluster. 
 
-   Ensure that `oidc_redirect_url` matches match the URL you configured with
+   Ensure that `oidc_redirect_url` matches the URL you configured with
    your IdP when registering your Teleport cluster as a relying party.
 
    </TabItem>
@@ -849,7 +849,7 @@ ip-10-1-1-24.ec2.internal  ⟵ Tunnel   role=agent-pool
    <Admonition type="tip">
 
    If you receive errors logging in using your authentication connector, log in
-   as a local user with permissions to view the Teleport audit log. These is
+   as a local user with permissions to view the Teleport audit log. This is
    available in the preset `auditor` role. Check for error messages in events
    related with the "SSO Login" type.
 

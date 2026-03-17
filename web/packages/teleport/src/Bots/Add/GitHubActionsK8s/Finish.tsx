@@ -18,7 +18,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router';
 import { styled } from 'styled-components';
 
 import {
@@ -64,7 +64,7 @@ export function Finish(props: FlowStepProps) {
   const [showCloseCheck, setShowCloseCheck] = useState(false);
   const [kubernetesClusters, setKubernetesClusters] = useState<Kube[]>([]);
 
-  const history = useHistory();
+  const navigate = useNavigate();
   const tracking = useTracking();
 
   const ctx = useTeleport();
@@ -133,7 +133,7 @@ export function Finish(props: FlowStepProps) {
       IntegrationEnrollStatusCode.Success
     );
 
-    history.replace(cfg.getBotsRoute());
+    navigate(cfg.getBotsRoute(), { replace: true });
   };
 
   const accessChecker = useMemo(

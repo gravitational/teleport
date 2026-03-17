@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import {
   Alert,
@@ -256,16 +256,16 @@ export function AwsAccount() {
   // define location state to preserve all the states required
   // to resume from this step when the user comes back to discover route
   // after successfully finishing enrolling integration.
+  const integrationEnrollPath = cfg.getIntegrationEnrollRoute(
+    IntegrationKind.AwsOidc
+  );
   const locationState = {
-    pathname: cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc),
-    state: {
-      discover: {
-        eventState,
-        resourceSpec,
-        currentStep,
-      },
-    } as DiscoverUrlLocationState,
-  };
+    discover: {
+      eventState,
+      resourceSpec,
+      currentStep,
+    },
+  } as DiscoverUrlLocationState;
   return (
     <>
       <Heading />
@@ -295,7 +295,12 @@ export function AwsAccount() {
                       options={awsIntegrations.map(makeAwsIntegrationOption)}
                     />
                   </Box>
-                  <ButtonText as={Link} to={locationState} compact>
+                  <ButtonText
+                    as={Link}
+                    to={integrationEnrollPath}
+                    state={locationState}
+                    compact
+                  >
                     Or click here to set up a different AWS account
                   </ButtonText>
                 </>
@@ -305,7 +310,8 @@ export function AwsAccount() {
                   mb={2}
                   size="large"
                   as={Link}
-                  to={locationState}
+                  to={integrationEnrollPath}
+                  state={locationState}
                 >
                   Set up AWS Account
                 </ButtonPrimary>

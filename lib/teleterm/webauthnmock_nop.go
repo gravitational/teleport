@@ -1,6 +1,8 @@
+//go:build !webauthnmock
+
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,26 +18,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  NavLink,
-  Redirect,
-  Route,
-  Router,
-  Switch,
-  useLocation,
-  useParams,
-  useRouteMatch,
-  withRouter,
-} from './Router';
+package teleterm
 
-export {
-  withRouter,
-  Redirect,
-  Router,
-  Route,
-  Switch,
-  NavLink,
-  useRouteMatch,
-  useParams,
-  useLocation,
-};
+import "github.com/gravitational/teleport/lib/client"
+
+// In builds without the webauthnmock tag (default), no WebAuthn login mock is provided.
+func webauthnLoginMock() (client.WebauthnLoginFunc, error) {
+	return nil, nil
+}

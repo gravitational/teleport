@@ -64,7 +64,7 @@ it('redirect to SAML SSO path on matching "/enterprise/saml-idp/sso"', () => {
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(samlIdpPath.toString());
   renderHook(() => useLogin());
-  expect(history.push).toHaveBeenCalledWith(samlIdpPath, true);
+  expect(history.push).toHaveBeenCalledWith(samlIdpPath.toString(), true);
 });
 
 it('non-base domain redirects with base domain for a matching "/enterprise/saml-idp/sso"', async () => {
@@ -74,7 +74,7 @@ it('non-base domain redirects with base domain for a matching "/enterprise/saml-
     .mockReturnValue(samlIdpPath.toString());
   renderHook(() => useLogin());
   const expectedPath = new URL('http://localhost' + cfg.routes.samlIdpSso);
-  expect(history.push).toHaveBeenCalledWith(expectedPath, true);
+  expect(history.push).toHaveBeenCalledWith(expectedPath.toString(), true);
 });
 
 it('base domain with different path is redirected to root', async () => {

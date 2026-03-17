@@ -391,7 +391,7 @@ test('undefined values in context response gives proper default values', async (
       lastConnected: new Date('2020-09-26T17:30:23.512Z'),
       connectedText: '2020-09-26 17:30:23',
       status: 'online',
-      url: '/web/cluster/aws/',
+      url: '/web/cluster/aws',
       authVersion: '4.4.0-dev',
       publicURL: 'localhost',
       proxyVersion: '4.4.0-dev',

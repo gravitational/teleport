@@ -17,7 +17,7 @@
  */
 
 import { useState } from 'react';
-import { Link, MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter } from 'react-router';
 
 import { Box, ButtonPrimary, ButtonText } from 'design';
 import { UNSUPPORTED_KINDS } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/LongTerm';

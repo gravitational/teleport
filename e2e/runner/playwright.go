@@ -75,7 +75,9 @@ func (p *playwrightRunner) run(ctx context.Context, mode runMode) error {
 	case modeCodegen:
 		return p.codegen(ctx)
 	case modeBrowse:
-		return p.browse(ctx)
+		return p.openWebAuthenticated(ctx, "open")
+	case modeBrowseConnect:
+		return p.openConnectAuthenticated(ctx)
 	default:
 		return fmt.Errorf("unknown mode: %s", mode)
 	}
@@ -125,17 +127,13 @@ func (p *playwrightRunner) ui(ctx context.Context) error {
 }
 
 func (p *playwrightRunner) codegen(ctx context.Context) error {
-	return p.openAuthenticated(ctx, "codegen")
+	return p.openWebAuthenticated(ctx, "codegen")
 }
 
-func (p *playwrightRunner) browse(ctx context.Context) error {
-	return p.openAuthenticated(ctx, "open")
-}
-
-// openAuthenticated runs the setup project to generate auth state, then opens
+// openWebAuthenticated runs the setup project to generate auth state, then opens
 // a Chromium browser with a virtual WebAuthn authenticator pre-loaded so that
 // MFA challenges resolve automatically.
-func (p *playwrightRunner) openAuthenticated(ctx context.Context, playwrightCmd string) error {
+func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightCmd string) error {
 	env, err := p.startEnv(ctx)
 	if err != nil {
 		return err
@@ -153,6 +151,17 @@ func (p *playwrightRunner) openAuthenticated(ctx context.Context, playwrightCmd 
 		playwrightCmd,
 		p.startURL(),
 	}, env)
+}
+
+func (p *playwrightRunner) openConnectAuthenticated(ctx context.Context) error {
+	env, err := p.startEnv(ctx)
+	if err != nil {
+		return err
+	}
+
+	slog.Info("opening Teleport Connect (with auth)")
+
+	return p.pnpm(ctx, []string{"exec", "tsx", "scripts/open-connect.ts"}, env)
 }
 
 // generateInviteURL runs tctl to create a new user and extracts the invite link from its output.
@@ -203,6 +212,9 @@ func (p *playwrightRunner) startEnv(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("generating invite URL: %w", err)
 	}
 	env = append(env, "E2E_INVITE_URL="+inviteURL)
+
+	env = append(env, "E2E_CONNECT_TSH_BIN="+p.config.connectTshBinPath)
+	env = append(env, "E2E_CONNECT_APP_DIR="+p.config.connectAppDir)
 
 	return env, nil
 }

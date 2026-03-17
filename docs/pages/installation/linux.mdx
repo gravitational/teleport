@@ -6,14 +6,13 @@ tags:
 - platform-wide
 ---
 
-Teleport maintains DEB and RPM package repositories for different operating
-systems, platforms, and Teleport versions. A server that installs Teleport from
-a DEB or RPM package must have systemd installed. You can also download TAR
-archives containing Teleport binaries.
+This guide explains how to install the `teleport` binary on a single Linux
+machine. 
 
-Note that Teleport Agents should always use the one-line installation script
-or `teleport-update` binary to install Teleport. Otherwise, they will fall
-out-of-date, become incompatible with the cluster, and eventually disconnect.
+If you are starting out with Teleport, we recommend beginning with a [Teleport
+Cloud](https://goteleport.com/signup/) account. From there, the only Teleport
+components you need to deploy yourself are Teleport Agents, which is discussed
+in [Installing Teleport as an agent](#installing-teleport-as-an-agent).
 
 ## Operating system support
 
@@ -29,48 +28,51 @@ out-of-date, become incompatible with the cluster, and eventually disconnect.
 
 (!docs/pages/includes/client-cluster-compatibility.mdx!)
 
-## Installing Teleport as a cluster
+## Installing Teleport control plane components
 
-These steps are specifically for the Teleport Enterprise (Self-Hosted) and Community Edition versions.
+This section only applies to self-hosted Teleport deployments. If you have
+a Teleport Cloud account, or only want to deploy Teleport Agents, read
+[Installing Teleport as an agent](#installing-teleport-as-an-agent).
 
-If you are starting out with Teleport, we recommend beginning with a [Teleport Cloud](https://goteleport.com/signup/) account. From there, the only Teleport components you need to deploy yourself are Teleport Agents, which is discussed in the [next section](#installing-teleport-as-an-agent).
-If you are self-hosting a Teleport cluster, please take a look at our [Linux Demo](../get-started/deploy-community.mdx) for the Teleport Community Edition or our [Self-Hosting Teleport](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx) section in the docs for more information on Teleport Enterprise Self-Hosted.
+To install the `teleport` binary on an individual machine in order to run the
+Teleport Auth Service or Proxy Service, you can fetch a one-line installation
+script, which finds an appropriate package manager and uses it to install the
+`teleport` package.
+
+<Admonition type="tip"> 
+
+If you are self-hosting a Teleport cluster, take a look at our [Linux
+Demo](../get-started/deploy-community.mdx) for the Teleport Community Edition or
+our [Self-Hosting
+Teleport](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx) section in
+the docs for more information on Self-Hosted Teleport Enterprise.
+
+</Admonition>
+
+### Execute the one-line installation script
 
 <Tabs>
-<TabItem label="Teleport Enterprise Cloud (Managed)">
-
-Teleport Enterprise Cloud is provisioned and managed for you so there are no install steps. The only Teleport
-components you need to deploy yourself are Teleport Agents.
-</TabItem>
 <TabItem label="Teleport Enterprise (Self-Hosted)">
-```code
-$ TELEPORT_EDITION="enterprise"
-$ TELEPORT_VERSION="(=teleport.version=)"
-```
 
-Then, download and run the generic installation script on the server where you
-want to install Teleport:
+Download and run the generic installation script on the server where you want to install Teleport:
+
 ```code
-$ curl (=teleport.teleport_install_script_url=) | bash -s ${TELEPORT_VERSION?} ${TELEPORT_EDITION?}
+$ curl (=teleport.teleport_install_script_url=) | bash -s "(=teleport.version=)" "enterprise"
 ```
 
 </TabItem>
 <TabItem label="Teleport Community Edition">
-```code
-$ TELEPORT_EDITION="oss"
-$ TELEPORT_VERSION="(=teleport.version=)"
-```
 
-Then, download and run the generic installation script on the server where you
-want to install Teleport:
+Download and run the generic installation script on the server where you want to install Teleport:
+
 ```code
-$ curl (=teleport.teleport_install_script_url=) | bash -s ${TELEPORT_VERSION?} ${TELEPORT_EDITION?}
+$ curl (=teleport.teleport_install_script_url=) | bash -s "(=teleport.version=)" "oss"
 ```
 
 </TabItem>
 </Tabs>
 
-### Verify cluster installation
+### Verify control plane component installation
 
 Run the following command to verify your installation:
 ```code
@@ -96,37 +98,55 @@ You should see output displaying the Teleport version number.
   ```code
   $ sudo journalctl -u teleport --no-pager -n 50
   ```
-- If systemd is not available on your system, use a [TAR archive installation](#install-using-package-repositories) instead.
+- If systemd is not available on your system, use a [TAR archive installation](#package-repositories) instead.
 
 </Checkpoint>
 
-### Cluster configuration
+### Configure your Teleport installation
 
 The above methods for installing Teleport on a Linux server do not generate a Teleport configuration file for you. For this, we have a `teleport configure` CLI command or you can create one manually.
 
 See the following guides for help setting up a configuration file:
 
-- [Teleport Configuration Reference](../reference/deployment/config.mdx): This will provide you with the command you need to generate and populate the `/etc/config.yaml` file as well as further configuration options for your cluster.
+- [Teleport Configuration Reference](../reference/deployment/config.mdx): This will provide you with the command you need to generate and populate the `/etc/teleport.yaml` file as well as further configuration options for your cluster.
 - [Self-Hosted Demo Cluster](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx): If you are deploying the Teleport Auth Service and Proxy Service, read this guide for an example of a configuration file.
 
 ## Installing Teleport as an agent
 
-The easiest way to install Teleport as an agent is through the Web UI at `/web/discover`, where you can select a resource to enroll with your Teleport cluster and retrieve an "all-in-one" installation script to run on Linux hosts.
+The easiest way to install Teleport as an agent is through the Web UI at
+`/web/discover`, where you can select a resource to enroll with your Teleport
+cluster and retrieve an installation script to run on Linux hosts.
 
-### One-line installation script
+Outside of the Web UI, you can run a cluster-specific installation script on
+your Linux server where you are deploying Teleport as an agent. This script will
+detect and use the best version, edition, and installation mode for your
+cluster. You can also use the
+[`teleport-update`](../reference/cli/teleport-update.mdx) binary to keep agents
+up to date.
 
-Outside of the Web UI, you can run our one-line cluster install script on your Linux server where you are deploying Teleport as an agent. This script will detect and use the best version, edition, and installation mode for your cluster.
+Note that Teleport agents should always use the one-line installation script
+or `teleport-update` binary to install Teleport. Otherwise, they will fall
+out-of-date, become incompatible with the cluster, and eventually disconnect.
+
+For an example Terraform module for deploying and configuring Teleport Agents,
+see [Deploy Agents with
+Terraform](../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started.mdx).
+
+### Run the cluster-specific installation script
+
+Outside of the Web UI, you can run a one-line cluster install script on your
+Linux server where you are deploying Teleport as an agent. This script will
+detect and use the best version, edition, and installation mode for your
+cluster.
 
 1. Assign <Var name="example.teleport.sh:443"/> to your Teleport cluster hostname and Web UI port.
    This should contain your cluster hostname and port, but not the scheme (https://).
-1. Run your cluster's install script:
-```code
-$ curl "https://<Var name="example.teleport.sh:443"/>/scripts/install.sh" | sudo bash
-```
 
-You can also use the example Terraform module for deploying agents in [Deploy
-Agents with
-Terraform](../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started.mdx).
+1. Run your cluster's install script:
+
+   ```code
+   $ curl "https://<Var name="example.teleport.sh:443"/>/scripts/install.sh" | sudo bash
+   ```
 
 ### Verify agent installation
 
@@ -173,7 +193,7 @@ You should see the Teleport version and a status showing the service is active a
 
 </Checkpoint>
 
-### Agent configuration
+### Configure your Teleport Agent
 
 Outside of deploying Teleport as an agent in the Web UI, the methods for installing Teleport on a Linux server do not generate a Teleport configuration file for you. You will need to generate one prior to starting the Teleport service.
 
@@ -193,16 +213,50 @@ See the following guides for examples of setting up a configuration file:
 
 Use this section if you are not using the one-line installation script.
 
-Choose one of the following methods:
+If it is not possible to use the one-line installation script, for example if
+you are setting up custom tooling, you can install the `teleport` binary on a
+single machine by fetching packages or TAR archives. You can also download a
+Teleport package from the Teleport Web UI.
 
-- Install using package repositories
-- Install manually (TAR, DEB, RPM)
+### Package repositories
 
-Use this method to install Teleport through your system's package manager.
+Read the instructions in this section for instructions on working with Teleport
+package repositories.
 
-### Source OS release variables
+1. Assign the following environment variables in the terminal where you will run
+   Teleport installation commands, indicating the package and version to
+   install:
 
-1. Run:
+   <Tabs>
+   <TabItem label="Teleport Enterprise (Self-Hosted)">
+
+   ```code
+   $ export TELEPORT_PKG=teleport-ent
+   $ export TELEPORT_VERSION=v(=teleport.major_version=)
+   $ export TELEPORT_CHANNEL=stable/${TELEPORT_VERSION?}
+   ```
+
+   For FedRAMP/FIPS-compliant installations, install the `teleport-ent-fips` package instead:
+
+   ```code
+   $ export TELEPORT_PKG=teleport-ent-fips
+   ```
+
+   </TabItem>
+   <TabItem label="Teleport Community Edition">
+
+   ```code
+   $ export TELEPORT_PKG=teleport
+   $ export TELEPORT_VERSION=v(=teleport.major_version=)
+   $ export TELEPORT_CHANNEL=stable/${TELEPORT_VERSION?}
+   ```
+
+   </TabItem>
+   </Tabs>
+
+1. Teleport maintains DEB and RPM package repositories for different Linux
+   distributions based on variables defined in `/etc/os-release` on Linux
+   systems. Source this file to define the variables:
 
    ```code
    $ . /etc/os-release && echo "$NAME $VERSION_ID"
@@ -225,8 +279,6 @@ Use this method to install Teleport through your system's package manager.
 
    </Checkpoint>
 
-   #### Verify your distribution is supported
-
 1. Confirm that your distribution appears in the table below. 
 
    | Distribution | Version              | `ID` value in `/etc/os-release` |
@@ -239,11 +291,19 @@ Use this method to install Teleport through your system's package manager.
    | SLES         | >= 12 SP5, >= 15 SP5 | `sles`                          |
    | Ubuntu       | >= 16.04             | `ubuntu`                        |
 
-<Admonition type="warning" title="RHEL 10 Support">
-Teleport does not currently provide a YUM repository for RHEL 10. Attempting to follow the standard YUM installation instructions on 
-RHEL 10 will result in `HTTP 404` errors. To install Teleport on RHEL 10, use the **[one-line installation script](#one-line-installation-script)** 
-for the initial setup and **[Managed Updates v2](../upgrading/agent-managed-updates/agent-managed-updates.mdx)** to maintain the installation.
-</Admonition>
+   <Admonition type="warning" title="RHEL 10 Support">
+
+   Teleport does not currently provide a YUM repository for RHEL 10. Attempting
+   to follow the standard YUM installation instructions on RHEL 10 will result
+   in `HTTP 404` errors. To install Teleport on RHEL 10, use a one-line
+   installation script (for [Teleport
+   Agents](#run-the-cluster-specific-installation-script) or for [Teleport
+   control plane components](#execute-the-one-line-installation-script)) for the
+   initial setup and [Managed Updates
+   v2](../upgrading/agent-managed-updates/agent-managed-updates.mdx) to maintain
+   the installation.
+
+   </Admonition>
 
 1. If `ID` is not listed, check:
 
@@ -252,31 +312,6 @@ for the initial setup and **[Managed Updates v2](../upgrading/agent-managed-upda
    ```
 
    If one of those values appears in the table, use it instead.
-
-   #### Set required environment variables
-
-1. Assign the package name.
-
-   Community Edition:
-
-   ```code
-   $ export TELEPORT_PKG=teleport        # Community Edition
-   ```
-   
-   Or Enterprise:
-
-   ```code
-   $ export TELEPORT_PKG=teleport-ent    # Enterprise
-   ```   
-
-   Assign the release channel:
-
-   ```code
-   $ export TELEPORT_VERSION=v(=teleport.major_version=)
-   $ export TELEPORT_CHANNEL=stable/${TELEPORT_VERSION?}
-   ```
-
-### Install using package repositories
 
 1. Follow the instructions for your package manager:
 
@@ -347,9 +382,7 @@ for the initial setup and **[Managed Updates v2](../upgrading/agent-managed-upda
      </TabItem>
    </Tabs>
 
-   #### Verify the installation
-
-1. Run:
+1. Verify the installation by running the following command:
 
    ```code
    $ teleport version
@@ -378,13 +411,17 @@ for the initial setup and **[Managed Updates v2](../upgrading/agent-managed-upda
 
    </Checkpoint>
 
-## Install manually (TAR, DEB, RPM)
+### Downloading packages and TAR archives
 
-Use this method if you prefer to install from release archives or operate in restricted environments.
+Teleport maintains TAR archives as well as DEB and RPM packages for
+Linux-compatible binaries at `https://cdn.teleport.dev`. This section explains
+how to install Teleport by manually downloading a release.
 
-  ### Set the package name, version, and architecture
+Use this method if you prefer to install from release archives or operate in
+restricted environments.
 
-1. Assign the appropriate package:
+1. Use environment variables to set the package name, version, and architecture
+   of the package you want to download:
 
    ```code
    $ TELEPORT_PKG=teleport        # Community Edition
@@ -406,13 +443,6 @@ Use this method if you prefer to install from release archives or operate in res
    | armv7l            | arm                 |
    | i686              | 386                 |
 
-   <Checkpoint
-     title="Verify system architecture"
-     description="Success looks like: The architecture matches the Teleport build you download."
-   >
-   Confirm that the downloaded binary matches your system architecture.
-   </Checkpoint>
-
 1. Assign version and architecture variables:
 
    ```code
@@ -420,15 +450,10 @@ Use this method if you prefer to install from release archives or operate in res
    $ SYSTEM_ARCH=""
    ```
 
-  ### Download and install
-
-   <Admonition type="note" title="Checksum verification compatibility">
-   These steps use `sha256sum`, which is available by default on most modern Linux
+1. Download and install using your preferred format. These steps use
+   `sha256sum`, which is available by default on most modern Linux
    distributions. On older systems where `sha256sum` is not available, use
-   `shasum --check --algorithm 256` instead.
-   </Admonition>
-
-1. Download and install using your preferred format:
+   `shasum --check --algorithm 256` instead:
 
    <Tabs>
      <TabItem label="TAR">
@@ -468,9 +493,7 @@ Use this method if you prefer to install from release archives or operate in res
      </TabItem>
    </Tabs>
 
-  ### Verify the installation
-
-1. Run:
+1. Verify the installation. Run the following command:
 
    ```code
    $ teleport version

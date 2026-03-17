@@ -17,25 +17,18 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { createMemoryHistory } from 'history';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { PropsWithChildren } from 'react';
-import { MemoryRouter, Route, Router } from 'react-router';
 
 import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
-import {
-  act,
-  render,
-  screen,
-  testQueryClient,
-  userEvent,
-} from 'design/utils/testing';
+import { act, screen, testQueryClient } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { makeEvent } from 'teleport/services/audit';
 import TeleportContext from 'teleport/teleportContext';
+import { renderWithMemoryRouter } from 'teleport/test/helpers/router';
 
 import { ContextProvider } from '..';
 import { AuditContainer } from './Audit';
@@ -54,18 +47,15 @@ describe('Audit', () => {
       .mockResolvedValue({ events: [], startKey: '' });
     jest.spyOn(ctx.clusterService, 'fetchClusters').mockResolvedValue([]);
 
-    const { history, user } = renderComponent(ctx);
-    jest.spyOn(history, 'push');
+    const { user, router } = renderComponent(ctx);
     act(mio.enterAll);
 
     const search = await screen.findByPlaceholderText('Search...');
     await user.type(search, 'test-search');
     await user.type(search, '{enter}');
 
-    expect(history.push).toHaveBeenCalledWith({
-      pathname: '/web/cluster/root/audit',
-      search: expect.stringContaining('search=test-search'),
-    });
+    expect(router.state.location.pathname).toBe('/web/cluster/root/audit');
+    expect(router.state.location.search).toContain('search=test-search');
   });
 
   it('sets sort direction when clicking table header', async () => {
@@ -94,55 +84,35 @@ describe('Audit', () => {
       .mockResolvedValue({ events: [makeEvent(mockEvent)], startKey: '' });
     jest.spyOn(ctx.clusterService, 'fetchClusters').mockResolvedValue([]);
 
-    const { history, user } = renderComponent(ctx);
-    jest.spyOn(history, 'replace');
+    const { user, router } = renderComponent(ctx);
     act(mio.enterAll);
 
     const timeHeader = await screen.findByText(/Created \(UTC\)/i);
     await user.click(timeHeader);
 
-    expect(history.replace).toHaveBeenCalledWith({
-      pathname: '/web/cluster/root/audit',
-      search: expect.stringContaining('order=ASC'),
-    });
+    expect(router.state.location.pathname).toBe('/web/cluster/root/audit');
+    expect(router.state.location.search).toContain('order=ASC');
   });
 });
 
 function renderComponent(ctx: TeleportContext) {
-  const user = userEvent.setup();
-  const history = createMemoryHistory({
+  return renderWithMemoryRouter(<AuditContainer />, {
+    path: cfg.routes.audit,
     initialEntries: ['/web/cluster/root/audit'],
+    wrapper: makeWrapper({ ctx }),
   });
-
-  return {
-    ...render(<AuditContainer />, {
-      wrapper: makeWrapper({ history, ctx }),
-    }),
-    user,
-    history,
-  };
 }
 
-function makeWrapper({
-  history,
-  ctx,
-}: {
-  history: ReturnType<typeof createMemoryHistory>;
-  ctx: TeleportContext;
-}) {
+function makeWrapper({ ctx }: { ctx: TeleportContext }) {
   return ({ children }: PropsWithChildren) => {
     return (
-      <MemoryRouter>
-        <QueryClientProvider client={testQueryClient}>
-          <ContextProvider ctx={ctx}>
-            <ConfiguredThemeProvider theme={darkTheme}>
-              <Router history={history}>
-                <Route path={cfg.routes.audit}>{children}</Route>
-              </Router>
-            </ConfiguredThemeProvider>
-          </ContextProvider>
-        </QueryClientProvider>
-      </MemoryRouter>
+      <QueryClientProvider client={testQueryClient}>
+        <ContextProvider ctx={ctx}>
+          <ConfiguredThemeProvider theme={darkTheme}>
+            {children}
+          </ConfiguredThemeProvider>
+        </ContextProvider>
+      </QueryClientProvider>
     );
   };
 }

@@ -17,8 +17,8 @@
  */
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import { Link as InternalLink } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link as InternalLink } from 'react-router';
 import styled from 'styled-components';
 
 import {
@@ -46,6 +46,14 @@ import {
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
+import { userEventService } from 'teleport/services/userEvent';
+import {
+  IntegrationEnrollCodeType,
+  IntegrationEnrollEvent,
+  IntegrationEnrollEventData,
+  IntegrationEnrollKind,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent/types';
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
 import { DeploymentMethodSection } from './DeploymentMethodSection';
@@ -69,6 +77,28 @@ const INTEGRATION_CHECK_RETRY_DELAY = 5000;
 
 export function EnrollAws() {
   useNoMinWidth();
+
+  const [eventId] = useState(() => crypto.randomUUID());
+
+  function emitEvent(
+    event: IntegrationEnrollEvent,
+    extra?: Partial<IntegrationEnrollEventData>
+  ) {
+    userEventService.captureIntegrationEnrollEvent({
+      event,
+      eventData: {
+        id: eventId,
+        kind: IntegrationEnrollKind.AwsCloud,
+        ...extra,
+      },
+    });
+  }
+
+  useEffect(() => {
+    emitEvent(IntegrationEnrollEvent.Started);
+    // Only send once on init.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { clusterVersion } = useClusterVersion();
 
@@ -129,7 +159,14 @@ export function EnrollAws() {
   const queryClient = useQueryClient();
 
   const checkIntegration = () => {
-    refetch();
+    emitEvent(IntegrationEnrollEvent.Step, {
+      step: IntegrationEnrollStep.VerifyIntegration,
+    });
+    refetch().then(result => {
+      if (result.isSuccess) {
+        emitEvent(IntegrationEnrollEvent.Complete);
+      }
+    });
   };
 
   const integrationExists = !!integrationData;
@@ -187,6 +224,9 @@ export function EnrollAws() {
                 handleCopy={() => {
                   if (validator.validate() && terraformConfig) {
                     copyToClipboard(terraformConfig);
+                    emitEvent(IntegrationEnrollEvent.CodeCopy, {
+                      codeType: IntegrationEnrollCodeType.Terraform,
+                    });
                   }
                 }}
                 integrationExists={integrationExists}
@@ -256,6 +296,9 @@ export function EnrollAws() {
                   handleCopy={() => {
                     if (validator.validate() && terraformConfig) {
                       copyToClipboard(terraformConfig);
+                      emitEvent(IntegrationEnrollEvent.CodeCopy, {
+                        codeType: IntegrationEnrollCodeType.Terraform,
+                      });
                     }
                   }}
                 />
