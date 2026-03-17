@@ -64,9 +64,6 @@ TARBINS = $(addprefix teleport-ent/,$(BINS))
 # Include common setting from OSS repo.
 include ../common.mk
 
-# TODO(okraport) Temporary fallback during migration, remove once merged on both sides:
-GOTESTSUM ?= go run gotest.tools/gotestsum@v1.13.0
-
 # Check if rust and cargo are installed before compiling
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
