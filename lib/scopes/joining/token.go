@@ -34,6 +34,9 @@ import (
 
 var rolesSupportingScopes = types.SystemRoles{
 	types.RoleNode,
+	types.RoleKube,
+	types.RoleApp,
+	types.RoleDiscovery,
 }
 
 // TokenUsageMode represents the possible usage modes of a scoped token.
@@ -47,7 +50,6 @@ const (
 )
 
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
-
 	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
 	case types.JoinMethodToken:
 		if token.GetStatus().GetSecret() == "" {
