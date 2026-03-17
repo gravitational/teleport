@@ -185,16 +185,27 @@ func writeAWSProfileSummary(w io.Writer, configPath string, profiles []awsconfig
 	}
 }
 
-// awsProfileNameRegex is used to sanitize AWS profile names. The AWS CLI supports relatively
+// invalidAWSProfileCharRegex is used to sanitize AWS profile names. The AWS CLI supports relatively
 // arbitrary characters in profile names, but since these are derived from AWS IAM roles and Account
 // names remotely, we restrict them heavily to prevent INI injection in configuration blocks.
-var awsProfileNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_\-]`)
+var invalidAWSProfileCharRegex = regexp.MustCompile(`[^a-zA-Z0-9_\-]`)
 
 func formatAWSProfileName(accountName, roleName string) string {
 	accName := strings.ReplaceAll(accountName, " ", "-")
 	rName := strings.ReplaceAll(roleName, " ", "-")
 	combined := fmt.Sprintf("teleport-awsic-%s-%s", accName, rName)
-	return strings.ToLower(awsProfileNameRegex.ReplaceAllString(combined, ""))
+	
+	// Replace invalid characters with their hex equivalent (e.g., "@" -> "_x40")
+	// to maintain uniqueness while strictly using safe characters.
+	sanitized := invalidAWSProfileCharRegex.ReplaceAllStringFunc(combined, func(match string) string {
+		var sb strings.Builder
+		for _, r := range match {
+			fmt.Fprintf(&sb, "_x%x", r)
+		}
+		return sb.String()
+	})
+	
+	return strings.ToLower(sanitized)
 }
 
 func extractAWSStartURL(rawURL string) string {
