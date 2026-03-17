@@ -19,9 +19,11 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 	"time"
 
@@ -33,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 const (
@@ -42,8 +45,8 @@ const (
 	// is considered to be 'expiring'. Somewhat arbitrarily set to 90 days.
 	// TODO(nixpig): Make timeframe configurable in future.
 	samlCertExpiryTimeframe = 90 * 24 * time.Hour
-	// samlCertExpiryAlertID is the ID used for the alert.
-	samlCertExpiryAlertID = "saml-cert-expiry-warning"
+	// samlCertExpiryAlertIDPrefix is the ID prefix used for the alert.
+	samlCertExpiryAlertIDPrefix = "saml-cert-expiry-warning-"
 	// samlCertExpiryAlertExpires is the expiration time for the alert.
 	// It's set to 2x the check cycle so any stale alerts will clear automatically without
 	// affecting valid alerts.
@@ -160,7 +163,7 @@ func (m *SAMLCertExpiryMonitor) runSyncLoop(ctx context.Context, ticker clockwor
 		return trace.Wrap(err)
 	}
 
-	if err := m.reconcileAlert(ctx); err != nil {
+	if err := m.reconcileAlerts(ctx); err != nil {
 		m.Logger.ErrorContext(ctx, "Failed initial reconciliation of SAML cert expiry alert", "error", err)
 	}
 
@@ -169,7 +172,7 @@ func (m *SAMLCertExpiryMonitor) runSyncLoop(ctx context.Context, ticker clockwor
 		case ev := <-watch.Events():
 			switch ev.Type {
 			case types.OpPut, types.OpDelete:
-				if err := m.reconcileAlert(ctx); err != nil {
+				if err := m.reconcileAlerts(ctx); err != nil {
 					m.Logger.ErrorContext(ctx, "Failed to reconcile SAML cert expiry alert", "error", err)
 				} else {
 					ticker.Reset(samlCertCheckInterval)
@@ -178,7 +181,7 @@ func (m *SAMLCertExpiryMonitor) runSyncLoop(ctx context.Context, ticker clockwor
 				continue
 			}
 		case <-ticker.Chan():
-			if err := m.reconcileAlert(ctx); err != nil {
+			if err := m.reconcileAlerts(ctx); err != nil {
 				m.Logger.ErrorContext(ctx, "Failed to reconcile SAML cert expiry alert", "error", err)
 			}
 		case <-watch.Done():
@@ -192,58 +195,75 @@ func (m *SAMLCertExpiryMonitor) runSyncLoop(ctx context.Context, ticker clockwor
 	}
 }
 
-// reconcileAlert checks all SAML connectors for any that have certs expiring or expired
+// reconcileAlerts checks all SAML connectors for any that have certs expiring or expired
 // and creates or updates an alert. If none are expiring, then any existing alert is deleted.
-func (m *SAMLCertExpiryMonitor) reconcileAlert(ctx context.Context) error {
-	var expiringConnectors []string
-	var expiredConnectors []string
+func (m *SAMLCertExpiryMonitor) reconcileAlerts(ctx context.Context) error {
+	alerts := map[string]string{}
 
 	for connector, err := range m.Connectors.RangeSAMLConnectorsWithOptions(ctx, "", "", false, types.SAMLConnectorValidationFollowURLs(false)) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		certs, err := services.GetExpiringSAMLCertsAt(connector, m.Clock.Now(), samlCertExpiryTimeframe)
+		certs, err := services.CheckSAMLEntityDescriptor(connector.GetEntityDescriptor())
 		if err != nil {
-			return trace.Wrap(err)
+			slog.ErrorContext(ctx, "Failed to check SAML entity descriptor", "connector", connector.GetName(), "error", err)
 		}
 
-		if len(certs) == 0 {
-			continue
+		if connector.GetCert() != "" {
+			cert, err := tlsca.ParseCertificatePEM([]byte(connector.GetCert()))
+			if err != nil {
+				slog.ErrorContext(ctx, "Failed to parse certificate defined in cert", "connector", connector.GetName(), "error", err)
+			} else {
+				certs = append(certs, cert)
+			}
 		}
 
-		isExpired := slices.ContainsFunc(certs, func(c services.SAMLConnectorCert) bool {
-			return c.TTL <= 0
-		})
-
-		if isExpired {
-			expiredConnectors = append(expiredConnectors, connector.GetName())
-		} else {
-			expiringConnectors = append(expiringConnectors, connector.GetName())
+		for _, cert := range certs {
+			if cert.NotAfter.Sub(m.Clock.Now()) <= samlCertExpiryTimeframe {
+				alertID := buildAlertID(connector.GetName(), cert)
+				alertMessage := m.buildAlertMessage(connector.GetName(), cert)
+				alerts[alertID] = alertMessage
+			}
 		}
 	}
 
-	if len(expiringConnectors) > 0 || len(expiredConnectors) > 0 {
-		return trace.Wrap(m.upsertAlert(ctx, buildAlertMessage(expiringConnectors, expiredConnectors)))
+	for id, message := range alerts {
+		if err := m.upsertAlert(ctx, id, message); err != nil {
+			slog.ErrorContext(ctx, "Failed to upsert connector expiry alert", "alert_id", id, "error", err)
+			// If we were unable to upsert the alert, remove it from the map so we don't
+			// delete any existing corresponding cluster alert.
+			delete(alerts, id)
+		}
 	}
 
-	alerts, err := m.Alerts.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-		AlertID: samlCertExpiryAlertID,
-	})
+	clusterAlerts, err := m.Alerts.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(alerts) > 0 {
-		return trace.Wrap(m.Alerts.DeleteClusterAlert(ctx, samlCertExpiryAlertID))
+
+	for _, clusterAlert := range clusterAlerts {
+		id := clusterAlert.GetName()
+		if !strings.HasPrefix(id, samlCertExpiryAlertIDPrefix) {
+			continue
+		}
+
+		if _, ok := alerts[id]; ok {
+			continue
+		}
+
+		if err := m.Alerts.DeleteClusterAlert(ctx, id); err != nil && !trace.IsNotFound(err) {
+			slog.ErrorContext(ctx, "Failed to delete cluster alert", "alert_id", clusterAlert.GetName(), "error", err)
+		}
 	}
 
 	return nil
 }
 
 // upsertAlert creates or updates the SAML cert expiry cluster alert with the provided message.
-func (m *SAMLCertExpiryMonitor) upsertAlert(ctx context.Context, message string) error {
+func (m *SAMLCertExpiryMonitor) upsertAlert(ctx context.Context, id, message string) error {
 	alert, err := types.NewClusterAlert(
-		samlCertExpiryAlertID,
+		id,
 		message,
 		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
 		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindSAML, types.VerbRead)),
@@ -261,21 +281,19 @@ func (m *SAMLCertExpiryMonitor) upsertAlert(ctx context.Context, message string)
 }
 
 // buildAlertMessage returns a SAML cert expiry alert message for the given connector names.
-func buildAlertMessage(expiringConnectors, expiredConnectors []string) string {
-	messageParts := []string{fmt.Sprintf(
-		"The following connectors have one or more signing certificates that have expired or will expire in the next %d days. If a signing certificate expires, users will no longer be able to authenticate to Teleport with the affected connector.",
-		int(samlCertExpiryTimeframe/(24*time.Hour)),
-	)}
+func (m *SAMLCertExpiryMonitor) buildAlertMessage(connectorName string, cert *x509.Certificate) string {
+	expiredTemplate := "SAML SSO users are no longer able to authenticate to Teleport. Connector '%s' references a certificate that expired at %s. Please rotate the expired certificate. %s"
+	expiringTemplate := "SAML SSO users will no longer be able to authenticate to Teleport in %d days. Connector '%s' references a certificate that expires at %s. Please rotate the expiring certificate. %s"
+	learnMore := "Click 'Learn More' for more details about rotating certificates."
 
-	if len(expiredConnectors) > 0 {
-		messageParts = append(messageParts, fmt.Sprintf("Expired: %s.", strings.Join(expiredConnectors, ", ")))
+	remaining := cert.NotAfter.Sub(m.Clock.Now())
+	expiry := cert.NotAfter.UTC().Format("2006-01-02 15:04:05")
+
+	if remaining <= 0 {
+		return fmt.Sprintf(expiredTemplate, connectorName, expiry, learnMore)
 	}
 
-	if len(expiringConnectors) > 0 {
-		messageParts = append(messageParts, fmt.Sprintf("Expiring: %s.", strings.Join(expiringConnectors, ", ")))
-	}
-
-	return strings.Join(messageParts, " ")
+	return fmt.Sprintf(expiringTemplate, int(remaining.Hours()/24), connectorName, expiry, learnMore)
 }
 
 func waitForWatcherInit(ctx context.Context, watch types.Watcher) error {
@@ -293,4 +311,9 @@ func waitForWatcherInit(ctx context.Context, watch types.Watcher) error {
 	case <-ctx.Done():
 		return nil
 	}
+}
+
+func buildAlertID(connectorName string, cert *x509.Certificate) string {
+	sum := sha256.Sum256(cert.Raw)
+	return samlCertExpiryAlertIDPrefix + connectorName + "-" + hex.EncodeToString(sum[:12])
 }
