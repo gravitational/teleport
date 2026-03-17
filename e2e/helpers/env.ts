@@ -28,7 +28,9 @@ function required(name: string) {
   return value;
 }
 
-export const password = required("E2E_PASSWORD");
-export const webauthnPrivateKey = required("E2E_WEBAUTHN_PRIVATE_KEY");
-export const webauthnCredentialId = required("E2E_WEBAUTHN_CREDENTIAL_ID");
-export const inviteUrl = required("E2E_INVITE_URL");
+export const password = required('E2E_PASSWORD');
+export const webauthnPrivateKey = required('E2E_WEBAUTHN_PRIVATE_KEY');
+export const webauthnCredentialId = required('E2E_WEBAUTHN_CREDENTIAL_ID');
+export const inviteUrl = required('E2E_INVITE_URL');
+export const connectTshBin = required('E2E_CONNECT_TSH_BIN');
+export const connectAppDir = required('E2E_CONNECT_APP_DIR');
