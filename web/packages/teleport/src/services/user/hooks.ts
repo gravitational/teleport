@@ -20,4 +20,4 @@ import { createQueryHook } from 'teleport/services/queryHelpers';
 import userService from 'teleport/services/user';
 
 export const { queryKey: GetUsersQueryKey, useQuery: useGetUsers } =
-  createQueryHook(['users', 'get'], userService.fetchUsers);
+  createQueryHook(['users', 'get'], userService.fetchAllUsers);
