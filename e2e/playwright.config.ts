@@ -21,48 +21,64 @@ import { defineConfig, devices } from '@playwright/test';
 // Default to localhost:3080/web/login if START_URL is not defined.
 const baseURL = process.env.START_URL || 'http://localhost:3080/web/login';
 
-const webUse = {
-  ...devices['Desktop Chrome'],
-  ignoreHTTPSErrors: true,
-  baseURL,
+const browserList = (process.env.E2E_BROWSERS || 'chromium').split(',');
+
+const browserDevices: Record<string, object> = {
+  chromium: { ...devices['Desktop Chrome'], channel: 'chromium' },
+  firefox: { ...devices['Desktop Firefox'] },
+  webkit: { ...devices['Desktop Safari'] },
 };
 
 export default defineConfig({
+  testDir: './tests',
+  timeout: 15_000,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: [['html', { open: 'never' }]],
+  reporter: [
+    ['html', { open: 'never' }],
+    ['json', { outputFile: 'test-results/.results.json' }],
+  ],
 
   use: {
+    ignoreHTTPSErrors: true,
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
 
   projects: [
-    {
-      name: 'setup',
-      testDir: './tests/web',
-      testMatch: /.*\.setup\.ts/,
-      use: webUse,
-    },
-    {
-      name: 'authenticated',
-      testDir: './tests/web/authenticated',
-      use: { ...webUse, storageState: '.auth/user.json' },
-      dependencies: ['setup'],
-    },
-    {
-      name: 'unauthenticated',
-      testDir: './tests/web/unauthenticated',
-      use: webUse,
-    },
-    {
-      name: 'with-ssh-node',
-      testDir: './tests/web/with-ssh-node',
-      use: { ...webUse, storageState: '.auth/user.json' },
-      dependencies: ['setup'],
-    },
+    ...browserList.flatMap(browser => {
+      const setupName = `${browser}:setup`;
+      const authState = `.auth/${browser}-user.json`;
+      return [
+        {
+          name: setupName,
+          testDir: './tests/web',
+          testMatch: /.*\.setup\.ts/,
+          use: browserDevices[browser],
+        },
+        {
+          name: `${browser}:authenticated`,
+          testDir: './tests/web/authenticated',
+          use: { ...browserDevices[browser], storageState: authState },
+          dependencies: [setupName],
+        },
+        {
+          name: `${browser}:unauthenticated`,
+          testDir: './tests/web/unauthenticated',
+          use: { ...browserDevices[browser] },
+        },
+        {
+          name: `${browser}:with-ssh-node`,
+          testDir: './tests/web/with-ssh-node',
+          use: { ...browserDevices[browser], storageState: authState },
+          dependencies: [setupName],
+        },
+      ];
+    }),
+
     {
       name: 'connect',
       testDir: './tests/connect',

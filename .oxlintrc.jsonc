@@ -433,7 +433,7 @@
               {
                 "name": "@playwright/test",
                 "importNames": ["test", "expect"],
-                "message": "Import 'test' and 'expect' from '../../helpers/test' instead."
+                "message": "Import 'test' and 'expect' from '@gravitational/e2e/helpers/test' instead."
               }
             ]
           }
@@ -450,7 +450,7 @@
               {
                 "name": "@playwright/test",
                 "importNames": ["test", "expect"],
-                "message": "Import 'test' and 'expect' from '../../helpers/connect' instead."
+                "message": "Import 'test' and 'expect' from '@gravitational/e2e/helpers/connect' instead."
               }
             ]
           }

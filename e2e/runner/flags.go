@@ -31,6 +31,8 @@ import (
 var sshNode = registerFixture("ssh-node", "start and connect a Teleport SSH node, runs in Docker")
 var connect = registerFixture("connect", "build Teleport Connect")
 
+var validBrowsers = []string{"chromium", "firefox", "webkit"}
+
 type e2eFlags struct {
 	noBuild          bool
 	full             bool
@@ -43,6 +45,7 @@ type e2eFlags struct {
 	tctlBin          string
 	teleportURL      string
 	teleportLogLevel string
+	browsers         []string
 	testFiles        []string
 }
 
@@ -70,6 +73,8 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	flag.StringVar(&f.teleportLogLevel, "teleport-log-level", "INFO", "Teleport log severity (DEBUG, INFO, WARN, ERROR)")
 	flag.StringVar(&f.licenseFile, "license-file", "", "path to Teleport license file (required for Enterprise features)")
 
+	stringArrayFlag(flag.CommandLine, &f.browsers, "browsers", "comma-separated browsers to test: chromium, firefox, webkit (default: chromium locally, all in CI)")
+
 	stringFlagWithEnv(flag.CommandLine, &f.teleportBin, "teleport-bin", "TELEPORT_BIN",
 		filepath.Join(repoRoot, "build", "teleport"), "override teleport binary path")
 	stringFlagWithEnv(flag.CommandLine, &f.tctlBin, "tctl-bin", "TCTL_BIN",
@@ -82,6 +87,10 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 
 	flag.Parse()
 
+	if err := resolveAbsPaths(&f.teleportBin, &f.tctlBin); err != nil {
+		return nil, 0, err
+	}
+
 	if f.verbose {
 		logLevel.Set(slog.LevelDebug)
 	}
@@ -93,6 +102,12 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	f.teleportLogLevel = strings.ToUpper(f.teleportLogLevel)
 	if !slices.Contains(validTeleportLogLevels, f.teleportLogLevel) {
 		return nil, 0, fmt.Errorf("invalid --teleport-log-level %q, must be one of: %s", f.teleportLogLevel, strings.Join(validTeleportLogLevels, ", "))
+	}
+
+	for _, b := range f.browsers {
+		if !slices.Contains(validBrowsers, b) {
+			return nil, 0, fmt.Errorf("invalid browser %q, must be one of: %s", b, strings.Join(validBrowsers, ", "))
+		}
 	}
 
 	e2eDir := filepath.Join(repoRoot, "e2e")
@@ -111,12 +126,28 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	// Auto-enable Connect if intent is explicit via mode or selected test paths.
 	if mode == modeBrowseConnect {
 		connect.enabled = true
+		f.browsers = []string{}
 	}
 	for _, file := range f.testFiles {
 		slashPath := filepath.ToSlash(file)
 		if slashPath == "." || slashPath == "tests" || slashPath == "tests/connect" || strings.HasPrefix(slashPath, "tests/connect/") {
 			connect.enabled = true
 			break
+		}
+	}
+
+	// If every specified test file targets connect, skip browser instances.
+	if len(f.testFiles) > 0 {
+		allConnect := true
+		for _, file := range f.testFiles {
+			slashPath := filepath.ToSlash(file)
+			if slashPath != "tests/connect" && !strings.HasPrefix(slashPath, "tests/connect/") {
+				allConnect = false
+				break
+			}
+		}
+		if allConnect {
+			f.browsers = []string{}
 		}
 	}
 
@@ -128,21 +159,11 @@ func normalizeTestFiles(e2eDir string, args []string) ([]string, error) {
 		return nil, nil
 	}
 
-	callerDir := os.Getenv("E2E_CALLER_DIR")
-	if callerDir == "" {
-		var err error
-		callerDir, err = os.Getwd()
-
-		if err != nil {
-			return nil, fmt.Errorf("getting current working directory: %w", err)
-		}
-	}
-
 	normalized := make([]string, 0, len(args))
 	for _, arg := range args {
 		abs := arg
-		if !filepath.IsAbs(abs) {
-			abs = filepath.Join(callerDir, abs)
+		if err := resolveAbsPaths(&abs); err != nil {
+			return nil, err
 		}
 
 		rel, err := filepath.Rel(e2eDir, abs)
@@ -154,6 +175,36 @@ func normalizeTestFiles(e2eDir string, args []string) ([]string, error) {
 	}
 
 	return normalized, nil
+}
+
+func resolveAbsPaths(paths ...*string) error {
+	callerDir := os.Getenv("E2E_CALLER_DIR")
+	if callerDir == "" {
+		var err error
+		callerDir, err = os.Getwd()
+		if err != nil {
+			return fmt.Errorf("getting current working directory: %w", err)
+		}
+	}
+
+	for _, p := range paths {
+		if *p != "" && !filepath.IsAbs(*p) {
+			*p = filepath.Join(callerDir, *p)
+		}
+	}
+
+	return nil
+}
+
+func stringArrayFlag(fs *flag.FlagSet, p *[]string, name, usage string) {
+	fs.Func(name, usage, func(s string) error {
+		for _, v := range strings.Split(s, ",") {
+			if v = strings.TrimSpace(v); v != "" {
+				*p = append(*p, v)
+			}
+		}
+		return nil
+	})
 }
 
 func stringFlagWithEnv(fs *flag.FlagSet, p *string, name, env, fallback, usage string) {
