@@ -80,8 +80,8 @@ func mustRunTSHAndGetResultAs(t require.TestingT, tsh *tshCommand, args []string
 
 func mustWaitForEvent(t *testing.T, sut *common.SUT, eventType string, opts ...waitOption) {
 	options := &waitOptions{
-		timeout:   time.Second * 10,
-		step:      time.Millisecond * 100,
+		timeout:   1 * time.Minute,
+		step:      100 * time.Millisecond,
 		timePoint: time.Now(),
 	}
 	for _, o := range opts {

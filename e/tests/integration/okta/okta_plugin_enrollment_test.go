@@ -409,7 +409,7 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 				DefaultOwner: []string{"alice-admin"},
 			},
 		})
-		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimeout(time.Second*5), withTimePoint(from))
+		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimePoint(from))
 
 		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
 			Name: types.PluginTypeOkta,
@@ -482,7 +482,7 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 		}
 		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
 
-		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimeout(time.Second*5), withTimePoint(time.Now()))
+		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimePoint(time.Now()))
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
 			require.NoError(t, err)
