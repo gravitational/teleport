@@ -858,6 +858,7 @@ func RunNetworking() (code int, err error) {
 	go func() {
 		_, _ = terminatefd.Read(make([]byte, 1))
 		parentConn.Close()
+		cancel()
 	}()
 
 	for {
@@ -937,6 +938,13 @@ func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networ
 		conn.Write([]byte(trace.Wrap(err, "failed to write networking file to control conn").Error()))
 		return nil
 	}
+
+	// Block for 30 seconds or until parent closes the request connection
+	// signaling it has a reference to the fd. This is to prevent the following
+	// race: child closes fd, but parent does not have reference to fd yet, and
+	// kernel comes and closes fd thinking it has 0 references.
+	<-ctx.Done()
+
 	return filePaths
 }
 
