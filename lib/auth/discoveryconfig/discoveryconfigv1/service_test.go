@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 func TestDiscoveryConfigCRUD(t *testing.T) {
@@ -544,9 +545,10 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 	emitter := events.NewDiscardEmitter()
 
 	resourceSvc, err := NewService(ServiceConfig{
-		Backend:    localResourceService,
-		Authorizer: authorizer,
-		Emitter:    emitter,
+		Backend:       localResourceService,
+		Authorizer:    authorizer,
+		Emitter:       emitter,
+		UsageReporter: func() usagereporter.UsageReporter { return usagereporter.DiscardUsageReporter{} },
 	})
 	require.NoError(t, err)
 
@@ -559,6 +561,36 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 		IdentityService:        userSvc,
 		DiscoveryConfigService: localResourceService,
 	}, resourceSvc
+}
+
+func TestExtractDiscoveryConfigMetadata(t *testing.T) {
+	t.Parallel()
+
+	dc, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: "test"},
+		discoveryconfig.Spec{
+			DiscoveryGroup: "group",
+			AWS: []types.AWSMatcher{
+				{Types: []string{"ec2", "rds"}, Regions: []string{"us-east-1"}},
+				{Types: []string{"ec2"}, Regions: []string{"us-east-1"}}, // duplicate should be deduped
+			},
+			Azure: []types.AzureMatcher{
+				{Types: []string{"aks"}},
+			},
+			GCP: []types.GCPMatcher{
+				{Types: []string{"gke"}, ProjectIDs: []string{"my-project"}},
+			},
+			Kube: []types.KubernetesMatcher{
+				{Types: []string{"app"}},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	resourceTypes, cloudProviders := extractDiscoveryConfigMetadata(dc)
+
+	require.ElementsMatch(t, []string{"aws:ec2", "aws:rds", "azure:aks", "gcp:gke", "k8s:app"}, resourceTypes)
+	require.ElementsMatch(t, []string{"aws", "azure", "gcp", "k8s"}, cloudProviders)
 }
 
 func TestDowngrade(t *testing.T) {

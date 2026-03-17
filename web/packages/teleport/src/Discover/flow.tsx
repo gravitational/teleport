@@ -43,7 +43,7 @@ export interface ResourceViewConfig<T = any> {
   wrapper?: (component: React.ReactNode) => React.ReactNode;
   /**
    * shouldPrompt is an optional function that determines if the
-   * react-router-dom's Prompt should be invocated on exit or
+   * react-router's Prompt should be invocated on exit or
    * changing route. We can control when to show the prompt
    * depending on what step in the flow a user is in (indicated
    * by "currentStep" param).

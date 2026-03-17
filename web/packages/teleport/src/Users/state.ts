@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useMemo } from 'react';
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 export interface UsersUrlState {
   search: string;
@@ -51,7 +51,7 @@ export function useUrlParams(): [
   UsersUrlState,
   (newState: Partial<UsersUrlState>) => void,
 ] {
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
 
   const params = useMemo(() => {
@@ -68,10 +68,10 @@ export function useUrlParams(): [
       if (hasChanged) {
         const nextParams = stateToSearchParams(next);
         const nextSearch = nextParams ? `?${nextParams}` : '';
-        history.push({ search: nextSearch });
+        navigate({ search: nextSearch });
       }
     },
-    [location.search, history]
+    [location.search, navigate]
   );
 
   return [params, setParams];

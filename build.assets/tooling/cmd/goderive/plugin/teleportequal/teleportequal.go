@@ -128,6 +128,13 @@ func removeIgnoredFieldsFromStruct(name string, strct *types.Struct) types.Type 
 			continue
 		}
 
+		// Ignore MFA on LocalAuthSecrets; the Device oneof interface
+		// is not handled by goderive. It is up to UserV2.IsEqual to
+		// account for this manually.
+		if name == "LocalAuthSecrets" && fieldName == "MFA" {
+			continue
+		}
+
 		filteredFields = append(filteredFields, field)
 		filteredTags = append(filteredTags, strct.Tag(i))
 

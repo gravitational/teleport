@@ -4,11 +4,12 @@ go 1.25.8
 
 require (
 	github.com/docker/go-sdk/container v0.1.0-alpha013
-	github.com/docker/go-sdk/image v0.1.0-alpha013
+	github.com/google/go-github/v84 v84.0.0
 	github.com/lmittmann/tint v1.1.3
 	github.com/moby/moby/api v1.52.0
 	github.com/moby/moby/client v0.1.0
 	golang.org/x/crypto v0.48.0
+	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.19.0
 )
 
@@ -28,11 +29,13 @@ require (
 	github.com/docker/go-sdk/client v0.1.0-alpha012 // indirect
 	github.com/docker/go-sdk/config v0.1.0-alpha012 // indirect
 	github.com/docker/go-sdk/context v0.1.0-alpha012 // indirect
+	github.com/docker/go-sdk/image v0.1.0-alpha013 // indirect
 	github.com/docker/go-sdk/network v0.1.0-alpha012 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect

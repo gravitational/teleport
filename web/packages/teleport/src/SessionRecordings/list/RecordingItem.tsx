@@ -25,7 +25,7 @@ import {
   type PropsWithChildren,
 } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled, { css } from 'styled-components';
 
 import Box from 'design/Box';

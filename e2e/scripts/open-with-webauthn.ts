@@ -25,7 +25,12 @@
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { chromium, type BrowserContext } from '@playwright/test';
+import {
+  chromium,
+  firefox,
+  webkit,
+  type BrowserContext,
+} from '@playwright/test';
 
 import { mockWebAuthn } from '../helpers/webauthn';
 
@@ -54,11 +59,15 @@ if (!mode || !startURL) {
 }
 
 const e2eDir = join(dirname(fileURLToPath(import.meta.url)), '..');
-const storageStatePath = join(e2eDir, '.auth/user.json');
+const browserName = (process.env.E2E_BROWSERS || 'chromium').split(',')[0];
+const browserTypes = { chromium, firefox, webkit };
+const browserType =
+  browserTypes[browserName as keyof typeof browserTypes] ?? chromium;
+const storageStatePath = join(e2eDir, `.auth/${browserName}-user.json`);
 
-info(`launching Chromium ${dim(`(mode: ${mode})`)}`);
+info(`launching ${browserName} ${dim(`(mode: ${mode})`)}`);
 
-const browser = await chromium.launch({ headless: false });
+const browser = await browserType.launch({ headless: false });
 const context = await browser.newContext({
   storageState: storageStatePath,
   ignoreHTTPSErrors: true,

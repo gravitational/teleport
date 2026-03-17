@@ -18,6 +18,7 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { PropsWithChildren } from 'react';
+import { MemoryRouter } from 'react-router';
 import selectEvent from 'react-select-event';
 
 import darkTheme from 'design/theme/themes/darkTheme';
@@ -55,13 +56,7 @@ jest.mock('shared/components/FieldSelect/FieldSelectCreatable', () => {
       loadOptions?: unknown;
       defaultOptions?: unknown;
     }) => {
-      const {
-        // eslint-disable-next-line unused-imports/no-unused-vars
-        loadOptions,
-        // eslint-disable-next-line unused-imports/no-unused-vars
-        defaultOptions,
-        ...rest
-      } = props;
+      const { loadOptions, defaultOptions, ...rest } = props;
       return <actual.FieldSelectCreatable {...rest} />;
     },
   };
@@ -200,7 +195,7 @@ function makeWrapper(opts?: {
           <ConfiguredThemeProvider theme={darkTheme}>
             <TrackingProvider disabled={disableTracking}>
               <GitHubK8sFlowProvider intitialState={initialState}>
-                {children}
+                <MemoryRouter>{children}</MemoryRouter>
               </GitHubK8sFlowProvider>
             </TrackingProvider>
           </ConfiguredThemeProvider>

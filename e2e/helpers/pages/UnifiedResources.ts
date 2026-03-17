@@ -43,6 +43,7 @@ export class UnifiedResourcesPage {
     const popupPromise = this.page.waitForEvent('popup');
     await this.page.getByRole('menuitem', { name: login }).click();
     const popup = await popupPromise;
+    await popup.waitForLoadState('load');
 
     return new TerminalPage(popup);
   }

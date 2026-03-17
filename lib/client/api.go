@@ -942,6 +942,7 @@ func (c *Config) LoadProfile(proxyAddr string) error {
 	c.SAMLSingleLogoutEnabled = profile.SAMLSingleLogoutEnabled
 	c.SSHDialTimeout = profile.SSHDialTimeout
 	c.SSOHost = profile.SSOHost
+	c.Scope = profile.Scope
 
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
@@ -1010,6 +1011,7 @@ func (c *Config) Profile() *profile.Profile {
 		SAMLSingleLogoutEnabled:       c.SAMLSingleLogoutEnabled,
 		SSHDialTimeout:                c.SSHDialTimeout,
 		SSOHost:                       c.SSOHost,
+		Scope:                         c.Scope,
 	}
 }
 

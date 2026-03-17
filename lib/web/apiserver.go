@@ -1896,16 +1896,124 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	httplib.SetWebConfigHeaders(w.Header())
 
+	clusterFeatures := h.GetClusterFeatures()
+	automaticUpgradesEnabled := clusterFeatures.GetAutomaticUpgrades()
+
+	var (
+		oidcConnectors   []types.OIDCConnector
+		samlConnectors   []types.SAMLConnector
+		githubConnectors []types.GithubConnector
+		cap              types.AuthPreference
+		proxyConfig      *webclient.ProxySettings
+		recCfg           types.SessionRecordingConfig
+		clusterName      types.ClusterName
+		uiConfig         webclient.UIConfig
+
+		sessionSummarizerEnabled       bool
+		automaticUpgradesTargetVersion string
+		accessGraphConfigSet           bool
+	)
+
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		var err error
+		oidcConnectors, err = h.cfg.ProxyClient.GetOIDCConnectors(r.Context(), false)
+		if err != nil {
+			h.logger.ErrorContext(r.Context(), "Cannot retrieve OIDC connectors", "error", err)
+		}
+	})
+
+	wg.Go(func() {
+		var err error
+		samlConnectors, err = h.cfg.ProxyClient.GetSAMLConnectorsWithValidationOptions(r.Context(), false, types.SAMLConnectorValidationFollowURLs(false))
+		if err != nil {
+			h.logger.ErrorContext(r.Context(), "Cannot retrieve SAML connectors", "error", err)
+		}
+	})
+
+	wg.Go(func() {
+		var err error
+		githubConnectors, err = h.cfg.ProxyClient.GetGithubConnectors(r.Context(), false)
+		if err != nil {
+			h.logger.ErrorContext(r.Context(), "Cannot retrieve GitHub connectors", "error", err)
+		}
+	})
+
+	wg.Go(func() {
+		var err error
+		cap, err = h.cfg.AccessPoint.GetAuthPreference(r.Context())
+		if err != nil {
+			h.logger.ErrorContext(r.Context(), "Cannot retrieve AuthPreferences", "error", err)
+		}
+	})
+
+	wg.Go(func() {
+		var err error
+		proxyConfig, err = h.cfg.ProxySettings.GetProxySettings(r.Context())
+		if err != nil {
+			h.logger.WarnContext(r.Context(), "Cannot retrieve ProxySettings, tunnel address won't be set in Web UI", "error", err)
+		}
+	})
+
+	wg.Go(func() {
+		var err error
+		recCfg, err = h.cfg.AccessPoint.GetSessionRecordingConfig(r.Context())
+		if err != nil {
+			h.logger.ErrorContext(r.Context(), "Cannot retrieve SessionRecordingConfig", "error", err)
+		}
+	})
+
+	wg.Go(func() {
+		isEnabledRes, err := h.cfg.ProxyClient.SummarizerServiceClient().IsEnabled(
+			r.Context(),
+			&summarizerv1.IsEnabledRequest{},
+		)
+		if err == nil {
+			sessionSummarizerEnabled = isEnabledRes.Enabled
+		}
+	})
+
+	wg.Go(func() {
+		rsp, err := h.cfg.ProxyClient.GetClusterAccessGraphConfig(r.Context())
+		if err != nil && !trace.IsNotImplemented(err) {
+			h.logger.ErrorContext(r.Context(), "Cannot retrieve Access Graph config from auth server", "error", err)
+		}
+		accessGraphConfigSet = rsp.GetEnabled() && rsp.GetAddress() != ""
+	})
+
+	wg.Go(func() {
+		var err error
+		clusterName, err = h.cfg.AccessPoint.GetClusterName(r.Context())
+		if err != nil {
+			h.logger.WarnContext(r.Context(), "Failed to query cluster name", "error", err)
+		}
+	})
+
+	wg.Go(func() {
+		uiConfig = h.getUIConfig(r.Context())
+	})
+
+	if automaticUpgradesEnabled {
+		wg.Go(func() {
+			const group, updaterUUID = "", ""
+			agentVersion, err := h.autoUpdateResolver.GetVersion(r.Context(), group, updaterUUID)
+			if err != nil {
+				h.logger.ErrorContext(r.Context(), "Cannot read autoupdate target version", "error", err)
+			} else {
+				// agentVersion doesn't have the leading "v" which is expected here.
+				automaticUpgradesTargetVersion = fmt.Sprintf("v%s", agentVersion)
+			}
+		})
+	}
+
+	wg.Wait()
+
 	authProviders := []webclient.WebConfigAuthProvider{}
 
 	// identifierFirstLoginEnabled is true if at least one auth connector has a defined `user_matchers` field.
 	var identifierFirstLoginEnabled bool
 
-	// get all OIDC connectors
-	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(r.Context(), false)
-	if err != nil {
-		h.logger.ErrorContext(r.Context(), "Cannot retrieve OIDC connectors", "error", err)
-	}
 	for _, item := range oidcConnectors {
 		if item.GetUserMatchers() != nil {
 			identifierFirstLoginEnabled = true
@@ -1918,11 +2026,6 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		})
 	}
 
-	// get all SAML connectors
-	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectorsWithValidationOptions(r.Context(), false, types.SAMLConnectorValidationFollowURLs(false))
-	if err != nil {
-		h.logger.ErrorContext(r.Context(), "Cannot retrieve SAML connectors", "error", err)
-	}
 	for _, item := range samlConnectors {
 		if item.GetUserMatchers() != nil {
 			identifierFirstLoginEnabled = true
@@ -1935,11 +2038,6 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		})
 	}
 
-	// get all Github connectors
-	githubConnectors, err := h.cfg.ProxyClient.GetGithubConnectors(r.Context(), false)
-	if err != nil {
-		h.logger.ErrorContext(r.Context(), "Cannot retrieve GitHub connectors", "error", err)
-	}
 	for _, item := range githubConnectors {
 		if item.GetUserMatchers() != nil {
 			identifierFirstLoginEnabled = true
@@ -1954,8 +2052,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	// get auth type & second factor type
 	var authSettings webclient.WebConfigAuthSettings
-	if cap, err := h.cfg.ProxyClient.GetAuthPreference(r.Context()); err != nil {
-		h.logger.ErrorContext(r.Context(), "Cannot retrieve AuthPreferences", "error", err)
+	if cap == nil {
 		authSettings = webclient.WebConfigAuthSettings{
 			Providers:        authProviders,
 			SecondFactor:     constants.SecondFactorOff,
@@ -1988,55 +2085,19 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
-	clusterFeatures := h.GetClusterFeatures()
-
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
-	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
-	if err != nil {
-		h.logger.WarnContext(r.Context(), "Cannot retrieve ProxySettings, tunnel address won't be set in Web UI", "error", err)
-	} else {
-		if clusterFeatures.GetCloud() {
-			tunnelPublicAddr = proxyConfig.SSH.TunnelPublicAddr
-		}
+	if proxyConfig != nil && clusterFeatures.GetCloud() {
+		tunnelPublicAddr = proxyConfig.SSH.TunnelPublicAddr
 	}
 
 	// disable joining sessions if proxy session recording is enabled
 	canJoinSessions := true
-	recCfg, err := h.cfg.ProxyClient.GetSessionRecordingConfig(r.Context())
-	if err != nil {
-		h.logger.ErrorContext(r.Context(), "Cannot retrieve SessionRecordingConfig", "error", err)
-	} else {
+	if recCfg != nil {
 		canJoinSessions = !services.IsRecordAtProxy(recCfg.GetMode())
 	}
 
-	automaticUpgradesEnabled := clusterFeatures.GetAutomaticUpgrades()
-	var automaticUpgradesTargetVersion string
-	if automaticUpgradesEnabled {
-		const group, updaterUUID = "", ""
-		agentVersion, err := h.autoUpdateResolver.GetVersion(r.Context(), group, updaterUUID)
-		if err != nil {
-			h.logger.ErrorContext(r.Context(), "Cannot read autoupdate target version", "error", err)
-		} else {
-			// agentVersion doesn't have the leading "v" which is expected here.
-			automaticUpgradesTargetVersion = fmt.Sprintf("v%s", agentVersion)
-		}
-	}
-
 	disableRoleVisualizer, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER"))
-
-	sessionSummarizerEnabled := false
-	if isEnabledRes, err := h.cfg.ProxyClient.SummarizerServiceClient().IsEnabled(
-		r.Context(),
-		&summarizerv1.IsEnabledRequest{},
-	); err == nil {
-		sessionSummarizerEnabled = isEnabledRes.Enabled
-	}
-
-	rsp, err := h.cfg.ProxyClient.GetClusterAccessGraphConfig(r.Context())
-	if err != nil && !trace.IsNotImplemented(err) {
-		h.logger.ErrorContext(r.Context(), "Cannot retrieve Access Graph config from auth server", "error", err)
-	}
 
 	webCfg := webclient.WebConfig{
 		Edition:                        h.cfg.Modules.BuildType(),
@@ -2045,7 +2106,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		IsCloud:                        clusterFeatures.GetCloud(),
 		TunnelPublicAddress:            tunnelPublicAddr,
 		RecoveryCodesEnabled:           clusterFeatures.GetRecoveryCodes(),
-		UI:                             h.getUIConfig(r.Context()),
+		UI:                             uiConfig,
 		IsPolicyRoleVisualizerEnabled:  !disableRoleVisualizer,
 		IsDashboard:                    services.IsDashboard(clusterFeatures),
 		IsUsageBasedBilling:            clusterFeatures.GetIsUsageBased(),
@@ -2062,16 +2123,13 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		Entitlements: GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
 		IdentitySecurity: webclient.IdentitySecurity{
 			IsClusterLicensed:           modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled,
-			AccessGraphConfigSet:        rsp.GetEnabled() && rsp.GetAddress() != "",
+			AccessGraphConfigSet:        accessGraphConfigSet,
 			SessionSummarizationEnabled: sessionSummarizerEnabled,
 		},
 	}
 
-	resource, err := h.cfg.ProxyClient.GetClusterName(r.Context())
-	if err != nil {
-		h.logger.WarnContext(r.Context(), "Failed to query cluster name", "error", err)
-	} else {
-		webCfg.ProxyClusterName = resource.GetClusterName()
+	if clusterName != nil {
+		webCfg.ProxyClusterName = clusterName.GetClusterName()
 	}
 
 	out, err := json.Marshal(webCfg)

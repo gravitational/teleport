@@ -410,7 +410,7 @@ func (c *Cache) fetch(ctx context.Context) (state, error) {
 		}
 	}
 
-	assignmentCache := assignments.NewAssignmentCache()
+	assignmentCache := assignments.NewAssignmentCache(assignments.AssignmentCacheConfig{})
 
 	for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, c.cfg.Reader, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
 		if err != nil {

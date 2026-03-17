@@ -25,6 +25,8 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -34,10 +36,62 @@ func build(ctx context.Context, config *e2eConfig) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	if !config.noBuild {
+		switch config.teleportBin {
+		case filepath.Join(config.repoRoot, "build", "teleport"):
+			g.Go(func() error {
+				slog.Info("building teleport")
+
+				return runMake(ctx, config.repoRoot, "build/teleport")
+			})
+
+		case filepath.Join(config.repoRoot, "e", "build", "teleport"):
+			g.Go(func() error {
+				slog.Info("building teleport (enterprise)")
+
+				return runMake(ctx, filepath.Join(config.repoRoot, "e"), "build/teleport")
+			})
+
+		default:
+			slog.Info("teleport binary overridden, skipping build", "path", config.teleportBin)
+		}
+
+		if config.tctlBin == filepath.Join(config.repoRoot, "build", "tctl") {
+			g.Go(func() error {
+				slog.Info("building tctl")
+
+				return runMake(ctx, config.repoRoot, "build/tctl")
+			})
+		} else {
+			slog.Info("tctl binary overridden, skipping build", "path", config.tctlBin)
+		}
+	}
+
+	if sshNode.enabled && !config.noBuild && runtime.GOOS != "linux" {
 		g.Go(func() error {
-			slog.Info("building teleport binaries")
-			if err := runInDir(ctx, config.repoRoot, "make", "binaries"); err != nil {
-				return fmt.Errorf("make binaries: %w", err)
+			buildDir := config.repoRoot
+			if config.teleportBin == filepath.Join(config.repoRoot, "e", "build", "teleport") {
+				buildDir = filepath.Join(config.repoRoot, "e")
+			}
+
+			slog.Info("cross-compiling teleport for linux (docker node)", "dir", buildDir)
+
+			output := filepath.Join(buildDir, "build", "teleport-node")
+			cmd := exec.CommandContext(ctx, "go", "build",
+				"-o", output,
+				"-buildvcs=false",
+				"./tool/teleport",
+			)
+			cmd.Dir = buildDir
+			env := append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=1")
+			if os.Getenv("CC") == "" {
+				env = append(env, "CC=x86_64-unknown-linux-gnu-gcc")
+			}
+			cmd.Env = env
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("cross-compiling teleport for docker node: %w", err)
 			}
 
 			return nil
@@ -52,7 +106,9 @@ func build(ctx context.Context, config *e2eConfig) error {
 			}
 
 			slog.Info("installing playwright browsers")
-			if err := runInDir(ctx, config.e2eDir, "pnpm", "exec", "playwright", "install", "--with-deps", "chromium"); err != nil {
+			args := []string{"exec", "playwright", "install", "--no-shell"}
+			args = append(args, config.browsers...)
+			if err := runInDir(ctx, config.e2eDir, "pnpm", args...); err != nil {
 				return fmt.Errorf("playwright install: %w", err)
 			}
 
@@ -60,7 +116,35 @@ func build(ctx context.Context, config *e2eConfig) error {
 		})
 	}
 
+	if connect.enabled && !config.noBuild {
+		g.Go(func() error {
+			slog.Info("building Teleport Connect")
+			if err := runInDir(ctx, config.repoRoot, "pnpm", "--filter=@gravitational/teleterm", "build"); err != nil {
+				return fmt.Errorf("pnpm --filter=@gravitational/teleterm build: %w", err)
+			}
+
+			return nil
+		})
+
+		g.Go(func() error {
+			slog.Info("building tsh with webauthnmock tag for Teleport Connect e2e")
+			if err := runInDir(ctx, config.repoRoot, "go", "build", "-tags", "webauthnmock", "-o", config.connectTshBinPath, "./tool/tsh"); err != nil {
+				return fmt.Errorf("go build -tags webauthnmock ./tool/tsh: %w", err)
+			}
+
+			return nil
+		})
+	}
+
 	return g.Wait()
+}
+
+func runMake(ctx context.Context, dir string, targets ...string) error {
+	if err := runInDir(ctx, dir, "make", targets...); err != nil {
+		return fmt.Errorf("make %v: %w", targets, err)
+	}
+
+	return nil
 }
 
 func runInDir(ctx context.Context, dir, name string, args ...string) error {

@@ -655,15 +655,6 @@ func newHealthCheckConfigCollection(upstream services.Foo, w types.WatchKind) (*
 			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListFoos))
 			return out, trace.Wrap(err)
 		},
-		headerTransform: func(hdr *types.ResourceHeader) *foov1.Foo {
-			return &foov1.Foo{
-				Kind:    hdr.Kind,
-				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
-					Name: hdr.Metadata.Name,
-				},
-			}
-		},
 		watch: w,
 	}, nil
 }
@@ -741,7 +732,7 @@ For example, to add a parser for `foo`:
 ```go
 func newFooParser() *fooParser {
 	return &fooParser{
-		baseParser: newBaseParser(backend.Key(fooPrefix)),
+		baseParser: newBaseParser(backend.ExactKey(fooPrefix)),
 	}
 }
 
@@ -752,7 +743,15 @@ type fooParser struct {
 func (p *fooParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindFoo, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.ExactKey(fooPrefix))
+		return types.Resource153ToLegacy(&foov1.Foo{
+				Kind: types.KindFoo,
+				SubKind: ""
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: name
+				}
+		})
 	case types.OpPut:
 		foo, err := services.UnmarshalFoo(
 			event.Item.Value,

@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
@@ -85,11 +84,11 @@ func TestClientState(t *testing.T) {
 	// Simulate writes up to the key history recording length.
 	for i := range KeyHistoryLength - 1 {
 		// We should still be able to load the original signer (< KeyHistoryLength)
-		_, err := state.SignerForPublicKey(firstKey)
+		_, err := state.GetSigner(firstKey)
 		require.NoError(t, err)
 
 		// Similarly, the previous key should still be accessible.
-		_, err = state.SignerForPublicKey(prevKey)
+		_, err = state.GetSigner(prevKey)
 		require.NoError(t, err)
 
 		prevKey = state.PrivateKey.MarshalSSHPublicKey()
@@ -127,7 +126,7 @@ func TestClientState(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to load the original key again; it should fail.
-	_, err = state.SignerForPublicKey(firstKey)
+	_, err = state.GetSigner(firstKey)
 	require.Error(t, err)
 }
 
@@ -160,22 +159,20 @@ func TestStaticClientState(t *testing.T) {
 
 	static := NewStaticClientState(privateKeyBytes)
 
-	params := static.ToJoinParams(ClientParams{
-		RegistrationSecret: "test",
-	})
+	params := static.GetClientParams("test")
 	require.Empty(t, params.RegistrationSecret, "registration secret must not be passed through")
 	require.Empty(t, params.PreviousJoinState, "previous join state must always be empty")
 
-	signer, err := params.GetSigner(publicKeyString)
+	signer, err := static.GetSigner([]byte(publicKeyString))
 	require.NoError(t, err)
 
 	// We should actually retrieve a signer for the public key we requested
 	require.True(t, keyEq.Equal(signer.Public()))
 
-	_, err = params.GetSigner(wrongPublicKeyString)
+	_, err = static.GetSigner([]byte(wrongPublicKeyString))
 	require.ErrorContains(t, err, "configured static private key does match the value requested by the server")
 
-	invalidSigner, err := params.RequestNewKeypair(t.Context(), getSuite)
+	invalidSigner, err := static.RequestNewKeypair(t.Context(), getSuite)
 	require.Nil(t, invalidSigner)
 	require.ErrorContains(t, err, "static private keys do not support automatic rotation")
 
@@ -183,5 +180,5 @@ func TestStaticClientState(t *testing.T) {
 	require.NoError(t, static.Store(t.Context()))
 
 	// no-op, but shouldn't return an error
-	require.NoError(t, static.UpdateFromRegisterResult(&join.RegisterResult{}))
+	require.NoError(t, static.UpdateFromRegisterResult(nil, nil))
 }

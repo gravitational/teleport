@@ -30,6 +30,7 @@ import (
 	"net/http/httputil"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgproto3/v2"
@@ -434,8 +435,11 @@ func (l *LocalProxy) getCert() tls.Certificate {
 	return l.cfg.Cert
 }
 
-// CheckDBCert checks the proxy certificates for expiration and that the cert subject matches a database route.
-func (l *LocalProxy) CheckDBCert(ctx context.Context, dbRoute tlsca.RouteToDatabase) error {
+// CheckDBCertWithLeeway checks the proxy certificates for expiration and that
+// the cert subject matches a database route. The provided leeway value is added
+// to the current time when checking certificate expiration and can be used to
+// account for potential client-side clock drift.
+func (l *LocalProxy) CheckDBCertWithLeeway(ctx context.Context, dbRoute tlsca.RouteToDatabase, leeway time.Duration) error {
 	l.cfg.Log.DebugContext(ctx, "checking local proxy database certs")
 	l.certMu.RLock()
 	defer l.certMu.RUnlock()
@@ -450,15 +454,22 @@ func (l *LocalProxy) CheckDBCert(ctx context.Context, dbRoute tlsca.RouteToDatab
 	}
 
 	// Check for cert expiration.
-	if err := utils.VerifyCertificateExpiry(cert, l.cfg.Clock); err != nil {
+	if err := utils.VerifyCertificateExpiryWithLeeway(cert, l.cfg.Clock, leeway); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return trace.Wrap(CheckDBCertSubject(cert, dbRoute))
 }
 
-// CheckCertExpiry checks the proxy certificates for expiration.
-func (l *LocalProxy) CheckCertExpiry(ctx context.Context) error {
+// CheckDBCert checks the proxy certificates for expiration and that the cert subject matches a database route.
+func (l *LocalProxy) CheckDBCert(ctx context.Context, dbRoute tlsca.RouteToDatabase) error {
+	return l.CheckDBCertWithLeeway(ctx, dbRoute, 0)
+}
+
+// CheckCertExpiryWithLeeway checks the proxy certificates for expiration. The
+// provided leeway value is added to the current time when compared to the cert
+// expiration and can be used to account for potential client-side clock drift.
+func (l *LocalProxy) CheckCertExpiryWithLeeway(ctx context.Context, leeway time.Duration) error {
 	l.cfg.Log.DebugContext(ctx, "checking local proxy certs")
 	l.certMu.RLock()
 	defer l.certMu.RUnlock()
@@ -472,7 +483,12 @@ func (l *LocalProxy) CheckCertExpiry(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(utils.VerifyCertificateExpiry(cert, l.cfg.Clock))
+	return trace.Wrap(utils.VerifyCertificateExpiryWithLeeway(cert, l.cfg.Clock, leeway))
+}
+
+// CheckCertExpiry checks the proxy certificates for expiration.
+func (l *LocalProxy) CheckCertExpiry(ctx context.Context) error {
+	return trace.Wrap(l.CheckCertExpiryWithLeeway(ctx, 0))
 }
 
 // CheckDBCertSubject checks if the route to the database from the cert matches the provided route in

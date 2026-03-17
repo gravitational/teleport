@@ -74,13 +74,12 @@ export default function useLogin() {
     if (session.isValid()) {
       try {
         const redirectUrlWithBase = new URL(getEntryRoute());
-        const matched = matchPath(redirectUrlWithBase.pathname, {
-          path: cfg.routes.samlIdpSso,
-          strict: true,
-          exact: true,
-        });
+        const matched = matchPath(
+          cfg.routes.samlIdpSso,
+          redirectUrlWithBase.pathname
+        );
         if (matched) {
-          history.push(redirectUrlWithBase, true);
+          history.push(redirectUrlWithBase.toString(), true);
           return;
         } else {
           history.replace(cfg.routes.root);

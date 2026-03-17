@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-
 import { enableMapSet, produce, Producer } from 'immer';
 
 import stateLogger from 'shared/libs/stores/logger';
@@ -30,6 +28,7 @@ enableMapSet();
 export class ImmutableStore<T> extends Store<T> {
   protected logger = new Logger(this.constructor.name);
 
+  // oxlint-disable-next-line typescript/ban-ts-comment
   // @ts-ignore
   setState(nextState: Producer<T>): void {
     const prevState = this.state;

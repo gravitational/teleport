@@ -93,8 +93,6 @@ linters:
             - '!**/e/lib/auth/saml.go'
             - '!**lib/services/compare.go'
             - '!**/lib/services/local/access_list.go'
-            - '!**/lib/services/local/users.go'
-            - '!**/lib/services/user.go'
           deny:
             - pkg: github.com/google/go-cmp/cmp
               desc: '"github.com/google/go-cmp/cmp" should only be used in tests'
