@@ -82,6 +82,20 @@ export const Labels = () => (
       <LabelState kind="warning">Warning</LabelState>
       <LabelState kind="danger">Danger</LabelState>
     </Flex>
+  </>
+);
+
+export const LabelStates = () => (
+  <>
+    <Flex
+      height="100px"
+      bg="levels.surface"
+      justifyContent="center"
+      alignItems="center"
+      gap={4}
+    >
+      <LabelState kind="danger">Danger</LabelState>
+    </Flex>
     <Flex
       height="100px"
       bg="levels.surface"
