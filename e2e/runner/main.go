@@ -94,7 +94,8 @@ type e2eConfig struct {
 
 	creds *credentials
 
-	instances []*browserInstance
+	instances        []*browserInstance
+	connectInstance  *browserInstance
 }
 
 // run sets up the test environment (ports, certs, credentials, teleport instance)
@@ -146,6 +147,14 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		config.instances = append(config.instances, inst)
 	}
 
+	if connect.enabled {
+		config.connectInstance = &browserInstance{
+			browser: "connect",
+			log:     newBrowserLogger("connect"),
+			dataDir: filepath.Join(e2eDir, "data", "connect"),
+		}
+	}
+
 	// Allocate all ports at once to minimize race windows.
 	var portTargets []*int
 	for _, inst := range config.instances {
@@ -154,6 +163,9 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			portTargets = append(portTargets, &inst.sshPort)
 		}
 	}
+	if ci := config.connectInstance; ci != nil {
+		portTargets = append(portTargets, &ci.proxyPort, &ci.authPort)
+	}
 
 	if err := allocatePorts(portTargets...); err != nil {
 		return fmt.Errorf("failed to allocate ports: %w", err)
@@ -161,6 +173,9 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 
 	for _, inst := range config.instances {
 		inst.log.Debug("allocated ports", "proxy", inst.proxyPort, "auth", inst.authPort, "ssh", inst.sshPort)
+	}
+	if ci := config.connectInstance; ci != nil {
+		ci.log.Debug("allocated ports", "proxy", ci.proxyPort, "auth", ci.authPort)
 	}
 
 	if err := build(ctx, config); err != nil {
@@ -180,7 +195,12 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	}
 
 	if config.teleportURL == "" {
-		for _, inst := range config.instances {
+		allInstances := config.instances
+		if config.connectInstance != nil {
+			allInstances = append(allInstances, config.connectInstance)
+		}
+
+		for _, inst := range allInstances {
 			inst.log.Debug("cleaning data directory", "path", inst.dataDir)
 			if err := os.RemoveAll(inst.dataDir); err != nil {
 				return fmt.Errorf("failed to clean data directory for %s: %w", inst.browser, err)
@@ -200,7 +220,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		}
 		slog.Debug("generated bootstrap state", "path", stateFile)
 
-		for _, inst := range config.instances {
+		for _, inst := range allInstances {
 			outPath := filepath.Join(e2eDir, "config", inst.browser+"-teleport.yaml")
 			tcfg, err := generateTeleportConfig(config.teleportConfigTemplate, outPath, &TeleportConfig{
 				DataDir:        inst.dataDir,
@@ -219,7 +239,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		}
 
 		g, gctx := errgroup.WithContext(ctx)
-		for _, inst := range config.instances {
+		for _, inst := range allInstances {
 			teleport := &teleportInstance{
 				log:         inst.log,
 				teleportBin: config.teleportBin,
@@ -244,7 +264,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			})
 		}
 		if err := g.Wait(); err != nil {
-			for _, inst := range config.instances {
+			for _, inst := range allInstances {
 				if inst.teleport != nil {
 					inst.teleport.stop()
 				}
@@ -253,12 +273,12 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		}
 
 		defer func() {
-			for _, inst := range config.instances {
+			for _, inst := range allInstances {
 				if inst.node != nil {
 					inst.node.stop(context.Background())
 				}
 			}
-			for _, inst := range config.instances {
+			for _, inst := range allInstances {
 				if inst.teleport != nil {
 					inst.teleport.stop()
 				}
@@ -333,9 +353,6 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	// Project names from playwright.config.ts.
 	if sshNode.enabled {
 		extraProjects = append(extraProjects, "with-ssh-node")
-	}
-	if connect.enabled {
-		extraProjects = append(extraProjects, "connect")
 	}
 
 	pw := &playwrightRunner{

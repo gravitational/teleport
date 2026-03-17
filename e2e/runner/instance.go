@@ -40,6 +40,7 @@ var browserColors = map[string]string{
 	"chromium": "\033[36m", // cyan
 	"firefox":  "\033[33m", // yellow
 	"webkit":   "\033[35m", // magenta
+	"connect":  "\033[32m", // green
 }
 
 type prefixHandler struct {

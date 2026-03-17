@@ -138,6 +138,39 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 		})
 	}
 
+	if ci := p.config.connectInstance; ci != nil {
+		g.Go(func() error {
+			env, err := p.startEnv(ci)
+			if err != nil {
+				return fmt.Errorf("building env for connect: %w", err)
+			}
+			if debug {
+				env = append(env, "PWDEBUG=1")
+			}
+
+			env = append(env, "PLAYWRIGHT_BLOB_OUTPUT_FILE="+filepath.Join(blobBaseDir, "connect.zip"))
+
+			args := []string{"exec", "playwright", "test"}
+			args = append(args, extraArgs...)
+			reporter := "blob"
+			if p.config.isCI {
+				reporter = "blob,dot"
+			}
+			args = append(args, "--reporter="+reporter, "--project=connect")
+
+			if len(p.config.testFiles) > 0 {
+				args = append(args, p.config.testFiles...)
+			}
+
+			ci.log.Info("running e2e tests", "projects", []string{"connect"})
+
+			if err := p.pnpm(ctx, args, env); err != nil {
+				return fmt.Errorf("playwright tests failed for connect: %w", err)
+			}
+			return nil
+		})
+	}
+
 	testErr := g.Wait()
 
 	slog.Info("merging blob reports")
@@ -195,7 +228,10 @@ func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightC
 }
 
 func (p *playwrightRunner) openConnectAuthenticated(ctx context.Context) error {
-	inst := p.config.instances[0]
+	inst := p.config.connectInstance
+	if inst == nil {
+		return fmt.Errorf("connect instance not configured (use --with-connect)")
+	}
 	env, err := p.startEnv(inst)
 	if err != nil {
 		return err
