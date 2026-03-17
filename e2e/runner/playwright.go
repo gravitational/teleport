@@ -125,7 +125,11 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 				args = append(args, p.config.testFiles...)
 			}
 
-			inst.log.Info("running e2e tests", "projects", baseProjects)
+			if len(p.config.testFiles) > 0 {
+				inst.log.Info("running e2e tests", "files", p.config.testFiles)
+			} else {
+				inst.log.Info("running e2e tests", "projects", baseProjects)
+			}
 
 			if err := p.pnpm(ctx, args, env); err != nil {
 				return fmt.Errorf("playwright tests failed for %s: %w", inst.browser, err)
@@ -154,7 +158,11 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 				args = append(args, p.config.testFiles...)
 			}
 
-			ci.log.Info("running e2e tests", "projects", []string{"connect"})
+			if len(p.config.testFiles) > 0 {
+				ci.log.Info("running e2e tests", "files", p.config.testFiles)
+			} else {
+				ci.log.Info("running e2e tests", "projects", []string{"connect"})
+			}
 
 			if err := p.pnpm(ctx, args, env); err != nil {
 				return fmt.Errorf("playwright tests failed for connect: %w", err)
