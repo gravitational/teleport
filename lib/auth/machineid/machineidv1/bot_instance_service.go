@@ -247,6 +247,8 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		return nil, trace.AccessDenied("identity did not contain bot instance ID")
 	}
 
+	// TODO: Propagate scope to underlying bot instance resource.
+
 	b.logger.DebugContext(
 		ctx,
 		"Received bot instance heartbeat",
