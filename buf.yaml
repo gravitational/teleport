@@ -83,7 +83,9 @@ lint:
       - proto/teleport/lib/teleterm/v1/service.proto
       - api/proto/teleport/recordingmetadata/v1/recordingmetadata_service.proto
       - api/proto/teleport/join/v1/joinservice.proto
+      - api/proto/teleport/sessionsearch/v1/session_search.proto
       - proto/teleport/web/teleterm/ptyhost/v1/pty_host_service.proto
+      - proto/accessgraph/v1/session_search.proto
 
 breaking:
   use:
