@@ -135,6 +135,21 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 		}
 	}
 
+	// If every specified test file targets connect, skip browser instances.
+	if len(f.testFiles) > 0 {
+		allConnect := true
+		for _, file := range f.testFiles {
+			slashPath := filepath.ToSlash(file)
+			if slashPath != "tests/connect" && !strings.HasPrefix(slashPath, "tests/connect/") {
+				allConnect = false
+				break
+			}
+		}
+		if allConnect {
+			f.browsers = nil
+		}
+	}
+
 	return &f, mode, nil
 }
 
