@@ -115,9 +115,9 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 
 			args := []string{"exec", "playwright", "test"}
 			args = append(args, extraArgs...)
-			reporter := "blob"
+			reporter := "./scripts/dot-progress-reporter.ts"
 			if p.config.isCI {
-				reporter = "blob,./scripts/dot-progress-reporter.ts"
+				reporter = "blob," + reporter
 			}
 			args = append(args, "--reporter="+reporter)
 
@@ -152,9 +152,9 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 
 			args := []string{"exec", "playwright", "test"}
 			args = append(args, extraArgs...)
-			reporter := "blob"
+			reporter := "./scripts/dot-progress-reporter.ts"
 			if p.config.isCI {
-				reporter = "blob,./scripts/dot-progress-reporter.ts"
+				reporter = "blob," + reporter
 			}
 			args = append(args, "--reporter="+reporter, "--project=connect")
 
