@@ -438,6 +438,8 @@ func (a *Server) GenerateBotCertsForJoin(
 		a.logger.WarnContext(ctx, "Unable to encode struct value for join metadata", "error", err)
 	}
 
+	// TODO: add additional scope-related checks here
+
 	certs, botInstanceID, err := a.generateInitialBotCerts(
 		ctx,
 		botName,

@@ -544,6 +544,49 @@ func (t *Token) GetKubernetes() *types.ProvisionTokenSpecV2Kubernetes {
 	}
 }
 
+// GetBoundKeypair returns the bound keypair-specific configuration for this
+// token.
+func (t *Token) GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair {
+	spec := t.scoped.GetSpec().GetBoundKeypair()
+	rotateAfter := spec.RotateAfter.AsTime()
+	mustRegisterBefore := spec.GetOnboarding().GetMustRegisterBefore().AsTime()
+
+	return &types.ProvisionTokenSpecV2BoundKeypair{
+		Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+			RegistrationSecret: spec.GetOnboarding().GetRegistrationSecret(),
+			InitialPublicKey:   spec.GetOnboarding().GetInitialPublicKey(),
+			MustRegisterBefore: &mustRegisterBefore,
+		},
+		Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
+			Limit: spec.GetRecovery().GetLimit(),
+			Mode:  spec.GetRecovery().GetMode(),
+		},
+		RotateAfter: &rotateAfter,
+	}
+}
+
+// GetBoundKeypairStatus returns the bound keypair-specific status for this
+// token.
+func (t *Token) GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair {
+	spec := t.scoped.GetStatus().GetUsage().GetBoundKeypair()
+	lastRecoveredAt := spec.GetLastRecoveredAt().AsTime()
+	lastRotatedAt := spec.GetLastRotatedAt().AsTime()
+
+	return &types.ProvisionTokenStatusV2BoundKeypair{
+		RegistrationSecret: spec.GetRegistrationSecret(),
+		BoundPublicKey:     spec.GetBoundPublicKey(),
+		BoundBotInstanceID: spec.GetBoundBotInstanceId(),
+		RecoveryCount:      spec.GetRecoveryCount(),
+		LastRecoveredAt:    &lastRecoveredAt,
+		LastRotatedAt:      &lastRotatedAt,
+	}
+}
+
+// GetScoped returns the inner scoped token wrapped by this [provision.Token].
+func (t *Token) GetScoped() *joiningv1.ScopedToken {
+	return t.scoped
+}
+
 // GetScopedToken attempts to return the underlying [*joiningv1.ScopedToken] backing a
 // [provision.Token]. Returns a boolean indicating whether the token is scoped or not.
 func GetScopedToken(token provision.Token) (*joiningv1.ScopedToken, bool) {

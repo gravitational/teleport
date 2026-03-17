@@ -168,6 +168,10 @@ type ProvisionToken interface {
 	// GetKubernetes will return the Kubernetes specific configuration for this
 	// token.
 	GetKubernetes() *ProvisionTokenSpecV2Kubernetes
+	// GetBoundKeypair returns bound keypair specific configuration for this token.
+	GetBoundKeypair() *ProvisionTokenSpecV2BoundKeypair
+	// GetBoundKeypairStatus returns bound keypair status for this token.
+	GetBoundKeypairStatus() *ProvisionTokenStatusV2BoundKeypair
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -577,6 +581,16 @@ func (p *ProvisionTokenV2) GetOracle() *ProvisionTokenSpecV2Oracle {
 // GetKubernetes will return the Kubernetes specific configuration for this token.
 func (p *ProvisionTokenV2) GetKubernetes() *ProvisionTokenSpecV2Kubernetes {
 	return p.Spec.Kubernetes
+}
+
+// GetBoundKeypair returns bound keypair specific configuration for this token.
+func (p *ProvisionTokenV2) GetBoundKeypair() *ProvisionTokenSpecV2BoundKeypair {
+	return p.Spec.BoundKeypair
+}
+
+// GetBoundKeypairStatus returns bound keypair status for this token.
+func (p *ProvisionTokenV2) GetBoundKeypairStatus() *ProvisionTokenStatusV2BoundKeypair {
+	return p.Status.BoundKeypair
 }
 
 // GetJoinMethod returns joining method that must be used with this token.
