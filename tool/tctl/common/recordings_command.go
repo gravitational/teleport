@@ -178,7 +178,7 @@ loop:
 			return nil
 		}
 	}
-	fmt.Fprintf(c.stdout, "Session recording %q downloaded to %s\n", string(*sessionID), path)
+	fmt.Fprintf(os.Stdout, "Session recording %q downloaded to %s\n", string(*sessionID), path)
 	return nil
 }
 
