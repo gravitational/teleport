@@ -8,7 +8,7 @@ state: draft
 ## Required approvers
 
 - Engineering: (@fspmarshall || @rosstimothy) && @timothyb89
-- Product: ?
+- Product: @klizhentas
 
 ## What
 
