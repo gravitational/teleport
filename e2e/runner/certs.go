@@ -100,4 +100,3 @@ func generateSelfSignedCert(certsDir string, withDockerHost bool) error {
 
 	return pem.Encode(keyFile, &pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 }
-

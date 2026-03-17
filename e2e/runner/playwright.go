@@ -327,9 +327,17 @@ func (p *playwrightRunner) outputWriters() (io.Writer, io.Writer) {
 		}
 	}
 
-	showReportCmd := "pnpm show-report"
-	if pathPrefix != "" {
-		showReportCmd = fmt.Sprintf("(cd %s && pnpm show-report)", pathPrefix[:len(pathPrefix)-1])
+	var showReportCmd string
+	if p.config.isCI {
+		if pr := ciPRNumber(); pr > 0 {
+			showReportCmd = fmt.Sprintf("e2e/run.sh --report %d", pr)
+		}
+	}
+	if showReportCmd == "" {
+		showReportCmd = "pnpm show-report"
+		if pathPrefix != "" {
+			showReportCmd = fmt.Sprintf("(cd %s && pnpm show-report)", pathPrefix[:len(pathPrefix)-1])
+		}
 	}
 
 	rewrite := func(p []byte) []byte {
