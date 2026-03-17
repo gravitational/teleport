@@ -1,6 +1,6 @@
 ---
 title: Creating Access Lists with IaC
-sidebar_label: Infrastructure as Code
+sidebar_label: Access Lists
 description: Use Infrastructure-as-Code tooling to create Access Lists.
 tags:
  - infrastructure-as-code
@@ -23,7 +23,7 @@ Access Lists are registered with the Teleport Auth Service as resources stored
 on the Auth Service backend. The Teleport Auth Service exposes a gRPC API that
 enables clients to create, delete, or modify backend resources, including Access
 Lists. The Teleport Kubernetes Operator and Terraform provider, along with the
-`tctl` command-line tool, can manage agentless SSH services by authenticating to
+`tctl` command-line tool, can manage Access Lists by authenticating to
 the Teleport Auth Service and interacting with its gRPC API.
 
 By default, Access Lists can be managed via IaC but Access List memberships
