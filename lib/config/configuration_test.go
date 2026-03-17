@@ -2480,7 +2480,7 @@ uQM=
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
 				}
-				fc.WindowsDesktop.LDAP.PEMEncodedCACert = testCA
+				fc.WindowsDesktop.LDAP.PEMEncodedCACerts = testCA
 			},
 			assertions: []func(t *testing.T, cfg *servicecfg.Config){
 				func(t *testing.T, cfg *servicecfg.Config) {
@@ -2498,7 +2498,7 @@ uQM=
 				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
 					{Match: ".*", Labels: map[string]string{"key": "value"}},
 				}
-				fc.WindowsDesktop.LDAP.PEMEncodedCACert = strings.ReplaceAll("pem\npem\npem", "pem", testCA)
+				fc.WindowsDesktop.LDAP.PEMEncodedCACerts = strings.ReplaceAll("pem\npem\npem", "pem", testCA)
 			},
 			assertions: []func(t *testing.T, cfg *servicecfg.Config){
 				func(t *testing.T, cfg *servicecfg.Config) {
