@@ -466,9 +466,13 @@ type CheckAzureRequestParams struct {
 }
 
 func (p *CheckAzureRequestParams) checkAndSetDefaults() error {
-	switch {
-	case p.AzureJoinConfig == nil:
+	if p.AzureJoinConfig == nil {
 		p.AzureJoinConfig = &AzureJoinConfig{}
+	}
+	if p.Clock == nil {
+		p.Clock = clockwork.NewRealClock()
+	}
+	switch {
 	case p.Token == nil:
 		return trace.BadParameter("Token is required")
 	case len(p.Challenge) == 0:
@@ -479,8 +483,6 @@ func (p *CheckAzureRequestParams) checkAndSetDefaults() error {
 		return trace.BadParameter("AccessToken is required")
 	case p.Logger == nil:
 		return trace.BadParameter("Logger is required")
-	case p.Clock == nil:
-		p.Clock = clockwork.NewRealClock()
 	}
 	return trace.Wrap(p.AzureJoinConfig.checkAndSetDefaults())
 }
