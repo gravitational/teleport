@@ -33,5 +33,6 @@ export const webauthnPrivateKey = required('E2E_WEBAUTHN_PRIVATE_KEY');
 export const webauthnCredentialId = required('E2E_WEBAUTHN_CREDENTIAL_ID');
 export const tctlBin = required('E2E_TCTL_BIN');
 export const teleportConfig = required('E2E_TELEPORT_CONFIG');
+export const startUrl = required('START_URL');
 export const connectTshBin = required('E2E_CONNECT_TSH_BIN');
 export const connectAppDir = required('E2E_CONNECT_APP_DIR');
