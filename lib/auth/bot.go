@@ -593,13 +593,23 @@ func (a *Server) generateInitialBotCerts(
 		return nil, "", trace.Wrap(err)
 	}
 
+	// TODO:
+	// - We only want to allow scoped cert generation if ScopeJoinToken is used
+	// and the token scope follows the bot scoping rules - see RFD
+	scope, _ := userState.GetLabel(types.BotScopeLabel)
+	// accessCheckerForScope works fine if scope is empty.
+	scopeAwareChecker, err := a.accessCheckerForScope(ctx, scope, userState)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
 	// Generate certificate
 	certReq := certRequest{
 		user:           userState,
 		ttl:            expires.Sub(a.GetClock().Now()),
 		sshPublicKey:   sshPubKey,
 		tlsPublicKey:   tlsPubKey,
-		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to generateInitialBotCerts (likely not necessary until bot scoping work begins).
+		checker:        scopeAwareChecker,
 		traits:         accessInfo.Traits,
 		renewable:      renewable,
 		includeHostCA:  true,
