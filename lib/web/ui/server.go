@@ -26,7 +26,6 @@ import (
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
@@ -69,8 +68,8 @@ type Server struct {
 	AWS *AWSMetadata `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
-	// SupportedFeatureIDs contains ComponentFeatures supported by this Server and all other involved components.
-	SupportedFeatureIDs []int `json:"supportedFeatureIds,omitempty"`
+	// SupportedFeatureIDs contains ComponentFeatureIDs supported by this Server and all other involved components.
+	SupportedFeatureIDs []componentfeaturesv1.ComponentFeatureID `json:"supportedFeatureIds,omitempty"`
 }
 
 // AWSMetadata describes the AWS metadata for instances hosted in AWS.
@@ -97,18 +96,21 @@ func MakeServer(clusterName string, server types.Server, logins *PrincipalSet, r
 	}
 
 	uiServer := Server{
-		Kind:                server.GetKind(),
-		ClusterName:         clusterName,
-		Labels:              uiLabels,
-		Name:                server.GetName(),
-		Hostname:            server.GetHostname(),
-		Addr:                server.GetAddr(),
-		Tunnel:              server.GetUseTunnel(),
-		SubKind:             server.GetSubKind(),
-		RequiresRequest:     requiresRequest,
-		SSHLogins:           sshLogins,
-		SSHLoginDetails:     buildSSHLoginDetails(logins),
-		SupportedFeatureIDs: componentfeatures.ToIntegers(supportedFeatures),
+		Kind:            server.GetKind(),
+		ClusterName:     clusterName,
+		Labels:          uiLabels,
+		Name:            server.GetName(),
+		Hostname:        server.GetHostname(),
+		Addr:            server.GetAddr(),
+		Tunnel:          server.GetUseTunnel(),
+		SubKind:         server.GetSubKind(),
+		RequiresRequest: requiresRequest,
+		SSHLogins:       sshLogins,
+		SSHLoginDetails: buildSSHLoginDetails(logins),
+	}
+
+	if f := supportedFeatures.GetFeatures(); len(f) > 0 {
+		uiServer.SupportedFeatureIDs = f
 	}
 
 	if server.GetSubKind() == types.SubKindOpenSSHEICENode {

@@ -643,7 +643,7 @@ func TestMakeServer_SupportedFeatureIDs(t *testing.T) {
 	t.Run("features are converted to SupportedFeatureIDs", func(t *testing.T) {
 		features := componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1)
 		server := MakeServer("cluster", srv, nil, false, features)
-		require.ElementsMatch(t, []int{int(componentfeatures.FeatureResourceConstraintsV1)}, server.SupportedFeatureIDs)
+		require.ElementsMatch(t, features.GetFeatures(), server.SupportedFeatureIDs)
 	})
 }
 
