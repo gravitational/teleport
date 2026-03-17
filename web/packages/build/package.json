@@ -10,22 +10,21 @@
     "directory": "packages/build"
   },
   "dependencies": {
-    "@babel/core": "^7.27.1",
-    "@babel/preset-env": "^7.27.1",
-    "@babel/preset-react": "^7.27.1",
-    "@babel/preset-typescript": "^7.27.1",
-    "@swc/core": "^1.11.24",
-    "@swc/plugin-styled-components": "^7.1.3",
+    "@babel/core": "^7.29.0",
+    "@babel/preset-env": "^7.29.0",
+    "@babel/preset-react": "^7.28.5",
+    "@babel/preset-typescript": "^7.28.5",
+    "@swc/core": "^1.15.18",
+    "@swc/plugin-styled-components": "^12.7.0",
     "@types/jsdom": "^21.1.7",
-    "@vitejs/plugin-react-swc": "^3.9.0",
+    "@vitejs/plugin-react-swc": "^4.2.3",
     "babel-plugin-styled-components": "^2.1.4",
-    "globals": "^16.0.0",
+    "globals": "^17.4.0",
     "jest-environment-jsdom": "^30.2.0",
-    "jest-fail-on-console": "^3.3.1",
-    "jsdom": "^26.1.0",
-    "rollup-plugin-visualizer": "^5.14.0",
+    "jest-fail-on-console": "^3.3.4",
+    "jsdom": "^28.1.0",
+    "rollup-plugin-visualizer": "^6.0.5",
     "vite-plugin-compression2": "^2.5.0",
-    "vite-plugin-wasm": "^3.4.1",
-    "vite-tsconfig-paths": "^5.1.4"
+    "vite-plugin-wasm": "^3.5.0"
   }
 }
