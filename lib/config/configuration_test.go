@@ -2474,6 +2474,16 @@ uQM=
 			},
 		},
 		{
+			desc:        "NOK - invalid ldaps ca",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+				fc.WindowsDesktop.LDAP.PEMEncodedCACerts = "invalid string"
+			},
+		},
+		{
 			desc:        "OK - single ldaps ca",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {

@@ -2349,7 +2349,10 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.WindowsDesktop.LDAP.PEMEncodedCACerts != "" {
 		pemCerts, err := tlsca.ParseCertificatePEMs([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACerts))
 		if err != nil {
-			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert")
+			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert(s)")
+		}
+		if len(pemCerts) == 0 {
+			return trace.Errorf("ldap_ca_cert is set, but no certificates were parsed")
 		}
 		certs = pemCerts
 	}
