@@ -82,6 +82,7 @@ export default defineConfig({
     {
       name: 'connect',
       testDir: './tests/connect',
+      workers: 1,
     },
   ],
 });
