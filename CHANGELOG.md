@@ -1,5 +1,30 @@
 # Changelog
 
+## 18.7.3 (03/10/26)
+
+This is a private security release. Changelog will be publicly announced in a later version.
+
+## 18.7.2 (03/05/26)
+
+* Added `TeleportAccessMonitoringRuleV1` support to the Teleport Kubernetes operator. [#64368](https://github.com/gravitational/teleport/pull/64368)
+* Added update scoped token support to tctl and update upsert scoped token rpc to not require status. [#64345](https://github.com/gravitational/teleport/pull/64345)
+* Improved performance and reduced resource usage of the database proxy for clusters with large numbers of registered databases. [#64311](https://github.com/gravitational/teleport/pull/64311)
+* Added more helpful messages to `ssm.run` events when there's a failure in discovering EC2 instances. [#64273](https://github.com/gravitational/teleport/pull/64273)
+* Fixed a bug that could cause desktop connection errors during proxy upgrades for some cluster configurations. [#64258](https://github.com/gravitational/teleport/pull/64258)
+* Fixed an issue where the UI would display a white screen and no error when an error occurred. [#64246](https://github.com/gravitational/teleport/pull/64246)
+* Improve the layout of the web UI's message of the day. [#64213](https://github.com/gravitational/teleport/pull/64213)
+* Fixed an issue where VNet on Windows could fail to start after an update with the error: `The specified service does not exist as an installed service.`. [#64206](https://github.com/gravitational/teleport/pull/64206)
+* Fixed a bug where audit events could be created forever for an expired access request. [#64180](https://github.com/gravitational/teleport/pull/64180)
+* Add scoped tokens to tctl resource commands. [#64040](https://github.com/gravitational/teleport/pull/64040)
+* Fixed correct reporting of server discovery enrollment failures when the Proxy is not accessible from the target server. [#64007](https://github.com/gravitational/teleport/pull/64007)
+* Fixed an issue that caused Discovery Service to stop working for Discovery Configs, also affecting AWS OIDC resource enrollments created from the UI. [#63970](https://github.com/gravitational/teleport/pull/63970)
+* Added support for session summarizer resources to the Kubernetes operator. [#63884](https://github.com/gravitational/teleport/pull/63884)
+
+Enterprise:
+* Fixed an error log and a memory leak when manually deleting an okta_assignment resource.
+* Fixed a potential panic in Auth service when getting a non-existing plugin without list permissions.
+* Prevented membership modifications for Access Lists synchronized from Entra ID.
+
 ## 18.7.1 (02/24/26)
 
 * Fixed web app access in leaf clusters when VNet is enabled. [#63993](https://github.com/gravitational/teleport/pull/63993)

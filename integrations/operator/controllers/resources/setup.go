@@ -57,6 +57,14 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportAutoupdateVersionV1", NewAutoUpdateVersionV1Reconciler},
 		{"TeleportAppV3", NewAppV3Reconciler},
 		{"TeleportDatabaseV3", NewDatabaseV3Reconciler},
+		{"TeleportAccessMonitoringRuleV1", NewAccessMonitoringRuleV1Reconciler},
+		// Although the WebUi doesn't show "SAML Application (Generic)" for
+		// oss builds when adding a resource due to the BuildType() check in
+		// lib/auth/auth_with_roles.go, the API allows creating
+		// saml_idp_service_provider objects using tctl for any build. We
+		// therefore enable it here unconditionally to mirror tctl behavior.
+		{"TeleportSAMLIdPServiceProviderV1", NewSAMLIdPServiceProviderV1Reconciler},
+		{"TeleportScopedTokenV1", NewScopedTokenV1Reconciler},
 	}
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)

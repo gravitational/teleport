@@ -23,14 +23,17 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"net/url"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 )
 
 // envVarsFromInstallerParams converts InstallerParams into a list of environment variables, in the form of KEY=value.
@@ -133,22 +136,77 @@ func installerScript(ctx context.Context, params *types.InstallerParams, opts ..
 		RawQuery: scriptURLQuery.Encode(),
 	}
 
-	installationScript := fmt.Sprintf(`bash -c "set -o pipefail; curl --silent --show-error --location %s | bash -s %s"`,
+	var installationScript string
+
+	// Export env vars before pre flight checks so that proxy network check can use http proxy settings if they are provided in the installer params.
+	envVars := envVarsFromInstallerParams(params)
+	if len(envVars) > 0 {
+		installationScript += fmt.Sprintf("export %s; ", strings.Join(envVars, " "))
+	}
+
+	installationScript += preFlightChecksScript(proxyAddr)
+
+	installationScript += fmt.Sprintf(`bash -c "set -o pipefail; curl --silent --show-error --location %s | bash -s %s"`,
 		scriptURL.String(),
 		shsprintf.EscapeDefaultContext(params.JoinToken),
 	)
-
-	envVars := envVarsFromInstallerParams(params)
-	if len(envVars) > 0 {
-		installationScript = fmt.Sprintf("export %s; %s", strings.Join(envVars, " "), installationScript)
-	}
 
 	if scriptOptions.addNonceComment {
 		bytes := make([]byte, 8)
 		rand.Read(bytes)
 
-		installationScript = installationScript + " # " + hex.EncodeToString(bytes)
+		installationScript += " # " + hex.EncodeToString(bytes)
 	}
 
 	return installationScript, nil
+}
+
+// preFlightChecksScript returns a shell script fragment that performs pre-installation checks.
+// Each check exits with a specific non-zero code so the Discovery Service can identify the failure.
+func preFlightChecksScript(proxyAddr string) string {
+	installersCheckMap := preFlightInstallerChecks(proxyAddr)
+
+	exitCodes := slices.Collect(maps.Keys(installersCheckMap))
+	slices.Sort(exitCodes)
+
+	var checkScriptFragments []string
+	for _, exitCode := range exitCodes {
+		checkScriptFragments = append(checkScriptFragments, installersCheckMap[exitCode])
+	}
+
+	return strings.Join(checkScriptFragments, "; ") + "; "
+}
+
+func preFlightInstallerChecks(proxyAddr string) map[installstatus.ExitCode]string {
+	proxyFindURL := url.URL{
+		Scheme: "https",
+		Host:   proxyAddr,
+		Path:   path.Join("webapi", "find"),
+	}
+
+	orExitWithMessageScriptSnippet := func(exitCode installstatus.ExitCode, message string) string {
+		return fmt.Sprintf(`|| { echo "%s"; exit %d; }`, message, exitCode)
+	}
+
+	return map[installstatus.ExitCode]string{
+		// Basic command checks for bash, sudo and curl.
+		installstatus.BashNotFound: fmt.Sprintf(`command -v bash > /dev/null 2>&1 %s`, orExitWithMessageScriptSnippet(installstatus.BashNotFound, "bash is missing")),
+		installstatus.SudoNotFound: fmt.Sprintf(`command -v sudo > /dev/null 2>&1 %s`, orExitWithMessageScriptSnippet(installstatus.SudoNotFound, "sudo is missing")),
+		installstatus.CurlNotFound: fmt.Sprintf(`command -v curl > /dev/null 2>&1 %s`, orExitWithMessageScriptSnippet(installstatus.CurlNotFound, "curl is missing")),
+
+		// check if there's enough disk space for the installation
+		// df -Pm outputs disk usage in megabytes; awk selects the data row (NR==2) and
+		// exits non-zero if the available column ($4) is below the required threshold.
+		// Falls back to checking "/" if "/opt" does not exist.
+		installstatus.InsufficientDiskSpace: fmt.Sprintf(`df -Pm $([ -d /opt ] && echo /opt || echo /) | awk 'NR==2{exit($4<%d)}' %s`,
+			installstatus.InstallerMinFreeDiskMB,
+			orExitWithMessageScriptSnippet(installstatus.InsufficientDiskSpace, "insufficient disk space"),
+		),
+
+		// check if network connection to the proxy is available
+		installstatus.ProxyPingError: fmt.Sprintf(`curl --silent --max-time 10 --output /dev/null %s %s`,
+			shsprintf.EscapeDefaultContext(proxyFindURL.String()),
+			orExitWithMessageScriptSnippet(installstatus.ProxyPingError, "proxy is unreachable"),
+		),
+	}
 }

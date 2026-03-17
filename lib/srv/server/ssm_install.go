@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types/usertasks"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 )
 
 const (
@@ -571,12 +572,15 @@ func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step stri
 		return nil, trace.Wrap(err)
 	}
 
-	status := stepResult.Status
+	status := string(stepResult.Status)
 	exitCode := int64(stepResult.ResponseCode)
 
 	eventCode := libevents.SSMRunSuccessCode
-	if status != ssmtypes.CommandInvocationStatusSuccess {
+	if stepResult.Status != ssmtypes.CommandInvocationStatusSuccess {
 		eventCode = libevents.SSMRunFailCode
+		if stepResult.Status == ssmtypes.CommandInvocationStatusFailed {
+			status = installstatus.ExitCode(exitCode).String()
+		}
 		if exitCode == 0 {
 			exitCode = -1
 		}
@@ -600,7 +604,7 @@ func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step stri
 		AccountID:       req.AccountID,
 		Region:          req.Region,
 		ExitCode:        exitCode,
-		Status:          string(status),
+		Status:          status,
 		StandardOutput:  aws.ToString(stepResult.StandardOutputContent),
 		StandardError:   aws.ToString(stepResult.StandardErrorContent),
 		InvocationURL:   invocationURL,

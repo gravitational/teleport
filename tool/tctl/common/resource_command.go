@@ -1314,6 +1314,20 @@ func (rc *ResourceCommand) createScopedToken(ctx context.Context, client *authcl
 	return nil
 }
 
+func (rc *ResourceCommand) updateScopedToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	token, err := services.UnmarshalProtoResource[*joiningv1.ScopedToken](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := client.UpdateScopedToken(ctx, token); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("%v %q has been updated\n", types.KindScopedToken, token.GetMetadata().GetName())
+	return nil
+}
+
 func (rc *ResourceCommand) createScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	if rc.IsForced() {
 		return trace.BadParameter("scoped role assignment creation does not support --force")
@@ -1342,10 +1356,6 @@ func (rc *ResourceCommand) createScopedRoleAssignment(ctx context.Context, clien
 
 func (rc *ResourceCommand) updateScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	return trace.NotImplemented("scoped_role_assignment resources do not support updates")
-}
-
-func (rc *ResourceCommand) updateScopedToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	return trace.NotImplemented("scoped_token resources do not support updates")
 }
 
 func (rc *ResourceCommand) createSigstorePolicy(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -3840,10 +3850,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	case scopedaccess.KindScopedToken:
 		// If a specific token name is requested, filter the results
 		if rc.ref.Name != "" {
-			token, err := client.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
-				Name:       rc.ref.Name,
-				WithSecret: rc.withSecrets,
-			})
+			token, err := client.GetScopedToken(ctx, rc.ref.Name, rc.withSecrets)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

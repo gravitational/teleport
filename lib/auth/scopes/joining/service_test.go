@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	gocmp "github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,8 +47,12 @@ import (
 )
 
 func createToken(ctx context.Context, server *joining.Server, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+	cloned := proto.CloneOf(token)
+	cloned.Metadata = &headerv1.Metadata{
+		Name: uuid.New().String(),
+	}
 	res, err := server.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
-		Token: proto.CloneOf(token),
+		Token: cloned,
 	})
 	if err != nil {
 		return nil, err
@@ -417,6 +422,58 @@ func TestScopedJoiningService(t *testing.T) {
 				Token: tokenUpdate,
 			})
 			require.True(t, trace.IsAccessDenied(err))
+		})
+
+		t.Run("ensure updater can update a token at accessible scope", func(t *testing.T) {
+			tokenForUpdate, err := createToken(ctx, admin, baseToken)
+			require.NoError(t, err)
+
+			tokenUpdate := proto.CloneOf(tokenForUpdate)
+			tokenUpdate.Metadata.Labels = map[string]string{"env": "updated"}
+
+			_, err = updater.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
+				Token: tokenUpdate,
+			})
+			require.NoError(t, err)
+
+			// Update should fail after updating if revisions don't match.
+			staleUpdate := proto.CloneOf(tokenForUpdate)
+			staleUpdate.Metadata.Labels = map[string]string{"bad": "update"}
+			_, err = updater.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
+				Token: staleUpdate,
+			})
+			require.True(t, trace.IsCompareFailed(err))
+
+			t.Run("non updater role cannot update a token", func(t *testing.T) {
+				nonUpdaterIdents := []*joining.Server{reader, readerNoSecrets, writer}
+				for _, ident := range nonUpdaterIdents {
+					_, err := ident.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
+						Token: tokenUpdate,
+					})
+					require.True(t, trace.IsAccessDenied(err))
+				}
+			})
+		})
+
+		t.Run("ensure updater cannot update a token at an orthogonal scope", func(t *testing.T) {
+			tokenUpdate := proto.CloneOf(stageTokenBB)
+			tokenUpdate.Metadata.Labels = map[string]string{"env": "test"}
+
+			_, err := updater.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
+				Token: tokenUpdate,
+			})
+			require.True(t, trace.IsAccessDenied(err))
+		})
+
+		t.Run("ensure updater cannot bypass scope auth by spoofing scope in request", func(t *testing.T) {
+			tokenUpdate := proto.CloneOf(stageTokenBB)
+			tokenUpdate.Scope = "/staging/aa"
+			tokenUpdate.Spec.AssignedScope = "/staging/aa"
+
+			_, err := updater.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
+				Token: tokenUpdate,
+			})
+			require.True(t, trace.IsBadParameter(err))
 		})
 	})
 }
