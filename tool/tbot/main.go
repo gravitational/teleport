@@ -184,6 +184,10 @@ func Run(args []string, stdout io.Writer) error {
 	spiffeInspectCmd := app.Command("spiffe-inspect", "Inspects a SPIFFE Workload API endpoint to ensure it is working correctly.")
 	spiffeInspectCmd.Flag("path", "The path to the SPIFFE Workload API endpoint to test.").Required().StringVar(&spiffeInspectPath)
 
+	certInspectPath := ""
+	certInspectCmd := app.Command("cert-inspect", "Inspects a Teleport TLS certificate.").Hidden()
+	certInspectCmd.Arg("path", "Path to the PEM-encoded certificate file.").Required().StringVar(&certInspectPath)
+
 	tpmCommand := app.Command("tpm", "Commands related to managing TPM joining functionality.")
 	tpmIdentifyCommand := tpmCommand.Command("identify", "Outputs identifying information related to the TPM detected on the system.")
 
@@ -276,6 +280,8 @@ func Run(args []string, stdout io.Writer) error {
 		return onVersion()
 	case spiffeInspectCmd.FullCommand():
 		return onSPIFFEInspect(ctx, spiffeInspectPath)
+	case certInspectCmd.FullCommand():
+		return onCertInspect(certInspectPath)
 	case tpmIdentifyCommand.FullCommand():
 		query, err := tpm.Query(ctx, log)
 		if err != nil {
