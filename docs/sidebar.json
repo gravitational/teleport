@@ -54,6 +54,11 @@
               "type": "doc",
               "id": "get-started/audit",
               "label": "Step 5: Monitor Audit Logs"
+            },
+            {
+              "type": "doc",
+              "id": "get-started/identity-governance",
+              "label": "Step 6: Set Up Identity Governance"
             }
           ]
         },

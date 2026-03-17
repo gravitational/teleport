@@ -1,0 +1,231 @@
+---
+title: "Step 6 - Get Started with Identity Governance"
+description: "Configure Access Lists and Access Requests to manage standing and just-in-time access in your Teleport cluster."
+toc_max_heading_level: 2
+tags:
+  - get-started
+  - identity-governance
+enterprise: Identity Governance
+---
+
+import Button from '@site/src/components/Button';
+import Icon from '@site/src/components/Icon';
+
+Teleport Identity Governance prevents credential-based attacks by enabling you
+to establish tighter control over the identities that can access your
+infrastructure. 
+
+**Access Lists** let you assign users to privileged roles and traits, with the
+option to have Teleport remind owners periodically to review membership. With
+**Access Requests**, a user can receive temporary elevated permissions after a
+configurable review cycle. You can also use **Access Monitoring** and **Session
+& Identity Locking** to respond to identity-based threats on your
+infrastructure.
+
+This guide shows you how to get started with Identity Governance.
+
+<Admonition type="tip">
+
+This guide requires Teleport Identity Governance. To enable Identity Governance
+on your account, [reach out to Sales](https://goteleport.com/contact-sales/).
+
+</Admonition>
+
+## Set up Access Lists
+
+Access Lists define long-term access grants for groups of users. Each list
+specifies the Teleport roles and traits to grant to its members, a set of
+owners who can review membership, and a periodic review date.
+
+If your organization uses Okta or Microsoft Entra ID, you can create Access
+Lists automatically based on your IdP. Otherwise, you can create Access Lists
+through a guided flow in the Teleport Web UI.
+
+### Sync from Okta
+
+If your organization uses Okta, the Teleport Okta integration automatically
+creates an Access List for each Okta group or application with user assignments.
+As your organization adds or removes users in Okta, the integration synchronizes
+their Teleport access automatically.
+
+{/*TODO: Can link to the guide added by this PR in the next paragraph once it's
+merged https://github.com/gravitational/teleport/pull/64694 */}
+
+Before enabling Access List synchronization, you must complete the earlier steps
+of the Okta integration: setting up an Okta SSO connector, then enabling user
+sync. You can complete these in sequence by following the [Okta integration
+overview](../identity-governance/integrations/okta/okta.mdx).
+
+Once the required Okta integration components are in place, enable app and
+group sync:
+
+1. In the Teleport Web UI, navigate to **Add New** > **Integration**
+2. Select the **Okta** tile
+3. Complete the **App and Group Sync** step in the guided flow
+
+For an explanation of configuration options, see the [Okta App and Group
+Sync](../identity-governance/integrations/okta/app-and-group-sync.mdx) guide.
+
+### Sync from Microsoft Entra ID
+
+If your organization uses Microsoft Entra ID, the Entra ID integration
+imports your Entra ID groups as Teleport Access Lists. The guided setup in
+the Teleport Web UI generates a configuration script for your Entra ID
+account:
+
+In the Teleport Web UI, navigate to **Add New** > **Integration** and select the
+**Microsoft Entra ID** tile.
+
+Follow the guided flow to:
+1. Assign Access List owners
+1. Generate a configuration script to create an Entra ID app
+1. Use the resulting tenant ID and client ID to finish configuring Teleport
+
+For more control over the Entra ID integration, you can follow the manual steps
+in the documentation. See [Getting Started with the Entra ID
+Integration](../identity-governance/integrations/entra-id/getting-started.mdx).
+
+### Create an Access List in the Web UI
+
+You can create Access Lists directly in the Teleport Web UI without
+connecting an external identity provider:
+
+1. Click **Add New** in the left sidebar and select **Create an Access List**
+2. Fill in the title and description
+3. Set a review frequency and a deadline for the first review
+4. Under **List Owners**, select required owner roles and add one or more
+   owner users
+5. Under **Members**, add the users to grant access, and add the roles and
+   traits to grant to list members
+6. Click **Create Access List**
+
+For a more detailed walkthrough with a demonstration, see [Getting Started with
+Access Lists](../identity-governance/access-lists/guide.mdx).
+
+## Configure Access Requests
+
+Teleport Access Requests allow users to request temporary elevated access to
+Teleport roles or infrastructure resources. Requests must be approved by
+designated reviewers, and access expires after a configurable duration.
+
+Users can request access or review requests as long as they have appropriate
+permissions in their Teleport roles. In Teleport Enterprise, the preset
+`requester` role grants the required permissions for requesting access to any
+infrastructure resource, and the preset `reviewer` role allows users to review
+and approve or deny those requests.
+
+{/*TODO: Link to the guide added by this PR in the paragraph below once it's
+merged to mention SSO https://github.com/gravitational/teleport/pull/64694 */}
+
+To assign these roles to users, visit the Teleport Web UI and navigate to **Zero
+Trust Access** > **Users**.
+
+Users can [request
+access](../connect-your-client//teleport-clients/request-access.mdx) to
+resources through the Web UI, Teleport Connect, and `tsh`.
+
+To configure role requests, you will need to manually configure Teleport roles.
+For guidance, see [Role
+Requests](../identity-governance/access-requests/role-requests.mdx). For details
+on customizing request durations, review thresholds, and other options, see
+[Configure Access
+Requests](../identity-governance/access-requests/access-request-configuration.mdx).
+
+## Set up an Access Request plugin
+
+Access Request plugins connect Teleport to the tooling your organization already
+uses for communication and incident response. When a user submits an Access
+Request, the plugin sends a notification so reviewers can take action through a
+third-party platform.
+
+By default, Access Request plugins run as part of the Teleport Auth Service, and
+require your credentials to connect to a third-party platform. To enroll an
+Access Request plugin:
+
+1. In the Teleport Web UI, navigate to **Add New** > **Integration**
+
+2. Select the tile for the integration you want to set up. Teleport supports the
+   following Access Request plugins:
+
+   - Datadog
+   - Discord
+   - Email
+   - Jira
+   - Mattermost
+   - Microsoft Teams
+   - Opsgenie
+   - PagerDuty
+   - ServiceNow
+   - Slack
+
+3. Follow the on-screen configuration instructions to enter your credentials for
+   the third party service to integrate with.
+
+   <details>
+   <summary>No Slack tile?</summary>
+
+   If you do not see a tile for the Slack integration, your Teleport cluster
+   does not have Slack OAuth credentials configured. To add them:
+
+   1. Create a Slack app by following the [Slack documentation](https://docs.slack.dev/authentication/installing-with-oauth/).
+
+   1. Note your app's **client ID** and **client secret**.
+
+   1. Save the client ID and client secret to files on the host running your
+      Teleport Auth Service (e.g., `/etc/teleport/slack-client-id` and
+      `/etc/teleport/slack-client-secret`).
+
+   1. Add the following to your Teleport Auth Service configuration file, then
+      restart the Auth Service:
+
+      ```yaml
+      auth_service:
+        hosted_plugins:
+          enabled: true
+          oauth_providers:
+            slack:
+              client_id: /etc/teleport/slack-client-id
+              client_secret: /etc/teleport/slack-client-secret
+      ```
+
+   </details>
+
+If you want full control over plugin configuration, you can run the plugin as a
+standalone process in your environment. Self-hosted plugins connect to the
+Teleport Proxy Service over a reverse tunnel and do not require direct access to
+the Auth Service. Select a setup guide for your integration from the
+[Access Request plugins](../identity-governance/access-requests/plugins/plugins.mdx)
+overview.
+
+## Respond to threats
+
+Identity Governance gives you tools to prevent and respond to credential-based
+attacks on your infrastructure.
+
+### Access Monitoring
+
+**Access Monitoring** reveals access patterns that can indicate threats, such as
+the use of long-lived credentials that are prone to exfiltration. 
+
+To use Access Monitoring, visit the Teleport Web UI and navigate to **Identity
+Governance** > **Access Monitoring**. 
+
+The Privileged Access Report visualizes access patterns that point to
+vulnerabilities in your cluster's role-based access controls. Each graph
+describes steps you can take to reduce the number of privileged access events.
+
+For a full explanation of Access Monitoring visualization and querying
+capabilities, see [Access
+Monitoring](../identity-governance/access-monitoring.mdx).
+
+### Session & Identity Locks
+
+**Session & Identity Locks** allows you to mitigate attacks by temporarily
+deactivating users, roles, and other Teleport resources. To start using Session
+& Identity Locks, visit the Teleport Web UI and navigate to **Identity
+Governance** > **Session & Identity Locks**. You can then choose Teleport
+resources to lock.
+
+Read more about [Session & Identity Locks](../identity-governance/locking.mdx)
+in the documentation.
+
