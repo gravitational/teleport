@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { type ComponentType, type HTMLAttributes, type ReactNode } from 'react';
+import { type ComponentType, type ReactNode } from 'react';
 import styled, { css, useTheme } from 'styled-components';
 
 import { CircleCheck, CircleCross, Info, Question, Warning } from 'design/Icon';
@@ -24,6 +24,8 @@ import type { IconProps } from 'design/Icon/Icon';
 import { pillBase } from 'design/pillStyles';
 import { space, type SpaceProps } from 'design/system';
 import type { Theme } from 'design/theme';
+
+import { getVariantColors } from './statusColors';
 
 export type StatusKind =
   | 'success'
@@ -33,56 +35,15 @@ export type StatusKind =
   | 'neutral'
   | 'primary';
 
-export type StatusVariant = 'filled' | 'filled-tonal' | 'border';
-
-interface KindColors {
-  solid: string;
-  tonal: string;
-  accent: string;
-}
-
-function getKindColors(theme: Theme, kind: StatusKind): KindColors {
-  const { interactive, dataVisualisation } = theme.colors;
-
-  switch (kind) {
-    case 'success':
-      return {
-        solid: interactive.solid.success.default,
-        tonal: interactive.tonal.success[1],
-        accent: dataVisualisation.tertiary.caribbean,
-      };
-    case 'warning':
-      return {
-        solid: interactive.solid.alert.default,
-        tonal: interactive.tonal.alert[2],
-        accent: dataVisualisation.tertiary.sunflower,
-      };
-    case 'info':
-      return {
-        solid: interactive.solid.accent.default,
-        tonal: interactive.tonal.informational[2],
-        accent: dataVisualisation.tertiary.picton,
-      };
-    case 'danger':
-      return {
-        solid: interactive.solid.danger.default,
-        tonal: interactive.tonal.danger[2],
-        accent: interactive.solid.danger.active,
-      };
-    case 'neutral':
-      return {
-        solid: theme.colors.text.muted,
-        tonal: interactive.tonal.neutral[1],
-        accent: theme.colors.text.slightlyMuted,
-      };
-    case 'primary':
-      return {
-        solid: interactive.solid.primary.default,
-        tonal: interactive.tonal.primary[0],
-        accent: dataVisualisation.tertiary.purple,
-      };
-  }
-}
+export type StatusVariant =
+  // Primary actions, critical states (APPROVED/DENIED badges).
+  | 'filled'
+  // General status indicators (default).
+  | 'filled-tonal'
+  // Secondary context alongside other UI (version pills, health dots).
+  | 'border'
+  // Background metadata that shouldn't compete for attention.
+  | 'filled-subtle';
 
 const defaultIcons: Record<StatusKind, ComponentType<IconProps>> = {
   success: CircleCheck,
@@ -92,17 +53,6 @@ const defaultIcons: Record<StatusKind, ComponentType<IconProps>> = {
   neutral: Question,
   primary: CircleCheck,
 };
-
-function getIconColor(
-  colors: KindColors,
-  variant: StatusVariant,
-  theme: Theme
-): string {
-  if (variant === 'filled') {
-    return theme.colors.text.primaryInverse;
-  }
-  return colors.accent;
-}
 
 interface StyledStatusProps extends SpaceProps {
   $kind: StatusKind;
@@ -114,28 +64,12 @@ function variantStyles({
   $variant,
   theme,
 }: StyledStatusProps & { theme: Theme }) {
-  const c = getKindColors(theme, $kind);
-
-  switch ($variant) {
-    case 'filled':
-      return css`
-        background: ${c.solid};
-        color: ${theme.colors.text.primaryInverse};
-        border: 1px solid transparent;
-      `;
-    case 'filled-tonal':
-      return css`
-        background: ${c.tonal};
-        color: ${theme.colors.text.main};
-        border: 1px solid ${c.accent};
-      `;
-    case 'border':
-      return css`
-        background: transparent;
-        color: ${theme.colors.text.main};
-        border: 1px solid ${c.accent};
-      `;
-  }
+  const c = getVariantColors(theme, $kind, $variant);
+  return css`
+    background: ${c.bg};
+    color: ${c.fg};
+    border: 1px solid ${c.border};
+  `;
 }
 
 const StyledStatus = styled.span<StyledStatusProps>`
@@ -145,14 +79,21 @@ const StyledStatus = styled.span<StyledStatusProps>`
   ${space}
 `;
 
-export interface StatusProps
-  extends SpaceProps, Omit<HTMLAttributes<HTMLSpanElement>, 'color'> {
+function renderIcon(
+  icon: StatusProps['icon'],
+  kind: StatusKind,
+  color: string
+): ReactNode {
+  if (icon === false) return null;
+  const Icon = icon ?? defaultIcons[kind];
+  return <Icon size="small" color={color} />;
+}
+
+export interface StatusProps extends SpaceProps {
   kind: StatusKind;
   variant?: StatusVariant;
-  // Provide a custom icon to override the default
-  icon?: ComponentType<IconProps>;
-  // Render the badge without an icon
-  noIcon?: boolean;
+  // Custom icon component reference, or `false` to hide the icon entirely.
+  icon?: ComponentType<IconProps> | false;
   children: ReactNode;
 }
 
@@ -160,27 +101,15 @@ export function Status({
   kind,
   variant = 'filled-tonal',
   icon,
-  noIcon,
   children,
   ...rest
 }: StatusProps) {
   const theme = useTheme() as Theme;
-
-  let iconElement: ReactNode = null;
-  if (!noIcon) {
-    const IconComponent = icon ?? defaultIcons[kind];
-    const colors = getKindColors(theme, kind);
-    iconElement = (
-      <IconComponent
-        size="small"
-        color={getIconColor(colors, variant, theme)}
-      />
-    );
-  }
+  const v = getVariantColors(theme, kind, variant);
 
   return (
-    <StyledStatus $kind={kind} $variant={variant} {...rest}>
-      {iconElement}
+    <StyledStatus role="status" $kind={kind} $variant={variant} {...rest}>
+      {renderIcon(icon, kind, v.iconColor)}
       {children}
     </StyledStatus>
   );

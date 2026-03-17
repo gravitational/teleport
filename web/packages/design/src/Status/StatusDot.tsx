@@ -16,7 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Status } from './Status';
-export { StatusDot } from './StatusDot';
-export type { StatusDotProps } from './StatusDot';
-export type { StatusKind, StatusVariant, StatusProps } from './Status';
+import { useTheme } from 'styled-components';
+
+import { Dot } from 'design/Icon';
+import type { IconProps } from 'design/Icon/Icon';
+import type { Theme } from 'design/theme';
+
+import type { StatusKind } from './Status';
+import { getKindColors } from './statusColors';
+
+export interface StatusDotProps extends IconProps {
+  kind?: StatusKind;
+}
+
+// A small colored dot to indicate status kind.
+export function StatusDot({
+  kind = 'neutral',
+  size = 'small',
+  ...rest
+}: StatusDotProps) {
+  const theme = useTheme() as Theme;
+  const color = getKindColors(theme, kind).solid;
+
+  return <Dot size={size} color={color} {...rest} />;
+}
