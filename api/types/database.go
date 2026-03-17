@@ -535,6 +535,11 @@ func (d *DatabaseV3) IsSpanner() bool {
 	return d.GetType() == DatabaseTypeSpanner
 }
 
+// IsBigQuery returns true if this is a GCP BigQuery database.
+func (d *DatabaseV3) IsBigQuery() bool {
+	return d.GetType() == DatabaseTypeBigQuery
+}
+
 // IsAWSHosted returns true if database is hosted by AWS.
 func (d *DatabaseV3) IsAWSHosted() bool {
 	_, ok := d.getAWSType()
@@ -588,10 +593,14 @@ func (d *DatabaseV3) GetGCPProjectID() (string, error) {
 	}
 }
 
-// getAWSType returns the gcp hosted database type.
+// getGCPType returns the gcp hosted database type.
 func (d *DatabaseV3) getGCPType() (string, bool) {
 	if d.Spec.Protocol == DatabaseTypeSpanner {
 		return DatabaseTypeSpanner, true
+	}
+
+	if d.Spec.Protocol == DatabaseTypeBigQuery {
+		return DatabaseTypeBigQuery, true
 	}
 
 	if gcputils.IsAlloyDBConnectionURI(d.Spec.URI) {
@@ -767,6 +776,9 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		case DatabaseTypeSpanner:
 			// All Spanner requests go to the same spanner google API endpoint.
 			d.Spec.URI = gcputils.SpannerEndpoint
+		case DatabaseTypeBigQuery:
+			// All BigQuery requests go to the same BigQuery google API endpoint.
+			d.Spec.URI = gcputils.BigQueryEndpoint
 		default:
 			return trace.BadParameter("database %q URI is empty", d.GetName())
 		}
@@ -786,6 +798,11 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 		if d.Spec.GCP.InstanceID == "" {
 			return trace.BadParameter("GCP Spanner database %q missing GCP instance ID",
+				d.GetName())
+		}
+	case gcputils.IsBigQueryEndpoint(d.Spec.URI) || d.IsBigQuery():
+		if d.Spec.GCP.ProjectID == "" {
+			return trace.BadParameter("GCP BigQuery database %q missing GCP project ID",
 				d.GetName())
 		}
 	case d.IsAlloyDB():
@@ -989,13 +1006,16 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	}
 
 	// Validate Cloud SQL specific configuration.
-	switch {
-	case d.Spec.GCP.ProjectID != "" && d.Spec.GCP.InstanceID == "":
-		return trace.BadParameter("database %q missing Cloud SQL instance ID",
-			d.GetName())
-	case d.Spec.GCP.ProjectID == "" && d.Spec.GCP.InstanceID != "":
-		return trace.BadParameter("database %q missing Cloud SQL project ID",
-			d.GetName())
+	// Skip this validation for Spanner and BigQuery as they don't use instance IDs.
+	if !d.IsSpanner() && !d.IsBigQuery() {
+		switch {
+		case d.Spec.GCP.ProjectID != "" && d.Spec.GCP.InstanceID == "":
+			return trace.BadParameter("database %q missing Cloud SQL instance ID",
+				d.GetName())
+		case d.Spec.GCP.ProjectID == "" && d.Spec.GCP.InstanceID != "":
+			return trace.BadParameter("database %q missing Cloud SQL project ID",
+				d.GetName())
+		}
 	}
 
 	// Admin user should only be specified for databases that support automatic
@@ -1283,6 +1303,8 @@ const (
 	DatabaseTypeAlloyDB = "alloydb"
 	// DatabaseTypeSpanner is a GCP Spanner instance.
 	DatabaseTypeSpanner = "spanner"
+	// DatabaseTypeBigQuery is a GCP BigQuery instance.
+	DatabaseTypeBigQuery = "bigquery"
 	// DatabaseTypeAzure is Azure-hosted database.
 	DatabaseTypeAzure = "azure"
 	// DatabaseTypeElastiCache is AWS-hosted ElastiCache database.

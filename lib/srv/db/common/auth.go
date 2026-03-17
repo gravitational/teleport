@@ -90,6 +90,8 @@ type Auth interface {
 	GetAlloyDBAuthToken(ctx context.Context, databaseUser string) (string, error)
 	// GetSpannerTokenSource returns an oauth token source for GCP Spanner.
 	GetSpannerTokenSource(ctx context.Context, databaseUser string) (oauth2.TokenSource, error)
+	// GetBigQueryTokenSource returns an oauth token source for GCP BigQuery.
+	GetBigQueryTokenSource(ctx context.Context, databaseUser string) (oauth2.TokenSource, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
 	GetCloudSQLPassword(ctx context.Context, database types.Database, databaseUser string) (string, error)
 	// GetAzureAccessToken generates Azure database access token.
@@ -521,6 +523,20 @@ func (a *dbAuth) GetSpannerTokenSource(ctx context.Context, databaseUser string)
 	// https://developers.google.com/identity/protocols/oauth2/scopes#spanner
 	scopes := []string{
 		"https://www.googleapis.com/auth/spanner.data",
+	}
+	ts, err := a.getCloudTokenSource(ctx, databaseUser, scopes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// refreshes the credentials as needed.
+	return oauth2.ReuseTokenSource(nil, ts), nil
+}
+
+// GetBigQueryTokenSource returns an oauth token source for GCP BigQuery.
+func (a *dbAuth) GetBigQueryTokenSource(ctx context.Context, databaseUser string) (oauth2.TokenSource, error) {
+	// https://developers.google.com/identity/protocols/oauth2/scopes#bigquery
+	scopes := []string{
+		"https://www.googleapis.com/auth/bigquery",
 	}
 	ts, err := a.getCloudTokenSource(ctx, databaseUser, scopes)
 	if err != nil {
@@ -972,6 +988,10 @@ func shouldUseSystemCertPool(database types.Database) bool {
 
 	case types.DatabaseTypeSpanner:
 		// Spanner is hosted on GCP.
+		return true
+
+	case types.DatabaseTypeBigQuery:
+		// BigQuery is hosted on GCP.
 		return true
 
 	case types.DatabaseTypeMongoAtlas:

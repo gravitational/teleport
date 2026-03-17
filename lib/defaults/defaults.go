@@ -487,6 +487,8 @@ const (
 	ProtocolClickHouseHTTP = "clickhouse-http"
 	// ProtocolSpanner is the GCP Spanner database protocol.
 	ProtocolSpanner = "spanner"
+	// ProtocolBigQuery is the GCP BigQuery database protocol.
+	ProtocolBigQuery = "bigquery"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -506,6 +508,7 @@ var DatabaseProtocols = []string{
 	ProtocolClickHouse,
 	ProtocolClickHouseHTTP,
 	ProtocolSpanner,
+	ProtocolBigQuery,
 }
 
 // ReadableDatabaseProtocol returns a more human-readable string of the
@@ -542,6 +545,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Clickhouse (HTTP)"
 	case ProtocolSpanner:
 		return "GCloud Spanner"
+	case ProtocolBigQuery:
+		return "GCloud BigQuery"
 	default:
 		// Unknown protocol. Return original string.
 		return p

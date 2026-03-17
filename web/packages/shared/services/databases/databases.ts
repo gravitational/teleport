@@ -47,6 +47,7 @@ export type DbProtocol =
   | 'opensearch'
   | 'dynamodb'
   | 'clickhouse'
+  | 'bigquery'
   | 'clickhouse-http'
   | 'spanner';
 
@@ -148,6 +149,7 @@ const dbNameRequirementsByProtocol: Record<DbProtocol, DbNameRequirement> = {
   cassandra: 'unsupported',
   clickhouse: 'unsupported',
   'clickhouse-http': 'unsupported',
+  bigquery: 'unsupported',
   dynamodb: 'unsupported',
   elasticsearch: 'unsupported',
   opensearch: 'unsupported',
