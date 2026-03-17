@@ -2,8 +2,6 @@ import path from 'node:path';
 
 import { defineConfig } from 'vite';
 
-import { tsconfigPathsPlugin } from './tsconfigPaths.mjs';
-
 const rootDirectory = path.resolve(
   __dirname,
   '../../teleport/src/services/audit/gen-event-reference'
@@ -14,7 +12,9 @@ const outputDirectory = path.resolve(
 );
 
 export default defineConfig(() => ({
-  plugins: [tsconfigPathsPlugin()],
+  resolve: {
+    tsconfigPaths: true,
+  },
   build: {
     outDir: outputDirectory,
     minify: false,
@@ -26,7 +26,7 @@ export default defineConfig(() => ({
       entry: path.resolve(rootDirectory, 'index.ts'),
       formats: ['cjs' as const],
     },
-    rollupOptions: {
+    rolldownOptions: {
       external: ['node:fs'],
     },
   },
