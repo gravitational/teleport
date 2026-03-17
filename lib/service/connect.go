@@ -48,8 +48,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -239,6 +237,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		} else {
 			identity = newIdentity
 		}
+		process.SetImmutableLabels(identity.ImmutableLabels)
 	}
 
 	rotation := processState.Spec.Rotation
@@ -280,7 +279,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		case types.RotationPhaseUpdateClients:
 			// Clients should use updated credentials,
 			// while servers should use old credentials to answer auth requests.
-			newIdentity, err := process.storage.ReadIdentity(state.IdentityReplacement, role)
+			newIdentity, err := process.storage.ReadIdentity(process.GracefulExitContext(), state.IdentityReplacement, role)
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					return nil, trace.Wrap(err)
@@ -385,6 +384,7 @@ func (process *TeleportProcess) healInstanceIdentity(currentIdentity *state.Iden
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse new identity")
 		}
+		newIdentity.ImmutableLabels = rejoinResult.ImmutableLabels
 	}
 
 	newSystemRoles := set.New(newIdentity.SystemRoles...)
@@ -417,7 +417,7 @@ func (process *TeleportProcess) healInstanceIdentity(currentIdentity *state.Iden
 		)
 	}
 
-	if err := process.storage.WriteIdentity(state.IdentityCurrent, *newIdentity); err != nil {
+	if err := process.storage.WriteIdentity(process.GracefulExitContext(), state.IdentityCurrent, *newIdentity); err != nil {
 		return nil, trace.Wrap(err, "failed to write new identity to storage")
 	}
 	return newIdentity, nil
@@ -454,7 +454,7 @@ type localReRegister struct {
 
 // GenerateHostCerts allows for generating host certs without providing a scope.
 func (l localReRegister) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
-	return l.Server.GenerateHostCerts(ctx, req, "")
+	return l.Server.GenerateHostCerts(ctx, auth.HostCertsParams{Req: req})
 }
 
 // reRegister receives new identity credentials for proxy, node and auth.
@@ -536,11 +536,11 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		)
 	}
 
-	if err := process.storage.WriteIdentity(state.IdentityCurrent, *identity); err != nil {
+	if err := process.storage.WriteIdentity(process.GracefulExitContext(), state.IdentityCurrent, *identity); err != nil {
 		process.logger.WarnContext(process.ExitContext(), "Failed to write identity to storage.", "identity", role, "error", err)
 	}
 
-	err = process.storage.WriteState(role, state.StateV2{
+	err = process.storage.WriteState(process.GracefulExitContext(), role, state.StateV2{
 		Spec: state.StateSpecV2{
 			Rotation:            ca.GetRotation(),
 			InitialLocalVersion: teleport.Version,
@@ -558,6 +558,8 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		if err := process.storage.PersistAssignedHostID(process.GracefulExitContext(), process.Config, identity.ID.HostID()); err != nil {
 			return nil, trace.Wrap(err, "persisting host ID to storage")
 		}
+
+		process.SetImmutableLabels(identity.ImmutableLabels)
 	}
 	process.logger.InfoContext(process.ExitContext(), "The process successfully wrote the credentials and state to the disk.", "identity", role)
 	return connector, nil
@@ -565,7 +567,12 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 
 func (process *TeleportProcess) firstTimeConnectIdentity(role types.SystemRole) (*state.Identity, error) {
 	if localAuth := process.getLocalAuth(); localAuth != nil {
-		return process.firstTimeConnectIdentityLocal(role, localAuth)
+		identity, err := process.firstTimeConnectIdentityLocal(role, localAuth)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return identity, nil
 	}
 	return process.firstTimeConnectIdentityRemote(role)
 }
@@ -623,7 +630,11 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 		//
 		// TODO(nklaassen): DELETE IN 20
 		process.Config.Logger.InfoContext(process.GracefulExitContext(), "Instance identity does not include required system role, must re-join with a provision token", "role", role)
-		return process.legacyJoinWithHostUUID(role, instanceIdentity.ID.HostID())
+		identity, err := process.legacyJoinWithHostUUID(role, instanceIdentity.ID.HostID())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return identity, nil
 	}
 	// The instance connector does have the role requested, we can reregister
 	// without going through the join process.
@@ -657,20 +668,24 @@ func (process *TeleportProcess) instanceJoin() (*state.Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 	process.logger.InfoContext(process.ExitContext(), "Joining the cluster with a secure token.")
-	joinResult, err := joinclient.Join(process.GracefulExitContext(), *joinParams)
+	result, err := joinclient.Join(process.GracefulExitContext(), *joinParams)
 	if err != nil {
 		if utils.IsUntrustedCertErr(err) {
 			return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
 		}
 		return nil, trace.Wrap(err)
 	}
-	privateKeyPEM, err := keys.MarshalPrivateKey(joinResult.PrivateKey)
+	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
-	return identity, trace.Wrap(err)
+	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, result.Certs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity.ImmutableLabels = result.ImmutableLabels
+	return identity, nil
 }
 
 func (process *TeleportProcess) legacyJoinWithHostUUID(role types.SystemRole, hostUUID string) (*state.Identity, error) {
@@ -700,6 +715,10 @@ func (process *TeleportProcess) legacyJoinWithHostUUID(role types.SystemRole, ho
 		return nil, trace.Wrap(err)
 	}
 	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity.ImmutableLabels = joinResult.ImmutableLabels
 	return identity, trace.Wrap(err)
 }
 
@@ -739,7 +758,7 @@ func (process *TeleportProcess) makeJoinParams(
 		// requests before closing
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		FIPS:                 process.Config.FIPS,
-		Insecure:             lib.IsInsecureDevMode(),
+		Insecure:             process.Config.InsecureMode,
 	}
 	if joinParams.JoinMethod == types.JoinMethodAzure {
 		joinParams.AzureParams = joinclient.AzureParams{
@@ -774,7 +793,7 @@ func (process *TeleportProcess) syncOpenSSHRotationState() error {
 		return trace.Wrap(err)
 	}
 
-	id, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleNode)
+	id, err := process.storage.ReadIdentity(process.GracefulExitContext(), state.IdentityCurrent, types.RoleNode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1161,12 +1180,12 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 	const outOfSync = "%v and cluster rotation state (%v) is out of sync with local (%v). Clear local state and re-register this %v."
 
 	writeStateAndIdentity := func(name string, identity *state.Identity) error {
-		err = storage.WriteIdentity(name, *identity)
+		err = storage.WriteIdentity(process.GracefulExitContext(), name, *identity)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		localState.Spec.Rotation = remote
-		err = storage.WriteState(id.Role, localState)
+		err = storage.WriteState(process.GracefulExitContext(), id.Role, localState)
 		process.rotationCache.Remove(id.Role)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1191,7 +1210,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				err = storage.WriteIdentity(state.IdentityCurrent, *identity)
+				err = storage.WriteIdentity(process.GracefulExitContext(), state.IdentityCurrent, *identity)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -1237,7 +1256,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			}
 			// only update local phase, there is no need to reload
 			localState.Spec.Rotation = remote
-			err = storage.WriteState(id.Role, localState)
+			err = storage.WriteState(process.GracefulExitContext(), id.Role, localState)
 			process.rotationCache.Remove(id.Role)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -1342,10 +1361,7 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *sta
 	}
 
 	// Set cluster features and return successfully with a working connector.
-	// TODO(michellescripts) remove clone & compatibility check in v18
-	cloned := apiutils.CloneProtoMsg(pingResponse.GetServerFeatures())
-	entitlements.BackfillFeatures(cloned)
-	process.setClusterFeatures(cloned)
+	process.setClusterFeatures(pingResponse.GetServerFeatures())
 	process.setAuthSubjectiveAddr(pingResponse.RemoteAddr)
 	process.logger.InfoContext(process.ExitContext(), "features loaded from auth server", "identity", clientIdentity.ID.Role, "features", pingResponse.GetServerFeatures())
 
@@ -1471,7 +1487,7 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 		Resolver:              process.resolver,
 		ClientConfig:          sshConfig,
 		Log:                   process.logger,
-		InsecureSkipTLSVerify: lib.IsInsecureDevMode(),
+		InsecureSkipTLSVerify: process.Config.InsecureMode,
 		GetClusterCAs: func(context.Context) (*x509.CertPool, error) {
 			return getClusterCAs()
 		},

@@ -1,41 +1,113 @@
 # E2E Testing with Playwright
 
-This directory contains the configuration and tests for end-to-end testing against a real Teleport instance using Playwright.
+This directory contains end-to-end tests that run against a real Teleport instance using Playwright.
 
-E2E tests should be run by a corresponding Go test in `web-e2e_test.go` and run
-using `make test-web-e2e`. To run only the Playwright test directly, you'll need a Teleport instance running locally.
+## Setup
 
-Any test that involves an authenticated user should be run with a `START_URL` env variable that contains an invite link for the test user, this should be generated and provided by the corresponding Go test.
-
-### Setup
-
-Before being able to run any tests, you'll need to install the playwright package and the chromium browser.
+The runner will install the E2E dependencies and Playwright browsers for you on each run. You can also set up your
+environment manually if you prefer:
 
 ```bash
-# Install packages
 pnpm install
-
-# Install the Chromium browser
 pnpm exec playwright install chromium
 ```
 
 ## Running Tests
 
-### Basic Commands
+Tests are run via the `run.sh` script, which builds and executes the Go test runner:
 
 ```bash
-# Run a test  with the default START_URL (https://localhost:3080/web/login)
-pnpm test signup.spec.ts
+./e2e/run.sh [flags] [test files...]
+```
 
-# Run a test with a specific START_URL.
-START_URL=https://teleport.dev pnpm test signup.spec.ts
+You can invoke this from either the `e2e/` directory or the root of the repository (or any other directory, really) -
+the runner will rewrite any `test-result/` paths to be relative to the current working directory, so you can still
+click through to screenshots and anything else from Playwright's test results.
 
-# Run tests with the Playwright UI, useful for debugging.
-pnpm test --ui
+### Modes
 
-# Start the Playwright codegen to generate tests by recording your browser interactions.
-pnpm exec playwright codegen
+By default, the runner runs in test mode. Use one of the following flags to change the mode (mutually exclusive):
 
-# View past test reports.
-pnpm report
+| Flag               | Description                                                                     |
+|--------------------|---------------------------------------------------------------------------------|
+| `--ui`             | Open Playwright UI mode                                                         |
+| `--debug`          | Run tests with Playwright inspector (`PWDEBUG=1`)                               |
+| `--codegen`        | Open Playwright codegen against running Teleport. Available only for web tests. |
+| `--browse`         | Open a signed-in browser for manual web testing                                 |
+| `--browse-connect` | Open a signed-in Teleport Connect app for manual testing                        |
+
+### Flags
+
+| Flag                   | Default          | Description                                                                             |
+|------------------------|------------------|-----------------------------------------------------------------------------------------|
+| `-v`                   | `false`          | Enable debug logging                                                                    |
+| `--no-build`           | `false`          | Skip `make` binaries (useful during development)                                        |
+| `--quiet`              | `false`          | Redirect Teleport logs to file instead of stdout                                        |
+| `--full`               | `false`          | Enable all optional fixtures                                                            |
+| `--replace-certs`      | `false`          | Generate new self-signed certificates                                                   |
+| `--update-snapshots`   | `false`          | Update Playwright snapshot baselines                                                    |
+| `--teleport-log-level` | `INFO`           | Teleport log severity (`DEBUG`, `INFO`, `WARN`, `ERROR`)                                |
+| `--license-file`       |                  | Path to Teleport license file (required for Enterprise features)                        |
+| `--teleport-bin`       | `build/teleport` | Override teleport binary path (env: `TELEPORT_BIN`)                                     |
+| `--tctl-bin`           | `build/tctl`     | Override tctl binary path (env: `TCTL_BIN`)                                             |
+| `--teleport-url`       |                  | Override Teleport URL (env: `TELEPORT_URL`). If set, the runner skips starting Teleport |
+
+### Fixtures
+
+| Flag              | Description                                                                          |
+|-------------------|--------------------------------------------------------------------------------------|
+| `--with-ssh-node` | Start and connect a Teleport SSH node (runs in Docker)                               |
+| `--with-connect`  | Build Teleport Connect. Enabled by default when running tests in `e2e/tests/connect` |
+
+### Common Commands
+
+Typically, you'll want to run with `--no-build` during test development to skip rebuilding Teleport binaries on every
+run. `--quiet` is also useful to reduce the noise from Teleport logs. The logs are captured in `teleport.log` for
+debugging purposes.
+
+Connect is built automatically when running `tests/connect` paths or when using `--browse-connect`, or `--full`.
+
+```bash
+# Run a specific test, skip rebuilding (fastest iteration loop)
+./e2e/run.sh --no-build e2e/tests/web/authenticated/roles.spec.ts
+
+# Run only Connect tests, skip rebuilding of both Teleport and Connect
+./e2e/run.sh --no-build e2e/tests/connect
+
+# Open a browser with auth already set up for manual testing
+./e2e/run.sh --browse
+
+# Open Connect with auth already set up for manual testing
+./e2e/run.sh --browse-connect
+
+# Debug a failing test with the Playwright inspector
+./e2e/run.sh --debug e2e/tests/web/authenticated/roles.spec.ts
+
+# Open Playwright UI mode (pick and run tests interactively)
+./e2e/run.sh --ui
+
+# Record a new test by interacting with the browser
+./e2e/run.sh --codegen
+
+# Update snapshot baselines after a visual change
+./e2e/run.sh --update-snapshots --with-ssh-node e2e/tests/web/with-ssh-node/ssh.spec.ts
+```
+
+### More Examples
+
+```bash
+# Run all tests
+./e2e/run.sh
+
+# Run SSH node tests with the fixture enabled
+./e2e/run.sh --with-ssh-node e2e/tests/web/with-ssh-node/ssh.spec.ts
+
+# Run tests with all fixtures enabled, skipping the Teleport build
+./e2e/run.sh --full --no-build
+
+# Run against an existing Teleport instance (doesn't work yet as authentication is hardcoded to the e2e setup and we need to figure out auth for remote instances)
+./e2e/run.sh --teleport-url https://localhost:3080
+
+# Set the Teleport log level to DEBUG for more verbose output
+./e2e/run.sh --teleport-log-level DEBUG
 ```

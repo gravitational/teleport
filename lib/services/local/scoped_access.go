@@ -301,7 +301,7 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 					continue
 				}
 
-				if !scopedaccess.RoleIsAssignableAtScope(extant.GetRole(), subAssignment.GetScope()) {
+				if !scopedaccess.RoleIsAssignableToScopeOfEffect(extant.GetRole(), subAssignment.GetScope()) {
 					// theoretically, we prevent broken assignments. in practice, its best to
 					// assume they may exist and to not allow them to prevent an otherwsie
 					// valid update. We will still force all broken assignments to be
@@ -309,7 +309,7 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 					continue
 				}
 
-				if !scopedaccess.RoleIsAssignableAtScope(role, subAssignment.GetScope()) {
+				if !scopedaccess.RoleIsAssignableToScopeOfEffect(role, subAssignment.GetScope()) {
 					return nil, trace.BadParameter("update of scoped role %q would invalidate assignment %q which assigns it to user %q at scope %q", role.GetMetadata().GetName(), assignment.GetMetadata().GetName(), assignment.GetSpec().GetUser(), subAssignment.GetScope())
 				}
 			}
@@ -563,14 +563,15 @@ func (s *ScopedAccessService) CreateScopedRoleAssignment(ctx context.Context, re
 		}
 
 		// verify that the role is scoped to the same resource scope as the assignment itself
-		// NOTE: this restriction may eventually be relaxed in favor of something more flexible,
-		// but as of right now we haven't decided what that should look like.
+		// NOTE: this restriction will eventually be relaxed in favor of [scopedaccess.RoleIsAssignableFromScopeOfOrigin]
+		// once we've finalized the details of the more relaxed role assignment model (the primary prerequisite is ensuring
+		// robust handling of dangling/invalid scoped role assignments).
 		if scopes.Compare(rrsp.GetRole().GetScope(), assignment.GetScope()) != scopes.Equivalent {
 			return nil, trace.BadParameter("role %q is not scoped to the same resource scope as assignment %q (%q -> %q)", subAssignment.GetRole(), assignment.GetMetadata().GetName(), rrsp.GetRole().GetScope(), assignment.GetScope())
 		}
 
 		// verify that the role is assignable at the specified scope
-		if !scopedaccess.RoleIsAssignableAtScope(rrsp.GetRole(), subAssignment.GetScope()) {
+		if !scopedaccess.RoleIsAssignableToScopeOfEffect(rrsp.GetRole(), subAssignment.GetScope()) {
 			return nil, trace.BadParameter("scoped role %q is not configured to be assignable at scope %q", subAssignment.GetRole(), subAssignment.GetScope())
 		}
 
@@ -580,22 +581,12 @@ func (s *ScopedAccessService) CreateScopedRoleAssignment(ctx context.Context, re
 			continue
 		}
 
-		// assert that role is unchanged and modify associated role lock so that role modifications can
-		// detect concurrent modifications to their assignments.
-		condacts = append(condacts, []backend.ConditionalAction{
-			{
-				Key:       scopedRoleKey(subAssignment.GetRole()),
-				Condition: backend.Revision(roleRevision),
-				Action:    backend.Nop(),
-			},
-			{
-				Key:       roleAssignmentLockKey(subAssignment.GetRole()),
-				Condition: backend.Whatever(),
-				Action: backend.Put(backend.Item{
-					Value: newRoleAssignmentLockVal(subAssignment.GetRole()),
-				}),
-			},
-		}...)
+		condacts = append(condacts,
+			// assert that role is unchanged since it was checked.
+			s.assertAssignedRoleStable(subAssignment.GetRole(), roleRevision),
+			// touch role lock so that role modifications can detect concurrent
+			// modifications to their assignments.
+			s.touchRoleAssignmentLock(subAssignment.GetRole()))
 
 		assertedRoles[subAssignment.GetRole()] = struct{}{}
 	}
@@ -724,6 +715,32 @@ func (s *ScopedAccessService) DeleteScopedRoleAssignment(ctx context.Context, re
 	}
 
 	return &scopedaccessv1.DeleteScopedRoleAssignmentResponse{}, nil
+}
+
+// assertAssignedRoleStable returns a backend.ConditionalAction that asserts
+// that a scoped role has not been modified since it was checked at a given
+// roleRevision.
+func (s *ScopedAccessService) assertAssignedRoleStable(roleName, roleRevision string) backend.ConditionalAction {
+	return backend.ConditionalAction{
+		Key:       scopedRoleKey(roleName),
+		Condition: backend.Revision(roleRevision),
+		Action:    backend.Nop(),
+	}
+}
+
+// touchRoleAssignmentLock returns a backend.ConditionalAction to be included
+// in the list of backend.ConditionalActions for an AtomicWrite that modifies a
+// resource that assigns a scoped role. This allows operations that create,
+// modify, or delete a scoped role to efficiently assert that no assignment of
+// that role has been concurrently created or modified.
+func (s *ScopedAccessService) touchRoleAssignmentLock(roleName string) backend.ConditionalAction {
+	return backend.ConditionalAction{
+		Key:       roleAssignmentLockKey(roleName),
+		Condition: backend.Whatever(),
+		Action: backend.Put(backend.Item{
+			Value: newRoleAssignmentLockVal(roleName),
+		}),
+	}
 }
 
 func scopedRoleKey(roleName string) backend.Key {

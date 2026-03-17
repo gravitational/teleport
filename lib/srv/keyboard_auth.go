@@ -19,8 +19,10 @@
 package srv
 
 import (
+	"cmp"
 	"context"
 	"os"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -44,6 +46,15 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		return perms, nil
 	}
 
+	// Source cluster must be the cluster the user will perform the MFA ceremony with. This is usually the cluster the
+	// user is trying to access, but in some cases, such as trusted clusters, the user has to perform the MFA ceremony
+	// with the root cluster instead. In those cases, the RouteToCluster field will be set to the root cluster, so we
+	// should use that if it's set.
+	sourceCluster := cmp.Or(id.RouteToCluster, id.ClusterName)
+	if sourceCluster == "" {
+		return nil, trace.BadParameter("identity missing cluster name (this is a bug)")
+	}
+
 	// If an unknown or unsupported precondition is provided, fail close to prevent potential authentication bypasses.
 	if err := ensureSupportedPreconditions(preconds); err != nil {
 		return nil, trace.Wrap(err)
@@ -55,13 +66,16 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	// authentication. Therefore, we will set up both callbacks and let the SSH server decide which one to invoke based
 	// on what the client supports.
 
-	// legacyPublicKeyCallback allows a legacy client to proceed with just public key authentication, skipping
-	// keyboard-interactive authentication altogether. By default, we allow this for backward compatibility. However, if
-	// the TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA environment variable is set to "yes", we disable this callback to enforce
-	// keyboard-interactive authentication only (see RFD 0234).
+	// legacyPublicKeyCallback allows a legacy client to proceed with just public key authentication for backwards
+	// compatibility, skipping keyboard-interactive authentication altogether. If MFA is required by the preconditions,
+	// only per-session MFA certificates are allowed since they indicate that MFA was already performed (see RFD 0234).
 	//
 	// TODO(cthach): Remove in v20.0 and only set KeyboardInteractiveCallback.
 	legacyPublicKeyCallback := func(_ ssh.ConnMetadata, _ ssh.PublicKey) (*ssh.Permissions, error) {
+		if err := denyRegularSSHCertsIfMFARequired(preconds, id); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return perms, nil
 	}
 	if os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes" {
@@ -74,11 +88,10 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	keyboardInteractiveCallback := func(metadata ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
 		var verifiers []srvssh.PromptVerifier
 
-		for _, precond := range preconds {
-			switch precond.GetKind() {
+		for _, p := range preconds {
+			switch p.GetKind() {
 			case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
-				// TODO(cthach): Use the source cluster name that the client will do the MFA ceremony with.
-				verifier, err := srvssh.NewMFAPromptVerifier(h.c.ValidatedMFAChallengeVerifier, id.ClusterName, id.Username, metadata.SessionID())
+				verifier, err := srvssh.NewMFAPromptVerifier(h.c.ValidatedMFAChallengeVerifier, sourceCluster, id.Username, metadata.SessionID())
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -118,6 +131,28 @@ func ensureSupportedPreconditions(preconds []*decisionpb.Precondition) error {
 		default:
 			return trace.BadParameter("unexpected precondition type %q found (this is a bug)", precond.GetKind())
 		}
+	}
+
+	return nil
+}
+
+func denyRegularSSHCertsIfMFARequired(
+	preconds []*decisionpb.Precondition,
+	id *sshca.Identity,
+) error {
+	// Determine if MFA is required based on the provided preconditions.
+	mfaRequired := slices.ContainsFunc(
+		preconds,
+		func(p *decisionpb.Precondition) bool {
+			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
+		},
+	)
+
+	// A regular SSH certificate is one that does not have per-session MFA verification.
+	isRegularSSHCert := id.MFAVerified == "" && !id.PrivateKeyPolicy.MFAVerified()
+
+	if mfaRequired && isRegularSSHCert {
+		return trace.AccessDenied("regular SSH certificates are forbidden when MFA is required and using legacy public key authentication")
 	}
 
 	return nil

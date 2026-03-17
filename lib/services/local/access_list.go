@@ -20,17 +20,18 @@ package local
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"maps"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
@@ -40,9 +41,12 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -76,11 +80,12 @@ const (
 // consistent view to the rest of the Teleport application. It makes no decisions
 // about granting or withholding list membership.
 type AccessListService struct {
-	backend       backend.Backend
-	modules       modules.Modules
-	service       *generic.Service[*accesslist.AccessList]
-	memberService *generic.Service[*accesslist.AccessListMember]
-	reviewService *generic.Service[*accesslist.Review]
+	backend             backend.Backend
+	modules             modules.Modules
+	service             *generic.Service[*accesslist.AccessList]
+	memberService       *generic.Service[*accesslist.AccessListMember]
+	reviewService       *generic.Service[*accesslist.Review]
+	scopedAccessService *ScopedAccessService
 }
 
 type accessListAndMembersGetter struct {
@@ -163,12 +168,15 @@ func NewAccessListServiceV2(cfg AccessListServiceConfig) (*AccessListService, er
 		return nil, trace.Wrap(err)
 	}
 
+	scopedAccessService := NewScopedAccessService(cfg.Backend)
+
 	return &AccessListService{
-		backend:       cfg.Backend,
-		modules:       cfg.Modules,
-		service:       service,
-		memberService: memberService,
-		reviewService: reviewService,
+		backend:             cfg.Backend,
+		modules:             cfg.Modules,
+		service:             service,
+		memberService:       memberService,
+		reviewService:       reviewService,
+		scopedAccessService: scopedAccessService,
 	}, nil
 }
 
@@ -236,11 +244,7 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 
 	var upserted *accesslist.AccessList
 	var existingAccessList *accesslist.AccessList
-
-	opFn := a.service.UpsertResource
-	if op == opTypeUpdate {
-		opFn = a.service.ConditionalUpdateResource
-	}
+	var scopedRoleConditions []backend.ConditionalAction
 
 	validateAccessList := func() error {
 		var err error
@@ -258,7 +262,18 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 			return trace.Wrap(err)
 		}
 
-		return accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, listMembers, &accessListAndMembersGetter{a.service, a.memberService})
+		if err := accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, listMembers, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// TODO(nklaassen): make full cross-resource validation opt-in.
+		validatedRoles, err := a.validateScopedRoleGrants(ctx, existingAccessList, accessList)
+		if err != nil {
+			return trace.Wrap(err, "validating scoped role grants")
+		}
+		scopedRoleConditions = a.conditionalActionsForValidatedScopedRoles(validatedRoles)
+
+		return nil
 	}
 
 	reconcileOldOwners := func() error {
@@ -288,9 +303,8 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 		return nil
 	}
 
-	updateAccessList := func() error {
-		var err error
-		upserted, err = opFn(ctx, accessList)
+	updateAccessList := func() (err error) {
+		upserted, err = a.writeAccessListWithConditions(ctx, accessList, op, scopedRoleConditions)
 		return trace.Wrap(err)
 	}
 
@@ -691,29 +705,69 @@ func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) erro
 	return trace.Wrap(a.memberService.DeleteAllResources(ctx))
 }
 
-type writeFn func(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
-
-func (a *AccessListService) selectWriteFn(op opType) (writeFn, error) {
+func (a *AccessListService) writeAccessList(
+	ctx context.Context,
+	accessList *accesslist.AccessList,
+	op opType,
+) (*accesslist.AccessList, error) {
 	switch op {
 	case opTypeUpdate:
-		return a.service.ConditionalUpdateResource, nil
-
+		return a.service.ConditionalUpdateResource(ctx, accessList)
 	case opTypeUpsert:
-		return a.service.UpsertResource, nil
+		return a.service.UpsertResource(ctx, accessList)
+	default:
+		return nil, trace.BadParameter("Unknown Access List write operation: %d", op)
 	}
+}
 
-	return nil, trace.BadParameter("Unknown Access List write operation: %d", op)
+func (a *AccessListService) writeAccessListWithConditions(
+	ctx context.Context,
+	accessList *accesslist.AccessList,
+	op opType,
+	conditions []backend.ConditionalAction,
+) (*accesslist.AccessList, error) {
+	if len(conditions) == 0 {
+		return a.writeAccessList(ctx, accessList, op)
+	}
+	item, err := a.service.MakeBackendItem(accessList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	writeCondition, err := a.selectWriteCondition(op, item.Revision)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	writeAction := backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: writeCondition,
+		Action:    backend.Put(item),
+	}
+	conditionalActions := append(conditions, writeAction)
+	revision, err := a.backend.AtomicWrite(ctx, conditionalActions)
+	if err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return nil, trace.CompareFailed("access list %q or a related resource was concurrently modified", accessList.GetName())
+		}
+		return nil, trace.Wrap(err)
+	}
+	accessList.SetRevision(revision)
+	return accessList, nil
+}
+
+func (a *AccessListService) selectWriteCondition(op opType, revision string) (backend.Condition, error) {
+	switch op {
+	case opTypeUpdate:
+		return backend.Revision(revision), nil
+	case opTypeUpsert:
+		return backend.Whatever(), nil
+	}
+	return backend.Condition{}, trace.BadParameter("Unknown Access List write operation: %d", op)
 }
 
 // writeAccessListWithMembers holds all of the common logic for updating and
 // upserting an access list and it's collection of members.
 func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember, op opType) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
 	if err := accessList.CheckAndSetDefaults(); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	writeFn, err := a.selectWriteFn(op)
-	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -724,6 +778,7 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 	}
 
 	var existingAccessList *accesslist.AccessList
+	var scopedRoleConditions []backend.ConditionalAction
 
 	validateAccessList := func() error {
 		var err error
@@ -747,6 +802,13 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 		if err := accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, membersIn, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
 			return trace.Wrap(err)
 		}
+
+		// TODO(nklaassen): make full cross-resource validation opt-in.
+		validatedRoles, err := a.validateScopedRoleGrants(ctx, existingAccessList, accessList)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		scopedRoleConditions = a.conditionalActionsForValidatedScopedRoles(validatedRoles)
 
 		return nil
 	}
@@ -795,7 +857,7 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 					newMember.Spec.AddedBy = existingMember.Spec.AddedBy
 
 					// Compare members and update if necessary.
-					if !cmp.Equal(newMember, existingMember) {
+					if !deriveTeleportEqualAccessListMember(newMember, existingMember) {
 						// Update the member.
 						upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, newMember)
 						if err != nil {
@@ -839,9 +901,8 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 		return nil
 	}
 
-	writeAccessList := func() error {
-		var err error
-		accessList, err = writeFn(ctx, accessList)
+	writeAccessList := func() (err error) {
+		accessList, err = a.writeAccessListWithConditions(ctx, accessList, op, scopedRoleConditions)
 		return trace.Wrap(err)
 	}
 
@@ -887,6 +948,83 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 	}
 
 	return accessList, membersIn, nil
+}
+
+// validateScopedRoleGrants asserts that:
+// - newList only assigns scoped roles that exist
+// - newList only assigns scoped roles defined in the root scope
+// - newList only assigns scoped roles to an assignable_scope of the role
+//
+// In case the access list is already in an invalid state (existingList grants
+// a scoped role violating any of the above invariants) we would prefer not to
+// break unrelated list updates, so the checks are only performed if a role is
+// newly granted at any scope.
+//
+// It returns a map of all validated scoped roles keyed by role name.
+func (a *AccessListService) validateScopedRoleGrants(ctx context.Context, existingList, newList *accesslist.AccessList) (map[string]*scopedaccessv1.ScopedRole, error) {
+	if len(newList.Spec.Grants.ScopedRoles) == 0 && len(newList.Spec.OwnerGrants.ScopedRoles) == 0 {
+		// The new list does not grant any scoped roles, so no checks are needed.
+		return nil, nil
+	}
+
+	var existingListGrants set.Set[accesslist.ScopedRoleGrant]
+	if existingList != nil {
+		existingListGrants = set.New(existingList.Spec.Grants.ScopedRoles...).Add(existingList.Spec.OwnerGrants.ScopedRoles...)
+	}
+	newListGrants := set.New(newList.Spec.Grants.ScopedRoles...).Add(newList.Spec.OwnerGrants.ScopedRoles...)
+	addedGrants := newListGrants.Subtract(existingListGrants)
+
+	if addedGrants.Len() == 0 {
+		// The new list does not grant any scoped roles at scopes not already
+		// granted by the existing list, no validation is necessary.
+		return nil, nil
+	}
+
+	// This list has new scoped role grants, the scopes feature must be enabled.
+	if err := scopes.AssertFeatureEnabled(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Deduplicate roles, which may be granted at multiple scopes.
+	validatedRoles := make(map[string]*scopedaccessv1.ScopedRole)
+	for grant := range addedGrants {
+		role, ok := validatedRoles[grant.Role]
+		if !ok {
+			rsp, err := a.scopedAccessService.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{Name: grant.Role})
+			if err != nil {
+				if trace.IsNotFound(err) {
+					return nil, trace.BadParameter("access_list %q has scoped role grant for non-existent role %q", newList.GetName(), grant.Role)
+				}
+				return nil, trace.Wrap(err)
+			}
+			role = rsp.GetRole()
+		}
+
+		if scopes.Compare(role.GetScope(), "/") != scopes.Equivalent {
+			return nil, trace.BadParameter("access_list %q has scoped role grant for role %q which is not defined in root scope", newList.GetName(), grant.Role)
+		}
+		if !scopedaccess.RoleIsAssignableToScopeOfEffect(role, grant.Scope) {
+			return nil, trace.BadParameter("access_list %q has scoped role grant for role %q at non-assignable scope %q", newList.GetName(), grant.Role, grant.Scope)
+		}
+
+		validatedRoles[grant.Role] = role
+	}
+
+	return validatedRoles, nil
+}
+
+// conditionalActionsForValidatedScopedRoles returns a set of
+// backend.ConditionalActions that must be used in an AtomicWrite to
+// prevent concurrent modifications granted scoped roles.
+func (a *AccessListService) conditionalActionsForValidatedScopedRoles(validatedRoles map[string]*scopedaccessv1.ScopedRole) []backend.ConditionalAction {
+	condacts := make([]backend.ConditionalAction, 0, 2*len(validatedRoles))
+	for roleName, role := range validatedRoles {
+		// Assert that the role has not changed since it was validated.
+		condacts = append(condacts, a.scopedAccessService.assertAssignedRoleStable(roleName, role.GetMetadata().GetRevision()))
+		// Prevent changes to the role concurrent with changes to the assignment.
+		condacts = append(condacts, a.scopedAccessService.touchRoleAssignmentLock(roleName))
+	}
+	return condacts
 }
 
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.

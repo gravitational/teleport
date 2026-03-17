@@ -90,6 +90,7 @@ export const makeApp = (props: Partial<App> = {}): App => ({
   tcpPorts: [],
   permissionSets: [],
   subKind: '',
+  supportedFeatureIds: [],
   ...props,
 });
 
@@ -374,10 +375,23 @@ export const makeAuthSettings = (
 ): AuthSettings => ({
   localAuthEnabled: true,
   authProviders: [],
-  hasMessageOfTheDay: false,
+  messageOfTheDay: '',
   authType: 'local',
   allowPasswordless: false,
   localConnectorName: '',
   clientVersionStatus: ClientVersionStatus.OK,
   ...props,
 });
+
+export const makeTshdRpcError = (
+  props: Partial<TshdRpcError> = {}
+): TshdRpcError => {
+  return {
+    name: 'TshdRpcError',
+    isResolvableWithRelogin: false,
+    code: 'UNKNOWN',
+    message: 'Error occurred',
+    toString: () => 'Error occurred',
+    ...props,
+  };
+};

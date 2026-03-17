@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import {
   Box,
@@ -78,11 +78,11 @@ export default function Empty(props: Props) {
           {showCloud && (
             <Pane
               title="Automatically Discover"
-              text="Connect your AWS, Azure, or GCP accounts to automatically scan and import all resources."
+              text="Use Terraform to connect your AWS, Azure, or GCP accounts to Teleport and automatically discover your resources."
               button={
                 <ButtonPrimary
                   as={Link}
-                  to={cfg.getIntegrationsEnrollRoute({ tags: ['cloud'] })}
+                  to={cfg.getIntegrationsEnrollRoute({ tags: ['terraform'] })}
                   width="100%"
                 >
                   Connect Cloud Account
@@ -99,10 +99,8 @@ export default function Empty(props: Props) {
             button={
               <ButtonPrimaryBorder
                 as={Link}
-                to={{
-                  pathname: cfg.routes.discover,
-                  state: { entity: 'unified_resource' },
-                }}
+                to={cfg.routes.discover}
+                state={{ entity: 'unified_resource' }}
                 width="100%"
               >
                 Enroll New Resource

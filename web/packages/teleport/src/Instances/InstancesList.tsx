@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex, Text } from 'design';

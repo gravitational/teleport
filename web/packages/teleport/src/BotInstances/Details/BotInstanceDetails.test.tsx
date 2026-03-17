@@ -17,22 +17,21 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { setupServer } from 'msw/node';
 import { ComponentProps, PropsWithChildren } from 'react';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitForElementToBeRemoved,
   within,
 } from 'design/utils/testing';
-
 import 'shared/components/TextEditor/TextEditor.mock';
-
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
@@ -43,20 +42,12 @@ import {
 
 import { BotInstanceDetails } from './BotInstanceDetails';
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('BotIntanceDetails', () => {
   it('Allows close action', async () => {

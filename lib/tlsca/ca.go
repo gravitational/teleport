@@ -231,6 +231,10 @@ type Identity struct {
 	// OriginClusterName is the name of the cluster where the identity is
 	// authenticated.
 	OriginClusterName string
+
+	// ImmutableLabelHash is the hash of the immutable labels that have been
+	// applied to the identity.
+	ImmutableLabelHash string
 }
 
 // RouteToApp holds routing information for applications.
@@ -628,6 +632,20 @@ var (
 	// AllowedResourceAccessIDsASN1ExtensionOID is an extension OID used to list the
 	// ResourceAccessIDs which the certificate should be able to grant access to
 	AllowedResourceAccessIDsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 26}
+	// ImmutableLabelHashASN1ExtensionOID is an extension OID that contains the
+	// immuable label hash used to verify immutable labels.
+	ImmutableLabelHashASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 27}
+
+	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
+	// certificate.
+	//
+	// Historically the cluster name is recorded in the certificate's "O=" field.
+	// This OID makes it possible to customize O= and still record the cluster
+	// name.
+	//
+	// Takes precedence, as the cluster name, over the O= field if both are
+	// present.
+	CAClusterNameExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 4, 1}
 )
 
 // Device Trust OIDs.
@@ -943,7 +961,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	}
 
 	if id.ScopePin != nil {
-		pin, err := protojson.Marshal(id.ScopePin)
+		pin, err := pinning.Encode(id.ScopePin)
 		if err != nil {
 			return pkix.Name{}, trace.Errorf("failed to encode scope pin: %w", err)
 		}
@@ -951,7 +969,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
 				Type:  ScopePinASN1ExtensionOID,
-				Value: string(pin),
+				Value: pin,
 			})
 	}
 
@@ -1071,6 +1089,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			Type:  DeviceCredentialIDExtensionOID,
 			Value: devCred,
 		})
+	}
+
+	if id.ImmutableLabelHash != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  ImmutableLabelHashASN1ExtensionOID,
+				Value: id.ImmutableLabelHash,
+			})
 	}
 
 	return subject, nil
@@ -1295,11 +1321,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(ScopePinASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
-				var pin scopesv1.Pin
-				if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(val), &pin); err != nil {
-					return nil, trace.Errorf("failed to unmarshal scope pin: %w", err)
+				pin, err := pinning.Decode(val)
+				if err != nil {
+					return nil, trace.Errorf("failed to decode scope pin: %w", err)
 				}
-				id.ScopePin = &pin
+				id.ScopePin = pin
 			}
 		case attr.Type.Equal(AgentScopeASN1ExtensionOID):
 			id.AgentScope = attr.Value.(string)
@@ -1375,6 +1401,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				if err := unmarshaler.Unmarshal([]byte(val), id.JoinAttributes); err != nil {
 					return nil, trace.Wrap(err)
 				}
+			}
+		case attr.Type.Equal(ImmutableLabelHashASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.ImmutableLabelHash = val
 			}
 		}
 	}

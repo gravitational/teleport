@@ -26,10 +26,10 @@ import (
 	"io"
 	"os"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
@@ -39,14 +39,15 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // ScopedTokensCommand implements `tctl scoped tokens` group of commands
@@ -77,6 +78,11 @@ type ScopedTokensCommand struct {
 
 	// mode is the usage mode of a token.
 	mode string
+	// labels are optional token labels assigned to the token itself
+	labels string
+
+	// sshLabels are the ssh labels that should be assigned to a node token
+	sshLabels string
 
 	// tokenAdd is used to add a token.
 	tokenAdd *kingpin.CmdClause
@@ -110,7 +116,8 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 	c.tokenAdd.Flag("assign-scope", "Scope that should be applied to resources provisioned by this token").StringVar(&c.assignedScope)
 	c.tokenAdd.Flag("scope", "Scope assigned to the token itself").StringVar(&c.tokenScope)
 	c.tokenAdd.Flag("mode", "Usage mode of a token (default: unlimited, single_use)").StringVar(&c.mode)
-
+	c.tokenAdd.Flag("labels", "Set token labels, e.g. env=prod,region=us-west").StringVar(&c.labels)
+	c.tokenAdd.Flag("ssh-labels", "Set immutable ssh labels the token should assign to provisioned resources, e.g. env=prod,region=us-west").StringVar(&c.sshLabels)
 	// "tctl scoped tokens rm ..."
 	c.tokenDel = tokens.Command("rm", "Delete/revoke a scoped invitation token.").Alias("del")
 	c.tokenDel.Arg("token", "Token to delete").StringVar(&c.name)
@@ -164,6 +171,33 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 
 	tokenName := c.name
 
+	if tokenName == "" {
+		name, err := uuid.NewV7()
+		if err != nil {
+			return trace.Wrap(err, "generating token name")
+		}
+		tokenName = name.String()
+	}
+
+	var labels map[string]string
+	if c.labels != "" {
+		labels, err = libclient.ParseLabelSpec(c.labels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	var immutableLabels *joiningv1.ImmutableLabels
+	if c.sshLabels != "" {
+		sshLabels, err := libclient.ParseLabelSpec(c.sshLabels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		immutableLabels = &joiningv1.ImmutableLabels{
+			Ssh: sshLabels,
+		}
+	}
+
 	expires := time.Now().UTC().Add(c.ttl)
 	tok := &joiningv1.ScopedToken{
 		Kind:    types.KindScopedToken,
@@ -171,12 +205,15 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 		Metadata: &headerv1.Metadata{
 			Name:    tokenName,
 			Expires: timestamppb.New(expires),
+			Labels:  labels,
 		},
 		Scope: c.tokenScope,
 		Spec: &joiningv1.ScopedTokenSpec{
-			Roles:         roles.StringSlice(),
-			AssignedScope: c.assignedScope,
-			UsageMode:     cmp.Or(c.mode, joining.TokenUsageModeUnlimited),
+			Roles:           roles.StringSlice(),
+			AssignedScope:   c.assignedScope,
+			UsageMode:       cmp.Or(c.mode, joining.TokenUsageModeUnlimited),
+			ImmutableLabels: immutableLabels,
+			JoinMethod:      string(types.JoinMethodToken),
 		},
 	}
 
@@ -252,8 +289,9 @@ func (c *ScopedTokensCommand) Del(ctx context.Context, client *authclient.Client
 func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Client) error {
 	tokens, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*joiningv1.ScopedToken, string, error) {
 		res, err := client.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{
-			Limit:  uint32(pageSize),
-			Cursor: pageKey,
+			Limit:       uint32(pageSize),
+			Cursor:      pageKey,
+			WithSecrets: c.withSecrets,
 		})
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -275,12 +313,6 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 		return left.GetMetadata().GetExpires().AsTime().Compare(right.GetMetadata().GetExpires().AsTime())
 	})
 
-	secretFunc := func(tok *joiningv1.ScopedToken) string {
-		if c.withSecrets {
-			return tok.GetStatus().GetSecret()
-		}
-		return "******"
-	}
 	switch c.format {
 	case teleport.JSON:
 		err := utils.WriteJSONArray(c.Stdout, tokens)
@@ -297,22 +329,7 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 			fmt.Fprintln(c.Stdout, token.GetMetadata().GetName())
 		}
 	default:
-		tokensView := func() string {
-			table := asciitable.MakeTable([]string{"Token", "Secret", "Type", "Scope", "Assigns Scope", "Labels", "Expiry Time (UTC)"})
-			now := time.Now()
-			for _, t := range tokens {
-				expiry := "never"
-				expiresAt := t.GetMetadata().GetExpires().AsTime()
-				if !expiresAt.IsZero() && expiresAt.Unix() != 0 {
-					exptime := expiresAt.Format(time.RFC822)
-					expdur := expiresAt.Sub(now).Round(time.Second)
-					expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
-				}
-				table.AddRow([]string{t.GetMetadata().GetName(), secretFunc(t), strings.Join(t.GetSpec().GetRoles(), ","), t.GetScope(), t.GetSpec().GetAssignedScope(), printMetadataLabels(t.GetMetadata().Labels), expiry})
-			}
-			return table.AsBuffer().String()
-		}
-		fmt.Fprint(c.Stdout, tokensView())
+		fmt.Fprint(c.Stdout, resources.ScopedTokenTextHelper(tokens, c.withSecrets).String())
 	}
 	return nil
 }

@@ -91,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	libplayer "github.com/gravitational/teleport/lib/player"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -941,6 +942,7 @@ func (c *Config) LoadProfile(proxyAddr string) error {
 	c.SAMLSingleLogoutEnabled = profile.SAMLSingleLogoutEnabled
 	c.SSHDialTimeout = profile.SSHDialTimeout
 	c.SSOHost = profile.SSOHost
+	c.Scope = profile.Scope
 
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
@@ -1009,6 +1011,7 @@ func (c *Config) Profile() *profile.Profile {
 		SAMLSingleLogoutEnabled:       c.SAMLSingleLogoutEnabled,
 		SSHDialTimeout:                c.SSHDialTimeout,
 		SSOHost:                       c.SSOHost,
+		Scope:                         c.Scope,
 	}
 }
 
@@ -2891,7 +2894,7 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto
 
 // roleGetter retrieves roles for the current user
 type roleGetter interface {
-	GetRoles(ctx context.Context) ([]types.Role, error)
+	GetCurrentUserRoles(ctx context.Context) ([]types.Role, error)
 }
 
 // commandLimit determines how many commands may be executed in parallel.
@@ -2907,7 +2910,7 @@ func commandLimit(ctx context.Context, getter roleGetter, mfaRequired bool) int 
 		return 1
 	}
 
-	roles, err := getter.GetRoles(ctx)
+	roles, err := getter.GetCurrentUserRoles(ctx)
 	if err != nil {
 		return 1
 	}
@@ -2984,7 +2987,9 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 	resultsCh := make(chan execResult, len(nodes))
 
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required))
+	cmdLimit := commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required)
+	log.DebugContext(ctx, "Applying command limit", "limit", cmdLimit, "mfa_required", mfaRequiredCheck.Required)
+	g.SetLimit(cmdLimit)
 
 	// Get the width of the terminal so we can wrap properly.
 	var width int
@@ -4039,7 +4044,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	}
 
 	if ident.ScopePin != nil {
-		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.Scope, "assignments", ident.ScopePin.Assignments)
+		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.Scope, "assignments", pinning.AssignmentTreeIntoMap(ident.ScopePin.AssignmentTree))
 	}
 
 	return keyRing, nil

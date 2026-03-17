@@ -36,6 +36,7 @@ export const TestContainer: FC<PropsWithChildren> = ({ children }) => (
 export interface StoryProps {
   compatibility: 'compatible' | 'client-too-old' | 'client-too-new';
   showUpdate: boolean;
+  showMessageOfTheDay: boolean;
 }
 
 export const compatibilityArgType: ArgTypes<StoryProps> = {
@@ -47,6 +48,10 @@ export const compatibilityArgType: ArgTypes<StoryProps> = {
   showUpdate: {
     type: 'boolean',
     description: 'Show app update',
+  },
+  showMessageOfTheDay: {
+    type: 'boolean',
+    description: 'Show Message Of The Day (MOTD)',
   },
 };
 
@@ -65,7 +70,24 @@ export function makeProps(
     initAttempt: {
       status: 'success',
       statusText: '',
-      data: makeAuthSettings(),
+      data: makeAuthSettings({
+        messageOfTheDay: storyProps.showMessageOfTheDay
+          ? 'Authorized use only.\nBy continuing you consent to monitoring.\n' +
+            'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod ' +
+            'tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,' +
+            'quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. ' +
+            'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu ' +
+            'fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in ' +
+            'culpa qui officia deserunt mollit anim id est laborum.' +
+            'Proin ultrices leo ac nulla finibus, vitae accumsan mauris molestie. Vivamus ' +
+            'vitae massa sed odio lobortis blandit a vel neque. Aenean ultrices facilisis erat, ' +
+            'viverra rutrum ex varius sit amet. Phasellus fermentum facilisis cursus. ' +
+            'Cras ac turpis tellus. Cras vitae dictum dolor. Duis pretium molestie tortor sagittis ' +
+            'commodo. Aliquam non urna interdum, dignissim risus sit amet, congue erat. Quisque ' +
+            'vestibulum augue vitae libero fermentum, sed laoreet justo malesuada. ' +
+            'Donec quis augue nec lectus commodo commodo'
+          : '',
+      }),
     },
 
     loggedInUserName: null,
@@ -80,6 +102,7 @@ export function makeProps(
     shouldSkipVersionCheck: false,
     disableVersionCheck: () => {},
     platform: 'darwin',
+    currentVersion: '14.7.2',
     changeAppUpdatesManagingCluster: async () => {},
     checkForAppUpdates: async () => {},
     downloadAppUpdate: async () => {},
@@ -126,7 +149,6 @@ export function makeProps(
     props.appUpdateEvent = {
       kind: 'update-available',
       update: {
-        updateKind: 'upgrade',
         version: '19.0.0',
         files: [
           {
@@ -137,6 +159,7 @@ export function makeProps(
         path: '',
         releaseDate: '',
         sha512: '',
+        requiresUacPrompt: false,
       },
       autoDownload: true,
       autoUpdatesStatus: {

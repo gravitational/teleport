@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"testing"
 
@@ -695,6 +696,231 @@ func TestAccessCheckerDesktopGroups(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAccessChecker_CheckConditionalAccess_StateMFANever_ReturnsNoMFAPrecondition(t *testing.T) {
+	t.Parallel()
+
+	const roleName = "allow-all-nodes"
+
+	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
+		r.SetName(roleName)
+	}))
+
+	accessInfo := &AccessInfo{
+		Roles: []string{roleName},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
+
+	srv, err := types.NewServer(
+		"test-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+	)
+	require.NoError(t, err)
+
+	node := &serverStub{Server: srv}
+
+	preconds, err := accessChecker.CheckConditionalAccess(
+		node,
+		AccessState{
+			MFARequired:         MFARequiredNever, // Simulate MFA is never required.
+			ReturnPreconditions: true,
+		},
+	)
+	require.NoError(t, err)
+	require.False(
+		t,
+		slices.ContainsFunc(
+			preconds,
+			func(p *decisionpb.Precondition) bool {
+				return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
+			},
+		),
+		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to NOT be included", preconds,
+	)
+}
+
+func TestAccessChecker_CheckConditionalAccess_StateMFAAlways_ReturnsMFAPrecondition(t *testing.T) {
+	t.Parallel()
+
+	const roleName = "allow-all-nodes"
+
+	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
+		r.SetName(roleName)
+	}))
+
+	accessInfo := &AccessInfo{
+		Roles: []string{roleName},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
+
+	srv, err := types.NewServer(
+		"test-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+	)
+	require.NoError(t, err)
+
+	node := &serverStub{Server: srv}
+
+	preconds, err := accessChecker.CheckConditionalAccess(
+		node,
+		AccessState{
+			MFARequired:         MFARequiredAlways, // Simulate MFA is always required.
+			MFAVerified:         false,             // MFA has not been verified yet.
+			ReturnPreconditions: true,
+		},
+	)
+	require.NoError(t, err)
+	require.True(
+		t,
+		slices.ContainsFunc(
+			preconds,
+			func(p *decisionpb.Precondition) bool {
+				return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
+			},
+		),
+		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
+	)
+}
+
+// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
+func TestAccessChecker_CheckConditionalAccess_StateMFAAlways_EnforceInBandMFA_ReturnsMFAPrecondition(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
+
+	const roleName = "allow-all-nodes"
+
+	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
+		r.SetName(roleName)
+	}))
+
+	accessInfo := &AccessInfo{
+		Roles: []string{roleName},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
+
+	srv, err := types.NewServer(
+		"test-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+	)
+	require.NoError(t, err)
+
+	node := &serverStub{Server: srv}
+
+	preconds, err := accessChecker.CheckConditionalAccess(
+		node,
+		AccessState{
+			MFARequired:         MFARequiredAlways, // Simulate MFA is always required.
+			MFAVerified:         true,              // MFA has been verified via legacy out-of-band MFA flow.
+			ReturnPreconditions: true,
+		},
+	)
+	require.NoError(t, err)
+	require.True(
+		t,
+		slices.ContainsFunc(
+			preconds,
+			func(p *decisionpb.Precondition) bool {
+				return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
+			},
+		),
+		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
+	)
+}
+
+func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ReturnsMFAPrecondition(t *testing.T) {
+	t.Parallel()
+
+	const roleName = "mfa-required"
+
+	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
+		r.SetName(roleName)
+
+		r.SetOptions(types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION, // Role requires MFA.
+		})
+	}))
+
+	accessInfo := &AccessInfo{
+		Roles: []string{roleName},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
+
+	srv, err := types.NewServer(
+		"test-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+	)
+	require.NoError(t, err)
+
+	node := &serverStub{Server: srv}
+
+	preconds, err := accessChecker.CheckConditionalAccess(
+		node,
+		AccessState{
+			ReturnPreconditions: true,
+		},
+	)
+	require.NoError(t, err)
+	require.True(
+		t,
+		slices.ContainsFunc(preconds, func(p *decisionpb.Precondition) bool {
+			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
+		}),
+		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
+	)
+}
+
+// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
+func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ForceInBandMFAEnv_ReturnsMFAPrecondition(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
+
+	const roleName = "mfa-required"
+
+	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
+		r.SetName(roleName)
+
+		r.SetOptions(types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION, // Role requires MFA.
+		})
+	}))
+
+	accessInfo := &AccessInfo{
+		Roles: []string{roleName},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
+
+	srv, err := types.NewServer(
+		"test-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+	)
+	require.NoError(t, err)
+
+	node := &serverStub{Server: srv}
+
+	preconds, err := accessChecker.CheckConditionalAccess(
+		node,
+		AccessState{
+			MFAVerified:         true, // Simulate MFA has been verified via legacy out-of-band MFA flow.
+			ReturnPreconditions: true,
+		},
+	)
+	require.NoError(t, err)
+	require.True(
+		t,
+		slices.ContainsFunc(preconds, func(p *decisionpb.Precondition) bool {
+			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
+		}),
+		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
+	)
 }
 
 func TestSSHPortForwarding(t *testing.T) {

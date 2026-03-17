@@ -43,6 +43,7 @@ export const VnetSliderStep = (props: StepComponentProps) => {
     status,
     startAttempt,
     stopAttempt,
+    installTimeRequirementsCheck,
     runDiagnostics,
     reinstateDiagnosticsAlert,
   } = useVnetContext();
@@ -88,6 +89,26 @@ export const VnetSliderStep = (props: StepComponentProps) => {
           }
         `}
       >
+        {installTimeRequirementsCheck.status === 'failed' && (
+          <>
+            {installTimeRequirementsCheck.reason.kind ===
+              'missing-windows-service' && (
+              <ErrorText>
+                VNet system service is not installed. <br />
+                To use VNet, reinstall Teleport Connect selecting &apos;Anyone
+                who uses this computer&apos; option. Administrator privileges
+                will be required.
+              </ErrorText>
+            )}
+            {installTimeRequirementsCheck.reason.kind === 'error' && (
+              <ErrorText>
+                Could not perform VNet installation requirements checks:{' '}
+                {installTimeRequirementsCheck.reason.statusText}
+              </ErrorText>
+            )}
+          </>
+        )}
+
         {startAttempt.status === 'error' && (
           <ErrorText>Could not start VNet: {startAttempt.statusText}</ErrorText>
         )}

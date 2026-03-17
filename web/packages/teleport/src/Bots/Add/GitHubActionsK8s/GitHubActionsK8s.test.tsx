@@ -17,18 +17,18 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { createMemoryHistory } from 'history';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
-import { Router } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import selectEvent from 'react-select-event';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
@@ -47,11 +47,9 @@ import { trackingTester } from '../Shared/trackingTester';
 import { TrackingProvider } from '../Shared/useTracking';
 import { GitHubActionsK8sWithoutTracking } from './GitHubActionsK8s';
 
-const server = setupServer();
+enableMswServer();
 
-beforeAll(() => {
-  server.listen();
-
+beforeEach(() => {
   server.use(genWizardCiCdSuccess());
   server.use(userEventCaptureSuccess());
   server.use(fetchUnifiedResourcesSuccess());
@@ -60,8 +58,6 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  server.close();
-
   jest.useRealTimers();
   jest.resetAllMocks();
 });
@@ -70,10 +66,9 @@ describe('GitHubActionsK8s', () => {
   test('complete flow: minimal', async () => {
     const tracking = trackingTester();
 
-    const { user, history, unmount } = renderComponent({
+    const { user, mockNavigate, unmount } = renderComponent({
       trackingEventId: 'test-tracking-event-id',
     });
-    const replaceMock = jest.spyOn(history, 'replace');
 
     tracking.assertStart('test-tracking-event-id');
 
@@ -173,7 +168,9 @@ describe('GitHubActionsK8s', () => {
       'INTEGRATION_ENROLL_STATUS_CODE_SUCCESS'
     );
 
-    expect(replaceMock).toHaveBeenLastCalledWith('/web/bots');
+    expect(mockNavigate).toHaveBeenLastCalledWith('/web/bots', {
+      replace: true,
+    });
 
     unmount();
 
@@ -181,28 +178,29 @@ describe('GitHubActionsK8s', () => {
   });
 });
 
+const mockNavigate = jest.fn();
+jest.mock('react-router', () => ({
+  ...jest.requireActual('react-router'),
+  useNavigate: () => mockNavigate,
+}));
+
 function renderComponent(opts?: { trackingEventId?: string }) {
   const { trackingEventId } = opts ?? {};
   const user = userEvent.setup({
     advanceTimers: t => jest.advanceTimersByTime(t),
   });
-  const history = createMemoryHistory({
-    initialEntries: [cfg.getBotsNewRoute(BotFlowType.GitHubActionsSsh)],
-  });
+  mockNavigate.mockClear();
   return {
     ...render(<GitHubActionsK8sWithoutTracking />, {
-      wrapper: makeWrapper({ history, trackingEventId }),
+      wrapper: makeWrapper({ trackingEventId }),
     }),
     user,
-    history,
+    mockNavigate,
   };
 }
 
-function makeWrapper(opts: {
-  history: ReturnType<typeof createMemoryHistory>;
-  trackingEventId?: string;
-}) {
-  const { history, trackingEventId } = opts;
+function makeWrapper(opts: { trackingEventId?: string }) {
+  const { trackingEventId } = opts;
   const ctx = createTeleportContext();
 
   return ({ children }: PropsWithChildren) => {
@@ -213,7 +211,15 @@ function makeWrapper(opts: {
             <InfoGuidePanelProvider>
               <ContentMinWidth>
                 <TrackingProvider initialEventId={trackingEventId}>
-                  <Router history={history}>{children}</Router>
+                  <MemoryRouter
+                    initialEntries={[
+                      cfg.getBotsNewRoute(BotFlowType.GitHubActionsSsh),
+                    ]}
+                  >
+                    <Routes>
+                      <Route path="*" element={children} />
+                    </Routes>
+                  </MemoryRouter>
                 </TrackingProvider>
               </ContentMinWidth>
             </InfoGuidePanelProvider>

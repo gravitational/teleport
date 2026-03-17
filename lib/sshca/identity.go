@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -37,6 +36,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -151,6 +151,9 @@ type Identity struct {
 	GitHubUsername string
 	// AgentScope is the scope this identity belongs to.
 	AgentScope string
+	// ImmutableLabelHash is the immutable label hash used to verify
+	// immutable labels against the identity.
+	ImmutableLabelHash string
 }
 
 // Encode encodes the identity into an ssh certificate. Note that the returned certificate is incomplete
@@ -198,14 +201,18 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 		cert.Permissions.Extensions[teleport.CertExtensionAgentScope] = i.AgentScope
 	}
 
+	if i.ImmutableLabelHash != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionImmutableLabelHash] = i.ImmutableLabelHash
+	}
+
 	// --- user extensions ---
 
 	if i.ScopePin != nil {
-		pin, err := protojson.Marshal(i.ScopePin)
+		pin, err := pinning.Encode(i.ScopePin)
 		if err != nil {
 			return nil, trace.Errorf("failed to marshal scope pin for ssh cert encoding: %w", err)
 		}
-		cert.Permissions.Extensions[teleport.CertExtensionScopePin] = string(pin)
+		cert.Permissions.Extensions[teleport.CertExtensionScopePin] = pin
 	}
 
 	if i.PermitX11Forwarding {
@@ -436,11 +443,11 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	// --- user extensions ---
 
 	if v, ok := takeExtension(teleport.CertExtensionScopePin); ok {
-		var pin scopesv1.Pin
-		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(v), &pin); err != nil {
-			return nil, trace.BadParameter("failed to unmarshal value %q for extension %q as scope pin: %v", v, teleport.CertExtensionScopePin, err)
+		pin, err := pinning.Decode(v)
+		if err != nil {
+			return nil, trace.BadParameter("failed to decode value %q for extension %q as scope pin: %v", v, teleport.CertExtensionScopePin, err)
 		}
-		ident.ScopePin = &pin
+		ident.ScopePin = pin
 	}
 
 	ident.AgentScope = takeValue(teleport.CertExtensionAgentScope)
@@ -550,6 +557,8 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 		}
 		ident.ActiveRequests = reqs.AccessRequests
 	}
+
+	ident.ImmutableLabelHash = takeValue(teleport.CertExtensionImmutableLabelHash)
 
 	// aggregate all remaining extensions into the CertificateExtensions field
 	for name, value := range extensions {

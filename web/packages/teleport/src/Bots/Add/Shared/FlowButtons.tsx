@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 
@@ -73,17 +73,24 @@ function BackButton({
   prevStep,
 }: {
   isFirstStep: boolean;
-  disabled: boolean;
+  disabled?: boolean;
   prevStep: () => void;
 }) {
-  const location = useLocation<{ previousPathname: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   if (isFirstStep) {
     return (
       <ButtonSecondary
         disabled={disabled}
-        as={Link}
-        to={location.state?.previousPathname || cfg.getBotsNewRoute()}
+        onClick={() => {
+          // If location.key is unset, or 'default', this is the first history entry in-app in the session.
+          if (!location.key || location.key === 'default') {
+            navigate(cfg.getIntegrationsEnrollRoute());
+          } else {
+            navigate(-1);
+          }
+        }}
         data-testid="button-back-first-step"
       >
         Back

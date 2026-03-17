@@ -1027,11 +1027,32 @@ func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
 			AppName: "app-4",
 		},
 	}
+	bigUntrimmableEvent := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: strings.Repeat("aaaaa", events.MaxEventBytesInResponse),
+		},
+	}
+	bigTrimmableEvent := &apievents.DatabaseSessionQuery{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
+			Type: events.DatabaseSessionQueryEvent,
+		},
+		DatabaseQuery: strings.Repeat("aaaaa", events.MaxEventBytesInResponse),
+	}
+	bigTrimmedEvent := bigTrimmableEvent.TrimToMaxSize(events.MaxEventBytesInResponse)
 
 	// have a deterministic session ID (UID) when used in test cases
 	key1 := eventToKey(event1)
 	key3 := eventToKey(event3)
 	key4 := eventToKey(event4)
+	keyUntrimmable := eventToKey(bigUntrimmableEvent)
+	keyTrimmed := eventToKey(bigTrimmedEvent)
 
 	tests := []struct {
 		name          string
@@ -1095,6 +1116,65 @@ func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
 			// we don't expect event4 because it should go to next batch
 			wantEvents: []apievents.AuditEvent{event1, event2, event3},
 			wantKey:    &key3,
+		},
+		{
+			name:  "events with big untrimmable event exceeding > MaxEventBytesInResponse",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events:    []apievents.AuditEvent{event1},
+					returnKey: &key1,
+				},
+				key1: {
+					events:    []apievents.AuditEvent{event2, event3, bigUntrimmableEvent},
+					returnKey: nil,
+				},
+			},
+			// we don't expect bigUntrimmableEvent because it should go to next batch
+			wantEvents: []apievents.AuditEvent{event1, event2, event3},
+			wantKey:    &key3,
+		},
+		{
+			name:  "only 1 big untrimmable event",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events:    []apievents.AuditEvent{bigUntrimmableEvent},
+					returnKey: nil,
+				},
+			},
+			// we still want to receive the untrimmable event
+			wantEvents: []apievents.AuditEvent{bigUntrimmableEvent},
+			wantKey:    &keyUntrimmable,
+		},
+		{
+			name:  "events with big trimmable event exceeding > MaxEventBytesInResponse",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events:    []apievents.AuditEvent{event1},
+					returnKey: &key1,
+				},
+				key1: {
+					events:    []apievents.AuditEvent{event2, event3, bigTrimmableEvent},
+					returnKey: nil,
+				},
+			},
+			// we don't expect bigTrimmableEvent because it should go to next batch
+			wantEvents: []apievents.AuditEvent{event1, event2, event3},
+			wantKey:    &key3,
+		},
+		{
+			name:  "only 1 big trimmable event",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events:    []apievents.AuditEvent{bigTrimmableEvent},
+					returnKey: nil,
+				},
+			},
+			wantEvents: []apievents.AuditEvent{bigTrimmedEvent},
+			wantKey:    &keyTrimmed,
 		},
 	}
 

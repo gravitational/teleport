@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AuthProvider } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import {
@@ -72,20 +72,33 @@ export function useClusterLogin(props: Props) {
     ]).then(([authSettings]) => authSettings);
   });
 
-  const [loginAttempt, login, setAttempt] = useAsync((params: LoginParams) => {
-    refAbortCtrl.current = new AbortController();
-    const signal = cloneAbortSignal(refAbortCtrl.current.signal);
-    switch (params.kind) {
-      case 'local':
-        return loginLocal(ctx, params, signal);
-      case 'passwordless':
-        return loginPasswordless(ctx, params, signal);
-      case 'sso':
-        return loginSso(ctx, params, setSsoPrompt, signal);
-      default:
-        params satisfies never;
+  const [loginAttempt, login, setAttempt] = useAsync(
+    async (params: LoginParams) => {
+      refAbortCtrl.current = new AbortController();
+      const signal = cloneAbortSignal(refAbortCtrl.current.signal);
+
+      try {
+        switch (params.kind) {
+          case 'local':
+            await loginLocal(ctx, params, signal);
+            break;
+          case 'passwordless':
+            await loginPasswordless(ctx, params, signal);
+            break;
+          case 'sso':
+            await loginSso(ctx, params, setSsoPrompt, signal);
+            break;
+          default:
+            params satisfies never;
+        }
+
+        onSuccess?.();
+      } finally {
+        setPasswordlessLoginState(null);
+        setSsoPrompt('no-prompt');
+      }
     }
-  });
+  );
 
   const onLoginWithLocal = (username: string, password: string) => {
     login({
@@ -165,17 +178,6 @@ export function useClusterLogin(props: Props) {
     init();
   }, []);
 
-  useEffect(() => {
-    if (loginAttempt.status !== 'processing') {
-      setPasswordlessLoginState(null);
-      setSsoPrompt('no-prompt');
-    }
-
-    if (loginAttempt.status === 'success') {
-      onSuccess?.();
-    }
-  }, [loginAttempt.status]);
-
   //TODO(gzdunek): We should have a way to listen to config service changes.
   //A workaround for is to update the state, which triggers a re-render.
   const [shouldSkipVersionCheck, setShouldSkipVersionCheck] = useState(
@@ -185,7 +187,10 @@ export function useClusterLogin(props: Props) {
     configService.set('skipVersionCheck', true);
     setShouldSkipVersionCheck(true);
   }
-  const { platform } = mainProcessClient.getRuntimeSettings();
+  const { platform, appVersion } = useMemo(
+    () => mainProcessClient.getRuntimeSettings(),
+    [mainProcessClient]
+  );
 
   return {
     ssoPrompt,
@@ -204,6 +209,7 @@ export function useClusterLogin(props: Props) {
     shouldSkipVersionCheck,
     disableVersionCheck,
     platform,
+    currentVersion: appVersion,
     appUpdateEvent: appUpdaterContext.updateEvent,
     downloadAppUpdate: mainProcessClient.downloadAppUpdate,
     cancelAppUpdateDownload: mainProcessClient.cancelAppUpdateDownload,

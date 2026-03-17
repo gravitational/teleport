@@ -18,7 +18,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink } from 'react-router';
 import styled from 'styled-components';
 
 import {
@@ -32,7 +32,6 @@ import {
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import FieldInput from 'shared/components/FieldInput';
 import { InfoGuideContainer } from 'shared/components/SlidingSidePanel/InfoGuide';
-import { useToastNotifications } from 'shared/components/ToastNotification';
 import Validation from 'shared/components/Validation';
 import { requiredIntegrationName } from 'shared/components/Validation/rules';
 
@@ -47,6 +46,14 @@ import {
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
+import { userEventService } from 'teleport/services/userEvent';
+import {
+  IntegrationEnrollCodeType,
+  IntegrationEnrollEvent,
+  IntegrationEnrollEventData,
+  IntegrationEnrollKind,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent/types';
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
 import { DeploymentMethodSection } from './DeploymentMethodSection';
@@ -71,9 +78,36 @@ const INTEGRATION_CHECK_RETRY_DELAY = 5000;
 export function EnrollAws() {
   useNoMinWidth();
 
+  const [eventId] = useState(() => crypto.randomUUID());
+
+  function emitEvent(
+    event: IntegrationEnrollEvent,
+    extra?: Partial<IntegrationEnrollEventData>
+  ) {
+    userEventService.captureIntegrationEnrollEvent({
+      event,
+      eventData: {
+        id: eventId,
+        kind: IntegrationEnrollKind.AwsCloud,
+        ...extra,
+      },
+    });
+  }
+
+  useEffect(() => {
+    emitEvent(IntegrationEnrollEvent.Started);
+    // Only send once on init.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const { clusterVersion } = useClusterVersion();
 
-  const [integrationName, setIntegrationName] = useState('');
+  const [integrationName, setIntegrationName] = useState(() => {
+    const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    return `aws-integration-${randomHex}`;
+  });
 
   const [regions, setRegions] = useState<WildcardRegion | AwsRegion[]>([
     '*',
@@ -99,14 +133,11 @@ export function EnrollAws() {
   const [activeInfoGuideTab, setActiveInfoGuideTab] =
     useState<InfoGuideTab>('terraform');
 
-  const toastNotifications = useToastNotifications();
-
   const integrationQueryKey = ['integration', integrationName];
 
   const {
     data: integrationData,
     isFetching,
-    isSuccess,
     isError,
     refetch,
   } = useQuery({
@@ -127,47 +158,15 @@ export function EnrollAws() {
 
   const queryClient = useQueryClient();
 
-  // show success toast
-  useEffect(() => {
-    if (isSuccess && !isFetching && integrationName) {
-      toastNotifications.add({
-        severity: 'success',
-        content: {
-          title: 'Amazon Web Services successfully added',
-          description:
-            'Amazon Web Services has been successfully added ' +
-            'to this Teleport Cluster. Your resources will appear ' +
-            "automatically as they're discovered. This may take a few minutes.",
-          action: {
-            content: 'View Integration',
-            linkTo: cfg.getIaCIntegrationRoute(
-              IntegrationKind.AwsOidc,
-              integrationName
-            ),
-          },
-          isAutoRemovable: false,
-        },
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSuccess, isFetching, integrationName]);
-
-  // show error toast
-  useEffect(() => {
-    if (isError && !isFetching && integrationName) {
-      toastNotifications.add({
-        severity: 'error',
-        content: {
-          title: 'Failed to detect integration',
-          description: `Unable to detect the AWS integration "${integrationName}". Please check your configuration and try again.`,
-        },
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isError, isFetching, integrationName]);
-
   const checkIntegration = () => {
-    refetch();
+    emitEvent(IntegrationEnrollEvent.Step, {
+      step: IntegrationEnrollStep.VerifyIntegration,
+    });
+    refetch().then(result => {
+      if (result.isSuccess) {
+        emitEvent(IntegrationEnrollEvent.Complete);
+      }
+    });
   };
 
   const integrationExists = !!integrationData;
@@ -225,6 +224,9 @@ export function EnrollAws() {
                 handleCopy={() => {
                   if (validator.validate() && terraformConfig) {
                     copyToClipboard(terraformConfig);
+                    emitEvent(IntegrationEnrollEvent.CodeCopy, {
+                      codeType: IntegrationEnrollCodeType.Terraform,
+                    });
                   }
                 }}
                 integrationExists={integrationExists}
@@ -294,6 +296,9 @@ export function EnrollAws() {
                   handleCopy={() => {
                     if (validator.validate() && terraformConfig) {
                       copyToClipboard(terraformConfig);
+                      emitEvent(IntegrationEnrollEvent.CodeCopy, {
+                        codeType: IntegrationEnrollCodeType.Terraform,
+                      });
                     }
                   }}
                 />
@@ -331,7 +336,6 @@ export function IntegrationSection({
       <FieldInput
         ml={4}
         mb={0}
-        autoFocus={true}
         rule={requiredIntegrationName}
         value={integrationName}
         required={true}

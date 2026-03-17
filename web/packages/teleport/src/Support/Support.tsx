@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Card, Flex, H2, H3, Text } from 'design';
@@ -80,7 +80,7 @@ export const Support = ({
           css={`
             grid-column: auto;
             @media screen and (min-width: ${props =>
-                props.theme.breakpoints.small}) {
+              props.theme.breakpoints.small}) {
               grid-column: span 2;
             }
           `}

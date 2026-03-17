@@ -18,23 +18,25 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router';
 import { styled } from 'styled-components';
 
-import { Warning } from 'design/Alert/Alert';
-import Box from 'design/Box/Box';
 import {
+  Box,
   ButtonPrimary,
   ButtonSecondary,
   ButtonWarning,
-} from 'design/Button/Button';
-import { Dialog } from 'design/Dialog/Dialog';
-import DialogContent from 'design/Dialog/DialogContent';
-import DialogHeader from 'design/Dialog/DialogHeader';
-import DialogTitle from 'design/Dialog/DialogTitle';
-import Flex from 'design/Flex/Flex';
-import Link from 'design/Link/Link';
-import { H2, P2 } from 'design/Text/Text';
+  Flex,
+  H2,
+  Link,
+  P2,
+} from 'design';
+import { Warning } from 'design/Alert';
+import Dialog, {
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from 'design/Dialog';
 import { FieldSelectCreatableAsync } from 'shared/components/FieldSelect/FieldSelectCreatable';
 import { Rule } from 'shared/components/Validation/rules';
 import Validator, { Validation } from 'shared/components/Validation/Validation';
@@ -62,7 +64,7 @@ export function Finish(props: FlowStepProps) {
   const [showCloseCheck, setShowCloseCheck] = useState(false);
   const [kubernetesClusters, setKubernetesClusters] = useState<Kube[]>([]);
 
-  const history = useHistory();
+  const navigate = useNavigate();
   const tracking = useTracking();
 
   const ctx = useTeleport();
@@ -131,7 +133,7 @@ export function Finish(props: FlowStepProps) {
       IntegrationEnrollStatusCode.Success
     );
 
-    history.replace(cfg.getBotsRoute());
+    navigate(cfg.getBotsRoute(), { replace: true });
   };
 
   const accessChecker = useMemo(

@@ -29,7 +29,7 @@ import { Danger } from 'design/Alert';
 import Box from 'design/Box';
 import Flex, { Stack } from 'design/Flex';
 import { Indicator } from 'design/Indicator';
-import { SortOrder } from 'shared/components/Controls/SortMenuV2';
+import { SortOrder } from 'shared/components/Controls/SortMenu';
 import { ErrorSuspenseWrapper } from 'shared/components/ErrorSuspenseWrapper/ErrorSuspenseWrapper';
 import { getErrorMessage } from 'shared/utils/error';
 
@@ -128,7 +128,7 @@ export function ListSessionRecordings({
         </Flex>
       </FeatureHeader>
 
-      <ExternalAuditStorageCta />
+      <ExternalAuditStorageCta mx="40px" mb={3} />
 
       <Flex flex={1} minHeight={0} overflow="hidden" width="100%">
         <ErrorSuspenseWrapper
@@ -152,7 +152,7 @@ export function ListSessionRecordings({
 function RecordingsListLoading() {
   return (
     <Box textAlign="center" m={10} width="100%">
-      <Indicator />
+      <Indicator delay="none" />
     </Box>
   );
 }

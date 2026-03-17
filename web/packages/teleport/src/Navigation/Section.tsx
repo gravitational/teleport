@@ -23,7 +23,7 @@ import React, {
   ReactNode,
   type JSX,
 } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import styled, { css, useTheme } from 'styled-components';
 
 import { Box, ButtonIcon, Flex, P2, Text } from 'design';
@@ -338,11 +338,13 @@ export function getCategoryStyles(
         background: ${theme.colors.interactive.tonal.primary[2]};
         color: ${theme.colors.interactive.solid.primary.active};
       }
-      ${isExpanded &&
-      `
+      ${
+        isExpanded &&
+        `
         background: ${theme.colors.interactive.tonal.primary[1]};
         color: ${theme.colors.interactive.solid.primary.default};
-      `}
+      `
+      }
     `;
   }
 
@@ -358,11 +360,13 @@ export function getCategoryStyles(
       background: ${theme.colors.interactive.tonal.neutral[1]};
       color: ${theme.colors.text.main};
     }
-    ${isExpanded &&
-    `
+    ${
+      isExpanded &&
+      `
       background: ${theme.colors.interactive.tonal.neutral[0]};
       color: ${theme.colors.text.main};
-      `}
+      `
+    }
   `;
 }
 
@@ -385,7 +389,7 @@ export function SubsectionItem({
     <StyledSubsectionItem
       $active={$active}
       to={to}
-      exact={exact}
+      end={exact}
       tabIndex={0}
       onClick={onClick}
       data-testid={to}
@@ -395,8 +399,11 @@ export function SubsectionItem({
   );
 }
 
-export const StyledSubsectionItem = styled(NavLink)<{
+export const StyledSubsectionItem = styled(NavLink).withConfig({
+  shouldForwardProp: prop => prop !== '$active' && prop !== 'end',
+})<{
   $active: boolean;
+  end?: boolean;
 }>`
   display: flex;
   position: relative;

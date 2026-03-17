@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import { Context, ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
 
 import { AuditContainer as Audit } from './Audit';
 import EventList from './EventList';
@@ -75,16 +75,13 @@ export const AllPossibleEvents = () => (
 );
 
 function render(ctx) {
-  const history = createMemoryHistory({
-    initialEntries: ['/web/cluster/localhost/audit/events'],
-    initialIndex: 0,
-  });
-
   return (
-    <ContextProvider ctx={ctx}>
-      <Router history={history}>
-        <Audit />
-      </Router>
-    </ContextProvider>
+    <MemoryRouter initialEntries={['/web/cluster/localhost/audit/events']}>
+      <ContextProvider ctx={ctx}>
+        <Routes>
+          <Route path={cfg.routes.audit} element={<Audit />} />
+        </Routes>
+      </ContextProvider>
+    </MemoryRouter>
   );
 }

@@ -27,7 +27,7 @@ import { awsRegionGroups } from '../Aws/regions';
 import { RegionMultiSelector } from './RegionMultiSelector';
 
 export default {
-  title: 'RegionMultiSelector',
+  title: 'Teleport/Integrations/Enroll/Cloud/RegionMultiSelector',
   component: RegionMultiSelector,
 };
 

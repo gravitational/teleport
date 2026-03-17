@@ -47,7 +47,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -61,9 +60,6 @@ import (
 )
 
 func TestKube(t *testing.T) {
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-
 	pack := setupKubeTestPack(t, true)
 	t.Run("list kube", pack.testListKube)
 	t.Run("proxy kube", pack.testProxyKube)
@@ -71,9 +67,6 @@ func TestKube(t *testing.T) {
 }
 
 func TestKubeLogin(t *testing.T) {
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-
 	testKubeLogin := func(t *testing.T, kubeCluster string, expectedAddr string) {
 		// Set default kubeconfig to a non-exist file to avoid loading other things.
 		t.Setenv("KUBECONFIG", filepath.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
@@ -147,12 +140,14 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 			if withMultiplexMode {
 				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			}
+			cfg.InsecureMode = true
 			cfg.Kube.Enabled = true
 			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster1, rootKubeCluster2)
 			cfg.Kube.StaticLabels = rootLabels
 			cfg.Proxy.Kube.Enabled = true
 			cfg.Proxy.Kube.ListenAddr = *utils.MustParseAddr(localListenerAddr())
+			cfg.SSH.Enabled = false
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(
@@ -160,10 +155,12 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 				if withMultiplexMode {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}
+				cfg.InsecureMode = true
 				cfg.Kube.Enabled = true
 				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
 				cfg.Kube.StaticLabels = leafLabels
+				cfg.SSH.Enabled = false
 			},
 		),
 		withValidationFunc(func(s *suite) bool {
@@ -333,15 +330,6 @@ func TestKubeSelection(t *testing.T) {
 			},
 		},
 	)
-	originalValue := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	// To detect tests that run in parallel incorrectly, call t.Setenv with a
-	// dummy env var - that function detects tests with parallel ancestors
-	// and panics, preventing improper use of this helper.
-	t.Setenv("WithInsecureDevMode", "1")
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(originalValue)
-	})
 
 	oldResyncInterval := defaults.ResyncInterval
 	defaults.ResyncInterval = 100 * time.Millisecond
@@ -378,6 +366,7 @@ func TestKubeSelection(t *testing.T) {
 	t.Cleanup(cancel)
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
 			// reconfig the user to use the new role instead of the default ones
 			// User is the second bootstrap resource.
 			user, ok := cfg.Auth.BootstrapResources[1].(types.User)
@@ -739,7 +728,7 @@ func TestKubeSelection(t *testing.T) {
 			}
 
 			equal := reflect.DeepEqual(
-				accessRequests[0].GetRequestedResourceIDs(),
+				types.RiskyExtractResourceIDs(accessRequests[0].GetAllRequestedResourceIDs()),
 				[]types.ResourceID{
 					{
 						ClusterName: s.root.Config.Auth.ClusterName.GetClusterName(),

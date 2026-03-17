@@ -325,9 +325,6 @@ const (
 	// PPID is the PID of the parent process.
 	PPID = "ppid"
 
-	// CgroupID is the internal cgroupv2 ID of the event.
-	CgroupID = "cgroup_id"
-
 	// Program is name of the executable.
 	Program = "program"
 
@@ -998,6 +995,43 @@ const (
 	WorkloadClusterUpdateEvent = "workload_cluster.update"
 	// WorkloadClusterDeleteEvent is emitted when a WorkloadCluster resource is deleted.
 	WorkloadClusterDeleteEvent = "workload_cluster.delete"
+
+	// InferenceModelCreateEvent is emitted when an inference model resource is created.
+	InferenceModelCreateEvent = "inference_model.create"
+	// InferenceModelUpdateEvent is emitted when an inference model resource is updated.
+	InferenceModelUpdateEvent = "inference_model.update"
+	// InferenceModelDeleteEvent is emitted when an inference model resource is deleted.
+	InferenceModelDeleteEvent = "inference_model.delete"
+
+	// InferenceSecretCreateEvent is emitted when an inference secret resource is created.
+	InferenceSecretCreateEvent = "inference_secret.create"
+	// InferenceSecretUpdateEvent is emitted when an inference secret resource is updated.
+	InferenceSecretUpdateEvent = "inference_secret.update"
+	// InferenceSecretDeleteEvent is emitted when an inference secret resource is deleted.
+	InferenceSecretDeleteEvent = "inference_secret.delete"
+
+	// InferencePolicyCreateEvent is emitted when an inference policy resource is created.
+	InferencePolicyCreateEvent = "inference_policy.create"
+	// InferencePolicyUpdateEvent is emitted when an inference policy resource is updated.
+	InferencePolicyUpdateEvent = "inference_policy.update"
+	// InferencePolicyDeleteEvent is emitted when an inference policy resource is deleted.
+	InferencePolicyDeleteEvent = "inference_policy.delete"
+
+	// SessionSummarizedEvent is emitted when a session summary is created.
+	SessionSummarizedEvent = "session.summarized"
+
+	// CertAuthOverrideCreateEvent is the create event for cert_auth_override
+	// resources.
+	CertAuthOverrideCreateEvent = "cert_auth_override.create"
+	// CertAuthOverrideUpdateEvent is the update event for cert_auth_override
+	// resources.
+	CertAuthOverrideUpdateEvent = "cert_auth_override.update"
+	// CertAuthOverrideUpsertEvent is the upsert event for cert_auth_override
+	// resources.
+	CertAuthOverrideUpsertEvent = "cert_auth_override.upsert"
+	// CertAuthOverrideDeleteEvent is the delete event for cert_auth_override
+	// resources.
+	CertAuthOverrideDeleteEvent = "cert_auth_override.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

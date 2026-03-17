@@ -64,22 +64,59 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|roles|[]string|roles are the roles that are granted to users who are members of the Access List.|
-|traits|object|traits are the traits that are granted to users who are members of the Access List.|
+|roles|[]string|roles are the names of roles to be granted to users.|
+|scoped_roles|[][object](#specgrantsscoped_roles-items)|scoped_roles are scoped roles to be granted to users.|
+|traits|[object](#specgrantstraits)|traits are the traits to be granted to users.|
+
+### spec.grants.scoped_roles items
+
+|Field|Type|Description|
+|---|---|---|
+|role|string|role is the name of the scoped role to be granted.|
+|scope|string|scope is the scope the role will be assigned at. It must be an assignable scope of the role.|
+
+### spec.grants.traits
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[]string||
 
 ### spec.membership_requires
 
 |Field|Type|Description|
 |---|---|---|
 |roles|[]string|roles are the user roles that must be present for the user to obtain access.|
-|traits|object|traits are the traits that must be present for the user to obtain access.|
+|traits|[object](#specmembership_requirestraits)|traits are the traits that must be present for the user to obtain access.|
+
+### spec.membership_requires.traits
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[]string||
 
 ### spec.owner_grants
 
 |Field|Type|Description|
 |---|---|---|
-|roles|[]string|roles are the roles that are granted to users who are members of the Access List.|
-|traits|object|traits are the traits that are granted to users who are members of the Access List.|
+|roles|[]string|roles are the names of roles to be granted to users.|
+|scoped_roles|[][object](#specowner_grantsscoped_roles-items)|scoped_roles are scoped roles to be granted to users.|
+|traits|[object](#specowner_grantstraits)|traits are the traits to be granted to users.|
+
+### spec.owner_grants.scoped_roles items
+
+|Field|Type|Description|
+|---|---|---|
+|role|string|role is the name of the scoped role to be granted.|
+|scope|string|scope is the scope the role will be assigned at. It must be an assignable scope of the role.|
+
+### spec.owner_grants.traits
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[]string||
 
 ### spec.owners items
 
@@ -95,5 +132,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |roles|[]string|roles are the user roles that must be present for the user to obtain access.|
-|traits|object|traits are the traits that must be present for the user to obtain access.|
+|traits|[object](#specownership_requirestraits)|traits are the traits that must be present for the user to obtain access.|
+
+### spec.ownership_requires.traits
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[]string||
 

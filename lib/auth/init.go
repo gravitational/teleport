@@ -53,7 +53,6 @@ import (
 	"github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
 	igcredentials "github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -103,6 +102,9 @@ type RecordingEncryptionManager interface {
 
 // InitConfig is auth server init config
 type InitConfig struct {
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
+
 	// Backend is auth backend to use
 	Backend backend.Backend
 
@@ -441,6 +443,17 @@ type InitConfig struct {
 
 	// WorkloadClusterService is the service that manages WorkloadClusters.
 	WorkloadClusterService services.WorkloadClusterService
+
+	// FakePasswordHash is the password hash given to all users without a password.
+	// This helps eliminate timing attacks by ensuring that all authentication attempts
+	// with a password do a bcrypt comparison.
+	FakePasswordHash []byte
+	// FakeRecoveryCodeHash is the recovery code hash given to all users without codes.
+	// This helps eliminate timing attacks by ensuring that all recovery attempts
+	// with codes do a bcrypt comparison.
+	FakeRecoveryCodeHash []byte
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -453,6 +466,11 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	}
 	if cfg.HostUUID == "" {
 		return nil, trace.BadParameter("HostUUID: host UUID can not be empty")
+	}
+
+	// TODO(tross): return an error once modules are injected everywhere.
+	if cfg.Modules == nil {
+		cfg.Modules = modules.GetModules()
 	}
 
 	asrv, err := NewServer(&cfg, opts...)
@@ -691,7 +709,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err)
 	}
 
-	if lib.IsInsecureDevMode() {
+	if cfg.InsecureMode {
 		const warningMessage = "Starting teleport in insecure mode. This is " +
 			"dangerous! Sensitive information will be logged to console and " +
 			"certificates will not be verified. Proceed with caution!"
@@ -1617,8 +1635,8 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.GenerateHostCerts(context.Background(),
-		&proto.HostCertsRequest{
+	certs, err := a.GenerateHostCerts(context.Background(), HostCertsParams{
+		Req: &proto.HostCertsRequest{
 			HostID:               id.HostUUID,
 			NodeName:             id.NodeName,
 			Role:                 id.Role,
@@ -1626,7 +1644,8 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 			DNSNames:             dnsNames,
 			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
 			PublicTLSKey:         tlsPub,
-		}, "")
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

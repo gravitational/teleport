@@ -79,7 +79,7 @@ func initCommands() map[string]*command {
 				// - another item
 				var limitations strings.Builder
 				for _, l := range descriptiveLimitations {
-					limitations.WriteString(fmt.Sprintf("- %s\n", strings.ReplaceAll(l, lineBreak, lineBreak+"  ")))
+					fmt.Fprintf(&limitations, "- %s\n", strings.ReplaceAll(l, lineBreak, lineBreak+"  "))
 				}
 
 				return fmt.Sprintf(

@@ -31,6 +31,7 @@ import (
 	"net/http/httptest"
 	"sort"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -46,6 +47,7 @@ import (
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -93,6 +95,7 @@ import (
 )
 
 func TestMFADeviceManagement(t *testing.T) {
+	t.Parallel()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	clock := testServer.Clock().(*clockwork.FakeClock)
@@ -456,6 +459,7 @@ func TestMFADeviceManagement(t *testing.T) {
 }
 
 func TestMFADeviceManagement_SSO(t *testing.T) {
+	t.Parallel()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	ctx := context.Background()
@@ -573,6 +577,7 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 }
 
 func TestDeletingLastPasswordlessDevice(t *testing.T) {
+	t.Parallel()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	clock := testServer.Clock().(*clockwork.FakeClock)
@@ -883,6 +888,7 @@ func testDeleteMFADevice(ctx context.Context, t *testing.T, authClient *authclie
 }
 
 func TestCreateAppSession_deviceExtensions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
@@ -968,6 +974,7 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 }
 
 func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testServer := newTestTLSServer(t)
 
@@ -2646,6 +2653,7 @@ func TestIsMFARequired(t *testing.T) {
 }
 
 func TestIsMFARequired_unauthorized(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -2832,6 +2840,7 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 }
 
 func TestIsMFARequired_App(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -4635,61 +4644,50 @@ func TestListResources(t *testing.T) {
 }
 
 func TestCustomRateLimiting(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
 	tests := []struct {
 		name  string
 		burst int
-		fn    func(*authclient.Client) error
+		fn    func(context.Context, *authclient.Client) error
 	}{
 		{
 			name: "RPC ChangeUserAuthentication",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{})
 				return err
 			},
 		},
 		{
-			name:  "RPC CreateAuthenticateChallenge",
-			burst: defaults.LimiterBurst,
-			fn: func(clt *authclient.Client) error {
-				_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
-				return err
-			},
-		},
-		{
 			name: "RPC GetAccountRecoveryToken",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.GetAccountRecoveryToken(ctx, &proto.GetAccountRecoveryTokenRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC StartAccountRecovery",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC VerifyAccountRecovery",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.VerifyAccountRecovery(ctx, &proto.VerifyAccountRecoveryRequest{})
 				return err
 			},
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
+		synctestCase := func(t *testing.T) {
 			// Create new instance per test case, to troubleshoot which test case
 			// specifically failed, otherwise multiple cases can fail from running
 			// cases in parallel.
-			srv := newTestTLSServer(t)
+			srv := newTestTLSServer(t, withBufconnListener())
+			defer srv.Close()
 			clt, err := srv.NewClient(authtest.TestNop())
 			require.NoError(t, err)
+			defer clt.Close()
 
 			var attempts int
 			if test.burst == 0 {
@@ -4699,13 +4697,83 @@ func TestCustomRateLimiting(t *testing.T) {
 			}
 
 			for range attempts {
-				err = test.fn(clt)
-				require.False(t, trace.IsLimitExceeded(err), "got err = %v, want non-IsLimitExceeded", err)
+				err = test.fn(t.Context(), clt)
+				require.NotErrorAs(t, err, new(*trace.LimitExceededError))
 			}
 
-			err = test.fn(clt)
-			require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+			err = test.fn(t.Context(), clt)
+			require.ErrorAs(t, err, new(*trace.LimitExceededError))
+		}
+		t.Run(test.name, func(t *testing.T) {
+			synctest.Test(t, synctestCase)
 		})
+	}
+
+	t.Run("unauthenticated CreateAuthenticateChallenge", func(t *testing.T) {
+		synctest.Test(t, synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge)
+	})
+}
+
+func synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge(t *testing.T) {
+	ctx := t.Context()
+
+	srv := newTestTLSServer(t, withBufconnListener())
+	defer srv.Close()
+	clt, err := srv.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+	defer clt.Close()
+
+	nonContextUserRequest := &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+			UserCredentials: new(proto.UserCredentials),
+		},
+	}
+	contextUserRequest := &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: new(proto.ContextUser),
+		},
+	}
+
+	for range defaults.LimiterBurst {
+		_, err := clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
+	}
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+
+	time.Sleep(defaults.LimiterPeriod)
+
+	for range defaults.LimiterBurst - defaults.LimiterAverage {
+		_, err := clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
+	}
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+
+	require.Greater(t, 1000*defaults.LimiterAverage, defaults.LimiterBurst,
+		"Waiting 1000 periods should bring us to LimiterBurst but no higher")
+	time.Sleep(1000 * defaults.LimiterPeriod)
+
+	for range defaults.LimiterBurst {
+		_, err := clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
+	}
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+
+	// no time has passed, but we can do a full burst and more if we pretend to
+	// have a user context (the request will fail, but not due to the rate
+	// limiter)
+
+	for range defaults.LimiterBurst + 1 {
+		_, err := clt.CreateAuthenticateChallenge(ctx, contextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
 	}
 }
 
@@ -5667,6 +5735,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 }
 
 func TestGetVnetConfig(t *testing.T) {
+	t.Parallel()
 	server := newTestTLSServer(t)
 	user, _, err := authtest.CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
 	require.NoError(t, err)
@@ -6511,4 +6580,30 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGRPCServingStatus(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+	defer srv.Close()
+
+	authClient, err := srv.NewClient(authtest.TestServerID(types.RoleNode, uuid.NewString()))
+	require.NoError(t, err)
+	defer authClient.Close()
+
+	srv.TLSServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthClient := grpc_health_v1.NewHealthClient(authClient.GetConnection())
+	resp, err := healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{
+		Service: "",
+	})
+	require.NoError(t, err)
+	require.Equal(t, grpc_health_v1.HealthCheckResponse_SERVING, resp.Status)
+
+	srv.TLSServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_NOT_SERVING)
+	resp, err = healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{
+		Service: "",
+	})
+	require.NoError(t, err)
+	require.Equal(t, grpc_health_v1.HealthCheckResponse_NOT_SERVING, resp.Status)
 }

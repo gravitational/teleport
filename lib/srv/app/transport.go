@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -52,7 +51,8 @@ type transportConfig struct {
 	traits       wrappers.Traits
 	log          *slog.Logger
 	// hostID is purely for troubleshooting purposes (put in the error messages)
-	hostID string
+	hostID       string
+	insecureMode bool
 }
 
 // Check validates configuration.
@@ -284,7 +284,7 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 	// Don't verify the server's certificate if Teleport was started with
 	// the --insecure flag, or 'insecure_skip_verify' was specifically requested in
 	// the application config.
-	tlsConfig.InsecureSkipVerify = (lib.IsInsecureDevMode() || c.app.GetInsecureSkipVerify())
+	tlsConfig.InsecureSkipVerify = (c.insecureMode || c.app.GetInsecureSkipVerify())
 
 	return tlsConfig, nil
 }

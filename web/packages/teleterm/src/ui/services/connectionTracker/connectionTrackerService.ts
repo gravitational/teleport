@@ -197,12 +197,12 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
           return assertUnreachable(s);
       }
     });
-    await Promise.all([
+    await Promise.all(
       connections.map(async connection => {
         await this.disconnectItem(connection.id);
         await this.removeItem(connection.id);
-      }),
-    ]);
+      })
+    );
   }
 
   dispose(): void {
@@ -285,6 +285,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
               gwConn.title = doc.title;
               gwConn.targetSubresourceName = doc.targetSubresourceName;
               gwConn.port = doc.port;
+              gwConn.autoUserProvisioning = doc.autoUserProvisioning;
               gwConn.connected = !!this._clusterService.findGateway(
                 doc.gatewayUri
               );

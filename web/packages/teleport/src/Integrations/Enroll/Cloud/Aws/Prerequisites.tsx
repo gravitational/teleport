@@ -85,10 +85,49 @@ export function Prerequisites() {
             `}
           >
             <li>
-              <Text>AWS account access with admin permissions</Text>
+              <Text>
+                AWS IAM permissions required for AWS Terraform provider
+              </Text>
+              <ExternalLink
+                href="https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery-terraform#step-15-configure-aws-terraform-provider"
+                target="_blank"
+              >
+                Terraform EC2 Auto-Discovery Configuration{' '}
+                <ArrowSquareOut size="small" />
+              </ExternalLink>
+            </li>
+          </ul>
+          <Text typography="h3" fontSize="small">
+            For EC2 resources:
+          </Text>
+          <ul
+            css={`
+              margin: 0;
+              padding-left: ${p => p.theme.space[3]}px;
+            `}
+          >
+            <li>
+              <Text>
+                AmazonSSMManagedInstanceCore IAM policy attached to EC2
+                instance's role.
+              </Text>
+              <ExternalLink
+                href="https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html"
+                target="_blank"
+              >
+                AmazonSSMManagedInstanceCore Policy{' '}
+                <ArrowSquareOut size="small" />
+              </ExternalLink>
             </li>
             <li>
-              <Text>Permissions to create IAM roles</Text>
+              <Text>SSM agent running on EC2 instances to be discovered.</Text>
+              <ExternalLink
+                href="https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html"
+                target="_blank"
+              >
+                Working with SSM Agent
+                <ArrowSquareOut size="small" />
+              </ExternalLink>
             </li>
           </ul>
         </Box>
