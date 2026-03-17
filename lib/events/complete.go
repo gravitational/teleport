@@ -373,7 +373,7 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 	// For PTY sessions, process recording metadata and summarization.
 	recordingMetadata := u.cfg.RecordingMetadataProvider.Service()
 	if duration, isPTY := isPTYSession(sessionEndEvent); isPTY && duration > 0 {
-		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, duration); err != nil {
+		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, recordingmetadata.SessionTypeTTY, duration); err != nil {
 			slog.WarnContext(ctx, "Failed to process session recording metadata", "error", err)
 		}
 	} else if isPTY {
