@@ -66,4 +66,8 @@ type Token interface {
 	GetAzureDevops() *types.ProvisionTokenSpecV2AzureDevops
 	// GetOracle returns the Oracle-specific configuration for this token.
 	GetOracle() *types.ProvisionTokenSpecV2Oracle
+	// GetBoundKeypair returns bound keypair specific configuration for this token.
+	GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair
+	// GetBoundKeypairStatus returns bound keypair status for this token.
+	GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair
 }

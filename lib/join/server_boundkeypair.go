@@ -72,7 +72,7 @@ func (s *Server) handleBoundKeypairJoin(
 	// Scoped tokens currently validate against being created with the bot role, but just in case
 	// we'll check and return a more helpful error message if one happens to make it through.
 	if token.GetAssignedScope() != "" {
-		return nil, trace.BadParameter("bound keypair joining is not supported by scoped tokens")
+		// TODO: scoped token specific checks; bound keypair now supports scoped tokens.
 	}
 
 	boundKeypairInit, err := messages.RecvRequest[*messages.BoundKeypairInit](stream)
@@ -115,8 +115,10 @@ func (s *Server) handleBoundKeypairJoin(
 		}
 		return botCerts, botInstanceID, nil
 	}
+
 	return boundkeypair.HandleBoundKeypairJoin(ctx, &boundkeypair.JoinParams{
 		AuthService:          s.cfg.AuthService,
+		ScopedTokenService:   s.cfg.ScopedTokenService,
 		AuthCtx:              authCtx,
 		Diag:                 diag,
 		ProvisionToken:       token,
@@ -232,6 +234,7 @@ func AdaptRegisterUsingBoundKeypairMethod(
 
 	botResult, err := boundkeypair.HandleBoundKeypairJoin(ctx, &boundkeypair.JoinParams{
 		AuthService:                 a,
+		ScopedTokenService:          nil, // Legacy does not support scoped tokens
 		AuthCtx:                     authCtx,
 		Diag:                        diag,
 		ProvisionToken:              provisionToken,

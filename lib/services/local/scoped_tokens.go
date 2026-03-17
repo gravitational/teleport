@@ -434,6 +434,56 @@ func (s *ScopedTokenService) UpdateScopedToken(ctx context.Context, req *joining
 	}, nil
 }
 
+// PatchScopedToken uses the supplied function to attempt to patch a scoped
+// token resource. Up to 3 update attempts will be made if the conditional
+// update fails due to a revision comparison failure.
+func (s *ScopedTokenService) PatchScopedToken(
+	ctx context.Context,
+	tokenName string,
+	updateFn func(*joiningv1.ScopedToken) (*joiningv1.ScopedToken, error),
+) (*joiningv1.ScopedToken, error) {
+	const iterLimit = 3
+
+	for i := 0; i < iterLimit; i++ {
+		existing, err := s.svc.GetResource(ctx, tokenName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		clone := proto.CloneOf(existing)
+		updated, err := updateFn(clone)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := joining.ValidateTokenUpdate(existing, updated); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		updatedMetadata := updated.GetMetadata()
+		existingMetadata := existing.GetMetadata()
+
+		if updatedMetadata.GetRevision() != existingMetadata.GetRevision() {
+			return nil, trace.BadParameter("metadata.revision: cannot be patched")
+		}
+
+		if err := joining.StrongValidateToken(updated); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		ret, err := s.svc.ConditionalUpdateResource(ctx, updated)
+		if trace.IsCompareFailed(err) {
+			continue
+		} else if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	}
+
+	return nil, trace.CompareFailed("failed to update provision token within %v iterations", iterLimit)
+}
+
 func setScopedTokenWithoutSecret(token ...*joiningv1.ScopedToken) {
 	for _, t := range token {
 		if t != nil && t.Status != nil {
