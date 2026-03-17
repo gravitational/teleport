@@ -54,6 +54,40 @@ if [ -L "$TSH_SYMLINK_TARGET" ] && [ ! -e "$TSH_SYMLINK_TARGET" ]; then
   rm -f "$TSH_SYMLINK_TARGET"
 fi
 
+has_systemd() {
+  [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1
+}
+
+remove_vnet_file() {
+  dst="$1"
+  rm -f "$dst"
+}
+
+reload_dbus_config() {
+  # Normally packages that install files into
+  # D-Bus configuration directories (for example):
+  #   /usr/share/dbus-1/system.d/
+  #   /usr/share/dbus-1/system-services/
+  #
+  # rely on package manager to reload the system bus configuration after installation.
+  #
+  # In our case, these files are copied into place by post-install script, so we reload
+  # dbus config manually.
+  dbus-send --print-reply --system \
+    --dest=org.freedesktop.DBus \
+    /org/freedesktop/DBus \
+    org.freedesktop.DBus.ReloadConfig >/dev/null 2>&1 || true
+}
+
+if has_systemd; then
+  remove_vnet_file /usr/share/polkit-1/actions/org.teleport.vnet1.policy
+  remove_vnet_file /usr/share/dbus-1/system.d/org.teleport.vnet1.conf
+  remove_vnet_file /usr/share/dbus-1/system-services/org.teleport.vnet1.service
+  remove_vnet_file /usr/lib/systemd/system/teleport-vnet.service
+  systemctl daemon-reload || true
+  reload_dbus_config
+fi
+
 # shellcheck disable=SC2016 # This is custom electron-builder macro expansion, not Bash templating.
 APPARMOR_PROFILE_DEST='/etc/apparmor.d/${executable}'
 
