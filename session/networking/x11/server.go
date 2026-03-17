@@ -60,10 +60,30 @@ func OpenNewXServerListener(displayOffset int, maxDisplay int, screen uint32) (n
 		display := Display{DisplayNumber: displayNumber, ScreenNumber: int(screen)}
 		if l, err := display.Listen(); err == nil {
 			return l, display, nil
-		} else if !errors.Is(err, syscall.EADDRINUSE) && !errors.Is(err, syscall.EACCES) {
+		} else if tryNextDisplayError(err) {
+			// Skip to next display if the error is non-fatal.
+			continue
+		} else {
 			return nil, Display{}, trace.Wrap(err)
 		}
 	}
 
 	return nil, Display{}, trace.LimitExceeded("No more X11 sockets are available")
+}
+
+// tryNextDisplayError checks if the error is non-fatal and connecting to the
+// next display should be attempted. The following cases are supported.
+//
+// * syscall.EADDRINUSE: Socket exists and something is already bound to it.
+// This happens when a display is already being used by another X server.
+//
+// * syscall.EACCES: Permissons error. For example, socket may be owned by
+// different user.
+//
+// * syscall.EEXIST: Socket already exists. Happens on macOS most often and in
+// particular during heavy load on CI.
+func tryNextDisplayError(err error) bool {
+	return errors.Is(err, syscall.EADDRINUSE) ||
+		errors.Is(err, syscall.EACCES) ||
+		errors.Is(err, syscall.EEXIST)
 }
