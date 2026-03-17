@@ -49,7 +49,7 @@ representation of a user of a remote system.
 Remote users don't perform their login challenge in Teleport. They are redirected
 to their identity provider (IdP) to enter their password, MFA, or any
 authentication method required by the upstream SSO provider. Teleport is not
-aware of the authentication method not the user credentials, it trusts the IdP
+aware of the authentication method nor the user credentials; it trusts the IdP
 response.
 
 If `teleport.auth_service.authentication.second_factor` is `"webauthn"`, Teleport

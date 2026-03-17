@@ -22,7 +22,7 @@ due the limited support Kubernetes has for sidecars.
 
 In this guide, we demonstrate the `kubernetes` join method, in which `tbot`
 proves its identity to the Teleport Auth Service by presenting a JSON web token
-(JWT) signed by the Kubernetes API server. This JWT contains identifies the
+(JWT) signed by the Kubernetes API server. This JWT contains the
 service account, the pod and the namespace in which `tbot` is running. The
 Teleport Auth Service checks the signature of the JWT against the Kubernetes
 cluster's public signing key.
@@ -92,8 +92,7 @@ presented by `tbot` is signed legitimately by the Kubernetes cluster.
 Run the following commands to determine the JWKS formatted public key:
 
 ```code
-$ kubectl proxy -p 8080
-$ curl http://localhost:8080/openid/v1/jwks
+$ kubectl get --raw /openid/v1/jwks
 {"keys":[--snip--]}%
 ```
 
