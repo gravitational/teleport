@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { signup } from '../../../helpers/signup';
-import { deleteUser } from '../../../helpers/tctl';
-import { expect, test } from '../../../helpers/test';
+import { signup } from '@gravitational/e2e/helpers/signup';
+import { deleteUser } from '@gravitational/e2e/helpers/tctl';
+import { expect, test } from '@gravitational/e2e/helpers/test';
 
 test('verify that a user can sign up with webauthn and login', async ({
   page,

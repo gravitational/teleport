@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { test } from '../../../helpers/test';
+import { test } from '@gravitational/e2e/helpers/test';
 
 test('verify that a user can SSH into a node', async ({
   unifiedResourcesPage,
