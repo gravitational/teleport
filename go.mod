@@ -134,8 +134,8 @@ require (
 	github.com/go-webauthn/webauthn v0.11.2
 	github.com/gobwas/ws v1.4.0
 	github.com/gocql/gocql v1.7.0
-	github.com/gofrs/flock v0.12.1
 	github.com/godbus/dbus/v5 v5.1.0
+	github.com/gofrs/flock v0.12.1
 	github.com/gogo/protobuf v1.3.2 // replaced
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-jwt/jwt/v5 v5.3.0
