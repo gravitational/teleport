@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,20 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/**
- * This needs to be an .mjs file,
- * because Vite can't import .ts files from a workspace out of the box.
- * https://github.com/vitejs/vite/issues/5370
- */
-
-import path from 'node:path';
-
-import tsconfigPaths from 'vite-tsconfig-paths';
-
-const rootDirectory = path.resolve(import.meta.dirname, '../../../..');
-
-export function tsconfigPathsPlugin() {
-  return tsconfigPaths({
-    root: rootDirectory,
-  });
-}
+// These are in a separate file that is imported after ace.js, so that we can
+// ensure that `ace` is defined as a global.
+// Importing them directly from TextEditor.jsx would result in oxfmt rearranging
+// the imports and putting these above the ace import, which would then cause them
+// to fail to load.
+import 'ace-builds/src-noconflict/ext-searchbox';
+import 'ace-builds/src-noconflict/mode-json';
+import 'ace-builds/src-noconflict/mode-terraform.js';
+import 'ace-builds/src-noconflict/mode-yaml';

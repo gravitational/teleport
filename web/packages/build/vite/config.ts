@@ -27,7 +27,6 @@ import wasm from 'vite-plugin-wasm';
 import { generateAppHashFile } from './apphash';
 import { htmlPlugin, transformPlugin } from './html';
 import { reactPlugin } from './react.mjs';
-import { tsconfigPathsPlugin } from './tsconfigPaths.mjs';
 
 const DEFAULT_PROXY_TARGET = '127.0.0.1:3080';
 const ENTRY_FILE_NAME = 'app/app.js';
@@ -65,11 +64,33 @@ export function createViteConfig(
         host: '0.0.0.0',
         port: 3000,
       },
+      resolve: {
+        tsconfigPaths: true,
+      },
       build: {
         outDir: outputDirectory,
         assetsDir: 'app',
         emptyOutDir: true,
-        rollupOptions: {
+        reportCompressedSize: false,
+        rolldownOptions: {
+          checks: {
+            // We don't really need rolldown to complain about react/assets/wasm taking a "long"
+            // time - the entire build takes ~7s with compression, which is plenty fast.
+            pluginTimings: false,
+          },
+          onLog(level, log, defaultHandler) {
+            // Suppress direct eval warning from @protobufjs/inquire.
+            // The eval is intentional (to call require without bundler detection) and patching
+            // it to indirect eval would break Electron's module-scoped require.
+            if (
+              log.code === 'EVAL' &&
+              log.id?.includes('@protobufjs/inquire')
+            ) {
+              return;
+            }
+
+            defaultHandler(level, log);
+          },
           output: {
             // removes hashing from our entry point file.
             entryFileNames: ENTRY_FILE_NAME,
@@ -83,7 +104,6 @@ export function createViteConfig(
       },
       plugins: [
         reactPlugin(mode),
-        tsconfigPathsPlugin(),
         transformPlugin(),
         generateAppHashFile(outputDirectory, ENTRY_FILE_NAME),
         wasm(),
