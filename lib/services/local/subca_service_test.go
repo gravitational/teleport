@@ -66,13 +66,12 @@ func TestSubCAService_CRUD(t *testing.T) {
 			CATypesToCreate: []types.CertAuthType{caType},
 		})
 		service := env.SubCA
-		ctx := t.Context()
 
 		caOverride := env.NewOverrideForCAType(t, caType)
 		want := proto.Clone(caOverride).(*subcav1.CertAuthorityOverride)
 
 		// Upsert and verify response.
-		created, err := service.UpsertCertAuthorityOverride(ctx, caOverride)
+		created, err := service.UpsertCertAuthorityOverride(t.Context(), caOverride)
 		require.NoError(t, err, "UpsertCertAuthorityOverride errored")
 		want.Metadata.Revision = created.Metadata.Revision
 		if diff := cmp.Diff(want, created, protocmp.Transform()); diff != "" {
@@ -87,12 +86,12 @@ func TestSubCAService_CRUD(t *testing.T) {
 		const wantInvalidErr = "certificate: expected PEM"
 
 		t.Run("Upsert (invalid)", func(t *testing.T) {
-			_, err := service.UpsertCertAuthorityOverride(ctx, invalid)
+			_, err := service.UpsertCertAuthorityOverride(t.Context(), invalid)
 			assert.ErrorContains(t, err, wantInvalidErr, "UpsertCertAuthorityOverride error mismatch")
 		})
 
 		t.Run("Update (invalid)", func(t *testing.T) {
-			_, err := service.UpdateCertAuthorityOverride(ctx, invalid)
+			_, err := service.UpdateCertAuthorityOverride(t.Context(), invalid)
 			assert.ErrorContains(t, err, wantInvalidErr, "UpdateCertAuthorityOverride error mismatch")
 		})
 
@@ -102,7 +101,7 @@ func TestSubCAService_CRUD(t *testing.T) {
 
 			want := proto.Clone(created).(*subcav1.CertAuthorityOverride)
 
-			updated, err := service.UpsertCertAuthorityOverride(ctx, created)
+			updated, err := service.UpsertCertAuthorityOverride(t.Context(), created)
 			require.NoError(t, err, "UpsertCertAuthorityOverride errored")
 			assert.NotEqual(t,
 				want.Metadata.Revision, updated.Metadata.Revision,
@@ -116,6 +115,8 @@ func TestSubCAService_CRUD(t *testing.T) {
 		})
 
 		t.Run("Update", func(t *testing.T) {
+			ctx := t.Context()
+
 			// Create an altogether different override.
 			caOverride2 := env.NewOverrideForCAType(t, caType)
 			// Enable, like the previous update.
@@ -146,6 +147,7 @@ func TestSubCAService_CRUD(t *testing.T) {
 		})
 
 		t.Run("Delete", func(t *testing.T) {
+			ctx := t.Context()
 			id := local.CertAuthorityOverrideIDFromResource(created)
 
 			// 1st delete succeeds.
@@ -565,4 +567,31 @@ func TestSubCAService_Create(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSubCAService_Update_wrongRevision(t *testing.T) {
+	t.Parallel()
+
+	const caType = types.WindowsCA
+	env := subcaenv.New(t, subcaenv.EnvParams{
+		CATypesToCreate: []types.CertAuthType{caType},
+	})
+	service := env.SubCA
+	ctx := t.Context()
+
+	caOverride := env.NewOverrideForCAType(t, caType)
+	caOverride, err := service.CreateCertAuthorityOverride(ctx, caOverride)
+	require.NoError(t, err)
+	rev1 := caOverride.Metadata.Revision
+
+	caOverride, err = service.UpdateCertAuthorityOverride(ctx, caOverride)
+	require.NoError(t, err)
+	rev2 := caOverride.Metadata.Revision
+	require.NotEqual(t, rev1, rev2, "Revision didn't change on update")
+
+	// Update using an old revision.
+	caOverride.Metadata.Revision = rev1
+	_, err = service.UpdateCertAuthorityOverride(ctx, caOverride)
+	assert.ErrorAs(t, err, new(*trace.CompareFailedError),
+		"UpdateCertAuthorityOverride() revision mismatch error")
 }
