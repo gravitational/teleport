@@ -22,6 +22,29 @@ function ensure_teleport_binary() {
     fi
 }
 
+function build_target_image_tag() {
+    local base_image_tag="$1"
+    local tenant="$2"
+    local commit_short="$3"
+    local timestamp="$4"
+
+    # Nightly base-image tags are already long enough to exceed tenant version
+    # naming limits, so collapse both release-branch nightly tags
+    # (e.g. 18.7.2-nightly...) and master nightly tags
+    # (e.g. 19.0.0-dev-nightly...) into a shorter dotted-tri form.
+    if [[ "${base_image_tag}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-dev)?-nightly([0-9]{8})-[0-9]+-[0-9a-f]+$ ]]; then
+        local major="${BASH_REMATCH[1]}"
+        local minor="${BASH_REMATCH[2]}"
+        local patch="${BASH_REMATCH[3]}"
+        local nightly_date="${BASH_REMATCH[5]}"
+        local tenant_short="${tenant:0:16}"
+        echo "${major}.${minor}.${patch}-nightly${nightly_date}-${tenant_short}-${timestamp}"
+        return
+    fi
+
+    echo "${base_image_tag}-${tenant}-${commit_short}-${timestamp}"
+}
+
 function resolve_dev_base_image_for_master() {
     local current_version="$1"
     local base_image_tag_was_set="$2"

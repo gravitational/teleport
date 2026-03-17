@@ -143,7 +143,7 @@ When not using `RELEASE=...`, the script expect:
 `create-cloud` does not build this binary automatically. If missing, build it first:
 
 ```shell
-make build-cloud-teleport-binary
+make CC=/opt/homebrew/bin/x86_64-unknown-linux-gnu-gcc build-cloud-teleport-binary
 ```
 
 #### Which target should I use?

@@ -91,14 +91,7 @@ else
     git_email=$(git config user.email)
     TENANT=${git_email%%@*}
   fi
-  if [[ "${BASE_IMAGE_TAG}" =~ ^([0-9]+)\.[0-9]+\.[0-9]+-dev-nightly([0-9]{8})-[0-9]+-[0-9a-f]+$ ]]; then
-    major="${BASH_REMATCH[1]}"
-    nightly_date="${BASH_REMATCH[2]}"
-    tenant_short="${TENANT:0:16}"
-    target_image_tag="${major}.0.0-nightly${nightly_date}-${tenant_short}-${timestamp}"
-  else
-    target_image_tag="${BASE_IMAGE_TAG}-${TENANT}-${commit_short}-${timestamp}"
-  fi
+  target_image_tag=$(build_target_image_tag "$BASE_IMAGE_TAG" "$TENANT" "$commit_short" "$timestamp")
   echo "-> Generated docker image tag \"$target_image_tag\""
   target_image="${TARGET_IMAGE_REPO}:${target_image_tag}"
 
