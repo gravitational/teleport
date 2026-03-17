@@ -20,32 +20,31 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 const (
-	tunInterfaceName = "utun"
+	tunInterfaceName = "TeleportVNet"
 )
 
-// RunDarwinAdminProcess must run as root. It creates and sets up a TUN device
-// and passes the file descriptor for that device over the unix socket found at
-// config.socketPath.
-//
-// It also handles host OS configuration that must run as root, and stays alive
-// to keep the host configuration up to date. It will stay running until the
-// socket at config.socketPath is deleted, ctx is canceled, or until
-// encountering an unrecoverable error.
-func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
+// LinuxAdminProcessConfig configures RunLinuxAdminProcess.
+type LinuxAdminProcessConfig struct {
+	// ClientApplicationServiceAddr is the address of the client application
+	// service the admin process connects to.
+	ClientApplicationServiceAddr string
+	// ServiceCredentialPath is the path to IPC credentials used to authenticate
+	// with the client application service.
+	ServiceCredentialPath string
+}
+
+// RunLinuxAdminProcess must run as root.
+func RunLinuxAdminProcess(ctx context.Context, config LinuxAdminProcessConfig) error {
 	log.InfoContext(ctx, "Running VNet admin process")
-	if err := config.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err, "checking daemon process config")
-	}
 
 	serviceCreds, err := readCredentials(config.ServiceCredentialPath)
 	if err != nil {
 		return trace.Wrap(err, "reading service IPC credentials")
 	}
+	// TODO(tangyatsu): change to gRPC client over unix socket instead of TCP.
 	clt, err := newClientApplicationServiceClient(ctx, serviceCreds, config.ClientApplicationServiceAddr)
 	if err != nil {
 		return trace.Wrap(err, "creating user process client")
