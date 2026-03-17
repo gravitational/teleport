@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=19.0.0-dev
+VERSION=19.0.0-dev.erik.1
 
 DOCKER_IMAGE ?= teleport
 
@@ -1755,7 +1755,9 @@ install: build
 .PHONY: image
 image: OS=linux
 image: TARBALL_PATH_SECTION:=-s "$(shell pwd)"
-image: clean docker-binaries build-archive oss-deb
+# image: clean docker-binaries build-archive oss-deb
+image: build-archive oss-deb
+	exit 1
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
 	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)-$(ARCH) --target teleport \
 		--build-arg DEB_PATH="./teleport_$(VERSION)_$(ARCH).deb"
@@ -1833,6 +1835,7 @@ rpm-unsigned:
 
 # build open source .deb only
 .PHONY: oss-deb
+oss-deb: TARBALL_PATH_SECTION:=-s "$(shell pwd)"
 oss-deb:
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
