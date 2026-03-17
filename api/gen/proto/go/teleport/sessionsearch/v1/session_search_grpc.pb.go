@@ -33,7 +33,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SessionSearchService_SearchSessionSummaries_FullMethodName = "/teleport.sessionsearch.v1.SessionSearchService/SearchSessionSummaries"
+	SessionSearchService_SearchSessionSummaries_FullMethodName                = "/teleport.sessionsearch.v1.SessionSearchService/SearchSessionSummaries"
+	SessionSearchService_NaturalLanguageSearchSessionSummaries_FullMethodName = "/teleport.sessionsearch.v1.SessionSearchService/NaturalLanguageSearchSessionSummaries"
 )
 
 // SessionSearchServiceClient is the client API for SessionSearchService service.
@@ -72,6 +73,16 @@ type SessionSearchServiceClient interface {
 	//	  }
 	//	}
 	SearchSessionSummaries(ctx context.Context, in *SearchSessionSummariesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SearchSessionSummariesResponse], error)
+	// NaturalLanguageSearchSessionSummaries accepts a natural-language query
+	// and a time range, parses the query into structured filter criteria using
+	// the configured inference model, and then streams the visible matching
+	// sessions to the caller.
+	//
+	// All access-control filtering and pagination are performed identically to
+	// SearchSessionSummaries. The only difference is that the filter parameters
+	// are derived from natural-language query parsing rather than supplied
+	// explicitly by the caller.
+	NaturalLanguageSearchSessionSummaries(ctx context.Context, in *NaturalLanguageSearchSessionSummariesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[NaturalLanguageSearchSessionSummariesResponse], error)
 }
 
 type sessionSearchServiceClient struct {
@@ -100,6 +111,25 @@ func (c *sessionSearchServiceClient) SearchSessionSummaries(ctx context.Context,
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type SessionSearchService_SearchSessionSummariesClient = grpc.ServerStreamingClient[SearchSessionSummariesResponse]
+
+func (c *sessionSearchServiceClient) NaturalLanguageSearchSessionSummaries(ctx context.Context, in *NaturalLanguageSearchSessionSummariesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[NaturalLanguageSearchSessionSummariesResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &SessionSearchService_ServiceDesc.Streams[1], SessionSearchService_NaturalLanguageSearchSessionSummaries_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[NaturalLanguageSearchSessionSummariesRequest, NaturalLanguageSearchSessionSummariesResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SessionSearchService_NaturalLanguageSearchSessionSummariesClient = grpc.ServerStreamingClient[NaturalLanguageSearchSessionSummariesResponse]
 
 // SessionSearchServiceServer is the server API for SessionSearchService service.
 // All implementations must embed UnimplementedSessionSearchServiceServer
@@ -137,6 +167,16 @@ type SessionSearchServiceServer interface {
 	//	  }
 	//	}
 	SearchSessionSummaries(*SearchSessionSummariesRequest, grpc.ServerStreamingServer[SearchSessionSummariesResponse]) error
+	// NaturalLanguageSearchSessionSummaries accepts a natural-language query
+	// and a time range, parses the query into structured filter criteria using
+	// the configured inference model, and then streams the visible matching
+	// sessions to the caller.
+	//
+	// All access-control filtering and pagination are performed identically to
+	// SearchSessionSummaries. The only difference is that the filter parameters
+	// are derived from natural-language query parsing rather than supplied
+	// explicitly by the caller.
+	NaturalLanguageSearchSessionSummaries(*NaturalLanguageSearchSessionSummariesRequest, grpc.ServerStreamingServer[NaturalLanguageSearchSessionSummariesResponse]) error
 	mustEmbedUnimplementedSessionSearchServiceServer()
 }
 
@@ -149,6 +189,9 @@ type UnimplementedSessionSearchServiceServer struct{}
 
 func (UnimplementedSessionSearchServiceServer) SearchSessionSummaries(*SearchSessionSummariesRequest, grpc.ServerStreamingServer[SearchSessionSummariesResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method SearchSessionSummaries not implemented")
+}
+func (UnimplementedSessionSearchServiceServer) NaturalLanguageSearchSessionSummaries(*NaturalLanguageSearchSessionSummariesRequest, grpc.ServerStreamingServer[NaturalLanguageSearchSessionSummariesResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method NaturalLanguageSearchSessionSummaries not implemented")
 }
 func (UnimplementedSessionSearchServiceServer) mustEmbedUnimplementedSessionSearchServiceServer() {}
 func (UnimplementedSessionSearchServiceServer) testEmbeddedByValue()                              {}
@@ -182,6 +225,17 @@ func _SessionSearchService_SearchSessionSummaries_Handler(srv interface{}, strea
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type SessionSearchService_SearchSessionSummariesServer = grpc.ServerStreamingServer[SearchSessionSummariesResponse]
 
+func _SessionSearchService_NaturalLanguageSearchSessionSummaries_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(NaturalLanguageSearchSessionSummariesRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SessionSearchServiceServer).NaturalLanguageSearchSessionSummaries(m, &grpc.GenericServerStream[NaturalLanguageSearchSessionSummariesRequest, NaturalLanguageSearchSessionSummariesResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SessionSearchService_NaturalLanguageSearchSessionSummariesServer = grpc.ServerStreamingServer[NaturalLanguageSearchSessionSummariesResponse]
+
 // SessionSearchService_ServiceDesc is the grpc.ServiceDesc for SessionSearchService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -193,6 +247,11 @@ var SessionSearchService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "SearchSessionSummaries",
 			Handler:       _SessionSearchService_SearchSessionSummaries_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "NaturalLanguageSearchSessionSummaries",
+			Handler:       _SessionSearchService_NaturalLanguageSearchSessionSummaries_Handler,
 			ServerStreams: true,
 		},
 	},

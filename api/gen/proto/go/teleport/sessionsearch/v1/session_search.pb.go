@@ -516,7 +516,7 @@ type SessionSummary struct {
 	//
 	//	SSH sessions:        {server_addr, server_hostname}
 	//	Kubernetes sessions: {kubernetes_cluster, pod_namespace, pod_name}
-	//	Database sessions:   {database_name, database_table}
+	//	Database sessions:   {database_name}
 	ResourceProperties *structpb.Struct `protobuf:"bytes,13,opt,name=resource_properties,json=resourceProperties,proto3" json:"resource_properties,omitempty"`
 	// severity is the computed severity level of the session
 	// (e.g. "low", "medium", "high").
@@ -653,6 +653,187 @@ func (x *SessionSummary) GetSeverity() string {
 	return ""
 }
 
+// NaturalLanguageSearchSessionSummariesRequest specifies a time range and a
+// free-form natural-language query for a session summary search. The server
+// parses the query into structured filter criteria using the configured
+// inference model and then searches as if SearchSessionSummaries had been
+// called with those criteria.
+type NaturalLanguageSearchSessionSummariesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// from_time is the inclusive start of the time window to search. Required.
+	FromTime *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=from_time,json=fromTime,proto3" json:"from_time,omitempty"`
+	// to_time is the inclusive end of the time window to search. Required.
+	ToTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=to_time,json=toTime,proto3" json:"to_time,omitempty"`
+	// query is the natural-language description of the sessions to find.
+	// For example: "sudo commands by alice on production servers last week".
+	// Required.
+	Query string `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	// page_size controls how many SessionSummary objects the server requests per
+	// page from the access graph. A value of 0 lets the server choose a default.
+	PageSize int32 `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// page_token resumes a previous search from a known cursor position.
+	// Set this to the next_page_token from a prior SearchSessionSummariesResponse.
+	PageToken     string `protobuf:"bytes,5,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NaturalLanguageSearchSessionSummariesRequest) Reset() {
+	*x = NaturalLanguageSearchSessionSummariesRequest{}
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NaturalLanguageSearchSessionSummariesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NaturalLanguageSearchSessionSummariesRequest) ProtoMessage() {}
+
+func (x *NaturalLanguageSearchSessionSummariesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NaturalLanguageSearchSessionSummariesRequest.ProtoReflect.Descriptor instead.
+func (*NaturalLanguageSearchSessionSummariesRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_sessionsearch_v1_session_search_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *NaturalLanguageSearchSessionSummariesRequest) GetFromTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FromTime
+	}
+	return nil
+}
+
+func (x *NaturalLanguageSearchSessionSummariesRequest) GetToTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ToTime
+	}
+	return nil
+}
+
+func (x *NaturalLanguageSearchSessionSummariesRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *NaturalLanguageSearchSessionSummariesRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *NaturalLanguageSearchSessionSummariesRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+// NaturalLanguageSearchSessionSummariesResponse is sent by the server on the
+// NaturalLanguageSearchSessionSummaries stream. Its structure is identical to
+// SearchSessionSummariesResponse; the only difference is that this stream
+// corresponds to a natural-language query rather than an explicit filter.
+type NaturalLanguageSearchSessionSummariesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Message:
+	//
+	//	*NaturalLanguageSearchSessionSummariesResponse_Summary
+	//	*NaturalLanguageSearchSessionSummariesResponse_PageComplete
+	Message       isNaturalLanguageSearchSessionSummariesResponse_Message `protobuf_oneof:"message"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NaturalLanguageSearchSessionSummariesResponse) Reset() {
+	*x = NaturalLanguageSearchSessionSummariesResponse{}
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NaturalLanguageSearchSessionSummariesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NaturalLanguageSearchSessionSummariesResponse) ProtoMessage() {}
+
+func (x *NaturalLanguageSearchSessionSummariesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NaturalLanguageSearchSessionSummariesResponse.ProtoReflect.Descriptor instead.
+func (*NaturalLanguageSearchSessionSummariesResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_sessionsearch_v1_session_search_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *NaturalLanguageSearchSessionSummariesResponse) GetMessage() isNaturalLanguageSearchSessionSummariesResponse_Message {
+	if x != nil {
+		return x.Message
+	}
+	return nil
+}
+
+func (x *NaturalLanguageSearchSessionSummariesResponse) GetSummary() *SessionSummary {
+	if x != nil {
+		if x, ok := x.Message.(*NaturalLanguageSearchSessionSummariesResponse_Summary); ok {
+			return x.Summary
+		}
+	}
+	return nil
+}
+
+func (x *NaturalLanguageSearchSessionSummariesResponse) GetPageComplete() *PageComplete {
+	if x != nil {
+		if x, ok := x.Message.(*NaturalLanguageSearchSessionSummariesResponse_PageComplete); ok {
+			return x.PageComplete
+		}
+	}
+	return nil
+}
+
+type isNaturalLanguageSearchSessionSummariesResponse_Message interface {
+	isNaturalLanguageSearchSessionSummariesResponse_Message()
+}
+
+type NaturalLanguageSearchSessionSummariesResponse_Summary struct {
+	// summary carries one session summary.
+	Summary *SessionSummary `protobuf:"bytes,1,opt,name=summary,proto3,oneof"`
+}
+
+type NaturalLanguageSearchSessionSummariesResponse_PageComplete struct {
+	// page_complete signals that the server has finished sending all summaries
+	// for the current page.
+	PageComplete *PageComplete `protobuf:"bytes,2,opt,name=page_complete,json=pageComplete,proto3,oneof"`
+}
+
+func (*NaturalLanguageSearchSessionSummariesResponse_Summary) isNaturalLanguageSearchSessionSummariesResponse_Message() {
+}
+
+func (*NaturalLanguageSearchSessionSummariesResponse_PageComplete) isNaturalLanguageSearchSessionSummariesResponse_Message() {
+}
+
 // SSHProperties are the filterable properties for SSH sessions.
 type ResourcePropertiesFilter_SSHProperties struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -666,7 +847,7 @@ type ResourcePropertiesFilter_SSHProperties struct {
 
 func (x *ResourcePropertiesFilter_SSHProperties) Reset() {
 	*x = ResourcePropertiesFilter_SSHProperties{}
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[6]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -678,7 +859,7 @@ func (x *ResourcePropertiesFilter_SSHProperties) String() string {
 func (*ResourcePropertiesFilter_SSHProperties) ProtoMessage() {}
 
 func (x *ResourcePropertiesFilter_SSHProperties) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[6]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -721,7 +902,7 @@ type ResourcePropertiesFilter_KubernetesProperties struct {
 
 func (x *ResourcePropertiesFilter_KubernetesProperties) Reset() {
 	*x = ResourcePropertiesFilter_KubernetesProperties{}
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[7]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -733,7 +914,7 @@ func (x *ResourcePropertiesFilter_KubernetesProperties) String() string {
 func (*ResourcePropertiesFilter_KubernetesProperties) ProtoMessage() {}
 
 func (x *ResourcePropertiesFilter_KubernetesProperties) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[7]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -774,7 +955,7 @@ type ResourcePropertiesFilter_DatabaseProperties struct {
 
 func (x *ResourcePropertiesFilter_DatabaseProperties) Reset() {
 	*x = ResourcePropertiesFilter_DatabaseProperties{}
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[8]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -786,7 +967,7 @@ func (x *ResourcePropertiesFilter_DatabaseProperties) String() string {
 func (*ResourcePropertiesFilter_DatabaseProperties) ProtoMessage() {}
 
 func (x *ResourcePropertiesFilter_DatabaseProperties) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[8]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -889,9 +1070,21 @@ const file_teleport_sessionsearch_v1_session_search_proto_rawDesc = "" +
 	"\bseverity\x18\x0e \x01(\tR\bseverity\x1aA\n" +
 	"\x13ResourceLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x012\xa8\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xee\x01\n" +
+	",NaturalLanguageSearchSessionSummariesRequest\x127\n" +
+	"\tfrom_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\bfromTime\x123\n" +
+	"\ato_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x06toTime\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12\x1b\n" +
+	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x05 \x01(\tR\tpageToken\"\xd1\x01\n" +
+	"-NaturalLanguageSearchSessionSummariesResponse\x12E\n" +
+	"\asummary\x18\x01 \x01(\v2).teleport.sessionsearch.v1.SessionSummaryH\x00R\asummary\x12N\n" +
+	"\rpage_complete\x18\x02 \x01(\v2'.teleport.sessionsearch.v1.PageCompleteH\x00R\fpageCompleteB\t\n" +
+	"\amessage2\xe7\x02\n" +
 	"\x14SessionSearchService\x12\x8f\x01\n" +
-	"\x16SearchSessionSummaries\x128.teleport.sessionsearch.v1.SearchSessionSummariesRequest\x1a9.teleport.sessionsearch.v1.SearchSessionSummariesResponse0\x01B^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1;sessionsearchv1b\x06proto3"
+	"\x16SearchSessionSummaries\x128.teleport.sessionsearch.v1.SearchSessionSummariesRequest\x1a9.teleport.sessionsearch.v1.SearchSessionSummariesResponse0\x01\x12\xbc\x01\n" +
+	"%NaturalLanguageSearchSessionSummaries\x12G.teleport.sessionsearch.v1.NaturalLanguageSearchSessionSummariesRequest\x1aH.teleport.sessionsearch.v1.NaturalLanguageSearchSessionSummariesResponse0\x01B^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1;sessionsearchv1b\x06proto3"
 
 var (
 	file_teleport_sessionsearch_v1_session_search_proto_rawDescOnce sync.Once
@@ -905,42 +1098,50 @@ func file_teleport_sessionsearch_v1_session_search_proto_rawDescGZIP() []byte {
 	return file_teleport_sessionsearch_v1_session_search_proto_rawDescData
 }
 
-var file_teleport_sessionsearch_v1_session_search_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_teleport_sessionsearch_v1_session_search_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_teleport_sessionsearch_v1_session_search_proto_goTypes = []any{
 	(*SearchSessionSummariesRequest)(nil),                 // 0: teleport.sessionsearch.v1.SearchSessionSummariesRequest
 	(*ResourcePropertiesFilter)(nil),                      // 1: teleport.sessionsearch.v1.ResourcePropertiesFilter
 	(*SearchSessionSummariesResponse)(nil),                // 2: teleport.sessionsearch.v1.SearchSessionSummariesResponse
 	(*PageComplete)(nil),                                  // 3: teleport.sessionsearch.v1.PageComplete
 	(*SessionSummary)(nil),                                // 4: teleport.sessionsearch.v1.SessionSummary
-	nil,                                                   // 5: teleport.sessionsearch.v1.SearchSessionSummariesRequest.ResourceLabelsEntry
-	(*ResourcePropertiesFilter_SSHProperties)(nil),        // 6: teleport.sessionsearch.v1.ResourcePropertiesFilter.SSHProperties
-	(*ResourcePropertiesFilter_KubernetesProperties)(nil), // 7: teleport.sessionsearch.v1.ResourcePropertiesFilter.KubernetesProperties
-	(*ResourcePropertiesFilter_DatabaseProperties)(nil),   // 8: teleport.sessionsearch.v1.ResourcePropertiesFilter.DatabaseProperties
-	nil,                           // 9: teleport.sessionsearch.v1.SessionSummary.ResourceLabelsEntry
-	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),       // 11: google.protobuf.Struct
+	(*NaturalLanguageSearchSessionSummariesRequest)(nil),  // 5: teleport.sessionsearch.v1.NaturalLanguageSearchSessionSummariesRequest
+	(*NaturalLanguageSearchSessionSummariesResponse)(nil), // 6: teleport.sessionsearch.v1.NaturalLanguageSearchSessionSummariesResponse
+	nil, // 7: teleport.sessionsearch.v1.SearchSessionSummariesRequest.ResourceLabelsEntry
+	(*ResourcePropertiesFilter_SSHProperties)(nil),        // 8: teleport.sessionsearch.v1.ResourcePropertiesFilter.SSHProperties
+	(*ResourcePropertiesFilter_KubernetesProperties)(nil), // 9: teleport.sessionsearch.v1.ResourcePropertiesFilter.KubernetesProperties
+	(*ResourcePropertiesFilter_DatabaseProperties)(nil),   // 10: teleport.sessionsearch.v1.ResourcePropertiesFilter.DatabaseProperties
+	nil,                           // 11: teleport.sessionsearch.v1.SessionSummary.ResourceLabelsEntry
+	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),       // 13: google.protobuf.Struct
 }
 var file_teleport_sessionsearch_v1_session_search_proto_depIdxs = []int32{
-	10, // 0: teleport.sessionsearch.v1.SearchSessionSummariesRequest.from_time:type_name -> google.protobuf.Timestamp
-	10, // 1: teleport.sessionsearch.v1.SearchSessionSummariesRequest.to_time:type_name -> google.protobuf.Timestamp
-	5,  // 2: teleport.sessionsearch.v1.SearchSessionSummariesRequest.resource_labels:type_name -> teleport.sessionsearch.v1.SearchSessionSummariesRequest.ResourceLabelsEntry
+	12, // 0: teleport.sessionsearch.v1.SearchSessionSummariesRequest.from_time:type_name -> google.protobuf.Timestamp
+	12, // 1: teleport.sessionsearch.v1.SearchSessionSummariesRequest.to_time:type_name -> google.protobuf.Timestamp
+	7,  // 2: teleport.sessionsearch.v1.SearchSessionSummariesRequest.resource_labels:type_name -> teleport.sessionsearch.v1.SearchSessionSummariesRequest.ResourceLabelsEntry
 	1,  // 3: teleport.sessionsearch.v1.SearchSessionSummariesRequest.resource_properties:type_name -> teleport.sessionsearch.v1.ResourcePropertiesFilter
-	6,  // 4: teleport.sessionsearch.v1.ResourcePropertiesFilter.ssh:type_name -> teleport.sessionsearch.v1.ResourcePropertiesFilter.SSHProperties
-	7,  // 5: teleport.sessionsearch.v1.ResourcePropertiesFilter.kubernetes:type_name -> teleport.sessionsearch.v1.ResourcePropertiesFilter.KubernetesProperties
-	8,  // 6: teleport.sessionsearch.v1.ResourcePropertiesFilter.database:type_name -> teleport.sessionsearch.v1.ResourcePropertiesFilter.DatabaseProperties
+	8,  // 4: teleport.sessionsearch.v1.ResourcePropertiesFilter.ssh:type_name -> teleport.sessionsearch.v1.ResourcePropertiesFilter.SSHProperties
+	9,  // 5: teleport.sessionsearch.v1.ResourcePropertiesFilter.kubernetes:type_name -> teleport.sessionsearch.v1.ResourcePropertiesFilter.KubernetesProperties
+	10, // 6: teleport.sessionsearch.v1.ResourcePropertiesFilter.database:type_name -> teleport.sessionsearch.v1.ResourcePropertiesFilter.DatabaseProperties
 	4,  // 7: teleport.sessionsearch.v1.SearchSessionSummariesResponse.summary:type_name -> teleport.sessionsearch.v1.SessionSummary
 	3,  // 8: teleport.sessionsearch.v1.SearchSessionSummariesResponse.page_complete:type_name -> teleport.sessionsearch.v1.PageComplete
-	10, // 9: teleport.sessionsearch.v1.SessionSummary.session_time:type_name -> google.protobuf.Timestamp
-	11, // 10: teleport.sessionsearch.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
-	9,  // 11: teleport.sessionsearch.v1.SessionSummary.resource_labels:type_name -> teleport.sessionsearch.v1.SessionSummary.ResourceLabelsEntry
-	11, // 12: teleport.sessionsearch.v1.SessionSummary.resource_properties:type_name -> google.protobuf.Struct
-	0,  // 13: teleport.sessionsearch.v1.SessionSearchService.SearchSessionSummaries:input_type -> teleport.sessionsearch.v1.SearchSessionSummariesRequest
-	2,  // 14: teleport.sessionsearch.v1.SessionSearchService.SearchSessionSummaries:output_type -> teleport.sessionsearch.v1.SearchSessionSummariesResponse
-	14, // [14:15] is the sub-list for method output_type
-	13, // [13:14] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	12, // 9: teleport.sessionsearch.v1.SessionSummary.session_time:type_name -> google.protobuf.Timestamp
+	13, // 10: teleport.sessionsearch.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
+	11, // 11: teleport.sessionsearch.v1.SessionSummary.resource_labels:type_name -> teleport.sessionsearch.v1.SessionSummary.ResourceLabelsEntry
+	13, // 12: teleport.sessionsearch.v1.SessionSummary.resource_properties:type_name -> google.protobuf.Struct
+	12, // 13: teleport.sessionsearch.v1.NaturalLanguageSearchSessionSummariesRequest.from_time:type_name -> google.protobuf.Timestamp
+	12, // 14: teleport.sessionsearch.v1.NaturalLanguageSearchSessionSummariesRequest.to_time:type_name -> google.protobuf.Timestamp
+	4,  // 15: teleport.sessionsearch.v1.NaturalLanguageSearchSessionSummariesResponse.summary:type_name -> teleport.sessionsearch.v1.SessionSummary
+	3,  // 16: teleport.sessionsearch.v1.NaturalLanguageSearchSessionSummariesResponse.page_complete:type_name -> teleport.sessionsearch.v1.PageComplete
+	0,  // 17: teleport.sessionsearch.v1.SessionSearchService.SearchSessionSummaries:input_type -> teleport.sessionsearch.v1.SearchSessionSummariesRequest
+	5,  // 18: teleport.sessionsearch.v1.SessionSearchService.NaturalLanguageSearchSessionSummaries:input_type -> teleport.sessionsearch.v1.NaturalLanguageSearchSessionSummariesRequest
+	2,  // 19: teleport.sessionsearch.v1.SessionSearchService.SearchSessionSummaries:output_type -> teleport.sessionsearch.v1.SearchSessionSummariesResponse
+	6,  // 20: teleport.sessionsearch.v1.SessionSearchService.NaturalLanguageSearchSessionSummaries:output_type -> teleport.sessionsearch.v1.NaturalLanguageSearchSessionSummariesResponse
+	19, // [19:21] is the sub-list for method output_type
+	17, // [17:19] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_teleport_sessionsearch_v1_session_search_proto_init() }
@@ -958,16 +1159,20 @@ func file_teleport_sessionsearch_v1_session_search_proto_init() {
 		(*SearchSessionSummariesResponse_Summary)(nil),
 		(*SearchSessionSummariesResponse_PageComplete)(nil),
 	}
-	file_teleport_sessionsearch_v1_session_search_proto_msgTypes[6].OneofWrappers = []any{}
-	file_teleport_sessionsearch_v1_session_search_proto_msgTypes[7].OneofWrappers = []any{}
+	file_teleport_sessionsearch_v1_session_search_proto_msgTypes[6].OneofWrappers = []any{
+		(*NaturalLanguageSearchSessionSummariesResponse_Summary)(nil),
+		(*NaturalLanguageSearchSessionSummariesResponse_PageComplete)(nil),
+	}
 	file_teleport_sessionsearch_v1_session_search_proto_msgTypes[8].OneofWrappers = []any{}
+	file_teleport_sessionsearch_v1_session_search_proto_msgTypes[9].OneofWrappers = []any{}
+	file_teleport_sessionsearch_v1_session_search_proto_msgTypes[10].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_sessionsearch_v1_session_search_proto_rawDesc), len(file_teleport_sessionsearch_v1_session_search_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

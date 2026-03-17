@@ -52,6 +52,16 @@ service SessionSearchService {
   //     }
   //   }
   rpc SearchSessionSummaries(SearchSessionSummariesRequest) returns (stream SearchSessionSummariesResponse);
+  // NaturalLanguageSearchSessionSummaries accepts a natural-language query
+  // and a time range, parses the query into structured filter criteria using
+  // the configured inference model, and then streams the visible matching
+  // sessions to the caller.
+  //
+  // All access-control filtering and pagination are performed identically to
+  // SearchSessionSummaries. The only difference is that the filter parameters
+  // are derived from natural-language query parsing rather than supplied
+  // explicitly by the caller.
+  rpc NaturalLanguageSearchSessionSummaries(NaturalLanguageSearchSessionSummariesRequest) returns (stream NaturalLanguageSearchSessionSummariesResponse);
 }
 
 // SearchSessionSummariesRequest specifies the filter criteria for a session
@@ -242,4 +252,44 @@ message SessionSummary {
   // severity is the computed severity level of the session
   // (e.g. "low", "medium", "high").
   string severity = 14;
+}
+
+// NaturalLanguageSearchSessionSummariesRequest specifies a time range and a
+// free-form natural-language query for a session summary search. The server
+// parses the query into structured filter criteria using the configured
+// inference model and then searches as if SearchSessionSummaries had been
+// called with those criteria.
+message NaturalLanguageSearchSessionSummariesRequest {
+  // from_time is the inclusive start of the time window to search. Required.
+  google.protobuf.Timestamp from_time = 1;
+
+  // to_time is the inclusive end of the time window to search. Required.
+  google.protobuf.Timestamp to_time = 2;
+
+  // query is the natural-language description of the sessions to find.
+  // For example: "sudo commands by alice on production servers last week".
+  // Required.
+  string query = 3;
+
+  // page_size controls how many SessionSummary objects the server requests per
+  // page from the access graph. A value of 0 lets the server choose a default.
+  int32 page_size = 4;
+
+  // page_token resumes a previous search from a known cursor position.
+  // Set this to the next_page_token from a prior SearchSessionSummariesResponse.
+  string page_token = 5;
+}
+
+// NaturalLanguageSearchSessionSummariesResponse is sent by the server on the
+// NaturalLanguageSearchSessionSummaries stream. Its structure is identical to
+// SearchSessionSummariesResponse; the only difference is that this stream
+// corresponds to a natural-language query rather than an explicit filter.
+message NaturalLanguageSearchSessionSummariesResponse {
+  oneof message {
+    // summary carries one session summary.
+    SessionSummary summary = 1;
+    // page_complete signals that the server has finished sending all summaries
+    // for the current page.
+    PageComplete page_complete = 2;
+  }
 }
