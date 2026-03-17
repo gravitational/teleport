@@ -20,12 +20,14 @@ import { Meta, StoryObj } from '@storybook/react-vite';
 
 import { ButtonBorder, Flex } from 'design';
 
+/* oxlint-disable no-restricted-imports */
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
 import { kubes } from 'teleport/Kubes/fixtures';
 import { nodes } from 'teleport/Nodes/fixtures';
 import makeApp from 'teleport/services/apps/makeApps';
+/* oxlint-enable no-restricted-imports */
 
 import {
   makeUnifiedResourceViewItemApp,

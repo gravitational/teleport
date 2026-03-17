@@ -17,7 +17,7 @@
  */
 
 import 'whatwg-fetch';
-
+// oxlint-disable-next-line no-restricted-imports
 import { Node } from 'teleport/services/nodes';
 
 /**

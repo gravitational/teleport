@@ -121,7 +121,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
 
       setPreferences(preferences);
       storageService.setUserPreferences(preferences);
-    } catch (err) {
+    } catch {
       if (storedPreferences) {
         setPreferences(storedPreferences);
 

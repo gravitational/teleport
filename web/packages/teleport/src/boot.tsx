@@ -19,9 +19,7 @@
 import { createRoot } from 'react-dom/client';
 
 import history from 'teleport/services/history';
-
 import 'teleport/lib/polyfillRandomUuid';
-
 import cfg from './config';
 import Teleport from './Teleport';
 import TeleportContext from './teleportContext';

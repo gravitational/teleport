@@ -36,7 +36,7 @@ function showErrorInBrowser(error: unknown, textToCopy: string): void {
   try {
     // window.prompt doesn't work in Electron.
     window.prompt(message, textToCopy);
-  } catch (error) {
+  } catch {
     window.alert(message);
   }
 }

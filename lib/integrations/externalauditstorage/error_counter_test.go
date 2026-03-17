@@ -211,7 +211,6 @@ func TestErrorCounter(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 type testPack struct {
@@ -276,6 +275,6 @@ func (h *errorHandler) Upload(ctx context.Context, sessionID session.ID, reader 
 	return "", h.err
 }
 
-func (h *errorHandler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (h *errorHandler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return h.err
 }
