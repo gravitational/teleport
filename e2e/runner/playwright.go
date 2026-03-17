@@ -169,7 +169,7 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 	mergeArgs := []string{"exec", "playwright", "merge-reports", "--config=playwright.config.ts", blobBaseDir}
 	mergeEnv := os.Environ()
 	mergeEnv = append(mergeEnv, "FORCE_COLOR=1")
-	if err := p.pnpm(ctx, mergeArgs, mergeEnv); err != nil {
+	if err := p.pnpmQuiet(ctx, mergeArgs, mergeEnv); err != nil {
 		slog.Warn("failed to merge reports", "error", err)
 		if testErr == nil {
 			return err
@@ -262,6 +262,25 @@ func (p *playwrightRunner) startEnv(inst *browserInstance) ([]string, error) {
 	env = append(env, "E2E_CONNECT_APP_DIR="+p.config.connectAppDir)
 
 	return env, nil
+}
+
+func (p *playwrightRunner) pnpmQuiet(ctx context.Context, args []string, env []string) error {
+	cmd := exec.CommandContext(ctx, "pnpm", args...)
+	cmd.Dir = p.config.e2eDir
+	cmd.Env = env
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+
+	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return fmt.Errorf("command exited with code %d: %w", exitErr.ExitCode(), err)
+		}
+
+		return fmt.Errorf("failed to run command: %w", err)
+	}
+
+	return nil
 }
 
 func (p *playwrightRunner) pnpm(ctx context.Context, args []string, env []string) error {
