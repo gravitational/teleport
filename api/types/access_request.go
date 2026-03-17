@@ -197,8 +197,7 @@ func (r *AccessRequestV3) IsEqual(other AccessRequest) bool {
 
 	// The derived equality function skips RequestedResourceAccessIDs entirely
 	// because the ResourceConstraints.Details oneof interface is not handled by
-	// goderive and the slice requires order-independent comparison. Compare it
-	// manually here.
+	// goderive. Compare it manually here.
 	if !resourceAccessIDsEqual(r.Spec.RequestedResourceAccessIDs, otherv3.Spec.RequestedResourceAccessIDs) {
 		return false
 	}
