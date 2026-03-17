@@ -1,0 +1,10 @@
+repos:
+  - repo: https://github.com/agent-ecosystem/skill-validator
+    rev: v1.4.0
+    hooks:
+      - id: skill-validator
+        # The "evals" directory used by Agent Skills spec for skill test cases
+        # (https://agentskills.io/skill-creation/evaluating-skills) is not
+        # recognized by the skill-validator by default so allow it explicitly
+        # to suppress warnings.
+        args: ["check", "--allow-dirs", "evals", "./skills/"]

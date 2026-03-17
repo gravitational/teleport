@@ -43,6 +43,12 @@ KUBECTL_SETVERSION := -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERS
 # should be an absolute directory as it is used by e/Makefile too, from the e/ directory.
 RELEASE_DIR := $(CURDIR)/$(BUILDDIR)/artifacts
 
+# SKILLS_DIR is where Teleport agent skills are kept.
+SKILLS_DIR := ./skills
+
+# CLAUDE_SKILLS_DIR is where skills for Claude Code are.
+CLAUDE_SKILLS_DIR ?= ~/.claude/skills
+
 GO_LDFLAGS ?= -w -s $(KUBECTL_SETVERSION)
 
 # Appending new conditional settings for community build type
@@ -2123,3 +2129,60 @@ ifndef BENCH_FILES
 	$(error "Please provide BENCH_FILES=<file1> <file2> ...")
 endif
 	@$(BENCHSTAT) $(BENCH_FILES) | tee test-logs/benchstat.txt
+
+.PHONY: require-pre-commit
+require-pre-commit:
+	@which pre-commit 1>/dev/null 2>&1 || (echo 'pre-commit is not installed. For installation instructions see https://pre-commit.com/#install'; exit 1)
+
+.PHONY: enable-pre-commit
+enable-pre-commit: require-pre-commit
+	pre-commit install
+
+.PHONY: disable-pre-commit
+disable-pre-commit: require-pre-commit
+	pre-commit uninstall
+
+# package-skills packages all agent skills from the ./skills directory in .zip
+# archives that can be uploaded to Claude Desktop app via its settings.
+#
+# It's needed because Claude Desktop allows either a single SKILL.md file or
+# the skill archive, you can't upload a skill with its additional metadata as
+# a directory.
+.PHONY: package-skills
+package-skills: clean-skill-packages
+	@for dir in $(SKILLS_DIR)/*/; do \
+		echo "Zipping $$dir..."; \
+		name=$$(basename "$$dir"); \
+		(cd $(SKILLS_DIR) && zip -r "$$name.zip" "$$name"); \
+	done
+
+.PHONY: clean-skill-packages
+clean-skill-packages:
+	find $(SKILLS_DIR) -name "*.zip" -delete
+
+# link-skills creates symlinks in ~/.claude/skills pointing to each skill
+# directory in ./skills.
+#
+# Useful for local skills development with terminal Claude Code.
+.PHONY: link-skills
+link-skills:
+	@mkdir -p $(CLAUDE_SKILLS_DIR)
+	@for dir in $(SKILLS_DIR)/*/; do \
+		name=$$(basename "$$dir"); \
+		target=$(CLAUDE_SKILLS_DIR)/$$name; \
+		src=$$(pwd)/$$dir; \
+		echo "Creating symlink: $$target -> $$src"; \
+		ln -sf "$$src" "$$target"; \
+	done
+
+# unlink-skills removes symlinks from ~/.claude/skills that point into ./skills.
+.PHONY: unlink-skills
+unlink-skills:
+	@for dir in $(SKILLS_DIR)/*/; do \
+		name=$$(basename "$$dir"); \
+		target=$(CLAUDE_SKILLS_DIR)/$$name; \
+		if [ -L "$$target" ]; then \
+			echo "Removing symlink: $$target"; \
+			rm "$$target"; \
+		fi; \
+	done
