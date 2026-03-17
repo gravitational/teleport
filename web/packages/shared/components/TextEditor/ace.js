@@ -23,7 +23,6 @@ import ace from 'ace-builds/src-min-noconflict/ace';
 // to set `window.ace` via `(function(){ return this })()`, but Vite 8's bundler
 // (Rolldown) can drop or scope that assignment. Explicitly assign it here so
 // that subsequently-evaluated extension modules can resolve the bare `ace` ref.
-// eslint-disable-next-line no-undef
 globalThis.ace = ace;
 
 export default ace;
