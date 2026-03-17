@@ -1,5 +1,9 @@
 # Changelog
 
+## 18.7.3 (03/10/26)
+
+This is a private security release. Changelog will be publicly announced in a later version.
+
 ## 18.7.2 (03/05/26)
 
 * Added `TeleportAccessMonitoringRuleV1` support to the Teleport Kubernetes operator. [#64368](https://github.com/gravitational/teleport/pull/64368)

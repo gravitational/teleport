@@ -20,9 +20,11 @@ package azure
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
@@ -86,6 +88,31 @@ func TestAzureIsInstanceMetadataAvailable(t *testing.T) {
 			tc.assertion(t, clt.IsAvailable(t.Context()))
 		})
 	}
+}
+
+func TestAzureIsInstanceMetadataAvailableWithHTTPProxyEnv(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/versions" {
+			w.WriteHeader(http.StatusOK)
+			versions := struct {
+				APIVersions []string `json:"apiVersions"`
+			}{
+				APIVersions: []string{"2026-03-11"},
+			}
+			require.NoError(t, json.NewEncoder(w).Encode(versions))
+			return
+		}
+	}))
+	defer server.Close()
+
+	t.Setenv("HTTP_PROXY", "http://127.0.0.1:0")
+
+	// We need to use a hostname that is not localhost or net/IP.IsLoopback, because Go's default HTTP proxy implementation ignores calls to those hosts even if HTTP_PROXY is set.
+	// httptest can only provide an http server at localhost, so we have to use a workaround to get a non-localhost host that still resolves to the HTTP Server above.
+	serverURL := strings.Replace(server.URL, "127.0.0.1", "127.0.0.1.nip.io", 1)
+
+	clt := NewInstanceMetadataClient(WithBaseURL(serverURL))
+	require.True(t, clt.IsAvailable(t.Context()), "instance metadata should be available even with HTTP_PROXY set")
 }
 
 func TestSelectVersion(t *testing.T) {

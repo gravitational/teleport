@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* oxlint-disable jest/no-standalone-expect */
+
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 

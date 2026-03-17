@@ -284,6 +284,7 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		ValidUntil:              time.Now(),
 		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
 		SSOHost:                 profile.SSOHost,
+		Scope:                   profile.Scope,
 	}
 
 	keyRing, err := s.GetKeyRing(idx, WithAllCerts...)

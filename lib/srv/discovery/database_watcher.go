@@ -252,9 +252,10 @@ func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) 
 	}
 	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
 		databaseEventPrefix + database.GetName(): {
-			ResourceType:   types.DiscoveredResourceDatabase,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  database.GetCloud(),
+			ResourceType:        types.DiscoveredResourceDatabase,
+			ResourceOrigin:      types.OriginCloud,
+			CloudProvider:       database.GetCloud(),
+			DiscoveryConfigName: database.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
 			Database: &usageeventsv1.DiscoveredDatabaseMetadata{
 				DbType:     database.GetType(),
 				DbProtocol: database.GetProtocol(),

@@ -1,0 +1,26 @@
+In this example, we declare a `random_string` resource in addition to the
+`teleport_provision_token` resource in order to generate a cryptographically
+secure value for the token:
+
+{/* cSpell:disable */}
+
+```hcl
+resource "random_string" "token" {
+  length           = 32
+  override_special = "-.+"
+}
+
+resource "teleport_provision_token" "agent" {
+  version = "v2"
+  // use the minimal set of roles required (e.g. Node, Proxy, App, Kube, DB, WindowsDesktop)
+  spec = {
+    roles = ["Node"]
+  }
+  metadata = {
+    name    = random_string.token.result
+    expires = timeadd(timestamp(), "1h")
+  }
+}
+```
+
+{/* cSpell:enable */}

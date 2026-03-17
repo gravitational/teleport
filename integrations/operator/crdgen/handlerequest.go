@@ -180,6 +180,7 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 		{name: "AppV3", opts: []resourceSchemaOption{withVersionOverride(types.V3), withVersionInKindOverride()}},
 		{name: "DatabaseV3", opts: []resourceSchemaOption{withVersionOverride(types.V3), withVersionInKindOverride()}},
 		{name: "SAMLConnectorV2"},
+		{name: "SAMLIdPServiceProviderV1", opts: []resourceSchemaOption{withVersionOverride(types.V1), withVersionInKindOverride()}},
 		{name: "OIDCConnectorV3"},
 		{name: "GithubConnectorV3"},
 		{
@@ -264,6 +265,14 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
 				withVersionInKindOverride(),
+			},
+		},
+		{
+			name: "ScopedToken",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withVersionInKindOverride(),
+				withAdditionalRootFields([]string{"scope"}),
 			},
 		},
 	}

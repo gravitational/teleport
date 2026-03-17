@@ -142,6 +142,8 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule(types.KindInferencePolicy, unrestricted),
 				types.NewRule(types.KindInferenceSecret, unrestricted),
 				types.NewRule(types.KindAccessMonitoringRule, unrestricted),
+				types.NewRule(types.KindSAMLIdPServiceProvider, unrestricted),
+				types.NewRule(types.KindScopedToken, unrestricted),
 			},
 		},
 	})
