@@ -54,10 +54,12 @@ type SessionSearchServiceClient interface {
 	// The server queries the access graph with the provided filters, evaluates
 	// each result against the caller's permissions, and forwards matching
 	// sessions to the stream. Each response message carries either one
-	// SessionSummary or a PageComplete signal. The stream ends after the final
-	// PageComplete (has_more=false) or if the number of summaries match with the
-	// the request limits (has_more=true, next_page_token = ...). next_page_token
-	// can be used to continue the streaming from the last stream ending position.
+	// SessionSummary or a BatchComplete signal. The stream ends after the final
+	// BatchComplete (has_more=false) or if max_results is reached
+	// (has_more=true, next_batch_token=...). next_batch_token
+	// can be used to continue the stream from the last ending position.
+	//
+	// Results are ordered by session_start descending (most recent first).
 	//
 	// Receive loop (pseudo-Go):
 	//
@@ -66,9 +68,9 @@ type SessionSearchServiceClient interface {
 	//	  resp, err := stream.Recv()
 	//	  if err == io.EOF { break }
 	//	  if err != nil   { return err }
-	//	  switch p := resp.Message.(type) {
-	//	  case *SearchSessionSummariesResponse_Summary:      sessions = append(sessions, p.Summary)
-	//	  case *SearchSessionSummariesResponse_PageComplete: // has_more and next_page_token available here
+	//	  switch p := resp.Payload.(type) {
+	//	  case *SearchSessionSummariesResponse_Summary:       sessions = append(sessions, p.Summary)
+	//	  case *SearchSessionSummariesResponse_BatchComplete: // has_more and next_batch_token available here
 	//	  }
 	//	}
 	SearchSessionSummaries(ctx context.Context, in *SearchSessionSummariesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SearchSessionSummariesResponse], error)
@@ -119,10 +121,12 @@ type SessionSearchServiceServer interface {
 	// The server queries the access graph with the provided filters, evaluates
 	// each result against the caller's permissions, and forwards matching
 	// sessions to the stream. Each response message carries either one
-	// SessionSummary or a PageComplete signal. The stream ends after the final
-	// PageComplete (has_more=false) or if the number of summaries match with the
-	// the request limits (has_more=true, next_page_token = ...). next_page_token
-	// can be used to continue the streaming from the last stream ending position.
+	// SessionSummary or a BatchComplete signal. The stream ends after the final
+	// BatchComplete (has_more=false) or if max_results is reached
+	// (has_more=true, next_batch_token=...). next_batch_token
+	// can be used to continue the stream from the last ending position.
+	//
+	// Results are ordered by session_start descending (most recent first).
 	//
 	// Receive loop (pseudo-Go):
 	//
@@ -131,9 +135,9 @@ type SessionSearchServiceServer interface {
 	//	  resp, err := stream.Recv()
 	//	  if err == io.EOF { break }
 	//	  if err != nil   { return err }
-	//	  switch p := resp.Message.(type) {
-	//	  case *SearchSessionSummariesResponse_Summary:      sessions = append(sessions, p.Summary)
-	//	  case *SearchSessionSummariesResponse_PageComplete: // has_more and next_page_token available here
+	//	  switch p := resp.Payload.(type) {
+	//	  case *SearchSessionSummariesResponse_Summary:       sessions = append(sessions, p.Summary)
+	//	  case *SearchSessionSummariesResponse_BatchComplete: // has_more and next_batch_token available here
 	//	  }
 	//	}
 	SearchSessionSummaries(*SearchSessionSummariesRequest, grpc.ServerStreamingServer[SearchSessionSummariesResponse]) error

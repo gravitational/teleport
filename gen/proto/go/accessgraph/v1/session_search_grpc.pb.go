@@ -49,34 +49,38 @@ const (
 // the access graph and then applies its own access-control filtering before
 // returning results to end users.
 type SessionRecordingServiceClient interface {
-	// SearchSessionSummaries establishes a bidirectional stream for paginated
+	// SearchSessionSummaries establishes a bidirectional stream for batched
 	// searching of session summaries.
 	//
 	// Basic interaction flow:
 	//  1. Client sends SearchSessionSummariesRequest{search_params} with filter
-	//     criteria, page_size, and an optional page_token to resume a previous
+	//     criteria, max_summaries, and an optional batch_token to resume a previous
 	//     search.
 	//  2. Server streams zero or more SearchSessionSummariesResponse{summary}
 	//     messages (one summary per message to respect gRPC size limits), then
-	//     sends exactly one SearchSessionSummariesResponse{page_complete}.
-	//  3. If page_complete.has_more is true, the client can send
-	//     SearchSessionSummariesRequest{fetch_more} to receive the next page.
-	//     The server again streams results followed by page_complete.
-	//  4. Steps 2–3 repeat until page_complete.has_more is false or the client
+	//     sends exactly one SearchSessionSummariesResponse{batch_complete}.
+	//  3. If batch_complete.has_more is true, the client can send
+	//     SearchSessionSummariesRequest{fetch_more} to receive the next batch.
+	//     The server again streams results followed by batch_complete.
+	//  4. Steps 2–3 repeat until batch_complete.has_more is false or the client
 	//     is no longer interested, at which point the client closes the stream.
+	//
+	// Results are ordered by session_start descending (most recent first) and
+	// this order is stable across batches.
 	//
 	// Resuming across streams:
 	//
-	//	The page_complete.next_page_token cursor can be stored and later passed
-	//	as search_params.page_token in a new stream to continue from the same
-	//	position without re-fetching already-seen pages.
+	//	The batch_complete.next_batch_token cursor can be stored and later passed
+	//	as search_params.batch_token in a new stream to continue from the same
+	//	position without re-fetching already-seen summaries.
 	//
 	// Each SessionSummary includes the raw session_end_event, which the Auth
 	// server uses to evaluate the requesting user's visibility before forwarding
 	// results downstream.
 	SearchSessionSummaries(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SearchSessionSummariesRequest, SearchSessionSummariesResponse], error)
 	// StoreSessionSummary saves a session summary with its associated metadata
-	// and embeddings to the access graph storage.
+	// and embeddings to the access graph storage. Re-storing the same session_id
+	// is idempotent; the server overwrites the existing entry.
 	StoreSessionSummary(ctx context.Context, in *StoreSessionSummaryRequest, opts ...grpc.CallOption) (*StoreSessionSummaryResponse, error)
 }
 
@@ -120,34 +124,38 @@ func (c *sessionRecordingServiceClient) StoreSessionSummary(ctx context.Context,
 // the access graph and then applies its own access-control filtering before
 // returning results to end users.
 type SessionRecordingServiceServer interface {
-	// SearchSessionSummaries establishes a bidirectional stream for paginated
+	// SearchSessionSummaries establishes a bidirectional stream for batched
 	// searching of session summaries.
 	//
 	// Basic interaction flow:
 	//  1. Client sends SearchSessionSummariesRequest{search_params} with filter
-	//     criteria, page_size, and an optional page_token to resume a previous
+	//     criteria, max_summaries, and an optional batch_token to resume a previous
 	//     search.
 	//  2. Server streams zero or more SearchSessionSummariesResponse{summary}
 	//     messages (one summary per message to respect gRPC size limits), then
-	//     sends exactly one SearchSessionSummariesResponse{page_complete}.
-	//  3. If page_complete.has_more is true, the client can send
-	//     SearchSessionSummariesRequest{fetch_more} to receive the next page.
-	//     The server again streams results followed by page_complete.
-	//  4. Steps 2–3 repeat until page_complete.has_more is false or the client
+	//     sends exactly one SearchSessionSummariesResponse{batch_complete}.
+	//  3. If batch_complete.has_more is true, the client can send
+	//     SearchSessionSummariesRequest{fetch_more} to receive the next batch.
+	//     The server again streams results followed by batch_complete.
+	//  4. Steps 2–3 repeat until batch_complete.has_more is false or the client
 	//     is no longer interested, at which point the client closes the stream.
+	//
+	// Results are ordered by session_start descending (most recent first) and
+	// this order is stable across batches.
 	//
 	// Resuming across streams:
 	//
-	//	The page_complete.next_page_token cursor can be stored and later passed
-	//	as search_params.page_token in a new stream to continue from the same
-	//	position without re-fetching already-seen pages.
+	//	The batch_complete.next_batch_token cursor can be stored and later passed
+	//	as search_params.batch_token in a new stream to continue from the same
+	//	position without re-fetching already-seen summaries.
 	//
 	// Each SessionSummary includes the raw session_end_event, which the Auth
 	// server uses to evaluate the requesting user's visibility before forwarding
 	// results downstream.
 	SearchSessionSummaries(grpc.BidiStreamingServer[SearchSessionSummariesRequest, SearchSessionSummariesResponse]) error
 	// StoreSessionSummary saves a session summary with its associated metadata
-	// and embeddings to the access graph storage.
+	// and embeddings to the access graph storage. Re-storing the same session_id
+	// is idempotent; the server overwrites the existing entry.
 	StoreSessionSummary(context.Context, *StoreSessionSummaryRequest) (*StoreSessionSummaryResponse, error)
 	mustEmbedUnimplementedSessionRecordingServiceServer()
 }

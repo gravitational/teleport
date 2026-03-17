@@ -18,6 +18,7 @@ package teleport.sessionsearch.v1;
 
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
+import "teleport/summarizer/v1/summarizer.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1;sessionsearchv1";
 
@@ -35,10 +36,12 @@ service SessionSearchService {
   // The server queries the access graph with the provided filters, evaluates
   // each result against the caller's permissions, and forwards matching
   // sessions to the stream. Each response message carries either one
-  // SessionSummary or a PageComplete signal. The stream ends after the final
-  // PageComplete (has_more=false) or if the number of summaries match with the
-  // the request limits (has_more=true, next_page_token = ...). next_page_token
-  // can be used to continue the streaming from the last stream ending position.
+  // SessionSummary or a BatchComplete signal. The stream ends after the final
+  // BatchComplete (has_more=false) or if max_results is reached
+  // (has_more=true, next_batch_token=...). next_batch_token
+  // can be used to continue the stream from the last ending position.
+  //
+  // Results are ordered by session_start descending (most recent first).
   //
   // Receive loop (pseudo-Go):
   //   var sessions []SessionSummary
@@ -46,163 +49,165 @@ service SessionSearchService {
   //     resp, err := stream.Recv()
   //     if err == io.EOF { break }
   //     if err != nil   { return err }
-  //     switch p := resp.Message.(type) {
-  //     case *SearchSessionSummariesResponse_Summary:      sessions = append(sessions, p.Summary)
-  //     case *SearchSessionSummariesResponse_PageComplete: // has_more and next_page_token available here
+  //     switch p := resp.Payload.(type) {
+  //     case *SearchSessionSummariesResponse_Summary:       sessions = append(sessions, p.Summary)
+  //     case *SearchSessionSummariesResponse_BatchComplete: // has_more and next_batch_token available here
   //     }
   //   }
   rpc SearchSessionSummaries(SearchSessionSummariesRequest) returns (stream SearchSessionSummariesResponse);
 }
 
-// SearchSessionSummariesRequest specifies the filter criteria for a session
-// summary search. All filter fields are optional; omitting a field disables
+// SearchSessionSummariesRequest specifies the filter criteria for a session summary search.
+// All filter fields are optional execept start and end time; omitting a field disables
 // that filter. The server converts search_keywords to embeddings internally.
 message SearchSessionSummariesRequest {
-  // from_time restricts results to sessions whose session_time is at or after
-  // this timestamp.
-  //
-  // This field is required.
-  google.protobuf.Timestamp from_time = 1;
+  // start_time restricts results to sessions whose session_start is at or after
+  // this timestamp. The server returns an error if this field is unset or zero.
+  google.protobuf.Timestamp start_time = 1;
 
-  // to_time restricts results to sessions whose session_time is at or before
-  // this timestamp.
-  //
-  // This field is required.
-  google.protobuf.Timestamp to_time = 2;
+  // end_time restricts results to sessions whose session_start is before
+  // this timestamp. The server returns an error if this field is unset or zero.
+  google.protobuf.Timestamp end_time = 2;
 
   // kinds filters results by session kind (e.g. "ssh", "k8s", "db").
+  // A session matches if its kind equals any value in the list (OR semantics).
   // An empty list returns sessions of all kinds.
   repeated string kinds = 3;
 
-  // user filters results to sessions initiated by this Teleport user.
-  optional string user = 4;
+  // username filters results to sessions initiated by this Teleport user.
+  optional string username = 4;
 
-  // user_roles filters results to sessions where the user held any of the
-  // given roles. An empty list disables this filter.
+  // user_roles filters results to sessions where the user held any of the given
+  // roles at session time (OR semantics). An empty list disables this filter.
   repeated string user_roles = 5;
 
   // access_request_ids filters results to sessions associated with any of
-  // the given access request IDs. An empty list disables this filter.
+  // the given access request IDs (OR semantics). An empty list disables this filter.
   repeated string access_request_ids = 6;
 
   // resource_kind filters results by the kind of resource accessed
-  // (e.g. "node", "kube_cluster", "db"). Unset disables this filter.
+  // (e.g. "node", "kube_cluster", "db"). Applied independently of
+  // resource_properties; both filters are ANDed when set together.
   optional string resource_kind = 7;
 
   // resource_name filters results to sessions on the resource with this name.
-  // Unset disables this filter.
+  // Applied independently of resource_properties; ANDed with all other filters.
   optional string resource_name = 8;
 
   // resource_labels filters results to sessions on resources that carry all
   // of the given labels. An empty map disables this filter.
   map<string, string> resource_labels = 9;
 
-  // resource_properties narrows results using resource-specific properties
+  // resource_properties narrows results using kind-specific properties
   // such as hostname, pod name, or database name.
-  // The oneof variant should match the session kind being searched.
-  ResourcePropertiesFilter resource_properties = 10;
+  // Applied as an AND with resource_kind, resource_name, and all other filters.
+  // The active variant is evaluated independently of resource_kind.
+  ResourceProperties resource_properties = 10;
 
-  // severity filters results by severity level (e.g. "low", "medium", "high").
-  // Unset disables this filter.
-  optional string severity = 11;
+  // severity filters results by severity level.
+  // RISK_LEVEL_UNSPECIFIED disables this filter.
+  optional teleport.summarizer.v1.RiskLevel severity = 11;
 
   // search_keywords are free-text search terms matched against session content.
   // The server generates vector embeddings from these keywords internally.
   // Unset disables full-text search.
   optional string search_keywords = 12;
 
-  // page_size controls how many SessionSummary objects the server requests per
-  // page from the access graph. The auth server handles all pagination
-  // internally; callers receive a single continuous stream regardless of how
-  // many pages are fetched. A value of 0 lets the server choose a default.
-  int32 page_size = 13;
+  // max_results is the maximum number of SessionSummary objects the server will
+  // stream to the client. The server stops the stream after returning this many
+  // results even if more are available; use batch_token to resume.
+  // A value of 0 lets the server choose a default limit.
+  uint32 max_results = 13;
 
-  // page_token resumes a previous search from a known cursor position.
-  // Set this to the next_page_token returned in a prior
-  // SearchSessionSummariesResponse to continue from where an earlier stream
-  // left off. An empty value starts the search from the beginning.
-  string page_token = 14;
+  // batch_token resumes a previous search from a known cursor position.
+  // Set this to the next_batch_token returned in a prior BatchComplete message
+  // to continue from where an earlier stream left off.
+  // The token encodes the complete search state of the original request;
+  // all other filter fields in this message are ignored when batch_token is set.
+  // An empty value starts a new search from the beginning.
+  string batch_token = 14;
 }
 
-// ResourcePropertiesFilter narrows a search using properties that are specific
-// to a session kind. Set the variant that matches the kind being searched.
-message ResourcePropertiesFilter {
-  oneof filter {
-    // ssh matches SSH session properties.
+// ResourceProperties holds session-kind-specific properties for a session.
+// Used for filtering in search and returned in SessionSummary results.
+// Only one variant should be set; the active variant is evaluated
+// independently of resource_kind when used as a search filter.
+message ResourceProperties {
+  oneof type {
+    // ssh holds SSH session properties.
     SSHProperties ssh = 1;
-    // kubernetes matches Kubernetes session properties.
+    // kubernetes holds Kubernetes session properties.
     KubernetesProperties kubernetes = 2;
-    // database matches database session properties.
+    // database holds database session properties.
     DatabaseProperties database = 3;
   }
+}
 
-  // SSHProperties are the filterable properties for SSH sessions.
-  message SSHProperties {
-    // server_hostname filters by the hostname of the SSH server.
-    optional string server_hostname = 1;
-    // server_addr filters by the address (host:port) of the SSH server.
-    optional string server_addr = 2;
-  }
+// SSHProperties are the kind-specific properties for SSH sessions.
+message SSHProperties {
+  // server_hostname is the hostname of the SSH server.
+  optional string server_hostname = 1;
+  // server_addr is the address (host:port) of the SSH server.
+  optional string server_addr = 2;
+}
 
-  // KubernetesProperties are the filterable properties for Kubernetes sessions.
-  message KubernetesProperties {
-    // pod_namespace filters by the Kubernetes namespace of the pod.
-    optional string pod_namespace = 1;
-    // pod_name filters by the name of the pod.
-    optional string pod_name = 2;
-  }
+// KubernetesProperties are the kind-specific properties for Kubernetes sessions.
+message KubernetesProperties {
+  // pod_namespace is the Kubernetes namespace of the pod.
+  optional string pod_namespace = 1;
+  // pod_name is the name of the pod.
+  optional string pod_name = 2;
+}
 
-  // DatabaseProperties are the filterable properties for database sessions.
-  message DatabaseProperties {
-    // database_name filters by the name of the database accessed.
-    optional string database_name = 1;
-  }
+// DatabaseProperties are the kind-specific properties for database sessions.
+message DatabaseProperties {
+  // database_name is the name of the database accessed.
+  optional string database_name = 1;
 }
 
 // SearchSessionSummariesResponse is sent by the server on the
 // SearchSessionSummaries stream. Each message carries either one
-// SessionSummary or a PageComplete signal. A client can receive zero up
-// to SearchSessionSummariesRequest.page_size summaries and will always receive
-// one PageComplete message.
+// SessionSummary or a BatchComplete signal. The stream contains zero or more
+// summary messages followed by exactly one BatchComplete message.
 message SearchSessionSummariesResponse {
-  oneof message {
+  // BatchComplete signals the end of a batch of results. If has_more=true, the
+  // client can resume by creating a new stream and sending next_batch_token as
+  // SearchSessionSummariesRequest.batch_token.
+  message BatchComplete {
+    // has_more is true when at least one additional batch is available.
+    // If false, this was the last batch and the stream will close.
+    bool has_more = 1;
+
+    // next_batch_token is an opaque cursor pointing to the start of the next batch.
+    // Only set when has_more is true. Pass this value as batch_token in a future
+    // SearchSessionSummariesRequest to resume without re-fetching already-seen summaries.
+    string next_batch_token = 2;
+  }
+  oneof payload {
     // summary carries one session summary.
     SessionSummary summary = 1;
-    // page_complete signals that the server has finished sending all summaries
-    // for the current page.
-    PageComplete page_complete = 2;
+    // batch_complete signals that the server has finished sending all summaries
+    // for the current batch.
+    BatchComplete batch_complete = 2;
   }
-}
-
-// PageComplete signals the end of a page of results. If has_more=true, the client
-// can resume the request by creating a new stream and sending the next_page_token
-// in SearchSessionSummariesRequest.page_token.
-message PageComplete {
-  // has_more is true when at least one additional page is available.
-  // If false, this was the last page and the client should close the stream.
-  bool has_more = 1;
-
-  // next_page_token is an opaque cursor pointing to the start of the next page.
-  // Only set when has_more is true. The client may pass this value as
-  // page_token in a future SearchSessionSummariesRequest to resume the search
-  // in a new stream without re-fetching already-seen pages.
-  string next_page_token = 2;
 }
 
 // SessionSummary describes a single recorded session returned by the Auth
 // server. Only sessions the calling user is permitted to see are included.
 message SessionSummary {
-  // id is the UUID of the session.
-  string id = 1;
+  // session_id is the UUID of the session.
+  string session_id = 1;
 
-  // kind is the session type (e.g. "ssh", "k8s", "db", "desktop").
+  // kind is the session protocol type (e.g. "ssh", "k8s", "db", "desktop").
+  // This is distinct from resource_kind, which identifies the Teleport resource
+  // type (e.g. "node", "kube_cluster", "db").
   string kind = 2;
 
-  // session_time is the timestamp of the session (typically the start time).
-  google.protobuf.Timestamp session_time = 3;
+  // session_start is the timestamp when the session began.
+  google.protobuf.Timestamp session_start = 3;
 
-  // user is the Teleport username that initiated the session.
-  string user = 4;
+  // username is the Teleport username that initiated the session.
+  string username = 4;
 
   // user_traits contains the traits associated with the user at the time of
   // the session (e.g. LDAP attributes, SAML assertions).
@@ -215,11 +220,12 @@ message SessionSummary {
   // obtain elevated privileges for this session.
   repeated string access_request_ids = 7;
 
-  // participants contains the users who joined the session.
+  // participants contains the usernames of other users who joined the session.
   repeated string participants = 8;
 
-  // resource_kind is the kind of resource that was accessed
-  // (e.g. "node", "kube_cluster", "db").
+  // resource_kind is the Teleport resource type that was accessed (e.g. "node",
+  // "kube_cluster", "db"). This is distinct from kind, which is the session
+  // protocol type (e.g. "ssh", "k8s", "db").
   string resource_kind = 9;
 
   // resource_labels contains the labels of the resource at the time of the
@@ -233,13 +239,18 @@ message SessionSummary {
   // May be empty if not available.
   string resource_name = 12;
 
-  // resource_properties contains additional resource-specific properties:
+  // resource_properties contains additional kind-specific properties:
   //   SSH sessions:        {server_addr, server_hostname}
-  //   Kubernetes sessions: {kubernetes_cluster, pod_namespace, pod_name}
+  //   Kubernetes sessions: {pod_namespace, pod_name}
   //   Database sessions:   {database_name}
-  google.protobuf.Struct resource_properties = 13;
+  ResourceProperties resource_properties = 13;
 
-  // severity is the computed severity level of the session
-  // (e.g. "low", "medium", "high").
-  string severity = 14;
+  // severity is the computed severity level of the session.
+  teleport.summarizer.v1.RiskLevel severity = 14;
+
+  // session_end is the timestamp when the session ended.
+  google.protobuf.Timestamp session_end = 15;
+
+  // host_id is the unique identifier of the host where the session occurred.
+  string host_id = 16;
 }
