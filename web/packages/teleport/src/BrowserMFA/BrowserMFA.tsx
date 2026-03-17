@@ -19,16 +19,22 @@
 import { useEffect } from 'react';
 import { useParams } from 'react-router';
 
-import { Alert, Flex, H1, Indicator } from 'design';
-import CardError, { AccessDenied } from 'design/CardError';
+import { Flex, Indicator } from 'design';
+import { AccessDenied, BadRequest } from 'design/CardError';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { isAbortError } from 'shared/utils/error';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
-import { useMfa } from 'teleport/lib/useMfa';
+import { useMfa, shouldShowMfaPrompt } from 'teleport/lib/useMfa';
 import auth from 'teleport/services/auth';
 
-export function BrowserMFA() {
+import { validateClientRedirect } from './urlValidation';
+
+interface BrowserMFAProps {
+  // onRedirect is used for testing only.
+  onRedirect?: (url: string) => void;
+}
+
+export function BrowserMFA({ onRedirect = redirectTo }: BrowserMFAProps) {
   const { requestId } = useParams<{ requestId: string }>();
   const { attempt, setAttempt } = useAttempt('processing');
 
@@ -40,6 +46,8 @@ export function BrowserMFA() {
   });
 
   useEffect(() => {
+    const abortController = new AbortController();
+
     async function promptWebauthnAndRedirect() {
       try {
         if (!requestId) {
@@ -50,14 +58,20 @@ export function BrowserMFA() {
           });
           return;
         }
-        const resp = await auth.browserMFA(mfa, requestId);
-        window.location.href = resp;
-      } catch (err) {
-        // ignore abort errors
-        if (isAbortError(err)) {
-          return;
-        }
 
+        // Get the tsh redirect URL
+        const tshRedirectURL = await auth.browserMFAPut(
+          mfa,
+          requestId,
+          abortController.signal
+        );
+
+        // Validate that it points to localhost
+        const validatedTSHRedirectURL = validateClientRedirect(tshRedirectURL);
+
+        // Redirect to the validated URL
+        onRedirect(validatedTSHRedirectURL);
+      } catch (err) {
         setAttempt({
           status: 'failed',
           statusText: err.message,
@@ -66,7 +80,8 @@ export function BrowserMFA() {
     }
 
     promptWebauthnAndRedirect();
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps -- Only run the effect once on mount
+    return () => abortController.abort();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- Only run the effect once on mount
 
   if (attempt.status === 'failed') {
     if (attempt.statusCode === 400) {
@@ -75,12 +90,11 @@ export function BrowserMFA() {
     return <BrowserMFAAccessDenied statusText={attempt.statusText} />;
   }
 
-  return (
-    <>
-      <BrowserMFAProcessing />
-      <AuthnDialog mfaState={mfa} />
-    </>
-  );
+  if (shouldShowMfaPrompt(mfa)) {
+    return <AuthnDialog mfaState={mfa} />;
+  }
+
+  return <BrowserMFAProcessing />;
 }
 
 export function BrowserMFAProcessing() {
@@ -99,15 +113,6 @@ export function BrowserMFAAccessDenied(props: BrowserMFAAccessDeniedProps) {
   return <AccessDenied message={props.statusText} />;
 }
 
-// TODO(sshah): move this component to CardError.jsx once
-// the URL validation patch is published in the private release.
-export const BadRequest = ({ message = '' }) => (
-  <CardError>
-    <H1 mb={4} textAlign="center">
-      400 Bad Request
-    </H1>
-    <Alert mt={2} mb={4}>
-      {message}
-    </Alert>
-  </CardError>
-);
+function redirectTo(url: string): void {
+  window.location.replace(url);
+}

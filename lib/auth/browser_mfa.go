@@ -18,7 +18,9 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -97,7 +99,7 @@ func (a *Server) CompleteBrowserMFAChallenge(ctx context.Context, requestID stri
 	return clientRedirectURL, nil
 }
 
-// VerifyBrowserMFASession verifies that the given browser mfa webauthn response matches an existing MFA session
+// VerifyBrowserMFASession verifies that the given Browser MFA webauthn response matches an existing MFA session
 // for the user and session ID. It also checks the required extensions, and finishes by deleting
 // the MFA session if reuse is not allowed.
 func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionID string, webauthnResponse *webauthnpb.CredentialAssertionResponse, requiredExtensions *mfav1.ChallengeExtensions) (*authz.MFAAuthData, error) {
@@ -105,7 +107,7 @@ func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionI
 		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
 	}
 
-	const notFoundErrMsg = "mfa browser session data not found"
+	const notFoundErrMsg = "browser mfa session data not found"
 	mfaSess, err := a.GetSSOMFASessionData(ctx, sessionID)
 	if trace.IsNotFound(err) {
 		return nil, trace.NotFound("%s", notFoundErrMsg)
@@ -124,39 +126,28 @@ func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionI
 		return nil, trace.Wrap(err)
 	}
 
+	// Check the user has a Browser MFA device
 	groupedDevs := groupByDeviceType(devs)
 	if groupedDevs.Browser == nil {
-		return nil, trace.AccessDenied("invalid browser mfa session data; user has no browser mfa device available")
-	}
+		a.logger.DebugContext(ctx,
+			"Browser MFA failed. It isn't available when a user has no WebAuthn devices or has SSO MFA",
+			"webauthn_devices", len(groupedDevs.Webauthn),
+			"sso_mfa_available", groupedDevs.SSO != nil,
+			"user", username,
+		)
 
-	// Verify the webauthn response.
-	pref, err := a.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Get the user's WebAuthn preference. If it doesn't exist, continue since WebAuthn may not be enabled.
-	webConfig, err := pref.GetWebauthn()
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	webLogin := &wanlib.LoginFlow{
-		Webauthn: webConfig,
-		Identity: a.Services,
-	}
-
-	// Convert from protobuf type to wantypes
-	wanResp := wantypes.CredentialAssertionResponseFromProto(webauthnResponse)
-
-	// Verify the webauthn response against the original challenge scope.
-	// This validates the cryptographic signature and challenge match.
-	loginData, err := webLogin.Finish(ctx, username, wanResp, &mfav1.ChallengeExtensions{
-		Scope:      mfaSess.ChallengeExtensions.Scope,
-		AllowReuse: mfaSess.ChallengeExtensions.AllowReuse,
-	})
-	if err != nil {
-		return nil, trace.AccessDenied("verify WebAuthn response: %v", err)
+		var cause []string
+		if len(groupedDevs.Webauthn) == 0 {
+			cause = append(cause, "no webauthn devices are registered")
+		}
+		if groupedDevs.SSO != nil {
+			cause = append(cause, "SSO MFA is available (preferred over Browser MFA)")
+		}
+		accessDeniedMsg := "user has no browser mfa device available"
+		if len(cause) > 0 {
+			accessDeniedMsg += fmt.Sprintf(" because %s", strings.Join(cause, " and "))
+		}
+		return nil, trace.AccessDenied("%s", accessDeniedMsg)
 	}
 
 	// Check if the given scope is satisfied by the challenge scope.
@@ -167,6 +158,33 @@ func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionI
 	// If this session is reusable, but this context forbids reusable sessions, return an error.
 	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO && mfaSess.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
 		return nil, trace.AccessDenied("the given browser mfa session allows reuse, but reuse is not permitted in this context")
+	}
+
+	// Convert from protobuf type to wantypes
+	wanResp := wantypes.CredentialAssertionResponseFromProto(webauthnResponse)
+
+	cap, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	waConfig, err := cap.GetWebauthn()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	loginFlow := &wanlib.LoginFlow{
+		Webauthn: waConfig,
+		Identity: a.Services,
+	}
+
+	// Verify the webauthn response against the original challenge scope.
+	// This validates the cryptographic signature and challenge match.
+	loginData, err := loginFlow.Finish(ctx, username, wanResp, &mfav1.ChallengeExtensions{
+		Scope:      mfaSess.ChallengeExtensions.Scope,
+		AllowReuse: mfaSess.ChallengeExtensions.AllowReuse,
+	})
+	if err != nil {
+		return nil, trace.AccessDenied("verify WebAuthn response: %v", err)
 	}
 
 	if mfaSess.ChallengeExtensions.AllowReuse != mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
@@ -182,5 +200,6 @@ func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionI
 		Payload:       mfaSess.Payload,
 		SourceCluster: mfaSess.SourceCluster,
 		TargetCluster: mfaSess.TargetCluster,
+		MFAViaBrowser: true,
 	}, nil
 }

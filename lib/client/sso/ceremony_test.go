@@ -25,6 +25,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"testing"
 
@@ -34,6 +35,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/lib/auth/internal"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -296,4 +299,48 @@ func TestCLICeremony_MFA(t *testing.T) {
 	require.NotNil(t, mfaResponse.GetSSO())
 	assert.Equal(t, token, mfaResponse.GetSSO().Token)
 	assert.Equal(t, requestID, mfaResponse.GetSSO().RequestId)
+}
+
+func TestCLICeremony_BrowserMFA(t *testing.T) {
+	const requestID = "browser-mfa-request-id"
+
+	ctx := t.Context()
+	mockProxy := newMockProxy(t)
+
+	// Capture stderr.
+	stderr := bytes.NewBuffer([]byte{})
+
+	// Create a basic redirector.
+	rd, err := sso.NewRedirector(sso.RedirectorConfig{
+		ProxyAddr: mockProxy.URL,
+		Browser:   teleport.BrowserNone,
+		Stderr:    stderr,
+	})
+	require.NoError(t, err)
+
+	webauthnResponse := &wantypes.CredentialAssertionResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
+			Credential: wantypes.Credential{
+				ID:   "test-credential-id",
+				Type: "public-key",
+			},
+			RawID: []byte("test-raw-id"),
+		},
+		AssertionResponse: wantypes.AuthenticatorAssertionResponse{
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
+				ClientDataJSON: []byte(`{"type":"webauthn.get","challenge":"test-challenge"}`),
+			},
+			AuthenticatorData: []byte("test-authenticator-data"),
+			Signature:         []byte("test-signature"),
+		},
+	}
+	callbackURL, err := url.Parse(rd.ClientCallbackURL)
+	require.NoError(t, err)
+
+	successResponseURL, err := internal.EncryptBrowserMFAResponse(
+		callbackURL,
+		webauthnResponse,
+	)
+	require.NoError(t, err)
+
 }

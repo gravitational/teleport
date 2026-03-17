@@ -262,13 +262,13 @@ const auth = {
     return api.put(cfg.getHeadlessSsoPath(transactionId), request);
   },
 
-  browserMFA(mfa: MfaState, requestId: string) {
+  browserMFAPut(mfa: MfaState, requestId: string, abortSignal: AbortSignal) {
     return mfa.getChallengeResponse().then((res: MfaChallengeResponse) => {
       const request = {
         ...res,
       };
 
-      return api.put(cfg.getBrowserMfaPath(requestId), request);
+      return api.put(cfg.getBrowserMfaPath(requestId), request, abortSignal);
     });
   },
 

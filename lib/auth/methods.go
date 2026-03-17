@@ -429,6 +429,25 @@ func (a *Server) authenticateUserInternal(
 			return mfaData.Device, nil
 		}
 		authErr = authenticateWebauthnError
+	case req.BrowserMFA != nil:
+		authenticateFn = func() (*types.MFADevice, error) {
+			if req.Pass != nil {
+				if err = a.checkPasswordWOToken(ctx, user, req.Pass.Password); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+			mfaResponse := &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Browser{
+					Browser: req.BrowserMFA,
+				},
+			}
+			mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, &requiredExt)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return mfaData.Device, nil
+		}
+		authErr = authenticateWebauthnError
 	case req.OTP != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
 			// OTP cannot be validated by validateMFAAuthResponse because we need to
@@ -440,25 +459,6 @@ func (a *Server) authenticateUserInternal(
 			return res.mfaDev, nil
 		}
 		authErr = authclient.InvalidUserPass2FError
-	case req.Browser != nil:
-		authenticateFn = func() (*types.MFADevice, error) {
-			if req.Pass != nil {
-				if err = a.checkPasswordWOToken(ctx, user, req.Pass.Password); err != nil {
-					return nil, trace.Wrap(err)
-				}
-			}
-			mfaResponse := &proto.MFAAuthenticateResponse{
-				Response: &proto.MFAAuthenticateResponse_Browser{
-					Browser: req.Browser,
-				},
-			}
-			mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, &requiredExt)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return mfaData.Device, nil
-		}
-		authErr = authenticateWebauthnError
 	}
 	if authenticateFn != nil {
 		err := a.WithUserLock(ctx, user, func() error {

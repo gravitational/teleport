@@ -985,7 +985,7 @@ func (s *sessionCache) AuthenticateSSHUser(
 		}
 	}
 	if c.BrowserMFAResponse != nil {
-		authReq.Browser = &proto.BrowserMFAResponse{
+		authReq.BrowserMFA = &proto.BrowserMFAResponse{
 			RequestId:        c.BrowserMFAResponse.RequestID,
 			WebauthnResponse: webauthntypes.CredentialAssertionResponseToProto(c.BrowserMFAResponse.WebauthnResponse),
 		}
