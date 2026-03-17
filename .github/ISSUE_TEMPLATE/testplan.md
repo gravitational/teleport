@@ -1400,7 +1400,7 @@ For all performance tests
 
 Where applicable nodes used should be configured as follows:
 
- 1) Transparent hugepages disabled.
+ 1) [Transparent hugepages](https://docs.kernel.org/admin-guide/mm/transhuge.html#global-thp-controls) disabled.
 
 ### Ansible-like Test
 
