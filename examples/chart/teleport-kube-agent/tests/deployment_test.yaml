@@ -19,6 +19,19 @@ tests:
       - hasDocuments:
           count: 1
 
+  - it: does not create a Deployment if action is Upgrade but hooks are disabled
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+      skipHooks: true
+    values:
+      - ../.lint/all-v6.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
   - it: sets Deployment labels when specified if action is Upgrade
     template: deployment.yaml
     set:
