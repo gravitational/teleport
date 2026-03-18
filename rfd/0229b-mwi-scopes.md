@@ -415,7 +415,7 @@ Scoped Join Token will be used with `spec.roles` field set to `["Bot"]`, the
 name of the scoped Bot provided in a `spec.bot_name` field and the scope of the
 scoped Bot provided in `spec.bot_scope`.
 
-Today, the scoped token includes a `spec.mode` field. This field is used to
+Today, the scoped token includes a `spec.usage_mode` field. This field is used to
 control the join behavior of the token for agents (i.e single use or unlimited).
 Joining for bots has its own unique semantics and requirements that differ from
 those of agents. As such, a new value (`bot`) will be required for this field
