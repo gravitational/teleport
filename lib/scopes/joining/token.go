@@ -551,12 +551,15 @@ func (t *Token) GetKubernetes() *types.ProvisionTokenSpecV2Kubernetes {
 // token.
 func (t *Token) GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair {
 	spec := t.scoped.GetSpec().GetBoundKeypair()
-	rotateAfter := spec.RotateAfter.AsTime()
 
-	var mustRegisterBefore *time.Time
+	var mustRegisterBefore, rotateAfter *time.Time
 	if m := spec.GetOnboarding().GetMustRegisterBefore(); m != nil {
 		t := m.AsTime()
 		mustRegisterBefore = &t
+	}
+	if v := spec.GetRotateAfter(); v != nil {
+		t := v.AsTime()
+		rotateAfter = &t
 	}
 
 	return &types.ProvisionTokenSpecV2BoundKeypair{
@@ -569,7 +572,7 @@ func (t *Token) GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair {
 			Limit: spec.GetRecovery().GetLimit(),
 			Mode:  spec.GetRecovery().GetMode(),
 		},
-		RotateAfter: &rotateAfter,
+		RotateAfter: rotateAfter,
 	}
 }
 
