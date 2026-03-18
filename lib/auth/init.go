@@ -1367,6 +1367,7 @@ func GetPresetRoles(buildType string) []types.Role {
 		services.NewPresetAccessPluginRole(),
 		services.NewPresetListAccessRequestResourcesRole(),
 		services.NewPresetMCPUserRole(),
+		services.NewPresetBeamsUserRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the

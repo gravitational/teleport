@@ -492,11 +492,12 @@ func connectToBeamSSHWithRetry(cf *CLIConf, tc *client.TeleportClient, nodeID st
 	}
 
 	var lastErr error
-	for range 10 {
+	for i := range 10 {
 		lastErr = connectToBeamSSH(cf, tc, nodeID, remoteCommand)
 		if lastErr == nil {
 			return nil
 		}
+		logger.DebugContext(cf.Context, "Connect to beam with retry", "attempt", i+1, "error", lastErr)
 		if !trace.IsNotFound(lastErr) {
 			return trace.Wrap(lastErr)
 		}
