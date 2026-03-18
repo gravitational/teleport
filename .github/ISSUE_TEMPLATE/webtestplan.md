@@ -899,21 +899,19 @@ Add the following to enable read access to trusted clusters
     - [ ] Windows
     - [ ] Linux
 - Shell
-  - [ ] Verify that the shell is pinned to the correct cluster (for root clusters and leaf
-        clusters).
-    - That is, opening new shell sessions in other workspaces or other clusters within the same
-      workspace should have no impact on the original shell session.
-  - [ ] Verify that the local shell is opened with correct env vars.
-    - `TELEPORT_PROXY` and `TELEPORT_CLUSTER` should pin the session to the correct cluster.
-    - `TELEPORT_HOME` should point to `~/Library/Application Support/Teleport Connect/tsh`.
-    - `PATH` should include `/Applications/Teleport Connect.app/Contents/Resources/bin`.
-  - [ ] Verify that the working directory in the tab title is updated when you change the directory
-        (only for local terminals).
+  - These items are verified by e2e tests on Linux and can be verified on macOS by executing the tests
+    manually:
+    - [ ] Verify that the local shell is opened with correct env vars.
+      - `TELEPORT_PROXY` and `TELEPORT_CLUSTER` should pin the session to the correct cluster.
+      - `TELEPORT_HOME` should point to `~/Library/Application Support/Teleport Connect/tsh`.
+      - `PATH` should include `/Applications/Teleport Connect.app/Contents/MacOS/tsh.app/Contents/MacOS`.
+    - [ ] Verify that the working directory in the tab title is updated when you change the directory
+          (only for local terminals).
+    - [ ] Verify that the tab automatically closes on `$ exit` command.
   - [ ] Verify that terminal resize works for both local and remote shells.
     - Install midnight commander on the node you ssh into: `$ sudo apt-get install mc`
     - Run the program: `$ mc`
     - Resize Teleport Connect to see if the panels resize with it
-  - [ ] Verify that the tab automatically closes on `$ exit` command.
   - [ ] Verify that [Connect doesn't leave orphaned processes](https://github.com/gravitational/teleport/issues/27125).
     - Open a local shell session in Connect.
     - Open Activity Monitor, then View -> All Processes, Hierarchically.
@@ -922,6 +920,8 @@ Add the following to enable read access to trusted clusters
     - Double-click that shell process to open a window with process details.
     - Close Teleport Connect without closing the tab first.
     - Verify that the separate Activity Monitor window for that process now says "terminated".
+    - On Windows, you can open PowerShell, type `$PID`, close the app and then see if the relevant
+      PowerShell process has disappeared from Task Manager.
   - Verify that all items from this section work on:
     - [ ] macOS
     - [ ] Windows
@@ -956,25 +956,25 @@ Add the following to enable read access to trusted clusters
     - [ ] Windows
     - [ ] Linux
 - State restoration from disk
-  - [ ] Verify that the app asks about restoring previous tabs when launched and restores them
-        properly.
-  - [ ] Verify that the app opens with the cluster that was active when you closed the app.
-  - [ ] Verify that the app remembers size & position after restart.
-    - Verify that this works on:
-      - [ ] macOS
-      - [ ] Windows
-      - [ ] Linux
+  - These items are verified by e2e tests on Linux and can be verified on macOS by executing the tests
+    manually. They do not need to be manually tested on Windows.
+    - [ ] Verify that the app asks about restoring previous tabs when launched and restores them
+          properly.
+    - [ ] Verify that the app opens with the cluster that was active when you closed the app.
+    - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport Connect/tsh` doesn't crash the app.
+    - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport Connect/app_state.json` but not the `tsh` dir doesn't crash the app.
+    - [ ] Verify that logging out of a cluster and then logging in to the same cluster doesn't
+          remember previous tabs (they should be cleared on logout).
+    - [ ] Log in to a cluster. Close the DocumentCluster tab. Open a new DocumentCluster tab. Restart
+          the app. Verify that the app doesn't ask you about restoring previous tabs.
+    - [ ] Verify that the app remembers size & position after restart.
+  - [ ] On Windows, verify that the app remembers size & position after restart.
+    - This is a part of e2e tests, but it's OS-dependent so we have to run it on Windows manually.
   - [ ] Verify that [reopening a cluster that has no workspace
         assigned](https://github.com/gravitational/webapps.e/issues/275#issuecomment-1131663575) works.
-  - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport Connect/tsh` doesn't crash the app.
-  - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport Connect/app_state.json` but not the `tsh` dir doesn't crash the app.
-  - [ ] Verify that logging out of a cluster and then logging in to the same cluster doesn't
-        remember previous tabs (they should be cleared on logout).
   - [ ] Open a db connection tab. Change the db name and port. Close the tab. Restart the app. Open
         connection tracker and choose said db connection from it. Verify that the newly opened tab uses
         the same db name and port.
-  - [ ] Log in to a cluster. Close the DocumentCluster tab. Open a new DocumentCluster tab. Restart
-        the app. Verify that the app doesn't ask you about restoring previous tabs.
 - Connections picker
   - [ ] Verify that the connections picker shows new connections when ssh & db tabs are opened.
   - [ ] Check if those connections are available after the app restart.
