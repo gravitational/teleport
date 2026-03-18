@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -52,18 +53,11 @@ func (c *leafClusterCache) getLeafClusters(ctx context.Context, rootClient Clust
 
 func (c *leafClusterCache) getLeafClustersUncached(ctx context.Context, rootClient ClusterClient) ([]string, error) {
 	var leafClusters []string
-	nextPage := ""
-	for {
-		remoteClusters, next, err := rootClient.CurrentCluster().ListRemoteClusters(ctx, 0, nextPage)
+	for rc, err := range clientutils.Resources(ctx, rootClient.CurrentCluster().ListRemoteClusters) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		for _, rc := range remoteClusters {
-			leafClusters = append(leafClusters, rc.GetName())
-		}
-		if next == "" {
-			return leafClusters, nil
-		}
-		nextPage = next
+		leafClusters = append(leafClusters, rc.GetName())
 	}
+	return leafClusters, nil
 }
