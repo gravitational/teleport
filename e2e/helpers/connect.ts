@@ -29,7 +29,7 @@ import {
   TestInfo,
 } from '@playwright/test';
 
-import { connectTshBin, connectAppDir, password, inviteUrl } from './env';
+import { connectTshBin, connectAppDir, password, startUrl } from './env';
 
 export async function launchApp(homeDir: string) {
   const requireFromApp = module.createRequire(
@@ -72,7 +72,7 @@ export async function login(page: Page): Promise<void> {
   const clusterInput = page.getByPlaceholder('teleport.example.com');
   await expect(clusterInput).toBeVisible();
 
-  await clusterInput.fill(new URL(inviteUrl).host);
+  await clusterInput.fill(new URL(startUrl).host);
   await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
   await page.getByRole('button', { name: 'Next', exact: true }).click();
 

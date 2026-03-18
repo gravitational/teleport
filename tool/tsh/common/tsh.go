@@ -1036,7 +1036,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	aws.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 
 	// Generate AWS profiles via AWS Identity Center integration.
-	awsProfile := app.Command("aws-profile", "Write AWS profiles retrieved from the AWS IAM Identity Center integration to the AWS config file.")
+	awsProfile := app.Command("aws-profile", "Generate AWS config profiles by syncing with your integrated AWS IAM Identity Center account(s). Other profiles in the config file are left untouched.")
 	awsProfile.Flag("aws-sso-region", "AWS region for SSO. Auto-detected from cluster if not specified.").StringVar(&cf.AWSSSORegion)
 	awsProfile.Flag("dry-run", "Print the configuration that will be applied without modifying the AWS config file.").BoolVar(&cf.DryRun)
 

@@ -571,6 +571,8 @@ type sliceWriter struct {
 	sessionStartTime time.Time
 	// sessionEndTime is the time of the last event in the session
 	sessionEndTime time.Time
+	// sessionType is the type of the session, used for recording metadata processing
+	sessionType recordingmetadata.SessionType
 	// shouldProcessSession is set to true if the session should be processed
 	// by the recording metadata service (currently, this is true if the session
 	// is a SSH session).
@@ -694,6 +696,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 			switch e := event.oneof.GetEvent().(type) {
 			case *apievents.OneOf_SessionStart:
 				w.sessionStartTime = e.SessionStart.Time
+				w.sessionType = recordingmetadata.SessionTypeTTY
 				w.shouldProcessSession = true
 
 			case *apievents.OneOf_SessionPrint:
@@ -843,7 +846,7 @@ func (w *sliceWriter) completeStream() {
 				if !w.sessionStartTime.IsZero() && !w.sessionEndTime.IsZero() {
 					duration := w.sessionEndTime.Sub(w.sessionStartTime)
 
-					if err := recordingMetadata.ProcessSessionRecording(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, duration); err != nil {
+					if err := recordingMetadata.ProcessSessionRecording(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, w.sessionType, duration); err != nil {
 						slog.WarnContext(w.proto.cancelCtx, "Failed to process session recording metadata", "error", err)
 					}
 				} else {

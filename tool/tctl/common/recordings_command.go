@@ -153,12 +153,14 @@ func (c *RecordingsCommand) DownloadRecordings(ctx context.Context, tc *authclie
 	if err != nil {
 		return trace.Wrap(err, "creating file downloader")
 	}
+
+	path := filepath.Join(c.recordingsDownloadOutputDir, string(*sessionID)+".tar")
 	defer func() {
 		completeErr := e.Complete(ctx)
 		if err == nil && completeErr == nil {
 			return
 		}
-		localRemErr := os.Remove(filepath.Join(c.recordingsDownloadOutputDir, string(*sessionID)+".tar"))
+		localRemErr := os.Remove(path)
 		// ignore file not found errors
 		if os.IsNotExist(localRemErr) {
 			localRemErr = nil
@@ -189,6 +191,7 @@ loop:
 			return nil
 		}
 	}
+	fmt.Fprintf(c.stdout, "Session recording %q downloaded to %s\n", string(*sessionID), path)
 	return nil
 }
 

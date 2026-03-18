@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { test, expect } from '../../helpers/connect';
+import { test, expect } from '@gravitational/e2e/helpers/connect';
 
 test.use({ autoLogin: true });
 

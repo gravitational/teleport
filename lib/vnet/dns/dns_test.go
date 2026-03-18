@@ -59,7 +59,7 @@ func TestServer(t *testing.T) {
 	// Create two upstream nameservers that are able to resolve A and AAAA records for all names.
 	var upstreamAddrs []string
 	for i := range 2 {
-		upstreamServer, err := NewServer(staticResolver, noUpstreams)
+		upstreamServer, err := NewServer(staticResolver, noUpstreams, slog.Default())
 		require.NoError(t, err)
 		conn, err := net.ListenUDP("udp", udpLocalhost)
 		require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestServer(t *testing.T) {
 		},
 	}
 	upstreams := &stubUpstreamNamservers{nameservers: upstreamAddrs}
-	server, err := NewServer(resolver, upstreams)
+	server, err := NewServer(resolver, upstreams, slog.Default())
 	require.NoError(t, err)
 
 	conn, err := net.ListenUDP("udp", udpLocalhost)
