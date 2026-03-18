@@ -5320,9 +5320,10 @@ func GenSchemaSAMLIdPServiceProviderV1(ctx context.Context) (github_com_hashicor
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 			}),
-			Description: "Spec is the SAML IdP service provider spec.",
-			Required:    true,
-			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{SAMLIdPSpecValidator()},
+			Description:   "Spec is the SAML IdP service provider spec.",
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{SAMLIdPServiceProviderSpec()},
+			Required:      true,
+			Validators:    []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{SAMLIdPSpecValidator()},
 		},
 		"sub_kind": {
 			Description: "SubKind is an optional resource sub kind, used in some resources",

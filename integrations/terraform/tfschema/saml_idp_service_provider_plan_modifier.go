@@ -21,16 +21,23 @@
  * It's not in saml_idp_service_provider.go because that's a generated file.
  */
 
-package provider
+package tfschema
 
 import (
 	"context"
 	"encoding/xml"
+	fmt "fmt"
 
 	"github.com/beevik/etree"
+	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	tftypes "github.com/hashicorp/terraform-plugin-framework/types"
+)
+
+const (
+	SAMLIdPSpecModifierErrSummary = "Spec modifier failed"
 )
 
 // samlIdPEntityDescriptorXML parses the SAML entity descriptor XML.
@@ -123,6 +130,28 @@ func replaceACSURLInSamlIdPDescriptor(descriptor, newACSURL string) (string, err
 	})
 }
 
+// SAMLIdPServiceProviderSpec returns the default implementation of the SAMLIdPServiceProviderSpecModifier
+func SAMLIdPServiceProviderSpec() tfsdk.AttributePlanModifier {
+	return SAMLIdPServiceProviderSpecModifier{}
+}
+
+// SAMLIdPServiceProviderSpecModifier implements the tfsdk.AttributePlanModifier interface. It accounts
+// for default values applied by CheckAndSetDefaults that would otherwise create inconsistent states
+type SAMLIdPServiceProviderSpecModifier struct {
+}
+
+// Description of the RoleOptions plan modifier
+func (d SAMLIdPServiceProviderSpecModifier) Description(ctx context.Context) string {
+	return "This modifier re-renders the role.spec.options from the user provided config instead of using the state. " +
+		DefaultModiferDescription
+}
+
+// MarkdownDescription of the RoleOptions plan modifier
+func (d SAMLIdPServiceProviderSpecModifier) MarkdownDescription(ctx context.Context) string {
+	return "This modifier re-renders the role.spec.options from the user provided config instead of using the state. " +
+		DefaultModiferDescription
+}
+
 // ModifyPlan synchronizes computed fields to match what the API will set.
 // The SAML IdP API requires both entity_descriptor and entity_id for updates,
 // and the entity_id value must match. If the terraform config provides only one
@@ -135,7 +164,7 @@ func replaceACSURLInSamlIdPDescriptor(descriptor, newACSURL string) (string, err
 // https://github.com/gravitational/teleport/issues/64651 is fixed. As-is,
 // the provider's codegen fails to preserve API updates to fields, but only on
 // update calls.
-func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+func (s SAMLIdPServiceProviderSpecModifier) Modify(ctx context.Context, req tfsdk.ModifyAttributePlanRequest, resp *tfsdk.ModifyAttributePlanResponse) {
 	// Destroy: no op
 	if req.Plan.Raw.IsNull() {
 		return
@@ -146,12 +175,54 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 		return
 	}
 
+	var specPath = path.Root("spec")
+
+	var config tftypes.Object
+	diags := req.Config.Get(ctx, &config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		resp.Diagnostics.AddAttributeError(specPath, SAMLIdPSpecModifierErrSummary, "Failed to get config.")
+		return
+	}
+
+	samlIdPSpec := &apitypes.SAMLIdPServiceProviderV1{}
+	diags = CopySAMLIdPServiceProviderV1FromTerraform(ctx, config, samlIdPSpec)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		resp.Diagnostics.AddAttributeError(specPath, SAMLIdPSpecModifierErrSummary, "Failed to create a SAML IdP Service Provider from the config.")
+		return
+	}
+
+	err := samlIdPSpec.CheckAndSetDefaults()
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(specPath, SAMLIdPSpecModifierErrSummary, fmt.Sprintf("Failed to set the SAML IdP Service Provider defaults: %s", err))
+		return
+	}
+
+	// Save the potentially updated spec back to Terraform
+	diags = CopySAMLIdPServiceProviderV1ToTerraform(ctx, samlIdPSpec, &config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		resp.Diagnostics.AddError(SAMLIdPSpecModifierErrSummary, "Failed to convert back the SAML IdP Service Provider into a TF object.")
+		return
+	}
+
 	// Entity Descriptor values
 	var specEntityDescriptorPath = path.Root("spec").AtName("entity_descriptor")
 	var configEntityDescriptor types.String
 	req.Config.GetAttribute(ctx, specEntityDescriptorPath, &configEntityDescriptor)
 	var stateEntityDescriptor types.String
 	req.State.GetAttribute(ctx, specEntityDescriptorPath, &stateEntityDescriptor)
+
+	// Workaround for https://github.com/gravitational/teleport/issues/60200
+	// We must set specObj AFTER calling CopySAMLIdPServiceProviderV1ToTerraform
+	// instead of changing samlIdPSpec before until that bug is fixed.
+	var specObj types.Object
+	var ok bool
+	if specObj, ok = config.Attrs["spec"].(types.Object); !ok {
+		resp.Diagnostics.AddError(SAMLIdPSpecModifierErrSummary, "Failed to get 'spec' from TF object with cast")
+		return
+	}
 
 	// Entity ID Values
 	var specEntityIDPath = path.Root("spec").AtName("entity_id")
@@ -162,6 +233,11 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 	var specACSURLPath = path.Root("spec").AtName("acs_url")
 	var configACSURL types.String
 	req.Config.GetAttribute(ctx, specACSURLPath, &configACSURL)
+
+	// RelayState Values
+	var specRelayStatePath = path.Root("spec").AtName("relay_state")
+	var configRelayState types.String
+	req.Config.GetAttribute(ctx, specRelayStatePath, &configRelayState)
 
 	// If only one of entity_id and entity_descriptor is provided, set the other
 	// one to match. This is required because the API rejects requests if the
@@ -178,7 +254,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 		// prevent the API from rejecting the call
 		if configEntityID.IsNull() {
 			if configEntityDescriptor.IsUnknown() {
-				resp.Diagnostics.AddWarning("Unknown Entity Descriptor",
+				resp.Diagnostics.AddAttributeWarning(specEntityDescriptorPath, "Unknown Entity Descriptor",
 					"The entity_descriptor is unknown at plan time, so the provider cannot synchronize "+
 						"the generated entity_id value with it. Changes to the entity_descriptor "+
 						"after initial creation will fail due to this mismatch. To resolve this, "+
@@ -186,10 +262,15 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 			} else {
 				ed, err := parseSamlIdPEntityDescriptor(configEntityDescriptor.Value)
 				if err != nil {
-					resp.Diagnostics.AddError("Invalid entity_descriptor", err.Error())
+					resp.Diagnostics.AddAttributeError(specEntityDescriptorPath, "Invalid entity_descriptor", err.Error())
 					return
 				}
-				resp.Plan.SetAttribute(ctx, specEntityIDPath, types.String{Value: ed.EntityID})
+				if eid, ok := specObj.Attrs["relay_state"].(types.String); ok {
+					eid.Null = false
+					eid.Value = ed.EntityID
+					specObj.Attrs["entity_id"] = eid
+				}
+				samlIdPSpec.Spec.EntityID = ed.EntityID
 			}
 		}
 
@@ -208,7 +289,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 		entityDescriptorXml := stateEntityDescriptor.Value
 		var err error
 		if configEntityID.IsUnknown() {
-			resp.Diagnostics.AddWarning("Unknown Entity ID",
+			resp.Diagnostics.AddAttributeWarning(specEntityIDPath, "Unknown Entity ID",
 				"The entity_id is unknown at plan time, so the provider cannot synchronize "+
 					"the generated entity_descriptor value with it. Changes to the entity_id "+
 					"after initial creation will fail due to this mismatch. To resolve this, "+
@@ -218,12 +299,12 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 		} else if !configEntityID.IsNull() {
 			entityDescriptorXml, err = replaceEntityIDInSamlIdPDescriptor(entityDescriptorXml, configEntityID.Value)
 			if err != nil {
-				resp.Diagnostics.AddWarning("Failed to parse entity_descriptor as XML",
+				resp.Diagnostics.AddAttributeWarning(specEntityIDPath, "Failed to parse entity_descriptor as XML",
 					"Could not set entity_id in entity_descriptor from state")
 			}
 		}
 		if configACSURL.IsUnknown() {
-			resp.Diagnostics.AddWarning("Unknown ACS URL",
+			resp.Diagnostics.AddAttributeWarning(specACSURLPath, "Unknown ACS URL",
 				"The ACS URL is unknown at plan time, so the provider cannot synchronize "+
 					"the generated entity_descriptor value with it. Changes to the acs_url "+
 					"after initial creation will fail due to this mismatch. To resolve this, "+
@@ -233,11 +314,33 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 		} else if !configACSURL.IsNull() {
 			entityDescriptorXml, err = replaceACSURLInSamlIdPDescriptor(entityDescriptorXml, configACSURL.Value)
 			if err != nil {
-				resp.Diagnostics.AddWarning("Failed to parse entity_descriptor as XML",
+				resp.Diagnostics.AddAttributeWarning(specACSURLPath, "Failed to parse entity_descriptor as XML",
 					"Could not set acs_url in entity_descriptor from state")
 			}
 		}
 		// Note: if neither entity_id nor acs_url were null, this will be a no-op
-		resp.Plan.SetAttribute(ctx, specEntityDescriptorPath, types.String{Value: entityDescriptorXml})
+		if ed, ok := specObj.Attrs["relay_state"].(types.String); ok {
+			ed.Null = false
+			ed.Value = entityDescriptorXml
+			specObj.Attrs["entity_descriptor"] = ed
+		}
 	}
+
+	// The API sets null RelayState to the empty string, so we must also.
+	if configRelayState.IsNull() {
+		if rs, ok := specObj.Attrs["relay_state"].(types.String); ok {
+			rs.Null = false
+			rs.Value = ""
+			specObj.Attrs["relay_state"] = rs
+		} else {
+			resp.Diagnostics.AddError(SAMLIdPSpecModifierErrSummary, "Failed to get 'spec.relay_state' from TF object with cast.")
+		}
+	}
+
+	spec, ok := config.Attrs["spec"]
+	if !ok {
+		resp.Diagnostics.AddError(SAMLIdPSpecModifierErrSummary, "Failed to get 'spec' from TF object.")
+		return
+	}
+	resp.AttributePlan = spec
 }

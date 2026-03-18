@@ -477,8 +477,8 @@ plan_modifiers:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
     SAMLIdPServiceProviderV1.Spec.Preset:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
-    SAMLIdPServiceProviderV1.Spec.RelayState:
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+    SAMLIdPServiceProviderV1.Spec:
+      - "SAMLIdPServiceProviderSpec()"
 
 validators:
   # Expires must be in the future
