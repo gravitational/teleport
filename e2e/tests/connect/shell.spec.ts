@@ -44,14 +44,20 @@ test('shell session', async ({ app }) => {
   await expect(terminalInput).toBeVisible({ timeout: 10_000 });
 
   await terminalInput.pressSequentially(
-    `echo $TELEPORT_PROXY $TELEPORT_CLUSTER $TELEPORT_AUTH_SERVER\n`
+    `echo $TELEPORT_PROXY $TELEPORT_CLUSTER $TELEPORT_AUTH_SERVER $TELEPORT_TOOLS_VERSION\n`
   );
   await expect(terminal).toContainText(
-    `${proxyHost} ${clusterName} ${proxyHost}`,
+    `${proxyHost} ${clusterName} ${proxyHost} off`,
     {
       timeout: 10_000,
     }
   );
+
+  // Verify that TELEPORT_HOME points to the tsh home directory managed by Connect.
+  await terminalInput.pressSequentially('echo $TELEPORT_HOME\n');
+  await expect(terminal).toContainText('/home/.tsh', {
+    timeout: 10_000,
+  });
 
   // Verify that changing directory updates the tab title.
   await using tmpDir = await fs.mkdtempDisposable(
