@@ -12,7 +12,12 @@ Identity security.
 These tests should be run on both a fresh installation of the version to be released
 as well as an upgrade of the previous version of Teleport.
 
-- [ ] Access Graph
+Before running tests, set up both environments:
+
+- Self-hosted: Deploy the [Access Graph service](https://goteleport.com/docs/identity-security/access-graph/)
+- Cloud: Create a Teleport Cloud tenant with Identity Security enabled
+
+- [ ] Access Graph (Self-hosted/Cloud)
   - [ ] Standing Privileges
     - [ ] Ignores Review/Request paths
     - [ ] Count standing privileges matches expected number
@@ -36,7 +41,7 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] Detailed node inspection via drawer panels
     - [ ] Multi-system integration: access controls from cloud providers, repos, and IdPs unified
 
-- [ ] SQL Editor
+- [ ] SQL Editor (Self-hosted/Cloud)
   - [ ] Filter by access type (`WHERE kind = 'ALLOWED'` and `WHERE kind = 'DENIED'`)
   - [ ] Filter by identity (`WHERE identity = 'bob'`)
   - [ ] Filter by identity and resource (`WHERE identity = 'bob' AND resource = 'postgres'`)
@@ -44,7 +49,7 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Query `ssh_keys` view (`SELECT * FROM ssh_keys`)
   - [ ] Query `access_path` view with source filter (`SELECT * FROM access_path WHERE source='gitlab'`)
 
-- [ ] Crown Jewels
+- [ ] Crown Jewels (Self-hosted/Cloud)
   - [ ] Create a Crown Jewel
   - [ ] Edit role or user that has access to the Crown Jewel
   - [ ] Ensure Crown Jewel diff is created
@@ -52,8 +57,8 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] Audit event is emitted with correct metadata (affected resource, change ID, timestamp, event code TAG001I)
     - [ ] Audit events can be exported via event handlers to external SIEM/logging systems
 
-- [ ] Session Summaries
-  Do the following steps using the `tctl` and WebUI flows;
+- [ ] Session Summaries (Self-hosted/Cloud)
+  Do the following steps using the `tctl` and WebUI flows; [docs](https://goteleport.com/docs/identity-security/session-summaries/#step-25-configure-the-inference-model)
   - [ ] Create `inference_secret`
     - [ ] OpenAI
   - [ ] Create `inference_model`
@@ -66,7 +71,10 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] Verify session selection filters work (session kind, resource labels, user roles)
   - [ ] Teleport Cloud
     - [ ] Provides a default model
-    - [ ] Forbids creating Bedrock model without credentials
+      - [ ] `tctl get inference_model teleport-cloud-default`
+      - [ ] Bedrock region is set to `{{env.bedrock_region}}`
+      - [ ] Bedrock model is set to `{{env.bedrock_model_id}}`
+    - [ ] Forbids creating Bedrock model without integration
     - [ ] Forbids updates to the default `inference_model`
   - [ ] Summarize
     - [ ] SSH
@@ -87,9 +95,9 @@ as well as an upgrade of the previous version of Teleport.
       - [ ] Check the session plays
     - [ ] For Kube, SSH, database and Windows:
       - [ ] Ensure session player is operational if:
-        - [ ] Misses metadata
-        - [ ] Misses timeline
-        - [ ] Misses thumbnail
+        - [ ] Misses metadata (delete <session-id>.metadata file from session recordings)
+        - [ ] Misses timeline (kubectl exec using busybox container)
+        - [ ] Misses thumbnail (delete <session-id>.thumbnail file from session recordings)
       - [ ] Player streams everything
   - [ ] Audit events are emitted with risk levels (Critical, High, Medium, Low)
   - [ ] Prometheus metrics track summarization performance by model name and error codes
@@ -98,7 +106,7 @@ as well as an upgrade of the previous version of Teleport.
 
 ### Integrations
 
-- [ ] SSH Keys Scan
+- [ ] SSH Keys Scan (Self-hosted/Cloud)
   - [ ] Nodes do not report `authorized_keys`
   - [ ] Enable SSH Keys Scan `tctl edit access_graph_settings`
   - [ ] Ensure nodes report keys in `/home/*/.ssh/authorized_keys` (can take up to 1h)
@@ -112,14 +120,14 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] Use the SQL editor and `select * from ssh_keys`
   - [ ] Ensure `private_key` and `authorized_key` are connected when they match
 
-- [ ] GitHub
+- [ ] GitHuh (Self-hosted/Cloud)
   - [ ] Connect a GitHub organization using the WebUI flow (GitHub App installation)
     - [ ] Imports audit logs (authentication, admin, security events)
     - [ ] Displays GitHub access paths in Graph Explorer
       - [ ] `select * from access_path where source='github'`
 
 
-- [ ] GitLab
+- [ ] GitLab (Self-hosted/Cloud)
   - [ ] Connect a GitLab account using the WebUI flow
     - [ ] Imports Users
     - [ ] Imports Roles
@@ -127,7 +135,7 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] Displays GitLab access paths
       - [ ] `select * from access_path where source='gitlab'`
 
-- [ ] EntraID
+- [ ] EntraID (Self-hosted/Cloud)
   - [ ] Connect an EntraID account using the WebUI flow (OIDC provider method)
     - [ ] Imports Users
     - [ ] Imports Groups as Access Lists
@@ -141,7 +149,7 @@ as well as an upgrade of the previous version of Teleport.
       - [ ] `select * from access_path where source='entraid'`
   - [ ] When EntraID is SSO provider for AWS, SSO-based access grants are visualized in Graph Explorer
 
-- [ ] Okta
+- [ ] Okta (Self-hosted/Cloud)
   - [ ] Connect an Okta account using the WebUI flow
     - [ ] Imports Users
     - [ ] Imports Groups as Access Lists
@@ -150,7 +158,7 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] Imports API Tokens
 
 
-- [ ] NetIQ
+- [ ] NetIQ (Self-hosted/Cloud)
   - [ ] Connect a NetIQ account using `tctl plugins install netiq`
     - [ ] Imports Users
     - [ ] Imports Groups
@@ -158,7 +166,7 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] Imports Business roles, Permission roles, IT roles
     - [ ] Displays NetIQ access paths in Graph Explorer
 
-- [ ] AWS
+- [ ] AWS (Self-hosted/Cloud)
   - [ ] Enable AWS Integration
     - [ ] Access Graph displays the AWS access paths
     - [ ] IAM Policies, Groups, Users, Roles are imported
@@ -172,7 +180,7 @@ as well as an upgrade of the previous version of Teleport.
       - [ ] Access Path from the teleport user starts in Teleport and extends to AWS
 
 
-- [ ] Azure
+- [ ] Azure (Self-hosted/Cloud)
   - [ ] Enable Azure Integration
     - [ ] Access Graph displays the Azure access paths
     - [ ] Users, Groups, and Service Principals are imported
@@ -183,7 +191,7 @@ as well as an upgrade of the previous version of Teleport.
 
 ### Identity Activity Center
 
-- [ ] Teleport Audit Logs forwarding
+- [ ] Teleport Audit Logs forwarding (Self-hosted)
   - [ ] Configure Auth Service to enable `access_graph.audit_log`
   - [ ] Teleport cluster audit events appear in the Investigate tab
   - [ ] Historical import respects the `start_date` parameter
