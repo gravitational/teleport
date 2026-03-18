@@ -52,6 +52,15 @@ const (
 	//nolint:misspell // ignore Cancelled and Cancelling
 	// executed waiter when the command state transitions to one of Cancelled, TimedOut, Failed or Cancelling.
 	waiterTransitionedToFailureErrorMessage = "waiter state transitioned to Failure"
+
+	// waitTimeoutPad is extra waiter headroom beyond the installer's join-failure timeout.
+	// The installer decides success/failure based on whether join completes in time.
+	// This pad avoids reporting a temporary "still running" SSM state as the final outcome
+	waitTimeoutPad = 10 * time.Minute
+
+	// waitTimeout is how long we wait for AWS to report a terminal command state
+	// for the installer result.
+	waitTimeout = installstatus.JoinFailureTimeout + waitTimeoutPad
 )
 
 // SSMClient is the subset of the AWS SSM API required for EC2 discovery.
@@ -437,8 +446,7 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 	err := si.getWaiter(req.SSM).Wait(ctx, &ssm.GetCommandInvocationInput{
 		CommandId:  commandID,
 		InstanceId: aws.String(instanceMetadata.InstanceID),
-		// 100 seconds to match v1 sdk waiter default.
-	}, 100*time.Second)
+	}, waitTimeout)
 	switch {
 	case err == nil:
 		// Command executed successfully.
