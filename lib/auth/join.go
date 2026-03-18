@@ -439,15 +439,25 @@ func (a *Server) GenerateBotCertsForJoin(
 	}
 
 	// TODO: add additional scope-related checks here
-	// if scoped, ok := token.(*joining.Token); ok {
-	// 	user, err := a.GetUserOrLoginState(ctx, machineidv1.BotResourceName(botName))
-	// 	if err != nil {
-	// 		return nil, "", trace.Wrap(err)
-	// 	}
+	if scoped, ok := token.(*joining.Token); ok {
+		user, err := a.GetUserOrLoginState(ctx, machineidv1.BotResourceName(botName))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
 
-	// 	//user.GetLabel()
-	// 	//scoped.GetScoped().GetSpec().GetBotScope()
-	// }
+		botScope, ok := user.GetLabel(types.BotScopeLabel)
+		if !ok {
+			return nil, "", trace.BadParameter("a scoped token cannot be used to join an unscoped bot")
+		}
+
+		if tokenScope := scoped.GetScoped().GetScope(); botScope != tokenScope {
+			a.logger.WarnContext(ctx, "",
+				"token_scope", tokenScope,
+				"bot_scope", botScope,
+			)
+			return nil, "", trace.AccessDenied("bot scope must match token scope")
+		}
+	}
 
 	certs, botInstanceID, err := a.generateInitialBotCerts(
 		ctx,
