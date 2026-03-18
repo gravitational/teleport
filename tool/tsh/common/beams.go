@@ -86,6 +86,10 @@ func onBeamsAdd(cf *CLIConf) error {
 	if err = connectToBeamSSHWithRetry(cf, tc, beam.GetStatus().GetNodeId(), nil); err != nil {
 		return trace.Wrap(err)
 	}
+
+	reconnectStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	fmt.Fprintf(cf.Stdout(), "\nTo reconnect to this beam, run:\n    %s\n",
+		reconnectStyle.Render("tsh beams console "+name))
 	return nil
 }
 
