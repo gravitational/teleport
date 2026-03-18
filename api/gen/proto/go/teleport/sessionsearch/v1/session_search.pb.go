@@ -39,15 +39,17 @@ const (
 )
 
 // SearchSessionSummariesRequest specifies the filter criteria for a session summary search.
-// All filter fields are optional execept start and end time; omitting a field disables
-// that filter. The server converts search_keywords to embeddings internally.
+// All filter fields are optional except start and end time; omitting a field disables
+// that filter. The server converts search_queries into chunks and generates embeddings internally.
 type SearchSessionSummariesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// start_time restricts results to sessions whose session_start is at or after
-	// this timestamp. The server returns an error if this field is unset or zero.
+	// this timestamp. The interval is [start_time, end_time).
+	// The server returns an error if this field is unset or zero.
 	StartTime *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
 	// end_time restricts results to sessions whose session_start is before
-	// this timestamp. The server returns an error if this field is unset or zero.
+	// this timestamp. The interval is [start_time, end_time).
+	// The server returns an error if this field is unset or zero.
 	EndTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
 	// kinds filters results by session kind (e.g. "ssh", "k8s", "db").
 	// A session matches if its kind equals any value in the list (OR semantics).
@@ -79,10 +81,12 @@ type SearchSessionSummariesRequest struct {
 	// severity filters results by severity level.
 	// RISK_LEVEL_UNSPECIFIED disables this filter.
 	Severity *v1.RiskLevel `protobuf:"varint,11,opt,name=severity,proto3,enum=teleport.summarizer.v1.RiskLevel,oneof" json:"severity,omitempty"`
-	// search_keywords are free-text search terms matched against session content.
-	// The server generates vector embeddings from these keywords internally.
-	// Unset disables full-text search.
-	SearchKeywords *string `protobuf:"bytes,12,opt,name=search_keywords,json=searchKeywords,proto3,oneof" json:"search_keywords,omitempty"`
+	// search_queries are free-text sentences matched against session content using
+	// full-text and semantic search. Each entry is an independent query; results
+	// matching any of them are returned (OR semantics). The server generates vector
+	// embeddings internally before forwarding to the access graph.
+	// An empty list disables text and semantic search.
+	SearchQueries []string `protobuf:"bytes,12,rep,name=search_queries,json=searchQueries,proto3" json:"search_queries,omitempty"`
 	// max_results is the maximum number of SessionSummary objects the server will
 	// stream to the client. The server stops the stream after returning this many
 	// results even if more are available; use batch_token to resume.
@@ -206,11 +210,11 @@ func (x *SearchSessionSummariesRequest) GetSeverity() v1.RiskLevel {
 	return v1.RiskLevel(0)
 }
 
-func (x *SearchSessionSummariesRequest) GetSearchKeywords() string {
-	if x != nil && x.SearchKeywords != nil {
-		return *x.SearchKeywords
+func (x *SearchSessionSummariesRequest) GetSearchQueries() []string {
+	if x != nil {
+		return x.SearchQueries
 	}
-	return ""
+	return nil
 }
 
 func (x *SearchSessionSummariesRequest) GetMaxResults() uint32 {
@@ -835,7 +839,7 @@ var File_teleport_sessionsearch_v1_session_search_proto protoreflect.FileDescrip
 
 const file_teleport_sessionsearch_v1_session_search_proto_rawDesc = "" +
 	"\n" +
-	".teleport/sessionsearch/v1/session_search.proto\x12\x19teleport.sessionsearch.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/summarizer/v1/summarizer.proto\"\x89\a\n" +
+	".teleport/sessionsearch/v1/session_search.proto\x12\x19teleport.sessionsearch.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/summarizer/v1/summarizer.proto\"\xee\x06\n" +
 	"\x1dSearchSessionSummariesRequest\x129\n" +
 	"\n" +
 	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
@@ -850,8 +854,8 @@ const file_teleport_sessionsearch_v1_session_search_proto_rawDesc = "" +
 	"\x0fresource_labels\x18\t \x03(\v2L.teleport.sessionsearch.v1.SearchSessionSummariesRequest.ResourceLabelsEntryR\x0eresourceLabels\x12^\n" +
 	"\x13resource_properties\x18\n" +
 	" \x01(\v2-.teleport.sessionsearch.v1.ResourcePropertiesR\x12resourceProperties\x12B\n" +
-	"\bseverity\x18\v \x01(\x0e2!.teleport.summarizer.v1.RiskLevelH\x03R\bseverity\x88\x01\x01\x12,\n" +
-	"\x0fsearch_keywords\x18\f \x01(\tH\x04R\x0esearchKeywords\x88\x01\x01\x12\x1f\n" +
+	"\bseverity\x18\v \x01(\x0e2!.teleport.summarizer.v1.RiskLevelH\x03R\bseverity\x88\x01\x01\x12%\n" +
+	"\x0esearch_queries\x18\f \x03(\tR\rsearchQueries\x12\x1f\n" +
 	"\vmax_results\x18\r \x01(\rR\n" +
 	"maxResults\x12\x1f\n" +
 	"\vbatch_token\x18\x0e \x01(\tR\n" +
@@ -862,8 +866,7 @@ const file_teleport_sessionsearch_v1_session_search_proto_rawDesc = "" +
 	"\t_usernameB\x10\n" +
 	"\x0e_resource_kindB\x10\n" +
 	"\x0e_resource_nameB\v\n" +
-	"\t_severityB\x12\n" +
-	"\x10_search_keywords\"\xfa\x01\n" +
+	"\t_severity\"\xfa\x01\n" +
 	"\x12ResourceProperties\x12<\n" +
 	"\x03ssh\x18\x01 \x01(\v2(.teleport.sessionsearch.v1.SSHPropertiesH\x00R\x03ssh\x12Q\n" +
 	"\n" +

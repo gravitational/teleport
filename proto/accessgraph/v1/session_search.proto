@@ -91,11 +91,13 @@ message SearchSessionSummariesRequest {
 // for a session summary search.
 message SearchSessionSummariesParams {
   // start_time restricts results to sessions whose session_start is at or after
-  // this timestamp. The server returns an error if this field is unset or zero.
+  // this timestamp. The interval is [start_time, end_time).
+  // The server returns an error if this field is unset or zero.
   google.protobuf.Timestamp start_time = 1;
 
   // end_time restricts results to sessions whose session_start is before
-  // this timestamp. The server returns an error if this field is unset or zero.
+  // this timestamp. The interval is [start_time, end_time).
+  // The server returns an error if this field is unset or zero.
   google.protobuf.Timestamp end_time = 2;
 
   // kinds filters results by session kind (e.g. "ssh", "k8s", "db").
@@ -137,22 +139,19 @@ message SearchSessionSummariesParams {
   // RISK_LEVEL_UNSPECIFIED disables this filter.
   teleport.summarizer.v1.RiskLevel severity = 11;
 
-  // search_keywords are the text search terms for full-text and semantic search.
-  // If set, search_embeddings must also be set. If neither is set, no text
-  // search is performed and results are filtered by the other criteria only.
-  optional string search_keywords = 12;
-
-  // search_embeddings are the semantic vector embeddings of search_keywords,
-  // pre-computed by the Auth server before forwarding the request to the access
-  // graph. The access graph uses these for vector similarity search in addition
-  // to keyword-based text matching.
-  // Must be set if and only if search_keywords is set.
-  repeated float search_embeddings = 13;
+  // search_queries are the caller's free-text queries together with their
+  // pre-computed vector embeddings, produced by the Auth server before
+  // forwarding the request. Each entry is an independent query; a session
+  // matches if any query matches (OR semantics). The access graph uses the text
+  // for keyword-based matching and the embeddings for vector similarity search.
+  // An empty list disables text and semantic search; results are then filtered
+  // by the other criteria only.
+  repeated EmbeddedQuery search_queries = 12;
 
   // max_summaries is the maximum number of SessionSummary objects the server
   // should include in each batch. The server may return fewer.
   // A value of 0 lets the server choose a default batch size.
-  uint32 max_summaries = 14;
+  uint32 max_summaries = 13;
 
   // batch_token resumes a previous search from a known cursor position.
   // Set this to the next_batch_token returned in a prior BatchComplete message
@@ -160,7 +159,17 @@ message SearchSessionSummariesParams {
   // The token encodes the complete search state of the original request;
   // all other filter fields in this message are ignored when batch_token is set.
   // An empty value starts a new search from the beginning of the result set.
-  string batch_token = 15;
+  string batch_token = 14;
+}
+
+// EmbeddedQuery pairs a free-text query with its pre-computed vector embedding,
+// produced by the Auth server before forwarding to the access graph.
+message EmbeddedQuery {
+  // text is the original query string.
+  string text = 1;
+  // embeddings is the vector representation of text, typically a
+  // high-dimensional float array produced by an embedding model.
+  repeated float embeddings = 2;
 }
 
 // ResourceProperties holds session-kind-specific properties for a session.
@@ -300,10 +309,6 @@ message SessionSummary {
   string resource_name = 12;
 
   // resource_properties contains additional kind-specific properties.
-  // The structure varies by session kind:
-  //   SSH sessions:        server_addr, server_hostname
-  //   Kubernetes sessions: pod_namespace, pod_name
-  //   Database sessions:   database_name
   ResourceProperties resource_properties = 13;
 
   // severity is the computed severity level of the session.

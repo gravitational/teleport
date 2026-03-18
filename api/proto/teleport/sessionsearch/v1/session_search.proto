@@ -58,15 +58,17 @@ service SessionSearchService {
 }
 
 // SearchSessionSummariesRequest specifies the filter criteria for a session summary search.
-// All filter fields are optional execept start and end time; omitting a field disables
-// that filter. The server converts search_keywords to embeddings internally.
+// All filter fields are optional except start and end time; omitting a field disables
+// that filter. The server converts search_queries into chunks and generates embeddings internally.
 message SearchSessionSummariesRequest {
   // start_time restricts results to sessions whose session_start is at or after
-  // this timestamp. The server returns an error if this field is unset or zero.
+  // this timestamp. The interval is [start_time, end_time).
+  // The server returns an error if this field is unset or zero.
   google.protobuf.Timestamp start_time = 1;
 
   // end_time restricts results to sessions whose session_start is before
-  // this timestamp. The server returns an error if this field is unset or zero.
+  // this timestamp. The interval is [start_time, end_time).
+  // The server returns an error if this field is unset or zero.
   google.protobuf.Timestamp end_time = 2;
 
   // kinds filters results by session kind (e.g. "ssh", "k8s", "db").
@@ -108,10 +110,12 @@ message SearchSessionSummariesRequest {
   // RISK_LEVEL_UNSPECIFIED disables this filter.
   optional teleport.summarizer.v1.RiskLevel severity = 11;
 
-  // search_keywords are free-text search terms matched against session content.
-  // The server generates vector embeddings from these keywords internally.
-  // Unset disables full-text search.
-  optional string search_keywords = 12;
+  // search_queries are free-text sentences matched against session content using
+  // full-text and semantic search. Each entry is an independent query; results
+  // matching any of them are returned (OR semantics). The server generates vector
+  // embeddings internally before forwarding to the access graph.
+  // An empty list disables text and semantic search.
+  repeated string search_queries = 12;
 
   // max_results is the maximum number of SessionSummary objects the server will
   // stream to the client. The server stops the stream after returning this many
