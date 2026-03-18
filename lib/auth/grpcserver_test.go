@@ -6637,6 +6637,7 @@ func TestGenerateUserCerts_accessGraphUsage(t *testing.T) {
 	tests := []struct {
 		name       string
 		username   string
+		nodeName   string
 		assertErr  require.ErrorAssertionFunc
 		assertCert func(t *testing.T, cert *x509.Certificate)
 		usage      proto.UserCertsRequest_CertUsage
@@ -6693,6 +6694,13 @@ func TestGenerateUserCerts_accessGraphUsage(t *testing.T) {
 				require.NotEmpty(t, data.GetTLSPriv(), "session data TLS priv is empty")
 			},
 		},
+		{
+			name:      "user with access single use cert with node fails",
+			username:  userWithAccessGraph.GetName(),
+			assertErr: require.Error,
+			nodeName:  "abc",
+			purpose:   proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -6707,6 +6715,7 @@ func TestGenerateUserCerts_accessGraphUsage(t *testing.T) {
 				Expires:      testServer.Clock().Now().Add(1 * time.Hour),
 				Usage:        proto.UserCertsRequest_AccessGraphAPI,
 				Purpose:      test.purpose,
+				NodeName:     test.nodeName,
 			})
 			test.assertErr(t, err)
 			if resp == nil {

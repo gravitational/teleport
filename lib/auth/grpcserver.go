@@ -675,37 +675,8 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCert
 }
 
 func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) error {
-	switch req.Usage {
-	case authpb.UserCertsRequest_All:
-		if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
-			return trace.BadParameter("single-use certificates cannot be issued for all purposes")
-		}
-	case authpb.UserCertsRequest_App:
-		if req.RouteToApp.Name == "" {
-			return trace.BadParameter("missing app Name field in an app-only UserCertsRequest")
-		}
-	case authpb.UserCertsRequest_SSH:
-		if req.NodeName == "" {
-			return trace.BadParameter("missing NodeName field in a ssh-only UserCertsRequest")
-		}
-	case authpb.UserCertsRequest_Kubernetes:
-		if req.KubernetesCluster == "" {
-			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
-		}
-	case authpb.UserCertsRequest_Database:
-		if req.RouteToDatabase.ServiceName == "" {
-			return trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
-		}
-	case authpb.UserCertsRequest_WindowsDesktop:
-		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
-			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
-		}
-	case authpb.UserCertsRequest_AccessGraphAPI:
-		if err := certificateReqWithEmptyRoutesToResources(req); err != nil {
-			return trace.Wrap(err)
-		}
-	default:
-		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
+	if err := validateCertUsage(req); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if req.RequesterName == authpb.UserCertsRequest_TSH_DB_EXEC {
@@ -735,21 +706,54 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 	return nil
 }
 
-func certificateReqWithEmptyRoutesToResources(req *authpb.UserCertsRequest) error {
-	if req.RouteToApp.Name != "" {
-		return trace.BadParameter("RouteToApp field must be empty in a UserCertsRequest for single-use certs")
+func validateCertUsage(req *authpb.UserCertsRequest) error {
+	switch req.Usage {
+	case authpb.UserCertsRequest_All:
+		if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+			return trace.BadParameter("single-use certificates cannot be issued for all purposes")
+		}
+	case authpb.UserCertsRequest_App:
+		if req.RouteToApp.Name == "" {
+			return trace.BadParameter("missing app Name field in an app-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_SSH:
+		if req.NodeName == "" {
+			return trace.BadParameter("missing NodeName field in a ssh-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_Kubernetes:
+		if req.KubernetesCluster == "" {
+			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_Database:
+		if req.RouteToDatabase.ServiceName == "" {
+			return trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_WindowsDesktop:
+		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
+			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_AccessGraphAPI:
+		if err := validateAccessGraphcertificateReq(req); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
-	if req.RouteToDatabase.ServiceName != "" {
-		return trace.BadParameter("RouteToDatabase field must be empty in a UserCertsRequest for single-use certs")
-	}
-	if req.RouteToWindowsDesktop.WindowsDesktop != "" {
-		return trace.BadParameter("RouteToWindowsDesktop field must be empty in a UserCertsRequest for single-use certs")
-	}
-	if req.KubernetesCluster != "" {
-		return trace.BadParameter("KubernetesCluster field must be empty in a UserCertsRequest for single-use certs")
-	}
-	if req.NodeName != "" {
-		return trace.BadParameter("NodeName field must be empty in a UserCertsRequest for single-use certs")
+	return nil
+}
+
+func validateAccessGraphcertificateReq(req *authpb.UserCertsRequest) error {
+	reqCopy := apiutils.CloneProtoMsg(req)
+	for field, usageI := range authpb.UserCertsRequest_CertUsage_value {
+		usage := authpb.UserCertsRequest_CertUsage(usageI)
+		if usage == authpb.UserCertsRequest_All || usage == authpb.UserCertsRequest_AccessGraphAPI {
+			continue
+		}
+		reqCopy.Usage = usage
+		// call validateCertUsage to ensure it doesn't satisfy any usage types.
+		if validateCertUsage(reqCopy) == nil {
+			return trace.BadParameter("%s field must be empty in a UserCertsRequest for Access Graph", field)
+		}
 	}
 	return nil
 }
