@@ -72,21 +72,40 @@ func TestValidateDelegationSession(t *testing.T) {
 		},
 		"wildcard resource kind but not name": {
 			func(p *delegationv1.DelegationSession) {
-				p.Spec.Resources[0] = &delegationv1.DelegationResourceSpec{
-					Kind: types.Wildcard,
-					Name: "something-specific",
+				p.Spec.Resources = []*delegationv1.DelegationResourceSpec{
+					{
+						Kind: types.Wildcard,
+						Name: "something-specific",
+					},
 				}
 			},
 			"name must also be '*'",
 		},
 		"wildcard resource name but not kind": {
 			func(p *delegationv1.DelegationSession) {
-				p.Spec.Resources[0] = &delegationv1.DelegationResourceSpec{
-					Kind: types.KindApp,
-					Name: types.Wildcard,
+				p.Spec.Resources = []*delegationv1.DelegationResourceSpec{
+					{
+						Kind: types.KindApp,
+						Name: types.Wildcard,
+					},
 				}
 			},
 			"kind must also be '*'",
+		},
+		"mixed wildcard and explicit resources": {
+			func(p *delegationv1.DelegationSession) {
+				p.Spec.Resources = []*delegationv1.DelegationResourceSpec{
+					{
+						Kind: types.Wildcard,
+						Name: types.Wildcard,
+					},
+					{
+						Kind: types.KindApp,
+						Name: "my-app",
+					},
+				}
+			},
+			"wildcard is mutually exclusive with explicit resources",
 		},
 		"no authorized users": {
 			func(p *delegationv1.DelegationSession) { p.Spec.AuthorizedUsers = nil },
