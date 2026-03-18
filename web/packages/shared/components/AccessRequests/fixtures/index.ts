@@ -65,9 +65,9 @@ export const requestSearchPending: AccessRequest = {
   sessionTTLDuration: '',
   roles: ['test'],
   requestReason:
-    'Testing long message format. I am requesting access for the developer role that i will be using to \
-        commit fixes for our production application. I will need access for the \
-        rest of the day to complete my changes.',
+    'Testing long message format with multi-line text.\n\nI am requesting access for the developer role that i will be using to \
+commit fixes for our production application.\n\nI will need access for the \
+rest of the day to complete my changes.',
   resolveReason: '',
   reviews: [],
   reviewers: [
@@ -175,9 +175,9 @@ export const requestRolePending: AccessRequest = {
   sessionTTLDuration: '',
   roles: ['admin'],
   requestReason:
-    'Testing long message format. I am requesting access for the developer role that i will be using to \
-        commit fixes for our production application. I will need access for the \
-        rest of the day to complete my changes.',
+    'Testing long message format with multi-line text.\n\nI am requesting access for the developer role that i will be using to \
+commit fixes for our production application.\n\nI will need access for the \
+rest of the day to complete my changes.',
   resolveReason: '',
   reviews: [],
   reviewers: [
