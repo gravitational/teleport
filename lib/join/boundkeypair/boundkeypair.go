@@ -905,19 +905,7 @@ func HandleBoundKeypairJoin(
 		return nil, trace.Wrap(err)
 	}
 
-	ptv2, ok := params.ProvisionToken.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter("expected *types.ProvisionTokenV2, got %T", params.ProvisionToken)
-	}
-
-	log := params.Logger.With("token", ptv2.GetName())
-
-	if ptv2.Status == nil {
-		ptv2.Status = &types.ProvisionTokenStatusV2{}
-	}
-	if ptv2.Status.BoundKeypair == nil {
-		ptv2.Status.BoundKeypair = &types.ProvisionTokenStatusV2BoundKeypair{}
-	}
+	log := params.Logger.With("token", params.ProvisionToken.GetName())
 
 	clusterName, err := params.AuthService.GetClusterName(ctx)
 	if err != nil {
@@ -1156,7 +1144,7 @@ func HandleBoundKeypairJoin(
 			params,
 			status.BoundPublicKey,
 		); err != nil {
-			emitBoundKeypairRecoveryEvent(ctx, params, ptv2, boundPublicKey, recoveryCount, err)
+			emitBoundKeypairRecoveryEvent(ctx, params, params.ProvisionToken, boundPublicKey, recoveryCount, err)
 			return nil, trace.Wrap(err)
 		}
 
@@ -1170,13 +1158,13 @@ func HandleBoundKeypairJoin(
 		// Verify locks here now that we've verified private key ownership but
 		// before we check join state. Otherwise, we could allow a lock creation
 		// loop.
-		if err := verifyLocksForBoundKeypairToken(ctx, params, ptv2); err != nil {
+		if err := verifyLocksForBoundKeypairToken(ctx, params, params.ProvisionToken); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		// As in the standard case above, once we've verified the client has the
 		// matching private key, validate the join state.
-		verifiedPreviousBotInstanceID, _, err = verifyBoundKeypairJoinState(ctx, params, ptv2, ca)
+		verifiedPreviousBotInstanceID, _, err = verifyBoundKeypairJoinState(ctx, params, params.ProvisionToken, ca)
 		if err != nil {
 			return nil, trace.AccessDenied("join state verification failed")
 		}
@@ -1188,7 +1176,7 @@ func HandleBoundKeypairJoin(
 
 		recoveryCount += 1
 		expectNewUniqueID = true
-		emitBoundKeypairRecoveryEvent(ctx, params, ptv2, boundPublicKey, recoveryCount, nil)
+		emitBoundKeypairRecoveryEvent(ctx, params, params.ProvisionToken, boundPublicKey, recoveryCount, nil)
 	default:
 		log.ErrorContext(
 			ctx, "unexpected state",
@@ -1213,13 +1201,13 @@ func HandleBoundKeypairJoin(
 		)
 		newPubKey, err := requestBoundKeypairRotation(ctx, params)
 		if err != nil {
-			emitBoundKeypairRotationEvent(ctx, params, ptv2, boundPublicKey, "", err)
+			emitBoundKeypairRotationEvent(ctx, params, params.ProvisionToken, boundPublicKey, "", err)
 			return nil, trace.Wrap(err)
 		}
 
 		// Don't let clients provide the same key again.
 		if err := ensurePublicKeysNotEqual(boundPublicKey, newPubKey); err != nil {
-			emitBoundKeypairRotationEvent(ctx, params, ptv2, boundPublicKey, newPubKey, err)
+			emitBoundKeypairRotationEvent(ctx, params, params.ProvisionToken, boundPublicKey, newPubKey, err)
 			return nil, trace.Wrap(err)
 		}
 
@@ -1228,7 +1216,7 @@ func HandleBoundKeypairJoin(
 			mutateStatusLastRotatedAt(&now, status.LastRotatedAt),
 		)
 
-		emitBoundKeypairRotationEvent(ctx, params, ptv2, boundPublicKey, newPubKey, nil)
+		emitBoundKeypairRotationEvent(ctx, params, params.ProvisionToken, boundPublicKey, newPubKey, nil)
 		boundPublicKey = newPubKey
 	}
 
