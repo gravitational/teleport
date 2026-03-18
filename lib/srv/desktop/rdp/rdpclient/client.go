@@ -1202,7 +1202,7 @@ func isEmpty(b bool) C.uint8_t {
 // EncodeQOIZ encodes changed frame to series of FastPath SetSurface PDUs using QOIZ codec.
 // Resulting frames can be consumed directly by the FastPath processor from IronRDP if qoiz
 // feature is enabled in ironrdp-session crate
-func EncodeQOIZ(frame []byte, x, y, width, height uint16) ([]tdpbv1.FastPathPDU, error) {
+func EncodeQOIZ(frame []byte, x, y, width, height uint16) ([]*tdpb.FastPathPDU, error) {
 	data := unsafe.SliceData(frame)
 	encodingResult := C.encode_qoiz((*C.uint8_t)(data), C.uint16_t(x), C.uint16_t(y), C.uint16_t(width), C.uint16_t(height))
 	defer C.free_encoding_result(encodingResult)
@@ -1213,13 +1213,13 @@ func EncodeQOIZ(frame []byte, x, y, width, height uint16) ([]tdpbv1.FastPathPDU,
 		return nil, trace.Errorf("Couldn't encode frame: %s", string(msg))
 	}
 	pdus := unsafe.Slice((*C.Pdu)(encodingResult.pdus), encodingResult.length)
-	messages := make([]tdpbv1.FastPathPDU, 0, encodingResult.length)
+	messages := make([]*tdpb.FastPathPDU, 0, encodingResult.length)
 	for _, frame := range pdus {
 		// copy Rust memory to Go
 		cbuf := unsafe.Slice((*uint8)(frame.data), frame.length)
 		buf := make([]uint8, frame.length)
 		copy(buf, cbuf)
-		messages = append(messages, tdpbv1.FastPathPDU{
+		messages = append(messages, &tdpb.FastPathPDU{
 			Pdu: buf,
 		})
 	}

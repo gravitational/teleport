@@ -72,6 +72,7 @@ func getBackendCommand(ctx context.Context) (*exec.Cmd, error) {
 			"-displayfd", "1",
 			"-screen", "0", "8192x8192x24",
 			"-nolock",
+			"-dpi", "96",
 			"-nolisten", "tcp"), nil
 	case "xvfb-tcp":
 		// This backend allows to run multiple sessions on MacOS, otherwise displayfd always return 0.
@@ -81,7 +82,9 @@ func getBackendCommand(ctx context.Context) (*exec.Cmd, error) {
 			"-displayfd", "1",
 			"-screen", "0", "8192x8192x24",
 			"-nolock",
-			"-listen", "tcp"), nil
+			"-dpi", "96",
+			"-listen", "tcp",
+			"-audit", "4"), nil
 	case "xephyr":
 		// This backend starts nested X11 server using Xephyr. It requires already present server and
 		// DISPLAY environment variable defined. It's intended only for testing and debugging to see
@@ -96,8 +99,8 @@ func getBackendCommand(ctx context.Context) (*exec.Cmd, error) {
 	}
 }
 
-// NewXvfb starts a Xvfb server and returns a connected client wrapper for interacting with the display.
-func NewXvfb(ctx context.Context, config Config) (*Xvfb, error) {
+// NewBackend starts a Xvfb server and returns a connected client wrapper for interacting with the display.
+func NewBackend(ctx context.Context, config Config) (*Xvfb, error) {
 	if !IsBackendPresent() {
 		return nil, trace.NotFound("Xvfb is not installed")
 	}
@@ -119,6 +122,7 @@ func NewXvfb(ctx context.Context, config Config) (*Xvfb, error) {
 	}
 
 	cmd.WaitDelay = 5 * time.Second
+	cmd.Stderr = os.Stderr
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -180,6 +184,11 @@ func NewXvfb(ctx context.Context, config Config) (*Xvfb, error) {
 	}
 	utf8, err := xproto.InternAtom(conn, false, uint16(len("UTF8_STRING")), "UTF8_STRING").Reply()
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// force DPI to 96
+	if err := randr.SetScreenSizeChecked(conn, window, 8192, 8192, 2167, 2167).Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -377,6 +386,11 @@ func (x *Xvfb) SendMouseWheel(delta int) error {
 	return trace.Wrap(err)
 }
 
+func (x *Xvfb) SendMouseMove(px, py int16) error {
+	err := xtest.FakeInputChecked(x.conn, byte(xproto.MotionNotify), 0, xproto.TimeCurrentTime, x.root(), px, py, 0).Check()
+	return trace.Wrap(err)
+}
+
 // Resize changes the virtual screen size.
 func (x *Xvfb) Resize(width, height uint16) error {
 	if width > 8192 || height > 8192 {
@@ -417,6 +431,16 @@ func (x *Xvfb) Resize(width, height uint16) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
+
+			// Recalculate physical dimensions to preserve DPI (96)
+			const dpi = 96
+			widthMm := uint32(float64(width) / dpi * 25.4)
+			heightMm := uint32(float64(height) / dpi * 25.4)
+
+			if err := randr.SetScreenSizeChecked(conn, root, width, height, widthMm, heightMm).Check(); err != nil {
+				return trace.Wrap(err)
+			}
+
 			return nil
 		}
 	}

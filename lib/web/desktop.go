@@ -517,7 +517,7 @@ func createUserCertsRequest(
 		Username:       tlsCert.Subject.CommonName,
 		Expires:        tlsCert.NotAfter,
 		RouteToCluster: siteName,
-		Usage:          proto.UserCertsRequest_WindowsDesktop,
+		Usage:          proto.UserCertsRequest_All,
 		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
 			WindowsDesktop: desktopName,
 			Login:          username,

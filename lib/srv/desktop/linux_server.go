@@ -20,13 +20,19 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"fmt"
+	"iter"
 	"log/slog"
+	"maps"
 	"net"
+	"sync"
 	"time"
 
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
+	"github.com/gravitational/teleport/lib/srv/desktop/x11"
 	"github.com/gravitational/trace"
+	"github.com/jezek/xgb/xproto"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -280,32 +286,205 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 		return
 	}
 	log.DebugContext(ctx, "Authenticated Linux desktop connection")
-
-	if _, err := s.cfg.Authorizer.Authorize(ctx); err != nil {
+	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	if err != nil {
 		log.WarnContext(ctx, "authorization failed for Linux desktop connection", "error", err)
 		sendTDPError("Connection authorization failed.")
 		return
 	}
 
+	backend, err := x11.NewBackend(ctx, x11.Config{
+		ClipboardDataReceiver: func(data []byte) {
+			tdpConn.WriteMessage(&tdpb.ClipboardData{
+				Data: data,
+			})
+		},
+	})
+	defer backend.Close()
+	if err != nil {
+		log.WarnContext(ctx, "backend creation failed", "error", err)
+		sendTDPError("Couldn't create backend.")
+		return
+	}
+
+	proxyConn.SetDeadline(time.Time{})
+
+	var mu sync.Mutex
+	width := uint16(8192)
+	height := uint16(8192)
+	resized := true
 	for {
 		msg, err := tdpConn.ReadMessage()
 		if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
 			return
 		}
 		if err != nil {
-			s.cfg.Logger.ErrorContext(ctx, "got error reading message", "error", err)
+			log.ErrorContext(ctx, "got error reading message", "error", err)
 			return
 		}
 		switch m := msg.(type) {
 		case *tdpb.ClientHello:
-			tdpConn.WriteMessage(&tdpb.Alert{
-				Message:  "Not implemented yet",
-				Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR,
+			xsessions, err := x11.GetAvailableXSessions()
+			if err != nil {
+				log.ErrorContext(ctx, "failed to get available xsessions", "error", err)
+				sendTDPError("Couldn't get available xsessions.")
+				return
+			}
+			next, _ := iter.Pull(maps.Values(xsessions))
+			xsession, valid := next()
+			if !valid {
+				log.ErrorContext(ctx, "failed to get any xsession", "error", err)
+				sendTDPError("Couldn't get any xsession.")
+				return
+			}
+			_, err = x11.StartTeleportExecXSession(ctx, &x11.XSessionConfig{
+				Logger:    log,
+				Command:   xsession,
+				Username:  authCtx.Identity.GetIdentity().Username,
+				Login:     m.Username,
+				LogConfig: s.cfg.ChildLogConfig,
+				Display:   backend.Display,
 			})
+			if err != nil {
+				log.ErrorContext(ctx, "failed to start Xsession", "error", err)
+				sendTDPError("Couldn't start Xsession.")
+			}
+			mu.Lock()
+			width = uint16(m.ScreenSpec.Width)
+			height = uint16(m.ScreenSpec.Height)
+			mu.Unlock()
+			if err := backend.Resize(width, height); err != nil {
+				log.ErrorContext(ctx, "failed to resize screen", "error", err)
+				sendTDPError("Couldn't resize backend.")
+				return
+			}
+			if err := tdpConn.WriteMessage(&tdpb.ServerHello{
+				ActivationSpec: &tdpbv1.ConnectionActivated{
+					IoChannelId:   0,
+					UserChannelId: 0,
+					ScreenWidth:   m.ScreenSpec.Width,
+					ScreenHeight:  m.ScreenSpec.Height,
+				},
+				ClipboardEnabled: true,
+			}); err != nil {
+				log.WarnContext(ctx, "failed to send server hello", "error", err)
+				return
+			}
+			go func() {
+				for {
+					start := time.Now()
+					qoiz := time.Duration(0)
+					writing := time.Duration(0)
+					image := time.Duration(0)
+					size := 0
+					changes, err := backend.GetChanges()
+					if err != nil {
+						log.ErrorContext(ctx, "failed to get changes from backend", "error", err)
+						return
+					}
+					mu.Lock()
+					width := width
+					height := height
+					r := resized
+					resized = false
+					mu.Unlock()
+					if r {
+						changes = []xproto.Rectangle{{
+							Width:  width,
+							Height: height,
+						}}
+					}
+					for _, change := range changes {
+						size += int(change.Width) * int(change.Height)
+						bi := time.Now()
+						img, err := backend.GetImage(change)
+						if err != nil {
+							log.ErrorContext(ctx, "failed to get image from backend", "error", err)
+							return
+						}
+						image += time.Since(bi)
+						fs := time.Now()
+						frames, err := rdpclient.EncodeQOIZ(img, uint16(change.X), uint16(change.Y), change.Width, change.Height)
+						if err != nil {
+							log.ErrorContext(ctx, "failed to encode FastPathPDUs", "error", err)
+							return
+						}
+						qoiz += time.Since(fs)
+						for _, frame := range frames {
+							bi = time.Now()
+							if err := tdpConn.WriteMessage(frame); err != nil {
+								log.ErrorContext(ctx, "failed to send frame", "error", err)
+								return
+							}
+							writing += time.Since(bi)
+						}
+					}
+					delta := time.Since(start)
+					//log.DebugContext(ctx, "Frame encoding", "delta", delta, "qoiz", qoiz, "writing", writing, "image", image, "size", size)
+					if delta > 40*time.Millisecond {
+						continue
+					}
+					time.Sleep(40*time.Millisecond - delta)
+				}
+			}()
+		case *tdpb.MouseMove:
+			if err := backend.SendMouseMove(int16(m.X), int16(m.Y)); err != nil {
+				log.ErrorContext(ctx, "failed to send mouse move", "error", err)
+				sendTDPError("Couldn't send mouse move.")
+				return
+			}
+		case *tdpb.MouseButton:
+			if err := backend.SendMouseButton(byte(m.Button-1), m.Pressed); err != nil {
+				log.ErrorContext(ctx, "failed to send mouse button", "error", err)
+				sendTDPError("Couldn't send mouse button.")
+				return
+			}
+		case *tdpb.MouseWheel:
+			if err := backend.SendMouseWheel(int(m.Delta)); err != nil {
+				log.ErrorContext(ctx, "failed to send mouse wheel", "error", err)
+				sendTDPError("Couldn't send mouse wheel event.")
+				return
+			}
+		case *tdpb.KeyboardButton:
+			if err := backend.SendKeyboardButton(byte(m.KeyCode), m.Pressed); err != nil {
+				log.ErrorContext(ctx, "failed to send keyboard button", "error", err)
+				sendTDPError("Couldn't send keyboard button.")
+				return
+			}
 		case *tdpb.Ping:
-			tdpConn.WriteMessage(m)
+			if err := tdpConn.WriteMessage(m); err != nil {
+				log.ErrorContext(ctx, "failed to send ping message", "error", err)
+				return
+			}
+		case *tdpb.ClipboardData:
+			if err := backend.SetClipboardData(m.Data); err != nil {
+				log.ErrorContext(ctx, "failed to set clipboard data", "error", err)
+				sendTDPError("Couldn't set clipboard data.")
+				return
+			}
+		case *tdpb.ClientScreenSpec:
+			mu.Lock()
+			width = uint16(m.Width)
+			height = uint16(m.Height)
+			resized = true
+			mu.Unlock()
+			if err := backend.Resize(uint16(m.Width), uint16(m.Height)); err != nil {
+				log.ErrorContext(ctx, "failed to resize screen", "error", err)
+				sendTDPError("Couldn't resize backend.")
+				return
+			}
+			if err := tdpConn.WriteMessage(&tdpb.ServerHello{
+				ActivationSpec: &tdpbv1.ConnectionActivated{
+					ScreenWidth:  m.Width,
+					ScreenHeight: m.Height,
+				},
+				ClipboardEnabled: true,
+			}); err != nil {
+				log.ErrorContext(ctx, "failed to send server-hello message", "error", err)
+				return
+			}
 		default:
-			s.cfg.Logger.InfoContext(s.closeCtx, "Ignoring message", "message", msg)
+			log.InfoContext(s.closeCtx, "Ignoring message", "message", fmt.Sprintf("%T", msg))
 		}
 	}
 }

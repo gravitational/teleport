@@ -23,7 +23,7 @@ func TestNewXvfb(t *testing.T) {
 	if !IsBackendPresent() {
 		t.Skip("this test requires Xvfb to be installed")
 	}
-	xvfb, err := NewXvfb(t.Context(), Config{})
+	xvfb, err := NewBackend(t.Context(), Config{})
 	require.NoError(t, err)
 	require.NotNil(t, xvfb)
 
@@ -45,7 +45,7 @@ func TestResize(t *testing.T) {
 		t.Skip("this test requires Xvfb to be installed")
 	}
 
-	xvfb, err := NewXvfb(t.Context(), Config{})
+	xvfb, err := NewBackend(t.Context(), Config{})
 	require.NoError(t, err)
 	defer xvfb.Close()
 
@@ -78,7 +78,7 @@ func TestGetChanges(t *testing.T) {
 		t.Skip("this test requires Xvfb to be installed")
 	}
 
-	xvfb, err := NewXvfb(t.Context(), Config{})
+	xvfb, err := NewBackend(t.Context(), Config{})
 	require.NoError(t, err)
 	defer xvfb.Close()
 
@@ -126,7 +126,7 @@ func TestGetImage(t *testing.T) {
 		t.Skip("this test requires Xvfb to be installed")
 	}
 
-	xvfb, err := NewXvfb(t.Context(), Config{})
+	xvfb, err := NewBackend(t.Context(), Config{})
 	require.NoError(t, err)
 	defer xvfb.Close()
 
@@ -154,7 +154,7 @@ func TestInputs(t *testing.T) {
 		t.Skip("this test requires Xvfb to be installed")
 	}
 
-	xvfb, err := NewXvfb(t.Context(), Config{})
+	xvfb, err := NewBackend(t.Context(), Config{})
 	require.NoError(t, err)
 	defer xvfb.Close()
 
@@ -225,7 +225,7 @@ func TestClipboard(t *testing.T) {
 
 	var data atomic.Pointer[[]byte]
 
-	xvfb, err := NewXvfb(t.Context(), Config{
+	xvfb, err := NewBackend(t.Context(), Config{
 		ClipboardDataReceiver: func(bytes []byte) {
 			data.Store(&bytes)
 		},

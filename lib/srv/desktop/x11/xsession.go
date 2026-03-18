@@ -178,7 +178,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := waitForChildReadySignal(readyr, 1*time.Second); err != nil {
+	if err := waitForChildReadySignal(readyr, 10*time.Second); err != nil {
 		_ = cmd.Cancel()
 		return nil, trace.Wrap(err)
 	}
