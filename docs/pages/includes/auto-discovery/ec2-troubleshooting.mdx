@@ -41,16 +41,15 @@ Exit code `150` means Teleport installed successfully, but join health checks di
 The `status` field is intentionally high-level; use `stderr` for root-cause details.
 
 Common `stderr` patterns:
-- `readyz remained in starting state after ...` means the agent process kept starting but did not become ready within the retry window.
-- `readyz reported not ready: bad token` means Auth rejected join credentials.
-- `service teleport remained in transition ... state="deactivating"` means systemd stayed in a transition state across retries.
-- `systemd reported service teleport is not active (state: "failed"|"inactive")` means the service stopped or failed before join completed.
-- `join failure: token is expired or not found; ...` means Teleport detected an explicit token failure signal in journal logs and surfaced it in the primary error line.
+- `ERROR: node did not become ready (join cluster) within 5m0s` means Teleport kept polling `/readyz` for 5 minutes without a successful join.
+- `systemd service state: ActiveState="...", SubState="...", Result="..."` is a best-effort snapshot captured at timeout for troubleshooting context.
+- `join failure: token is expired or not found; ...` can appear as an additional enriched line when journal logs contain an explicit token-expiry signal.
+- `failed to run commands: exit status 150` can appear at the end when AWS SSM's run-shell wrapper reports the installer exit code.
 
 Example `ssm.run` event for exit code `150`:
 ```json
 {
-  "code": "TDS01E",
+  "code": "TDS00W",
   "event": "ssm.run",
   "instance_id": "i-0000",
   "region": "<region>",
@@ -58,8 +57,8 @@ Example `ssm.run` event for exit code `150`:
   "platform_name": "Ubuntu",
   "platform_type": "Linux",
   "platform_version": "24.04",
-  "status": "Teleport was installed successfully but the agent failed to join the cluster. Check the readyz status in the standard error output for details.",
-  "stderr": "ERROR: join failure: token is expired or not found; readyz remained in starting state after wait (attempts=2, status=\"teleport is starting and hasn't joined the cluster yet\")\n\nJournal output:\n...",
+  "status": "Teleport was installed successfully but the agent did not become ready within 5 minutes. Check standard error output for join diagnostics.",
+  "stderr": "...\nERROR: node did not become ready (join cluster) within 5m0s\n\nsystemd service state: ActiveState=\"active\", SubState=\"running\", Result=\"success\"\n\njoin failure: token is expired or not found; systemd service state: ActiveState=\"active\", SubState=\"running\", Result=\"success\"\n\tnode did not become ready (join cluster) within 5m0s\n\nJournal output:\n...\nfailed to run commands: exit status 150",
   "stdout": "",
   "exit_code": 150
 }

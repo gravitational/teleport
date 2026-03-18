@@ -1,8 +1,8 @@
 # EC2 Join Failure
 
-Teleport was installed on the EC2 instance but the agent failed to join the cluster.
+Teleport was installed on the EC2 instance but the enrollment process did not observe a successful join before timing out.
 
-The service started and attempted the IAM join handshake but was rejected by the auth server. Check the **Audit Log** for the corresponding `ssm.run` event to see the captured journal output, or click the **Invocation Link** to view the output in the AWS SSM console.
+Review failure details and captured diagnostics in the corresponding `ssm.run` event in the **Audit Log**, or click the **Invocation Link** to view the output in the AWS SSM console.
 
 Common causes and fixes:
 
