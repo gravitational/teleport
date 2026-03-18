@@ -36,22 +36,14 @@ func build(ctx context.Context, config *e2eConfig) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	if !config.noBuild {
-		switch config.teleportBin {
-		case filepath.Join(config.repoRoot, "build", "teleport"):
+		if config.teleportBuildDir != "" {
+			buildDir := config.teleportBuildDir
 			g.Go(func() error {
-				slog.Info("building teleport")
+				slog.Info("building teleport", "dir", buildDir)
 
-				return runMake(ctx, config.repoRoot, "build/teleport")
+				return runMake(ctx, buildDir, "build/teleport")
 			})
-
-		case filepath.Join(config.repoRoot, "e", "build", "teleport"):
-			g.Go(func() error {
-				slog.Info("building teleport (enterprise)")
-
-				return runMake(ctx, filepath.Join(config.repoRoot, "e"), "build/teleport")
-			})
-
-		default:
+		} else {
 			slog.Info("teleport binary overridden, skipping build", "path", config.teleportBin)
 		}
 
@@ -68,11 +60,7 @@ func build(ctx context.Context, config *e2eConfig) error {
 
 	if sshNode.enabled && !config.noBuild && runtime.GOOS != "linux" {
 		g.Go(func() error {
-			buildDir := config.repoRoot
-			if config.teleportBin == filepath.Join(config.repoRoot, "e", "build", "teleport") {
-				buildDir = filepath.Join(config.repoRoot, "e")
-			}
-
+			buildDir := config.teleportBuildDir
 			slog.Info("cross-compiling teleport for linux (docker node)", "dir", buildDir)
 
 			output := filepath.Join(buildDir, "build", "teleport-node")
