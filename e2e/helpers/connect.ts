@@ -20,6 +20,7 @@ import fs from 'node:fs/promises';
 import module from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   _electron as electron,
@@ -95,6 +96,7 @@ export const test = base.extend<{
     await using temp = await fs.mkdtempDisposable(
       path.join(os.tmpdir(), 'connect-e2e-test-')
     );
+    await setupConnectConfig(temp.path);
     await using app = await launchApp(temp.path);
     if (autoLogin) {
       await login(app.page);
@@ -106,6 +108,26 @@ export const test = base.extend<{
     }
   },
 });
+
+// setupConnectConfig writes the Connect app config to the data directory,
+// configuring the terminal to use a wrapper shell that disables history
+// and rc files so that tests don't pollute the user's shell history.
+async function setupConnectConfig(dataDir: string) {
+  const shellWrapper = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../scripts/connect-e2e-shell.sh'
+  );
+
+  const userDataDir = path.join(dataDir, 'userData');
+  await fs.mkdir(userDataDir, { recursive: true });
+  await fs.writeFile(
+    path.join(userDataDir, 'app_config.json'),
+    JSON.stringify({
+      'terminal.shell': 'custom',
+      'terminal.customShell': shellWrapper,
+    })
+  );
+}
 
 const logFiles = ['main.log', 'renderer.log', 'shared.log', 'tshd.log'];
 async function attachLogs(dataDir: string, testInfo: TestInfo) {
