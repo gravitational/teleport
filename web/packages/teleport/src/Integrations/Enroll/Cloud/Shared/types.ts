@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2025 Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,14 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export type BaseServiceConfig = {
-  enabled: boolean;
-  tags: AwsLabel[];
-};
+import { Regions as AwsRegion } from 'teleport/services/integrations';
 
-export type Ec2Config = BaseServiceConfig;
-
-export type AwsLabel = {
+export interface Region<R extends CloudRegion> {
+  id: R;
   name: string;
-  value: string;
-};
+}
+
+export interface RegionGroup<R extends CloudRegion> {
+  name: string;
+  regions: readonly Region<R>[];
+}
+
+export type WildcardRegion = ['*'];
+
+export type CloudRegion = AwsRegion;
