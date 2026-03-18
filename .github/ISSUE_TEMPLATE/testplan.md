@@ -769,23 +769,23 @@ NOTE: Unless specified otherwise, the `verb` field of `kubernetes_resource` sche
     * [ ] Verify access denied
     * [ ] Add a deny rule to a specific cluster-wide CRD `{"kind":"crontabs","name":"*","namespace":"","api_group":"stable.example.com","verbs":["*"]}`
     * [ ] Verify access denied
-* [ ] Verify support for Teleport v17
-  * [ ] Start a v17 kubernetes_service
+* [ ] Verify support for Teleport v18
+  * [ ] Start a v18 kubernetes_service
   * [ ] Verify happy path
     * [ ] Create a role v8 with rbac entries that existed in v7 (pods, deployments, clusterroles)
-          ex: `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"clusterroles","name":"*"}`, `{"kind":"deplyments","name":"*","namespace":"*"}`.
-    * [ ] Verify access to pods, clusterroles and deployments on the v17 cluster
+          ex: `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"clusterroles","name":"*"}`, `{"kind":"deployments","name":"*","namespace":"*"}`.
+    * [ ] Verify access to pods, clusterroles and deployments on the v18 cluster
     * [ ] Verify access denied to other namespaced and cluster-wide resources `services`, `nodes`, `crontabs`, `globals`.
-  * [ ] Verify incomptible role, CRD
-    * [ ] Create a role v8 with access to pods and a crd.
+  * [ ] Verify CRD role works on v18 (v18 introduced CRD support)
+    * [ ] Create a role v8 with access to pods and a CRD.
          ex:  `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"crontabs","api_group":"*","name":"*","namespace":"*"}`
-    * [ ] Verify access denied to explicit resources `pods`, `crontabs` andother resources `services`, `globals`, `nodes`.
-  * [ ] Verify incompatible role, namespace
+    * [ ] Verify access to both `pods` and `crontabs` on the v18 cluster
+  * [ ] Verify namespace kind works on v18 (v8 semantics)
     * [ ] Create a role v8 with access to a namespace `{"kind":"namespaces","name":"foo","verbs":["*"]}`
-    * [ ] Verify access denied to the namespace and any other resources
-  * [ ] Verify incompatible role, wildcard kind - cluster-wide
+    * [ ] Verify access to the namespace itself, denied to resources within it
+  * [ ] Verify cluster-wide wildcard works on v18
     * [ ] Create a role v8 with a cluster-wide wildcard kind `{"kind":"*","api_group":"*","name":"*","namespace":"","verbs":["*"]}`
-    * [ ] Verify access denied to any resource
+    * [ ] Verify access to cluster-wide resources, denied to namespaced resources
 
 ### Kubernetes Access Request
 
@@ -829,10 +829,6 @@ NOTE: Unless specified otherwise, the `verb` field of `kubernetes_resource` sche
     * [ ] Verify you can request access to all cluster-wide resources with `--resource '/TELEPORT_CLUSTER_NAME/kube:cw:*.*/K8S_CLSUTER_NAME/*`
     * [ ] Verify you can access resources like `nodes` and `persistentvolumes` with `kubectl` using `tsh kube login`
     * [ ] Verify you can't request access to `configmaps` or `services`
-* [ ] Verify tsh v17 support (TODO(@creack) Remove this section in v19)
-  * [ ] Using tsh v17, verify you can search for `pod` and `secret` (can use a role with wildcard permission)
-  * [ ] Using tsh v17, verify you can request access for `pod` and `secret`
-    * [ ] Verify you can list `pod` with `secret` with `kubectl` after the request is granted using `tsh kube login`
 
 ### Teleport with FIPS mode
 
