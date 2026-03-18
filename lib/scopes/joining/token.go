@@ -395,7 +395,7 @@ func (t *Token) Expiry() time.Time {
 // GetBotName returns an empty string because scoped tokens do not currently
 // support configuring a bot name.
 func (t *Token) GetBotName() string {
-	return ""
+	return t.scoped.GetSpec().GetBotName()
 }
 
 // GetAssignedScope returns the scope that will be assigned to resources
