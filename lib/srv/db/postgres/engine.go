@@ -28,8 +28,8 @@ import (
 	"net"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgproto3/v2"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgproto3"
 
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -68,7 +68,7 @@ type Engine struct {
 // InitializeConnection initializes the client connection.
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.rawClientConn = clientConn
-	e.client = pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
+	e.client = pgproto3.NewBackend(clientConn, clientConn)
 
 	// The proxy is supposed to pass a startup message it received from
 	// the psql client over to us, so wait for it and extract database
@@ -83,8 +83,9 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 
 // SendError sends an error to connected client in a Postgres understandable format.
 func (e *Engine) SendError(err error) {
-	if err := e.client.Send(toErrorResponse(err)); err != nil && !utils.IsOKNetworkError(err) {
-		e.Log.ErrorContext(e.Context, "Failed to send error to client.", "error", err)
+	e.client.Send(toErrorResponse(err))
+	if flushErr := e.client.Flush(); flushErr != nil && !utils.IsOKNetworkError(flushErr) {
+		e.Log.ErrorContext(e.Context, "Failed to send error to client.", "error", flushErr)
 	}
 }
 
@@ -165,15 +166,19 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	// messages: this is where psql prompt appears on the other side.
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
-	// Reconstruct pgconn.PgConn from hijacked connection for easier access
-	// to its utility methods (such as Close).
-	serverConn, err := pgconn.Construct(hijackedConn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// serverConnClosedCh is closed just before the server connection is
+	// closed, allowing receiveFromServer to distinguish an intentional
+	// shutdown from an unexpected read error.
+	serverConnClosedCh := make(chan struct{})
 	defer func() {
-		err = serverConn.Close(ctx)
-		if err != nil && !utils.IsOKNetworkError(err) {
+		close(serverConnClosedCh)
+		// Send Terminate gracefully before closing. Errors are intentionally
+		// ignored — this matches libpq PQfinish behavior. If Terminate was
+		// already sent (e.g. client disconnected cleanly) or the connection
+		// is already broken, the flush will fail and we move on.
+		server.Send(&pgproto3.Terminate{})
+		server.Flush()
+		if err := hijackedConn.Conn.Close(); err != nil && !utils.IsOKNetworkError(err) {
 			e.Log.ErrorContext(e.Context, "Failed to close connection.", "error", err)
 		}
 	}()
@@ -185,7 +190,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	clientErrCh := make(chan error, 1)
 	serverErrCh := make(chan error, 1)
 	go e.receiveFromClient(e.client, server, clientErrCh, sessionCtx)
-	go e.receiveFromServer(serverConn, serverErrCh, sessionCtx)
+	go e.receiveFromServer(serverConnClosedCh, serverErrCh, sessionCtx)
 	select {
 	case err := <-clientErrCh:
 		e.Log.DebugContext(e.Context, "Client done.", "error", err)
@@ -284,6 +289,13 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
 	if err != nil {
 		return nil, nil, common.ConvertConnectError(err, sessionCtx)
 	}
+	// Per pgconn docs, SyncConn must be called immediately before Hijack —
+	// it drains read buffers and stops background IO to prevent races with
+	// direct net.Conn use after hijacking.
+	if err := conn.SyncConn(ctx); err != nil {
+		conn.Close(ctx)
+		return nil, nil, trace.Wrap(err)
+	}
 	// Hijacked connection exposes some internal connection data, such as
 	// parameters we'll need to relay back to the client (e.g. database
 	// server version).
@@ -291,7 +303,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(hijackedConn.Conn), hijackedConn.Conn)
+	frontend := pgproto3.NewFrontend(hijackedConn.Conn, hijackedConn.Conn)
 	return frontend, hijackedConn, nil
 }
 
@@ -300,30 +312,22 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
 func (e *Engine) makeClientReady(client *pgproto3.Backend, hijackedConn *pgconn.HijackedConn) error {
 	// AuthenticationOk indicates that the authentication was successful.
 	e.Log.DebugContext(e.Context, "Sending AuthenticationOk.")
-	if err := client.Send(&pgproto3.AuthenticationOk{}); err != nil {
-		return trace.Wrap(err)
-	}
+	client.Send(&pgproto3.AuthenticationOk{})
 	// BackendKeyData provides secret-key data that the frontend must save
 	// if it wants to be able to issue cancel requests later.
 	e.Log.DebugContext(e.Context, "Sending BackendKeyData.", "pid", hijackedConn.PID)
-	if err := client.Send(&pgproto3.BackendKeyData{ProcessID: hijackedConn.PID, SecretKey: hijackedConn.SecretKey}); err != nil {
-		return trace.Wrap(err)
-	}
+	client.Send(&pgproto3.BackendKeyData{ProcessID: hijackedConn.PID, SecretKey: hijackedConn.SecretKey})
 	// ParameterStatuses contains parameters reported by the server such as
 	// server version, relay them back to the client.
 	e.Log.DebugContext(e.Context, "Sending ParameterStatuses.", "statuses", hijackedConn.ParameterStatuses)
 	for k, v := range hijackedConn.ParameterStatuses {
-		if err := client.Send(&pgproto3.ParameterStatus{Name: k, Value: v}); err != nil {
-			return trace.Wrap(err)
-		}
+		client.Send(&pgproto3.ParameterStatus{Name: k, Value: v})
 	}
 	// ReadyForQuery indicates that the start-up is completed and the
 	// frontend can now issue commands.
 	e.Log.DebugContext(e.Context, "Sending ReadyForQuery")
-	if err := client.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'}); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	client.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'})
+	return trace.Wrap(client.Flush())
 }
 
 // receiveFromClient receives messages from the provided backend (which
@@ -362,8 +366,8 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 			clientErrCh <- nil
 			return
 		}
-		err = server.Send(message)
-		if err != nil {
+		server.Send(message)
+		if err = server.Flush(); err != nil {
 			log.ErrorContext(e.Context, "Failed to send message to server.", "error", err)
 			clientErrCh <- err
 			return
@@ -433,7 +437,7 @@ func (e *Engine) auditResult(session *common.Session, pgMsg pgproto3.BackendMess
 
 	switch m := pgMsg.(type) {
 	case *pgproto3.CommandComplete:
-		res.AffectedRecords = uint64(pgconn.CommandTag(m.CommandTag).RowsAffected())
+		res.AffectedRecords = uint64(pgconn.NewCommandTag(string(m.CommandTag)).RowsAffected())
 	case *pgproto3.ErrorResponse:
 		res.Error = common.ConvertError(pgconn.ErrorResponseToPgError(m))
 	default:
@@ -446,7 +450,7 @@ func (e *Engine) auditResult(session *common.Session, pgMsg pgproto3.BackendMess
 // receiveFromServer receives messages from the provided frontend (which
 // is connected to the database instance) and relays them back to the psql
 // or other client via the provided backend.
-func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<- error, sessionCtx *common.Session) {
+func (e *Engine) receiveFromServer(serverConnClosedCh <-chan struct{}, serverErrCh chan<- error, sessionCtx *common.Session) {
 	log := e.Log.With("from", "server")
 	ctr := common.GetMessagesFromServerMetric(sessionCtx.Database)
 
@@ -461,7 +465,7 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 
 		// server will never be used to write to server,
 		// which is why we pass io.Discard instead of e.rawServerConn
-		server := pgproto3.NewFrontend(pgproto3.NewChunkReader(copyReader), io.Discard)
+		server := pgproto3.NewFrontend(copyReader, io.Discard)
 
 		var count int64
 		defer func() {
@@ -471,11 +475,12 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 		for {
 			message, err := server.Receive()
 			if err != nil {
-				if serverConn.IsClosed() {
+				select {
+				case <-serverConnClosedCh:
 					log.DebugContext(e.Context, "Server connection closed.")
-					return
+				default:
+					log.ErrorContext(e.Context, "Failed to receive message from server.", "error", err)
 				}
-				log.ErrorContext(e.Context, "Failed to receive message from server.", "error", err)
 				return
 			}
 

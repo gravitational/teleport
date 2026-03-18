@@ -33,7 +33,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgproto3/v2"
+	"github.com/jackc/pgx/v5/pgproto3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -139,7 +139,7 @@ func TestConnectionError(t *testing.T) {
 		{
 			desc:            "access denied",
 			modifyTestCtx:   func(tc *testCtx) { tc.denyAccess = true },
-			wantErrContains: "server error (ERROR: access to db denied (SQLSTATE 28000))",
+			wantErrContains: "server error: ERROR: access to db denied (SQLSTATE 28000)",
 		},
 	}
 	for _, test := range tests {
@@ -243,7 +243,7 @@ func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (
 
 	conn, clientConn := net.Pipe()
 	serverConn, pgConn := net.Pipe()
-	client := pgproto3.NewBackend(pgproto3.NewChunkReader(pgConn), pgConn)
+	client := pgproto3.NewBackend(pgConn, pgConn)
 	ctx, cancelFunc := context.WithCancel(ctx)
 	tc := &testCtx{
 		cfg:           cfg,
@@ -327,31 +327,28 @@ func (tc *testCtx) processMessages() error {
 	switch msg := startupMessage.(type) {
 	case *pgproto3.StartupMessage:
 		if tc.denyAccess {
-			if err := tc.pgClient.Send(&pgproto3.ErrorResponse{
+			tc.pgClient.Send(&pgproto3.ErrorResponse{
 				Severity: "ERROR",
 				Code:     pgerrcode.InvalidAuthorizationSpecification,
 				Message:  "access to db denied",
-			}); err != nil {
+			})
+			if err := tc.pgClient.Flush(); err != nil {
 				return trace.Wrap(err)
 			}
 			return nil
 		}
 		// Accept auth and send ready for query.
-		if err := tc.pgClient.Send(&pgproto3.AuthenticationOk{}); err != nil {
-			return trace.Wrap(err)
-		}
+		tc.pgClient.Send(&pgproto3.AuthenticationOk{})
 
 		// Values on the backend key data are not relavant since we don't
 		// support canceling requests.
-		err := tc.pgClient.Send(&pgproto3.BackendKeyData{
+		tc.pgClient.Send(&pgproto3.BackendKeyData{
 			ProcessID: 0,
 			SecretKey: 123,
 		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
 
-		if err := tc.pgClient.Send(&pgproto3.ReadyForQuery{}); err != nil {
+		tc.pgClient.Send(&pgproto3.ReadyForQuery{})
+		if err := tc.pgClient.Flush(); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
