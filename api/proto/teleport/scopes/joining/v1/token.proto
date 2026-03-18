@@ -240,6 +240,9 @@ message Azure {
   // A list of Rules for allowing use of this token. A node must match at least one
   // allow rule in order to use this token.
   repeated Rule allow = 1;
+
+  // Integration name which provides credentials for validating join attempts.
+  string integration = 2;
 }
 
 // The Azure Devops-specific configuration used with the "azure_devops" join method.

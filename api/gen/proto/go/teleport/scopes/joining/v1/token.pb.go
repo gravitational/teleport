@@ -874,7 +874,9 @@ type Azure struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// A list of Rules for allowing use of this token. A node must match at least one
 	// allow rule in order to use this token.
-	Allow         []*Azure_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
+	Allow []*Azure_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
+	// Integration name which provides credentials for validating join attempts.
+	Integration   string `protobuf:"bytes,2,opt,name=integration,proto3" json:"integration,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -914,6 +916,13 @@ func (x *Azure) GetAllow() []*Azure_Rule {
 		return x.Allow
 	}
 	return nil
+}
+
+func (x *Azure) GetIntegration() string {
+	if x != nil {
+		return x.Integration
+	}
+	return ""
 }
 
 // The Azure Devops-specific configuration used with the "azure_devops" join method.
@@ -1741,9 +1750,10 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\vproject_ids\x18\x01 \x03(\tR\n" +
 	"projectIds\x12\x1c\n" +
 	"\tlocations\x18\x02 \x03(\tR\tlocations\x12)\n" +
-	"\x10service_accounts\x18\x03 \x03(\tR\x0fserviceAccounts\"\x9a\x01\n" +
+	"\x10service_accounts\x18\x03 \x03(\tR\x0fserviceAccounts\"\xbc\x01\n" +
 	"\x05Azure\x12<\n" +
-	"\x05allow\x18\x01 \x03(\v2&.teleport.scopes.joining.v1.Azure.RuleR\x05allow\x1aS\n" +
+	"\x05allow\x18\x01 \x03(\v2&.teleport.scopes.joining.v1.Azure.RuleR\x05allow\x12 \n" +
+	"\vintegration\x18\x02 \x01(\tR\vintegration\x1aS\n" +
 	"\x04Rule\x12\"\n" +
 	"\fsubscription\x18\x01 \x01(\tR\fsubscription\x12'\n" +
 	"\x0fresource_groups\x18\x02 \x03(\tR\x0eresourceGroups\"\x9e\x03\n" +

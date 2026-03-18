@@ -161,22 +161,29 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 					Optional:    true,
 				},
 				"azure": {
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
-						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							"resource_groups": {
-								Description: "A list of Azure resource groups the node is allowed to join from.",
-								Optional:    true,
-								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
-							},
-							"subscription": {
-								Description: "The Azure subscription.",
-								Optional:    true,
-								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-							},
-						}),
-						Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
-						Optional:    true,
-					}}),
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"resource_groups": {
+									Description: "A list of Azure resource groups the node is allowed to join from.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"subscription": {
+									Description: "The Azure subscription.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
+							Optional:    true,
+						},
+						"integration": {
+							Description: "Integration name which provides credentials for validating join attempts.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
 					Description: "The Azure-specific configuration used with the \"azure\" join method.",
 					Optional:    true,
 				},
@@ -1094,6 +1101,23 @@ func CopyScopedTokenFromTerraform(_ context.Context, tf github_com_hashicorp_ter
 														}
 													}
 												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["integration"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.azure.integration"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.azure.integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Integration = t
 											}
 										}
 									}
@@ -2804,6 +2828,28 @@ func CopyScopedTokenToTerraform(ctx context.Context, obj *github_com_gravitation
 												c.Unknown = false
 												tf.Attrs["allow"] = c
 											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["integration"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedToken.spec.azure.integration"})
+										} else {
+											v, ok := tf.Attrs["integration"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ScopedToken.spec.azure.integration", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.azure.integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Integration) == ""
+											}
+											v.Value = string(obj.Integration)
+											v.Unknown = false
+											tf.Attrs["integration"] = v
 										}
 									}
 								}
