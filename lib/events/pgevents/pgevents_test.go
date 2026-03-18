@@ -29,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -141,10 +142,8 @@ func TestLog_nonStandardSessionID(t *testing.T) {
 		"", // startKey
 	)
 	require.NoError(t, err, "search session events")
-	wantFields, err := events.ToEventFields(appStartEvent)
-	require.NoError(t, err, "convert event to fields")
-	want := []events.EventFields{wantFields}
-	if diff := cmp.Diff(want, appEvents); diff != "" {
+	want := []apievents.AuditEvent{appStartEvent}
+	if diff := cmp.Diff(want, appEvents, protocmp.Transform()); diff != "" {
 		t.Errorf("searchEvents mismatch (-want +got)\n%s", diff)
 	}
 }
