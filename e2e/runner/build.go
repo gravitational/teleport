@@ -33,6 +33,16 @@ import (
 
 // build compiles teleport binaries and installs playwright dependencies in parallel.
 func build(ctx context.Context, config *e2eConfig) error {
+	// Both the teleport build (through make build/teleport -> build-ui) and the Connect build need JS
+	// deps installed. Running pnpm install concurrently from multiple goroutines would cause a race,
+	// so we ensure JS deps are installed up front before starting concurrent work.
+	if !config.noBuild && (config.teleportBuildDir != "" || connect.enabled) {
+		slog.Info("ensuring JS dependencies are installed")
+		if err := runMake(ctx, config.repoRoot, "ensure-js-deps"); err != nil {
+			return err
+		}
+	}
+
 	g, ctx := errgroup.WithContext(ctx)
 
 	if !config.noBuild {
