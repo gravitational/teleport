@@ -2693,6 +2693,69 @@ export interface UIAccessGraphCrownJewelDiffViewEvent {
     affectedResourceType: string;
 }
 /**
+ * UIPageViewEvent is emitted when a user views a page in the Teleport UI.
+ *
+ * @generated from protobuf message prehog.v1alpha.UIPageViewEvent
+ */
+export interface UIPageViewEvent {
+    /**
+     * anonymized
+     *
+     * @generated from protobuf field: string user_name = 1;
+     */
+    userName: string;
+    /**
+     * path is the route template of the page viewed, e.g. "/web/cluster/:clusterId/usage-summary"
+     *
+     * @generated from protobuf field: string path = 2;
+     */
+    path: string;
+    /**
+     * utm_source identifies the channel that drove the visit (e.g. "email")
+     *
+     * @generated from protobuf field: string utm_source = 3;
+     */
+    utmSource: string;
+    /**
+     * utm_campaign identifies the specific campaign (e.g. "overage_80")
+     *
+     * @generated from protobuf field: string utm_campaign = 4;
+     */
+    utmCampaign: string;
+}
+/**
+ * UIUsageReportingAlertCtaClickEvent is emitted when a user clicks the CTA button in
+ * a usage reporting alert (e.g. an overage notification).
+ *
+ * @generated from protobuf message prehog.v1alpha.UIUsageReportingAlertCtaClickEvent
+ */
+export interface UIUsageReportingAlertCtaClickEvent {
+    /**
+     * anonymized
+     *
+     * @generated from protobuf field: string user_name = 1;
+     */
+    userName: string;
+    /**
+     * alert identifies the alert that was clicked (e.g. "overage_80", "overage_90", "overage_100")
+     *
+     * @generated from protobuf field: string alert = 2;
+     */
+    alert: string;
+    /**
+     * utm_source identifies the channel that drove the visit (e.g. "email")
+     *
+     * @generated from protobuf field: string utm_source = 3;
+     */
+    utmSource: string;
+    /**
+     * utm_campaign identifies the specific campaign (e.g. "overage_80")
+     *
+     * @generated from protobuf field: string utm_campaign = 4;
+     */
+    utmCampaign: string;
+}
+/**
  * AccessGraphCrownJewelCreateEvent is emitted when a user creates an Access Graph's
  * Crown Jewel Resource.
  *
@@ -4211,6 +4274,18 @@ export interface SubmitEventRequest {
          * @generated from protobuf field: prehog.v1alpha.UIAccessListCustomEvent ui_access_list_custom_event = 118;
          */
         uiAccessListCustomEvent: UIAccessListCustomEvent;
+    } | {
+        oneofKind: "uiPageView";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIPageViewEvent ui_page_view = 119;
+         */
+        uiPageView: UIPageViewEvent;
+    } | {
+        oneofKind: "uiUsageReportingAlertCtaClick";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click = 120;
+         */
+        uiUsageReportingAlertCtaClick: UIUsageReportingAlertCtaClickEvent;
     } | {
         oneofKind: "sessionSummarySearchEvent";
         /**
@@ -11429,6 +11504,148 @@ class UIAccessGraphCrownJewelDiffViewEvent$Type extends MessageType<UIAccessGrap
  */
 export const UIAccessGraphCrownJewelDiffViewEvent = new UIAccessGraphCrownJewelDiffViewEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class UIPageViewEvent$Type extends MessageType<UIPageViewEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIPageViewEvent", [
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "utm_source", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "utm_campaign", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UIPageViewEvent>): UIPageViewEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.userName = "";
+        message.path = "";
+        message.utmSource = "";
+        message.utmCampaign = "";
+        if (value !== undefined)
+            reflectionMergePartial<UIPageViewEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIPageViewEvent): UIPageViewEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string user_name */ 1:
+                    message.userName = reader.string();
+                    break;
+                case /* string path */ 2:
+                    message.path = reader.string();
+                    break;
+                case /* string utm_source */ 3:
+                    message.utmSource = reader.string();
+                    break;
+                case /* string utm_campaign */ 4:
+                    message.utmCampaign = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UIPageViewEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string user_name = 1; */
+        if (message.userName !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.userName);
+        /* string path = 2; */
+        if (message.path !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.path);
+        /* string utm_source = 3; */
+        if (message.utmSource !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.utmSource);
+        /* string utm_campaign = 4; */
+        if (message.utmCampaign !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.utmCampaign);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIPageViewEvent
+ */
+export const UIPageViewEvent = new UIPageViewEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UIUsageReportingAlertCtaClickEvent$Type extends MessageType<UIUsageReportingAlertCtaClickEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIUsageReportingAlertCtaClickEvent", [
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "alert", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "utm_source", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "utm_campaign", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UIUsageReportingAlertCtaClickEvent>): UIUsageReportingAlertCtaClickEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.userName = "";
+        message.alert = "";
+        message.utmSource = "";
+        message.utmCampaign = "";
+        if (value !== undefined)
+            reflectionMergePartial<UIUsageReportingAlertCtaClickEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIUsageReportingAlertCtaClickEvent): UIUsageReportingAlertCtaClickEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string user_name */ 1:
+                    message.userName = reader.string();
+                    break;
+                case /* string alert */ 2:
+                    message.alert = reader.string();
+                    break;
+                case /* string utm_source */ 3:
+                    message.utmSource = reader.string();
+                    break;
+                case /* string utm_campaign */ 4:
+                    message.utmCampaign = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UIUsageReportingAlertCtaClickEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string user_name = 1; */
+        if (message.userName !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.userName);
+        /* string alert = 2; */
+        if (message.alert !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.alert);
+        /* string utm_source = 3; */
+        if (message.utmSource !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.utmSource);
+        /* string utm_campaign = 4; */
+        if (message.utmCampaign !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.utmCampaign);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIUsageReportingAlertCtaClickEvent
+ */
+export const UIUsageReportingAlertCtaClickEvent = new UIUsageReportingAlertCtaClickEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class AccessGraphCrownJewelCreateEvent$Type extends MessageType<AccessGraphCrownJewelCreateEvent> {
     constructor() {
         super("prehog.v1alpha.AccessGraphCrownJewelCreateEvent", []);
@@ -13256,6 +13473,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 116, name: "ui_access_list_complete_event", kind: "message", oneof: "event", T: () => UIAccessListCompleteEvent },
             { no: 117, name: "ui_access_list_integrate_event", kind: "message", oneof: "event", T: () => UIAccessListIntegrateEvent },
             { no: 118, name: "ui_access_list_custom_event", kind: "message", oneof: "event", T: () => UIAccessListCustomEvent },
+            { no: 119, name: "ui_page_view", kind: "message", oneof: "event", T: () => UIPageViewEvent },
+            { no: 120, name: "ui_usage_reporting_alert_cta_click", kind: "message", oneof: "event", T: () => UIUsageReportingAlertCtaClickEvent },
             { no: 121, name: "session_summary_search_event", kind: "message", oneof: "event", T: () => SessionSummarySearchEvent }
         ]);
     }
@@ -13954,6 +14173,18 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         uiAccessListCustomEvent: UIAccessListCustomEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessListCustomEvent)
                     };
                     break;
+                case /* prehog.v1alpha.UIPageViewEvent ui_page_view */ 119:
+                    message.event = {
+                        oneofKind: "uiPageView",
+                        uiPageView: UIPageViewEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiPageView)
+                    };
+                    break;
+                case /* prehog.v1alpha.UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click */ 120:
+                    message.event = {
+                        oneofKind: "uiUsageReportingAlertCtaClick",
+                        uiUsageReportingAlertCtaClick: UIUsageReportingAlertCtaClickEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiUsageReportingAlertCtaClick)
+                    };
+                    break;
                 case /* prehog.v1alpha.SessionSummarySearchEvent session_summary_search_event */ 121:
                     message.event = {
                         oneofKind: "sessionSummarySearchEvent",
@@ -14317,6 +14548,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.UIAccessListCustomEvent ui_access_list_custom_event = 118; */
         if (message.event.oneofKind === "uiAccessListCustomEvent")
             UIAccessListCustomEvent.internalBinaryWrite(message.event.uiAccessListCustomEvent, writer.tag(118, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIPageViewEvent ui_page_view = 119; */
+        if (message.event.oneofKind === "uiPageView")
+            UIPageViewEvent.internalBinaryWrite(message.event.uiPageView, writer.tag(119, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click = 120; */
+        if (message.event.oneofKind === "uiUsageReportingAlertCtaClick")
+            UIUsageReportingAlertCtaClickEvent.internalBinaryWrite(message.event.uiUsageReportingAlertCtaClick, writer.tag(120, WireType.LengthDelimited).fork(), options).join();
         /* prehog.v1alpha.SessionSummarySearchEvent session_summary_search_event = 121; */
         if (message.event.oneofKind === "sessionSummarySearchEvent")
             SessionSummarySearchEvent.internalBinaryWrite(message.event.sessionSummarySearchEvent, writer.tag(121, WireType.LengthDelimited).fork(), options).join();
