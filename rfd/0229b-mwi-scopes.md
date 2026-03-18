@@ -441,7 +441,7 @@ The following new validation will be enforced for the ScopedToken resource:
   - `spec.bot_scope` must be the same or a descendent scope of the `scope` field
     of the token.
   - `spec.assigned_scope` must not be set.
-  - `spec.mode` must be set to `bot`.
+  - `spec.usage_mode` must be set to `bot`.
 - When `spec.roles` does not include `Bot`:
   - `spec.bot_name` must not be set.
   - `spec.bot_scope` must not be set.
