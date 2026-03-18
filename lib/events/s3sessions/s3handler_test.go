@@ -1,5 +1,3 @@
-//go:build dynamodb
-
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -37,9 +35,10 @@ import (
 
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {
-	bucket := os.Getenv("TELEPORT_TEST_AUDIT_SESSIONS_S3_BUCKET")
+	const s3BucketEnvVar = "TELEPORT_TEST_AUDIT_SESSIONS_S3_BUCKET"
+	bucket := os.Getenv(s3BucketEnvVar)
 	if bucket == "" {
-		bucket = "teleport-unit-tests"
+		t.Skipf("Skipping s3sessions tests as %q is not set.", s3BucketEnvVar)
 	}
 
 	handler, err := NewHandler(context.Background(), Config{
@@ -53,7 +52,10 @@ func TestStreams(t *testing.T) {
 
 	// Stream with handler and many parts
 	t.Run("StreamSinglePart", func(t *testing.T) {
-		test.StreamSinglePart(t, handler)
+		test.StreamWithPermutedParameters(t, handler, test.StreamParams{
+			PrintEvents:    1024,
+			MinUploadBytes: 5 * 1024 * 1024, // S3 minimum part size is 5MB
+		})
 	})
 	t.Run("UploadDownload", func(t *testing.T) {
 		test.UploadDownload(t, handler)
