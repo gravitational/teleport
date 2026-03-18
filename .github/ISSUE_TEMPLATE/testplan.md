@@ -686,7 +686,6 @@ apiVersion: "stable.example.com/v1"
 kind: Global
 metadata:
   name: my-new-global-object-1
-  namespace: foo
 spec:
   glSpec: "* * * * */5"
   glImage: my-awesome-gl-image
@@ -696,7 +695,6 @@ apiVersion: "stable.example.com/v1"
 kind: Global
 metadata:
   name: my-new-global-object-2
-  namespace: foo
 spec:
   glSpec: "* * * * */2"
   glImage: my-awesome-gl-image-2
