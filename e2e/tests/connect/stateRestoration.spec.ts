@@ -196,22 +196,31 @@ test.describe('state restoration from disk', () => {
       const { page } = app;
       await expect(page.getByText('Connect a Cluster')).toBeVisible();
 
-      // Pick bounds relative to the primary display so the test works on any screen size.
+      // Pick bounds relative to the primary display's work area so the test works on any screen
+      // size and on multi-monitor setups where the primary display may be offset from (0, 0).
       // WindowsManager.getWindowState restores saved bounds only when they fit entirely within
-      // a display, so the bounds must be within the display's work area.
-      targetBounds = await app.electronApp.evaluate(({ screen }) => {
-        const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+      // a display.
+      const requestedBounds = await app.electronApp.evaluate(({ screen }) => {
+        const wa = screen.getPrimaryDisplay().workArea;
         return {
-          x: Math.floor(width * 0.1),
-          y: Math.floor(height * 0.1),
-          width: Math.floor(width * 0.6),
-          height: Math.floor(height * 0.6),
+          x: wa.x + Math.floor(wa.width * 0.1),
+          y: wa.y + Math.floor(wa.height * 0.1),
+          width: Math.floor(wa.width * 0.6),
+          height: Math.floor(wa.height * 0.6),
         };
       });
       await app.electronApp.evaluate(({ BrowserWindow }, bounds) => {
         const win = BrowserWindow.getAllWindows()[0];
         win.setBounds(bounds);
-      }, targetBounds);
+      }, requestedBounds);
+
+      // Read back the accepted bounds after the window manager has applied them. The WM may adjust
+      // the requested rectangle (e.g. on Wayland or tiling layouts), and the app persists
+      // getNormalBounds(), not the requested values.
+      targetBounds = await app.electronApp.evaluate(({ BrowserWindow }) => {
+        const win = BrowserWindow.getAllWindows()[0];
+        return win.getNormalBounds();
+      });
     }
 
     // Relaunch – the window should restore to the same size & position.
