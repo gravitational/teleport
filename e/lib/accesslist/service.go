@@ -111,6 +111,10 @@ type ServiceConfig struct {
 
 	// Backend is the backend to use.
 	Backend backend.Backend
+
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
+
 	// disableReconcilers is a flag to disable ineligibility and status reconcilers to avoid
 	// extra update events during the tests.
 	disableReconcilers bool
@@ -158,7 +162,9 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 	if c.Backend == nil {
 		return trace.BadParameter("backend is missing")
 	}
-
+	if c.Modules == nil {
+		return trace.BadParameter("modules is missing")
+	}
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, componentAccessListService)
 	}
@@ -230,6 +236,7 @@ type Service struct {
 	authServer        AuthServer
 	backend           backend.Backend
 	lockGetter        services.LockGetter
+	modules           modules.Modules
 }
 
 // NewService creates a new Access List gRPC service.
@@ -252,6 +259,7 @@ func NewService(ctx context.Context, cfg ServiceConfig) (*Service, error) {
 		lockGetter:        cfg.LockGetter,
 		authServer:        cfg.AuthServer,
 		backend:           cfg.Backend,
+		modules:           cfg.Modules,
 	}
 
 	if !cfg.disableReconcilers {
@@ -2260,7 +2268,7 @@ func (s *Service) GetSuggestedAccessLists(ctx context.Context, request *accessli
 	}
 
 	identity := authCtx.Identity.GetIdentity()
-	suggestions, err := modules.GetModules().GetSuggestedAccessLists(ctx, &identity, s.authServer, s.accessLists, request.AccessRequestId)
+	suggestions, err := s.modules.GetSuggestedAccessLists(ctx, &identity, s.authServer, s.accessLists, request.AccessRequestId)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

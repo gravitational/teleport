@@ -352,6 +352,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			Cache:             p.authServer.AuthServer.Cache,
 			AuthServer:        p.authServer.AuthServer,
 			Backend:           p.authServer.GetBackend(),
+			Modules:           modules.GetModules(),
 		})
 	if err != nil {
 		return trace.Wrap(err)

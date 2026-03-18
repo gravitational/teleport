@@ -1091,6 +1091,7 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 			AuthServer:         &fakeAuth{},
 			Backend:            backend,
 			disableReconcilers: options.disabledReconcilers,
+			Modules:            modulestest.EnterpriseModules(),
 		})
 	require.NoError(t, err)
 
