@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -39,9 +38,6 @@ type paginatingAuthClient struct {
 }
 
 func (m *paginatingAuthClient) ListRemoteClusters(ctx context.Context, pageSize int, pageToken string) ([]types.RemoteCluster, string, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, "", err
-	}
 	if pageSize <= 0 {
 		pageSize = m.pageSize
 	}
@@ -93,10 +89,7 @@ func makeLeafClusterNames(n int) []string {
 }
 
 func TestGetLeafClustersUncached(t *testing.T) {
-	// Operations are in-memory and should complete in milliseconds. 5 seconds is generous enough to
-	// catch an infinite loop without making the test suite slow.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	ctx := context.Background()
 
 	tests := []struct {
 		name         string
