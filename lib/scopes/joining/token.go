@@ -79,6 +79,8 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		if len(token.GetSpec().GetOracle().GetAllow()) == 0 {
 			return trace.BadParameter("oracle configuration must be defined for a scoped token when using the oracle join method")
 		}
+	case types.JoinMethodBoundKeypair:
+		// TODO: Bound keypair tokens are always valid (?)
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
