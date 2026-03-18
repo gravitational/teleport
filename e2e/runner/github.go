@@ -36,7 +36,7 @@ import (
 const commentMarker = "<!-- e2e-test-results -->"
 
 func writeGitHubReport(e2eDir string) error {
-	resultsPath := filepath.Join(e2eDir, "test-results", ".results.json")
+	resultsPath := filepath.Join(e2eDir, "test-results", "results.json")
 	data, err := os.ReadFile(resultsPath)
 	if err != nil {
 		return fmt.Errorf("could not read test results: %w", err)

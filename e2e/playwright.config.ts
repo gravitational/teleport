@@ -38,7 +38,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [
     ['html', { open: 'never' }],
-    ['json', { outputFile: 'test-results/.results.json' }],
+    ['json', { outputFile: 'test-results/results.json' }],
   ],
 
   use: {

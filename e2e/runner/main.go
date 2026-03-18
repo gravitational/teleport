@@ -82,7 +82,7 @@ func main() {
 		return
 	}
 
-	_ = os.Remove(filepath.Join(e2eDir, "test-results", ".results.json"))
+	_ = os.Remove(filepath.Join(e2eDir, "test-results", "results.json"))
 
 	isCI := os.Getenv("CI") != ""
 	runErr := run(flags, mode, e2eDir, isCI)
