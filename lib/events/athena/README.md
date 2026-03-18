@@ -19,7 +19,7 @@ The tests create and clean up per-run resources automatically (SNS topic, SQS qu
 
 ```bash
 AWS_PROFILE=teleport-dev AWS_REGION=eu-central-1 TEST_AWS=true \
-  go test ./lib/events/athena/ -run TestIntegrationAthena -v -timeout 10m
+  go test ./lib/events/athena/ -run TestIntegrationAthena -v
 ```
 
 `AWS_REGION` must be `eu-central-1` — the S3 buckets live in that region and the AWS SDK will return `301 PermanentRedirect` if a different region is used.
