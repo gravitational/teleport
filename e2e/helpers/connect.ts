@@ -28,6 +28,7 @@ import {
   test as base,
   type Page,
   TestInfo,
+  ElectronApplication,
 } from '@playwright/test';
 
 import { connectTshBin, connectAppDir, password, startUrl } from './env';
@@ -83,7 +84,10 @@ export async function login(page: Page): Promise<void> {
   await expect(page.getByPlaceholder('Search or jump to')).toBeVisible();
 }
 
-type App = Awaited<ReturnType<typeof launchApp>>;
+export interface App {
+  electronApp: ElectronApplication;
+  page: Page;
+}
 
 export const test = base.extend<{
   autoLogin: boolean;
@@ -97,11 +101,14 @@ export const test = base.extend<{
       path.join(os.tmpdir(), 'connect-e2e-test-')
     );
     await setupConnectConfig(temp.path);
-    await using app = await launchApp(temp.path);
+    await using launchedApp = await launchApp(temp.path);
     if (autoLogin) {
-      await login(app.page);
+      await login(launchedApp.page);
     }
-    await use(app);
+    await use({
+      electronApp: launchedApp.app,
+      page: launchedApp.page,
+    });
 
     if (testInfo.status !== testInfo.expectedStatus) {
       await attachLogs(temp.path, testInfo);
