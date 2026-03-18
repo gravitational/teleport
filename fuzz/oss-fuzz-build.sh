@@ -29,6 +29,9 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/services \
     FuzzParseRefs fuzz_parse_refs
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/services \
+    FuzzGenerateAppAuthConfigSessionID fuzz_generate_app_auth_config_session_id
+
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/cassandra/protocol \
     FuzzReadPacket fuzz_cassandra_read_packet
 
