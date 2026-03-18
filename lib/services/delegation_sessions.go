@@ -19,7 +19,10 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // DelegationSessions is an interface over the DelegationSessions service. This
@@ -34,4 +37,74 @@ type DelegationSessions interface {
 
 	// DeleteDelegationSession deletes a delegation session using its ID.
 	DeleteDelegationSession(ctx context.Context, id string) error
+}
+
+// ValidateDelegationSession validates a DelegationSession object.
+func ValidateDelegationSession(p *delegationv1.DelegationSession) error {
+	switch {
+	case p.GetKind() != types.KindDelegationSession:
+		return trace.BadParameter("kind: must be %s", types.KindDelegationSession)
+	case p.GetVersion() != types.V1:
+		return trace.BadParameter("version: must be %s", types.V1)
+	case p.GetMetadata().GetName() == "":
+		return trace.BadParameter("metadata.name: is required")
+	case p.GetMetadata().GetExpires() == nil:
+		return trace.BadParameter("metadata.expires: is required")
+	case p.GetSpec().GetUser() == "":
+		return trace.BadParameter("spec.user: is required")
+	}
+
+	if len(p.GetSpec().GetResources()) == 0 {
+		return trace.BadParameter("spec.resources: at least one resource is required")
+	}
+
+	for idx, spec := range p.GetSpec().GetResources() {
+		if err := ValidateDelegationResourceSpec(spec); err != nil {
+			return trace.BadParameter("spec.resources[%d]: invalid resource spec: %v", idx, err)
+		}
+	}
+
+	if len(p.GetSpec().GetAuthorizedUsers()) == 0 {
+		return trace.BadParameter("spec.authorized_users: at least one user is required")
+	}
+
+	for idx, user := range p.GetSpec().GetAuthorizedUsers() {
+		if user.GetType() != types.KindBot {
+			return trace.BadParameter("spec.authorized_users[%d].type: must be %s", idx, types.KindBot)
+		}
+		if user.GetBotName() == "" {
+			return trace.BadParameter("spec.authorized_users[%d].bot_name: is required", idx)
+		}
+	}
+
+	return nil
+}
+
+// ValidateDelegationResourceSpec validates a DelegationResourceSpec object.
+func ValidateDelegationResourceSpec(s *delegationv1.DelegationResourceSpec) error {
+	if s.GetName() == "" {
+		return trace.BadParameter("name is required")
+	}
+
+	// TODO(boxofrad): implement support for constraints.
+	if s.GetConstraints() != nil {
+		return trace.BadParameter("constraints are not yet supported")
+	}
+
+	switch s.GetKind() {
+	case types.KindApp, types.KindDatabase, types.KindNode, types.KindKubernetesCluster, types.Wildcard:
+	case "":
+		return trace.BadParameter("kind is required")
+	default:
+		return trace.BadParameter("invalid kind: %q", s.GetKind())
+	}
+
+	switch {
+	case s.GetKind() == types.Wildcard && s.GetName() != types.Wildcard:
+		return trace.BadParameter("name must also be '*'")
+	case s.GetKind() != types.Wildcard && s.GetName() == types.Wildcard:
+		return trace.BadParameter("kind must also be '*'")
+	}
+
+	return nil
 }

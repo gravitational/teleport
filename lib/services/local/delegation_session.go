@@ -47,6 +47,7 @@ func NewDelegationSessionService(b backend.Backend) (*DelegationSessionService, 
 			BackendPrefix: backend.NewKey(delegationSessionPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*delegationv1.DelegationSession],
 			UnmarshalFunc: services.UnmarshalProtoResource[*delegationv1.DelegationSession],
+			ValidateFunc:  services.ValidateDelegationSession,
 		},
 	)
 	if err != nil {
