@@ -3146,7 +3146,6 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.RecordingEncryption = services.RecordingEncryptionManager
 	cfg.Plugin = services.Plugins
 	cfg.AppAuthConfig = services.AppAuthConfig
-	cfg.WorkloadClusterService = services.WorkloadClusterService
 	cfg.Summarizer = services.Summarizer
 	cfg.SubCAService = services.SubCAService
 

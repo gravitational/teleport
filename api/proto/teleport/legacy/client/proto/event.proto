@@ -45,7 +45,6 @@ import "teleport/summarizer/v1/summarizer.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
 import "teleport/usertasks/v1/user_tasks.proto";
-import "teleport/workloadcluster/v1/workloadcluster.proto";
 import "teleport/workloadidentity/v1/resource.proto";
 import "teleport/workloadidentity/v1/revocation_resource.proto";
 
@@ -245,8 +244,6 @@ message Event {
     teleport.appauthconfig.v1.AppAuthConfig AppAuthConfig = 86;
     // LinuxDesktop is a resource for linux desktop.
     teleport.linuxdesktop.v1.LinuxDesktop LinuxDesktop = 87;
-    // WorkloadCluster is a resource for defining workload clusters.
-    teleport.workloadcluster.v1.WorkloadCluster WorkloadCluster = 88;
     // ValidatedMFAChallenge is a resource for representing a validated MFA challenge.
     teleport.mfa.v1.ValidatedMFAChallenge ValidatedMFAChallenge = 89;
     // CertAuthorityOverride allows admins to override Teleport CA certificates.

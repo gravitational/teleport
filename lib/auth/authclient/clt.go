@@ -1641,7 +1641,6 @@ type ClientI interface {
 	services.AppAuthConfigSessions
 	types.Events
 	services.ScopedAccessClientGetter
-	services.WorkloadClusterService
 	services.SubCAServiceGetter
 
 	// ListUnifiedInstances returns a paginated list of unified instances (teleport instances and bot instances).
