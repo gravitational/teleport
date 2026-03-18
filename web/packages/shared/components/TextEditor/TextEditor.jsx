@@ -18,6 +18,7 @@
 
 import { Component } from 'react';
 import styled from 'styled-components';
+
 import { ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import { Copy, Download } from 'design/Icon';
