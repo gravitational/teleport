@@ -426,7 +426,7 @@ func TestSSMInstaller(t *testing.T) {
 					"runShellScript": {
 						Status:                ssmtypes.CommandInvocationStatusFailed,
 						ResponseCode:          150,
-						StandardErrorContent:  aws.String("ERROR: join failure: token is expired or not found; readyz reported not ready: bad token"),
+						StandardErrorContent:  aws.String("ERROR: join failure: token is expired or not found; node did not become ready (join cluster) within 5m0s"),
 						StandardOutputContent: aws.String(""),
 					},
 				},
@@ -444,7 +444,7 @@ func TestSSMInstaller(t *testing.T) {
 					ExitCode:       150,
 					Status:         installstatus.JoinFailure.String(),
 					StandardOutput: "",
-					StandardError:  "ERROR: join failure: token is expired or not found; readyz reported not ready: bad token",
+					StandardError:  "ERROR: join failure: token is expired or not found; node did not become ready (join cluster) within 5m0s",
 					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
 				IssueType:       "ec2-join-failure",
