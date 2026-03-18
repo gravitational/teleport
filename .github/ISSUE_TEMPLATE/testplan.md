@@ -776,16 +776,6 @@ NOTE: Unless specified otherwise, the `verb` field of `kubernetes_resource` sche
           ex: `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"clusterroles","name":"*"}`, `{"kind":"deployments","name":"*","namespace":"*"}`.
     * [ ] Verify access to pods, clusterroles and deployments on the v18 cluster
     * [ ] Verify access denied to other namespaced and cluster-wide resources `services`, `nodes`, `crontabs`, `globals`.
-  * [ ] Verify CRD role works on v18 (v18 introduced CRD support)
-    * [ ] Create a role v8 with access to pods and a CRD.
-         ex:  `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"crontabs","api_group":"*","name":"*","namespace":"*"}`
-    * [ ] Verify access to both `pods` and `crontabs` on the v18 cluster
-  * [ ] Verify namespace kind works on v18 (v8 semantics)
-    * [ ] Create a role v8 with access to a namespace `{"kind":"namespaces","name":"foo","verbs":["*"]}`
-    * [ ] Verify access to the namespace itself, denied to resources within it
-  * [ ] Verify cluster-wide wildcard works on v18
-    * [ ] Create a role v8 with a cluster-wide wildcard kind `{"kind":"*","api_group":"*","name":"*","namespace":"","verbs":["*"]}`
-    * [ ] Verify access to cluster-wide resources, denied to namespaced resources
 
 ### Kubernetes Access Request
 
