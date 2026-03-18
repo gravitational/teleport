@@ -552,13 +552,18 @@ func (t *Token) GetKubernetes() *types.ProvisionTokenSpecV2Kubernetes {
 func (t *Token) GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair {
 	spec := t.scoped.GetSpec().GetBoundKeypair()
 	rotateAfter := spec.RotateAfter.AsTime()
-	mustRegisterBefore := spec.GetOnboarding().GetMustRegisterBefore().AsTime()
+
+	var mustRegisterBefore *time.Time
+	if m := spec.GetOnboarding().GetMustRegisterBefore(); m != nil {
+		t := m.AsTime()
+		mustRegisterBefore = &t
+	}
 
 	return &types.ProvisionTokenSpecV2BoundKeypair{
 		Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
 			RegistrationSecret: spec.GetOnboarding().GetRegistrationSecret(),
 			InitialPublicKey:   spec.GetOnboarding().GetInitialPublicKey(),
-			MustRegisterBefore: &mustRegisterBefore,
+			MustRegisterBefore: mustRegisterBefore,
 		},
 		Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
 			Limit: spec.GetRecovery().GetLimit(),
