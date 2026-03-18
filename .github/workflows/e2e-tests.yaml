@@ -108,7 +108,11 @@ jobs:
           make build/teleport & pid1=$!
           make build/tctl & pid2=$!
           go build -tags webauthnmock -o build/tsh-e2e-webauthnmock ./tool/tsh & pid3=$!
-          wait $pid1 && wait $pid2 && wait $pid3
+          failed=0
+          wait $pid1 || failed=1
+          wait $pid2 || failed=1
+          wait $pid3 || failed=1
+          exit $failed
         env:
           RDPCLIENT_SKIP_BUILD: '0'
           IRONRDP_SKIP_BUILD: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
@@ -209,10 +213,14 @@ jobs:
           docker pull debian:bookworm-slim & pid1=$!
 
           corepack enable
-          (pnpm install --frozen-lockfile --ignore-scripts && pnpm rebuild electron) & pid2=$!
-          (cd e2e && pnpm install --frozen-lockfile && pnpm type-check) & pid3=$!
+          pnpm install --frozen-lockfile & pid2=$!
 
-          wait $pid1 && wait $pid2 && wait $pid3
+          failed=0
+          wait $pid1 || failed=1
+          wait $pid2 || failed=1
+          [ $failed -eq 0 ]
+
+          pnpm --filter=@gravitational/e2e type-check
 
       - uses: actions/download-artifact@v8
         with:
