@@ -439,6 +439,15 @@ func (a *Server) GenerateBotCertsForJoin(
 	}
 
 	// TODO: add additional scope-related checks here
+	// if scoped, ok := token.(*joining.Token); ok {
+	// 	user, err := a.GetUserOrLoginState(ctx, machineidv1.BotResourceName(botName))
+	// 	if err != nil {
+	// 		return nil, "", trace.Wrap(err)
+	// 	}
+
+	// 	//user.GetLabel()
+	// 	//scoped.GetScoped().GetSpec().GetBotScope()
+	// }
 
 	certs, botInstanceID, err := a.generateInitialBotCerts(
 		ctx,
