@@ -70,7 +70,12 @@ func build(ctx context.Context, config *e2eConfig) error {
 
 	if sshNode.enabled && !config.noBuild && runtime.GOOS != "linux" {
 		g.Go(func() error {
+			// Fall back to repoRoot when the teleport binary is overridden; the docker node
+			// always needs a Linux binary built from source.
 			buildDir := config.teleportBuildDir
+			if buildDir == "" {
+				buildDir = config.repoRoot
+			}
 			slog.Info("cross-compiling teleport for linux (docker node)", "dir", buildDir)
 
 			output := filepath.Join(buildDir, "build", "teleport-node")
