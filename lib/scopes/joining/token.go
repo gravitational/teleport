@@ -154,6 +154,8 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		}
 	case types.JoinMethodKubernetes:
 		return trace.Wrap(validateKubernetes(token.GetSpec().GetKubernetes()), "kubernetes join method")
+	case types.JoinMethodBoundKeypair:
+		// TODO: Bound keypair tokens are always valid (?)
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
