@@ -1702,7 +1702,7 @@ func (x AccessRequestReviewEvent_ProposedState) Number() protoreflect.EnumNumber
 
 // Deprecated: Use AccessRequestReviewEvent_ProposedState.Descriptor instead.
 func (AccessRequestReviewEvent_ProposedState) EnumDescriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{108, 0}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{110, 0}
 }
 
 // a successful user login
@@ -8204,6 +8204,153 @@ func (x *UIAccessGraphCrownJewelDiffViewEvent) GetAffectedResourceType() string 
 	return ""
 }
 
+// UIPageViewEvent is emitted when a user views a page in the Teleport UI.
+type UIPageViewEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// anonymized
+	UserName string `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
+	// path is the route template of the page viewed, e.g. "/web/cluster/:clusterId/usage-summary"
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// utm_source identifies the channel that drove the visit (e.g. "email")
+	UtmSource string `protobuf:"bytes,3,opt,name=utm_source,json=utmSource,proto3" json:"utm_source,omitempty"`
+	// utm_campaign identifies the specific campaign (e.g. "overage_80")
+	UtmCampaign   string `protobuf:"bytes,4,opt,name=utm_campaign,json=utmCampaign,proto3" json:"utm_campaign,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UIPageViewEvent) Reset() {
+	*x = UIPageViewEvent{}
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[97]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UIPageViewEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UIPageViewEvent) ProtoMessage() {}
+
+func (x *UIPageViewEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[97]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UIPageViewEvent.ProtoReflect.Descriptor instead.
+func (*UIPageViewEvent) Descriptor() ([]byte, []int) {
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{97}
+}
+
+func (x *UIPageViewEvent) GetUserName() string {
+	if x != nil {
+		return x.UserName
+	}
+	return ""
+}
+
+func (x *UIPageViewEvent) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *UIPageViewEvent) GetUtmSource() string {
+	if x != nil {
+		return x.UtmSource
+	}
+	return ""
+}
+
+func (x *UIPageViewEvent) GetUtmCampaign() string {
+	if x != nil {
+		return x.UtmCampaign
+	}
+	return ""
+}
+
+// UIUsageReportingAlertCtaClickEvent is emitted when a user clicks the CTA button in
+// a usage reporting alert (e.g. an overage notification).
+type UIUsageReportingAlertCtaClickEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// anonymized
+	UserName string `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
+	// alert identifies the alert that was clicked (e.g. "overage_80", "overage_90", "overage_100")
+	Alert string `protobuf:"bytes,2,opt,name=alert,proto3" json:"alert,omitempty"`
+	// utm_source identifies the channel that drove the visit (e.g. "email")
+	UtmSource string `protobuf:"bytes,3,opt,name=utm_source,json=utmSource,proto3" json:"utm_source,omitempty"`
+	// utm_campaign identifies the specific campaign (e.g. "overage_80")
+	UtmCampaign   string `protobuf:"bytes,4,opt,name=utm_campaign,json=utmCampaign,proto3" json:"utm_campaign,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UIUsageReportingAlertCtaClickEvent) Reset() {
+	*x = UIUsageReportingAlertCtaClickEvent{}
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[98]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UIUsageReportingAlertCtaClickEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UIUsageReportingAlertCtaClickEvent) ProtoMessage() {}
+
+func (x *UIUsageReportingAlertCtaClickEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[98]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UIUsageReportingAlertCtaClickEvent.ProtoReflect.Descriptor instead.
+func (*UIUsageReportingAlertCtaClickEvent) Descriptor() ([]byte, []int) {
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{98}
+}
+
+func (x *UIUsageReportingAlertCtaClickEvent) GetUserName() string {
+	if x != nil {
+		return x.UserName
+	}
+	return ""
+}
+
+func (x *UIUsageReportingAlertCtaClickEvent) GetAlert() string {
+	if x != nil {
+		return x.Alert
+	}
+	return ""
+}
+
+func (x *UIUsageReportingAlertCtaClickEvent) GetUtmSource() string {
+	if x != nil {
+		return x.UtmSource
+	}
+	return ""
+}
+
+func (x *UIUsageReportingAlertCtaClickEvent) GetUtmCampaign() string {
+	if x != nil {
+		return x.UtmCampaign
+	}
+	return ""
+}
+
 // AccessGraphCrownJewelCreateEvent is emitted when a user creates an Access Graph's
 // Crown Jewel Resource.
 type AccessGraphCrownJewelCreateEvent struct {
@@ -8214,7 +8361,7 @@ type AccessGraphCrownJewelCreateEvent struct {
 
 func (x *AccessGraphCrownJewelCreateEvent) Reset() {
 	*x = AccessGraphCrownJewelCreateEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[97]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8226,7 +8373,7 @@ func (x *AccessGraphCrownJewelCreateEvent) String() string {
 func (*AccessGraphCrownJewelCreateEvent) ProtoMessage() {}
 
 func (x *AccessGraphCrownJewelCreateEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[97]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8239,7 +8386,7 @@ func (x *AccessGraphCrownJewelCreateEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessGraphCrownJewelCreateEvent.ProtoReflect.Descriptor instead.
 func (*AccessGraphCrownJewelCreateEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{97}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{99}
 }
 
 // ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
@@ -8254,7 +8401,7 @@ type ExternalAuditStorageAuthenticateEvent struct {
 
 func (x *ExternalAuditStorageAuthenticateEvent) Reset() {
 	*x = ExternalAuditStorageAuthenticateEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[98]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8266,7 +8413,7 @@ func (x *ExternalAuditStorageAuthenticateEvent) String() string {
 func (*ExternalAuditStorageAuthenticateEvent) ProtoMessage() {}
 
 func (x *ExternalAuditStorageAuthenticateEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[98]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8279,7 +8426,7 @@ func (x *ExternalAuditStorageAuthenticateEvent) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use ExternalAuditStorageAuthenticateEvent.ProtoReflect.Descriptor instead.
 func (*ExternalAuditStorageAuthenticateEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{98}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{100}
 }
 
 // SecurityReportGetResultEvent is emitted when the user requests a security report.
@@ -8297,7 +8444,7 @@ type SecurityReportGetResultEvent struct {
 
 func (x *SecurityReportGetResultEvent) Reset() {
 	*x = SecurityReportGetResultEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[99]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8309,7 +8456,7 @@ func (x *SecurityReportGetResultEvent) String() string {
 func (*SecurityReportGetResultEvent) ProtoMessage() {}
 
 func (x *SecurityReportGetResultEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[99]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8322,7 +8469,7 @@ func (x *SecurityReportGetResultEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityReportGetResultEvent.ProtoReflect.Descriptor instead.
 func (*SecurityReportGetResultEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{99}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *SecurityReportGetResultEvent) GetUserName() string {
@@ -8361,7 +8508,7 @@ type AuditQueryRunEvent struct {
 
 func (x *AuditQueryRunEvent) Reset() {
 	*x = AuditQueryRunEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[100]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8373,7 +8520,7 @@ func (x *AuditQueryRunEvent) String() string {
 func (*AuditQueryRunEvent) ProtoMessage() {}
 
 func (x *AuditQueryRunEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[100]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8386,7 +8533,7 @@ func (x *AuditQueryRunEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuditQueryRunEvent.ProtoReflect.Descriptor instead.
 func (*AuditQueryRunEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{100}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *AuditQueryRunEvent) GetUserName() string {
@@ -8430,7 +8577,7 @@ type DiscoveryFetchEvent struct {
 
 func (x *DiscoveryFetchEvent) Reset() {
 	*x = DiscoveryFetchEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[101]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8442,7 +8589,7 @@ func (x *DiscoveryFetchEvent) String() string {
 func (*DiscoveryFetchEvent) ProtoMessage() {}
 
 func (x *DiscoveryFetchEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[101]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8455,7 +8602,7 @@ func (x *DiscoveryFetchEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoveryFetchEvent.ProtoReflect.Descriptor instead.
 func (*DiscoveryFetchEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{101}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *DiscoveryFetchEvent) GetCloudProvider() string {
@@ -8496,7 +8643,7 @@ type OktaAccessListSyncEvent struct {
 
 func (x *OktaAccessListSyncEvent) Reset() {
 	*x = OktaAccessListSyncEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[102]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8508,7 +8655,7 @@ func (x *OktaAccessListSyncEvent) String() string {
 func (*OktaAccessListSyncEvent) ProtoMessage() {}
 
 func (x *OktaAccessListSyncEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[102]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8521,7 +8668,7 @@ func (x *OktaAccessListSyncEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OktaAccessListSyncEvent.ProtoReflect.Descriptor instead.
 func (*OktaAccessListSyncEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{102}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *OktaAccessListSyncEvent) GetNumAppFilters() int32 {
@@ -8588,7 +8735,7 @@ type DatabaseUserCreatedEvent struct {
 
 func (x *DatabaseUserCreatedEvent) Reset() {
 	*x = DatabaseUserCreatedEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[103]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8600,7 +8747,7 @@ func (x *DatabaseUserCreatedEvent) String() string {
 func (*DatabaseUserCreatedEvent) ProtoMessage() {}
 
 func (x *DatabaseUserCreatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[103]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8613,7 +8760,7 @@ func (x *DatabaseUserCreatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DatabaseUserCreatedEvent.ProtoReflect.Descriptor instead.
 func (*DatabaseUserCreatedEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{103}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *DatabaseUserCreatedEvent) GetDatabase() *SessionStartDatabaseMetadata {
@@ -8655,7 +8802,7 @@ type DatabaseUserPermissionsUpdateEvent struct {
 
 func (x *DatabaseUserPermissionsUpdateEvent) Reset() {
 	*x = DatabaseUserPermissionsUpdateEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[104]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8667,7 +8814,7 @@ func (x *DatabaseUserPermissionsUpdateEvent) String() string {
 func (*DatabaseUserPermissionsUpdateEvent) ProtoMessage() {}
 
 func (x *DatabaseUserPermissionsUpdateEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[104]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8680,7 +8827,7 @@ func (x *DatabaseUserPermissionsUpdateEvent) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use DatabaseUserPermissionsUpdateEvent.ProtoReflect.Descriptor instead.
 func (*DatabaseUserPermissionsUpdateEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{104}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *DatabaseUserPermissionsUpdateEvent) GetDatabase() *SessionStartDatabaseMetadata {
@@ -8739,7 +8886,7 @@ type SessionRecordingAccessEvent struct {
 
 func (x *SessionRecordingAccessEvent) Reset() {
 	*x = SessionRecordingAccessEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[105]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8751,7 +8898,7 @@ func (x *SessionRecordingAccessEvent) String() string {
 func (*SessionRecordingAccessEvent) ProtoMessage() {}
 
 func (x *SessionRecordingAccessEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[105]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8764,7 +8911,7 @@ func (x *SessionRecordingAccessEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionRecordingAccessEvent.ProtoReflect.Descriptor instead.
 func (*SessionRecordingAccessEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{105}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *SessionRecordingAccessEvent) GetSessionType() string {
@@ -8827,7 +8974,7 @@ type UserTaskStateEvent struct {
 
 func (x *UserTaskStateEvent) Reset() {
 	*x = UserTaskStateEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[106]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8839,7 +8986,7 @@ func (x *UserTaskStateEvent) String() string {
 func (*UserTaskStateEvent) ProtoMessage() {}
 
 func (x *UserTaskStateEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[106]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8852,7 +8999,7 @@ func (x *UserTaskStateEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserTaskStateEvent.ProtoReflect.Descriptor instead.
 func (*UserTaskStateEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{106}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *UserTaskStateEvent) GetTaskType() string {
@@ -8907,7 +9054,7 @@ type AccessRequestCreateEvent struct {
 
 func (x *AccessRequestCreateEvent) Reset() {
 	*x = AccessRequestCreateEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[107]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8919,7 +9066,7 @@ func (x *AccessRequestCreateEvent) String() string {
 func (*AccessRequestCreateEvent) ProtoMessage() {}
 
 func (x *AccessRequestCreateEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[107]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8932,7 +9079,7 @@ func (x *AccessRequestCreateEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessRequestCreateEvent.ProtoReflect.Descriptor instead.
 func (*AccessRequestCreateEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{107}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *AccessRequestCreateEvent) GetUserName() string {
@@ -8975,7 +9122,7 @@ type AccessRequestReviewEvent struct {
 
 func (x *AccessRequestReviewEvent) Reset() {
 	*x = AccessRequestReviewEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[108]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8987,7 +9134,7 @@ func (x *AccessRequestReviewEvent) String() string {
 func (*AccessRequestReviewEvent) ProtoMessage() {}
 
 func (x *AccessRequestReviewEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[108]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9000,7 +9147,7 @@ func (x *AccessRequestReviewEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessRequestReviewEvent.ProtoReflect.Descriptor instead.
 func (*AccessRequestReviewEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{108}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *AccessRequestReviewEvent) GetUserName() string {
@@ -9061,7 +9208,7 @@ type SessionSummaryAccessEvent struct {
 
 func (x *SessionSummaryAccessEvent) Reset() {
 	*x = SessionSummaryAccessEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[109]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9073,7 +9220,7 @@ func (x *SessionSummaryAccessEvent) String() string {
 func (*SessionSummaryAccessEvent) ProtoMessage() {}
 
 func (x *SessionSummaryAccessEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[109]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9086,7 +9233,7 @@ func (x *SessionSummaryAccessEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionSummaryAccessEvent.ProtoReflect.Descriptor instead.
 func (*SessionSummaryAccessEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{109}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *SessionSummaryAccessEvent) GetSessionType() string {
@@ -9160,7 +9307,7 @@ type SessionSummaryCreateEvent struct {
 
 func (x *SessionSummaryCreateEvent) Reset() {
 	*x = SessionSummaryCreateEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[110]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9172,7 +9319,7 @@ func (x *SessionSummaryCreateEvent) String() string {
 func (*SessionSummaryCreateEvent) ProtoMessage() {}
 
 func (x *SessionSummaryCreateEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[110]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9185,7 +9332,7 @@ func (x *SessionSummaryCreateEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionSummaryCreateEvent.ProtoReflect.Descriptor instead.
 func (*SessionSummaryCreateEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{110}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *SessionSummaryCreateEvent) GetSessionType() string {
@@ -9258,7 +9405,7 @@ type DiscoveryConfigEvent struct {
 
 func (x *DiscoveryConfigEvent) Reset() {
 	*x = DiscoveryConfigEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[111]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9270,7 +9417,7 @@ func (x *DiscoveryConfigEvent) String() string {
 func (*DiscoveryConfigEvent) ProtoMessage() {}
 
 func (x *DiscoveryConfigEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[111]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9283,7 +9430,7 @@ func (x *DiscoveryConfigEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoveryConfigEvent.ProtoReflect.Descriptor instead.
 func (*DiscoveryConfigEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{111}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *DiscoveryConfigEvent) GetAction() DiscoveryConfigAction {
@@ -9338,7 +9485,7 @@ type IdentitySecurityGraphSizeEvent struct {
 
 func (x *IdentitySecurityGraphSizeEvent) Reset() {
 	*x = IdentitySecurityGraphSizeEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[112]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9350,7 +9497,7 @@ func (x *IdentitySecurityGraphSizeEvent) String() string {
 func (*IdentitySecurityGraphSizeEvent) ProtoMessage() {}
 
 func (x *IdentitySecurityGraphSizeEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[112]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9363,7 +9510,7 @@ func (x *IdentitySecurityGraphSizeEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IdentitySecurityGraphSizeEvent.ProtoReflect.Descriptor instead.
 func (*IdentitySecurityGraphSizeEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{112}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *IdentitySecurityGraphSizeEvent) GetProvider() string {
@@ -9402,7 +9549,7 @@ type IdentitySecurityAuditLogsIngestedEvent struct {
 
 func (x *IdentitySecurityAuditLogsIngestedEvent) Reset() {
 	*x = IdentitySecurityAuditLogsIngestedEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[113]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9414,7 +9561,7 @@ func (x *IdentitySecurityAuditLogsIngestedEvent) String() string {
 func (*IdentitySecurityAuditLogsIngestedEvent) ProtoMessage() {}
 
 func (x *IdentitySecurityAuditLogsIngestedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[113]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9427,7 +9574,7 @@ func (x *IdentitySecurityAuditLogsIngestedEvent) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use IdentitySecurityAuditLogsIngestedEvent.ProtoReflect.Descriptor instead.
 func (*IdentitySecurityAuditLogsIngestedEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{113}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *IdentitySecurityAuditLogsIngestedEvent) GetProvider() string {
@@ -9457,7 +9604,7 @@ type AccessListStepStatus struct {
 
 func (x *AccessListStepStatus) Reset() {
 	*x = AccessListStepStatus{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[114]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9469,7 +9616,7 @@ func (x *AccessListStepStatus) String() string {
 func (*AccessListStepStatus) ProtoMessage() {}
 
 func (x *AccessListStepStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[114]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9482,7 +9629,7 @@ func (x *AccessListStepStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessListStepStatus.ProtoReflect.Descriptor instead.
 func (*AccessListStepStatus) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{114}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *AccessListStepStatus) GetStatus() AccessListStatus {
@@ -9511,7 +9658,7 @@ type UIAccessListDefineAccessEvent struct {
 
 func (x *UIAccessListDefineAccessEvent) Reset() {
 	*x = UIAccessListDefineAccessEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[115]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9523,7 +9670,7 @@ func (x *UIAccessListDefineAccessEvent) String() string {
 func (*UIAccessListDefineAccessEvent) ProtoMessage() {}
 
 func (x *UIAccessListDefineAccessEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[115]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9536,7 +9683,7 @@ func (x *UIAccessListDefineAccessEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UIAccessListDefineAccessEvent.ProtoReflect.Descriptor instead.
 func (*UIAccessListDefineAccessEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{115}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *UIAccessListDefineAccessEvent) GetMetadata() *AccessListMetadata {
@@ -9565,7 +9712,7 @@ type UIAccessListDefineIdentitiesEvent struct {
 
 func (x *UIAccessListDefineIdentitiesEvent) Reset() {
 	*x = UIAccessListDefineIdentitiesEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[116]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9577,7 +9724,7 @@ func (x *UIAccessListDefineIdentitiesEvent) String() string {
 func (*UIAccessListDefineIdentitiesEvent) ProtoMessage() {}
 
 func (x *UIAccessListDefineIdentitiesEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[116]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9590,7 +9737,7 @@ func (x *UIAccessListDefineIdentitiesEvent) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use UIAccessListDefineIdentitiesEvent.ProtoReflect.Descriptor instead.
 func (*UIAccessListDefineIdentitiesEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{116}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *UIAccessListDefineIdentitiesEvent) GetMetadata() *AccessListMetadata {
@@ -9619,7 +9766,7 @@ type UIAccessListDefineBasicInfoEvent struct {
 
 func (x *UIAccessListDefineBasicInfoEvent) Reset() {
 	*x = UIAccessListDefineBasicInfoEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[117]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9631,7 +9778,7 @@ func (x *UIAccessListDefineBasicInfoEvent) String() string {
 func (*UIAccessListDefineBasicInfoEvent) ProtoMessage() {}
 
 func (x *UIAccessListDefineBasicInfoEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[117]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9644,7 +9791,7 @@ func (x *UIAccessListDefineBasicInfoEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UIAccessListDefineBasicInfoEvent.ProtoReflect.Descriptor instead.
 func (*UIAccessListDefineBasicInfoEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{117}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *UIAccessListDefineBasicInfoEvent) GetMetadata() *AccessListMetadata {
@@ -9673,7 +9820,7 @@ type UIAccessListDefineMembersEvent struct {
 
 func (x *UIAccessListDefineMembersEvent) Reset() {
 	*x = UIAccessListDefineMembersEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[118]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9685,7 +9832,7 @@ func (x *UIAccessListDefineMembersEvent) String() string {
 func (*UIAccessListDefineMembersEvent) ProtoMessage() {}
 
 func (x *UIAccessListDefineMembersEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[118]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9698,7 +9845,7 @@ func (x *UIAccessListDefineMembersEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UIAccessListDefineMembersEvent.ProtoReflect.Descriptor instead.
 func (*UIAccessListDefineMembersEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{118}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *UIAccessListDefineMembersEvent) GetMetadata() *AccessListMetadata {
@@ -9727,7 +9874,7 @@ type UIAccessListDefineOwnersEvent struct {
 
 func (x *UIAccessListDefineOwnersEvent) Reset() {
 	*x = UIAccessListDefineOwnersEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[119]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9739,7 +9886,7 @@ func (x *UIAccessListDefineOwnersEvent) String() string {
 func (*UIAccessListDefineOwnersEvent) ProtoMessage() {}
 
 func (x *UIAccessListDefineOwnersEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[119]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9752,7 +9899,7 @@ func (x *UIAccessListDefineOwnersEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UIAccessListDefineOwnersEvent.ProtoReflect.Descriptor instead.
 func (*UIAccessListDefineOwnersEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{119}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *UIAccessListDefineOwnersEvent) GetMetadata() *AccessListMetadata {
@@ -9781,7 +9928,7 @@ type UIAccessListStartEvent struct {
 
 func (x *UIAccessListStartEvent) Reset() {
 	*x = UIAccessListStartEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[120]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9793,7 +9940,7 @@ func (x *UIAccessListStartEvent) String() string {
 func (*UIAccessListStartEvent) ProtoMessage() {}
 
 func (x *UIAccessListStartEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[120]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9806,7 +9953,7 @@ func (x *UIAccessListStartEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UIAccessListStartEvent.ProtoReflect.Descriptor instead.
 func (*UIAccessListStartEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{120}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *UIAccessListStartEvent) GetMetadata() *AccessListMetadata {
@@ -9835,7 +9982,7 @@ type UIAccessListCustomEvent struct {
 
 func (x *UIAccessListCustomEvent) Reset() {
 	*x = UIAccessListCustomEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[121]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9847,7 +9994,7 @@ func (x *UIAccessListCustomEvent) String() string {
 func (*UIAccessListCustomEvent) ProtoMessage() {}
 
 func (x *UIAccessListCustomEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[121]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9860,7 +10007,7 @@ func (x *UIAccessListCustomEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UIAccessListCustomEvent.ProtoReflect.Descriptor instead.
 func (*UIAccessListCustomEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{121}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *UIAccessListCustomEvent) GetMetadata() *AccessListMetadata {
@@ -9892,7 +10039,7 @@ type UIAccessListCompleteEvent struct {
 
 func (x *UIAccessListCompleteEvent) Reset() {
 	*x = UIAccessListCompleteEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[122]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9904,7 +10051,7 @@ func (x *UIAccessListCompleteEvent) String() string {
 func (*UIAccessListCompleteEvent) ProtoMessage() {}
 
 func (x *UIAccessListCompleteEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[122]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9917,7 +10064,7 @@ func (x *UIAccessListCompleteEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UIAccessListCompleteEvent.ProtoReflect.Descriptor instead.
 func (*UIAccessListCompleteEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{122}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{124}
 }
 
 func (x *UIAccessListCompleteEvent) GetMetadata() *AccessListMetadata {
@@ -9953,7 +10100,7 @@ type UIAccessListIntegrateEvent struct {
 
 func (x *UIAccessListIntegrateEvent) Reset() {
 	*x = UIAccessListIntegrateEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[123]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9965,7 +10112,7 @@ func (x *UIAccessListIntegrateEvent) String() string {
 func (*UIAccessListIntegrateEvent) ProtoMessage() {}
 
 func (x *UIAccessListIntegrateEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[123]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9978,7 +10125,7 @@ func (x *UIAccessListIntegrateEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UIAccessListIntegrateEvent.ProtoReflect.Descriptor instead.
 func (*UIAccessListIntegrateEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{123}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *UIAccessListIntegrateEvent) GetMetadata() *AccessListMetadata {
@@ -10127,6 +10274,8 @@ type SubmitEventRequest struct {
 	//	*SubmitEventRequest_UiAccessListCompleteEvent
 	//	*SubmitEventRequest_UiAccessListIntegrateEvent
 	//	*SubmitEventRequest_UiAccessListCustomEvent
+	//	*SubmitEventRequest_UiPageView
+	//	*SubmitEventRequest_UiUsageReportingAlertCtaClick
 	Event         isSubmitEventRequest_Event `protobuf_oneof:"event"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -10134,7 +10283,7 @@ type SubmitEventRequest struct {
 
 func (x *SubmitEventRequest) Reset() {
 	*x = SubmitEventRequest{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[124]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[126]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10146,7 +10295,7 @@ func (x *SubmitEventRequest) String() string {
 func (*SubmitEventRequest) ProtoMessage() {}
 
 func (x *SubmitEventRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[124]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[126]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10159,7 +10308,7 @@ func (x *SubmitEventRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitEventRequest.ProtoReflect.Descriptor instead.
 func (*SubmitEventRequest) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{124}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{126}
 }
 
 func (x *SubmitEventRequest) GetClusterName() string {
@@ -11198,6 +11347,24 @@ func (x *SubmitEventRequest) GetUiAccessListCustomEvent() *UIAccessListCustomEve
 	return nil
 }
 
+func (x *SubmitEventRequest) GetUiPageView() *UIPageViewEvent {
+	if x != nil {
+		if x, ok := x.Event.(*SubmitEventRequest_UiPageView); ok {
+			return x.UiPageView
+		}
+	}
+	return nil
+}
+
+func (x *SubmitEventRequest) GetUiUsageReportingAlertCtaClick() *UIUsageReportingAlertCtaClickEvent {
+	if x != nil {
+		if x, ok := x.Event.(*SubmitEventRequest_UiUsageReportingAlertCtaClick); ok {
+			return x.UiUsageReportingAlertCtaClick
+		}
+	}
+	return nil
+}
+
 type isSubmitEventRequest_Event interface {
 	isSubmitEventRequest_Event()
 }
@@ -11655,6 +11822,14 @@ type SubmitEventRequest_UiAccessListCustomEvent struct {
 	UiAccessListCustomEvent *UIAccessListCustomEvent `protobuf:"bytes,118,opt,name=ui_access_list_custom_event,json=uiAccessListCustomEvent,proto3,oneof"`
 }
 
+type SubmitEventRequest_UiPageView struct {
+	UiPageView *UIPageViewEvent `protobuf:"bytes,119,opt,name=ui_page_view,json=uiPageView,proto3,oneof"`
+}
+
+type SubmitEventRequest_UiUsageReportingAlertCtaClick struct {
+	UiUsageReportingAlertCtaClick *UIUsageReportingAlertCtaClickEvent `protobuf:"bytes,120,opt,name=ui_usage_reporting_alert_cta_click,json=uiUsageReportingAlertCtaClick,proto3,oneof"`
+}
+
 func (*SubmitEventRequest_UserLogin) isSubmitEventRequest_Event() {}
 
 func (*SubmitEventRequest_SsoCreate) isSubmitEventRequest_Event() {}
@@ -11881,6 +12056,10 @@ func (*SubmitEventRequest_UiAccessListIntegrateEvent) isSubmitEventRequest_Event
 
 func (*SubmitEventRequest_UiAccessListCustomEvent) isSubmitEventRequest_Event() {}
 
+func (*SubmitEventRequest_UiPageView) isSubmitEventRequest_Event() {}
+
+func (*SubmitEventRequest_UiUsageReportingAlertCtaClick) isSubmitEventRequest_Event() {}
+
 type SubmitEventResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -11889,7 +12068,7 @@ type SubmitEventResponse struct {
 
 func (x *SubmitEventResponse) Reset() {
 	*x = SubmitEventResponse{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[125]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[127]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11901,7 +12080,7 @@ func (x *SubmitEventResponse) String() string {
 func (*SubmitEventResponse) ProtoMessage() {}
 
 func (x *SubmitEventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[125]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[127]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11914,7 +12093,7 @@ func (x *SubmitEventResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitEventResponse.ProtoReflect.Descriptor instead.
 func (*SubmitEventResponse) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{125}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{127}
 }
 
 type SubmitEventsRequest struct {
@@ -11927,7 +12106,7 @@ type SubmitEventsRequest struct {
 
 func (x *SubmitEventsRequest) Reset() {
 	*x = SubmitEventsRequest{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[126]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[128]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11939,7 +12118,7 @@ func (x *SubmitEventsRequest) String() string {
 func (*SubmitEventsRequest) ProtoMessage() {}
 
 func (x *SubmitEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[126]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[128]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11952,7 +12131,7 @@ func (x *SubmitEventsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitEventsRequest.ProtoReflect.Descriptor instead.
 func (*SubmitEventsRequest) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{126}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *SubmitEventsRequest) GetEvents() []*SubmitEventRequest {
@@ -11970,7 +12149,7 @@ type SubmitEventsResponse struct {
 
 func (x *SubmitEventsResponse) Reset() {
 	*x = SubmitEventsResponse{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[127]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11982,7 +12161,7 @@ func (x *SubmitEventsResponse) String() string {
 func (*SubmitEventsResponse) ProtoMessage() {}
 
 func (x *SubmitEventsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[127]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11995,7 +12174,7 @@ func (x *SubmitEventsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitEventsResponse.ProtoReflect.Descriptor instead.
 func (*SubmitEventsResponse) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{127}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{129}
 }
 
 type HelloTeleportRequest struct {
@@ -12006,7 +12185,7 @@ type HelloTeleportRequest struct {
 
 func (x *HelloTeleportRequest) Reset() {
 	*x = HelloTeleportRequest{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[128]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12018,7 +12197,7 @@ func (x *HelloTeleportRequest) String() string {
 func (*HelloTeleportRequest) ProtoMessage() {}
 
 func (x *HelloTeleportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[128]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12031,7 +12210,7 @@ func (x *HelloTeleportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloTeleportRequest.ProtoReflect.Descriptor instead.
 func (*HelloTeleportRequest) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{128}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{130}
 }
 
 type HelloTeleportResponse struct {
@@ -12042,7 +12221,7 @@ type HelloTeleportResponse struct {
 
 func (x *HelloTeleportResponse) Reset() {
 	*x = HelloTeleportResponse{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[129]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12054,7 +12233,7 @@ func (x *HelloTeleportResponse) String() string {
 func (*HelloTeleportResponse) ProtoMessage() {}
 
 func (x *HelloTeleportResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[129]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12067,7 +12246,7 @@ func (x *HelloTeleportResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloTeleportResponse.ProtoReflect.Descriptor instead.
 func (*HelloTeleportResponse) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{129}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{131}
 }
 
 var File_prehog_v1alpha_teleport_proto protoreflect.FileDescriptor
@@ -12524,7 +12703,19 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\x16affected_resource_type\x18\x02 \x01(\tR\x14affectedResourceType\"\x96\x01\n" +
 	"$UIAccessGraphCrownJewelDiffViewEvent\x128\n" +
 	"\x18affected_resource_source\x18\x01 \x01(\tR\x16affectedResourceSource\x124\n" +
-	"\x16affected_resource_type\x18\x02 \x01(\tR\x14affectedResourceType\"\"\n" +
+	"\x16affected_resource_type\x18\x02 \x01(\tR\x14affectedResourceType\"\x84\x01\n" +
+	"\x0fUIPageViewEvent\x12\x1b\n" +
+	"\tuser_name\x18\x01 \x01(\tR\buserName\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x1d\n" +
+	"\n" +
+	"utm_source\x18\x03 \x01(\tR\tutmSource\x12!\n" +
+	"\futm_campaign\x18\x04 \x01(\tR\vutmCampaign\"\x99\x01\n" +
+	"\"UIUsageReportingAlertCtaClickEvent\x12\x1b\n" +
+	"\tuser_name\x18\x01 \x01(\tR\buserName\x12\x14\n" +
+	"\x05alert\x18\x02 \x01(\tR\x05alert\x12\x1d\n" +
+	"\n" +
+	"utm_source\x18\x03 \x01(\tR\tutmSource\x12!\n" +
+	"\futm_campaign\x18\x04 \x01(\tR\vutmCampaign\"\"\n" +
 	" AccessGraphCrownJewelCreateEvent\"'\n" +
 	"%ExternalAuditStorageAuthenticateEvent\"c\n" +
 	"\x1cSecurityReportGetResultEvent\x12\x1b\n" +
@@ -12637,7 +12828,7 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\x13preferred_terraform\x18\x03 \x01(\bR\x12preferredTerraform\"\x9f\x01\n" +
 	"\x1aUIAccessListIntegrateEvent\x12>\n" +
 	"\bmetadata\x18\x01 \x01(\v2\".prehog.v1alpha.AccessListMetadataR\bmetadata\x12A\n" +
-	"\tintegrate\x18\x02 \x01(\x0e2#.prehog.v1alpha.AccessListIntegrateR\tintegrate\"\xdcc\n" +
+	"\tintegrate\x18\x02 \x01(\x0e2#.prehog.v1alpha.AccessListIntegrateR\tintegrate\"\xa2e\n" +
 	"\x12SubmitEventRequest\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12)\n" +
@@ -12758,7 +12949,10 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\x1aui_access_list_start_event\x18s \x01(\v2&.prehog.v1alpha.UIAccessListStartEventH\x00R\x16uiAccessListStartEvent\x12m\n" +
 	"\x1dui_access_list_complete_event\x18t \x01(\v2).prehog.v1alpha.UIAccessListCompleteEventH\x00R\x19uiAccessListCompleteEvent\x12p\n" +
 	"\x1eui_access_list_integrate_event\x18u \x01(\v2*.prehog.v1alpha.UIAccessListIntegrateEventH\x00R\x1auiAccessListIntegrateEvent\x12g\n" +
-	"\x1bui_access_list_custom_event\x18v \x01(\v2'.prehog.v1alpha.UIAccessListCustomEventH\x00R\x17uiAccessListCustomEventB\a\n" +
+	"\x1bui_access_list_custom_event\x18v \x01(\v2'.prehog.v1alpha.UIAccessListCustomEventH\x00R\x17uiAccessListCustomEvent\x12C\n" +
+	"\fui_page_view\x18w \x01(\v2\x1f.prehog.v1alpha.UIPageViewEventH\x00R\n" +
+	"uiPageView\x12\x7f\n" +
+	"\"ui_usage_reporting_alert_cta_click\x18x \x01(\v22.prehog.v1alpha.UIUsageReportingAlertCtaClickEventH\x00R\x1duiUsageReportingAlertCtaClickB\a\n" +
 	"\x05eventJ\x04\b\b\x10\tJ\x04\ba\x10bJ\x04\bb\x10cR\x1cui_onboard_get_started_clickR\x1baccess_request_create_eventR\x1baccess_request_review_event\"\x15\n" +
 	"\x13SubmitEventResponse\"Q\n" +
 	"\x13SubmitEventsRequest\x12:\n" +
@@ -12991,7 +13185,7 @@ func file_prehog_v1alpha_teleport_proto_rawDescGZIP() []byte {
 }
 
 var file_prehog_v1alpha_teleport_proto_enumTypes = make([]protoimpl.EnumInfo, 24)
-var file_prehog_v1alpha_teleport_proto_msgTypes = make([]protoimpl.MessageInfo, 130)
+var file_prehog_v1alpha_teleport_proto_msgTypes = make([]protoimpl.MessageInfo, 132)
 var file_prehog_v1alpha_teleport_proto_goTypes = []any{
 	(UserOrigin)(0),                                           // 0: prehog.v1alpha.UserOrigin
 	(ResourceKind)(0),                                         // 1: prehog.v1alpha.ResourceKind
@@ -13114,41 +13308,43 @@ var file_prehog_v1alpha_teleport_proto_goTypes = []any{
 	(*AccessGraphAWSScanEvent)(nil),                           // 118: prehog.v1alpha.AccessGraphAWSScanEvent
 	(*AccessGraphAccessPathChangedEvent)(nil),                 // 119: prehog.v1alpha.AccessGraphAccessPathChangedEvent
 	(*UIAccessGraphCrownJewelDiffViewEvent)(nil),              // 120: prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent
-	(*AccessGraphCrownJewelCreateEvent)(nil),                  // 121: prehog.v1alpha.AccessGraphCrownJewelCreateEvent
-	(*ExternalAuditStorageAuthenticateEvent)(nil),             // 122: prehog.v1alpha.ExternalAuditStorageAuthenticateEvent
-	(*SecurityReportGetResultEvent)(nil),                      // 123: prehog.v1alpha.SecurityReportGetResultEvent
-	(*AuditQueryRunEvent)(nil),                                // 124: prehog.v1alpha.AuditQueryRunEvent
-	(*DiscoveryFetchEvent)(nil),                               // 125: prehog.v1alpha.DiscoveryFetchEvent
-	(*OktaAccessListSyncEvent)(nil),                           // 126: prehog.v1alpha.OktaAccessListSyncEvent
-	(*DatabaseUserCreatedEvent)(nil),                          // 127: prehog.v1alpha.DatabaseUserCreatedEvent
-	(*DatabaseUserPermissionsUpdateEvent)(nil),                // 128: prehog.v1alpha.DatabaseUserPermissionsUpdateEvent
-	(*SessionRecordingAccessEvent)(nil),                       // 129: prehog.v1alpha.SessionRecordingAccessEvent
-	(*UserTaskStateEvent)(nil),                                // 130: prehog.v1alpha.UserTaskStateEvent
-	(*AccessRequestCreateEvent)(nil),                          // 131: prehog.v1alpha.AccessRequestCreateEvent
-	(*AccessRequestReviewEvent)(nil),                          // 132: prehog.v1alpha.AccessRequestReviewEvent
-	(*SessionSummaryAccessEvent)(nil),                         // 133: prehog.v1alpha.SessionSummaryAccessEvent
-	(*SessionSummaryCreateEvent)(nil),                         // 134: prehog.v1alpha.SessionSummaryCreateEvent
-	(*DiscoveryConfigEvent)(nil),                              // 135: prehog.v1alpha.DiscoveryConfigEvent
-	(*IdentitySecurityGraphSizeEvent)(nil),                    // 136: prehog.v1alpha.IdentitySecurityGraphSizeEvent
-	(*IdentitySecurityAuditLogsIngestedEvent)(nil),            // 137: prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent
-	(*AccessListStepStatus)(nil),                              // 138: prehog.v1alpha.AccessListStepStatus
-	(*UIAccessListDefineAccessEvent)(nil),                     // 139: prehog.v1alpha.UIAccessListDefineAccessEvent
-	(*UIAccessListDefineIdentitiesEvent)(nil),                 // 140: prehog.v1alpha.UIAccessListDefineIdentitiesEvent
-	(*UIAccessListDefineBasicInfoEvent)(nil),                  // 141: prehog.v1alpha.UIAccessListDefineBasicInfoEvent
-	(*UIAccessListDefineMembersEvent)(nil),                    // 142: prehog.v1alpha.UIAccessListDefineMembersEvent
-	(*UIAccessListDefineOwnersEvent)(nil),                     // 143: prehog.v1alpha.UIAccessListDefineOwnersEvent
-	(*UIAccessListStartEvent)(nil),                            // 144: prehog.v1alpha.UIAccessListStartEvent
-	(*UIAccessListCustomEvent)(nil),                           // 145: prehog.v1alpha.UIAccessListCustomEvent
-	(*UIAccessListCompleteEvent)(nil),                         // 146: prehog.v1alpha.UIAccessListCompleteEvent
-	(*UIAccessListIntegrateEvent)(nil),                        // 147: prehog.v1alpha.UIAccessListIntegrateEvent
-	(*SubmitEventRequest)(nil),                                // 148: prehog.v1alpha.SubmitEventRequest
-	(*SubmitEventResponse)(nil),                               // 149: prehog.v1alpha.SubmitEventResponse
-	(*SubmitEventsRequest)(nil),                               // 150: prehog.v1alpha.SubmitEventsRequest
-	(*SubmitEventsResponse)(nil),                              // 151: prehog.v1alpha.SubmitEventsResponse
-	(*HelloTeleportRequest)(nil),                              // 152: prehog.v1alpha.HelloTeleportRequest
-	(*HelloTeleportResponse)(nil),                             // 153: prehog.v1alpha.HelloTeleportResponse
-	(*durationpb.Duration)(nil),                               // 154: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),                             // 155: google.protobuf.Timestamp
+	(*UIPageViewEvent)(nil),                                   // 121: prehog.v1alpha.UIPageViewEvent
+	(*UIUsageReportingAlertCtaClickEvent)(nil),                // 122: prehog.v1alpha.UIUsageReportingAlertCtaClickEvent
+	(*AccessGraphCrownJewelCreateEvent)(nil),                  // 123: prehog.v1alpha.AccessGraphCrownJewelCreateEvent
+	(*ExternalAuditStorageAuthenticateEvent)(nil),             // 124: prehog.v1alpha.ExternalAuditStorageAuthenticateEvent
+	(*SecurityReportGetResultEvent)(nil),                      // 125: prehog.v1alpha.SecurityReportGetResultEvent
+	(*AuditQueryRunEvent)(nil),                                // 126: prehog.v1alpha.AuditQueryRunEvent
+	(*DiscoveryFetchEvent)(nil),                               // 127: prehog.v1alpha.DiscoveryFetchEvent
+	(*OktaAccessListSyncEvent)(nil),                           // 128: prehog.v1alpha.OktaAccessListSyncEvent
+	(*DatabaseUserCreatedEvent)(nil),                          // 129: prehog.v1alpha.DatabaseUserCreatedEvent
+	(*DatabaseUserPermissionsUpdateEvent)(nil),                // 130: prehog.v1alpha.DatabaseUserPermissionsUpdateEvent
+	(*SessionRecordingAccessEvent)(nil),                       // 131: prehog.v1alpha.SessionRecordingAccessEvent
+	(*UserTaskStateEvent)(nil),                                // 132: prehog.v1alpha.UserTaskStateEvent
+	(*AccessRequestCreateEvent)(nil),                          // 133: prehog.v1alpha.AccessRequestCreateEvent
+	(*AccessRequestReviewEvent)(nil),                          // 134: prehog.v1alpha.AccessRequestReviewEvent
+	(*SessionSummaryAccessEvent)(nil),                         // 135: prehog.v1alpha.SessionSummaryAccessEvent
+	(*SessionSummaryCreateEvent)(nil),                         // 136: prehog.v1alpha.SessionSummaryCreateEvent
+	(*DiscoveryConfigEvent)(nil),                              // 137: prehog.v1alpha.DiscoveryConfigEvent
+	(*IdentitySecurityGraphSizeEvent)(nil),                    // 138: prehog.v1alpha.IdentitySecurityGraphSizeEvent
+	(*IdentitySecurityAuditLogsIngestedEvent)(nil),            // 139: prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent
+	(*AccessListStepStatus)(nil),                              // 140: prehog.v1alpha.AccessListStepStatus
+	(*UIAccessListDefineAccessEvent)(nil),                     // 141: prehog.v1alpha.UIAccessListDefineAccessEvent
+	(*UIAccessListDefineIdentitiesEvent)(nil),                 // 142: prehog.v1alpha.UIAccessListDefineIdentitiesEvent
+	(*UIAccessListDefineBasicInfoEvent)(nil),                  // 143: prehog.v1alpha.UIAccessListDefineBasicInfoEvent
+	(*UIAccessListDefineMembersEvent)(nil),                    // 144: prehog.v1alpha.UIAccessListDefineMembersEvent
+	(*UIAccessListDefineOwnersEvent)(nil),                     // 145: prehog.v1alpha.UIAccessListDefineOwnersEvent
+	(*UIAccessListStartEvent)(nil),                            // 146: prehog.v1alpha.UIAccessListStartEvent
+	(*UIAccessListCustomEvent)(nil),                           // 147: prehog.v1alpha.UIAccessListCustomEvent
+	(*UIAccessListCompleteEvent)(nil),                         // 148: prehog.v1alpha.UIAccessListCompleteEvent
+	(*UIAccessListIntegrateEvent)(nil),                        // 149: prehog.v1alpha.UIAccessListIntegrateEvent
+	(*SubmitEventRequest)(nil),                                // 150: prehog.v1alpha.SubmitEventRequest
+	(*SubmitEventResponse)(nil),                               // 151: prehog.v1alpha.SubmitEventResponse
+	(*SubmitEventsRequest)(nil),                               // 152: prehog.v1alpha.SubmitEventsRequest
+	(*SubmitEventsResponse)(nil),                              // 153: prehog.v1alpha.SubmitEventsResponse
+	(*HelloTeleportRequest)(nil),                              // 154: prehog.v1alpha.HelloTeleportRequest
+	(*HelloTeleportResponse)(nil),                             // 155: prehog.v1alpha.HelloTeleportResponse
+	(*durationpb.Duration)(nil),                               // 156: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),                             // 157: google.protobuf.Timestamp
 }
 var file_prehog_v1alpha_teleport_proto_depIdxs = []int32{
 	0,   // 0: prehog.v1alpha.UserLoginEvent.user_origin:type_name -> prehog.v1alpha.UserOrigin
@@ -13160,7 +13356,7 @@ var file_prehog_v1alpha_teleport_proto_depIdxs = []int32{
 	33,  // 6: prehog.v1alpha.SessionStartEvent.app:type_name -> prehog.v1alpha.SessionStartAppMetadata
 	34,  // 7: prehog.v1alpha.SessionStartEvent.git:type_name -> prehog.v1alpha.SessionStartGitMetadata
 	35,  // 8: prehog.v1alpha.SessionStartEvent.mcp:type_name -> prehog.v1alpha.SessionStartMCPMetadata
-	154, // 9: prehog.v1alpha.UserCertificateIssuedEvent.ttl:type_name -> google.protobuf.Duration
+	156, // 9: prehog.v1alpha.UserCertificateIssuedEvent.ttl:type_name -> google.protobuf.Duration
 	2,   // 10: prehog.v1alpha.SPIFFESVIDIssuedEvent.user_kind:type_name -> prehog.v1alpha.UserKind
 	3,   // 11: prehog.v1alpha.DiscoverResourceMetadata.resource:type_name -> prehog.v1alpha.DiscoverResource
 	4,   // 12: prehog.v1alpha.DiscoverStepStatus.status:type_name -> prehog.v1alpha.DiscoverStatus
@@ -13267,24 +13463,24 @@ var file_prehog_v1alpha_teleport_proto_depIdxs = []int32{
 	16,  // 113: prehog.v1alpha.DiscoveryConfigEvent.action:type_name -> prehog.v1alpha.DiscoveryConfigAction
 	17,  // 114: prehog.v1alpha.AccessListStepStatus.status:type_name -> prehog.v1alpha.AccessListStatus
 	87,  // 115: prehog.v1alpha.UIAccessListDefineAccessEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
-	138, // 116: prehog.v1alpha.UIAccessListDefineAccessEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
+	140, // 116: prehog.v1alpha.UIAccessListDefineAccessEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
 	87,  // 117: prehog.v1alpha.UIAccessListDefineIdentitiesEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
-	138, // 118: prehog.v1alpha.UIAccessListDefineIdentitiesEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
+	140, // 118: prehog.v1alpha.UIAccessListDefineIdentitiesEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
 	87,  // 119: prehog.v1alpha.UIAccessListDefineBasicInfoEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
-	138, // 120: prehog.v1alpha.UIAccessListDefineBasicInfoEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
+	140, // 120: prehog.v1alpha.UIAccessListDefineBasicInfoEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
 	87,  // 121: prehog.v1alpha.UIAccessListDefineMembersEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
-	138, // 122: prehog.v1alpha.UIAccessListDefineMembersEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
+	140, // 122: prehog.v1alpha.UIAccessListDefineMembersEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
 	87,  // 123: prehog.v1alpha.UIAccessListDefineOwnersEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
-	138, // 124: prehog.v1alpha.UIAccessListDefineOwnersEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
+	140, // 124: prehog.v1alpha.UIAccessListDefineOwnersEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
 	87,  // 125: prehog.v1alpha.UIAccessListStartEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
-	138, // 126: prehog.v1alpha.UIAccessListStartEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
+	140, // 126: prehog.v1alpha.UIAccessListStartEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
 	87,  // 127: prehog.v1alpha.UIAccessListCustomEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
-	138, // 128: prehog.v1alpha.UIAccessListCustomEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
+	140, // 128: prehog.v1alpha.UIAccessListCustomEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
 	87,  // 129: prehog.v1alpha.UIAccessListCompleteEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
-	138, // 130: prehog.v1alpha.UIAccessListCompleteEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
+	140, // 130: prehog.v1alpha.UIAccessListCompleteEvent.status:type_name -> prehog.v1alpha.AccessListStepStatus
 	87,  // 131: prehog.v1alpha.UIAccessListIntegrateEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
 	19,  // 132: prehog.v1alpha.UIAccessListIntegrateEvent.integrate:type_name -> prehog.v1alpha.AccessListIntegrate
-	155, // 133: prehog.v1alpha.SubmitEventRequest.timestamp:type_name -> google.protobuf.Timestamp
+	157, // 133: prehog.v1alpha.SubmitEventRequest.timestamp:type_name -> google.protobuf.Timestamp
 	24,  // 134: prehog.v1alpha.SubmitEventRequest.user_login:type_name -> prehog.v1alpha.UserLoginEvent
 	26,  // 135: prehog.v1alpha.SubmitEventRequest.sso_create:type_name -> prehog.v1alpha.SSOCreateEvent
 	27,  // 136: prehog.v1alpha.SubmitEventRequest.resource_create:type_name -> prehog.v1alpha.ResourceCreateEvent
@@ -13352,18 +13548,18 @@ var file_prehog_v1alpha_teleport_proto_depIdxs = []int32{
 	112, // 198: prehog.v1alpha.SubmitEventRequest.desktop_directory_share:type_name -> prehog.v1alpha.DesktopDirectoryShareEvent
 	113, // 199: prehog.v1alpha.SubmitEventRequest.desktop_clipboard_transfer:type_name -> prehog.v1alpha.DesktopClipboardEvent
 	114, // 200: prehog.v1alpha.SubmitEventRequest.tag_execute_query:type_name -> prehog.v1alpha.TAGExecuteQueryEvent
-	122, // 201: prehog.v1alpha.SubmitEventRequest.external_audit_storage_authenticate:type_name -> prehog.v1alpha.ExternalAuditStorageAuthenticateEvent
-	123, // 202: prehog.v1alpha.SubmitEventRequest.security_report_get_result:type_name -> prehog.v1alpha.SecurityReportGetResultEvent
-	124, // 203: prehog.v1alpha.SubmitEventRequest.audit_query_run:type_name -> prehog.v1alpha.AuditQueryRunEvent
-	125, // 204: prehog.v1alpha.SubmitEventRequest.discovery_fetch_event:type_name -> prehog.v1alpha.DiscoveryFetchEvent
+	124, // 201: prehog.v1alpha.SubmitEventRequest.external_audit_storage_authenticate:type_name -> prehog.v1alpha.ExternalAuditStorageAuthenticateEvent
+	125, // 202: prehog.v1alpha.SubmitEventRequest.security_report_get_result:type_name -> prehog.v1alpha.SecurityReportGetResultEvent
+	126, // 203: prehog.v1alpha.SubmitEventRequest.audit_query_run:type_name -> prehog.v1alpha.AuditQueryRunEvent
+	127, // 204: prehog.v1alpha.SubmitEventRequest.discovery_fetch_event:type_name -> prehog.v1alpha.DiscoveryFetchEvent
 	95,  // 205: prehog.v1alpha.SubmitEventRequest.access_list_review_create:type_name -> prehog.v1alpha.AccessListReviewCreateEvent
 	96,  // 206: prehog.v1alpha.SubmitEventRequest.access_list_review_delete:type_name -> prehog.v1alpha.AccessListReviewDeleteEvent
 	97,  // 207: prehog.v1alpha.SubmitEventRequest.access_list_review_compliance:type_name -> prehog.v1alpha.AccessListReviewComplianceEvent
 	25,  // 208: prehog.v1alpha.SubmitEventRequest.mfa_authentication_event:type_name -> prehog.v1alpha.MFAAuthenticationEvent
 	37,  // 209: prehog.v1alpha.SubmitEventRequest.spiffe_svid_issued:type_name -> prehog.v1alpha.SPIFFESVIDIssuedEvent
-	126, // 210: prehog.v1alpha.SubmitEventRequest.okta_access_list_sync:type_name -> prehog.v1alpha.OktaAccessListSyncEvent
-	127, // 211: prehog.v1alpha.SubmitEventRequest.database_user_created:type_name -> prehog.v1alpha.DatabaseUserCreatedEvent
-	128, // 212: prehog.v1alpha.SubmitEventRequest.database_user_permissions_updated:type_name -> prehog.v1alpha.DatabaseUserPermissionsUpdateEvent
+	128, // 210: prehog.v1alpha.SubmitEventRequest.okta_access_list_sync:type_name -> prehog.v1alpha.OktaAccessListSyncEvent
+	129, // 211: prehog.v1alpha.SubmitEventRequest.database_user_created:type_name -> prehog.v1alpha.DatabaseUserCreatedEvent
+	130, // 212: prehog.v1alpha.SubmitEventRequest.database_user_permissions_updated:type_name -> prehog.v1alpha.DatabaseUserPermissionsUpdateEvent
 	57,  // 213: prehog.v1alpha.SubmitEventRequest.ui_discover_create_discovery_config:type_name -> prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent
 	55,  // 214: prehog.v1alpha.SubmitEventRequest.ui_discover_kube_eks_enroll_event:type_name -> prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent
 	66,  // 215: prehog.v1alpha.SubmitEventRequest.ui_discover_create_app_server_event:type_name -> prehog.v1alpha.UIDiscoverCreateAppServerEvent
@@ -13372,43 +13568,45 @@ var file_prehog_v1alpha_teleport_proto_depIdxs = []int32{
 	116, // 218: prehog.v1alpha.SubmitEventRequest.access_graph_secrets_scan_ssh_private_keys:type_name -> prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent
 	118, // 219: prehog.v1alpha.SubmitEventRequest.access_graph_aws_scan:type_name -> prehog.v1alpha.AccessGraphAWSScanEvent
 	119, // 220: prehog.v1alpha.SubmitEventRequest.access_graph_access_path_changed:type_name -> prehog.v1alpha.AccessGraphAccessPathChangedEvent
-	121, // 221: prehog.v1alpha.SubmitEventRequest.access_graph_crown_jewel_create:type_name -> prehog.v1alpha.AccessGraphCrownJewelCreateEvent
+	123, // 221: prehog.v1alpha.SubmitEventRequest.access_graph_crown_jewel_create:type_name -> prehog.v1alpha.AccessGraphCrownJewelCreateEvent
 	120, // 222: prehog.v1alpha.SubmitEventRequest.ui_access_graph_crown_jewel_diff_view:type_name -> prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent
-	129, // 223: prehog.v1alpha.SubmitEventRequest.session_recording_access:type_name -> prehog.v1alpha.SessionRecordingAccessEvent
-	130, // 224: prehog.v1alpha.SubmitEventRequest.user_task_state:type_name -> prehog.v1alpha.UserTaskStateEvent
+	131, // 223: prehog.v1alpha.SubmitEventRequest.session_recording_access:type_name -> prehog.v1alpha.SessionRecordingAccessEvent
+	132, // 224: prehog.v1alpha.SubmitEventRequest.user_task_state:type_name -> prehog.v1alpha.UserTaskStateEvent
 	102, // 225: prehog.v1alpha.SubmitEventRequest.ui_integration_enroll_step_event:type_name -> prehog.v1alpha.UIIntegrationEnrollStepEvent
-	131, // 226: prehog.v1alpha.SubmitEventRequest.access_request_create:type_name -> prehog.v1alpha.AccessRequestCreateEvent
-	132, // 227: prehog.v1alpha.SubmitEventRequest.access_request_review:type_name -> prehog.v1alpha.AccessRequestReviewEvent
+	133, // 226: prehog.v1alpha.SubmitEventRequest.access_request_create:type_name -> prehog.v1alpha.AccessRequestCreateEvent
+	134, // 227: prehog.v1alpha.SubmitEventRequest.access_request_review:type_name -> prehog.v1alpha.AccessRequestReviewEvent
 	103, // 228: prehog.v1alpha.SubmitEventRequest.ui_integration_enroll_section_open_event:type_name -> prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent
 	104, // 229: prehog.v1alpha.SubmitEventRequest.ui_integration_enroll_field_complete_event:type_name -> prehog.v1alpha.UIIntegrationEnrollFieldCompleteEvent
 	105, // 230: prehog.v1alpha.SubmitEventRequest.ui_integration_enroll_code_copy_event:type_name -> prehog.v1alpha.UIIntegrationEnrollCodeCopyEvent
 	106, // 231: prehog.v1alpha.SubmitEventRequest.ui_integration_enroll_link_click_event:type_name -> prehog.v1alpha.UIIntegrationEnrollLinkClickEvent
-	134, // 232: prehog.v1alpha.SubmitEventRequest.session_summary_create_event:type_name -> prehog.v1alpha.SessionSummaryCreateEvent
-	133, // 233: prehog.v1alpha.SubmitEventRequest.session_summary_access_event:type_name -> prehog.v1alpha.SessionSummaryAccessEvent
-	135, // 234: prehog.v1alpha.SubmitEventRequest.discovery_config:type_name -> prehog.v1alpha.DiscoveryConfigEvent
-	136, // 235: prehog.v1alpha.SubmitEventRequest.identity_security_graph_size_event:type_name -> prehog.v1alpha.IdentitySecurityGraphSizeEvent
-	137, // 236: prehog.v1alpha.SubmitEventRequest.identity_security_audit_logs_ingested_event:type_name -> prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent
-	139, // 237: prehog.v1alpha.SubmitEventRequest.ui_access_list_define_access_event:type_name -> prehog.v1alpha.UIAccessListDefineAccessEvent
-	140, // 238: prehog.v1alpha.SubmitEventRequest.ui_access_list_define_identities_event:type_name -> prehog.v1alpha.UIAccessListDefineIdentitiesEvent
-	141, // 239: prehog.v1alpha.SubmitEventRequest.ui_access_list_define_basic_info_event:type_name -> prehog.v1alpha.UIAccessListDefineBasicInfoEvent
-	142, // 240: prehog.v1alpha.SubmitEventRequest.ui_access_list_define_members_event:type_name -> prehog.v1alpha.UIAccessListDefineMembersEvent
-	143, // 241: prehog.v1alpha.SubmitEventRequest.ui_access_list_define_owners_event:type_name -> prehog.v1alpha.UIAccessListDefineOwnersEvent
-	144, // 242: prehog.v1alpha.SubmitEventRequest.ui_access_list_start_event:type_name -> prehog.v1alpha.UIAccessListStartEvent
-	146, // 243: prehog.v1alpha.SubmitEventRequest.ui_access_list_complete_event:type_name -> prehog.v1alpha.UIAccessListCompleteEvent
-	147, // 244: prehog.v1alpha.SubmitEventRequest.ui_access_list_integrate_event:type_name -> prehog.v1alpha.UIAccessListIntegrateEvent
-	145, // 245: prehog.v1alpha.SubmitEventRequest.ui_access_list_custom_event:type_name -> prehog.v1alpha.UIAccessListCustomEvent
-	148, // 246: prehog.v1alpha.SubmitEventsRequest.events:type_name -> prehog.v1alpha.SubmitEventRequest
-	148, // 247: prehog.v1alpha.TeleportReportingService.SubmitEvent:input_type -> prehog.v1alpha.SubmitEventRequest
-	150, // 248: prehog.v1alpha.TeleportReportingService.SubmitEvents:input_type -> prehog.v1alpha.SubmitEventsRequest
-	152, // 249: prehog.v1alpha.TeleportReportingService.HelloTeleport:input_type -> prehog.v1alpha.HelloTeleportRequest
-	149, // 250: prehog.v1alpha.TeleportReportingService.SubmitEvent:output_type -> prehog.v1alpha.SubmitEventResponse
-	151, // 251: prehog.v1alpha.TeleportReportingService.SubmitEvents:output_type -> prehog.v1alpha.SubmitEventsResponse
-	153, // 252: prehog.v1alpha.TeleportReportingService.HelloTeleport:output_type -> prehog.v1alpha.HelloTeleportResponse
-	250, // [250:253] is the sub-list for method output_type
-	247, // [247:250] is the sub-list for method input_type
-	247, // [247:247] is the sub-list for extension type_name
-	247, // [247:247] is the sub-list for extension extendee
-	0,   // [0:247] is the sub-list for field type_name
+	136, // 232: prehog.v1alpha.SubmitEventRequest.session_summary_create_event:type_name -> prehog.v1alpha.SessionSummaryCreateEvent
+	135, // 233: prehog.v1alpha.SubmitEventRequest.session_summary_access_event:type_name -> prehog.v1alpha.SessionSummaryAccessEvent
+	137, // 234: prehog.v1alpha.SubmitEventRequest.discovery_config:type_name -> prehog.v1alpha.DiscoveryConfigEvent
+	138, // 235: prehog.v1alpha.SubmitEventRequest.identity_security_graph_size_event:type_name -> prehog.v1alpha.IdentitySecurityGraphSizeEvent
+	139, // 236: prehog.v1alpha.SubmitEventRequest.identity_security_audit_logs_ingested_event:type_name -> prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent
+	141, // 237: prehog.v1alpha.SubmitEventRequest.ui_access_list_define_access_event:type_name -> prehog.v1alpha.UIAccessListDefineAccessEvent
+	142, // 238: prehog.v1alpha.SubmitEventRequest.ui_access_list_define_identities_event:type_name -> prehog.v1alpha.UIAccessListDefineIdentitiesEvent
+	143, // 239: prehog.v1alpha.SubmitEventRequest.ui_access_list_define_basic_info_event:type_name -> prehog.v1alpha.UIAccessListDefineBasicInfoEvent
+	144, // 240: prehog.v1alpha.SubmitEventRequest.ui_access_list_define_members_event:type_name -> prehog.v1alpha.UIAccessListDefineMembersEvent
+	145, // 241: prehog.v1alpha.SubmitEventRequest.ui_access_list_define_owners_event:type_name -> prehog.v1alpha.UIAccessListDefineOwnersEvent
+	146, // 242: prehog.v1alpha.SubmitEventRequest.ui_access_list_start_event:type_name -> prehog.v1alpha.UIAccessListStartEvent
+	148, // 243: prehog.v1alpha.SubmitEventRequest.ui_access_list_complete_event:type_name -> prehog.v1alpha.UIAccessListCompleteEvent
+	149, // 244: prehog.v1alpha.SubmitEventRequest.ui_access_list_integrate_event:type_name -> prehog.v1alpha.UIAccessListIntegrateEvent
+	147, // 245: prehog.v1alpha.SubmitEventRequest.ui_access_list_custom_event:type_name -> prehog.v1alpha.UIAccessListCustomEvent
+	121, // 246: prehog.v1alpha.SubmitEventRequest.ui_page_view:type_name -> prehog.v1alpha.UIPageViewEvent
+	122, // 247: prehog.v1alpha.SubmitEventRequest.ui_usage_reporting_alert_cta_click:type_name -> prehog.v1alpha.UIUsageReportingAlertCtaClickEvent
+	150, // 248: prehog.v1alpha.SubmitEventsRequest.events:type_name -> prehog.v1alpha.SubmitEventRequest
+	150, // 249: prehog.v1alpha.TeleportReportingService.SubmitEvent:input_type -> prehog.v1alpha.SubmitEventRequest
+	152, // 250: prehog.v1alpha.TeleportReportingService.SubmitEvents:input_type -> prehog.v1alpha.SubmitEventsRequest
+	154, // 251: prehog.v1alpha.TeleportReportingService.HelloTeleport:input_type -> prehog.v1alpha.HelloTeleportRequest
+	151, // 252: prehog.v1alpha.TeleportReportingService.SubmitEvent:output_type -> prehog.v1alpha.SubmitEventResponse
+	153, // 253: prehog.v1alpha.TeleportReportingService.SubmitEvents:output_type -> prehog.v1alpha.SubmitEventsResponse
+	155, // 254: prehog.v1alpha.TeleportReportingService.HelloTeleport:output_type -> prehog.v1alpha.HelloTeleportResponse
+	252, // [252:255] is the sub-list for method output_type
+	249, // [249:252] is the sub-list for method input_type
+	249, // [249:249] is the sub-list for extension type_name
+	249, // [249:249] is the sub-list for extension extendee
+	0,   // [0:249] is the sub-list for field type_name
 }
 
 func init() { file_prehog_v1alpha_teleport_proto_init() }
@@ -13416,7 +13614,7 @@ func file_prehog_v1alpha_teleport_proto_init() {
 	if File_prehog_v1alpha_teleport_proto != nil {
 		return
 	}
-	file_prehog_v1alpha_teleport_proto_msgTypes[124].OneofWrappers = []any{
+	file_prehog_v1alpha_teleport_proto_msgTypes[126].OneofWrappers = []any{
 		(*SubmitEventRequest_UserLogin)(nil),
 		(*SubmitEventRequest_SsoCreate)(nil),
 		(*SubmitEventRequest_ResourceCreate)(nil),
@@ -13529,6 +13727,8 @@ func file_prehog_v1alpha_teleport_proto_init() {
 		(*SubmitEventRequest_UiAccessListCompleteEvent)(nil),
 		(*SubmitEventRequest_UiAccessListIntegrateEvent)(nil),
 		(*SubmitEventRequest_UiAccessListCustomEvent)(nil),
+		(*SubmitEventRequest_UiPageView)(nil),
+		(*SubmitEventRequest_UiUsageReportingAlertCtaClick)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -13536,7 +13736,7 @@ func file_prehog_v1alpha_teleport_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_prehog_v1alpha_teleport_proto_rawDesc), len(file_prehog_v1alpha_teleport_proto_rawDesc)),
 			NumEnums:      24,
-			NumMessages:   130,
+			NumMessages:   132,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

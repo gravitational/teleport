@@ -659,6 +659,39 @@ func (u *UICallToActionClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submi
 	}
 }
 
+// UIPageViewEvent is a UI event emitted when a user views a page.
+type UIPageViewEvent prehogv1a.UIPageViewEvent
+
+func (u *UIPageViewEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiPageView{
+			UiPageView: &prehogv1a.UIPageViewEvent{
+				UserName:    a.AnonymizeString(u.UserName),
+				Path:        u.Path,
+				UtmSource:   u.UtmSource,
+				UtmCampaign: u.UtmCampaign,
+			},
+		},
+	}
+}
+
+// UIUsageReportingAlertCtaClickEvent is a UI event emitted when a user clicks the CTA
+// button in a usage reporting alert.
+type UIUsageReportingAlertCtaClickEvent prehogv1a.UIUsageReportingAlertCtaClickEvent
+
+func (u *UIUsageReportingAlertCtaClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiUsageReportingAlertCtaClick{
+			UiUsageReportingAlertCtaClick: &prehogv1a.UIUsageReportingAlertCtaClickEvent{
+				UserName:    a.AnonymizeString(u.UserName),
+				Alert:       u.Alert,
+				UtmSource:   u.UtmSource,
+				UtmCampaign: u.UtmCampaign,
+			},
+		},
+	}
+}
+
 // UserCertificateIssuedEvent is an event emitted when a certificate has been
 // issued, used to track the duration and restriction.
 type UserCertificateIssuedEvent prehogv1a.UserCertificateIssuedEvent
@@ -1689,6 +1722,22 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		return &UICallToActionClickEvent{
 			UserName: userMD.Username,
 			Cta:      prehogv1a.CTA(e.UiCallToActionClickEvent.Cta),
+		}, nil
+
+	case *usageeventsv1.UsageEventOneOf_UiPageViewEvent:
+		return &UIPageViewEvent{
+			UserName:    userMD.Username,
+			Path:        e.UiPageViewEvent.Path,
+			UtmSource:   e.UiPageViewEvent.UtmSource,
+			UtmCampaign: e.UiPageViewEvent.UtmCampaign,
+		}, nil
+
+	case *usageeventsv1.UsageEventOneOf_UiUsageReportingAlertCtaClickEvent:
+		return &UIUsageReportingAlertCtaClickEvent{
+			UserName:    userMD.Username,
+			Alert:       e.UiUsageReportingAlertCtaClickEvent.Alert,
+			UtmSource:   e.UiUsageReportingAlertCtaClickEvent.UtmSource,
+			UtmCampaign: e.UiUsageReportingAlertCtaClickEvent.UtmCampaign,
 		}, nil
 
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent:
