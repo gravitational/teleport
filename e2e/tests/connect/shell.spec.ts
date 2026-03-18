@@ -41,23 +41,18 @@ test('shell session', async ({ app }) => {
 
   const terminal = page.locator('.xterm');
   const terminalInput = page.getByRole('textbox', { name: 'Terminal input' });
-  await expect(terminalInput).toBeVisible({ timeout: 10_000 });
+  await expect(terminalInput).toBeVisible();
 
   await terminalInput.pressSequentially(
     `echo $TELEPORT_PROXY $TELEPORT_CLUSTER $TELEPORT_AUTH_SERVER $TELEPORT_TOOLS_VERSION\n`
   );
   await expect(terminal).toContainText(
-    `${proxyHost} ${clusterName} ${proxyHost} off`,
-    {
-      timeout: 10_000,
-    }
+    `${proxyHost} ${clusterName} ${proxyHost} off`
   );
 
   // Verify that TELEPORT_HOME points to the tsh home directory managed by Connect.
   await terminalInput.pressSequentially('echo $TELEPORT_HOME\n');
-  await expect(terminal).toContainText('/home/.tsh', {
-    timeout: 10_000,
-  });
+  await expect(terminal).toContainText('/home/.tsh');
 
   // Verify that changing directory updates the tab title.
   await using tmpDir = await fs.mkdtempDisposable(
@@ -70,24 +65,20 @@ test('shell session', async ({ app }) => {
     '[role="tab"][data-doc-kind="doc.terminal_shell"]'
   );
   await expect(terminalTab).toHaveAccessibleName(
-    new RegExp(`${realTmpDir} · ${clusterName}$`),
-    { timeout: 10_000 }
+    new RegExp(`${realTmpDir} · ${clusterName}$`)
   );
 
   // Verify that `exit` (code 0) closes the tab.
   await terminalInput.pressSequentially('exit\n');
-  await expect(terminalTab).toHaveCount(0, { timeout: 10_000 });
+  await expect(terminalTab).toHaveCount(0);
 
   // Open a new terminal to test `exit 1`.
   await page.getByTitle('Additional Actions').click();
   await page.getByText('Open new terminal').click();
-  await expect(terminalInput).toBeVisible({ timeout: 10_000 });
+  await expect(terminalInput).toBeVisible();
 
   // Verify that `exit 1` does not close the tab but the shell exits
   // (the tab title loses the cwd, leaving just the cluster name or shell name + cluster name).
   await terminalInput.pressSequentially('exit 1\n');
-  await expect(terminalTab).toHaveAccessibleName(
-    new RegExp(`${clusterName}$`),
-    { timeout: 10_000 }
-  );
+  await expect(terminalTab).toHaveAccessibleName(new RegExp(`${clusterName}$`));
 });
