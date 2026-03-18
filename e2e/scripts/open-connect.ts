@@ -45,5 +45,5 @@ await login(launched.page);
 info('Teleport Connect opened and authenticated');
 info('close the app window or press Ctrl+C to exit');
 
-await new Promise<void>(resolve => launched.app.once('close', resolve));
+await new Promise<void>(resolve => launched.electronApp.once('close', resolve));
 info('Teleport Connect closed');
