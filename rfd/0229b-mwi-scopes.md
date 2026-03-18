@@ -246,7 +246,7 @@ spec:
   roles:
     - Bot
   join_method: token
-  mode: bot
+  usage_mode: bot
 ```
 
 Now, Alice can create a Scoped Role and assign it to the Bot using a Scoped
