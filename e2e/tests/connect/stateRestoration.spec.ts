@@ -1,0 +1,209 @@
+/**
+ * Teleport
+ * Copyright (C) 2026 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
+import {
+  expect,
+  initializeDataDir,
+  launchApp,
+  login,
+  test,
+  withDefaultAppConfig,
+} from '@gravitational/e2e/helpers/connect';
+
+// These tests manage the app lifecycle manually (multiple launches/closes), so they do not use the
+// `app` fixture.
+test.describe('state restoration from disk', () => {
+  let tempPath: string;
+
+  test.beforeEach(async () => {
+    tempPath = await fs.mkdtemp(path.join(os.tmpdir(), 'connect-e2e-state-'));
+    await initializeDataDir(tempPath, withDefaultAppConfig({}));
+  });
+
+  test.afterEach(async () => {
+    await fs.rm(tempPath, { recursive: true, force: true });
+  });
+
+  test('relaunch restores tabs', async () => {
+    // Login and create extra tabs.
+    {
+      await using app = await launchApp(tempPath);
+      const { page } = app;
+      await login(page);
+
+      // Open a terminal tab so there are 2 tabs (cluster + terminal).
+      await page.getByTitle('Additional Actions').click();
+      await page.getByText('Open new terminal').click();
+      await expect(
+        page.getByRole('textbox', { name: 'Terminal input' })
+      ).toBeVisible();
+    }
+
+    // Relaunch – the app should offer to restore the terminal tab.
+    {
+      await using app = await launchApp(tempPath);
+      const { page } = app;
+      await expect(page.getByText('Reopen previous session')).toBeVisible();
+      await page.getByRole('button', { name: 'Reopen' }).click();
+
+      // Both tabs should be restored.
+      await expect(
+        page.locator('[role="tab"][data-doc-kind="doc.cluster"]')
+      ).toBeVisible();
+      await expect(
+        page.locator('[role="tab"][data-doc-kind="doc.terminal_shell"]')
+      ).toBeVisible();
+    }
+  });
+
+  test('missing state files do not crash the app', async () => {
+    const userDataDir = path.join(tempPath, 'userData');
+    const appStatePath = path.join(userDataDir, 'app_state.json');
+    const tshHomePath = path.join(tempPath, 'home', '.tsh');
+
+    // Login to create state files on disk.
+    {
+      await using app = await launchApp(tempPath);
+      await login(app.page);
+    }
+
+    // Remove app_state.json (keep tsh dir) – the app should not crash.
+    {
+      await fs.rm(appStatePath);
+      await using app = await launchApp(tempPath);
+
+      // Without app_state.json, the app has no saved rootClusterUri, so no workspace is activated
+      // and the cluster connect panel prompts the user to pick one.
+      await expect(
+        app.page.getByText('Log in to a cluster to use Teleport Connect.')
+      ).toBeVisible();
+    }
+
+    // Remove the tsh home directory – the app should not crash.
+    {
+      await fs.rm(tshHomePath, { recursive: true });
+      await using app = await launchApp(tempPath);
+
+      // With no tsh dir, no cluster can be connected.
+      await expect(app.page.getByText('Connect a Cluster')).toBeVisible();
+    }
+  });
+
+  test('logout clears previous tabs', async () => {
+    await using app = await launchApp(tempPath);
+    const { page } = app;
+    await login(page);
+
+    // Open a terminal tab.
+    await page.getByTitle('Additional Actions').click();
+    await page.getByText('Open new terminal').click();
+    await expect(
+      page.getByRole('textbox', { name: 'Terminal input' })
+    ).toBeVisible();
+
+    // Logout.
+    await page.getByTitle(/Open Profiles/).click();
+    await page.getByTitle(/Log out/).click();
+    await expect(
+      page.getByText('Are you sure you want to log out?')
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Log Out', exact: true }).click();
+    await expect(page.getByText('Connect a Cluster')).toBeVisible();
+
+    // Login to the same cluster again.
+    await login(page);
+
+    // No restore dialog should appear – logout clears previous tabs.
+    // Only the default cluster tab should be open.
+    const clusterTab = page.locator(
+      '[role="tab"][data-doc-kind="doc.cluster"]'
+    );
+    await expect(clusterTab).toHaveCount(1);
+    await expect(
+      page.locator('[role="tab"][data-doc-kind="doc.terminal_shell"]')
+    ).toHaveCount(0);
+  });
+
+  test('identical workspace shape does not trigger restore dialog', async () => {
+    // Login, then replace the default cluster tab with a new one (same shape).
+    {
+      await using app = await launchApp(tempPath);
+      const { page } = app;
+      await login(page);
+
+      const clusterTab = page.locator(
+        '[role="tab"][data-doc-kind="doc.cluster"]'
+      );
+      await expect(clusterTab).toBeVisible();
+
+      // Close the existing cluster tab.
+      await clusterTab.locator('.close').click();
+      // Open a new cluster tab via the "+" button.
+      await page.getByTitle(/New Tab/).click();
+      await expect(clusterTab).toBeVisible();
+    }
+
+    // Relaunch – no restore dialog since the workspace has the same shape.
+    {
+      await using app = await launchApp(tempPath);
+      const { page } = app;
+
+      const clusterTab = page.locator(
+        '[role="tab"][data-doc-kind="doc.cluster"]'
+      );
+      await expect(clusterTab).toHaveCount(1);
+      await expect(page.getByText('Reopen previous session')).not.toBeVisible();
+    }
+  });
+
+  test('window remembers size and position after restart', async () => {
+    // Launch the app and resize the window.
+    {
+      await using app = await launchApp(tempPath);
+      const { page } = app;
+      await expect(page.getByText('Connect a Cluster')).toBeVisible();
+
+      const targetBounds = { x: 100, y: 100, width: 900, height: 600 };
+      await app.electronApp.evaluate(({ BrowserWindow }, bounds) => {
+        const win = BrowserWindow.getAllWindows()[0];
+        win.setBounds(bounds);
+      }, targetBounds);
+    }
+
+    // Relaunch – the window should restore to the same size & position.
+    {
+      await using app = await launchApp(tempPath);
+
+      // Wait for the app to fully initialize before reading bounds and closing, otherwise the
+      // app may close before the renderer acks the initial cluster store message, causing a
+      // "Failed to receive message acknowledgement from the renderer" error dialog.
+      await expect(app.page.getByText('Connect a Cluster')).toBeVisible();
+
+      const bounds = await app.electronApp.evaluate(({ BrowserWindow }) => {
+        const win = BrowserWindow.getAllWindows()[0];
+        return win.getNormalBounds();
+      });
+
+      expect(bounds).toEqual({ x: 100, y: 100, width: 900, height: 600 });
+    }
+  });
+});
