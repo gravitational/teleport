@@ -75,11 +75,7 @@ test.describe('state restoration from disk', () => {
     }
   });
 
-  test('missing state files do not crash the app', async () => {
-    const userDataDir = path.join(tempPath, 'userData');
-    const appStatePath = path.join(userDataDir, 'app_state.json');
-    const tshHomePath = path.join(tempPath, 'home', '.tsh');
-
+  test('missing app_state.json does not crash the app', async () => {
     // Login to create state files on disk.
     {
       await using app = await launchApp(tempPath);
@@ -87,8 +83,10 @@ test.describe('state restoration from disk', () => {
     }
 
     // Remove app_state.json (keep tsh dir) – the app should not crash.
+    const appStatePath = path.join(tempPath, 'userData', 'app_state.json');
+    await fs.rm(appStatePath);
+
     {
-      await fs.rm(appStatePath);
       await using app = await launchApp(tempPath);
 
       // Without app_state.json, the app has no saved rootClusterUri, so no workspace is activated
@@ -97,14 +95,29 @@ test.describe('state restoration from disk', () => {
         app.page.getByText('Log in to a cluster to use Teleport Connect.')
       ).toBeVisible();
     }
+  });
 
-    // Remove the tsh home directory – the app should not crash.
+  test('missing tsh home directory does not crash the app', async () => {
+    // Login to create state files on disk.
     {
-      await fs.rm(tshHomePath, { recursive: true });
       await using app = await launchApp(tempPath);
+      await login(app.page);
+    }
+
+    // Remove the tsh home directory (keep app_state.json) – the app should not crash.
+    const tshHomePath = path.join(tempPath, 'home', '.tsh');
+    await fs.rm(tshHomePath, { recursive: true });
+
+    {
+      await using app = await launchApp(tempPath);
+      const { page } = app;
 
       // With no tsh dir, no cluster can be connected.
-      await expect(app.page.getByText('Connect a Cluster')).toBeVisible();
+      await expect(page.getByText('Connect a Cluster')).toBeVisible();
+      // app_state.json still references the old cluster, so setActiveWorkspace should show an error.
+      await expect(
+        page.getByText('Could not set cluster as active')
+      ).toBeVisible();
     }
   });
 
