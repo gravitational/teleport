@@ -54,14 +54,6 @@ export async function launchApp(homeDir: string) {
     const page = await app.firstWindow();
     await page.waitForLoadState('domcontentloaded');
 
-    const usageData = page.getByText('Anonymous usage data');
-    await usageData.isVisible();
-    const declineUsageData = page.getByRole('button', {
-      name: 'Decline',
-      exact: true,
-    });
-    await declineUsageData.click();
-
     return { app, page, [Symbol.asyncDispose]: async () => app.close() };
   } catch (err) {
     await app.close();
@@ -87,20 +79,35 @@ export async function login(page: Page): Promise<void> {
 export interface App {
   electronApp: ElectronApplication;
   page: Page;
+  appConfigPath: string;
 }
 
 export const test = base.extend<{
   autoLogin: boolean;
+  /**
+   * Sets app config before launching the app.
+   *
+   * Use `withDefaultAppConfig` for normal config overrides.
+   */
+  appConfig: AppConfigSetup;
   app: App;
 }>({
   autoLogin: [false, { option: true }],
-  // Playwright fixture callbacks receive `use` to provide the fixture value:
-  // https://playwright.dev/docs/test-fixtures
-  app: async ({ autoLogin }, use, testInfo) => {
+  appConfig: [withDefaultAppConfig({}), { option: true }],
+  app: async ({ autoLogin, appConfig }, use, testInfo) => {
     await using temp = await fs.mkdtempDisposable(
       path.join(os.tmpdir(), 'connect-e2e-test-')
     );
-    await setupConnectConfig(temp.path);
+
+    const userDataDir = path.join(temp.path, 'userData');
+    await fs.mkdir(userDataDir, { recursive: true });
+
+    const appConfigPath = path.join(userDataDir, 'app_config.json');
+    await applyAppConfig({
+      appConfigPath,
+      action: appConfig,
+    });
+
     await using launchedApp = await launchApp(temp.path);
     if (autoLogin) {
       await login(launchedApp.page);
@@ -108,6 +115,7 @@ export const test = base.extend<{
     await use({
       electronApp: launchedApp.app,
       page: launchedApp.page,
+      appConfigPath,
     });
 
     if (testInfo.status !== testInfo.expectedStatus) {
@@ -116,24 +124,65 @@ export const test = base.extend<{
   },
 });
 
-// setupConnectConfig writes the Connect app config to the data directory,
-// configuring the terminal to use a wrapper shell that disables history
-// and rc files so that tests don't pollute the user's shell history.
-async function setupConnectConfig(dataDir: string) {
+export type AppConfigSetup =
+  | {
+      kind: 'appConfigPatch';
+      patch: Record<string, unknown>;
+    }
+  | {
+      kind: 'appConfigRaw';
+      rawConfig: string;
+    };
+
+/**
+ * Writes the Connect app config to the data directory,
+ * configuring the terminal to use a wrapper shell that disables history
+ * and rc files so that tests don't pollute the user's shell history.
+ */
+export function withDefaultAppConfig(
+  patch: Record<string, unknown>
+): AppConfigSetup {
+  return {
+    kind: 'appConfigPatch',
+    patch,
+  };
+}
+
+export function withRawAppConfig(rawConfig: string): AppConfigSetup {
+  return {
+    kind: 'appConfigRaw',
+    rawConfig,
+  };
+}
+
+async function applyAppConfig({
+  appConfigPath,
+  action,
+}: {
+  appConfigPath: string;
+  action: AppConfigSetup;
+}) {
   const shellWrapper = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
     '../scripts/connect-e2e-shell.sh'
   );
+  const defaultAppConfig: Record<string, unknown> = {
+    'usageReporting.enabled': false,
+    'terminal.shell': 'custom',
+    'terminal.customShell': shellWrapper,
+  };
 
-  const userDataDir = path.join(dataDir, 'userData');
-  await fs.mkdir(userDataDir, { recursive: true });
-  await fs.writeFile(
-    path.join(userDataDir, 'app_config.json'),
-    JSON.stringify({
-      'terminal.shell': 'custom',
-      'terminal.customShell': shellWrapper,
-    })
-  );
+  switch (action.kind) {
+    case 'appConfigPatch':
+      await fs.writeFile(
+        appConfigPath,
+        JSON.stringify({ ...defaultAppConfig, ...action.patch }),
+        'utf8'
+      );
+      break;
+    case 'appConfigRaw':
+      await fs.writeFile(appConfigPath, action.rawConfig, 'utf8');
+  }
 }
 
 const logFiles = ['main.log', 'renderer.log', 'shared.log', 'tshd.log'];
