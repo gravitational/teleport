@@ -54,8 +54,8 @@ type SessionRecordingServiceClient interface {
 	//
 	// Basic interaction flow:
 	//  1. Client sends SearchSessionSummariesRequest{search_params} with filter
-	//     criteria, max_summaries, and an optional batch_token to resume a previous
-	//     search.
+	//     criteria, max_summaries, and an optional resume_token to continue a
+	//     previous search from a known checkpoint.
 	//  2. Server streams zero or more SearchSessionSummariesResponse{summary}
 	//     messages (one summary per message to respect gRPC size limits), then
 	//     sends exactly one SearchSessionSummariesResponse{batch_complete}.
@@ -70,9 +70,11 @@ type SessionRecordingServiceClient interface {
 	//
 	// Resuming across streams:
 	//
-	//	The batch_complete.next_batch_token cursor can be stored and later passed
-	//	as search_params.batch_token in a new stream to continue from the same
-	//	position without re-fetching already-seen summaries.
+	//	Every summary message carries a checkpoint_token representing the cursor
+	//	position immediately after that summary. Storing the token from the last
+	//	successfully processed SummaryAndCheckpoint and passing it as
+	//	search_params.resume_token in a new stream resumes the search from
+	//	exactly that position, skipping already-processed summaries.
 	//
 	// Each SessionSummary includes the raw session_end_event, which the Auth
 	// server uses to evaluate the requesting user's visibility before forwarding
@@ -129,8 +131,8 @@ type SessionRecordingServiceServer interface {
 	//
 	// Basic interaction flow:
 	//  1. Client sends SearchSessionSummariesRequest{search_params} with filter
-	//     criteria, max_summaries, and an optional batch_token to resume a previous
-	//     search.
+	//     criteria, max_summaries, and an optional resume_token to continue a
+	//     previous search from a known checkpoint.
 	//  2. Server streams zero or more SearchSessionSummariesResponse{summary}
 	//     messages (one summary per message to respect gRPC size limits), then
 	//     sends exactly one SearchSessionSummariesResponse{batch_complete}.
@@ -145,9 +147,11 @@ type SessionRecordingServiceServer interface {
 	//
 	// Resuming across streams:
 	//
-	//	The batch_complete.next_batch_token cursor can be stored and later passed
-	//	as search_params.batch_token in a new stream to continue from the same
-	//	position without re-fetching already-seen summaries.
+	//	Every summary message carries a checkpoint_token representing the cursor
+	//	position immediately after that summary. Storing the token from the last
+	//	successfully processed SummaryAndCheckpoint and passing it as
+	//	search_params.resume_token in a new stream resumes the search from
+	//	exactly that position, skipping already-processed summaries.
 	//
 	// Each SessionSummary includes the raw session_end_event, which the Auth
 	// server uses to evaluate the requesting user's visibility before forwarding

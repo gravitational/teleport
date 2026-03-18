@@ -184,13 +184,14 @@ type SearchSessionSummariesParams struct {
 	// should include in each batch. The server may return fewer.
 	// A value of 0 lets the server choose a default batch size.
 	MaxSummaries uint32 `protobuf:"varint,13,opt,name=max_summaries,json=maxSummaries,proto3" json:"max_summaries,omitempty"`
-	// batch_token resumes a previous search from a known cursor position.
-	// Set this to the next_batch_token returned in a prior BatchComplete message
-	// to continue fetching results from where an earlier stream left off.
+	// resume_token resumes a previous search from a known per-summary cursor.
+	// Set this to the checkpoint_token from the last successfully processed
+	// SummaryAndCheckpoint to continue the search from exactly that position in a
+	// new stream without re-fetching already-seen summaries.
 	// The token encodes the complete search state of the original request;
-	// all other filter fields in this message are ignored when batch_token is set.
+	// all other filter fields in this message are ignored when resume_token is set.
 	// An empty value starts a new search from the beginning of the result set.
-	BatchToken    string `protobuf:"bytes,14,opt,name=batch_token,json=batchToken,proto3" json:"batch_token,omitempty"`
+	ResumeToken   string `protobuf:"bytes,14,opt,name=resume_token,json=resumeToken,proto3" json:"resume_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -316,22 +317,29 @@ func (x *SearchSessionSummariesParams) GetMaxSummaries() uint32 {
 	return 0
 }
 
-func (x *SearchSessionSummariesParams) GetBatchToken() string {
+func (x *SearchSessionSummariesParams) GetResumeToken() string {
 	if x != nil {
-		return x.BatchToken
+		return x.ResumeToken
 	}
 	return ""
 }
 
 // EmbeddedQuery pairs a free-text query with its pre-computed vector embedding,
 // produced by the Auth server before forwarding to the access graph.
+// model_name must match EmbeddingChunk.model_name for a meaningful similarity
+// comparison; the access graph skips stored chunks whose model differs.
 type EmbeddedQuery struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// text is the original query string.
 	Text string `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
 	// embeddings is the vector representation of text, typically a
 	// high-dimensional float array produced by an embedding model.
-	Embeddings    []float32 `protobuf:"fixed32,2,rep,packed,name=embeddings,proto3" json:"embeddings,omitempty"`
+	Embeddings []float32 `protobuf:"fixed32,2,rep,packed,name=embeddings,proto3" json:"embeddings,omitempty"`
+	// model_name identifies the embedding model that produced embeddings
+	// (e.g. "text-embedding-3-small"). The access graph uses this to skip stored
+	// EmbeddingChunks produced by a different model, preventing silent ranking
+	// against incompatible vectors after a retrieval model rotation.
+	ModelName     string `protobuf:"bytes,3,opt,name=model_name,json=modelName,proto3" json:"model_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -378,6 +386,13 @@ func (x *EmbeddedQuery) GetEmbeddings() []float32 {
 		return x.Embeddings
 	}
 	return nil
+}
+
+func (x *EmbeddedQuery) GetModelName() string {
+	if x != nil {
+		return x.ModelName
+	}
+	return ""
 }
 
 // ResourceProperties holds session-kind-specific properties for a session.
@@ -650,19 +665,25 @@ func (x *DatabaseProperties) GetDatabaseName() string {
 //
 // Per-batch receive loop (pseudo-Go):
 //
-//	var buf []SessionSummary
+//	var (
+//	  buf            []SessionSummary
+//	  lastCheckpoint string
+//	)
 //	for {
 //	  msg := stream.Recv()
 //	  switch p := msg.Payload.(type) {
-//	  case *SearchSessionSummariesResponse_Summary:       buf = append(buf, p.Summary)
+//	  case *SearchSessionSummariesResponse_Summary:
+//	    lastCheckpoint = p.Summary.CheckpointToken  // persist for cross-stream resume
+//	    buf = append(buf, p.Summary.Summary)
 //	  case *SearchSessionSummariesResponse_BatchComplete:
 //	    process(buf)
+//	    buf = buf[:0]
 //	    if p.BatchComplete.HasMore {
 //	      stream.Send(&FetchMore{
-//	         max_summaries: next_max_summaries,
+//	        max_summaries: next_max_summaries,
 //	      })  // advance to next batch of up to next_max_summaries
 //	    } else {
-//	      stream.CloseSend()         // search exhausted
+//	      stream.CloseSend()  // search exhausted
 //	    }
 //	  }
 //	}
@@ -714,7 +735,7 @@ func (x *SearchSessionSummariesResponse) GetPayload() isSearchSessionSummariesRe
 	return nil
 }
 
-func (x *SearchSessionSummariesResponse) GetSummary() *SessionSummary {
+func (x *SearchSessionSummariesResponse) GetSummary() *SummaryAndCheckpoint {
 	if x != nil {
 		if x, ok := x.Payload.(*SearchSessionSummariesResponse_Summary); ok {
 			return x.Summary
@@ -737,21 +758,85 @@ type isSearchSessionSummariesResponse_Payload interface {
 }
 
 type SearchSessionSummariesResponse_Summary struct {
-	// summary carries one summary. Zero or more of these
-	// messages may arrive before the batch_complete message.
-	Summary *SessionSummary `protobuf:"bytes,1,opt,name=summary,proto3,oneof"`
+	// summary carries one session summary together with a checkpoint cursor.
+	// Zero or more of these messages arrive before each batch_complete.
+	Summary *SummaryAndCheckpoint `protobuf:"bytes,1,opt,name=summary,proto3,oneof"`
 }
 
 type SearchSessionSummariesResponse_BatchComplete_ struct {
 	// batch_complete signals that the server has finished sending all summaries
-	// for the current batch and is now waiting for a FetchMore message or
-	// for the client to close the stream.
+	// for the current batch and is waiting for a FetchMore message or for the
+	// client to close the stream.
 	BatchComplete *SearchSessionSummariesResponse_BatchComplete `protobuf:"bytes,2,opt,name=batch_complete,json=batchComplete,proto3,oneof"`
 }
 
 func (*SearchSessionSummariesResponse_Summary) isSearchSessionSummariesResponse_Payload() {}
 
 func (*SearchSessionSummariesResponse_BatchComplete_) isSearchSessionSummariesResponse_Payload() {}
+
+// SummaryAndCheckpoint pairs a session summary with a per-summary cursor that
+// the client can use to resume the search from exactly this position in a new
+// stream. Storing the checkpoint_token from the last successfully processed
+// message and passing it as resume_token in a new SearchSessionSummariesParams
+// skips all already-processed summaries without re-fetching them.
+type SummaryAndCheckpoint struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// summary is the session summary for this result.
+	Summary *SessionSummary `protobuf:"bytes,1,opt,name=summary,proto3" json:"summary,omitempty"`
+	// checkpoint_token is an opaque cursor pointing to the position immediately
+	// after this summary in the overall result set. Pass this value as
+	// resume_token in a future SearchSessionSummariesParams to resume the search
+	// from this point in a new stream. The server maintains cursor state for the
+	// lifetime of the current stream, so this token is only needed for
+	// cross-stream resumption.
+	CheckpointToken string `protobuf:"bytes,2,opt,name=checkpoint_token,json=checkpointToken,proto3" json:"checkpoint_token,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *SummaryAndCheckpoint) Reset() {
+	*x = SummaryAndCheckpoint{}
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SummaryAndCheckpoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SummaryAndCheckpoint) ProtoMessage() {}
+
+func (x *SummaryAndCheckpoint) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SummaryAndCheckpoint.ProtoReflect.Descriptor instead.
+func (*SummaryAndCheckpoint) Descriptor() ([]byte, []int) {
+	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SummaryAndCheckpoint) GetSummary() *SessionSummary {
+	if x != nil {
+		return x.Summary
+	}
+	return nil
+}
+
+func (x *SummaryAndCheckpoint) GetCheckpointToken() string {
+	if x != nil {
+		return x.CheckpointToken
+	}
+	return ""
+}
 
 // SessionSummary contains the metadata and raw session-end event for a
 // single recorded session, as stored in the access graph.
@@ -807,7 +892,7 @@ type SessionSummary struct {
 
 func (x *SessionSummary) Reset() {
 	*x = SessionSummary{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[8]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -819,7 +904,7 @@ func (x *SessionSummary) String() string {
 func (*SessionSummary) ProtoMessage() {}
 
 func (x *SessionSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[8]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -832,7 +917,7 @@ func (x *SessionSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionSummary.ProtoReflect.Descriptor instead.
 func (*SessionSummary) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{8}
+	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *SessionSummary) GetSessionId() string {
@@ -1009,7 +1094,7 @@ type StoreSessionSummaryRequest struct {
 
 func (x *StoreSessionSummaryRequest) Reset() {
 	*x = StoreSessionSummaryRequest{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[9]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1021,7 +1106,7 @@ func (x *StoreSessionSummaryRequest) String() string {
 func (*StoreSessionSummaryRequest) ProtoMessage() {}
 
 func (x *StoreSessionSummaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[9]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1034,7 +1119,7 @@ func (x *StoreSessionSummaryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoreSessionSummaryRequest.ProtoReflect.Descriptor instead.
 func (*StoreSessionSummaryRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{9}
+	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *StoreSessionSummaryRequest) GetSessionId() string {
@@ -1167,6 +1252,13 @@ func (x *StoreSessionSummaryRequest) GetEmbeddings() []*EmbeddingChunk {
 // session summary, along with metadata about the chunk's position and content.
 // Session summaries are split into chunks to generate more precise embeddings
 // for similarity search.
+//
+// model_name is stored alongside the vector so that the access graph can
+// reject or skip comparisons against query embeddings produced by a different
+// model (e.g. after an admin rotates the retrieval model via
+// UpdateRetrievalModel / UpsertRetrievalModel). Without this field, a model
+// rotation would cause silent ranking against incompatible embeddings for all
+// pre-change sessions.
 type EmbeddingChunk struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// values is the vector representation of the text chunk, typically a
@@ -1176,14 +1268,18 @@ type EmbeddingChunk struct {
 	Chunk string `protobuf:"bytes,2,opt,name=chunk,proto3" json:"chunk,omitempty"`
 	// chunk_index is the zero-based position of this chunk within the
 	// full session summary.
-	ChunkIndex    uint32 `protobuf:"varint,3,opt,name=chunk_index,json=chunkIndex,proto3" json:"chunk_index,omitempty"`
+	ChunkIndex uint32 `protobuf:"varint,3,opt,name=chunk_index,json=chunkIndex,proto3" json:"chunk_index,omitempty"`
+	// model_name identifies the embedding model that produced values
+	// (e.g. "text-embedding-3-small"). Used to detect incompatible stored
+	// embeddings after a retrieval model rotation.
+	ModelName     string `protobuf:"bytes,4,opt,name=model_name,json=modelName,proto3" json:"model_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *EmbeddingChunk) Reset() {
 	*x = EmbeddingChunk{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[10]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1195,7 +1291,7 @@ func (x *EmbeddingChunk) String() string {
 func (*EmbeddingChunk) ProtoMessage() {}
 
 func (x *EmbeddingChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[10]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1208,7 +1304,7 @@ func (x *EmbeddingChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EmbeddingChunk.ProtoReflect.Descriptor instead.
 func (*EmbeddingChunk) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{10}
+	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *EmbeddingChunk) GetValues() []float32 {
@@ -1232,6 +1328,13 @@ func (x *EmbeddingChunk) GetChunkIndex() uint32 {
 	return 0
 }
 
+func (x *EmbeddingChunk) GetModelName() string {
+	if x != nil {
+		return x.ModelName
+	}
+	return ""
+}
+
 // StoreSessionSummaryResponse is the response returned after successfully
 // storing a session summary. Re-storing an existing session_id is idempotent;
 // the server overwrites the previous entry.
@@ -1243,7 +1346,7 @@ type StoreSessionSummaryResponse struct {
 
 func (x *StoreSessionSummaryResponse) Reset() {
 	*x = StoreSessionSummaryResponse{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[11]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1255,7 +1358,7 @@ func (x *StoreSessionSummaryResponse) String() string {
 func (*StoreSessionSummaryResponse) ProtoMessage() {}
 
 func (x *StoreSessionSummaryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[11]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1268,7 +1371,7 @@ func (x *StoreSessionSummaryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoreSessionSummaryResponse.ProtoReflect.Descriptor instead.
 func (*StoreSessionSummaryResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{11}
+	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{12}
 }
 
 // FetchMore is sent by the client to request the next batch of results
@@ -1285,7 +1388,7 @@ type SearchSessionSummariesRequest_FetchMore struct {
 
 func (x *SearchSessionSummariesRequest_FetchMore) Reset() {
 	*x = SearchSessionSummariesRequest_FetchMore{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[12]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1297,7 +1400,7 @@ func (x *SearchSessionSummariesRequest_FetchMore) String() string {
 func (*SearchSessionSummariesRequest_FetchMore) ProtoMessage() {}
 
 func (x *SearchSessionSummariesRequest_FetchMore) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[12]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1326,21 +1429,14 @@ type SearchSessionSummariesResponse_BatchComplete struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// has_more is true when at least one additional batch is available.
 	// If false, this was the last batch and the client should close the stream.
-	HasMore bool `protobuf:"varint,1,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
-	// next_batch_token is an opaque cursor pointing to the start of the next batch.
-	// Only set when has_more is true. The client may pass this value as
-	// batch_token in a future SearchSessionSummariesParams to resume the search
-	// in a new stream without re-fetching already-seen summaries.
-	// No need to send this token back to the server in the current stream; the server
-	// maintains the cursor state for the duration of the stream.
-	NextBatchToken string `protobuf:"bytes,2,opt,name=next_batch_token,json=nextBatchToken,proto3" json:"next_batch_token,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	HasMore       bool `protobuf:"varint,1,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SearchSessionSummariesResponse_BatchComplete) Reset() {
 	*x = SearchSessionSummariesResponse_BatchComplete{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[14]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1352,7 +1448,7 @@ func (x *SearchSessionSummariesResponse_BatchComplete) String() string {
 func (*SearchSessionSummariesResponse_BatchComplete) ProtoMessage() {}
 
 func (x *SearchSessionSummariesResponse_BatchComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[14]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1375,13 +1471,6 @@ func (x *SearchSessionSummariesResponse_BatchComplete) GetHasMore() bool {
 	return false
 }
 
-func (x *SearchSessionSummariesResponse_BatchComplete) GetNextBatchToken() string {
-	if x != nil {
-		return x.NextBatchToken
-	}
-	return ""
-}
-
 var File_accessgraph_v1_session_search_proto protoreflect.FileDescriptor
 
 const file_accessgraph_v1_session_search_proto_rawDesc = "" +
@@ -1393,7 +1482,7 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"fetch_more\x18\x02 \x01(\v27.accessgraph.v1.SearchSessionSummariesRequest.FetchMoreH\x00R\tfetchMore\x1a0\n" +
 	"\tFetchMore\x12#\n" +
 	"\rmax_summaries\x18\x01 \x01(\rR\fmaxSummariesB\t\n" +
-	"\apayload\"\xe7\x06\n" +
+	"\apayload\"\xe9\x06\n" +
 	"\x1cSearchSessionSummariesParams\x129\n" +
 	"\n" +
 	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
@@ -1410,20 +1499,21 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	" \x01(\v2\".accessgraph.v1.ResourcePropertiesR\x12resourceProperties\x12=\n" +
 	"\bseverity\x18\v \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\bseverity\x12D\n" +
 	"\x0esearch_queries\x18\f \x03(\v2\x1d.accessgraph.v1.EmbeddedQueryR\rsearchQueries\x12#\n" +
-	"\rmax_summaries\x18\r \x01(\rR\fmaxSummaries\x12\x1f\n" +
-	"\vbatch_token\x18\x0e \x01(\tR\n" +
-	"batchToken\x1aA\n" +
+	"\rmax_summaries\x18\r \x01(\rR\fmaxSummaries\x12!\n" +
+	"\fresume_token\x18\x0e \x01(\tR\vresumeToken\x1aA\n" +
 	"\x13ResourceLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\v\n" +
 	"\t_usernameB\x10\n" +
 	"\x0e_resource_kindB\x10\n" +
-	"\x0e_resource_name\"C\n" +
+	"\x0e_resource_name\"b\n" +
 	"\rEmbeddedQuery\x12\x12\n" +
 	"\x04text\x18\x01 \x01(\tR\x04text\x12\x1e\n" +
 	"\n" +
 	"embeddings\x18\x02 \x03(\x02R\n" +
-	"embeddings\"\xd9\x01\n" +
+	"embeddings\x12\x1d\n" +
+	"\n" +
+	"model_name\x18\x03 \x01(\tR\tmodelName\"\xd9\x01\n" +
 	"\x12ResourceProperties\x121\n" +
 	"\x03ssh\x18\x01 \x01(\v2\x1d.accessgraph.v1.SSHPropertiesH\x00R\x03ssh\x12F\n" +
 	"\n" +
@@ -1444,14 +1534,16 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"\t_pod_name\"P\n" +
 	"\x12DatabaseProperties\x12(\n" +
 	"\rdatabase_name\x18\x01 \x01(\tH\x00R\fdatabaseName\x88\x01\x01B\x10\n" +
-	"\x0e_database_name\"\xa4\x02\n" +
-	"\x1eSearchSessionSummariesResponse\x12:\n" +
-	"\asummary\x18\x01 \x01(\v2\x1e.accessgraph.v1.SessionSummaryH\x00R\asummary\x12e\n" +
-	"\x0ebatch_complete\x18\x02 \x01(\v2<.accessgraph.v1.SearchSessionSummariesResponse.BatchCompleteH\x00R\rbatchComplete\x1aT\n" +
+	"\x0e_database_name\"\x80\x02\n" +
+	"\x1eSearchSessionSummariesResponse\x12@\n" +
+	"\asummary\x18\x01 \x01(\v2$.accessgraph.v1.SummaryAndCheckpointH\x00R\asummary\x12e\n" +
+	"\x0ebatch_complete\x18\x02 \x01(\v2<.accessgraph.v1.SearchSessionSummariesResponse.BatchCompleteH\x00R\rbatchComplete\x1a*\n" +
 	"\rBatchComplete\x12\x19\n" +
-	"\bhas_more\x18\x01 \x01(\bR\ahasMore\x12(\n" +
-	"\x10next_batch_token\x18\x02 \x01(\tR\x0enextBatchTokenB\t\n" +
-	"\apayload\"\x85\a\n" +
+	"\bhas_more\x18\x01 \x01(\bR\ahasMoreB\t\n" +
+	"\apayload\"{\n" +
+	"\x14SummaryAndCheckpoint\x128\n" +
+	"\asummary\x18\x01 \x01(\v2\x1e.accessgraph.v1.SessionSummaryR\asummary\x12)\n" +
+	"\x10checkpoint_token\x18\x02 \x01(\tR\x0fcheckpointToken\"\x85\a\n" +
 	"\x0eSessionSummary\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x12\n" +
@@ -1508,12 +1600,14 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"embeddings\x1aA\n" +
 	"\x13ResourceLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"_\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"~\n" +
 	"\x0eEmbeddingChunk\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\x02R\x06values\x12\x14\n" +
 	"\x05chunk\x18\x02 \x01(\tR\x05chunk\x12\x1f\n" +
 	"\vchunk_index\x18\x03 \x01(\rR\n" +
-	"chunkIndex\"\x1d\n" +
+	"chunkIndex\x12\x1d\n" +
+	"\n" +
+	"model_name\x18\x04 \x01(\tR\tmodelName\"\x1d\n" +
 	"\x1bStoreSessionSummaryResponse2\x86\x02\n" +
 	"\x17SessionRecordingService\x12{\n" +
 	"\x16SearchSessionSummaries\x12-.accessgraph.v1.SearchSessionSummariesRequest\x1a..accessgraph.v1.SearchSessionSummariesResponse(\x010\x01\x12n\n" +
@@ -1531,7 +1625,7 @@ func file_accessgraph_v1_session_search_proto_rawDescGZIP() []byte {
 	return file_accessgraph_v1_session_search_proto_rawDescData
 }
 
-var file_accessgraph_v1_session_search_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_accessgraph_v1_session_search_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_accessgraph_v1_session_search_proto_goTypes = []any{
 	(*SearchSessionSummariesRequest)(nil),           // 0: accessgraph.v1.SearchSessionSummariesRequest
 	(*SearchSessionSummariesParams)(nil),            // 1: accessgraph.v1.SearchSessionSummariesParams
@@ -1541,57 +1635,59 @@ var file_accessgraph_v1_session_search_proto_goTypes = []any{
 	(*KubernetesProperties)(nil),                    // 5: accessgraph.v1.KubernetesProperties
 	(*DatabaseProperties)(nil),                      // 6: accessgraph.v1.DatabaseProperties
 	(*SearchSessionSummariesResponse)(nil),          // 7: accessgraph.v1.SearchSessionSummariesResponse
-	(*SessionSummary)(nil),                          // 8: accessgraph.v1.SessionSummary
-	(*StoreSessionSummaryRequest)(nil),              // 9: accessgraph.v1.StoreSessionSummaryRequest
-	(*EmbeddingChunk)(nil),                          // 10: accessgraph.v1.EmbeddingChunk
-	(*StoreSessionSummaryResponse)(nil),             // 11: accessgraph.v1.StoreSessionSummaryResponse
-	(*SearchSessionSummariesRequest_FetchMore)(nil), // 12: accessgraph.v1.SearchSessionSummariesRequest.FetchMore
-	nil, // 13: accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
-	(*SearchSessionSummariesResponse_BatchComplete)(nil), // 14: accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
-	nil,                           // 15: accessgraph.v1.SessionSummary.ResourceLabelsEntry
-	nil,                           // 16: accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
-	(*timestamppb.Timestamp)(nil), // 17: google.protobuf.Timestamp
-	(v1.RiskLevel)(0),             // 18: teleport.summarizer.v1.RiskLevel
-	(*structpb.Struct)(nil),       // 19: google.protobuf.Struct
+	(*SummaryAndCheckpoint)(nil),                    // 8: accessgraph.v1.SummaryAndCheckpoint
+	(*SessionSummary)(nil),                          // 9: accessgraph.v1.SessionSummary
+	(*StoreSessionSummaryRequest)(nil),              // 10: accessgraph.v1.StoreSessionSummaryRequest
+	(*EmbeddingChunk)(nil),                          // 11: accessgraph.v1.EmbeddingChunk
+	(*StoreSessionSummaryResponse)(nil),             // 12: accessgraph.v1.StoreSessionSummaryResponse
+	(*SearchSessionSummariesRequest_FetchMore)(nil), // 13: accessgraph.v1.SearchSessionSummariesRequest.FetchMore
+	nil, // 14: accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
+	(*SearchSessionSummariesResponse_BatchComplete)(nil), // 15: accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
+	nil,                           // 16: accessgraph.v1.SessionSummary.ResourceLabelsEntry
+	nil,                           // 17: accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
+	(*timestamppb.Timestamp)(nil), // 18: google.protobuf.Timestamp
+	(v1.RiskLevel)(0),             // 19: teleport.summarizer.v1.RiskLevel
+	(*structpb.Struct)(nil),       // 20: google.protobuf.Struct
 }
 var file_accessgraph_v1_session_search_proto_depIdxs = []int32{
 	1,  // 0: accessgraph.v1.SearchSessionSummariesRequest.search_params:type_name -> accessgraph.v1.SearchSessionSummariesParams
-	12, // 1: accessgraph.v1.SearchSessionSummariesRequest.fetch_more:type_name -> accessgraph.v1.SearchSessionSummariesRequest.FetchMore
-	17, // 2: accessgraph.v1.SearchSessionSummariesParams.start_time:type_name -> google.protobuf.Timestamp
-	17, // 3: accessgraph.v1.SearchSessionSummariesParams.end_time:type_name -> google.protobuf.Timestamp
-	13, // 4: accessgraph.v1.SearchSessionSummariesParams.resource_labels:type_name -> accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
+	13, // 1: accessgraph.v1.SearchSessionSummariesRequest.fetch_more:type_name -> accessgraph.v1.SearchSessionSummariesRequest.FetchMore
+	18, // 2: accessgraph.v1.SearchSessionSummariesParams.start_time:type_name -> google.protobuf.Timestamp
+	18, // 3: accessgraph.v1.SearchSessionSummariesParams.end_time:type_name -> google.protobuf.Timestamp
+	14, // 4: accessgraph.v1.SearchSessionSummariesParams.resource_labels:type_name -> accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
 	3,  // 5: accessgraph.v1.SearchSessionSummariesParams.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	18, // 6: accessgraph.v1.SearchSessionSummariesParams.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	19, // 6: accessgraph.v1.SearchSessionSummariesParams.severity:type_name -> teleport.summarizer.v1.RiskLevel
 	2,  // 7: accessgraph.v1.SearchSessionSummariesParams.search_queries:type_name -> accessgraph.v1.EmbeddedQuery
 	4,  // 8: accessgraph.v1.ResourceProperties.ssh:type_name -> accessgraph.v1.SSHProperties
 	5,  // 9: accessgraph.v1.ResourceProperties.kubernetes:type_name -> accessgraph.v1.KubernetesProperties
 	6,  // 10: accessgraph.v1.ResourceProperties.database:type_name -> accessgraph.v1.DatabaseProperties
-	8,  // 11: accessgraph.v1.SearchSessionSummariesResponse.summary:type_name -> accessgraph.v1.SessionSummary
-	14, // 12: accessgraph.v1.SearchSessionSummariesResponse.batch_complete:type_name -> accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
-	17, // 13: accessgraph.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
-	19, // 14: accessgraph.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
-	15, // 15: accessgraph.v1.SessionSummary.resource_labels:type_name -> accessgraph.v1.SessionSummary.ResourceLabelsEntry
-	3,  // 16: accessgraph.v1.SessionSummary.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	18, // 17: accessgraph.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	19, // 18: accessgraph.v1.SessionSummary.session_end_event:type_name -> google.protobuf.Struct
-	17, // 19: accessgraph.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
-	17, // 20: accessgraph.v1.StoreSessionSummaryRequest.session_start:type_name -> google.protobuf.Timestamp
-	17, // 21: accessgraph.v1.StoreSessionSummaryRequest.session_end:type_name -> google.protobuf.Timestamp
-	19, // 22: accessgraph.v1.StoreSessionSummaryRequest.user_traits:type_name -> google.protobuf.Struct
-	16, // 23: accessgraph.v1.StoreSessionSummaryRequest.resource_labels:type_name -> accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
-	3,  // 24: accessgraph.v1.StoreSessionSummaryRequest.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	18, // 25: accessgraph.v1.StoreSessionSummaryRequest.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	19, // 26: accessgraph.v1.StoreSessionSummaryRequest.session_end_event:type_name -> google.protobuf.Struct
-	10, // 27: accessgraph.v1.StoreSessionSummaryRequest.embeddings:type_name -> accessgraph.v1.EmbeddingChunk
-	0,  // 28: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:input_type -> accessgraph.v1.SearchSessionSummariesRequest
-	9,  // 29: accessgraph.v1.SessionRecordingService.StoreSessionSummary:input_type -> accessgraph.v1.StoreSessionSummaryRequest
-	7,  // 30: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:output_type -> accessgraph.v1.SearchSessionSummariesResponse
-	11, // 31: accessgraph.v1.SessionRecordingService.StoreSessionSummary:output_type -> accessgraph.v1.StoreSessionSummaryResponse
-	30, // [30:32] is the sub-list for method output_type
-	28, // [28:30] is the sub-list for method input_type
-	28, // [28:28] is the sub-list for extension type_name
-	28, // [28:28] is the sub-list for extension extendee
-	0,  // [0:28] is the sub-list for field type_name
+	8,  // 11: accessgraph.v1.SearchSessionSummariesResponse.summary:type_name -> accessgraph.v1.SummaryAndCheckpoint
+	15, // 12: accessgraph.v1.SearchSessionSummariesResponse.batch_complete:type_name -> accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
+	9,  // 13: accessgraph.v1.SummaryAndCheckpoint.summary:type_name -> accessgraph.v1.SessionSummary
+	18, // 14: accessgraph.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
+	20, // 15: accessgraph.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
+	16, // 16: accessgraph.v1.SessionSummary.resource_labels:type_name -> accessgraph.v1.SessionSummary.ResourceLabelsEntry
+	3,  // 17: accessgraph.v1.SessionSummary.resource_properties:type_name -> accessgraph.v1.ResourceProperties
+	19, // 18: accessgraph.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	20, // 19: accessgraph.v1.SessionSummary.session_end_event:type_name -> google.protobuf.Struct
+	18, // 20: accessgraph.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
+	18, // 21: accessgraph.v1.StoreSessionSummaryRequest.session_start:type_name -> google.protobuf.Timestamp
+	18, // 22: accessgraph.v1.StoreSessionSummaryRequest.session_end:type_name -> google.protobuf.Timestamp
+	20, // 23: accessgraph.v1.StoreSessionSummaryRequest.user_traits:type_name -> google.protobuf.Struct
+	17, // 24: accessgraph.v1.StoreSessionSummaryRequest.resource_labels:type_name -> accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
+	3,  // 25: accessgraph.v1.StoreSessionSummaryRequest.resource_properties:type_name -> accessgraph.v1.ResourceProperties
+	19, // 26: accessgraph.v1.StoreSessionSummaryRequest.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	20, // 27: accessgraph.v1.StoreSessionSummaryRequest.session_end_event:type_name -> google.protobuf.Struct
+	11, // 28: accessgraph.v1.StoreSessionSummaryRequest.embeddings:type_name -> accessgraph.v1.EmbeddingChunk
+	0,  // 29: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:input_type -> accessgraph.v1.SearchSessionSummariesRequest
+	10, // 30: accessgraph.v1.SessionRecordingService.StoreSessionSummary:input_type -> accessgraph.v1.StoreSessionSummaryRequest
+	7,  // 31: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:output_type -> accessgraph.v1.SearchSessionSummariesResponse
+	12, // 32: accessgraph.v1.SessionRecordingService.StoreSessionSummary:output_type -> accessgraph.v1.StoreSessionSummaryResponse
+	31, // [31:33] is the sub-list for method output_type
+	29, // [29:31] is the sub-list for method input_type
+	29, // [29:29] is the sub-list for extension type_name
+	29, // [29:29] is the sub-list for extension extendee
+	0,  // [0:29] is the sub-list for field type_name
 }
 
 func init() { file_accessgraph_v1_session_search_proto_init() }
@@ -1622,7 +1718,7 @@ func file_accessgraph_v1_session_search_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_accessgraph_v1_session_search_proto_rawDesc), len(file_accessgraph_v1_session_search_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   17,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

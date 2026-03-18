@@ -36,8 +36,8 @@ service SessionRecordingService {
   //
   // Basic interaction flow:
   //   1. Client sends SearchSessionSummariesRequest{search_params} with filter
-  //      criteria, max_summaries, and an optional batch_token to resume a previous
-  //      search.
+  //      criteria, max_summaries, and an optional resume_token to continue a
+  //      previous search from a known checkpoint.
   //   2. Server streams zero or more SearchSessionSummariesResponse{summary}
   //      messages (one summary per message to respect gRPC size limits), then
   //      sends exactly one SearchSessionSummariesResponse{batch_complete}.
@@ -51,9 +51,11 @@ service SessionRecordingService {
   // this order is stable across batches.
   //
   // Resuming across streams:
-  //   The batch_complete.next_batch_token cursor can be stored and later passed
-  //   as search_params.batch_token in a new stream to continue from the same
-  //   position without re-fetching already-seen summaries.
+  //   Every summary message carries a checkpoint_token representing the cursor
+  //   position immediately after that summary. Storing the token from the last
+  //   successfully processed SummaryAndCheckpoint and passing it as
+  //   search_params.resume_token in a new stream resumes the search from
+  //   exactly that position, skipping already-processed summaries.
   //
   // Each SessionSummary includes the raw session_end_event, which the Auth
   // server uses to evaluate the requesting user's visibility before forwarding
@@ -153,23 +155,31 @@ message SearchSessionSummariesParams {
   // A value of 0 lets the server choose a default batch size.
   uint32 max_summaries = 13;
 
-  // batch_token resumes a previous search from a known cursor position.
-  // Set this to the next_batch_token returned in a prior BatchComplete message
-  // to continue fetching results from where an earlier stream left off.
+  // resume_token resumes a previous search from a known per-summary cursor.
+  // Set this to the checkpoint_token from the last successfully processed
+  // SummaryAndCheckpoint to continue the search from exactly that position in a
+  // new stream without re-fetching already-seen summaries.
   // The token encodes the complete search state of the original request;
-  // all other filter fields in this message are ignored when batch_token is set.
+  // all other filter fields in this message are ignored when resume_token is set.
   // An empty value starts a new search from the beginning of the result set.
-  string batch_token = 14;
+  string resume_token = 14;
 }
 
 // EmbeddedQuery pairs a free-text query with its pre-computed vector embedding,
 // produced by the Auth server before forwarding to the access graph.
+// model_name must match EmbeddingChunk.model_name for a meaningful similarity
+// comparison; the access graph skips stored chunks whose model differs.
 message EmbeddedQuery {
   // text is the original query string.
   string text = 1;
   // embeddings is the vector representation of text, typically a
   // high-dimensional float array produced by an embedding model.
   repeated float embeddings = 2;
+  // model_name identifies the embedding model that produced embeddings
+  // (e.g. "text-embedding-3-small"). The access graph uses this to skip stored
+  // EmbeddingChunks produced by a different model, preventing silent ranking
+  // against incompatible vectors after a retrieval model rotation.
+  string model_name = 3;
 }
 
 // ResourceProperties holds session-kind-specific properties for a session.
@@ -217,19 +227,25 @@ message DatabaseProperties {
 // batch_complete message.
 //
 // Per-batch receive loop (pseudo-Go):
-//   var buf []SessionSummary
+//   var (
+//     buf            []SessionSummary
+//     lastCheckpoint string
+//   )
 //   for {
 //     msg := stream.Recv()
 //     switch p := msg.Payload.(type) {
-//     case *SearchSessionSummariesResponse_Summary:       buf = append(buf, p.Summary)
+//     case *SearchSessionSummariesResponse_Summary:
+//       lastCheckpoint = p.Summary.CheckpointToken  // persist for cross-stream resume
+//       buf = append(buf, p.Summary.Summary)
 //     case *SearchSessionSummariesResponse_BatchComplete:
 //       process(buf)
+//       buf = buf[:0]
 //       if p.BatchComplete.HasMore {
 //         stream.Send(&FetchMore{
-//            max_summaries: next_max_summaries,
+//           max_summaries: next_max_summaries,
 //         })  // advance to next batch of up to next_max_summaries
 //       } else {
-//         stream.CloseSend()         // search exhausted
+//         stream.CloseSend()  // search exhausted
 //       }
 //     }
 //   }
@@ -240,25 +256,35 @@ message SearchSessionSummariesResponse {
     // has_more is true when at least one additional batch is available.
     // If false, this was the last batch and the client should close the stream.
     bool has_more = 1;
-
-    // next_batch_token is an opaque cursor pointing to the start of the next batch.
-    // Only set when has_more is true. The client may pass this value as
-    // batch_token in a future SearchSessionSummariesParams to resume the search
-    // in a new stream without re-fetching already-seen summaries.
-    // No need to send this token back to the server in the current stream; the server
-    // maintains the cursor state for the duration of the stream.
-    string next_batch_token = 2;
   }
   oneof payload {
-    // summary carries one summary. Zero or more of these
-    // messages may arrive before the batch_complete message.
-    SessionSummary summary = 1;
+    // summary carries one session summary together with a checkpoint cursor.
+    // Zero or more of these messages arrive before each batch_complete.
+    SummaryAndCheckpoint summary = 1;
 
     // batch_complete signals that the server has finished sending all summaries
-    // for the current batch and is now waiting for a FetchMore message or
-    // for the client to close the stream.
+    // for the current batch and is waiting for a FetchMore message or for the
+    // client to close the stream.
     BatchComplete batch_complete = 2;
   }
+}
+
+// SummaryAndCheckpoint pairs a session summary with a per-summary cursor that
+// the client can use to resume the search from exactly this position in a new
+// stream. Storing the checkpoint_token from the last successfully processed
+// message and passing it as resume_token in a new SearchSessionSummariesParams
+// skips all already-processed summaries without re-fetching them.
+message SummaryAndCheckpoint {
+  // summary is the session summary for this result.
+  SessionSummary summary = 1;
+
+  // checkpoint_token is an opaque cursor pointing to the position immediately
+  // after this summary in the overall result set. Pass this value as
+  // resume_token in a future SearchSessionSummariesParams to resume the search
+  // from this point in a new stream. The server maintains cursor state for the
+  // lifetime of the current stream, so this token is only needed for
+  // cross-stream resumption.
+  string checkpoint_token = 2;
 }
 
 // SessionSummary contains the metadata and raw session-end event for a
@@ -397,6 +423,13 @@ message StoreSessionSummaryRequest {
 // session summary, along with metadata about the chunk's position and content.
 // Session summaries are split into chunks to generate more precise embeddings
 // for similarity search.
+//
+// model_name is stored alongside the vector so that the access graph can
+// reject or skip comparisons against query embeddings produced by a different
+// model (e.g. after an admin rotates the retrieval model via
+// UpdateRetrievalModel / UpsertRetrievalModel). Without this field, a model
+// rotation would cause silent ranking against incompatible embeddings for all
+// pre-change sessions.
 message EmbeddingChunk {
   // values is the vector representation of the text chunk, typically a
   // high-dimensional float array produced by an embedding model.
@@ -408,6 +441,11 @@ message EmbeddingChunk {
   // chunk_index is the zero-based position of this chunk within the
   // full session summary.
   uint32 chunk_index = 3;
+
+  // model_name identifies the embedding model that produced values
+  // (e.g. "text-embedding-3-small"). Used to detect incompatible stored
+  // embeddings after a retrieval model rotation.
+  string model_name = 4;
 }
 
 // StoreSessionSummaryResponse is the response returned after successfully
