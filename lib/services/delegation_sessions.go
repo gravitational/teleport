@@ -58,18 +58,19 @@ func ValidateDelegationSession(p *delegationv1.DelegationSession) error {
 		return trace.BadParameter("spec.resources: at least one resource is required")
 	}
 
-	var hasWildcard bool
+	var hasWildcard, hasExplicit bool
 	for idx, spec := range p.GetSpec().GetResources() {
 		if err := ValidateDelegationResourceSpec(spec); err != nil {
 			return trace.BadParameter("spec.resources[%d]: invalid resource spec: %v", idx, err)
 		}
-
-		isWildcard := spec.GetKind() == types.Wildcard
-		hasWildcard = hasWildcard || isWildcard
-
-		if hasWildcard && !isWildcard {
-			return trace.BadParameter("spec.resources: wildcard is mutually exclusive with explicit resources")
+		if spec.GetKind() == types.Wildcard {
+			hasWildcard = true
+		} else {
+			hasExplicit = true
 		}
+	}
+	if hasWildcard && hasExplicit {
+		return trace.BadParameter("spec.resources: wildcard is mutually exclusive with explicit resources")
 	}
 
 	if len(p.GetSpec().GetAuthorizedUsers()) == 0 {
