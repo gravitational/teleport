@@ -64,7 +64,7 @@ to the public key with a certificate authority's signature.
 
 ![SSH certs](../../../img/architecture/ssh-cert@2x.svg)
 
-OpenSSH certificate contain metadata used to authenticate users and hosts:
+OpenSSH certificates contain metadata used to authenticate users and hosts:
 
 - List of principals (identities) this certificate belongs to.
 - Signature of the certificate authority who issued it.
@@ -116,7 +116,7 @@ within a cluster. To join services to the cluster and receive certificates, admi
 Unlike users and services, internal services receive long-lived certificates.
 
 To renew these certificates, admins should use certificate authority rotation, the process of invalidating all
-previously-issued certificates for nodes or users regardless of expiry and issuing a new ones,
+previously-issued certificates for nodes or users regardless of expiry and issuing new ones,
 using a new certificate authority.
 
 Take a look at the [Certificate Rotation Guide](../../zero-trust-access/management/security/ca-rotation.mdx) to
