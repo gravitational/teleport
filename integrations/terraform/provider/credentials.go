@@ -528,6 +528,9 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 			Gitlab: onboarding.GitlabOnboardingConfig{
 				TokenEnvVarName: gitlabIDTokenEnvVar,
 			},
+			Kubernetes: onboarding.KubernetesOnboardingConfig{
+				TokenPath: config.KubernetesTokenPath.Value,
+			},
 		},
 		CredentialLifetime: bot.CredentialLifetime{
 			TTL:             time.Hour,
