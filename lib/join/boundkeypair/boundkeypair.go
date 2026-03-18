@@ -1022,7 +1022,7 @@ func HandleBoundKeypairJoin(
 				return nil, trace.AccessDenied(errMsg)
 			}
 
-			if spec.Onboarding.MustRegisterBefore != nil {
+			if spec.Onboarding.MustRegisterBefore != nil && !spec.Onboarding.MustRegisterBefore.IsZero() {
 				if params.Clock.Now().After(*spec.Onboarding.MustRegisterBefore) {
 					log.WarnContext(
 						ctx,
