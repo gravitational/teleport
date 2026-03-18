@@ -437,9 +437,18 @@ func (t *Token) GetAWSIIDTTL() types.Duration {
 }
 
 // GetIntegration returns the Integration field which is used to provide
-// credentials that will be used when validating the AWS Organization if required by an IAM Token.
+// cloud credentials when validating cloud join tokens that require API calls to
+// check the allow rules, e.g., AWS organization rules or Azure wildcard
+// subscription rules.
 func (t *Token) GetIntegration() string {
-	return t.scoped.GetSpec().GetAws().GetIntegration()
+	switch t.GetJoinMethod() {
+	case types.JoinMethodIAM:
+		return t.scoped.GetSpec().GetAws().GetIntegration()
+	case types.JoinMethodAzure:
+		return t.scoped.GetSpec().GetAzure().GetIntegration()
+	default:
+		return ""
+	}
 }
 
 // GetGCPRules returns the GCP-specific configuration for this token.

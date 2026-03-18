@@ -38,6 +38,7 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/joinutils"
@@ -129,6 +130,15 @@ type AzureVerifyTokenFunc func(ctx context.Context, rawIDToken string) (*AccessT
 // given subscription authenticated with a given static token credential.
 type VMClientGetter func(subscriptionID string, token *azure.StaticCredential) (azure.VirtualMachinesClient, error)
 
+// SubscriptionClient is an Azure subscriptions client.
+type SubscriptionClient interface {
+	// ListSubscriptionIDs lists all subscription IDs using the Azure Subscription API.
+	ListSubscriptionIDs(ctx context.Context) ([]string, error)
+}
+
+// SubscriptionClientGetter returns an Azure subscription client.
+type SubscriptionClientGetter func(ctx context.Context, integration string) (azure.SubscriptionClient, error)
+
 // AzureJoinConfig holds configurable options for Azure joining.
 type AzureJoinConfig struct {
 	// CertificateAuthorities, if set, overrides the root certificate
@@ -142,6 +152,9 @@ type AzureJoinConfig struct {
 	// fetch the intermediate CA which issued the attested data document
 	// signing certificate.
 	IssuerHTTPClient utils.HTTPDoClient
+	// GetAzureClients returns [AzureClients] for the given integration name.
+	// If the integration name is the empty string, then ambient credentials will be used instead.
+	GetSubscriptionClient SubscriptionClientGetter
 }
 
 func azureVerifyFuncFromOIDCVerifier(clientID string) AzureVerifyTokenFunc {
@@ -164,6 +177,10 @@ func azureVerifyFuncFromOIDCVerifier(clientID string) AzureVerifyTokenFunc {
 }
 
 func (cfg *AzureJoinConfig) checkAndSetDefaults() error {
+	if cfg.GetSubscriptionClient == nil {
+		return trace.BadParameter("GetSubscriptionClient is required")
+	}
+
 	if cfg.Verify == nil {
 		cfg.Verify = azureVerifyFuncFromOIDCVerifier(AzureAccessTokenAudience)
 	}
@@ -404,9 +421,45 @@ func claimsToIdentifiers(tokenClaims *AccessTokenClaims) (subscriptionID, resour
 	return "", "", trace.BadParameter("unexpected resource type: %q", resourceID.ResourceType.Type)
 }
 
-func checkAzureAllowRules(vmID string, attrs *workloadidentityv1pb.JoinAttrsAzure, token provision.Token) error {
-	for _, rule := range token.GetAzure().Allow {
-		if rule.Subscription != attrs.Subscription {
+func checkAzureAllowRules(
+	ctx context.Context,
+	vmID string,
+	attrs *workloadidentityv1pb.JoinAttrsAzure,
+	token provision.Token,
+	subscriptionClientGetter SubscriptionClientGetter,
+	logger *slog.Logger,
+) error {
+	rules := token.GetAzure().Allow
+	var checkedWildcard bool
+	var wildcardMatched bool
+	for _, rule := range rules {
+		if rule.Subscription == types.Wildcard {
+			if !checkedWildcard {
+				// only check wildcard subscription once, even if it appears in
+				// multiple rules
+				checkedWildcard = true
+				subClient, err := subscriptionClientGetter(ctx, token.GetIntegration())
+				if err != nil {
+					logger.WarnContext(ctx, "Failed to get Azure subscription client, unable to expand wildcard Azure subscription in join token",
+						"error", err,
+						"token_name", token.GetSafeName(),
+					)
+					continue
+				}
+				subscriptions, err := subClient.ListSubscriptionIDs(ctx)
+				if err != nil {
+					logger.WarnContext(ctx, "Failed to list Azure subscriptions, unable to expand wildcard Azure subscription in join token",
+						"error", err,
+						"token_name", token.GetSafeName(),
+					)
+					continue
+				}
+				wildcardMatched = slices.Contains(subscriptions, attrs.Subscription)
+			}
+			if !wildcardMatched {
+				continue
+			}
+		} else if rule.Subscription != attrs.Subscription {
 			continue
 		}
 		if !azureResourceGroupIsAllowed(rule.ResourceGroups, attrs.ResourceGroup) {
@@ -466,13 +519,12 @@ type CheckAzureRequestParams struct {
 }
 
 func (p *CheckAzureRequestParams) checkAndSetDefaults() error {
-	if p.AzureJoinConfig == nil {
-		p.AzureJoinConfig = &AzureJoinConfig{}
-	}
 	if p.Clock == nil {
 		p.Clock = clockwork.NewRealClock()
 	}
 	switch {
+	case p.AzureJoinConfig == nil:
+		return trace.BadParameter("AzureJoinConfig is required")
 	case p.Token == nil:
 		return trace.BadParameter("Token is required")
 	case len(p.Challenge) == 0:
@@ -510,7 +562,7 @@ func CheckAzureRequest(ctx context.Context, params CheckAzureRequestParams) (*wo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := checkAzureAllowRules(vmID, attrs, params.Token); err != nil {
+	if err := checkAzureAllowRules(ctx, vmID, attrs, params.Token, params.AzureJoinConfig.GetSubscriptionClient, params.Logger); err != nil {
 		return attrs, trace.Wrap(err)
 	}
 

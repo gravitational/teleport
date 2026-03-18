@@ -108,6 +108,7 @@ import (
 	"github.com/gravitational/teleport/lib/cache"
 	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -116,6 +117,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
+	"github.com/gravitational/teleport/lib/integrations/azureoidc"
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/join"
@@ -889,6 +891,41 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		as.env0IDTokenValidator = validator
 	}
 
+	if as.azureJoinConfig == nil {
+		azureClientCache, err := utils.NewFnCache(utils.FnCacheConfig{
+			TTL:   time.Minute * 15,
+			Clock: as.clock,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		as.azureJoinConfig = &azurejoin.AzureJoinConfig{
+			GetSubscriptionClient: func(ctx context.Context, integration string) (azure.SubscriptionClient, error) {
+				// For Azure join flow, the join token might allow wildcard
+				// subscriptions which requires listing the Azure subscriptions
+				// to check that a VM is allowed to join the cluster.
+				// This requires Azure credentials to be accessible to Auth.
+				// The credentials can come from an integration or from ambient
+				// credentials, when an integration is not specified in the join
+				// token.
+				//
+				// Using ambient credentials when the Auth Service is running
+				// within Teleport Cloud is not supported.
+				// In that scenario a NotImplemented error is returned.
+				if integration == "" && modules.GetModules().Features().Cloud {
+					return nil, trace.NotImplemented("Azure subscriptions cannot be listed on Teleport Cloud without an Azure OIDC integration included in the join token spec")
+				}
+				azureClients, err := as.getAzureClients(ctx, azureClientCache, integration)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				subClient, err := azureClients.GetSubscriptionClient(ctx)
+				return subClient, trace.Wrap(err)
+			},
+		}
+	}
+
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         as.logger,
@@ -1023,11 +1060,13 @@ func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionReq
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+// TODO(gavin): this function appears to be unused and should be removed.
 func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
 }
 
 // GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
+// TODO(gavin): this function appears to be unused and should be removed.
 func (r *Services) GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error) {
 	return r.IntegrationsTokenGenerator.GenerateAzureOIDCToken(ctx, integration)
 }
@@ -1731,6 +1770,15 @@ func (a *Server) GenerateAWSOIDCToken(ctx context.Context, integration string) (
 		Subject:     types.IntegrationAWSOIDCSubjectAuth,
 		Clock:       a.clock,
 	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return token, nil
+}
+
+// GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
+func (a *Server) GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error) {
+	token, err := azureoidc.GenerateEntraOIDCToken(ctx, a, a.GetKeyStore(), a.clock)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -8814,4 +8862,20 @@ func (s *Server) DownloadSummary(ctx context.Context, sessionID session.ID, writ
 	defer reader.Close()
 	_, err = io.Copy(writer, reader)
 	return trace.Wrap(err)
+}
+
+func (s *Server) getAzureClients(ctx context.Context, cache *utils.FnCache, integration string) (azure.Clients, error) {
+	clients, err := utils.FnCacheGet(ctx, cache, integration,
+		func(ctx context.Context) (azure.Clients, error) {
+			var opts []azure.ClientsOption
+			if integration != "" {
+				opts = append(opts, azure.WithIntegrationCredentials(integration, s))
+			}
+			clients, err := azure.NewClients(opts...)
+			return clients, trace.Wrap(err)
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return clients, nil
 }

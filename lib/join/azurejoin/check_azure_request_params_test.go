@@ -19,27 +19,39 @@
 package azurejoin
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 func TestCheckAzureRequestParamsCheckAndSetDefaults(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	nopGetSubscriptionClient := func(context.Context, string) (azure.SubscriptionClient, error) { return nil, nil }
 	tests := []struct {
-		name        string
-		params      CheckAzureRequestParams
-		setup       func(*testing.T)
-		assertError require.ErrorAssertionFunc
-		errorText   string
-		assert      func(*testing.T, *CheckAzureRequestParams)
+		name          string
+		params        CheckAzureRequestParams
+		setup         func(*testing.T)
+		errorContains string
 	}{
 		{
-			name: "sets defaults when config and clock are nil",
+			name: "sets defaults",
+			params: CheckAzureRequestParams{
+				AzureJoinConfig: &AzureJoinConfig{GetSubscriptionClient: nopGetSubscriptionClient},
+				Token:           fakeProvisionToken{},
+				Challenge:       "challenge",
+				AttestedData:    []byte("attested-data"),
+				AccessToken:     "access-token",
+				Logger:          logger,
+			},
+		},
+		{
+			name: "missing join config",
 			params: CheckAzureRequestParams{
 				Token:        fakeProvisionToken{},
 				Challenge:    "challenge",
@@ -47,75 +59,62 @@ func TestCheckAzureRequestParamsCheckAndSetDefaults(t *testing.T) {
 				AccessToken:  "access-token",
 				Logger:       logger,
 			},
-			assertError: require.NoError,
-			assert: func(t *testing.T, params *CheckAzureRequestParams) {
-				require.NotNil(t, params.AzureJoinConfig)
-				require.NotNil(t, params.Clock)
-				require.NotNil(t, params.AzureJoinConfig.Verify)
-				require.NotEmpty(t, params.AzureJoinConfig.CertificateAuthorities)
-				require.NotNil(t, params.AzureJoinConfig.GetVMClient)
-				require.NotNil(t, params.AzureJoinConfig.IssuerHTTPClient)
-			},
+			errorContains: "AzureJoinConfig is required",
 		},
 		{
 			name: "missing token",
 			params: CheckAzureRequestParams{
-				Challenge:    "challenge",
-				AttestedData: []byte("attested-data"),
-				AccessToken:  "access-token",
-				Logger:       logger,
+				AzureJoinConfig: &AzureJoinConfig{GetSubscriptionClient: nopGetSubscriptionClient},
+				Challenge:       "challenge",
+				AttestedData:    []byte("attested-data"),
+				AccessToken:     "access-token",
+				Logger:          logger,
 			},
-			assertError: require.Error,
-			errorText:   "Token is required",
-			assert:      func(*testing.T, *CheckAzureRequestParams) {},
+			errorContains: "Token is required",
 		},
 		{
 			name: "missing challenge",
 			params: CheckAzureRequestParams{
-				Token:        fakeProvisionToken{},
-				AttestedData: []byte("attested-data"),
-				AccessToken:  "access-token",
-				Logger:       logger,
+				AzureJoinConfig: &AzureJoinConfig{GetSubscriptionClient: nopGetSubscriptionClient},
+				Token:           fakeProvisionToken{},
+				AttestedData:    []byte("attested-data"),
+				AccessToken:     "access-token",
+				Logger:          logger,
 			},
-			assertError: require.Error,
-			errorText:   "Challenge is required",
-			assert:      func(*testing.T, *CheckAzureRequestParams) {},
+			errorContains: "Challenge is required",
 		},
 		{
 			name: "missing attested data",
 			params: CheckAzureRequestParams{
-				Token:       fakeProvisionToken{},
-				Challenge:   "challenge",
-				AccessToken: "access-token",
-				Logger:      logger,
+				AzureJoinConfig: &AzureJoinConfig{GetSubscriptionClient: nopGetSubscriptionClient},
+				Token:           fakeProvisionToken{},
+				Challenge:       "challenge",
+				AccessToken:     "access-token",
+				Logger:          logger,
 			},
-			assertError: require.Error,
-			errorText:   "AttestedData is required",
-			assert:      func(*testing.T, *CheckAzureRequestParams) {},
+			errorContains: "AttestedData is required",
 		},
 		{
 			name: "missing access token",
 			params: CheckAzureRequestParams{
-				Token:        fakeProvisionToken{},
-				Challenge:    "challenge",
-				AttestedData: []byte("attested-data"),
-				Logger:       logger,
+				AzureJoinConfig: &AzureJoinConfig{GetSubscriptionClient: nopGetSubscriptionClient},
+				Token:           fakeProvisionToken{},
+				Challenge:       "challenge",
+				AttestedData:    []byte("attested-data"),
+				Logger:          logger,
 			},
-			assertError: require.Error,
-			errorText:   "AccessToken is required",
-			assert:      func(*testing.T, *CheckAzureRequestParams) {},
+			errorContains: "AccessToken is required",
 		},
 		{
 			name: "missing logger",
 			params: CheckAzureRequestParams{
-				Token:        fakeProvisionToken{},
-				Challenge:    "challenge",
-				AttestedData: []byte("attested-data"),
-				AccessToken:  "access-token",
+				AzureJoinConfig: &AzureJoinConfig{GetSubscriptionClient: nopGetSubscriptionClient},
+				Token:           fakeProvisionToken{},
+				Challenge:       "challenge",
+				AttestedData:    []byte("attested-data"),
+				AccessToken:     "access-token",
 			},
-			assertError: require.Error,
-			errorText:   "Logger is required",
-			assert:      func(*testing.T, *CheckAzureRequestParams) {},
+			errorContains: "Logger is required",
 		},
 		{
 			name: "returns config validation error",
@@ -127,15 +126,14 @@ func TestCheckAzureRequestParamsCheckAndSetDefaults(t *testing.T) {
 				})
 			},
 			params: CheckAzureRequestParams{
-				Token:        fakeProvisionToken{},
-				Challenge:    "challenge",
-				AttestedData: []byte("attested-data"),
-				AccessToken:  "access-token",
-				Logger:       logger,
+				AzureJoinConfig: &AzureJoinConfig{GetSubscriptionClient: nopGetSubscriptionClient},
+				Token:           fakeProvisionToken{},
+				Challenge:       "challenge",
+				AttestedData:    []byte("attested-data"),
+				AccessToken:     "access-token",
+				Logger:          logger,
 			},
-			assertError: require.Error,
-			errorText:   "x509",
-			assert:      func(*testing.T, *CheckAzureRequestParams) {},
+			errorContains: "x509",
 		},
 	}
 
@@ -147,11 +145,18 @@ func TestCheckAzureRequestParamsCheckAndSetDefaults(t *testing.T) {
 
 			params := tc.params
 			err := params.checkAndSetDefaults()
-			tc.assertError(t, err)
-			if tc.errorText != "" {
-				require.ErrorContains(t, err, tc.errorText)
+			if tc.errorContains != "" {
+				require.ErrorContains(t, err, tc.errorContains)
+				return
 			}
-			tc.assert(t, &params)
+			require.NoError(t, err)
+			// ensure default params are set
+			require.NotNil(t, params.Clock)
+			require.NotNil(t, params.AzureJoinConfig)
+			require.NotNil(t, params.AzureJoinConfig.Verify)
+			require.NotEmpty(t, params.AzureJoinConfig.CertificateAuthorities)
+			require.NotNil(t, params.AzureJoinConfig.GetVMClient)
+			require.NotNil(t, params.AzureJoinConfig.IssuerHTTPClient)
 		})
 	}
 }

@@ -193,6 +193,10 @@ func TestJoinAzure(t *testing.T) {
 	defaultVMID := "my-vm-id"
 	defaultVMResourceID := vmResourceID(defaultSubscription, defaultResourceGroup, defaultVMName)
 	defaultIdentityResourceID := identityResourceID(defaultSubscription, defaultResourceGroup, defaultIdentityName)
+	defaultSubscriptionClientGetter := func(_ context.Context, _ string) (azure.SubscriptionClient, error) {
+		return &fakeAzureSubscriptionsClient{}, nil
+	}
+	azureIntegrationName := "an-azure-oidc-integration"
 
 	tests := []struct {
 		name                           string
@@ -202,6 +206,7 @@ func TestJoinAzure(t *testing.T) {
 		tokenVMID                      string
 		requestTokenName               string
 		tokenSpec                      types.ProvisionTokenSpecV2
+		subscriptionClientGetter       azurejoin.SubscriptionClientGetter
 		overrideReturnedChallenge      string
 		challengeResponseErr           error
 		certs                          []*x509.Certificate
@@ -245,6 +250,147 @@ func TestJoinAzure(t *testing.T) {
 					},
 				},
 				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: require.NoError,
+		},
+		{
+			name:              "wildcard subscription matches using ambient credentials",
+			requestTokenName:  "test-token",
+			tokenSubscription: defaultSubscription,
+			tokenVMID:         defaultVMID,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   types.Wildcard,
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			subscriptionClientGetter: func(ctx context.Context, integration string) (azure.SubscriptionClient, error) {
+				if integration != "" {
+					return nil, trace.NotFound("expected ambient credentials with empty integration, but got %q integration", integration)
+				}
+				return &fakeAzureSubscriptionsClient{
+					subscriptions: []string{defaultSubscription},
+				}, nil
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: require.NoError,
+		},
+		{
+			name:              "wildcard subscription matches using integration credentials",
+			requestTokenName:  "test-token",
+			tokenSubscription: defaultSubscription,
+			tokenVMID:         defaultVMID,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   types.Wildcard,
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+					},
+				},
+				JoinMethod:  types.JoinMethodAzure,
+				Integration: azureIntegrationName,
+			},
+			subscriptionClientGetter: func(ctx context.Context, integration string) (azure.SubscriptionClient, error) {
+				if integration != azureIntegrationName {
+					return nil, trace.NotFound("test integration %q not found", integration)
+				}
+				return &fakeAzureSubscriptionsClient{
+					subscriptions: []string{defaultSubscription},
+				}, nil
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: require.NoError,
+		},
+		{
+			name:              "wildcard subscription does not match",
+			requestTokenName:  "test-token",
+			tokenSubscription: defaultSubscription,
+			tokenVMID:         defaultVMID,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   types.Wildcard,
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			subscriptionClientGetter: func(ctx context.Context, integration string) (azure.SubscriptionClient, error) {
+				return &fakeAzureSubscriptionsClient{
+					subscriptions: []string{"aaa"},
+				}, nil
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: isAccessDenied,
+		},
+		{
+			name:              "get subscription client error",
+			requestTokenName:  "test-token",
+			tokenSubscription: defaultSubscription,
+			tokenVMID:         defaultVMID,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   types.Wildcard,
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			subscriptionClientGetter: func(ctx context.Context, integration string) (azure.SubscriptionClient, error) {
+				return nil, trace.Errorf("failed to get subscription client")
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: isAccessDenied,
+		},
+		{
+			name:              "get subscription client error does not prevent explicit match",
+			requestTokenName:  "test-token",
+			tokenSubscription: defaultSubscription,
+			tokenVMID:         defaultVMID,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   types.Wildcard,
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+						{
+							Subscription:   defaultSubscription,
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+						{
+							Subscription:   types.Wildcard,
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			subscriptionClientGetter: func(ctx context.Context, integration string) (azure.SubscriptionClient, error) {
+				return nil, trace.Errorf("failed to get subscription client")
 			},
 			verify:      mockVerifyToken(nil),
 			certs:       []*x509.Certificate{caChain.rootCert},
@@ -481,6 +627,12 @@ func TestJoinAzure(t *testing.T) {
 				Verify:                 tc.verify,
 				GetVMClient:            getVMClient,
 				IssuerHTTPClient:       httpClient,
+				GetSubscriptionClient: func(ctx context.Context, integration string) (azure.SubscriptionClient, error) {
+					if tc.subscriptionClientGetter != nil {
+						return tc.subscriptionClientGetter(ctx, integration)
+					}
+					return defaultSubscriptionClientGetter(ctx, integration)
+				},
 			})
 
 			token, err := types.NewProvisionTokenFromSpec(
@@ -899,6 +1051,9 @@ func TestJoinAzureClaims(t *testing.T) {
 				Verify:                 tc.verify,
 				GetVMClient:            getVMClient,
 				IssuerHTTPClient:       httpClient,
+				GetSubscriptionClient: func(_ context.Context, _ string) (azure.SubscriptionClient, error) {
+					return nil, trace.NotImplemented("GetSubscriptionClient not implemented")
+				},
 			})
 
 			imdsClient := &fakeIMDSClient{
@@ -1135,6 +1290,9 @@ func TestAzureIssuerCert(t *testing.T) {
 				Verify:                 mockVerifyToken(nil),
 				GetVMClient:            getVMClient,
 				IssuerHTTPClient:       httpClient,
+				GetSubscriptionClient: func(_ context.Context, _ string) (azure.SubscriptionClient, error) {
+					return nil, trace.NotImplemented("GetSubscriptionClient not implemented")
+				},
 			})
 
 			// Join via the legacy join service.
@@ -1301,4 +1459,20 @@ func (c *fakeAzureIssuerHTTPClient) Do(req *http.Request) (*http.Response, error
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewReader(c.issuerCertDER)),
 	}, nil
+}
+
+type fakeAzureSubscriptionsClient struct {
+	// subscriptions can be set to fake a ListSubscriptionIDs response
+	subscriptions []string
+	// listSubscriptionIDsErr can be set to fake a ListSubscriptionIDs error
+	listSubscriptionIDsErr error
+	called                 int
+}
+
+func (c *fakeAzureSubscriptionsClient) ListSubscriptionIDs(ctx context.Context) ([]string, error) {
+	c.called++
+	if c.listSubscriptionIDsErr != nil {
+		return nil, c.listSubscriptionIDsErr
+	}
+	return c.subscriptions, nil
 }

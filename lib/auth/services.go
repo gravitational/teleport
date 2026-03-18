@@ -52,7 +52,7 @@ type Services struct {
 	services.ConnectionsDiagnostic
 	services.Status
 	services.Integrations
-	services.IntegrationsTokenGenerator
+	services.IntegrationsTokenGenerator // TODO(gavin): remove this field, it is only set in tests and does not appear to do anything
 	services.UserTasks
 	services.DiscoveryConfigs
 	services.Okta
