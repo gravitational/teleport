@@ -190,12 +190,24 @@ test.describe('state restoration from disk', () => {
 
   test('window remembers size and position after restart', async () => {
     // Launch the app and resize the window.
+    let targetBounds: { x: number; y: number; width: number; height: number };
     {
       await using app = await launchApp(tempPath);
       const { page } = app;
       await expect(page.getByText('Connect a Cluster')).toBeVisible();
 
-      const targetBounds = { x: 100, y: 100, width: 900, height: 600 };
+      // Pick bounds relative to the primary display so the test works on any screen size.
+      // WindowsManager.getWindowState restores saved bounds only when they fit entirely within
+      // a display, so the bounds must be within the display's work area.
+      targetBounds = await app.electronApp.evaluate(({ screen }) => {
+        const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+        return {
+          x: Math.floor(width * 0.1),
+          y: Math.floor(height * 0.1),
+          width: Math.floor(width * 0.6),
+          height: Math.floor(height * 0.6),
+        };
+      });
       await app.electronApp.evaluate(({ BrowserWindow }, bounds) => {
         const win = BrowserWindow.getAllWindows()[0];
         win.setBounds(bounds);
@@ -216,7 +228,7 @@ test.describe('state restoration from disk', () => {
         return win.getNormalBounds();
       });
 
-      expect(bounds).toEqual({ x: 100, y: 100, width: 900, height: 600 });
+      expect(bounds).toEqual(targetBounds);
     }
   });
 });
