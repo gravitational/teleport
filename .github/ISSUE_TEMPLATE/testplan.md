@@ -1520,7 +1520,8 @@ manualy testing.
   - [ ] Self-hosted Postgres.
     - [ ] verify that cancelling a Postgres request works. (`select pg_sleep(10)` followed by ctrl-c is a good query to test.)
   - [ ] Self-hosted MySQL.
-    - [ ] MySQL server version reported by Teleport is correct.
+    - [ ] MySQL server version reported by Teleport is correct. You can find this in the connection information that is printed when you connect via `tsh db connect`.
+    - [ ] MySQL server version reported by `SELECT VERSION();` is correct and approximately matches the one printed in the connection information above.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
