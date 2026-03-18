@@ -67,9 +67,11 @@ message Event {
   reserved 49;
   reserved 63;
   reserved 68;
+  reserved 88;
   reserved "ExternalCloudAudit";
   reserved "StaticHostUser";
   reserved "AutoUpdateAgentPlan";
+  reserved "WorkloadCluster";
 
   // Operation identifies operation
   Operation Type = 1;
