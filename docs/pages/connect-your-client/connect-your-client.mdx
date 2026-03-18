@@ -17,34 +17,6 @@ import jetbrainsSvg from "@site/src/components/Icon/svg/jetbrains.svg";
 import ansibleSvg from "@site/src/components/Icon/svg/ansible.svg";
 import puttyWinSCPSvg from "@site/src/components/Icon/svg/putty-winscp.svg";
 
-<Resources
-  title="Connect MCP clients to Teleport-protected resources"
-  variant="doc"
-  iconsSize="large"
-  desktopColumnsCount={3}
-  descriptionsFontSize="lg"
-  resources={[
-    {
-      title: "MCP Servers",
-      description: "Configure MCP clients to connect to Teleport-protected MCP servers.",
-      href: "./model-context-protocol/mcp-access/",
-      iconComponent: mcpServersSvg,
-    },
-    {
-      title: "Databases",
-      description: "Configure MCP clients to connect to Teleport-protected databases.",
-      href: "./model-context-protocol/database-access/",
-      iconComponent: databaseSvg,
-    },
-    {
-      title: "Kubernetes Clusters",
-      description: "Configure MCP clients to connect to Teleport-protected Kubernetes clusters.",
-      href: "./model-context-protocol/kube-access/",
-      iconComponent: kubernetesClustersSvg,
-    },
-  ]}
-/>
-
 <UseCasesList
   title="Client tools"
   variant="doc"
@@ -75,7 +47,35 @@ import puttyWinSCPSvg from "@site/src/components/Icon/svg/putty-winscp.svg";
 />
 
 <Resources
-  title="Third-party clients"
+  title="Connect MCP clients to Teleport-protected resources"
+  variant="doc"
+  iconsSize="large"
+  desktopColumnsCount={3}
+  descriptionsFontSize="lg"
+  resources={[
+    {
+      title: "MCP Servers",
+      description: "Configure MCP clients to connect to Teleport-protected MCP servers.",
+      href: "./model-context-protocol/mcp-access/",
+      iconComponent: mcpServersSvg,
+    },
+    {
+      title: "Databases",
+      description: "Configure MCP clients to connect to Teleport-protected databases.",
+      href: "./model-context-protocol/database-access/",
+      iconComponent: databaseSvg,
+    },
+    {
+      title: "Kubernetes Clusters",
+      description: "Configure MCP clients to connect to Teleport-protected Kubernetes clusters.",
+      href: "./model-context-protocol/kube-access/",
+      iconComponent: kubernetesClustersSvg,
+    },
+  ]}
+/>
+
+<Resources
+  title="Connect other third-party clients to Teleport-protected resources"
   variant="doc"
   iconsSize="large"
   desktopColumnsCount={3}
