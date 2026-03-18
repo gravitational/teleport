@@ -55,9 +55,7 @@ type GitHubServerMetadata struct {
 
 // MakeGitServer creates a git server object for the web ui
 func MakeGitServer(clusterName string, server types.Server, requiresRequest bool) GitServer {
-	serverLabels := server.GetStaticLabels()
-	serverCmdLabels := server.GetCmdLabels()
-	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(serverLabels, ui.TransformCommandLabels(serverCmdLabels))
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(server.GetAllLabels())
 
 	uiServer := GitServer{
 		Kind:            server.GetKind(),
