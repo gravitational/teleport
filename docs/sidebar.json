@@ -20,7 +20,7 @@
           "items": [
             {
               "type": "category",
-              "label": "Step 1: Deploy a Cluster",
+              "label": "Step 1: Deployment",
               "collapsible": true,
               "items": [
                 {
@@ -38,27 +38,37 @@
             {
               "type": "doc",
               "id": "get-started/connect",
-              "label": "Step 2: Connect Infrastructure"
+              "label": "Step 2: Enrolling Infrastructure"
             },
             {
               "type": "doc",
               "id": "get-started/access",
-              "label": "Step 3: Set Up Access Controls"
+              "label": "Step 3: Access Controls"
             },
             {
               "type": "doc",
               "id": "get-started/sso",
-              "label": "Step 4: Set Up Single Sign-On"
+              "label": "Step 4: Single Sign-On"
             },
             {
               "type": "doc",
               "id": "get-started/audit",
-              "label": "Step 5: Monitor Audit Logs"
+              "label": "Step 5: Audit Logs"
             },
             {
               "type": "doc",
               "id": "get-started/identity-governance",
-              "label": "Step 6: Set Up Identity Governance"
+              "label": "Step 6: Identity Governance"
+            },
+            {
+              "type": "doc",
+              "id": "get-started/machine-workload-identity",
+              "label": "Step 7: Machine & Workload Identity"
+            },
+            {
+              "type": "doc",
+              "id": "get-started/identity-security",
+              "label": "Step 8: Identity Security Integrations"
             }
           ]
         },
