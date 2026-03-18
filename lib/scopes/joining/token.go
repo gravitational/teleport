@@ -577,16 +577,24 @@ func (t *Token) GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair {
 // token.
 func (t *Token) GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair {
 	spec := t.scoped.GetStatus().GetUsage().GetBoundKeypair()
-	lastRecoveredAt := spec.GetLastRecoveredAt().AsTime()
-	lastRotatedAt := spec.GetLastRotatedAt().AsTime()
+
+	var lastRecoveredAt, lastRotatedAt *time.Time
+	if val := spec.GetLastRecoveredAt(); val != nil {
+		v := val.AsTime()
+		lastRecoveredAt = &v
+	}
+	if val := spec.GetLastRotatedAt(); val != nil {
+		v := val.AsTime()
+		lastRotatedAt = &v
+	}
 
 	return &types.ProvisionTokenStatusV2BoundKeypair{
 		RegistrationSecret: spec.GetRegistrationSecret(),
 		BoundPublicKey:     spec.GetBoundPublicKey(),
 		BoundBotInstanceID: spec.GetBoundBotInstanceId(),
 		RecoveryCount:      spec.GetRecoveryCount(),
-		LastRecoveredAt:    &lastRecoveredAt,
-		LastRotatedAt:      &lastRotatedAt,
+		LastRecoveredAt:    lastRecoveredAt,
+		LastRotatedAt:      lastRotatedAt,
 	}
 }
 
