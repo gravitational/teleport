@@ -2496,11 +2496,23 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 		}
 
-		// If ResourceConstraints were provided for this Resource, wrap existing matchers.
+		// If ResourceConstraints were provided for this Resource, wrap existing
+		// matchers and add constraint-derived matchers. The wrapping gates
+		// principal-bearing matchers on the constraint's allowed set, while the
+		// constraint-derived matchers ensure roles are pruned to only those
+		// granting at least one of the constrained principals (e.g. SSH logins,
+		// AWS role ARNs).
 		if constraints != nil {
 			guard := WithConstraints(constraints)
 			for i := range matchers {
 				matchers[i] = guard(matchers[i])
+			}
+			constraintMatcher, err := MatcherFromConstraints(constraints)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if constraintMatcher != nil {
+				matchers = append(matchers, constraintMatcher)
 			}
 		}
 
