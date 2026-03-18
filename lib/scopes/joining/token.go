@@ -39,6 +39,7 @@ var rolesSupportingScopes = types.SystemRoles{
 	types.RoleKube,
 	types.RoleApp,
 	types.RoleDiscovery,
+	types.RoleBot,
 }
 
 // TokenUsageMode represents the possible usage modes of a scoped token.
