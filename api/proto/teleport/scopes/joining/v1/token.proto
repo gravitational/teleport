@@ -90,6 +90,10 @@ message ScopedTokenSpec {
 
   // Configuration specific to the "bound_keypair" join method.
   BoundKeypairSpec bound_keypair = 11;
+
+  string bot_name = 12;
+
+  string bot_scope = 13;
 }
 
 // The host certificate parameters that should be cached and leveraged for

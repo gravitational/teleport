@@ -173,6 +173,8 @@ type ScopedTokenSpec struct {
 	Oracle *Oracle `protobuf:"bytes,10,opt,name=oracle,proto3" json:"oracle,omitempty"`
 	// Configuration specific to the "bound_keypair" join method.
 	BoundKeypair  *BoundKeypairSpec `protobuf:"bytes,11,opt,name=bound_keypair,json=boundKeypair,proto3" json:"bound_keypair,omitempty"`
+	BotName       string            `protobuf:"bytes,12,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
+	BotScope      string            `protobuf:"bytes,13,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -282,6 +284,20 @@ func (x *ScopedTokenSpec) GetBoundKeypair() *BoundKeypairSpec {
 		return x.BoundKeypair
 	}
 	return nil
+}
+
+func (x *ScopedTokenSpec) GetBotName() string {
+	if x != nil {
+		return x.BotName
+	}
+	return ""
+}
+
+func (x *ScopedTokenSpec) GetBotScope() string {
+	if x != nil {
+		return x.BotScope
+	}
+	return ""
 }
 
 // The host certificate parameters that should be cached and leveraged for
@@ -1795,7 +1811,7 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
 	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\x12E\n" +
-	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\xe0\x04\n" +
+	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\x98\x05\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
@@ -1810,7 +1826,9 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\fazure_devops\x18\t \x01(\v2'.teleport.scopes.joining.v1.AzureDevopsR\vazureDevops\x12:\n" +
 	"\x06oracle\x18\n" +
 	" \x01(\v2\".teleport.scopes.joining.v1.OracleR\x06oracle\x12Q\n" +
-	"\rbound_keypair\x18\v \x01(\v2,.teleport.scopes.joining.v1.BoundKeypairSpecR\fboundKeypair\"\xb6\x01\n" +
+	"\rbound_keypair\x18\v \x01(\v2,.teleport.scopes.joining.v1.BoundKeypairSpecR\fboundKeypair\x12\x19\n" +
+	"\bbot_name\x18\f \x01(\tR\abotName\x12\x1b\n" +
+	"\tbot_scope\x18\r \x01(\tR\bbotScope\"\xb6\x01\n" +
 	"\x0eHostCertParams\x12\x17\n" +
 	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12\x1b\n" +
 	"\tnode_name\x18\x02 \x01(\tR\bnodeName\x12\x12\n" +
