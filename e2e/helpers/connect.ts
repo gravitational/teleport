@@ -98,16 +98,7 @@ export const test = base.extend<{
     await using temp = await fs.mkdtempDisposable(
       path.join(os.tmpdir(), 'connect-e2e-test-')
     );
-
-    const userDataDir = path.join(temp.path, 'userData');
-    await fs.mkdir(userDataDir, { recursive: true });
-
-    const appConfigPath = path.join(userDataDir, 'app_config.json');
-    await applyAppConfig({
-      appConfigPath,
-      action: appConfig,
-    });
-
+    const { appConfigPath } = await initializeDataDir(temp.path, appConfig);
     await using launchedApp = await launchApp(temp.path);
     if (autoLogin) {
       await login(launchedApp.page);
@@ -153,6 +144,22 @@ export function withRawAppConfig(rawConfig: string): AppConfigSetup {
     kind: 'appConfigRaw',
     rawConfig,
   };
+}
+
+export async function initializeDataDir(
+  dataDir: string,
+  appConfig: AppConfigSetup
+): Promise<{ appConfigPath: string }> {
+  const userDataDir = path.join(dataDir, 'userData');
+  await fs.mkdir(userDataDir, { recursive: true });
+  const appConfigPath = path.join(userDataDir, 'app_config.json');
+
+  await applyAppConfig({
+    appConfigPath,
+    action: appConfig,
+  });
+
+  return { appConfigPath };
 }
 
 async function applyAppConfig({
