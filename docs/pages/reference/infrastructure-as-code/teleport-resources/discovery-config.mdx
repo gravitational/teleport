@@ -630,6 +630,24 @@ azure_vms: # [...]
 |aws_rds|AWSRDS contains the summary for the AWS RDS discovered databases.|[Resources Discovered Summary](#resources-discovered-summary)|
 |azure_vms|The summary for the Azure VM discovered instances.|[Resources Discovered Summary](#resources-discovered-summary)|
 
+## Integration Discovered Summary History
+
+Contains the history of the discovered summary for an integration. Only the latest 5 iterations are stored in the history. The latest iteration is stored in the end of the list.
+
+
+Example:
+
+```yaml
+summaries: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|summaries|IntegrationSummaries is a list of the discovered summary for an integration.|[][Integration Discovered Summary](#integration-discovered-summary)|
+
 ## Join Method
 
 The method used for new nodes to join the cluster.
@@ -702,6 +720,8 @@ Example:
 found: 1
 enrolled: 1
 failed: 1
+sync_start: # See description
+sync_end: # See description
 ```
 
 |Field Name|Description|Type|
@@ -709,6 +729,28 @@ failed: 1
 |enrolled|Holds the count of the resources that were successfully enrolled.|number|
 |failed|Holds the count of the resources that failed to enroll.|number|
 |found|Holds the count of resources found. After a resource is found, it starts the sync process and ends in either an enrolled or a failed resource.|number|
+|sync_end|Timestamp of when discovering the resources ended.||
+|sync_start|Timestamp of when discovering the resources started.||
+
+## Server Iteration History
+
+Contains last iteration summaries for a server.
+
+
+Example:
+
+```yaml
+last_sync: # See description
+integration_summaries: 
+  "string": # [...]
+  "string": # [...]
+  "string": # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|integration_summaries|Maps an integration to the latest discovery iteration summaries.|map[string][Integration Discovered Summary History](#integration-discovered-summary-history)|
+|last_sync|Last_sync is the timestamp when the server last updated the iteration summaries.||
 
 ## Spec
 
@@ -763,6 +805,10 @@ integration_discovered_resources:
   "string": # [...]
   "string": # [...]
   "string": # [...]
+iteration_history: 
+  "string": # [...]
+  "string": # [...]
+  "string": # [...]
 ```
 
 |Field Name|Description|Type|
@@ -770,6 +816,7 @@ integration_discovered_resources:
 |discovered_resources|Holds the count of the discovered resources in the previous iteration.|number|
 |error_message|Holds the error message when state is DISCOVERY_CONFIG_STATE_ERROR.|string|
 |integration_discovered_resources|Maps an integration to a summary of resources that were found using that integration.|map[string][Integration Discovered Summary](#integration-discovered-summary)|
+|iteration_history|Contains the latest 5 iteration summaries for a given server.|map[string][Server Iteration History](#server-iteration-history)|
 |last_sync_time|The timestamp when the Discovery Config was last sync.||
 |state|The current state of the discovery config.|string|
 

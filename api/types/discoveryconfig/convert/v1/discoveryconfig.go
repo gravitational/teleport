@@ -91,9 +91,10 @@ func StatusFromProto(msg *discoveryconfigv1.DiscoveryConfigStatus) discoveryconf
 	return discoveryconfig.Status{
 		State:                          discoveryconfigv1.DiscoveryConfigState_name[int32(msg.State)],
 		ErrorMessage:                   msg.ErrorMessage,
-		DiscoveredResources:            msg.DiscoveredResources,
+		DiscoveredResources:            msg.GetDiscoveredResources(),
 		LastSyncTime:                   lastSyncTime,
-		IntegrationDiscoveredResources: msg.IntegrationDiscoveredResources,
+		IntegrationDiscoveredResources: msg.GetIntegrationDiscoveredResources(),
+		IterationHistory:               msg.GetIterationHistory(),
 	}
 }
 
@@ -147,5 +148,6 @@ func StatusToProto(status discoveryconfig.Status) *discoveryconfigv1.DiscoveryCo
 		DiscoveredResources:            status.DiscoveredResources,
 		LastSyncTime:                   lastSyncTime,
 		IntegrationDiscoveredResources: status.IntegrationDiscoveredResources,
+		IterationHistory:               status.IterationHistory,
 	}
 }

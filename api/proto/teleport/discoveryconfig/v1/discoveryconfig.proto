@@ -72,6 +72,9 @@ message DiscoveryConfigStatus {
 
   // IntegrationDiscoveredResources maps an integration to discovered resources summary.
   map<string, IntegrationDiscoveredSummary> integration_discovered_resources = 6;
+
+  // IterationHistory contains the iteration summary of the latest 5 iterations per ServerID.
+  map<string, ServerIterationHistory> iteration_history = 7;
 }
 
 // DiscoveryConfigState is the state of the discovery config resource.
@@ -85,6 +88,22 @@ enum DiscoveryConfigState {
   DISCOVERY_CONFIG_STATE_ERROR = 2;
   // DISCOVERY_CONFIG_STATE_SYNCING is used when the discovery process has started but didn't finished yet.
   DISCOVERY_CONFIG_STATE_SYNCING = 3;
+}
+
+// ServerIterationHistory contains last iteration summaries for a server.
+message ServerIterationHistory {
+  // last_sync is the timestamp when the server last updated the iteration summaries.
+  google.protobuf.Timestamp last_sync = 1;
+  // IntegrationSummaries maps an integration to the latest discovery iteration summaries.
+  map<string, IntegrationDiscoveredSummaryHistory> integration_summaries = 2;
+}
+
+// IntegrationDiscoveredSummaryHistory contains the history of the discovered summary for an integration.
+// Only the latest 5 iterations are stored in the history.
+// The latest iteration is stored in the end of the list.
+message IntegrationDiscoveredSummaryHistory {
+  // IntegrationSummaries is a list of the discovered summary for an integration.
+  repeated IntegrationDiscoveredSummary summaries = 1;
 }
 
 // IntegrationDiscoveredSummary contains the a summary for each resource type that was discovered.
@@ -111,4 +130,8 @@ message ResourcesDiscoveredSummary {
   uint64 enrolled = 2;
   // Failed holds the count of the resources that failed to enroll.
   uint64 failed = 3;
+  // Timestamp of when discovering the resources started.
+  google.protobuf.Timestamp sync_start = 4;
+  // Timestamp of when discovering the resources ended.
+  google.protobuf.Timestamp sync_end = 5;
 }
