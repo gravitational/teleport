@@ -1576,6 +1576,31 @@ message UIAccessGraphCrownJewelDiffViewEvent {
   string affected_resource_type = 2;
 }
 
+// UIPageViewEvent is emitted when a user views a page in the Teleport UI.
+message UIPageViewEvent {
+  // anonymized
+  string user_name = 1;
+  // path is the route template of the page viewed, e.g. "/web/cluster/:clusterId/usage-summary"
+  string path = 2;
+  // utm_source identifies the channel that drove the visit (e.g. "email")
+  string utm_source = 3;
+  // utm_campaign identifies the specific campaign (e.g. "overage_80")
+  string utm_campaign = 4;
+}
+
+// UIUsageReportingAlertCtaClickEvent is emitted when a user clicks the CTA button in
+// a usage reporting alert (e.g. an overage notification).
+message UIUsageReportingAlertCtaClickEvent {
+  // anonymized
+  string user_name = 1;
+  // alert identifies the alert that was clicked (e.g. "overage_80", "overage_90", "overage_100")
+  string alert = 2;
+  // utm_source identifies the channel that drove the visit (e.g. "email")
+  string utm_source = 3;
+  // utm_campaign identifies the specific campaign (e.g. "overage_80")
+  string utm_campaign = 4;
+}
+
 // AccessGraphCrownJewelCreateEvent is emitted when a user creates an Access Graph's
 // Crown Jewel Resource.
 message AccessGraphCrownJewelCreateEvent {}
@@ -1881,6 +1906,31 @@ message DiscoveryConfigEvent {
   string creation_method = 5;
 }
 
+// IdentitySecurityGraphSizeEvent is emitted by Access Graph whenever the access graph
+// for a provider is updated.
+message IdentitySecurityGraphSizeEvent {
+  // provider is the system containing the identities and resources being counted.
+  // It is one of teleport, aws, azure, entra, gitlab, github, netiq or okta.
+  string provider = 1;
+
+  // total_identities is the number of identities in the graph.
+  uint64 total_identities = 2;
+
+  // total_resources is the number of resources in the graph.
+  uint64 total_resources = 3;
+}
+
+// IdentitySecurityAuditLogsIngestedEvent tracks the count of log entries ingested by
+// identity activity center.
+message IdentitySecurityAuditLogsIngestedEvent {
+  // provider is the system emitting audit logs. It is one of
+  // teleport, cloudtrail, kubernetes, github or okta.
+  string provider = 1;
+
+  // logs_ingested is a count of log entries ingested into Identity Security.
+  uint64 logs_ingested = 2;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -2061,6 +2111,12 @@ message SubmitEventRequest {
     SessionSummaryAccessEvent session_summary_access_event = 106;
 
     DiscoveryConfigEvent discovery_config = 107;
+
+    IdentitySecurityGraphSizeEvent identity_security_graph_size_event = 108;
+    IdentitySecurityAuditLogsIngestedEvent identity_security_audit_logs_ingested_event = 109;
+
+    UIPageViewEvent ui_page_view = 119;
+    UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click = 120;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

@@ -797,6 +797,27 @@ message UIIntegrationEnrollLinkClickEvent {
   string link = 3;
 }
 
+// UIPageViewEvent is emitted when a user views a page in the Teleport UI.
+message UIPageViewEvent {
+  // path is the route template of the page viewed, e.g. "/web/cluster/:clusterId/usage-summary"
+  string path = 1;
+  // utm_source identifies the channel that drove the visit (e.g. "email")
+  string utm_source = 2;
+  // utm_campaign identifies the specific campaign (e.g. "overage_80")
+  string utm_campaign = 3;
+}
+
+// UIUsageReportingAlertCtaClickEvent is emitted when a user clicks the CTA button in
+// a usage reporting alert (e.g. an overage notification).
+message UIUsageReportingAlertCtaClickEvent {
+  // alert identifies the alert that was clicked (e.g. "overage_80", "overage_90", "overage_100")
+  string alert = 1;
+  // utm_source identifies the channel that drove the visit (e.g. "email")
+  string utm_source = 2;
+  // utm_campaign identifies the specific campaign (e.g. "overage_80")
+  string utm_campaign = 3;
+}
+
 // ResourceCreateEvent is emitted when a resource is created.
 message ResourceCreateEvent {
   // resource_type is the type of resource ("node", "node.openssh", "db", "k8s", "app").
@@ -1024,6 +1045,8 @@ message UsageEventOneOf {
     UIIntegrationEnrollFieldCompleteEvent ui_integration_enroll_field_complete_event = 63;
     UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event = 64;
     UIIntegrationEnrollLinkClickEvent ui_integration_enroll_link_click_event = 65;
+    UIPageViewEvent ui_page_view_event = 66;
+    UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click_event = 67;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

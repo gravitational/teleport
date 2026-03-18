@@ -77,6 +77,9 @@ const (
 	uiAccessGraphCrownJewelDiffViewEvent = "tp.ui.accessGraph.crownJewelDiffView"
 
 	featureRecommendationEvent = "tp.ui.feature.recommendation"
+
+	uiPageViewEvent                    = "tp.ui.page_view"
+	uiUsageReportingAlertCtaClickEvent = "tp.ui.usage_reporting.alert_cta_click"
 )
 
 // Events that require extra metadata.
@@ -201,6 +204,13 @@ type CreateUserEventRequest struct {
 	Event string `json:"event"`
 	// Alert is a banner click event property
 	Alert string `json:"alert"`
+
+	// Path is the route template for page view events, e.g. "/web/cluster/:clusterId/usage-summary"
+	Path string `json:"path"`
+	// UtmSource is the UTM source parameter (e.g. "email")
+	UtmSource string `json:"utmSource"`
+	// UtmCampaign is the UTM campaign parameter (e.g. "overage_80")
+	UtmCampaign string `json:"utmCampaign"`
 
 	// EventData contains the event's metadata.
 	// This field dependes on the Event name, hence the json.RawMessage
@@ -549,6 +559,28 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 				UiAccessGraphCrownJewelDiffView: &usageeventsv1.UIAccessGraphCrownJewelDiffViewEvent{
 					AffectedResourceSource: event.AffectedResourceSource,
 					AffectedResourceType:   event.AffectedResourceType,
+				},
+			},
+		}, nil
+
+	case uiPageViewEvent:
+		return &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_UiPageViewEvent{
+				UiPageViewEvent: &usageeventsv1.UIPageViewEvent{
+					Path:        req.Path,
+					UtmSource:   req.UtmSource,
+					UtmCampaign: req.UtmCampaign,
+				},
+			},
+		}, nil
+
+	case uiUsageReportingAlertCtaClickEvent:
+		return &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_UiUsageReportingAlertCtaClickEvent{
+				UiUsageReportingAlertCtaClickEvent: &usageeventsv1.UIUsageReportingAlertCtaClickEvent{
+					Alert:       req.Alert,
+					UtmSource:   req.UtmSource,
+					UtmCampaign: req.UtmCampaign,
 				},
 			},
 		}, nil

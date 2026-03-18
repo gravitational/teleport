@@ -28,6 +28,8 @@ export enum CaptureEvent {
   CreateNewRoleViewDocumentationClickEvent = 'tp.ui.createNewRoleViewDocumentation.click',
   UiCallToActionClickEvent = 'tp.ui.callToAction.click',
   FeatureRecommendationEvent = 'tp.ui.feature.recommendation',
+  UiPageViewEvent = 'tp.ui.page_view',
+  UiUsageReportingAlertCtaClickEvent = 'tp.ui.usage_reporting.alert_cta_click',
 
   // PreUserEvent types
   //   these events are unauthenticated,
@@ -313,6 +315,8 @@ export enum DiscoverEventStatus {
 export type UserEvent<E = CaptureEvent> = {
   event: E;
   alert?: string;
+  utmSource?: string;
+  utmCampaign?: string;
 };
 
 type UserEventWithData<E, D> = UserEvent<E> & {
@@ -428,6 +432,13 @@ export type FeatureRecommendationEventRequest = UserEventWithData<
   CaptureEvent.FeatureRecommendationEvent,
   FeatureRecommendationEvent
 >;
+
+export type PageViewEventRequest = {
+  event: CaptureEvent.UiPageViewEvent;
+  path: string;
+  utmSource?: string;
+  utmCampaign?: string;
+};
 
 export enum RoleEditorMode {
   Standard = 'standard',
