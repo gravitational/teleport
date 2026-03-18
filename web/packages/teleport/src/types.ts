@@ -237,16 +237,6 @@ export type LockedFeatures = {
   trustedDevices: boolean;
 };
 
-// RecommendFeature is used for recommending features if its usage status is zero.
-export type RecommendFeature = {
-  TrustedDevices: RecommendationStatus;
-};
-
-export enum RecommendationStatus {
-  Notify = 'NOTIFY',
-  Done = 'DONE',
-}
-
 // WebsocketStatus is used to indicate the auth status from a
 // websocket connection
 export type WebsocketStatus = {
