@@ -26,51 +26,24 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/client"
+	localservice "github.com/gravitational/teleport/lib/services/local"
 )
 
-// paginatingAuthClient is a mock implementation of authclient.ClientI that
-// returns clusters in pages of a fixed size to simulate a large cluster.
-type paginatingAuthClient struct {
+// trustAuthClient wraps the real local CA trust service to satisfy authclient.ClientI,
+// delegating only ListRemoteClusters to the real implementation.
+type trustAuthClient struct {
 	authclient.ClientI
-	clusters []string
-	pageSize int
+	trust *localservice.CA
 }
 
-func (m *paginatingAuthClient) ListRemoteClusters(ctx context.Context, pageSize int, pageToken string) ([]types.RemoteCluster, string, error) {
-	if pageSize <= 0 {
-		pageSize = m.pageSize
-	}
-
-	// Find the start index from the page token.
-	start := 0
-	if pageToken != "" {
-		for i, name := range m.clusters {
-			if name == pageToken {
-				start = i
-				break
-			}
-		}
-	}
-
-	end := start + pageSize
-	if end >= len(m.clusters) {
-		return makeRemoteClusters(m.clusters[start:]), "", nil
-	}
-	return makeRemoteClusters(m.clusters[start:end]), m.clusters[end], nil
-}
-
-func makeRemoteClusters(names []string) []types.RemoteCluster {
-	result := make([]types.RemoteCluster, 0, len(names))
-	for _, name := range names {
-		rc, _ := types.NewRemoteCluster(name)
-		result = append(result, rc)
-	}
-	return result
+func (c *trustAuthClient) ListRemoteClusters(ctx context.Context, pageSize int, pageToken string) ([]types.RemoteCluster, string, error) {
+	return c.trust.ListRemoteClusters(ctx, pageSize, pageToken)
 }
 
 type testLeafClusterClient struct {
-	authClient *paginatingAuthClient
+	authClient authclient.ClientI
 }
 
 func (c *testLeafClusterClient) CurrentCluster() authclient.ClientI { return c.authClient }
@@ -120,9 +93,19 @@ func TestGetLeafClustersUncached(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clusters := makeLeafClusterNames(tt.clusterCount)
+			mem, err := memory.New(memory.Config{})
+			require.NoError(t, err)
+
+			trustSvc := localservice.NewCAService(mem)
+			for _, name := range makeLeafClusterNames(tt.clusterCount) {
+				rc, err := types.NewRemoteCluster(name)
+				require.NoError(t, err)
+				_, err = trustSvc.CreateRemoteCluster(ctx, rc)
+				require.NoError(t, err)
+			}
+
 			rootClient := &testLeafClusterClient{
-				authClient: &paginatingAuthClient{clusters: clusters, pageSize: 1000},
+				authClient: &trustAuthClient{trust: trustSvc},
 			}
 			cache, err := newLeafClusterCache(clockwork.NewRealClock())
 			require.NoError(t, err)
