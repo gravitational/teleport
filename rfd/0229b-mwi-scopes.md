@@ -246,7 +246,7 @@ spec:
   roles:
     - Bot
   join_method: token
-  mode: bot
+  usage_mode: bot
 ```
 
 Now, Alice can create a Scoped Role and assign it to the Bot using a Scoped
@@ -414,7 +414,7 @@ Scoped Join Token will be used with `spec.roles` field set to `["Bot"]`, the
 name of the scoped Bot provided in a `spec.bot_name` field and the scope of the
 scoped Bot provided in `spec.bot_scope`.
 
-Today, the scoped token includes a `spec.mode` field. This field is used to
+Today, the scoped token includes a `spec.usage_mode` field. This field is used to
 control the join behavior of the token for agents (i.e single use or unlimited).
 Joining for bots has its own unique semantics and requirements that differ from
 those of agents. As such, a new value (`bot`) will be required for this field
@@ -440,7 +440,7 @@ The following new validation will be enforced for the ScopedToken resource:
   - `spec.bot_scope` must be the same or a descendent scope of the `scope` field
     of the token.
   - `spec.assigned_scope` must not be set.
-  - `spec.mode` must be set to `bot`.
+  - `spec.usage_mode` must be set to `bot`.
 - When `spec.roles` does not include `Bot`:
   - `spec.bot_name` must not be set.
   - `spec.bot_scope` must not be set.
