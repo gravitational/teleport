@@ -450,9 +450,6 @@ type InitConfig struct {
 	// MFAService is the service that manages backend MFA resources.
 	MFAService MFAService
 
-	// WorkloadClusterService is the service that manages WorkloadClusters.
-	WorkloadClusterService services.WorkloadClusterService
-
 	// Beams is the service for reading and writing beams.
 	Beams services.Beams
 
