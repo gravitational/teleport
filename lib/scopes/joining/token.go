@@ -45,6 +45,9 @@ const (
 	TokenUsageModeSingle TokenUsageMode = "single_use"
 	// TokenUsageModeUnlimited denotes a token that can provision any number of resources.
 	TokenUsageModeUnlimited = "unlimited"
+	// TokenUsageModeBot denotes a token that can provision bots. Bot joining
+	// perform additional verification steps that can affect token reusability.
+	TokenUsageModeBot = "bot"
 )
 
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
@@ -134,7 +137,7 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 	}
 
 	switch TokenUsageMode(spec.GetUsageMode()) {
-	case TokenUsageModeSingle, TokenUsageModeUnlimited:
+	case TokenUsageModeSingle, TokenUsageModeUnlimited, TokenUsageModeBot:
 	default:
 		return trace.BadParameter("scoped token mode is not supported")
 	}
