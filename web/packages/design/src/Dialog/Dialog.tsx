@@ -45,6 +45,7 @@ export const Dialog = forwardRef<
           */}
         <DialogBox
           ref={ref}
+          role="dialog"
           data-testid="dialogbox"
           dialogCss={dialogCss}
           className={className}
