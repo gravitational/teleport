@@ -148,7 +148,14 @@ func (s *BeamService) DeleteBeamAliasLease(ctx context.Context, alias string) er
 
 // DeleteAllBeams removes all Beam resources.
 func (s *BeamService) DeleteAllBeams(ctx context.Context) error {
-	return trace.Wrap(s.svc.DeleteAllResources(ctx))
+	if err := s.svc.DeleteAllResources(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Delete all alias leases too.
+	startKey := backend.NewKey(beamAliasPrefix).ExactKey()
+	endKey := backend.RangeEnd(startKey)
+	return trace.Wrap(s.backend.DeleteRange(ctx, startKey, endKey))
 }
 
 func beamAliasKey(alias string) backend.Key {
