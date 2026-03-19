@@ -366,7 +366,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
+	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeBuilder(otelaws.DynamoDBAttributeBuilder))
 
 	client := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
 	b := &Log{
