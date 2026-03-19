@@ -161,9 +161,9 @@ The language also supports the following functions:
 
 | Functions | Description | Example |
 |-----------|-------------|---------|
-| `contains_any(set, items)` | Returns true if `set` contains an exact match for any element of `items` | `contains_any(user.traits["team"], set("dev", "stage"))` |
-| `contains_all(set, items)` | Returns true if `set` contains an exact match for all elements of `items` | `contains_all(set("dev"), access_request.spec.roles)` |
-| `set.contains(item)` | Returns true if `set` contains an exact match for `item` | `access_request.spec.roles.contains("example_role")` |
+| `contains_any(set, items)` | Returns true if `set` contains an exact match for any element of `items` | `contains_any(access_request.spec.roles, set("dev", "security", "cloud"))` |
+| `contains_all(set, items)` | Returns true if `set` contains an exact match for all elements of `items` | `contains_all(access_request.spec.roles, set("dev", "security", "cloud"))` |
+| `contains(set, item)`, `set.contains(item)` | Returns true if `set` contains an exact match for `item` | `contains(access_request.spec.roles, "dev")` |
 | `regexp.match(set, re)` | Returns true if `set` contains a match for `re` | `regexp.match(set(access_request.spec.request_reason), "*on-call*")` |
 | `is_empty(set)`| Returns true if `set` contains no elements | `is_empty(access_request.spec.roles)` |
 
