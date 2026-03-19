@@ -167,7 +167,8 @@ export const VnetContextProvider: FC<
     () => mainProcessClient.getRuntimeSettings().platform,
     [mainProcessClient]
   );
-  const isSupported = platform === 'darwin' || platform === 'win32';
+  const isSupported =
+    platform === 'darwin' || platform === 'win32' || platform === 'linux';
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
