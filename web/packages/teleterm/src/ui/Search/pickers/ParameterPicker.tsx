@@ -50,11 +50,10 @@ export function ParameterPicker(props: ParameterPickerProps) {
   const [suggestionsAttempt, getSuggestions] = useAsync(
     props.action.parameter.getSuggestions
   );
+  const { allowOnlySuggestions } = props.action.parameter;
   const inputSuggestionAttempt = makeSuccessAttempt(
     inputValue &&
-      !props.action.parameter.allowOnlySuggestions && [
-        { value: inputValue, displayText: inputValue },
-      ]
+      !allowOnlySuggestions && [{ value: inputValue, displayText: inputValue }]
   );
 
   useEffect(() => {
@@ -72,7 +71,7 @@ export function ParameterPicker(props: ParameterPickerProps) {
           v.displayText
             .toLocaleLowerCase()
             .includes(inputValue.toLocaleLowerCase()) &&
-          v.displayText !== inputValue
+          (allowOnlySuggestions || v.displayText !== inputValue)
       )
   );
 

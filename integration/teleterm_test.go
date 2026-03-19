@@ -153,6 +153,11 @@ func TestTeleterm(t *testing.T) {
 	})
 
 	t.Run("ListUnifiedResources returns database users", func(t *testing.T) {
+		// ListDatabaseUsers cannot be run in parallel as it modifies the default roles of users set up
+		// through the test pack.
+		// TODO(ravicious): After some optimizations, those tests could run in parallel. Instead of
+		// modifying existing roles, they could create new users with new roles and then update the role
+		// mapping between the root the leaf cluster through authServer.UpdateUserCARoleMap.
 		testListDatabaseUsersFromUnifiedResources(t, pack)
 	})
 
