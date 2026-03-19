@@ -811,6 +811,24 @@ code here
       expect(items[0]).toHaveTextContent('Step');
       expect(items[1]).toHaveTextContent('Note');
     });
+
+    it('preserves explicit start number on ordered lists', () => {
+      const text = `3. Third
+4. Fourth
+5. Fifth`;
+
+      renderMarkdown(text);
+
+      const list = screen.getByRole('list');
+
+      expect(list.tagName).toBe('OL');
+      expect(list).toHaveAttribute('start', '3');
+
+      const items = screen.getAllByRole('listitem');
+
+      expect(items).toHaveLength(3);
+      expect(items[0]).toHaveTextContent('Third');
+    });
   });
 
   describe('edge cases', () => {
