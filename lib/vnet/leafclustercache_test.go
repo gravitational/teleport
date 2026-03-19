@@ -62,7 +62,7 @@ func makeLeafClusterNames(n int) []string {
 }
 
 func TestGetLeafClustersUncached(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name         string
