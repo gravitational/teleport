@@ -109,18 +109,24 @@ Skip this if your AlloyDB instance already has an IAM user for this service acco
 </Admonition>
 
 Ensure [IAM authentication](https://cloud.google.com/alloydb/docs/database-users/manage-iam-auth) 
-is enabled on your instance (the `alloydb.iam_authentication` flag must be set).
+is enabled on your instance (the `alloydb.iam_authentication` flag must be set) before adding the User.
+
+<Admonition type="warning">
+**Instance Restart Required **
+Enabling the static `alloydb.iam_authentication` flag triggers a mandatory restart of the AlloyDB instance. 
+This will cause a brief period of downtime (typically 60 - 120 seconds) as the instance performs a maintenance update. 
+We recommend performing this during a scheduled maintenance window.
+</Admonition>
 
 <Tabs>
 <TabItem label="Google Cloud Console">
 
-1. Go to the Users page of your AlloyDB instance.
-2. Click Add User Account.
-3. Choose Cloud IAM authentication.
-4. In the Principal field, enter `alloydb-user@<Var name="project-id" />.iam`.
-5. Go to the AlloyDB Clusters page.
-6. Click Edit on your primary-instance, scroll to Advanced configuration options, 
-   and under Flags ensure `alloydb.iam_authentication` is present and set to on.
+1. Go to the AlloyDB Clusters page.
+2. Click Edit on your primary-instance, scroll to Advanced configuration options, and under Flags ensure `alloydb.iam_authentication` is present and set to on.
+3. Go to the Users page of your AlloyDB instance.
+4. Click Add User Account.
+5. Choose Cloud IAM authentication.
+6. In the Principal field, enter `alloydb-user@<Var name="project-id" />.iam`.
 
 </TabItem>
 <TabItem label="gcloud CLI">
@@ -154,6 +160,7 @@ $ gcloud alloydb instances describe <Var name="instance-name" /> \
 $ gcloud alloydb users create alloydb-user@<Var name="project-id" />.iam \
     --cluster=<Var name="cluster-name" /> \
     --region=<Var name="region" /> \
+    --project=<Var name="project-id" /> \
     --type=IAM_BASED
 ```
 
@@ -192,23 +199,29 @@ Set the variables:
 
 ```code
 # The instance must be stopped before modifying the service account
-$ gcloud compute instances stop <Var name="instance-name" /> --zone=<Var name="zone" />
-
-# Attach the service account with the 'cloud-platform' scope to allow IAM roles 
-# to govern all API access
-$ gcloud compute instances set-service-account <Var name="instance-name" />                 \
-    --service-account=teleport-db-service@<Var name="project-id" />.iam.gserviceaccount.com \
-    --scopes=https://www.googleapis.com/auth/cloud-platform \
+# 1. Stop the instance
+gcloud compute instances stop <Var name="instance-name" /> \
+    --project=<Var name="project-id" /> \
     --zone=<Var name="zone" />
 
-$ gcloud compute instances start <Var name="instance-name" /> --zone=<Var name="zone" />
+# 2. Update the Service Account and Scopes
+gcloud compute instances set-service-account <Var name="instance-name" /> \
+    --service-account=teleport-db-service@<Var name="project-id" />.iam.gserviceaccount.com \
+    --scopes=https://www.googleapis.com/auth/cloud-platform \
+    --project=<Var name="project-id" /> \
+    --zone=<Var name="zone" />
+
+# 3. Restart the instance
+gcloud compute instances start <Var name="instance-name" /> \
+    --project=<Var name="project-id" /> \
+    --zone=<Var name="zone" />
 ```
 
 Verify the instance is running with the correct service account and scopes:
 
 ```code
 $ gcloud compute instances describe <Var name="instance-name" /> --zone=<Var name="zone" /> \
-   --format="value(serviceAccounts[0].scopes)"
+   --format="yaml(status,serviceAccounts)"
 ```
 
 </TabItem>
