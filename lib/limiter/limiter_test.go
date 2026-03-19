@@ -139,6 +139,11 @@ func TestCustomRate(t *testing.T) {
 	// Test rate limit exceeded with custom rate.
 	require.Error(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
 
+	// A single non-custom request should succeed,
+	// but the custom rate should still be limited.
+	require.NoError(t, limiter.RegisterRequest("token1"))
+	require.Error(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
+
 	// Test default rate still works.
 	for range 20 {
 		require.NoError(t, limiter.RegisterRequest("token1"))
