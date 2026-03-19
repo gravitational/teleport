@@ -33,25 +33,27 @@ import (
 
 // build compiles teleport binaries and installs playwright dependencies in parallel.
 func build(ctx context.Context, config *e2eConfig) error {
+	// Both the teleport build (through make build/teleport -> build-ui) and the Connect build need JS
+	// deps installed. Running pnpm install concurrently from multiple goroutines would cause a race,
+	// so we ensure JS deps are installed up front before starting concurrent work.
+	if !config.noBuild && (config.teleportBuildDir != "" || connect.enabled) {
+		slog.Info("ensuring JS dependencies are installed")
+		if err := runMake(ctx, config.repoRoot, "ensure-js-deps"); err != nil {
+			return err
+		}
+	}
+
 	g, ctx := errgroup.WithContext(ctx)
 
 	if !config.noBuild {
-		switch config.teleportBin {
-		case filepath.Join(config.repoRoot, "build", "teleport"):
+		if config.teleportBuildDir != "" {
+			buildDir := config.teleportBuildDir
 			g.Go(func() error {
-				slog.Info("building teleport")
+				slog.Info("building teleport", "dir", buildDir)
 
-				return runMake(ctx, config.repoRoot, "build/teleport")
+				return runMake(ctx, buildDir, "build/teleport")
 			})
-
-		case filepath.Join(config.repoRoot, "e", "build", "teleport"):
-			g.Go(func() error {
-				slog.Info("building teleport (enterprise)")
-
-				return runMake(ctx, filepath.Join(config.repoRoot, "e"), "build/teleport")
-			})
-
-		default:
+		} else {
 			slog.Info("teleport binary overridden, skipping build", "path", config.teleportBin)
 		}
 
@@ -68,11 +70,12 @@ func build(ctx context.Context, config *e2eConfig) error {
 
 	if sshNode.enabled && !config.noBuild && runtime.GOOS != "linux" {
 		g.Go(func() error {
-			buildDir := config.repoRoot
-			if config.teleportBin == filepath.Join(config.repoRoot, "e", "build", "teleport") {
-				buildDir = filepath.Join(config.repoRoot, "e")
+			// Fall back to repoRoot when the teleport binary is overridden; the docker node
+			// always needs a Linux binary built from source.
+			buildDir := config.teleportBuildDir
+			if buildDir == "" {
+				buildDir = config.repoRoot
 			}
-
 			slog.Info("cross-compiling teleport for linux (docker node)", "dir", buildDir)
 
 			output := filepath.Join(buildDir, "build", "teleport-node")
