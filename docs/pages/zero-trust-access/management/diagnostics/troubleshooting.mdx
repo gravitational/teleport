@@ -116,7 +116,7 @@ using an abstraction called a **goroutine**. You can get a goroutine dump of a
 running `teleport` process by sending it a `USR1` signal.
 
 This is especially useful for troubleshooting a `teleport` process that appears
-stuck, since you can see which a goroutine is blocked and and why. For example,
+stuck, since you can see which a goroutine is blocked and why. For example,
 goroutines often communicate using **channels**, and a goroutine dump indicates
 whether a goroutine is waiting to send or receive on a channel.
 

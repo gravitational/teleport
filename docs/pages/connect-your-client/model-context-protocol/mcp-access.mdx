@@ -81,7 +81,7 @@ restart your client after logging in a new tsh session.
 
 You can also provide a custom path for your Claude Desktop MCPs configuration:
 ```code
-$ tsh mcp config --all --config-client=/path/to/config.json
+$ tsh mcp config --all --client-config=/path/to/config.json
 ```
 
 After updating the configuration, you need to restart the Claude Desktop app
@@ -93,7 +93,7 @@ before using the newly added MCPs.
 Teleport's configuration:
 
 ```code
-$ tsh mcp config --all --config-client=cursor
+$ tsh mcp config --all --client-config=cursor
 Found MCP servers:
 fs
 mcp-everything
@@ -112,7 +112,7 @@ restart your client after logging in a new tsh session.
 You can also update a Cursor project MCP servers by providing the path to the
 file:
 ```code
-$ tsh mcp config --all --config-client=/path/to/project/.cursor/mcp.json
+$ tsh mcp config --all --client-config=/path/to/project/.cursor/mcp.json
 ```
 </TabItem>
 
