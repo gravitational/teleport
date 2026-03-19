@@ -33,6 +33,31 @@ This is especially useful for security audits, compliance requirements, and trou
 
 For a more in-depth look at how Teleport's audit system works, including event types and descriptions, storage options, and exporting events, see our [Audit Events and Records guide](../reference/deployment/monitoring/audit.mdx).
 
+## Optional: Set up advanced features
+
+With additional configuration, you can set up Teleport to get even more detailed
+insights into activity within your cluster, helping you detect potential
+vulnerabilities or investigate a security incident. 
+
+After you finish getting started with Teleport, you can plan to complete these
+advanced setup steps:
+
+1. **Enhanced session recording** uses BPF to capture activity on
+   Teleport-protected servers directly from the kernel. You can enable enhanced
+   session recording using the Teleport configuration file of a Teleport SSH
+   Service instance like the one you enrolled in [Step 2](connect.mdx). First,
+   you'll need to make sure that the server you are enrolling meets certain
+   criteria. To get started, read [Enhanced Session Recording for SSH with
+   BPF](../enroll-resources/server-access/guides/bpf-session-recording.mdx).
+
+1. You can set up the **Teleport Event Handler** to export audit events from the
+   Teleport Auth Service to a third-party platform like Splunk or Datadog.  To
+   get started, you will need to deploy the Teleport Event Handler, either by
+   installing a binary on a Linux server or installing a Helm chart on a
+   Kubernetes cluster. Read [Forwarding Events with
+   Fluentd](../zero-trust-access/export-audit-events/fluentd.mdx) to learn the
+   basics of how the Event Handler plugin works.
+
 ## Next steps
 
 In the final step of the Getting Started guide, we'll cover how to manage standing and just-in-time access with Identity Governance.
