@@ -121,9 +121,8 @@ unscoped Bot. It is not possible to create a Scoped Bot with unscoped Roles.
 #### Assigning the Scoped Bot privileges
 
 The Scope Admin then assigns Scoped Roles to the Scoped Bot through Scoped Role
-Assignments or via Scoped Access Lists. They cannot assign unscoped Roles to the
-Scoped Bot as this would allow the Scope Admin to escape the confines of their 
-scope.
+Assignments. They cannot assign unscoped Roles to the Scoped Bot as this would
+allow the Scope Admin to escape the confines of their scope.
 
 There are a number of rules that govern the assignment of privileges to a Scoped
 Bot. Some of these rules are inherited from the Scopes RFD (marked RFD229) and
@@ -1099,3 +1098,16 @@ to coordinate on the naming of Bots.
 At this time, there is no prior art for scope-based namespacing within Teleport.
 Due to the already large and complex nature of this build, it seems reasonable
 to defer the design and implementation of namespacing to a future iteration.
+
+### B.4 Scoped Access List support for scoped Bots
+
+A relatively trivial future addition is support for scoped Bots within scoped
+Access Lists.
+
+Bot name and bot scope fields would need to be added to the
+`scoped_access_list_member` resource and the logic for building role
+assignments from scoped access lists would need to take into account propagating
+bot name and bot scope.
+
+Validation logic should ensure that the Bot's scope of access continues to be 
+constrained to its scope of origin.
