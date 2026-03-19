@@ -243,6 +243,8 @@ function parseListItems(
   }
 
   const listItems: ReactNode[] = [];
+
+  let startNumber: number | undefined;
   let i = startIndex;
 
   while (i < lines.length) {
@@ -257,6 +259,14 @@ function parseListItems(
     const indent = raw.length - trimmed.length;
     if (indent < baseIndent) {
       break;
+    }
+
+    // Capture the start number from the first ordered list item.
+    if (listType === 'ol' && startNumber === undefined) {
+      const num = parseInt(trimmed, 10);
+      if (num !== 1) {
+        startNumber = num;
+      }
     }
 
     const content = getItemContent(trimmed);
@@ -335,7 +345,7 @@ function parseListItems(
   const key = `list-${startIndex}`;
   const node =
     listType === 'ol' ? (
-      <StyledOl key={key} root={isRoot}>
+      <StyledOl key={key} root={isRoot} start={startNumber}>
         {listItems}
       </StyledOl>
     ) : (
