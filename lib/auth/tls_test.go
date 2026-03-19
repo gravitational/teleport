@@ -2382,7 +2382,7 @@ func TestExtendWebSessionWithMaxDuration(t *testing.T) {
 
 // TestGetCertAuthority tests certificate authority permissions
 func TestGetCertAuthority(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
@@ -2483,71 +2483,71 @@ func TestGetCertAuthority(t *testing.T) {
 	// user is not authorized to fetch CA with secrets, even if CA doesn't exist
 	_, err = userClt.GetCertAuthority(ctx, hostCAID, true)
 	require.True(t, trace.IsAccessDenied(err))
+}
 
-	// scoped identity with an empty allow block can still fetch CA without
-	// secrets but is denied when requesting secrets.
-	t.Run("scoped identity", func(t *testing.T) {
-		srv := newTestTLSServer(t)
-		ctx := t.Context()
+func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
-		adminClient, err := srv.NewClient(authtest.TestAdmin())
-		require.NoError(t, err)
-		defer adminClient.Close()
+	srv := newTestTLSServer(t)
+	ctx := t.Context()
 
-		scopedSvc := adminClient.ScopedAccessServiceClient()
-		_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-			Role: &scopedaccessv1.ScopedRole{
-				Kind:    scopedaccess.KindScopedRole,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "empty-role",
-				},
-				Scope: "/test",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
-					AssignableScopes: []string{"/test/scope"},
-				},
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	defer adminClient.Close()
+
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "empty-role",
 			},
-		})
-		require.NoError(t, err)
-
-		user, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-reader")
-		require.NoError(t, err)
-
-		_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-			Assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind:    scopedaccess.KindScopedRoleAssignment,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: uuid.NewString(),
-				},
-				Scope: "/test",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-					User: user.GetName(),
-					Assignments: []*scopedaccessv1.Assignment{
-						{Role: "empty-role", Scope: "/test/scope"},
-					},
-				},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/test/scope"},
 			},
-		})
-		require.NoError(t, err)
-
-		scopedClt, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope"))
-		require.NoError(t, err)
-		defer scopedClt.Close()
-
-		hostCAID := types.CertAuthID{
-			DomainName: srv.ClusterName(),
-			Type:       types.HostCA,
-		}
-
-		// scoped identity is authorized to fetch CA without secrets
-		_, err = scopedClt.GetCertAuthority(ctx, hostCAID, false)
-		require.NoError(t, err)
-
-		// scoped identity is not authorized to fetch CA with secrets
-		_, err = scopedClt.GetCertAuthority(ctx, hostCAID, true)
-		require.True(t, trace.IsAccessDenied(err))
+		},
 	})
+	require.NoError(t, err)
+
+	user, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-reader")
+	require.NoError(t, err)
+
+	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: user.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "empty-role", Scope: "/test/scope"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	scopedClt, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope"))
+	require.NoError(t, err)
+	defer scopedClt.Close()
+
+	hostCAID := types.CertAuthID{
+		DomainName: srv.ClusterName(),
+		Type:       types.HostCA,
+	}
+
+	// scoped identity is authorized to fetch CA without secrets
+	_, err = scopedClt.GetCertAuthority(ctx, hostCAID, false)
+	require.NoError(t, err)
+
+	// scoped identity is not authorized to fetch CA with secrets
+	_, err = scopedClt.GetCertAuthority(ctx, hostCAID, true)
+	require.True(t, trace.IsAccessDenied(err))
 }
 
 func TestPluginData(t *testing.T) {
