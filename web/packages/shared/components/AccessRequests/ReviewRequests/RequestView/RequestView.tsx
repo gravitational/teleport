@@ -470,7 +470,7 @@ function Comment({
         <Text typography="body3">{createdDuration}</Text>
       </Flex>
       {comment && (
-        <Box p={3} bg="levels.elevated">
+        <Box p={3} bg="levels.elevated" css="white-space: pre-wrap;">
           {comment}
         </Box>
       )}
