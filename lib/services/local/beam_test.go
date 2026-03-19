@@ -24,13 +24,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestBeamServiceGetBeamByAlias(t *testing.T) {
@@ -77,7 +78,7 @@ func testBeam(alias string) *beamsv1.Beam {
 		},
 		Spec: &beamsv1.BeamSpec{
 			Egress:         beamsv1.EgressMode_EGRESS_MODE_RESTRICTED,
-			AllowedDomains: []string{"example.com"},
+			AllowedDomains: []string{"example.com."},
 		},
 		Status: &beamsv1.BeamStatus{
 			User:  "alice",
