@@ -792,6 +792,25 @@ code here
       expect(screen.getByText('Some paragraph')).toBeInTheDocument();
       expect(screen.getByRole('listitem')).toHaveTextContent('First item');
     });
+
+    it('stops consuming items when marker type changes', () => {
+      const text = `1. Step
+- Note`;
+
+      renderMarkdown(text);
+
+      const lists = screen.getAllByRole('list');
+
+      expect(lists).toHaveLength(2);
+      expect(lists[0].tagName).toBe('OL');
+      expect(lists[1].tagName).toBe('UL');
+
+      const items = screen.getAllByRole('listitem');
+
+      expect(items).toHaveLength(2);
+      expect(items[0]).toHaveTextContent('Step');
+      expect(items[1]).toHaveTextContent('Note');
+    });
   });
 
   describe('edge cases', () => {
