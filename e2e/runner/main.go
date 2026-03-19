@@ -133,8 +133,8 @@ type e2eConfig struct {
 
 	creds *credentials
 
-	instances        []*browserInstance
-	connectInstance  *browserInstance
+	instances       []*browserInstance
+	connectInstance *browserInstance
 }
 
 // run sets up the test environment (ports, certs, credentials, teleport instance)
@@ -336,7 +336,11 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 
 			nodeBin := config.teleportBin
 			if runtime.GOOS != "linux" {
-				nodeBin = filepath.Join(config.teleportBuildDir, "build", "teleport-node")
+				buildDir := config.teleportBuildDir
+				if buildDir == "" {
+					buildDir = config.repoRoot
+				}
+				nodeBin = filepath.Join(buildDir, "build", "teleport-node")
 			}
 
 			dockerHost, err := resolveDockerHost()
