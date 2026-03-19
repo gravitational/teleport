@@ -52,7 +52,6 @@ const (
 	//nolint:misspell // ignore Cancelled and Cancelling
 	// executed waiter when the command state transitions to one of Cancelled, TimedOut, Failed or Cancelling.
 	waiterTransitionedToFailureErrorMessage = "waiter state transitioned to Failure"
-
 	// waitTimeoutPad is extra waiter headroom beyond the installer's join-failure timeout.
 	// The installer decides success/failure based on whether join completes in time.
 	// This pad avoids reporting a temporary "still running" SSM state as the final outcome
@@ -61,6 +60,11 @@ const (
 	// waitTimeout is how long we wait for AWS to report a terminal command state
 	// for the installer result.
 	waitTimeout = installstatus.JoinFailureTimeout + waitTimeoutPad
+
+	// maxSSMRunOutputChars limits stdout/stderr size while preserving the most recent diagnostics.
+	// 24_000 matches the documented per-field cap for SSMRun stdout/stderr in the event schema,
+	// and also leaves room for the rest of the event under the 64KB stream message limit.
+	maxSSMRunOutputChars = 24_000
 )
 
 // SSMClient is the subset of the AWS SSM API required for EC2 discovery.
@@ -616,6 +620,8 @@ func (si *SSMInstaller) getCommandStepOutcome(ctx context.Context, step string, 
 	invocationURL := fmt.Sprintf("https://%s.console.aws.amazon.com/systems-manager/run-command/%s/%s",
 		req.Region, aws.ToString(commandID), instanceMetadata.InstanceID,
 	)
+	standardOutput := trimToRecentTail(stepResult.StandardOutputContent, maxSSMRunOutputChars)
+	standardError := trimToRecentTail(stepResult.StandardErrorContent, maxSSMRunOutputChars)
 
 	return commandStepOutcome{SSMRunEvent: &apievents.SSMRun{
 		Metadata: apievents.Metadata{
@@ -628,11 +634,41 @@ func (si *SSMInstaller) getCommandStepOutcome(ctx context.Context, step string, 
 		Region:          req.Region,
 		ExitCode:        exitCode,
 		Status:          status,
-		StandardOutput:  aws.ToString(stepResult.StandardOutputContent),
-		StandardError:   aws.ToString(stepResult.StandardErrorContent),
+		StandardOutput:  standardOutput,
+		StandardError:   standardError,
 		InvocationURL:   invocationURL,
 		PlatformName:    instanceMetadata.PlatformName,
 		PlatformType:    instanceMetadata.PlatformType,
 		PlatformVersion: instanceMetadata.PlatformVersion,
 	}, IssueType: issueType}, nil
+}
+
+// trimToRecentTail keeps only the trailing maxChars characters of a string.
+// If trimming happens and the retained chunk contains a newline, it drops the
+// leading partial line so the output starts at a full line boundary.
+func trimToRecentTail(s *string, maxChars int) string {
+	if s == nil || *s == "" || maxChars <= 0 {
+		return ""
+	}
+
+	out := *s
+	if len(out) <= maxChars {
+		return out
+	}
+
+	runes := []rune(out)
+	if len(runes) <= maxChars {
+		return out
+	}
+
+	trimStart := len(runes) - maxChars
+	trimmed := string(runes[trimStart:])
+	if runes[trimStart-1] != '\n' {
+		newLineIdx := strings.Index(trimmed, "\n")
+		if newLineIdx >= 0 && newLineIdx+1 < len(trimmed) {
+			return trimmed[newLineIdx+1:]
+		}
+	}
+
+	return trimmed
 }
