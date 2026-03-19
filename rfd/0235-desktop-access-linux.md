@@ -87,23 +87,19 @@ Linux Desktop Service will create a `LinuxDesktop` resource with its UUID as its
 in the UI as one of the unified resources, the same way we present Windows desktops. The service will use the inventory
 stream to provide efficient heartbeats. Service will support goodbyes from the beginning.
 
-After the user selects a username to log in, the UI will redirect to
-`/web/cluster/:cluster/linux_desktops/:uuid/:login`.
+After the user selects a username to log in, the UI will open new tab leading to `/web/cluster/:cluster/linux_desktops/:uuid/:login`.
 The user will be presented with a list of available Xsessions (i.e. desktop environments). After selecting one of the
-items,
-the user will be redirected to `/web/cluster/:cluster/linux_desktops/:uuid/:login/:xsession`. This will enable the user
-to
-create bookmarks both to session selection screen and to specific Xsession.
-
-If there's only one entry in `/usr/share/xsessions`, the selection screen will be skipped.
+items, login will proceed. Dialog will always be shown before connection to limit potential phishing attempts and will
+be consistent with WebUI flow for kubernetes and database access.
 
 The started session will reuse visual components used for Windows desktop sessions to make the experience consistent.
+
 
 ### Xsessions/desktop environments
 
 The list of Xsessions available on the target machine will be obtained by listing files in `/usr/share/xsessions`.
 This is the same mechanism that is used by different display managers, like GDM and LightDM, to populate their
-list of Xsessions.
+list of Xsessions. This will be done on each connection to include dynamic changes in available sessions.
 
 On connection, Linux Desktop Service will read the selected desktop entry file to get the command to execute stored in
 the `Exec=`
@@ -120,8 +116,8 @@ context propagation.
 
 ### Authentication
 
-New fields `linux_desktop_logins`, `linux_desktop_labels`, and `linux_desktop_labels_expression` will be added to 
-the role resource to support RBAC. They will function the same way `windows_desktop_logins`, 
+New fields `linux_desktop_logins`, `linux_desktop_labels`, and `linux_desktop_labels_expression` will be added to
+the role resource to support RBAC. They will function the same way `windows_desktop_logins`,
 `windows_desktop_labels`, and `windows_desktop_labels_expression` work for Windows desktops. Logins will be
 populated from leaf clusters using the same mechanism that Windows desktops use.
 
@@ -211,11 +207,34 @@ linux_desktop_service:
     - name: arch
       command: [ uname, -p ]
       period: 1h0m0s
+      
+  # enables reading ~/.tsh/environment on the server before creating a session.
+  # defaults to false
+  permit_user_env: true
+  
+  # optional configuration for enhanced session recording, same as for SSH
+  enhanced_recording:
+    #defaults to false
+    enabled: true
+    command_buffer_size: 8
+    disk_buffer_size: 128
+    network_buffer_size: 8
+    cgroup_path: /cgroup2
+    root_path: /teleport
+  
+    # configuration for PAM integration, same as for SSH
+    pam:
+      #defaults to false
+      enabled: true 
+      # use /etc/pam.d/xserver configuration (the default)
+      service_name: 'xserver'
+      use_pam_auth: true
 ```
 
 Only reverse tunnel connection to proxy will be supported, no direct dial will be available.
 
-For xsession entry to be included and shown to the user, it has to match the `included` filter and must not be excluded by
+For xsession entry to be included and shown to the user, it has to match the `included` filter and must not be excluded
+by
 `excluded`.
 
 ### CLI changes
@@ -230,7 +249,7 @@ Linux desktops with additional column showing the type of the desktop.
 
 New flag `--linux-desktop` will be added to `tctl lock`. `tctl lock --server-id` will also support Linux desktops.
 
-`tctl token add` will support new system role `linux_desktop`.
+`tctl tokens add` will support new system role `linux_desktop`.
 
 No changes to `tsh` are needed.
 
@@ -254,7 +273,7 @@ Here's a summary of planned features:
 | Web UI                                                                                   | ✅       | ✅               | feature parity with Windows desktops, reusing as much code as possible                                                                         |
 | Connect                                                                                  | ✅       | ❌               | feature parity with Windows desktops, reusing as much code as possible                                                                         |
 | [Session recordings](#session-recordings)                                                | ✅       | ✅               | the same mechanism as Windows desktops, both node and proxy modes will record at Linux Desktop Service, configured by `record_session.desktop` |
-| Enhanced session recordings                                                              | ❌       | ❌               |                                                                                                                                                |
+| Enhanced session recordings                                                              | ✅       | ❌               | by using `ExecCommand` functionality in similar way as in SSH                                                                                  |
 | [Per-session MFA](#MFA)                                                                  | ✅       | ✅               | the same mechanism as Windows desktops (messages sent through TDPB)                                                                            |
 | [New fields in role (YAML)](#authentication)                                             | ✅       | ✅               | `linux_desktop_labels`, `linux_desktop_labels_expression`, `linux_desktop_logins` (with support for expressions)                               |
 | Roles UI changes                                                                         | ✅       | ❌               |                                                                                                                                                |                              
@@ -272,5 +291,5 @@ Here's a summary of planned features:
 | auditd context propagation                                                               | ✅       | ❌               | by passing `ExecCommand.Login/Username/ClientAddress` during `teleport exec` reexec                                                            |
 | [tctl support](#cli-changes)                                                             | ✅       | ✅               |                                                                                                                                                |
 | [Locks, client idle timeout, limits](#locking-and-client-idle-timeout-connection-limits) | ✅       | ✅               | using `srv.StartMonitor`                                                                                                                       |
-| Lock UI                                                                                  | ✅       | ❌               |        
-| Moderated sessions, session joining                                                      | ❌       | ❌               | 
+| Lock UI                                                                                  | ✅       | ❌               |                                                                                                                                                |
+| Moderated sessions, session joining                                                      | ❌       | ❌               | requires full design covering both Windows and Linux desktops                                                                                  |
