@@ -812,7 +812,7 @@ servers registered with Teleport (`teleport.GetKubernetesServers`) and checks if
 there is a registered Kubernetes cluster that matches the one you specified.
 
 If a matching Kubernetes cluster exists, the code calls the
-`createTeleportRolesForKubeClusters` function we defined earlier. If not, the
+`createTeleportRolesForKubeCluster` function we defined earlier. If not, the
 program prints an error message and a stack trace by calling Go's built-in
 `panic` function.
 
