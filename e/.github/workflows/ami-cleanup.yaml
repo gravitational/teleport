@@ -51,7 +51,7 @@ jobs:
           cleanup-region() {
               region="${1}"
               echo "Purging images for ${region}"
-              for image in $(aws ec2 describe-images --owners self --region "${region}" | jq -c '.Images[] | select(.Name | contains("teleport-hardened-base-image-") | not) | {"imageId": .ImageId, "snapshotId": (.BlockDeviceMappings | first | .Ebs.SnapshotId)}'); do
+              for image in $(aws ec2 describe-images --owners self --region "${region}" | jq -c '.Images[] | select(.Name | test("(-dev|-nightly)")) | {"imageId": .ImageId, "snapshotId": (.BlockDeviceMappings | first | .Ebs.SnapshotId)}'); do
                   imageId="$(echo "${image}" | jq -r '.imageId')"
                   snapshotId="$(echo "${image}" | jq -r '.snapshotId')"
                   aws ec2 deregister-image --region "${region}" --image-id "${imageId}"
