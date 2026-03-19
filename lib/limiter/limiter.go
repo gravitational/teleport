@@ -21,6 +21,7 @@ package limiter
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 
@@ -75,7 +76,15 @@ func (l *Limiter) RegisterRequest(token string) error {
 }
 
 // Deprecated: Use RegisterRequestWithNamedCustomRate instead.
+// This method derives a best-effort key prefix from the custom rate's
+// max period so that custom-rate and default-rate calls do not share
+// a token bucket. Two different custom rates with the same max period
+// will still collide. The named method avoids this limitation.
 func (l *Limiter) RegisterRequestWithCustomRate(token string, customRate *ratelimit.RateSet) error {
+	if customRate != nil && customRate.MaxPeriod() > 0 {
+		key := fmt.Sprintf("%d:%s", customRate.MaxPeriod(), token)
+		return l.rateLimiter.RegisterRequest(key, customRate)
+	}
 	return l.rateLimiter.RegisterRequest(token, customRate)
 }
 

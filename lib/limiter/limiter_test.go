@@ -139,15 +139,16 @@ func TestCustomRate(t *testing.T) {
 	// Test rate limit exceeded with custom rate.
 	require.Error(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
 
-	// A single non-custom request should succeed,
-	// but the custom rate should still be limited.
+	// A default-rate request must not reset the custom bucket.
 	require.NoError(t, limiter.RegisterRequest("token1"))
 	require.Error(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
 
-	// Test default rate still works.
-	for range 20 {
+	// Test default rate still works. One default-rate request was
+	// already made above, so 19 more should exhaust the burst of 20.
+	for range 19 {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
+	require.Error(t, limiter.RegisterRequest("token1"))
 }
 
 type mockAddr struct{}
