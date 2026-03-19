@@ -450,8 +450,17 @@ func (a *Server) GenerateBotCertsForJoin(
 			return nil, "", trace.BadParameter("a scoped token cannot be used to join an unscoped bot")
 		}
 
+		// check: bot's actual scope matches scope on the token
+		//
+
+		if mode := scoped.GetScoped().GetSpec().GetUsageMode(); joining.TokenUsageMode(mode) != joining.TokenUsageModeBot {
+			a.logger.WarnContext(ctx, "scoped token usage mode must be 'bot' for bot joining",
+				"usage_mode", mode,
+			)
+		}
+
 		if tokenScope := scoped.GetScoped().GetScope(); botScope != tokenScope {
-			a.logger.WarnContext(ctx, "",
+			a.logger.WarnContext(ctx, "bot scope must match token scope",
 				"token_scope", tokenScope,
 				"bot_scope", botScope,
 			)
