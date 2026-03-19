@@ -18,7 +18,7 @@ To create/resize the cluster, edit [`terraform.tfvars`](./terraform.tfvars)
 as needed, then run:
 
 ```bash
-$ make apply
+$ make create-cluster
 ```
 
 *NOTE*: The node pool is spread across three regions, so the `nodes_per_zone` variable

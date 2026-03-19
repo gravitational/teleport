@@ -24,6 +24,9 @@ resource "google_container_cluster" "loadtest" {
   # immediately delete it.
   remove_default_node_pool = true
   initial_node_count       = 1
+
+  # The cluster is a short term resource, disable deletion protection to avoid issues with cleanup.
+  deletion_protection = false
 }
 
 #trivy:ignore:AVD-GCP-0048
