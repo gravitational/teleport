@@ -73,6 +73,8 @@ func getBackendCommand(ctx context.Context) (*exec.Cmd, error) {
 			"-screen", "0", "8192x8192x24",
 			"-nolock",
 			"-dpi", "96",
+			"-dpms",
+			"-s off",
 			"-nolisten", "tcp"), nil
 	case "xvfb-tcp":
 		// This backend allows to run multiple sessions on MacOS, otherwise displayfd always return 0.
@@ -83,6 +85,8 @@ func getBackendCommand(ctx context.Context) (*exec.Cmd, error) {
 			"-screen", "0", "8192x8192x24",
 			"-nolock",
 			"-dpi", "96",
+			"-dpms",
+			"-s off",
 			"-listen", "tcp",
 			"-audit", "4"), nil
 	case "xephyr":
