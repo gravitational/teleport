@@ -195,11 +195,11 @@ func TestLimiter_UnaryServerInterceptor(t *testing.T) {
 	}
 	require.Error(t, err)
 
-	getCustomRate := func(endpoint string) *ratelimit.RateSet {
+	getCustomRate := func(endpoint string) (string, *ratelimit.RateSet) {
 		rates := ratelimit.NewRateSet()
 		err := rates.Add(2*time.Minute, 1, 2)
 		require.NoError(t, err)
-		return rates
+		return "custom", rates
 	}
 
 	unaryInterceptor = limiter.UnaryServerInterceptorWithCustomRate(getCustomRate)
@@ -505,4 +505,85 @@ func TestRateLimiter_IsRateLimited(t *testing.T) {
 	clock.Advance(time.Minute)
 	// After time passes, token1 should not be rate limited anymore
 	require.False(t, limiter.IsRateLimited("token1"))
+}
+
+func TestCustomRateNotClobberedByDefault(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	limiter, err := NewLimiter(Config{
+		Clock: clock,
+		Rates: []Rate{{Period: 10 * time.Millisecond, Average: 10, Burst: 20}},
+	})
+	require.NoError(t, err)
+
+	customRate := ratelimit.NewRateSet()
+	require.NoError(t, customRate.Add(time.Minute, 1, 5))
+
+	getCustomRate := func(endpoint string) (string, *ratelimit.RateSet) {
+		if endpoint == "/recovery" {
+			return "account-recovery", customRate
+		}
+		return "", nil
+	}
+
+	ctx := peer.NewContext(context.Background(), &peer.Peer{Addr: mockAddr{}})
+	handler := func(context.Context, any) (any, error) { return nil, nil }
+	interceptor := limiter.UnaryServerInterceptorWithCustomRate(getCustomRate)
+
+	recoveryInfo := &grpc.UnaryServerInfo{FullMethod: "/recovery"}
+	defaultInfo := &grpc.UnaryServerInfo{FullMethod: "/default"}
+
+	// Exhaust the custom rate bucket (burst 5).
+	for range 5 {
+		_, err := interceptor(ctx, nil, recoveryInfo, handler)
+		require.NoError(t, err)
+	}
+	_, err = interceptor(ctx, nil, recoveryInfo, handler)
+	require.Error(t, err)
+
+	// A default-rate request must not reset the custom bucket.
+	_, err = interceptor(ctx, nil, defaultInfo, handler)
+	require.NoError(t, err)
+
+	// Custom rate must still be exhausted.
+	_, err = interceptor(ctx, nil, recoveryInfo, handler)
+	require.Error(t, err)
+}
+
+func TestDeprecatedMethodNilRate(t *testing.T) {
+	limiter, err := NewLimiter(Config{
+		Rates: []Rate{{Period: 10 * time.Millisecond, Average: 10, Burst: 10}},
+	})
+	require.NoError(t, err)
+
+	// Exhaust the default bucket.
+	for range 10 {
+		require.NoError(t, limiter.RegisterRequest("token1"))
+	}
+	require.Error(t, limiter.RegisterRequest("token1"))
+
+	// The deprecated method with nil rate must use the same
+	// default bucket, so it should also be exhausted.
+	require.Error(t, limiter.RegisterRequestWithCustomRate("token1", nil))
+}
+
+func TestNamedRateIsolation(t *testing.T) {
+	limiter, err := NewLimiter(Config{
+		Rates: []Rate{{Period: 10 * time.Millisecond, Average: 10, Burst: 20}},
+	})
+	require.NoError(t, err)
+
+	rateA := ratelimit.NewRateSet()
+	require.NoError(t, rateA.Add(time.Minute, 1, 2))
+
+	rateB := ratelimit.NewRateSet()
+	require.NoError(t, rateB.Add(time.Minute, 1, 2))
+
+	// Exhaust bucket A.
+	for range 2 {
+		require.NoError(t, limiter.RegisterRequestWithNamedCustomRate("ip", "a", rateA))
+	}
+	require.Error(t, limiter.RegisterRequestWithNamedCustomRate("ip", "a", rateA))
+
+	// Bucket B for the same IP must still have capacity.
+	require.NoError(t, limiter.RegisterRequestWithNamedCustomRate("ip", "b", rateB))
 }

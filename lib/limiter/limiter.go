@@ -74,8 +74,24 @@ func (l *Limiter) RegisterRequest(token string) error {
 	return l.rateLimiter.RegisterRequest(token, nil)
 }
 
+// Deprecated: Use RegisterRequestWithNamedCustomRate instead.
 func (l *Limiter) RegisterRequestWithCustomRate(token string, customRate *ratelimit.RateSet) error {
 	return l.rateLimiter.RegisterRequest(token, customRate)
+}
+
+// RegisterRequestWithNamedCustomRate registers a request with a
+// named custom rate that is independent of the default rate bucket.
+// The name parameter ensures requests with different rate
+// configurations maintain separate token buckets per client IP.
+// When name is empty, the request falls through to the default
+// rate bucket with no key prefix.
+func (l *Limiter) RegisterRequestWithNamedCustomRate(
+	token, name string, customRate *ratelimit.RateSet,
+) error {
+	if name == "" {
+		return l.rateLimiter.RegisterRequest(token, customRate)
+	}
+	return l.rateLimiter.RegisterRequest(name+":"+token, customRate)
 }
 
 func (l *Limiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -119,14 +135,17 @@ func NewRateSet() *RateSet { return ratelimit.NewRateSet() }
 // UnaryServerInterceptor returns a gRPC unary interceptor which
 // rate limits by client IP.
 func (l *Limiter) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
-	return l.UnaryServerInterceptorWithCustomRate(func(string) *RateSet {
-		return nil
+	return l.UnaryServerInterceptorWithCustomRate(func(string) (string, *RateSet) {
+		return "", nil
 	})
 }
 
-// CustomRateFunc is a function type which returns a custom rate set
-// for a given endpoint string.
-type CustomRateFunc func(endpoint string) *RateSet
+// CustomRateFunc returns a rate-limit bucket name and a custom rate
+// set for a given gRPC endpoint. The name is used as a key prefix
+// so that endpoints with different rate configurations maintain
+// independent token buckets per client IP.
+// Return ("", nil) to use the default rates.
+type CustomRateFunc func(endpoint string) (name string, rates *RateSet)
 
 // UnaryServerInterceptorWithCustomRate returns a gRPC unary interceptor which
 // rate limits by client IP. Accepts a CustomRateFunc to set custom rates for
@@ -143,7 +162,8 @@ func (l *Limiter) UnaryServerInterceptorWithCustomRate(customRate CustomRateFunc
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := l.RegisterRequestWithCustomRate(clientIP, customRate(info.FullMethod)); err != nil {
+		name, rates := customRate(info.FullMethod)
+		if err := l.RegisterRequestWithNamedCustomRate(clientIP, name, rates); err != nil {
 			return nil, trace.LimitExceeded("rate limit exceeded")
 		}
 		if err := l.connectionLimiter.AcquireConnection(clientIP); err != nil {

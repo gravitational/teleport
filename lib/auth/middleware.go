@@ -358,7 +358,13 @@ type Middleware struct {
 	lastRejectedAlertTime atomic.Int64
 }
 
-func getCustomRate(endpoint string) *limiter.RateSet {
+// rateNameAccountRecovery is the rate-limit bucket name shared by
+// all account recovery RPCs. A single shared bucket prevents an
+// attacker from multiplying their rate allowance by rotating
+// through endpoints.
+const rateNameAccountRecovery = "account-recovery"
+
+func getCustomRate(endpoint string) (string, *limiter.RateSet) {
 	switch endpoint {
 	// Account recovery RPCs.
 	case
@@ -373,11 +379,11 @@ func getCustomRate(endpoint string) *limiter.RateSet {
 			logger.DebugContext(context.Background(), "Failed to define a custom rate for rpc method, using default rate",
 				"error", err,
 				"rpc_method", endpoint)
-			return nil
+			return "", nil
 		}
-		return rates
+		return rateNameAccountRecovery, rates
 	}
-	return nil
+	return "", nil
 }
 
 // ValidateClientVersion inspects the client version for the connection and terminates
