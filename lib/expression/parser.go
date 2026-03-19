@@ -147,6 +147,10 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 					// If it's not a time, try semver comparison
 					return SemverBetween(value, arg1, arg2)
 				}),
+			"contains": typical.BinaryFunction[evaluationEnv](
+				func(s Set, str string) (bool, error) {
+					return s.contains(str), nil
+				}),
 			"contains_any": typical.BinaryFunction[evaluationEnv](
 				func(s1, s2 Set) (bool, error) {
 					for v := range s2.s {
