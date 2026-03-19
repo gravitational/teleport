@@ -211,6 +211,15 @@ test.describe('state restoration from disk', () => {
           height: Math.floor(wa.height * 0.6),
         };
       });
+
+      // Capture the initial bounds before resizing so we can verify setBounds() had an effect.
+      const initialBounds = await app.electronApp.evaluate(
+        ({ BrowserWindow }) => {
+          const win = BrowserWindow.getAllWindows()[0];
+          return win.getNormalBounds();
+        }
+      );
+
       await app.electronApp.evaluate(({ BrowserWindow }, bounds) => {
         const win = BrowserWindow.getAllWindows()[0];
         win.setBounds(bounds);
@@ -223,6 +232,10 @@ test.describe('state restoration from disk', () => {
         const win = BrowserWindow.getAllWindows()[0];
         return win.getNormalBounds();
       });
+
+      // Verify the window actually moved. On environments where setBounds() is a no-op (e.g.
+      // Wayland, tiling WMs), the relaunch assertion would pass trivially without this guard.
+      expect(targetBounds).not.toEqual(initialBounds);
     }
 
     // Relaunch – the window should restore to the same size & position.
