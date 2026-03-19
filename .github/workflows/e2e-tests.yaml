@@ -48,7 +48,7 @@ jobs:
   build:
     name: Build Teleport
     needs: changes
-    if: ${{ needs.changes.outputs.changed == 'true' || github.event_name == 'push' }}
+    if: ${{ needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-22.04-16core
     timeout-minutes: 30
 
@@ -167,7 +167,7 @@ jobs:
   test:
     name: E2E Tests
     needs: [changes, build]
-    if: ${{ needs.changes.outputs.changed == 'true' || github.event_name == 'push' }}
+    if: ${{ needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-22.04-8core
     timeout-minutes: 30
 
