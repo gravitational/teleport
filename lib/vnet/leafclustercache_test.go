@@ -54,8 +54,6 @@ func (c *testLeafClusterClient) SessionSSHKeyRing(ctx context.Context, user stri
 }
 
 func TestGetLeafClustersUncached(t *testing.T) {
-	ctx := t.Context()
-
 	tests := []struct {
 		name         string
 		clusterCount int
@@ -85,6 +83,7 @@ func TestGetLeafClustersUncached(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
 			mem, err := memory.New(memory.Config{
 				Context: ctx,
 			})
