@@ -253,7 +253,8 @@ function parseListItems(
     const raw = lines[i];
     const trimmed = raw.trimStart();
 
-    if (!isListItem(trimmed)) {
+    const itemType = isListItem(trimmed);
+    if (!itemType || itemType !== listType) {
       break;
     }
 
