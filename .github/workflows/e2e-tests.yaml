@@ -50,6 +50,7 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.changed == 'true' || github.event_name == 'push' }}
     runs-on: ubuntu-22.04-16core
+    timeout-minutes: 30
 
     permissions:
       contents: read
@@ -168,6 +169,7 @@ jobs:
     needs: [changes, build]
     if: ${{ needs.changes.outputs.changed == 'true' || github.event_name == 'push' }}
     runs-on: ubuntu-22.04-8core
+    timeout-minutes: 30
 
     permissions:
       contents: read
