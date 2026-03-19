@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/internal"
+	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -795,7 +795,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
 	}
 
-	certReq := internal.CertRequest{
+	certReq := cert.Request{
 		User:                             user,
 		TTL:                              req.TTL,
 		SSHPublicKey:                     req.SSHPublicKey,

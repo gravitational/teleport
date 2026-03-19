@@ -56,7 +56,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
-	"github.com/gravitational/teleport/lib/auth/internal"
+	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -3823,7 +3823,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
-	certReq := internal.CertRequest{
+	certReq := cert.Request{
 		MFAVerified:                      verifiedMFADeviceID,
 		User:                             user,
 		TTL:                              req.Expires.Sub(a.authServer.GetClock().Now()),

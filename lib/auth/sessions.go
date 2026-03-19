@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/appauthconfig/appauthconfigv1"
-	"github.com/gravitational/teleport/lib/auth/internal"
+	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
@@ -305,7 +305,7 @@ func (a *Server) newWebSession(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certReq := internal.CertRequest{
+	certReq := cert.Request{
 		User:           userState,
 		LoginIP:        req.LoginIP,
 		TTL:            sessionTTL,
@@ -594,7 +594,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(ctx, internal.CertRequest{
+	certs, err := a.generateUserCert(ctx, cert.Request{
 		User:           user,
 		LoginIP:        req.LoginIP,
 		TLSPublicKey:   tlsPublicKey,
@@ -797,7 +797,7 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(ctx, internal.CertRequest{
+	certs, err := a.generateUserCert(ctx, cert.Request{
 		User:                             req.UserState,
 		TTL:                              req.SessionTTL,
 		SSHPublicKey:                     req.SSHPubKey,

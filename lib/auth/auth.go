@@ -90,7 +90,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/internal"
+	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
@@ -2677,18 +2677,18 @@ func (a *Server) GetKeyStore() *keystore.Manager {
 	return a.keyStore
 }
 
-type certRequestOption func(*internal.CertRequest)
+type certRequestOption func(*cert.Request)
 
 func certRequestPreviousIdentityExpires(previousIdentityExpires time.Time) certRequestOption {
-	return func(r *internal.CertRequest) { r.PreviousIdentityExpires = previousIdentityExpires }
+	return func(r *cert.Request) { r.PreviousIdentityExpires = previousIdentityExpires }
 }
 
 func certRequestLoginIP(ip string) certRequestOption {
-	return func(r *internal.CertRequest) { r.LoginIP = ip }
+	return func(r *cert.Request) { r.LoginIP = ip }
 }
 
 func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
-	return func(r *internal.CertRequest) {
+	return func(r *cert.Request) {
 		r.DeviceExtensions = ext
 	}
 }
@@ -2763,7 +2763,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateOpenSSHCert(ctx, internal.CertRequest{
+	certs, err := a.generateOpenSSHCert(ctx, cert.Request{
 		User:            req.User,
 		SSHPublicKey:    req.PublicKey,
 		Compatibility:   constants.CertificateFormatStandard,
@@ -2828,7 +2828,7 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certReq := internal.CertRequest{
+	certReq := cert.Request{
 		User:                             userState,
 		TTL:                              req.TTL,
 		Compatibility:                    req.Compatibility,
@@ -2919,7 +2919,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		login = uuid.New().String()
 	}
 
-	certs, err := a.generateUserCert(ctx, internal.CertRequest{
+	certs, err := a.generateUserCert(ctx, cert.Request{
 		User:           userState,
 		TLSPublicKey:   req.PublicKey,
 		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker),
@@ -2981,7 +2981,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := a.generateUserCert(ctx, internal.CertRequest{
+	certs, err := a.generateUserCert(ctx, cert.Request{
 		User:           userState,
 		TLSPublicKey:   req.PublicKey,
 		LoginIP:        req.PinnedIP,
@@ -3386,7 +3386,7 @@ func (a *Server) augmentUserCertificates(
 
 // submitCertificateIssuedEvent submits a certificate issued usage event to the
 // usage reporting service.
-func (a *Server) submitCertificateIssuedEvent(req *internal.CertRequest, attestedKeyPolicy keys.PrivateKeyPolicy) {
+func (a *Server) submitCertificateIssuedEvent(req *cert.Request, attestedKeyPolicy keys.PrivateKeyPolicy) {
 	var database, app, kubernetes, desktop bool
 
 	if req.DBService != "" {
@@ -3435,16 +3435,16 @@ func (a *Server) submitCertificateIssuedEvent(req *internal.CertRequest, atteste
 }
 
 // generateUserCert generates certificates signed with User CA
-func (a *Server) generateUserCert(ctx context.Context, req internal.CertRequest) (*proto.Certs, error) {
+func (a *Server) generateUserCert(ctx context.Context, req cert.Request) (*proto.Certs, error) {
 	return generateCert(ctx, a, req, types.UserCA)
 }
 
 // generateOpenSSHCert generates certificates signed with OpenSSH CA
-func (a *Server) generateOpenSSHCert(ctx context.Context, req internal.CertRequest) (*proto.Certs, error) {
+func (a *Server) generateOpenSSHCert(ctx context.Context, req cert.Request) (*proto.Certs, error) {
 	return generateCert(ctx, a, req, types.OpenSSHCA)
 }
 
-func generateCert(ctx context.Context, a *Server, req internal.CertRequest, caType types.CertAuthType) (*proto.Certs, error) {
+func generateCert(ctx context.Context, a *Server, req cert.Request, caType types.CertAuthType) (*proto.Certs, error) {
 	err := req.Check()
 	if err != nil {
 		return nil, trace.Wrap(err)

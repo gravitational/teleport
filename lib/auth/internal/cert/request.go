@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package internal
+package cert
 
 import (
 	"time"
@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// CertRequest contains the parameters used to issue user and OpenSSH certificates.
-type CertRequest struct {
+// Request contains the parameters used to issue user and OpenSSH certificates.
+type Request struct {
 	// SSHPublicKey is a public key in SSH authorized_keys format. If set it
 	// will be used as the subject public key for the returned SSH certificate.
 	SSHPublicKey []byte
@@ -120,7 +120,7 @@ type CertRequest struct {
 	// DBRoles is the optional list of database roles which, if provided, will
 	// be used instead of all database roles granted for the target database.
 	DBRoles []string
-	// MFAVerified is the UUID of an MFA device when this CertRequest was
+	// MFAVerified is the UUID of an MFA device when this Request was
 	// created immediately after an MFA check.
 	MFAVerified string
 	// PreviousIdentityExpires is the expiry time of the identity/cert that this
@@ -166,7 +166,7 @@ type CertRequest struct {
 }
 
 // Check verifies the cert request is valid.
-func (r *CertRequest) Check() error {
+func (r *Request) Check() error {
 	if r.User == nil {
 		return trace.BadParameter("missing parameter user")
 	}

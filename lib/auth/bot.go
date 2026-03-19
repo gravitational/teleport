@@ -36,7 +36,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/internal"
+	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -52,7 +52,7 @@ import (
 // TODO(timothyb89): In v18, we should explicitly remove generation counters
 // labels from the bot user.
 // REMOVE IN V18: Use bot instance generation counters instead.
-func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username string, certReq *internal.CertRequest, currentIdentityGeneration uint64) error {
+func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username string, certReq *cert.Request, currentIdentityGeneration uint64) error {
 	// Fetch the user, bypassing the cache. We might otherwise fetch a stale
 	// value in case of a rapid certificate renewal.
 	user, err := a.Services.GetUser(ctx, username, false)
@@ -314,7 +314,7 @@ func shouldEnforceGenerationCounter(renewable bool, joinMethod string) bool {
 // identity, if any. If the optional `templateAuthRecord` is provided, various
 // metadata fields will be copied into the newly generated auth record.
 func (a *Server) updateBotInstance(
-	ctx context.Context, req *internal.CertRequest,
+	ctx context.Context, req *cert.Request,
 	username, botName, botInstanceID string,
 	templateAuthRecord *machineidv1pb.BotInstanceStatusAuthentication,
 	currentIdentityGeneration int32,
@@ -595,7 +595,7 @@ func (a *Server) generateInitialBotCerts(
 	}
 
 	// Generate certificate
-	certReq := internal.CertRequest{
+	certReq := cert.Request{
 		User:           userState,
 		TTL:            expires.Sub(a.GetClock().Now()),
 		SSHPublicKey:   sshPubKey,

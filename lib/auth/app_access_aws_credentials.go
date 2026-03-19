@@ -27,7 +27,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/internal"
+	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
 )
 
@@ -42,7 +42,7 @@ var errAppWithoutAWSClientSideCredentials = errors.New("target resource is not a
 func generateAWSClientSideCredentials(
 	ctx context.Context,
 	a *Server,
-	req internal.CertRequest,
+	req cert.Request,
 	notAfter time.Time,
 ) (string, error) {
 	if req.AppName == "" || req.AWSRoleARN == "" {
@@ -96,7 +96,7 @@ func getAppServerByName(ctx context.Context, a *Server, appServerName string) (t
 func generateAWSRolesAnywhereCredentials(
 	ctx context.Context,
 	a *Server,
-	req internal.CertRequest,
+	req cert.Request,
 	appInfo types.Application,
 	integration types.Integration,
 	notAfter time.Time,
