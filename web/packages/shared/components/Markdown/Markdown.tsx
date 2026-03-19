@@ -60,6 +60,16 @@ const StyledPre = styled.pre`
   margin: ${p => p.theme.space[2]}px 0;
 `;
 
+const StyledUl = styled.ul<{ root?: boolean }>`
+  padding-left: ${p => p.theme.space[3]}px;
+  margin-bottom: ${p => (p.root ? `${p.theme.space[3]}px` : '0')};
+`;
+
+const StyledOl = styled.ol<{ root?: boolean }>`
+  padding-left: ${p => p.theme.space[3]}px;
+  margin-bottom: ${p => (p.root ? `${p.theme.space[3]}px` : '0')};
+`;
+
 const parsers: MarkdownParser[] = [
   {
     pattern: /\*\*(?<content>[^*]+?)\*\*/,
@@ -139,8 +149,146 @@ function parseLine(activeParsers: MarkdownParser[], line: string): ReactNode[] {
   return items;
 }
 
+type ListType = 'ul' | 'ol';
+
+function isListItem(trimmed: string): ListType | null {
+  if (trimmed.startsWith('- ')) {
+    return 'ul';
+  }
+
+  if (orderedItemRegex.test(trimmed)) {
+    return 'ol';
+  }
+
+  return null;
+}
+
+function getItemContent(trimmed: string) {
+  if (trimmed.startsWith('- ')) {
+    return trimmed.substring(2);
+  }
+
+  const match = trimmed.match(orderedItemRegex);
+  if (match) {
+    return trimmed.substring(match[0].length);
+  }
+
+  return trimmed;
+}
+
+function parseListItems(
+  activeParsers: MarkdownParser[],
+  lines: string[],
+  startIndex: number,
+  baseIndent: number,
+  listType: ListType,
+  isRoot = false
+): { node: ReactNode; endIndex: number } {
+  const listItems: ReactNode[] = [];
+  let i = startIndex;
+
+  while (i < lines.length) {
+    const raw = lines[i];
+    const trimmed = raw.trimStart();
+
+    if (!isListItem(trimmed)) {
+      break;
+    }
+
+    const indent = raw.length - trimmed.length;
+    if (indent < baseIndent) {
+      break;
+    }
+
+    const content = getItemContent(trimmed);
+    const itemKey = i;
+
+    i += 1;
+
+    const contentParts = [content];
+    while (i < lines.length) {
+      const next = lines[i];
+      const nextTrimmed = next.trimStart();
+      const nextIndent = next.length - nextTrimmed.length;
+
+      if (
+        nextTrimmed === '' ||
+        isListItem(nextTrimmed) ||
+        nextIndent <= baseIndent
+      ) {
+        // If the next line is blank, a new list item, or less indented than the base,
+        // it's not part of the current item's content.
+        break;
+      }
+
+      contentParts.push(nextTrimmed);
+      i += 1;
+    }
+
+    const fullContent = contentParts.join(' ');
+
+    // Skip blank lines before checking for nested items.
+    let nestedList: ReactNode = null;
+    let blankSkip = 0;
+
+    while (i + blankSkip < lines.length && lines[i + blankSkip].trim() === '') {
+      blankSkip += 1;
+    }
+
+    // Check for nested list items after the current item, allowing for blank lines in between.
+    if (i + blankSkip < lines.length) {
+      const nextRaw = lines[i + blankSkip];
+      const nextTrimmed = nextRaw.trimStart();
+      const nextIndent = nextRaw.length - nextTrimmed.length;
+      const nextType = isListItem(nextTrimmed);
+
+      if (nextType && nextIndent > baseIndent) {
+        // If we find a nested list item, parse it and attach it to the current item.
+        i += blankSkip;
+
+        const nested = parseListItems(
+          activeParsers,
+          lines,
+          i,
+          nextIndent,
+          nextType
+        );
+
+        nestedList = nested.node;
+        i = nested.endIndex;
+      }
+    }
+
+    listItems.push(
+      <li key={itemKey}>
+        {parseLine(activeParsers, fullContent)}
+        {nestedList}
+      </li>
+    );
+
+    if (i - startIndex > MAX_ITERATIONS) {
+      break;
+    }
+  }
+
+  const key = `list-${startIndex}`;
+  const node =
+    listType === 'ol' ? (
+      <StyledOl key={key} root={isRoot}>
+        {listItems}
+      </StyledOl>
+    ) : (
+      <StyledUl key={key} root={isRoot}>
+        {listItems}
+      </StyledUl>
+    );
+
+  return { node, endIndex: i };
+}
+
 const headerRegex = /^(?<hashes>#{1,6})\s*(?<content>.*)$/;
 const fencedCodeRegex = /^```(\w*)\s*$/;
+const orderedItemRegex = /^\d+\.\s/;
 
 const MAX_ITERATIONS = 10000;
 
@@ -200,30 +348,20 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       }
     }
 
-    if (line.trimStart().startsWith('- ')) {
-      const listItems: ReactNode[] = [];
-      const startI = i;
+    const listType = isListItem(line);
+    if (listType) {
+      const baseIndent = lines[i].length - lines[i].trimStart().length;
+      const result = parseListItems(
+        activeParsers,
+        lines,
+        i,
+        baseIndent,
+        listType,
+        true
+      );
 
-      while (i < lines.length && lines[i].trimStart().startsWith('- ')) {
-        const firstDashIndex = lines[i].indexOf('- ');
-
-        listItems.push(
-          <li key={i}>
-            {parseLine(
-              activeParsers,
-              lines[i].substring(firstDashIndex + 2).trim()
-            )}
-          </li>
-        );
-
-        i += 1;
-
-        if (i - startI > MAX_ITERATIONS) {
-          break;
-        }
-      }
-
-      items.push(<ul key={i}>{listItems}</ul>);
+      items.push(result.node);
+      i = result.endIndex;
 
       continue;
     }
@@ -265,7 +403,7 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
 
       if (
         headerRegex.test(currentLine) ||
-        currentLine.trim().startsWith('- ') ||
+        isListItem(currentLine.trim()) ||
         fencedCodeRegex.test(currentLine.trim())
       ) {
         break;
