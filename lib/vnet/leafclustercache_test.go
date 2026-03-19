@@ -94,7 +94,7 @@ func TestGetLeafClustersUncached(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mem, err := memory.New(memory.Config{
-				Context: t.Context(),
+				Context: ctx,
 			})
 			require.NoError(t, err)
 			defer mem.Close()
