@@ -171,7 +171,7 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 			attributeTerraformAddress: {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: fmt.Sprintf("host:port of the Teleport address. This can be the Teleport Proxy Service address (port 443 or 4080) or the Teleport Auth Service address (port 3025). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformAddress),
+				Description: fmt.Sprintf("host:port of the Teleport address. This can be the Teleport Proxy Service address (port 443 or 3080) or the Teleport Auth Service address (port 3025). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformAddress),
 			},
 			attributeTerraformCertificates: {
 				Type:        types.StringType,
