@@ -154,6 +154,7 @@ test.describe('state restoration from disk', () => {
     await expect(
       page.locator('[role="tab"][data-doc-kind="doc.terminal_shell"]')
     ).toHaveCount(0);
+    await expect(page.getByText('Reopen previous session')).not.toBeVisible();
   });
 
   test('identical workspace shape does not trigger restore dialog', async () => {
