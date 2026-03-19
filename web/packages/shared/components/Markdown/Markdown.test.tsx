@@ -508,6 +508,111 @@ code here
     });
   });
 
+  describe('tables', () => {
+    it('renders a table with header', () => {
+      const text = `| Name | Age |
+| --- | --- |
+| Alice | 30 |
+| Bob | 25 |`;
+
+      renderMarkdown(text);
+
+      const table = screen.getByRole('table');
+      expect(table).toBeInTheDocument();
+
+      const headers = screen.getAllByRole('columnheader');
+      expect(headers).toHaveLength(2);
+      expect(headers[0]).toHaveTextContent('Name');
+      expect(headers[1]).toHaveTextContent('Age');
+
+      const cells = screen.getAllByRole('cell');
+      expect(cells).toHaveLength(4);
+      expect(cells[0]).toHaveTextContent('Alice');
+      expect(cells[1]).toHaveTextContent('30');
+      expect(cells[2]).toHaveTextContent('Bob');
+      expect(cells[3]).toHaveTextContent('25');
+    });
+
+    it('renders a table without header separator as all data rows', () => {
+      const text = `| Alice | 30 |
+| Bob | 25 |`;
+
+      renderMarkdown(text);
+
+      const table = screen.getByRole('table');
+      expect(table).toBeInTheDocument();
+
+      expect(screen.queryByRole('columnheader')).not.toBeInTheDocument();
+
+      const cells = screen.getAllByRole('cell');
+      expect(cells).toHaveLength(4);
+    });
+
+    it('renders inline formatting inside table cells', () => {
+      const text = `| Feature | Status |
+| --- | --- |
+| **Auth** | \`enabled\` |`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('Auth').tagName).toBe('STRONG');
+      expect(screen.getByText('enabled').tagName).toBe('CODE');
+    });
+
+    it('handles paragraph ending at table', () => {
+      const text = `Some paragraph text
+| Col1 | Col2 |
+| --- | --- |
+| A | B |`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('Some paragraph text')).toBeInTheDocument();
+      expect(screen.getByRole('table')).toBeInTheDocument();
+    });
+
+    it('treats single pipe line as paragraph', () => {
+      renderMarkdown(`| just one line |`);
+
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    });
+
+    it('applies column alignment from separator row', () => {
+      const text = `| Left | Center | Right |
+| :--- | :---: | ---: |
+| A | B | C |`;
+
+      renderMarkdown(text);
+
+      const headers = screen.getAllByRole('columnheader');
+      expect(headers[0]).not.toHaveStyle({ textAlign: 'center' });
+      expect(headers[1]).toHaveStyle({ textAlign: 'center' });
+      expect(headers[2]).toHaveStyle({ textAlign: 'right' });
+
+      const cells = screen.getAllByRole('cell');
+      expect(cells[1]).toHaveStyle({ textAlign: 'center' });
+      expect(cells[2]).toHaveStyle({ textAlign: 'right' });
+    });
+
+    it('handles escaped pipes in cells', () => {
+      const text = `| Name | Value |
+| --- | --- |
+| A\\|B | C |`;
+
+      renderMarkdown(text);
+
+      const cells = screen.getAllByRole('cell');
+      expect(cells[0]).toHaveTextContent('A|B');
+      expect(cells[1]).toHaveTextContent('C');
+    });
+
+    it('requires at least two cells to detect a table', () => {
+      renderMarkdown(`| single cell |`);
+
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    });
+  });
+
   describe('nested lists', () => {
     it('renders a nested list', () => {
       const text = `- Item 1

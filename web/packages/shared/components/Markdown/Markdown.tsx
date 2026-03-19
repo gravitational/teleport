@@ -60,6 +60,36 @@ const StyledPre = styled.pre`
   margin: ${p => p.theme.space[2]}px 0;
 `;
 
+const StyledTable = styled.table`
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid ${p => p.theme.colors.spotBackground[2]};
+  border-radius: ${p => p.theme.radii[2]}px;
+  margin: ${p => p.theme.space[2]}px 0;
+  overflow: hidden;
+
+  th,
+  td {
+    border-bottom: 1px solid ${p => p.theme.colors.spotBackground[2]};
+    border-right: 1px solid ${p => p.theme.colors.spotBackground[2]};
+    padding: ${p => p.theme.space[1]}px ${p => p.theme.space[2]}px;
+    text-align: left;
+  }
+
+  th:last-child,
+  td:last-child {
+    border-right: none;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  th {
+    background: ${p => p.theme.colors.spotBackground[1]};
+  }
+`;
+
 const StyledUl = styled.ul<{ root?: boolean }>`
   padding-left: ${p => p.theme.space[3]}px;
   margin-bottom: ${p => (p.root ? `${p.theme.space[3]}px` : '0')};
@@ -176,6 +206,27 @@ function getItemContent(trimmed: string) {
   return trimmed;
 }
 
+function getAlignment(sep: string): 'left' | 'center' | 'right' {
+  const t = sep.trim();
+  if (t.startsWith(':') && t.endsWith(':')) {
+    return 'center';
+  }
+
+  if (t.endsWith(':')) {
+    return 'right';
+  }
+
+  return 'left';
+}
+
+function parseRow(row: string) {
+  return row
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split(/(?<!\\)\|/)
+    .map(cell => cell.trim().replace(/\\\|/g, '|'));
+}
+
 function parseListItems(
   activeParsers: MarkdownParser[],
   lines: string[],
@@ -289,6 +340,8 @@ function parseListItems(
 const headerRegex = /^(?<hashes>#{1,6})\s*(?<content>.*)$/;
 const fencedCodeRegex = /^```(\w*)\s*$/;
 const orderedItemRegex = /^\d+\.\s/;
+const tableRowRegex = /^\|([^|]*\|){2,}$/;
+const tableSeparatorRegex = /^\|([\s:]*-+[\s:]*\|)+$/;
 
 const MAX_ITERATIONS = 10000;
 
@@ -401,6 +454,85 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       continue;
     }
 
+    // Tables: | col1 | col2 |
+    if (tableRowRegex.test(line)) {
+      const tableLines: string[] = [];
+      const startI = i;
+
+      while (i < lines.length && tableRowRegex.test(lines[i].trim())) {
+        tableLines.push(lines[i].trim());
+        i += 1;
+
+        if (i - startI > MAX_ITERATIONS) {
+          break;
+        }
+      }
+
+      // We need at least 2 lines for a valid table (header + separator)
+      if (tableLines.length >= 2) {
+        const hasHeader = tableSeparatorRegex.test(tableLines[1]);
+        const headerCells = hasHeader ? parseRow(tableLines[0]) : [];
+        const alignments = hasHeader
+          ? tableLines[1]
+              .replace(/^\|/, '')
+              .replace(/\|$/, '')
+              .split(/(?<!\\)\|/)
+              .map(getAlignment)
+          : [];
+        const dataRows = tableLines
+          .slice(hasHeader ? 2 : 0)
+          .map(row => parseRow(row));
+
+        items.push(
+          <StyledTable key={`table-${startI}`}>
+            {hasHeader && (
+              <thead>
+                <tr>
+                  {headerCells.map((cell, ci) => (
+                    <th
+                      key={ci}
+                      style={
+                        alignments[ci] && alignments[ci] !== 'left'
+                          ? { textAlign: alignments[ci] }
+                          : undefined
+                      }
+                    >
+                      {parseLine(activeParsers, cell)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {dataRows.map((row, ri) => (
+                <tr key={ri}>
+                  {row.map((cell, ci) => (
+                    <td
+                      key={ci}
+                      style={
+                        alignments[ci] && alignments[ci] !== 'left'
+                          ? { textAlign: alignments[ci] }
+                          : undefined
+                      }
+                    >
+                      {parseLine(activeParsers, cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </StyledTable>
+        );
+      } else {
+        // Single line starting with |, treat as paragraph.
+        items.push(
+          <p key={`p-${startI}`}>{parseLine(activeParsers, tableLines[0])}</p>
+        );
+      }
+
+      continue;
+    }
+
     const paragraphLines: string[] = [];
     const startI = i;
 
@@ -410,7 +542,8 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       if (
         headerRegex.test(currentLine) ||
         isListItem(currentLine.trim()) ||
-        fencedCodeRegex.test(currentLine.trim())
+        fencedCodeRegex.test(currentLine.trim()) ||
+        tableRowRegex.test(currentLine.trim())
       ) {
         break;
       }
