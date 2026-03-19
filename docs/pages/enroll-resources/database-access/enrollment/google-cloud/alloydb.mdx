@@ -15,7 +15,6 @@ tags:
 
 (!docs/pages/includes/database-access/how-it-works/iam.mdx db="AlloyDB" cloud="Google Cloud"!)
 
-
 ![Teleport Architecture for AlloyDB Access](../../../../../img/database-access/guides/alloydb/architecture.png)
 
 ## Prerequisites
@@ -227,7 +226,7 @@ $ gcloud compute instances describe <Var name="instance-name" /> --zone=<Var nam
 </Tabs>
 </details>
 
-If running on a non-GCE host, use [workload identity federation](https://cloud.google.com/iam/docs/workload-identity-federation) to provide credentials.
+If the database service is running outside of GCE, use [workload identity federation](https://cloud.google.com/iam/docs/workload-identity-federation) to provide credentials.
 
 <details>
 <summary>Using service account keys (not recommended for production)</summary>
