@@ -345,7 +345,13 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
         const [, hashes, content] = headerMatch;
         const level = hashes.length;
 
-        items.push(createElement(`h${level}`, { key: i }, content.trim()));
+        items.push(
+          createElement(
+            `h${level}`,
+            { key: i },
+            ...parseLine(activeParsers, content.trim())
+          )
+        );
 
         i += 1;
 
