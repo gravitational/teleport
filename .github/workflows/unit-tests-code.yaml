@@ -6,6 +6,7 @@ on:
     branches:
       - master
       - branch/*
+      - zmb3/unit-test-cargo-cache # temporary, remove prior to merge
   pull_request:
     paths:
       - '.github/workflows/unit-tests-code.yaml'
@@ -43,6 +44,10 @@ jobs:
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
         TELEPORT_XAUTH_TEST: yes
         WEBASSETS_SKIP_BUILD: 1
+        # Make sure cargo downloads deps to a directory that is mounted
+        # on the runner. The default ~/.cargo inside the container isn't
+        # visible to @actions/cache.
+        CARGO_HOME: ${{ github.workspace }}/.cargo
       options: --cap-add=SYS_ADMIN --privileged
 
     services:
@@ -65,6 +70,19 @@ jobs:
       - name: Prepare workspace
         id: prepare
         uses: ./.github/actions/prepare-workspace
+
+      - name: Cache cargo registry and git deps
+        uses: actions/cache@v5
+        with:
+          key: cargo-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ${{ github.workspace }}/.cargo/bin
+            ${{ github.workspace }}/.cargo/registry/index/
+            ${{ github.workspace }}/.cargo/registry/cache/
+            ${{ github.workspace }}/.cargo/git/db/
+            target/
+          restore-keys: |
+            cargo-${{ runner.os }}-
 
       - name: Mount debugfs
         run: mount -t debugfs none /sys/kernel/debug/
