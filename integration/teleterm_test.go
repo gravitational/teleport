@@ -52,6 +52,8 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -60,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -1275,6 +1278,29 @@ func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.Dat
 		}, 10*time.Second, 100*time.Millisecond)
 	}
 
+	mustUpdateUserRoles := func(ctx context.Context, t *testing.T, cluster *helpers.TeleInstance, userName string, roles []string) {
+		t.Helper()
+		authServer := cluster.Process.GetAuthServer()
+		user, err := authServer.GetUser(ctx, userName, false /* withSecrets */)
+		require.NoError(t, err)
+
+		user.SetRoles(roles)
+		_, err = authServer.UpdateUser(ctx, user)
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			user, err := authServer.GetUser(ctx, userName, false /* withSecrets */)
+			require.NoError(t, err)
+
+			require.Equal(t, roles, user.GetRoles())
+		}, 10*time.Second, 100*time.Millisecond)
+	}
+
+	// Allow resource access requests to be created.
+	currentModules := modules.GetModules()
+	t.Cleanup(func() { modules.SetModules(currentModules) })
+	modules.SetModules(&modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
 	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 	require.NoError(t, err)
 	rootDatabaseURI := uri.NewClusterURI(rootClusterName).AppendDB(pack.Root.PostgresService.Name)
@@ -1282,32 +1308,110 @@ func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.Dat
 
 	rootDBUser := fmt.Sprintf("root-db-user-%s", uuid.NewString())
 	leafDBUser := fmt.Sprintf("leaf-db-user-%s", uuid.NewString())
+	leafDBUserWithAccessRequest := fmt.Sprintf("leaf-db-user-with-access-request-%s", uuid.NewString())
 
 	rootUserName := pack.Root.User.GetName()
 	leafUserName := pack.Leaf.User.GetName()
+	rootRoleName := services.RoleNameForUser(rootUserName)
 
 	tests := []struct {
-		name       string
-		dbURI      uri.ResourceURI
-		wantDBUser string
+		name                string
+		dbURI               uri.ResourceURI
+		wantDBUser          string
+		prepareRole         func(ctx context.Context, t *testing.T)
+		createAccessRequest func(ctx context.Context, t *testing.T) string
 	}{
 		{
 			name:       "root cluster",
 			dbURI:      rootDatabaseURI,
 			wantDBUser: rootDBUser,
+			prepareRole: func(ctx context.Context, t *testing.T) {
+				mustAddDBUserToUserRole(ctx, t, pack.Root.Cluster, rootUserName, rootDBUser)
+			},
 		},
 		{
 			name:       "leaf cluster",
 			dbURI:      leafDatabaseURI,
 			wantDBUser: leafDBUser,
+			prepareRole: func(ctx context.Context, t *testing.T) {
+				mustAddDBUserToUserRole(ctx, t, pack.Leaf.Cluster, leafUserName, leafDBUser)
+			},
+		},
+		{
+			name:       "leaf cluster with resource access request",
+			dbURI:      leafDatabaseURI,
+			wantDBUser: leafDBUserWithAccessRequest,
+			// Remove role from root-user and move it to search_as_roles.
+			//
+			// root-user has access to leafDatabaseURI through the user:root-user role which gets mapped
+			// to a corresponding leaf cluster role.
+			// We want to create a resource access request for that database. To do this, we need to
+			// create a new role which lets root-user request the database.
+			prepareRole: func(ctx context.Context, t *testing.T) {
+				mustAddDBUserToUserRole(ctx, t, pack.Leaf.Cluster, leafUserName, leafDBUserWithAccessRequest)
+
+				authServer := pack.Root.Cluster.Process.GetAuthServer()
+
+				// Create new role that lets root-user request the database.
+				requesterRole, err := types.NewRole(fmt.Sprintf("requester-%s", uuid.NewString()), types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							SearchAsRoles: []string{rootRoleName},
+						},
+					},
+				})
+				require.NoError(t, err)
+				requesterRole, err = authServer.CreateRole(ctx, requesterRole)
+				require.NoError(t, err)
+
+				user, err := authServer.GetUser(ctx, rootUserName, false /* withSecrets */)
+				require.NoError(t, err)
+
+				// Delete rootRoleName from roles, add requester role. Restore original role set after test
+				// is done.
+				currentRoles := user.GetRoles()
+				t.Cleanup(func() { mustUpdateUserRoles(ctx, t, pack.Root.Cluster, rootUserName, currentRoles) })
+				mustUpdateUserRoles(ctx, t, pack.Root.Cluster, rootUserName, []string{requesterRole.GetName()})
+			},
+			createAccessRequest: func(ctx context.Context, t *testing.T) string {
+				req, err := services.NewAccessRequestWithResources(rootUserName, []string{rootRoleName}, []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{
+							ClusterName: pack.Leaf.Cluster.Secrets.SiteName,
+							Kind:        types.KindDatabase,
+							Name:        pack.Leaf.PostgresService.Name,
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				authServer := pack.Root.Cluster.Process.GetAuthServer()
+				req, err = authServer.CreateAccessRequestV2(ctx, req, tlsca.Identity{})
+				require.NoError(t, err)
+
+				err = authServer.SetAccessRequestState(ctx, types.AccessRequestUpdate{
+					RequestID: req.GetName(),
+					State:     types.RequestState_APPROVED,
+				})
+				require.NoError(t, err)
+
+				return req.GetName()
+			},
 		},
 	}
 
-	mustAddDBUserToUserRole(ctx, t, pack.Root.Cluster, rootUserName, rootDBUser)
-	mustAddDBUserToUserRole(ctx, t, pack.Leaf.Cluster, leafUserName, leafDBUser)
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			test.prepareRole(ctx, t)
+			var accessRequestID string
+			if test.createAccessRequest != nil {
+				accessRequestID = test.createAccessRequest(ctx, t)
+
+				if accessRequestID == "" {
+					require.FailNow(t, "createAccessRequest returned empty access request ID")
+				}
+			}
+
 			creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 				Process:  pack.Root.Cluster.Process,
 				Username: rootUserName,
@@ -1338,6 +1442,14 @@ func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.Dat
 				},
 			)
 			require.NoError(t, err)
+
+			if accessRequestID != "" {
+				_, err := handler.AssumeRole(ctx, &api.AssumeRoleRequest{
+					RootClusterUri:   test.dbURI.GetRootClusterURI().String(),
+					AccessRequestIds: []string{accessRequestID},
+				})
+				require.NoError(t, err)
+			}
 
 			res, err := handler.ListUnifiedResources(ctx, &api.ListUnifiedResourcesRequest{
 				ClusterUri: test.dbURI.GetClusterURI().String(),
