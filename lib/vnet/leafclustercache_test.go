@@ -53,13 +53,6 @@ func (c *testLeafClusterClient) SessionSSHKeyRing(ctx context.Context, user stri
 	panic("not implemented")
 }
 
-func makeLeafClusterNames(n int) []string {
-	names := make([]string, n)
-	for i := range names {
-		names[i] = fmt.Sprintf("leaf-%04d", i)
-	}
-	return names
-}
 
 func TestGetLeafClustersUncached(t *testing.T) {
 	ctx := t.Context()
@@ -100,8 +93,8 @@ func TestGetLeafClustersUncached(t *testing.T) {
 			defer mem.Close()
 
 			trustSvc := localservice.NewCAService(mem)
-			for _, name := range makeLeafClusterNames(tt.clusterCount) {
-				rc, err := types.NewRemoteCluster(name)
+			for i := range tt.clusterCount {
+				rc, err := types.NewRemoteCluster(fmt.Sprintf("leaf-%04d", i))
 				require.NoError(t, err)
 				_, err = trustSvc.CreateRemoteCluster(ctx, rc)
 				require.NoError(t, err)
