@@ -4617,6 +4617,31 @@ func TestValidate_WithAllowRequestKubernetesResource(t *testing.T) {
 			},
 			wantInvalidRequestKindErr: true,
 		},
+
+		{
+			desc: "v7 reject when requested role does not allow all requested kind and there is an unrelated requested role",
+			userStaticRoles: []string{
+				"v7-kube-request-namespace_search-namespace",
+				"v7-kube-request-no-access",
+			},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
+			},
+			wantInvalidRequestKindErr: true,
+			wantNoRolesConfiguredErr:  true,
+		},
+		{
+			desc: "v8 reject when requested role does not allow all requested kind and there is an unrelated requested role",
+			userStaticRoles: []string{
+				"v8-kube-request-namespace_search-namespace",
+				"v8-kube-request-no-access",
+			},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
+			},
+			wantInvalidRequestKindErr: true,
+			wantNoRolesConfiguredErr:  true,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -4635,15 +4660,21 @@ func TestValidate_WithAllowRequestKubernetesResource(t *testing.T) {
 
 			// Execute the validation.
 			err = validator.validate(t.Context(), req, tlsca.Identity{Expires: clock.Now().UTC().Add(8 * time.Hour)})
-			if tc.wantInvalidRequestKindErr {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), InvalidKubernetesKindAccessRequest)
-			} else if tc.wantNoRolesConfiguredErr {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), `no roles configured in the "search_as_roles"`)
-			} else {
+			if !tc.wantInvalidRequestKindErr && !tc.wantNoRolesConfiguredErr {
 				require.NoError(t, err)
 				require.ElementsMatch(t, tc.expectedRequestRoles, req.GetRoles())
+			} else {
+				require.Error(t, err)
+				if tc.wantInvalidRequestKindErr {
+					require.Contains(t, err.Error(), InvalidKubernetesKindAccessRequest)
+				} else {
+					require.NotContains(t, err.Error(), InvalidKubernetesKindAccessRequest)
+				}
+				if tc.wantNoRolesConfiguredErr {
+					require.Contains(t, err.Error(), `no roles configured in the "search_as_roles"`)
+				} else {
+					require.NotContains(t, err.Error(), `no roles configured in the "search_as_roles"`)
+				}
 			}
 		})
 	}

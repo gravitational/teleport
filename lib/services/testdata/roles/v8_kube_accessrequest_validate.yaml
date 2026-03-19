@@ -275,3 +275,14 @@ spec:
       kubernetes_resources:
       - kind: '*'
         api_group: '*'
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-request-no-access
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v8-kube-no-access
+  deny: {}

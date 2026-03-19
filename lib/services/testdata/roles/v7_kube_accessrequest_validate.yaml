@@ -250,3 +250,14 @@ spec:
     request:
       kubernetes_resources:
       - kind: '*'
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-request-no-access
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v7-kube-no-access
+  deny: {}

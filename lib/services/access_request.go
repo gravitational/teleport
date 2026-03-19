@@ -2424,7 +2424,12 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		return roles, nil
 	}
 
+	origRolesLength := len(roles)
 	roles, mappedRequestedRolesToAllowedKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(requestedResourceAccessIDs, roles)
+	var kubeRelatedError error
+	if len(roles) < origRolesLength {
+		kubeRelatedError = getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, false /* requestedRoles */)
+	}
 	if len(roles) == 0 { // all roles got pruned from not matching every kube requested kind.
 		return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, false /* requestedRoles */)
 	}
@@ -2541,12 +2546,15 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return nil, trace.BadParameter(
-			`no roles configured in the "search_as_roles" for this user allow `+
-				`access to any requested resources. The user may already have `+
-				`access to all requested resources with their existing roles. `+
-				`resources: %s roles: %v login: %q`,
-			resourcesStr, roles, loginHint)
+		return nil, trace.NewAggregate(
+			trace.BadParameter(
+				`no roles configured in the "search_as_roles" for this user allow `+
+					`access to any requested resources. The user may already have `+
+					`access to all requested resources with their existing roles. `+
+					`resources: %s roles: %v login: %q`,
+				resourcesStr, roles, loginHint),
+			kubeRelatedError,
+		)
 	}
 	prunedRoles := make([]string, 0, len(necessaryRoles))
 	for role := range necessaryRoles {
