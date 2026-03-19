@@ -29,7 +29,7 @@ tags:
 
 ## Step 1/4. Configure IAM and create a database user
 
-In this step, you will create two required service accounts; you do not need to create them in advance:
+In this step, you will create two required service accounts.
 
 - `teleport-db-service`: used by the Teleport Database Service to access AlloyDB metadata and generate tokens.
 - `alloydb-user`: used by end-users to authenticate to the database.
@@ -84,7 +84,7 @@ Then, on the `alloydb-user` overview page, go to the "Principals with Access" ta
 <TabItem label="gcloud CLI">
 
 ```code
-$ gcloud iam service-accounts create alloydb-user --display-name="AlloyDB User"  --project=<Var name="project-id" />
+$ gcloud iam service-accounts create alloydb-user --display-name="AlloyDB User" --project=<Var name="project-id" />
 
 $ for role in roles/alloydb.databaseUser roles/alloydb.client roles/serviceusage.serviceUsageConsumer;
   do \
@@ -111,8 +111,7 @@ Skip this if your AlloyDB instance already has an IAM user for this service acco
 Ensure [IAM authentication](https://cloud.google.com/alloydb/docs/database-users/manage-iam-auth) 
 is enabled on your instance (the `alloydb.iam_authentication` flag must be set) before adding the User.
 
-<Admonition type="warning">
-**Instance Restart Required **
+<Admonition type="warning" title="Instance Restart Required">
 Enabling the static `alloydb.iam_authentication` flag triggers a mandatory restart of the AlloyDB instance. 
 This will cause a brief period of downtime (typically 60 - 120 seconds) as the instance performs a maintenance update. 
 We recommend performing this during a scheduled maintenance window.
@@ -154,7 +153,7 @@ $ gcloud alloydb instances describe <Var name="instance-name" /> \
 ```
 </Admonition>
 
-  Create the IAM-based database user to link the service account to the database:
+Create the IAM-based database user to link the service account to the database:
 
 ```code
 $ gcloud alloydb users create alloydb-user@<Var name="project-id" />.iam \
