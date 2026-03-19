@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -44,6 +45,72 @@ type mockSSMClient struct {
 	commandInvokeOutput    map[string]*ssm.GetCommandInvocationOutput
 	describeOutput         *ssm.DescribeInstanceInformationOutput
 	listCommandInvocations *ssm.ListCommandInvocationsOutput
+}
+
+func TestTrimToRecentTail(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    *string
+		maxChars int
+		want     string
+	}{
+		{
+			name:     "returns full string when below limit",
+			input:    aws.String("line-a\nline-b"),
+			maxChars: len([]rune("line-a\nline-b")) + 1,
+			want:     "line-a\nline-b",
+		},
+		{
+			name: "keeps tail and aligns to line boundary",
+			input: aws.String(strings.Join([]string{
+				"line-1",
+				"line-2",
+				"line-3",
+				"line-4",
+			}, "\n")),
+			maxChars: len("e-2\nline-3\nline-4"),
+			want:     "line-3\nline-4",
+		},
+		{
+			name:     "handles multi-byte runes",
+			input:    aws.String("🙂🙂🙂\nlast"),
+			maxChars: 6,
+			want:     "last",
+		},
+		{
+			name:     "returns empty for nil input",
+			input:    nil,
+			maxChars: 10,
+			want:     "",
+		},
+		{
+			name:     "returns empty for non-positive max chars",
+			input:    aws.String("line-a"),
+			maxChars: 0,
+			want:     "",
+		},
+		{
+			name:     "keeps raw tail when no newline is present",
+			input:    aws.String("aaaaabbbbb"),
+			maxChars: 4,
+			want:     "bbbb",
+		},
+		{
+			name:     "keeps boundary-aligned tail when cut starts after newline",
+			input:    aws.String("line-1\nline-2"),
+			maxChars: len("line-2"),
+			want:     "line-2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, trimToRecentTail(tt.input, tt.maxChars))
+		})
+	}
 }
 
 const docWithoutSSHDConfigPathParam = "ssmdocument-without-sshdConfigPath-param"
