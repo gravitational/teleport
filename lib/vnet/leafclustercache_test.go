@@ -53,7 +53,6 @@ func (c *testLeafClusterClient) SessionSSHKeyRing(ctx context.Context, user stri
 	panic("not implemented")
 }
 
-
 func TestGetLeafClustersUncached(t *testing.T) {
 	ctx := t.Context()
 
