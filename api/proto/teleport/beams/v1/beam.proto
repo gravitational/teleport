@@ -1,0 +1,112 @@
+// Copyright 2026 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.beams.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
+
+// Beam is an ephemeral AI-optimized compute environment.
+message Beam {
+  // The kind of resource represented. This is always `beam`.
+  string kind = 1;
+
+  // Differentiates variations of the same kind. All resources should contain
+  // one, even if it is never populated.
+  string sub_kind = 2;
+
+  // The version of the resource being represented.
+  string version = 3;
+
+  // Common metadata that all resources share.
+  teleport.header.v1.Metadata metadata = 4;
+
+  // Configuration of the beam.
+  BeamSpec spec = 5;
+
+  // Status of the beam and its derived resources.
+  BeamStatus status = 6;
+}
+
+// BeamSpec contains the configuration of the beam.
+message BeamSpec {
+  // EgressMode configures outgoing network connectivity from the beam.
+  EgressMode egress = 1;
+
+  // AllowedDomains is an allowlist of FQDNs that can be dialed from inside
+  // the beam, when EGRESS_MODE_RESTRICTED is set.
+  repeated string allowed_domains = 2;
+}
+
+// EgressMode configures outgoing network connectivity from the beam.
+enum EgressMode {
+  // EGRESS_MODE_UNSPECIFIED is the enum zero-value.
+  EGRESS_MODE_UNSPECIFIED = 0;
+
+  // EGRESS_MODE_RESTRICTED means all outgoing network traffic will be proxied
+  // through Teleport via VNet, and the beam's `allowed_domains` list will be
+  // applied.
+  EGRESS_MODE_RESTRICTED = 1;
+
+  // EGRESS_MODE_UNRESTRICTED means no restrictions will be placed on the beam's
+  // outgoing network traffic, and it will be able to reach anything on the public
+  // internet.
+  EGRESS_MODE_UNRESTRICTED = 2;
+}
+
+// BeamStatus contains the status of the beam and its derived resources.
+message BeamStatus {
+  // User to which this beam belongs.
+  string user = 1;
+
+  // Alias is the human-friendly identifier for the beam.
+  string alias = 2;
+
+  // NodeID is the UUID that identifies the node that can be used to SSH into
+  // the beam.
+  string node_id = 3;
+
+  // SSHAddr is the `host:port` address on which Teleport proxies can dial the
+  // beam's OpenSSH server.
+  string ssh_addr = 4;
+
+  // AppName is the name of the app resource that can be used to access the
+  // application exposed by the beam.
+  string app_name = 5;
+
+  // AppAddrTCP is the `host:port` address on which the application service can
+  // dial the beam's application Envoy proxy for TCP applications.
+  string app_addr_tcp = 6;
+
+  // AppAddrHTTP is the `host:port` address on which the application service can
+  // dial the beam's application Envoy proxy for HTTP applications.
+  string app_addr_http = 7;
+
+  // BotName is the name of the beam's bot identity.
+  string bot_name = 8;
+
+  // JoinTokenName is the name of the beam's bound-keypair join token.
+  string join_token_name = 9;
+
+  // DelegationSessionID identifies the delegation session through which the
+  // beam is using the user's identity.
+  string delegation_session_id = 10;
+
+  // WorkloadIdentityName is the name of the workload identity used to
+  // authenticate the beam's Envoy proxy.
+  string workload_identity_name = 11;
+}
