@@ -134,9 +134,11 @@ func (tl *TokenLimiter) consumeRates(source string, amount int64) error {
 	return nil
 }
 
-// RateSet maintains a set of rates. It can contain only one rate per period at a time.
+// RateSet maintains a set of rates. It can contain only one rate per
+// period at a time.
 type RateSet struct {
-	m map[time.Duration]*rate
+	name string
+	m    map[time.Duration]*rate
 }
 
 // rate defines token bucket parameters.
@@ -146,9 +148,21 @@ type rate struct {
 	burst   int64
 }
 
-// NewRateSet crates an empty rate set.
+// NewRateSet creates an empty rate set.
 func NewRateSet() *RateSet {
 	return &RateSet{m: make(map[time.Duration]*rate)}
+}
+
+// NewNamedRateSet creates an empty rate set with the given name.
+// Callers can retrieve the name with [RateSet.Name] and use it
+// to distinguish rate sets when keying token buckets.
+func NewNamedRateSet(name string) *RateSet {
+	return &RateSet{name: name, m: make(map[time.Duration]*rate)}
+}
+
+// Name returns the rate set's name, which may be empty.
+func (rs *RateSet) Name() string {
+	return rs.name
 }
 
 // Add adds a rate to the set. If there is a rate with the same period in the

@@ -360,14 +360,16 @@ type Middleware struct {
 
 func getCustomRate(endpoint string) *limiter.RateSet {
 	switch endpoint {
-	// Account recovery RPCs.
+	// Account recovery RPCs use a named bucket, isolated from the
+	// default per-IP rate, so that custom and default limits do not
+	// clobber each other.
 	case
 		"/proto.AuthService/ChangeUserAuthentication",
 		"/proto.AuthService/ChangePassword",
 		"/proto.AuthService/GetAccountRecoveryToken",
 		"/proto.AuthService/StartAccountRecovery",
 		"/proto.AuthService/VerifyAccountRecovery":
-		rates := limiter.NewRateSet()
+		rates := limiter.NewNamedRateSet("account-recovery")
 		// This limit means: 1 request per minute with bursts up to 10 requests.
 		if err := rates.Add(time.Minute, 1, 10); err != nil {
 			logger.DebugContext(context.Background(), "Failed to define a custom rate for rpc method, using default rate",
