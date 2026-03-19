@@ -40,7 +40,6 @@ const (
 	TerminalService_ListRootClusters_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ListRootClusters"
 	TerminalService_ListLeafClusters_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ListLeafClusters"
 	TerminalService_StartHeadlessWatcher_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/StartHeadlessWatcher"
-	TerminalService_ListDatabaseUsers_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers"
 	TerminalService_ListDatabaseServers_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseServers"
 	TerminalService_GetAccessRequests_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequests"
 	TerminalService_GetAccessRequest_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequest"
@@ -108,8 +107,6 @@ type TerminalServiceClient interface {
 	// StartHeadlessWatcher starts a headless watcher.
 	// If the watcher is already running, it is restarted.
 	StartHeadlessWatcher(ctx context.Context, in *StartHeadlessWatcherRequest, opts ...grpc.CallOption) (*StartHeadlessWatcherResponse, error)
-	// ListDatabaseUsers lists allowed users for the given database based on the role set.
-	ListDatabaseUsers(ctx context.Context, in *ListDatabaseUsersRequest, opts ...grpc.CallOption) (*ListDatabaseUsersResponse, error)
 	// ListDatabaseServers lists allowed users for the given database based on the role set.
 	ListDatabaseServers(ctx context.Context, in *ListDatabaseServersRequest, opts ...grpc.CallOption) (*ListDatabaseServersResponse, error)
 	// GetAccessRequests lists filtered AccessRequests
@@ -274,16 +271,6 @@ func (c *terminalServiceClient) StartHeadlessWatcher(ctx context.Context, in *St
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(StartHeadlessWatcherResponse)
 	err := c.cc.Invoke(ctx, TerminalService_StartHeadlessWatcher_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *terminalServiceClient) ListDatabaseUsers(ctx context.Context, in *ListDatabaseUsersRequest, opts ...grpc.CallOption) (*ListDatabaseUsersResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListDatabaseUsersResponse)
-	err := c.cc.Invoke(ctx, TerminalService_ListDatabaseUsers_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -721,8 +708,6 @@ type TerminalServiceServer interface {
 	// StartHeadlessWatcher starts a headless watcher.
 	// If the watcher is already running, it is restarted.
 	StartHeadlessWatcher(context.Context, *StartHeadlessWatcherRequest) (*StartHeadlessWatcherResponse, error)
-	// ListDatabaseUsers lists allowed users for the given database based on the role set.
-	ListDatabaseUsers(context.Context, *ListDatabaseUsersRequest) (*ListDatabaseUsersResponse, error)
 	// ListDatabaseServers lists allowed users for the given database based on the role set.
 	ListDatabaseServers(context.Context, *ListDatabaseServersRequest) (*ListDatabaseServersResponse, error)
 	// GetAccessRequests lists filtered AccessRequests
@@ -864,9 +849,6 @@ func (UnimplementedTerminalServiceServer) ListLeafClusters(context.Context, *Lis
 }
 func (UnimplementedTerminalServiceServer) StartHeadlessWatcher(context.Context, *StartHeadlessWatcherRequest) (*StartHeadlessWatcherResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StartHeadlessWatcher not implemented")
-}
-func (UnimplementedTerminalServiceServer) ListDatabaseUsers(context.Context, *ListDatabaseUsersRequest) (*ListDatabaseUsersResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListDatabaseUsers not implemented")
 }
 func (UnimplementedTerminalServiceServer) ListDatabaseServers(context.Context, *ListDatabaseServersRequest) (*ListDatabaseServersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDatabaseServers not implemented")
@@ -1074,24 +1056,6 @@ func _TerminalService_StartHeadlessWatcher_Handler(srv interface{}, ctx context.
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).StartHeadlessWatcher(ctx, req.(*StartHeadlessWatcherRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TerminalService_ListDatabaseUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListDatabaseUsersRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).ListDatabaseUsers(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_ListDatabaseUsers_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).ListDatabaseUsers(ctx, req.(*ListDatabaseUsersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1791,10 +1755,6 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "StartHeadlessWatcher",
 			Handler:    _TerminalService_StartHeadlessWatcher_Handler,
-		},
-		{
-			MethodName: "ListDatabaseUsers",
-			Handler:    _TerminalService_ListDatabaseUsers_Handler,
 		},
 		{
 			MethodName: "ListDatabaseServers",

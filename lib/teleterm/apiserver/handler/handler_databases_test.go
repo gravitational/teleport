@@ -53,6 +53,7 @@ func TestNewAPIDatabase_Fields(t *testing.T) {
 			AutoUserProvisioning: &clusters.AutoUserProvisioning{
 				DatabaseRoles: []string{"reader", "writer"},
 			},
+			DatabaseUsers: []string{"alice", "bob"},
 		}
 
 		apiDB := newAPIDatabase(testDatabase)
@@ -71,6 +72,7 @@ func TestNewAPIDatabase_Fields(t *testing.T) {
 			AutoUserProvisioning: &api.AutoUserProvisioning{
 				DatabaseRoles: []string{"reader", "writer"},
 			},
+			DatabaseUsers: []string{"alice", "bob"},
 		}, apiDB)
 	})
 }
