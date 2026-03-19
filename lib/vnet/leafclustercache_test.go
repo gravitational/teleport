@@ -116,6 +116,12 @@ func TestGetLeafClustersUncached(t *testing.T) {
 			got, err := cache.getLeafClustersUncached(ctx, rootClient)
 			require.NoError(t, err)
 			require.Len(t, got, tt.wantLen)
+
+			seen := make(map[string]struct{}, len(got))
+			for _, name := range got {
+				seen[name] = struct{}{}
+			}
+			require.Len(t, seen, tt.wantLen, "expected all cluster names to be distinct")
 		})
 	}
 }
