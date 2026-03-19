@@ -565,11 +565,10 @@ describe('setActiveWorkspace', () => {
     jest
       .spyOn(modalsService, 'openRegularDialog')
       .mockImplementation(dialog => {
+        expect(dialog.kind).toEqual('documents-reopen');
+        expect(microtaskRan).toBe(false);
+        expect(workspacesService.getRootClusterUri()).toBe(cluster.uri);
         if (dialog.kind === 'documents-reopen') {
-          /* oxlint-disable jest/no-conditional-expect */
-          expect(microtaskRan).toBe(false);
-          expect(workspacesService.getRootClusterUri()).toBe(cluster.uri);
-          /* oxlint-enable jest/no-conditional-expect */
           dialog.onDiscard();
         }
 
@@ -579,6 +578,10 @@ describe('setActiveWorkspace', () => {
       });
 
     await workspacesService.setActiveWorkspace(cluster.uri);
+    expect(modalsService.openRegularDialog).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'documents-reopen' }),
+      expect.any(AbortSignal)
+    );
   });
 });
 
