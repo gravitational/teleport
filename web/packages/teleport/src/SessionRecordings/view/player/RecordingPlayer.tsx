@@ -92,7 +92,7 @@ export function RecordingPlayer<
   const { clusterId } = useStickyClusterId();
 
   const [playerState, setPlayerState] = useState(PlayerState.Loading);
-  const [errorText, setErrorText] = useState('Some error');
+  const [errorText, setErrorText] = useState('');
   const [isLoadingError, setIsLoadingError] = useState(false);
   const [speed, setSpeed] = useState(1);
 
