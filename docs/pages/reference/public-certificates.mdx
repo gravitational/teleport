@@ -102,7 +102,7 @@ the `Status` field is `Valid`.
 
 To further inspect the certificate, run the following PowerShell command:
 ```console
-(Get-AuthenticodeSignature -FilePath.\tsh.exe).SignerCertificate | Format-List
+(Get-AuthenticodeSignature -FilePath .\tsh.exe).SignerCertificate | Format-List
 
 Subject      : CN="Gravitational, Inc.", O="Gravitational, Inc.", L=Oakland,
                S=California, C=US, SERIALNUMBER=5720258,
