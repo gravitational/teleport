@@ -227,14 +227,21 @@ function parseRow(row: string) {
     .map(cell => cell.trim().replace(/\\\|/g, '|'));
 }
 
+const MAX_LIST_DEPTH = 10;
+
 function parseListItems(
   activeParsers: MarkdownParser[],
   lines: string[],
   startIndex: number,
   baseIndent: number,
   listType: ListType,
-  isRoot = false
+  isRoot = false,
+  depth = 0
 ): { node: ReactNode; endIndex: number } {
+  if (depth >= MAX_LIST_DEPTH) {
+    return { node: null, endIndex: startIndex };
+  }
+
   const listItems: ReactNode[] = [];
   let i = startIndex;
 
@@ -302,7 +309,9 @@ function parseListItems(
           lines,
           i,
           nextIndent,
-          nextType
+          nextType,
+          false,
+          depth + 1
         );
 
         nestedList = nested.node;
