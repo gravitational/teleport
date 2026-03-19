@@ -383,9 +383,8 @@ ScopedRoleAssignment to enforce the following when `spec.bot_name` is set:
 - That `spec.bot_name` references a bot with a scope.
 - That `spec.bot_scope` is set and that this matches the scope of the referenced
   bot.
-- That the scope of origin (`scope`) and scope of effect
-  (`spec.assignments.*.scope`) of the role assignment are the same or descendent
-  scopes of the bot's scope.
+- That scope of effect (`spec.assignments.*.scope`) of the role assignment are 
+  the same or descendent scopes of the bot's scope.
 
 This validation must only be performed on creation or update, and should not
 be enforced on read of existing role assignments - this avoids the risk of
