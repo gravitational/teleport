@@ -607,6 +607,7 @@ func (a *Server) generateInitialBotCerts(
 		includeHostCA:  true,
 		loginIP:        loginIP,
 		botName:        botName,
+		botInternal:    true,
 		joinAttributes: joinAttrs,
 	}
 

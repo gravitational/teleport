@@ -2858,6 +2858,8 @@ type certRequest struct {
 	// botInstanceID is the unique identifier of the bot instance associated
 	// with this cert, if any
 	botInstanceID string
+	// botInternal is set when the certificates are issued for a 
+	botInternal bool
 	// joinToken is the name of the join token used to join, set only for bot
 	// identities. It is unset for token-joined bots, whose token names are
 	// secret values.
