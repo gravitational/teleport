@@ -52,6 +52,7 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 	authServer := sut.Teleport.Process.GetAuthServer()
 
 	// 1. Create the integration with bidirectional sync disabled
+	beforeCreateIntegrationTime := time.Now()
 	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 		ApiCredentials:          apiCredentials,
 		EnableUserSync:          true,
@@ -71,7 +72,7 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 
 	// 2. Verify users (user1 - ghost) are synchronized
 	var oktaUsers []types.User
-	mustWaitForEvent(t, sut, events.OktaUserSyncEvent)
+	mustWaitForEvent(t, sut, events.OktaUserSyncEvent, withTimePoint(beforeCreateIntegrationTime))
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		users, err := sut.Teleport.Process.GetAuthServer().GetUsers(ctx, false /* withSecrets */)

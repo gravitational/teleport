@@ -51,7 +51,9 @@ type assignmentReconciler struct {
 
 	reconcileCh chan struct{}
 
-	stopCh chan struct{}
+	startedCh chan struct{}
+	stopCh    chan struct{}
+	stopOnce  sync.Once
 
 	assignmentsMu sync.RWMutex
 	assignments   map[string]types.OktaAssignment
@@ -75,7 +77,8 @@ func newAssignmentReconciler(clusterName string, svc *Service) *assignmentReconc
 		accessPoint:           svc.accessPoint,
 		reconcileCh:           make(chan struct{}),
 		assignmentProcessorID: "unset_id",
-		stopCh:                make(chan struct{}, 1),
+		startedCh:             make(chan struct{}),
+		stopCh:                make(chan struct{}),
 		assignments:           make(map[string]types.OktaAssignment),
 		newAssignments:        make(map[string]types.OktaAssignment),
 	}
@@ -87,6 +90,8 @@ func newAssignmentReconciler(clusterName string, svc *Service) *assignmentReconc
 
 // Start will start the reconciler.
 func (a *assignmentReconciler) start(ctx context.Context) error {
+	defer close(a.startedCh)
+
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.OktaAssignment]{
 		Matcher: func(assignment types.OktaAssignment) bool {
 			return a.matcher(ctx, assignment)
@@ -156,13 +161,24 @@ func (a *assignmentReconciler) wait(ctx context.Context) {
 
 // Stop will stop and close any lingering resources in the assignmentReconciler.
 func (a *assignmentReconciler) stop() {
-	close(a.stopCh)
-	if a.watcher != nil {
-		a.watcher.Close()
+	// Make sure start() returned in case Okta plugin was stopped right after start to avoid
+	// races in accessing assignmentReconciler fields.
+	select {
+	case <-a.startedCh:
+	case <-time.After(30 * time.Second):
+		slog.ErrorContext(context.Background(), "Timed out waiting for the assignmentReconciler to start. Returning early. Was stop called without calling start? (this is a bug)")
+		return
 	}
-	if !a.noAssignmentProcessorLoop && a.assignmentProcessor != nil {
-		a.assignmentProcessor.stop()
-	}
+
+	a.stopOnce.Do(func() {
+		close(a.stopCh)
+		if a.watcher != nil {
+			a.watcher.Close()
+		}
+		if !a.noAssignmentProcessorLoop && a.assignmentProcessor != nil {
+			a.assignmentProcessor.stop()
+		}
+	})
 }
 
 // getAssignments returns the list of assignments currently known to the reconciler.
