@@ -318,7 +318,7 @@ func (a *Server) newWebSession(
 	var hasDeviceExtensions bool
 	if opts != nil && opts.deviceExtensions != nil {
 		// Apply extensions to request.
-		certReq.DeviceExtensions = tlsca.DeviceExtensions(*opts.deviceExtensions)
+		certReq.DeviceExtensions = *opts.deviceExtensions
 		hasDeviceExtensions = true
 	}
 
