@@ -566,8 +566,10 @@ describe('setActiveWorkspace', () => {
       .spyOn(modalsService, 'openRegularDialog')
       .mockImplementation(dialog => {
         if (dialog.kind === 'documents-reopen') {
+          /* oxlint-disable jest/no-conditional-expect */
           expect(microtaskRan).toBe(false);
           expect(workspacesService.getRootClusterUri()).toBe(cluster.uri);
+          /* oxlint-enable jest/no-conditional-expect */
           dialog.onDiscard();
         }
 
