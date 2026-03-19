@@ -38,6 +38,8 @@ export enum PlayerState {
 }
 
 interface SessionStreamEvents {
+  error: [string];
+  loadingError: [string];
   state: [PlayerState];
   time: [number];
 }
@@ -80,6 +82,7 @@ export class SessionStream<
   private startTime = 0;
 
   private atEnd = false;
+  private hasReceivedData = false;
   // we track loading separately from the loading state as we can still play and load at the same time
   private loading = true;
   private requestId = 0;
@@ -362,6 +365,7 @@ export class SessionStream<
     if (isBatchEvent(parsed)) {
       // mark loading as false as soon as we get any batch event so we can start playing again
       this.loading = false;
+      this.hasReceivedData = true;
 
       this.pushBatchToBuffer(parsed.events);
 
@@ -405,6 +409,12 @@ export class SessionStream<
     }
 
     if (isErrorEvent(parsed)) {
+      if (this.hasReceivedData) {
+        this.emit('error', parsed.error);
+      } else {
+        this.emit('loadingError', parsed.error);
+      }
+
       return;
     }
 
