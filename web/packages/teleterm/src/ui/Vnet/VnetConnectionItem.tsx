@@ -114,7 +114,6 @@ const VnetConnectionItemBase = forwardRef<
     diagnosticsAttempt,
     getDisabledDiagnosticsReason,
     showDiagWarningIndicator,
-    isDiagSupported,
     installTimeRequirementsCheck,
   } = useVnetContext();
   const { close: closeConnectionsPanel } = useConnectionsContext();
@@ -269,18 +268,16 @@ const VnetConnectionItemBase = forwardRef<
                 </ButtonIcon>
               )}
 
-              {isDiagSupported && (
-                <ButtonIcon
-                  title={disabledDiagnosticsReason || 'Run diagnostics'}
-                  disabled={!!disabledDiagnosticsReason}
-                  onClick={e => {
-                    e.stopPropagation();
-                    props.runDiagnosticsFromVnetPanel();
-                  }}
-                >
-                  <icons.ListMagnifyingGlass size={18} />
-                </ButtonIcon>
-              )}
+              <ButtonIcon
+                title={disabledDiagnosticsReason || 'Run diagnostics'}
+                disabled={!!disabledDiagnosticsReason}
+                onClick={e => {
+                  e.stopPropagation();
+                  props.runDiagnosticsFromVnetPanel();
+                }}
+              >
+                <icons.ListMagnifyingGlass size={18} />
+              </ButtonIcon>
             </>
           )}
 
