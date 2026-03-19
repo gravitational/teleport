@@ -5,7 +5,7 @@ go 1.25.8
 require (
 	github.com/gravitational/teleport/api v0.0.0-20251120161518-a8e2cdc30b24
 	github.com/gravitational/trace v1.5.1
-	google.golang.org/grpc v1.78.0
+	google.golang.org/grpc v1.79.3
 	k8s.io/api v0.32.3
 	k8s.io/apimachinery v0.32.3
 	k8s.io/client-go v0.32.3

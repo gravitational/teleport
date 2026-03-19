@@ -43,7 +43,7 @@ func InstallService(ctx context.Context) error {
 		Description:       serviceDescription,
 		Command:           []string{ServiceCommand},
 		EventSourceName:   eventSource,
-		AccessPermissions: windows.SERVICE_QUERY_STATUS | windows.SERVICE_START | windows.SERVICE_STOP,
+		AccessPermissions: windows.SERVICE_QUERY_STATUS | windows.SERVICE_START | windows.SERVICE_STOP | windows.SERVICE_QUERY_CONFIG,
 	}))
 }
 

@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -530,7 +531,7 @@ func getServerWithResolver(ctx context.Context, scopePin *scopesv1.Pin, host, po
 				agentScope = server.GetScope()
 			}
 
-			if !scopes.ResourceScope(agentScope).IsSubjectToPolicyScope(scopePin.GetScope()) {
+			if !pinning.PinAppliesToResourceScope(scopePin, agentScope) {
 				return false
 			}
 		}

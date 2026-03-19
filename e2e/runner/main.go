@@ -124,13 +124,17 @@ type e2eConfig struct {
 	teleportConfigTemplate string
 	stateTemplate          string
 
+	// teleportBuildDir is the directory in which to run `make build/teleport`.
+	// Empty when the teleport binary is overridden and no build is needed.
+	teleportBuildDir string
+
 	connectAppDir     string
 	connectTshBinPath string
 
 	creds *credentials
 
-	instances        []*browserInstance
-	connectInstance  *browserInstance
+	instances       []*browserInstance
+	connectInstance *browserInstance
 }
 
 // run sets up the test environment (ports, certs, credentials, teleport instance)
@@ -150,6 +154,13 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		nodeConfigTemplate:     filepath.Join(e2eDir, "node", "node.yaml.tmpl"),
 		connectAppDir:          filepath.Join(filepath.Dir(e2eDir), "web", "packages", "teleterm"),
 		connectTshBinPath:      filepath.Join(filepath.Dir(e2eDir), "build", "tsh-e2e-webauthnmock"),
+	}
+
+	switch config.teleportBin {
+	case filepath.Join(config.repoRoot, "build", "teleport"):
+		config.teleportBuildDir = config.repoRoot
+	case filepath.Join(config.repoRoot, "e", "build", "teleport"):
+		config.teleportBuildDir = filepath.Join(config.repoRoot, "e")
 	}
 
 	if flags.browsers == nil {
@@ -325,9 +336,9 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 
 			nodeBin := config.teleportBin
 			if runtime.GOOS != "linux" {
-				buildDir := config.repoRoot
-				if config.teleportBin == filepath.Join(config.repoRoot, "e", "build", "teleport") {
-					buildDir = filepath.Join(config.repoRoot, "e")
+				buildDir := config.teleportBuildDir
+				if buildDir == "" {
+					buildDir = config.repoRoot
 				}
 				nodeBin = filepath.Join(buildDir, "build", "teleport-node")
 			}
