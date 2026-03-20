@@ -77,9 +77,10 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuth)
+var logger = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentAuth)
 
 // VersionStorage local storage for saving the version.
 type VersionStorage interface {

@@ -29,12 +29,12 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "WebAuthn")
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, "WebAuthn")
 
 // x5cFormats enumerates all attestation formats that supply an attestation
 // chain through the "x5c" field.

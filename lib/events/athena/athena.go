@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -282,7 +283,7 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAthena)
+		cfg.Logger = slog.With(logconstants.ComponentKey, teleport.ComponentAthena)
 	}
 
 	if cfg.PublisherConsumerAWSConfig == nil {

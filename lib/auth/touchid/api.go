@@ -41,10 +41,10 @@ import (
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/darwin"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var (
@@ -56,7 +56,7 @@ var (
 	// PromptWriter is the writer used for prompt messages.
 	PromptWriter io.Writer = os.Stderr
 
-	logger = logutils.NewPackageLogger(teleport.ComponentKey, "TouchID")
+	logger = logutils.NewPackageLogger(logconstants.ComponentKey, "TouchID")
 )
 
 func promptPlatform() {

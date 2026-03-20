@@ -43,7 +43,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/otel"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -51,6 +50,7 @@ import (
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/utils/aws/dynamodbutils"
 	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 func init() {
@@ -235,7 +235,7 @@ var _ backend.Backend = &Backend{}
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, params backend.Params) (*Backend, error) {
-	l := slog.With(teleport.ComponentKey, BackendName)
+	l := slog.With(logconstants.ComponentKey, BackendName)
 
 	var cfg *Config
 	if err := utils.ObjectToStruct(params, &cfg); err != nil {

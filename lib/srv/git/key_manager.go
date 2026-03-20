@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // AccessPoint defines a subset of functions needed by git services.
@@ -67,7 +68,7 @@ func (c *KeyManagerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter AccessPoint")
 	}
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, teleport.ComponentGit)
+		c.Logger = slog.With(logconstants.ComponentKey, teleport.ComponentGit)
 	}
 	if c.githubServerKeys == nil {
 		c.githubServerKeys = newGitHubKeyDownloader()

@@ -38,10 +38,10 @@ import (
 	"github.com/pkg/sftp"
 	"github.com/schollz/progressbar/v3"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // SFTP request methods.
@@ -127,7 +127,7 @@ func (req *FileTransferRequest) checkAndSetDefaults() error {
 		req.Log = slog.Default()
 	}
 	req.Log = req.Log.With(
-		teleport.ComponentKey, "SFTP",
+		logconstants.ComponentKey, "SFTP",
 		"src_paths", req.Sources.Paths,
 		"dst_path", req.Destination,
 		"recursive", req.Recursive,

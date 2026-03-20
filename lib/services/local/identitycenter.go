@@ -22,12 +22,12 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -61,7 +61,7 @@ func (cfg *IdentityCenterServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.Default().With(teleport.ComponentKey, "AWS-IC-LOCAL")
+		cfg.Logger = slog.Default().With(logconstants.ComponentKey, "AWS-IC-LOCAL")
 	}
 
 	return nil

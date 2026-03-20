@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // LookupUser is used to mock the value returned by user.Lookup(string).
@@ -153,7 +154,7 @@ type terminal struct {
 
 // NewLocalTerminal creates and returns a local PTY.
 func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
-	logger := ctx.Logger.With(teleport.ComponentKey, teleport.ComponentLocalTerm)
+	logger := ctx.Logger.With(logconstants.ComponentKey, teleport.ComponentLocalTerm)
 
 	// Open PTY and corresponding TTY.
 	pty, tty, err := pty.Open()
@@ -525,7 +526,7 @@ func newRemoteTerminal(ctx *ServerContext) (*remoteTerminal, error) {
 	}
 
 	t := &remoteTerminal{
-		log:       ctx.Logger.With(teleport.ComponentKey, teleport.ComponentRemoteTerm),
+		log:       ctx.Logger.With(logconstants.ComponentKey, teleport.ComponentRemoteTerm),
 		ctx:       ctx,
 		session:   ctx.RemoteSession,
 		ptyBuffer: &ptyBuffer{},

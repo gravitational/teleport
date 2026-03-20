@@ -50,6 +50,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -206,7 +207,7 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 		events:          make(chan Agent),
 		backoff:         retry,
 		logger: slog.With(
-			teleport.ComponentKey, teleport.ComponentReverseTunnelAgent,
+			logconstants.ComponentKey, teleport.ComponentReverseTunnelAgent,
 			"target_cluster", config.Cluster,
 			"local_cluster", config.LocalCluster,
 		),

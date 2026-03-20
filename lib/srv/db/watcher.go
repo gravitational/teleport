@@ -32,6 +32,7 @@ import (
 	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
 	dbfetchers "github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
@@ -136,7 +137,7 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 
 	watcher, err := discovery.NewWatcher(ctx, discovery.WatcherConfig{
 		FetchersFn: discovery.StaticFetchers(allFetchers),
-		Logger:     slog.With(teleport.ComponentKey, "watcher:cloud"),
+		Logger:     slog.With(logconstants.ComponentKey, "watcher:cloud"),
 		Origin:     types.OriginCloud,
 	})
 	if err != nil {

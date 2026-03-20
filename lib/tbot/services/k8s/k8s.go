@@ -26,11 +26,12 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var (
 	tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/services/k8s")
-	log    = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
+	log    = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentTBot)
 )
 
 // WithDefaultCredentialLifetime sets the service's default credential lifetime.

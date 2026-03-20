@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -36,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common/iam"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // IAMConfig is the IAM configurator config.
@@ -113,7 +113,7 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 	}
 	return &IAM{
 		cfg:             config,
-		logger:          slog.With(teleport.ComponentKey, "iam"),
+		logger:          slog.With(logconstants.ComponentKey, "iam"),
 		tasks:           make(chan iamTask, defaultIAMTaskQueueSize),
 		iamPolicyStatus: sync.Map{},
 	}, nil

@@ -28,7 +28,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -36,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 func TestDBMiddleware_OnNewConnection(t *testing.T) {
@@ -111,7 +111,7 @@ func TestDBMiddleware_OnNewConnection(t *testing.T) {
 					hasCalledOnExpiredCert = true
 					return tls.Certificate{}, nil
 				},
-				logger:  slog.With(teleport.ComponentKey, "middleware"),
+				logger:  slog.With(logconstants.ComponentKey, "middleware"),
 				dbRoute: tt.dbRoute,
 			}
 

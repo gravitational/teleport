@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/utils"
 	log "github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 func init() {
@@ -482,7 +483,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	connCtx, connCancelFunc := context.WithCancel(ctx)
 	server := &Server{
 		cfg:              config,
-		log:              slog.With(teleport.ComponentKey, teleport.ComponentDatabase),
+		log:              slog.With(logconstants.ComponentKey, teleport.ComponentDatabase),
 		closeContext:     closeCtx,
 		closeFunc:        closeCancelFunc,
 		dynamicLabels:    make(map[string]*labels.Dynamic),
@@ -1546,7 +1547,7 @@ func (s *Server) getHealthChecker(ctx context.Context, db types.Database) (healt
 		Clock:                 s.cfg.Clock,
 		Database:              db,
 		GCPClients:            s.cfg.GCPClients,
-		Log:                   s.log.With(teleport.ComponentKey, teleport.ComponentDatabaseHealth),
+		Log:                   s.log.With(logconstants.ComponentKey, teleport.ComponentDatabaseHealth),
 		UpdateProxiedDatabase: s.updateProxiedDatabase,
 	})
 	if err != nil {

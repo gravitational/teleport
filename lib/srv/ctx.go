@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
 	"github.com/gravitational/teleport/lib/utils/parse"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var ctxID int32
@@ -521,7 +522,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 
 	child.Logger = slog.With(
-		teleport.ComponentKey, srv.Component(),
+		logconstants.ComponentKey, srv.Component(),
 		"local_addr", child.ServerConn.LocalAddr(),
 		"remote_addr", child.ServerConn.RemoteAddr(),
 		"login", child.Identity.Login,

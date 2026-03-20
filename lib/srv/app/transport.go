@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // transportConfig is configuration for a rewriting transport.
@@ -67,7 +68,7 @@ func (c *transportConfig) Check() error {
 		return trace.BadParameter("jwt missing")
 	}
 	if c.log == nil {
-		c.log = slog.With(teleport.ComponentKey, "transport")
+		c.log = slog.With(logconstants.ComponentKey, "transport")
 	}
 
 	return nil

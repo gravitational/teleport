@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // GetName is a part of backend API and it returns in-memory backend type
@@ -100,7 +101,7 @@ func New(cfg Config) (*Memory, error) {
 	buf.SetInit()
 	m := &Memory{
 		Mutex:  &sync.Mutex{},
-		logger: slog.With(teleport.ComponentKey, teleport.ComponentMemory),
+		logger: slog.With(logconstants.ComponentKey, teleport.ComponentMemory),
 		Config: cfg,
 		tree: btree.NewG(cfg.BTreeDegree, func(a, b *btreeItem) bool {
 			return a.Less(b)

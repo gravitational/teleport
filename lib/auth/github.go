@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // ErrGithubNoTeams results from a github user not belonging to any teams.
@@ -537,7 +538,7 @@ func newGithubOAuth2Config(connector types.GithubConnector) oauth2.Config {
 
 // ValidateGithubAuthRedirect validates Github auth callback redirect
 func (a *Server) ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
-	logger := a.logger.With(teleport.ComponentKey, "github")
+	logger := a.logger.With(logconstants.ComponentKey, "github")
 
 	if errParam := q.Get("error"); errParam != "" {
 		// try to find request so the error gets logged against it.

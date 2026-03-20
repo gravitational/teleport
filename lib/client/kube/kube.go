@@ -25,9 +25,10 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentKubeClient)
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentKubeClient)
 
 // CheckIfCertsAreAllowedToAccessCluster evaluates if the new cert created by the user
 // to access kubeCluster has at least one kubernetes_user or kubernetes_group

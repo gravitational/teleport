@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // number of goroutines that copy SFTP data from a SSH channel to
@@ -56,7 +57,7 @@ type sftpSubsys struct {
 
 func newSFTPSubsys(fileTransferReq *srv.FileTransferRequest) (*sftpSubsys, error) {
 	return &sftpSubsys{
-		logger:          slog.With(teleport.ComponentKey, teleport.ComponentSubsystemSFTP),
+		logger:          slog.With(logconstants.ComponentKey, teleport.ComponentSubsystemSFTP),
 		fileTransferReq: fileTransferReq,
 	}, nil
 }

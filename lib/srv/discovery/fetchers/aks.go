@@ -26,11 +26,11 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 type aksFetcher struct {
@@ -69,7 +69,7 @@ func (c *AKSFetcherConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "fetcher:aks")
+		c.Logger = slog.With(logconstants.ComponentKey, "fetcher:aks")
 	}
 	return nil
 }

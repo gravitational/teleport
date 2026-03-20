@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // ConnMonitor monitors authorized connections and terminates them when
@@ -153,7 +154,7 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("tls config missing")
 	}
 	if c.Logger == nil {
-		c.Logger = slog.Default().With(teleport.ComponentKey, teleport.Component(c.ServiceComponent))
+		c.Logger = slog.Default().With(logconstants.ComponentKey, teleport.Component(c.ServiceComponent))
 	}
 	if c.Cloud == nil {
 		cloud, err := NewCloud(CloudConfig{
@@ -233,7 +234,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	}
 
 	azureHandler, err := appazure.NewAzureHandler(closeContext, appazure.HandlerConfig{
-		Log: cfg.Logger.With(teleport.ComponentKey, appazure.ComponentKey),
+		Log: cfg.Logger.With(logconstants.ComponentKey, appazure.ComponentKey),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -251,7 +252,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		azureHandler: azureHandler,
 		gcpHandler:   gcpHandler,
 		connAuth:     make(map[net.Conn]error),
-		log:          slog.With(teleport.ComponentKey, cfg.ServiceComponent),
+		log:          slog.With(logconstants.ComponentKey, cfg.ServiceComponent),
 		getAppByPublicAddress: func(ctx context.Context, s string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
 		},

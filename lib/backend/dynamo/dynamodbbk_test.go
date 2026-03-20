@@ -41,11 +41,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils/clocki"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
@@ -223,7 +223,7 @@ func TestCreateTable(t *testing.T) {
 				expectedProvisionedthroughput: tc.expectedProvisionedThroughput,
 			}
 			b := &Backend{
-				logger: slog.With(teleport.ComponentKey, BackendName),
+				logger: slog.With(logconstants.ComponentKey, BackendName),
 				Config: Config{
 					BillingMode:        tc.billingMode,
 					ReadCapacityUnits:  int64(tc.readCapacityUnits),

@@ -32,11 +32,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 func init() {
@@ -169,7 +169,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		}
 	}
 
-	log := slog.With(teleport.ComponentKey, componentName)
+	log := slog.With(logconstants.ComponentKey, componentName)
 
 	if err := cfg.AuthConfig.ApplyToPoolConfigs(ctx, log, poolConfig, feedConfig); err != nil {
 		return nil, trace.Wrap(err)

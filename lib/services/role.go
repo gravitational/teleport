@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/parse"
 	setutils "github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // DefaultImplicitRules provides access to the default set of implicit rules
@@ -2612,7 +2613,7 @@ type AccessCheckable interface {
 	GetAllLabels() map[string]string
 }
 
-var rbacLogger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentRBAC)
+var rbacLogger = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentRBAC)
 
 // resourceRequiresLabelMatching decides if a resource requires label matching
 // when making RBAC access decisions.

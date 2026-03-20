@@ -27,10 +27,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var (
-	log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentKeyGen)
+	log = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentKeyGen)
 
 	// PrecomputedKeys is a queue of cached keys ready for usage.
 	PrecomputedKeys = make(chan *rsa.PrivateKey, 25)

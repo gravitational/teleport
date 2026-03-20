@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -46,7 +47,7 @@ const (
 	TSHVarName = "TSH"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentTBot)
 
 // capture runs a command (presumably tsh) with the given arguments and
 // returns it's captured stdout. Stderr is ignored. Errors are returned per

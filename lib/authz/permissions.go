@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // NewAdminContext returns new admin auth context
@@ -111,7 +112,7 @@ func newAuthorizer(opts AuthorizerOpts) (*authorizer, error) {
 	}
 	logger := opts.Logger
 	if logger == nil {
-		logger = slog.With(teleport.ComponentKey, "authorizer")
+		logger = slog.With(logconstants.ComponentKey, "authorizer")
 	}
 
 	if opts.ReadOnlyAccessPoint == nil {

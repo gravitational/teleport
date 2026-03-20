@@ -39,7 +39,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -47,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // elasticacheClient defines a subset of the AWS ElastiCache client API.
@@ -181,7 +181,7 @@ func NewMetadata(config MetadataConfig) (*Metadata, error) {
 	}
 	return &Metadata{
 		cfg:    config,
-		logger: slog.With(teleport.ComponentKey, "meta"),
+		logger: slog.With(logconstants.ComponentKey, "meta"),
 	}, nil
 }
 

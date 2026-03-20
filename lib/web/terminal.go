@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/lib/web/terminal"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // TerminalRequest describes a request to create a web-based terminal
@@ -123,7 +124,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 	return &TerminalHandler{
 		sshBaseHandler: sshBaseHandler{
 			logger: cfg.Logger.With(
-				teleport.ComponentKey, teleport.ComponentWebsocket,
+				logconstants.ComponentKey, teleport.ComponentWebsocket,
 				"session_id", cfg.SessionData.ID.String(),
 			),
 			ctx:                cfg.SessionCtx,
@@ -211,7 +212,7 @@ type TerminalHandlerConfig struct {
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 	if t.Logger == nil {
-		t.Logger = slog.Default().With(teleport.ComponentKey, teleport.ComponentWebsocket)
+		t.Logger = slog.Default().With(logconstants.ComponentKey, teleport.ComponentWebsocket)
 	}
 
 	// Make sure whatever session is requested is a valid session id.

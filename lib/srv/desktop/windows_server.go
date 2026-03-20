@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/winpki"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -299,7 +300,7 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, teleport.ComponentWindowsDesktop))
+	cfg.Logger = cmp.Or(cfg.Logger, slog.With(logconstants.ComponentKey, teleport.ComponentWindowsDesktop))
 	cfg.Clock = cmp.Or(cfg.Clock, clockwork.NewRealClock())
 
 	if !cfg.LocateServer.Enabled && cfg.LocateServer.Site != "" {

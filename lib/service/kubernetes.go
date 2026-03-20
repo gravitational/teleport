@@ -40,10 +40,11 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 func (process *TeleportProcess) initKubernetes() {
-	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id))
+	logger := process.logger.With(logconstants.ComponentKey, teleport.Component(teleport.ComponentKube, process.id))
 
 	process.RegisterWithAuthServer(types.RoleKube, KubeIdentityEvent)
 	process.ExpectService(teleport.ComponentKube)
@@ -191,7 +192,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if len(cfg.Kube.DynamicLabels) != 0 {
 		dynLabels, err = labels.NewDynamic(process.ExitContext(), &labels.DynamicConfig{
 			Labels: cfg.Kube.DynamicLabels,
-			Log:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+			Log:    process.logger.With(logconstants.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -208,7 +209,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentKube,
-			Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+			Logger:    process.logger.With(logconstants.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 			Client:    conn.Client,
 		},
 	})
@@ -221,7 +222,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		ClusterName: teleportClusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+		Logger:      process.logger.With(logconstants.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -291,7 +292,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		StaticLabels:         cfg.Kube.StaticLabels,
 		DynamicLabels:        dynLabels,
 		CloudLabels:          process.cloudLabels,
-		Log:                  process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+		Log:                  process.logger.With(logconstants.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 		PROXYProtocolMode:    multiplexer.PROXYProtocolOff, // Kube service doesn't need to process unsigned PROXY headers.
 		InventoryHandle:      process.inventoryHandle,
 		HealthCheckManager:   healthCheckManager,

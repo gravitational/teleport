@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -433,7 +434,7 @@ func (cfg *sqsCollectConfig) CheckAndSetDefaults() error {
 		cfg.noOfWorkers = 5
 	}
 	if cfg.logger == nil {
-		cfg.logger = slog.With(teleport.ComponentKey, teleport.ComponentAthena)
+		cfg.logger = slog.With(logconstants.ComponentKey, teleport.ComponentAthena)
 	}
 	if cfg.errHandlingFn == nil {
 		return trace.BadParameter("errHandlingFn is not specified")

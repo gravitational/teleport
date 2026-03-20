@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // RequestSender is an interface that implements SendRequest. It is used so
@@ -58,7 +59,7 @@ type KeepAliveParams struct {
 func StartKeepAliveLoop(p KeepAliveParams) {
 	var missedCount int64
 
-	log := slog.With(teleport.ComponentKey, teleport.ComponentKeepAlive)
+	log := slog.With(logconstants.ComponentKey, teleport.ComponentKeepAlive)
 	log.DebugContext(p.CloseContext, "Starting keep-alive loop", "interval", p.Interval, "max_count", p.MaxCount)
 
 	tickerCh := time.NewTicker(p.Interval)

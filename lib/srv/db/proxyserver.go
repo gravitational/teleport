@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // ProxyServer runs inside Teleport proxy and is responsible to accepting
@@ -169,7 +170,7 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
 		closeCtx: ctx,
-		log:      slog.With(teleport.ComponentKey, proxyServerComponent),
+		log:      slog.With(logconstants.ComponentKey, proxyServerComponent),
 	}
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(

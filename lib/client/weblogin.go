@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	websession "github.com/gravitational/teleport/lib/web/session"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -451,7 +452,7 @@ type TOTPRegisterChallenge struct {
 
 // initClient creates a new client to the HTTPS web proxy.
 func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string, opts ...roundtrip.ClientParam) (*WebClient, *url.URL, error) {
-	log := slog.With(teleport.ComponentKey, teleport.ComponentClient)
+	log := slog.With(logconstants.ComponentKey, teleport.ComponentClient)
 	if _, ok := extraHeaders["User-Agent"]; !ok {
 		if extraHeaders == nil {
 			extraHeaders = make(map[string]string)

@@ -25,12 +25,12 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Backend interface for manipulating DatabaseObjectImportRule resources.
@@ -55,7 +55,7 @@ func NewDatabaseObjectImportRuleService(cfg DatabaseObjectImportRuleServiceConfi
 		return nil, trace.BadParameter("backend service is required")
 	}
 	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, "db_obj_import_rule")
+		cfg.Logger = slog.With(logconstants.ComponentKey, "db_obj_import_rule")
 	}
 	return &DatabaseObjectImportRuleService{
 		logger:     cfg.Logger,

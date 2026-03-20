@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/srv/debug"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 type diagnosticHandlerConfig struct {
@@ -72,7 +73,7 @@ func (process *TeleportProcess) newMetricsHandler() http.Handler {
 			ErrorHandling: promhttp.ContinueOnError,
 			ErrorLog: promHTTPLogAdapter{
 				ctx:    process.ExitContext(),
-				Logger: process.logger.With(teleport.ComponentKey, teleport.ComponentMetrics),
+				Logger: process.logger.With(logconstants.ComponentKey, teleport.ComponentMetrics),
 			},
 		}),
 	)

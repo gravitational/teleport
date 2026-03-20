@@ -26,8 +26,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // User represents a managed cloud database user.
@@ -101,7 +101,7 @@ func (u *baseUser) CheckAndSetDefaults() error {
 		u.clock = clockwork.NewRealClock()
 	}
 	if u.log == nil {
-		u.log = slog.With(teleport.ComponentKey, "clouduser")
+		u.log = slog.With(logconstants.ComponentKey, "clouduser")
 	}
 	return nil
 }

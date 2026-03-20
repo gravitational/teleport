@@ -27,13 +27,13 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/enroll"
 	dtnative "github.com/gravitational/teleport/lib/devicetrust/native"
 	"github.com/gravitational/teleport/lib/linux"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 type deviceCommand struct {
@@ -262,7 +262,7 @@ func (c *deviceDMIReadCommand) run(cf *CLIConf) error {
 	dmiInfo, err := linux.DMIInfoFromSysfs()
 	if err != nil {
 		logger.WarnContext(cf.Context, "Failed to read DMI information",
-			teleport.ComponentKey, "DeviceTrust",
+			logconstants.ComponentKey, "DeviceTrust",
 			"error", err,
 		)
 		// err swallowed on purpose.

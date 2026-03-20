@@ -27,11 +27,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // ClusterExternalAuditStorageWatcherConfig contains configuration options for a ClusterExternalAuditWatcher.
@@ -53,7 +53,7 @@ func (cfg *ClusterExternalAuditStorageWatcherConfig) CheckAndSetDefaults() error
 		return trace.BadParameter("missing parameter Backend")
 	}
 	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, "ExternalAuditStorage.watcher")
+		cfg.Logger = slog.With(logconstants.ComponentKey, "ExternalAuditStorage.watcher")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = cfg.Backend.Clock()

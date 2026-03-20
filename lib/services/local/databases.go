@@ -25,12 +25,12 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // DatabaseService manages database resources in the backend.
@@ -43,7 +43,7 @@ type DatabaseService struct {
 func NewDatabasesService(backend backend.Backend) *DatabaseService {
 	return &DatabaseService{
 		Backend: backend,
-		logger:  slog.With(teleport.ComponentKey, "DatabaseService"),
+		logger:  slog.With(logconstants.ComponentKey, "DatabaseService"),
 	}
 }
 

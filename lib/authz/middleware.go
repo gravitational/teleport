@@ -32,9 +32,10 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuth)
+var logger = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentAuth)
 
 const (
 	// teleportImpersonateUserHeader is a header that specifies teleport user identity

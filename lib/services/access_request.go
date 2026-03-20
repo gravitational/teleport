@@ -33,7 +33,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -46,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/typical"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -1170,7 +1170,7 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 
 func NewRequestValidatorForUser(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, user UserState, opts ...ValidateRequestOption) (RequestValidator, error) {
 	m := RequestValidator{
-		logger:               slog.With(teleport.ComponentKey, "request.validator"),
+		logger:               slog.With(logconstants.ComponentKey, "request.validator"),
 		clock:                clock,
 		getter:               getter,
 		userState:            user,

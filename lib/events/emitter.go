@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // AsyncBufferSize is a default buffer size for async emitters
@@ -282,7 +283,7 @@ func (l *LoggingEmitter) EmitAuditEvent(ctx context.Context, event apievents.Aud
 	if err := utils.FastUnmarshal(data, &fields); err != nil {
 		return trace.Wrap(err)
 	}
-	fields[teleport.ComponentKey] = teleport.ComponentAuditLog
+	fields[logconstants.ComponentKey] = teleport.ComponentAuditLog
 
 	slog.InfoContext(ctx, "emitting audit event", "event_type", event.GetType(), "fields", fields)
 	return nil

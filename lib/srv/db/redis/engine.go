@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
@@ -51,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // NewEngine create new Redis engine.
@@ -622,7 +622,7 @@ func (l *driverLogger) Printf(ctx context.Context, format string, v ...any) {
 
 func init() {
 	redis.SetLogger(&driverLogger{
-		Logger: slog.With(teleport.ComponentKey, "go-redis"),
+		Logger: slog.With(logconstants.ComponentKey, "go-redis"),
 	})
 }
 

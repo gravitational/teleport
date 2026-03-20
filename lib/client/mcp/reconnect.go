@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // ProxyStdioConnConfig is the config for ProxyStdioConn.
@@ -81,7 +82,7 @@ func (cfg *ProxyStdioConnConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(
-			teleport.ComponentKey,
+			logconstants.ComponentKey,
 			teleport.Component(teleport.ComponentMCP, "autoreconnect"),
 		)
 	}

@@ -39,6 +39,7 @@ import (
 	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
 	"github.com/gravitational/teleport/lib/proxy/peer/internal"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -66,7 +67,7 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 		c.Log = slog.Default()
 	}
 	c.Log = c.Log.With(
-		teleport.ComponentKey,
+		logconstants.ComponentKey,
 		teleport.Component(teleport.ComponentProxy, "peer"),
 	)
 

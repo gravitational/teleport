@@ -31,9 +31,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // AzureTokenMiddleware implements a simplified version of MSI and Identity
@@ -69,7 +69,7 @@ func (m *AzureTokenMiddleware) CheckAndSetDefaults() error {
 		m.Clock = clockwork.NewRealClock()
 	}
 	if m.Log == nil {
-		m.Log = slog.With(teleport.ComponentKey, "azure_token")
+		m.Log = slog.With(logconstants.ComponentKey, "azure_token")
 	}
 
 	if m.Secret == "" {

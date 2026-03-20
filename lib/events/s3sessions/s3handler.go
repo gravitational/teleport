@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // s3AllowedACL is the set of canned ACLs that S3 accepts
@@ -199,7 +200,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	logger := slog.With(teleport.ComponentKey, teleport.SchemeS3)
+	logger := slog.With(logconstants.ComponentKey, teleport.SchemeS3)
 
 	opts := []func(*config.LoadOptions) error{
 		config.WithRegion(cfg.Region),

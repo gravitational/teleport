@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Config is a file uploader configuration
@@ -85,7 +86,7 @@ func NewHandler(cfg Config) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	logger := slog.With(teleport.ComponentKey, teleport.SchemeFile)
+	logger := slog.With(logconstants.ComponentKey, teleport.SchemeFile)
 	h := &Handler{
 		logger:       logger,
 		Config:       cfg,

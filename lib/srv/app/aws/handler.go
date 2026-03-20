@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -39,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // signerHandler is an http.Handler for signing and forwarding requests to AWS API.
@@ -78,7 +78,7 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 		cfg.RoundTripper = tr
 	}
 	if cfg.Log == nil {
-		cfg.Log = slog.With(teleport.ComponentKey, "aws:signer")
+		cfg.Log = slog.With(logconstants.ComponentKey, "aws:signer")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()

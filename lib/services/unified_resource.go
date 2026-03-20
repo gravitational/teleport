@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
@@ -90,7 +91,7 @@ func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig
 	}
 
 	m := &UnifiedResourceCache{
-		logger: slog.With(teleport.ComponentKey, cfg.Component),
+		logger: slog.With(logconstants.ComponentKey, cfg.Component),
 		cfg:    cfg,
 		nameTree: btree.NewG(cfg.BTreeDegree, func(a, b *item) bool {
 			return a.Less(b)

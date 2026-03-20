@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // iamCredentialsClient is an interface that defines the methods which we use from IAM Service Account Credentials API.
@@ -89,7 +90,7 @@ func (s *HandlerConfig) CheckAndSetDefaults() error {
 		s.Clock = clockwork.NewRealClock()
 	}
 	if s.Log == nil {
-		s.Log = slog.With(teleport.ComponentKey, "gcp:fwd")
+		s.Log = slog.With(logconstants.ComponentKey, "gcp:fwd")
 	}
 	if s.cloudClientGCP == nil {
 		// TODO (Tener): clients should be closed when no longer in use.

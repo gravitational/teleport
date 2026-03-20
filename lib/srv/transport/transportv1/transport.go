@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Dialer is the interface that groups basic dialing methods.
@@ -95,7 +96,7 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "transport")
+		c.Logger = slog.With(logconstants.ComponentKey, "transport")
 	}
 
 	if c.agentGetterFn == nil {

@@ -32,9 +32,10 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentConnectProxy)
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentConnectProxy)
 
 // A Dialer is a means for a client to establish a SSH connection.
 type Dialer interface {

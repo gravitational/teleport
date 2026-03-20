@@ -24,10 +24,10 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	inventorypb "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // InventoryCache is the subset of the inventory cache that the Service uses.
@@ -61,7 +61,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, "inventory.service")
+		cfg.Logger = slog.With(logconstants.ComponentKey, "inventory.service")
 	}
 
 	return &Service{

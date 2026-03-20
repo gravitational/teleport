@@ -26,7 +26,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -37,6 +36,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // AuthServer defines the subset of lib/auth.Server methods used by the MFA service.
@@ -153,7 +153,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:     slog.With(teleport.ComponentKey, "mfa.service"),
+		logger:     slog.With(logconstants.ComponentKey, "mfa.service"),
 		authorizer: cfg.Authorizer,
 		authServer: cfg.AuthServer,
 		cache:      cfg.Cache,

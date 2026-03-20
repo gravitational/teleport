@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/player/db"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Player is used to stream recorded sessions over a channel.
@@ -139,7 +140,7 @@ func New(cfg *Config) (*Player, error) {
 
 	log := cmp.Or(
 		cfg.Log,
-		slog.With(teleport.ComponentKey, "player"),
+		slog.With(logconstants.ComponentKey, "player"),
 	)
 
 	ctx := context.Background()

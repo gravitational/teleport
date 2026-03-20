@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/trace"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -72,6 +71,7 @@ import (
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -2548,7 +2548,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			cfg.SetLogLevel(slog.LevelDebug)
 		} else {
 			if strings.ToLower(fileConf.Logger.Severity) != "trace" {
-				fileConf.Logger.Severity = teleport.DebugLevel
+				fileConf.Logger.Severity = logconstants.TeleportDebugLevel
 			}
 		}
 	}

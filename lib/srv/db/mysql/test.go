@@ -33,11 +33,11 @@ import (
 	"github.com/go-mysql-org/go-mysql/server"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
@@ -152,7 +152,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 		listener = tls.NewListener(listener, tlsConfig)
 	}
 
-	log := logtest.With(teleport.ComponentKey, defaults.ProtocolMySQL,
+	log := logtest.With(logconstants.ComponentKey, defaults.ProtocolMySQL,
 		"name", config.Name,
 	)
 	server := &TestServer{

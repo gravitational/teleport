@@ -28,8 +28,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Config contains the configuration of the certificate reloader.
@@ -60,7 +60,7 @@ type CertReloader struct {
 // New initializes a new certificate reloader.
 func New(cfg Config, log *slog.Logger, onLoad func(path string, cert *x509.Certificate)) *CertReloader {
 	if log == nil {
-		log = slog.With(teleport.ComponentKey, "certreloader")
+		log = slog.With(logconstants.ComponentKey, "certreloader")
 	}
 	return &CertReloader{
 		logger: log,

@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -52,7 +53,7 @@ type AuthKindCommand struct {
 // argument parsing
 func (cmd *SSOConfigureCommand) Initialize(app *kingpin.Application, flags *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	cmd.Config = cfg
-	cmd.Logger = cfg.Logger.With(teleport.ComponentKey, teleport.ComponentClient)
+	cmd.Logger = cfg.Logger.With(logconstants.ComponentKey, teleport.ComponentClient)
 
 	sso := app.Command("sso", "A family of commands for configuring and testing auth connectors (SSO).")
 	cmd.ConfigureCmd = sso.Command("configure", "Create auth connector configuration.")

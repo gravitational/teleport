@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 type HostUsersOpt = func(hostUsers *HostUserManagement)
@@ -63,7 +64,7 @@ func NewHostUsers(ctx context.Context, storage services.PresenceInternal, uuid s
 	// handle fields that must be specified or aren't configurable
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
 	hostUsers := &HostUserManagement{
-		log:       slog.With(teleport.ComponentKey, teleport.ComponentHostUsers),
+		log:       slog.With(logconstants.ComponentKey, teleport.ComponentHostUsers),
 		ctx:       cancelCtx,
 		cancel:    cancelFunc,
 		storage:   storage,
@@ -107,7 +108,7 @@ func NewHostSudoers(uuid string) HostSudoers {
 	}
 	return &HostSudoersManagement{
 		backend: backend,
-		log:     slog.With(teleport.ComponentKey, teleport.ComponentHostUsers),
+		log:     slog.With(logconstants.ComponentKey, teleport.ComponentHostUsers),
 	}
 }
 

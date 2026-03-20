@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 func (process *TeleportProcess) shouldInitDatabases() bool {
@@ -49,7 +50,7 @@ func (process *TeleportProcess) initDatabases() {
 }
 
 func (process *TeleportProcess) initDatabaseService() (retErr error) {
-	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id))
+	logger := process.logger.With(logconstants.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id))
 
 	conn, err := process.WaitForConnector(DatabasesIdentityEvent, logger)
 	if conn == nil {
@@ -92,7 +93,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentDatabase,
-			Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
+			Logger:    process.logger.With(logconstants.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
 			Client:    conn.Client,
 		},
 	})
@@ -105,7 +106,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
+		Logger:      process.logger.With(logconstants.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
 	})
 	if err != nil {
 		return trace.Wrap(err)

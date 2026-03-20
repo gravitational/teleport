@@ -26,18 +26,18 @@ import (
 	"github.com/gravitational/trace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var (
-	log     = logutils.NewPackageLogger(teleport.ComponentKey, "WebAuthn")
-	fidoLog = logutils.NewPackageLogger(teleport.ComponentKey, "FIDO2")
+	log     = logutils.NewPackageLogger(logconstants.ComponentKey, "WebAuthn")
+	fidoLog = logutils.NewPackageLogger(logconstants.ComponentKey, "FIDO2")
 )
 
 // ErrUsingNonRegisteredDevice is returned from Login when the user attempts to

@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // TestProxyConn tests proxying the connection between client and server.
@@ -125,7 +125,7 @@ func newEchoServer() (*echoServer, error) {
 	}
 	return &echoServer{
 		listener: listener,
-		log:      slog.With(teleport.ComponentKey, "echo"),
+		log:      slog.With(logconstants.ComponentKey, "echo"),
 	}, nil
 }
 

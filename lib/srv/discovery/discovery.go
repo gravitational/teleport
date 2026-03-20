@@ -74,6 +74,7 @@ import (
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/utils/spreadwork"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var errNoInstances = errors.New("all fetched nodes already enrolled")
@@ -364,7 +365,7 @@ kubernetes matchers are present.`)
 		return trace.BadParameter("cluster features are required")
 	}
 
-	c.Log = c.Log.With(teleport.ComponentKey, teleport.ComponentDiscovery)
+	c.Log = c.Log.With(logconstants.ComponentKey, teleport.ComponentDiscovery)
 
 	if c.DiscoveryGroup == "" {
 		const warningMessage = "discovery_service.discovery_group is not set. This field is required for the discovery service to work properly.\n" +

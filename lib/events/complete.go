@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // UploadCompleterConfig specifies configuration for the uploader
@@ -125,7 +126,7 @@ func NewUploadCompleter(cfg UploadCompleterConfig) (*UploadCompleter, error) {
 	}
 	u := &UploadCompleter{
 		cfg:    cfg,
-		log:    slog.With(teleport.ComponentKey, teleport.Component(cfg.Component, "completer")),
+		log:    slog.With(logconstants.ComponentKey, teleport.Component(cfg.Component, "completer")),
 		closeC: make(chan struct{}),
 	}
 

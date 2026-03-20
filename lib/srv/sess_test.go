@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
@@ -1029,7 +1030,7 @@ func TestTrackingSession(t *testing.T) {
 
 			sess := &session{
 				id:     rsession.NewID(),
-				logger: logtest.With(teleport.ComponentKey, "test-session"),
+				logger: logtest.With(logconstants.ComponentKey, "test-session"),
 				registry: &SessionRegistry{
 					logger: logtest.NewLogger(),
 					SessionRegistryConfig: SessionRegistryConfig{

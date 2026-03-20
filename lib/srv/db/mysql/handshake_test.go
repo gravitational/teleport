@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 func TestSendMagicProxyReply(t *testing.T) {
@@ -188,7 +189,7 @@ func TestHandshakeModes(t *testing.T) {
 				defer wg.Done()
 				defer agentProxyConn.Close()
 				agentMySQLServer = makeProxyConn(agentProxyConn)
-				log := slog.With(teleport.ComponentKey, teleport.ComponentDatabase)
+				log := slog.With(logconstants.ComponentKey, teleport.ComponentDatabase)
 				err := notifyProxy(ctx, log, test.agentHandshakeMode, agentMySQLServer)
 				if test.wantAgentError != "" {
 					assert.ErrorContains(t, err, test.wantAgentError)
@@ -211,7 +212,7 @@ func TestHandshakeModes(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				defer proxyAgentConn.Close()
-				log := slog.With(teleport.ComponentKey, teleport.ComponentProxy)
+				log := slog.With(logconstants.ComponentKey, teleport.ComponentProxy)
 				err := waitForAgent(ctx, log, test.proxyHandshakeMode, proxyAgentConn, func(c *client.Conn) error {
 					c.SetAttributes(map[string]string{"species": "llama"})
 					return nil

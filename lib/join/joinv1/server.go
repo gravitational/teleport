@@ -24,15 +24,15 @@ import (
 	grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 
-	"github.com/gravitational/teleport"
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "joinv1")
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, "joinv1")
 
 // messageServer describes the protocol-agnostic join server, referenced in
 // this package as an interface so that it doesn't need to import lib/join.

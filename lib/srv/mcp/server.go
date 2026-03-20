@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // AccessPoint defines functions that the MCP server requires from the caching
@@ -97,7 +98,7 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing CipherSuites")
 	}
 	if c.Log == nil {
-		c.Log = slog.With(teleport.ComponentKey, teleport.ComponentMCP)
+		c.Log = slog.With(logconstants.ComponentKey, teleport.ComponentMCP)
 	}
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()

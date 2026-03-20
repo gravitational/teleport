@@ -25,9 +25,9 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // CloneConfig contains the configuration for cloning a [Backend].
@@ -50,7 +50,7 @@ type CloneConfig struct {
 func Clone(ctx context.Context, src, dst Backend, parallel int, force bool) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	log := slog.With(teleport.ComponentKey, "clone")
+	log := slog.With(logconstants.ComponentKey, "clone")
 
 	start := NewKey("")
 	cloned, failed := &atomic.Int64{}, &atomic.Int64{}

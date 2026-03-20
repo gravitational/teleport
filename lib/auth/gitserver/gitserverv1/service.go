@@ -26,11 +26,11 @@ import (
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Backend handpicks a list of backend functions this service needs.
@@ -86,7 +86,7 @@ func NewService(cfg Config) (*Service, error) {
 		return nil, trace.BadParameter("GitHubAuthRequestCreator is required")
 	}
 	if cfg.Log == nil {
-		cfg.Log = slog.With(teleport.ComponentKey, "gitserver.service")
+		cfg.Log = slog.With(logconstants.ComponentKey, "gitserver.service")
 	}
 	if cfg.clock == nil {
 		cfg.clock = clockwork.NewRealClock()

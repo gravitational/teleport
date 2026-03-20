@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // sessionContainerParam and inprogressContainerParam are the parameters in the
@@ -179,7 +180,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = slog.With(teleport.ComponentKey, "azblob")
+		c.Log = slog.With(logconstants.ComponentKey, "azblob")
 	}
 
 	return nil

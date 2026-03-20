@@ -27,11 +27,11 @@ import (
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // GenerateAWSRACredentials generates a set of AWS credentials which uses the AWS Roles Anywhere integration.
@@ -137,7 +137,7 @@ func (s *AWSRolesAnywhereServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if s.Logger == nil {
-		s.Logger = slog.With(teleport.ComponentKey, "integrations.awsra.service")
+		s.Logger = slog.With(logconstants.ComponentKey, "integrations.awsra.service")
 	}
 
 	if s.newPingClient == nil {

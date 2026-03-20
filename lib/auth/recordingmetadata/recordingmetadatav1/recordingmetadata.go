@@ -33,13 +33,13 @@ import (
 	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // UploadHandler uploads session recording metadata and thumbnails.
@@ -98,7 +98,7 @@ func NewRecordingMetadataService(cfg RecordingMetadataServiceConfig) (*Recording
 	return &RecordingMetadataService{
 		streamer:           cfg.Streamer,
 		uploadHandler:      cfg.UploadHandler,
-		logger:             slog.With(teleport.ComponentKey, "recording_metadata"),
+		logger:             slog.With(logconstants.ComponentKey, "recording_metadata"),
 		concurrencyLimiter: semaphore.NewWeighted(concurrencyLimit),
 		encrypter:          cfg.Encrypter,
 	}, nil

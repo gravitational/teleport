@@ -31,9 +31,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, "latency")
+var logger = logutils.NewPackageLogger(logconstants.ComponentKey, "latency")
 
 // Statistics contain latency measurements for both
 // legs of a proxied connection.

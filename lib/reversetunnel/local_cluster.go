@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -105,7 +106,7 @@ func newLocalCluster(srv *server, domainName string, authServers []string, opts 
 		remoteConns:      make(map[connKey][]*remoteConn),
 		clock:            srv.Clock,
 		logger: slog.With(
-			teleport.ComponentKey, teleport.ComponentReverseTunnelServer,
+			logconstants.ComponentKey, teleport.ComponentReverseTunnelServer,
 			"cluster", domainName,
 		),
 		offlineThreshold:         srv.offlineThreshold,

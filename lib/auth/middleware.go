@@ -56,6 +56,7 @@ import (
 	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // AccessCacheWithEvents extends the [authclient.AccessCache] interface with [types.Events].
@@ -208,7 +209,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 				return authz.ContextWithConn(ctx, c)
 			},
 		},
-		log: slog.With(teleport.ComponentKey, cfg.Component),
+		log: slog.With(logconstants.ComponentKey, cfg.Component),
 	}
 
 	tlsConfig := cfg.TLS.Clone()

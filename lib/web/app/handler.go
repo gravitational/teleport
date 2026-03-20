@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // HandlerConfig is the configuration for an application handler.
@@ -116,7 +117,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h := &Handler{
 		c:            c,
 		closeContext: ctx,
-		logger:       slog.With(teleport.ComponentKey, teleport.ComponentAppProxy),
+		logger:       slog.With(logconstants.ComponentKey, teleport.ComponentAppProxy),
 	}
 
 	// Create a new session cache, this holds sessions that can be used to

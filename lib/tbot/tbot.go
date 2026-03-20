@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/process"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot")
@@ -165,7 +166,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			diagnostics.ServiceBuilder(diagnostics.Config{
 				Address: b.cfg.DiagAddr,
 				Logger: b.log.With(
-					teleport.ComponentKey,
+					logconstants.ComponentKey,
 					teleport.Component(teleport.ComponentTBot, "diagnostics"),
 				),
 				PProfEnabled: b.cfg.Debug,
@@ -179,7 +180,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				Address: b.cfg.DiagSocketForUpdater,
 				Network: "unix",
 				Logger: b.log.With(
-					teleport.ComponentKey,
+					logconstants.ComponentKey,
 					teleport.Component(teleport.ComponentTBot, "diagnostics-updater"),
 				),
 			}),

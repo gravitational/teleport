@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -334,7 +335,7 @@ func New(c ServerConfig) (*Server, error) {
 	}
 
 	s := &Server{
-		logger: slog.With(teleport.ComponentKey, teleport.ComponentForwardingNode,
+		logger: slog.With(logconstants.ComponentKey, teleport.ComponentForwardingNode,
 			"src_addr", c.SrcAddr.String(),
 			"dst_addr", c.DstAddr.String(),
 		),

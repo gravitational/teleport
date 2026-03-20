@@ -26,10 +26,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var (
-	log    = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
+	log    = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentTBot)
 	tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/bot/destination")
 )
 

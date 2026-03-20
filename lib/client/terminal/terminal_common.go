@@ -26,9 +26,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentClient)
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentClient)
 
 // ResizeEvent is emitted when a terminal window is resized.
 type ResizeEvent struct{}

@@ -25,12 +25,12 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // KubernetesService manages kubernetes resources in the backend.
@@ -43,7 +43,7 @@ type KubernetesService struct {
 func NewKubernetesService(backend backend.Backend) *KubernetesService {
 	return &KubernetesService{
 		Backend: backend,
-		logger:  slog.With(teleport.ComponentKey, "KubernetesService"),
+		logger:  slog.With(logconstants.ComponentKey, "KubernetesService"),
 	}
 }
 

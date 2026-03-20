@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
 	log "github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // HeartbeatI abstracts over the basic interface of Heartbeat and HeartbeatV2. This can be removed
@@ -156,7 +157,7 @@ func NewHeartbeat(cfg HeartbeatConfig) (*Heartbeat, error) {
 		cancelCtx:       ctx,
 		cancel:          cancel,
 		HeartbeatConfig: cfg,
-		logger:          slog.With(teleport.ComponentKey, teleport.Component(cfg.Component, "beat")),
+		logger:          slog.With(logconstants.ComponentKey, teleport.Component(cfg.Component, "beat")),
 		checkTicker:     cfg.Clock.NewTicker(cfg.CheckPeriod),
 		announceC:       make(chan struct{}, 1),
 		sendC:           make(chan struct{}, 1),

@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // ServerConfig provides dependencies required to create a [Server].
@@ -59,7 +60,7 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = slog.With(teleport.ComponentKey, teleport.ComponentProxy)
+		c.Log = slog.With(logconstants.ComponentKey, teleport.ComponentProxy)
 	}
 
 	return nil

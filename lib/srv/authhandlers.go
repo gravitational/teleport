@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var (
@@ -168,7 +169,7 @@ func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
 
 	ah := &AuthHandlers{
 		c:   config,
-		log: slog.With(teleport.ComponentKey, config.Component),
+		log: slog.With(logconstants.ComponentKey, config.Component),
 	}
 	lc := &ahLoginChecker{
 		log: ah.log,

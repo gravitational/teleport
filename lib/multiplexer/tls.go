@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // TLSListenerConfig specifies listener configuration
@@ -74,7 +75,7 @@ func NewTLSListener(cfg TLSListenerConfig) (*TLSListener, error) {
 	}
 	context, cancel := context.WithCancel(context.TODO())
 	return &TLSListener{
-		log:           slog.With(teleport.ComponentKey, teleport.Component("mxtls", cfg.ID)),
+		log:           slog.With(logconstants.ComponentKey, teleport.Component("mxtls", cfg.ID)),
 		cfg:           cfg,
 		http2Listener: newListener(context, cfg.Listener.Addr()),
 		httpListener:  newListener(context, cfg.Listener.Addr()),

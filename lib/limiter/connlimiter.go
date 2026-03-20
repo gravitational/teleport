@@ -26,8 +26,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/limiter/internal/ratelimit"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // ConnectionsLimiter is a network connection limiter.
@@ -46,7 +46,7 @@ type ConnectionsLimiter struct {
 func NewConnectionsLimiter(maxConnections int64) *ConnectionsLimiter {
 	return &ConnectionsLimiter{
 		maxConnections: maxConnections,
-		log:            slog.With(teleport.ComponentKey, "limiter"),
+		log:            slog.With(logconstants.ComponentKey, "limiter"),
 		connections:    make(map[string]int64),
 	}
 }

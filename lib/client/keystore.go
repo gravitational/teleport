@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -114,7 +115,7 @@ type FSKeyStore struct {
 func NewFSKeyStore(dirPath string) *FSKeyStore {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &FSKeyStore{
-		log:    slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
+		log:    slog.With(logconstants.ComponentKey, teleport.ComponentKeyStore),
 		KeyDir: dirPath,
 	}
 }

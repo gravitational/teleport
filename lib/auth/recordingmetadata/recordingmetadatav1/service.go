@@ -30,12 +30,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Service implements the RecordingMetadataServiceServer interface, providing methods to retrieve session recording
@@ -89,7 +89,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		authorizer:      cfg.Authorizer,
 		streamer:        cfg.Streamer,
 		downloadHandler: cfg.DownloadHandler,
-		logger:          slog.With(teleport.ComponentKey, "recording_metadata"),
+		logger:          slog.With(logconstants.ComponentKey, "recording_metadata"),
 		decrypter:       cfg.Decrypter,
 	}, nil
 }

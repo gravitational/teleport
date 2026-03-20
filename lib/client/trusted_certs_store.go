@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // TrustedCertsStore is a storage interface for trusted CA certificates and public keys.
@@ -171,7 +172,7 @@ type FSTrustedCertsStore struct {
 func NewFSTrustedCertsStore(dirPath string) *FSTrustedCertsStore {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &FSTrustedCertsStore{
-		log: slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
+		log: slog.With(logconstants.ComponentKey, teleport.ComponentKeyStore),
 		Dir: dirPath,
 	}
 }

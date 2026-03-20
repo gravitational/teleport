@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Manager manages health checks for registered resource targets.
@@ -92,7 +93,7 @@ func NewManager(ctx context.Context, cfg ManagerConfig) (Manager, error) {
 		closeContext: ctx,
 		closeFn:      cancel,
 		cfg:          cfg,
-		logger:       slog.With(teleport.ComponentKey, cfg.Component),
+		logger:       slog.With(logconstants.ComponentKey, cfg.Component),
 		workers:      make(map[resourceKey]*worker),
 	}
 	return mgr, nil

@@ -25,13 +25,13 @@ import (
 	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed because mfav1.ValidatedMFAChallenge uses gogoproto
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // MFAService implements the storage layer for MFA resources.
@@ -56,7 +56,7 @@ func NewMFAService(b backend.Backend) (*MFAService, error) {
 	}
 
 	return &MFAService{
-		logger:  slog.With(teleport.ComponentKey, "mfa.backend"),
+		logger:  slog.With(logconstants.ComponentKey, "mfa.backend"),
 		service: svc,
 	}, nil
 }

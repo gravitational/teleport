@@ -24,10 +24,10 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v2"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -49,7 +49,7 @@ func GenerateTeleportConfigString(proxyHostPort, iamTokenName string, resourceMa
 		return "", trace.Wrap(err)
 	}
 
-	teleportConfig.Logger.Severity = teleport.DebugLevel
+	teleportConfig.Logger.Severity = logconstants.TeleportDebugLevel
 
 	// Disable default services
 	teleportConfig.Auth.EnabledFlag = "no"

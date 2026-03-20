@@ -24,15 +24,15 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
-	"github.com/gravitational/teleport"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "gitlab")
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, "gitlab")
 
 // Validator provides implementations for verifying both standard OIDC and JWKS
 // tokens issues from GitLab instances.

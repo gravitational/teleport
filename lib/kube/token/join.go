@@ -26,13 +26,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "kubetoken")
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, "kubetoken")
 
 type InClusterValidator interface {
 	Validate(ctx context.Context, token, clusterName string) (*ValidationResult, error)

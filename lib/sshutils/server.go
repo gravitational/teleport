@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var proxyConnectionLimitHitCount = prometheus.NewCounter(
@@ -138,7 +139,7 @@ func SetIngressReporter(service string, r *ingress.Reporter) ServerOption {
 // SetLogger sets the logger for the server
 func SetLogger(logger *slog.Logger) ServerOption {
 	return func(s *Server) error {
-		s.logger = logger.With(teleport.ComponentKey, teleport.Component("ssh", s.component))
+		s.logger = logger.With(logconstants.ComponentKey, teleport.Component("ssh", s.component))
 		return nil
 	}
 }
@@ -205,7 +206,7 @@ func NewServer(
 
 	closeContext, cancel := context.WithCancel(context.TODO())
 	s := &Server{
-		logger:         slog.With(teleport.ComponentKey, teleport.Component("ssh", component)),
+		logger:         slog.With(logconstants.ComponentKey, teleport.Component("ssh", component)),
 		addr:           a,
 		newChanHandler: h,
 		getHostSigners: getHostSigners,

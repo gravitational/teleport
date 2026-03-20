@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/discovery"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 func (process *TeleportProcess) shouldInitDiscovery() bool {
@@ -44,7 +45,7 @@ func (process *TeleportProcess) initDiscovery() {
 }
 
 func (process *TeleportProcess) initDiscoveryService() error {
-	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDiscovery, process.id))
+	logger := process.logger.With(logconstants.ComponentKey, teleport.Component(teleport.ComponentDiscovery, process.id))
 
 	conn, err := process.WaitForConnector(DiscoveryIdentityEvent, logger)
 	if conn == nil {

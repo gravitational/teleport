@@ -26,10 +26,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Matcher is used by reconciler to match resources.
@@ -100,7 +100,7 @@ func (c *GenericReconcilerConfig[K, T]) CheckAndSetDefaults() error {
 		c.CompareResources = CompareResources[T]
 	}
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "reconciler")
+		c.Logger = slog.With(logconstants.ComponentKey, "reconciler")
 	}
 	if c.Metrics == nil {
 		var err error

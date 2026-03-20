@@ -49,6 +49,7 @@ import (
 	peerquic "github.com/gravitational/teleport/lib/proxy/peer/quic"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // AccessPoint is the subset of the auth cache consumed by the [Client].
@@ -120,7 +121,7 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 	}
 
 	c.Log = c.Log.With(
-		teleport.ComponentKey,
+		logconstants.ComponentKey,
 		teleport.Component(teleport.ComponentProxyPeer),
 	)
 

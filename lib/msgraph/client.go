@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // graphVersion is the default version of the MS Graph API endpoint.
@@ -122,7 +123,7 @@ func (cfg *Config) SetDefaults() {
 		cfg.GraphEndpoint = types.MSGraphDefaultEndpoint
 	}
 	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, "msgraph")
+		cfg.Logger = slog.With(logconstants.ComponentKey, "msgraph")
 	}
 	if cfg.MetricsRegistry == nil {
 		cfg.MetricsRegistry = metrics.NoopRegistry()

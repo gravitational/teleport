@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // FileLogConfig is a configuration for file log
@@ -107,7 +108,7 @@ func NewFileLog(cfg FileLogConfig) (*FileLog, error) {
 	}
 	f := &FileLog{
 		FileLogConfig: cfg,
-		logger:        slog.With(teleport.ComponentKey, teleport.ComponentAuditLog),
+		logger:        slog.With(logconstants.ComponentKey, teleport.ComponentAuditLog),
 	}
 	return f, nil
 }

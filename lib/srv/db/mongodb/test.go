@@ -37,12 +37,12 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
@@ -146,7 +146,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 		return nil, trace.Wrap(err)
 	}
 	tlsConfig.ClientAuth = tls.VerifyClientCertIfGiven
-	log := logtest.With(teleport.ComponentKey, defaults.ProtocolMongoDB,
+	log := logtest.With(logconstants.ComponentKey, defaults.ProtocolMongoDB,
 		"name", config.Name,
 	)
 	server := &TestServer{

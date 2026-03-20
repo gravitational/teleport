@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // githubKeyDownloader downloads SSH keys from the GitHub meta API. The keys
@@ -56,7 +57,7 @@ type githubKeyDownloader struct {
 func newGitHubKeyDownloader() *githubKeyDownloader {
 	return &githubKeyDownloader{
 		apiEndpoint: "https://api.github.com/meta",
-		logger:      slog.With(teleport.ComponentKey, teleport.ComponentGit),
+		logger:      slog.With(logconstants.ComponentKey, teleport.ComponentGit),
 		clock:       clockwork.NewRealClock(),
 	}
 }

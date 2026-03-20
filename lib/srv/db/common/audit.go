@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Audit defines an interface for database access audit events logger.
@@ -129,7 +130,7 @@ func NewAudit(config AuditConfig) (Audit, error) {
 	}
 	return &audit{
 		cfg:    config,
-		logger: slog.With(teleport.ComponentKey, config.Component),
+		logger: slog.With(logconstants.ComponentKey, config.Component),
 	}, nil
 }
 

@@ -31,11 +31,11 @@ import (
 	smithyxml "github.com/aws/smithy-go/encoding/xml"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // AWSAccessMiddleware verifies the requests to AWS proxy are properly signed.
@@ -55,7 +55,7 @@ var _ LocalProxyHTTPMiddleware = &AWSAccessMiddleware{}
 
 func (m *AWSAccessMiddleware) CheckAndSetDefaults() error {
 	if m.Log == nil {
-		m.Log = slog.With(teleport.ComponentKey, "aws_access")
+		m.Log = slog.With(logconstants.ComponentKey, "aws_access")
 	}
 
 	if m.AWSCredentialsProvider == nil {

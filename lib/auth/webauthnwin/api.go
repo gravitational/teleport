@@ -35,9 +35,9 @@ import (
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // LoginOpts groups non-mandatory options for Login.
@@ -309,5 +309,5 @@ func Diag(ctx context.Context) (*DiagResult, error) {
 
 // getPackageLogger returns a logger with component="WebAuthnWin".
 func getPackageLogger() *slog.Logger {
-	return slog.With(teleport.ComponentKey, "WebAuthnWin")
+	return slog.With(logconstants.ComponentKey, "WebAuthnWin")
 }

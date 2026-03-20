@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // mockedFeatureGetter is a test proxy with a mocked Ping method
@@ -75,7 +76,7 @@ func TestFeaturesWatcher(t *testing.T) {
 			},
 			clock:           clockwork.NewRealClock(),
 			clusterFeatures: proto.Features{},
-			logger:          slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
+			logger:          slog.Default().With(logconstants.ComponentKey, teleport.ComponentWeb),
 		}
 
 		go handler.startFeatureWatcher()

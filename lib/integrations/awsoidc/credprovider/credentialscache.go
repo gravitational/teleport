@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -125,7 +125,7 @@ func (opts *CredentialsCacheOptions) CheckAndSetDefaults() error {
 	}
 
 	if opts.Log == nil {
-		opts.Log = slog.Default().With(teleport.ComponentKey, "AWS-OIDC-CredentialCache")
+		opts.Log = slog.Default().With(logconstants.ComponentKey, "AWS-OIDC-CredentialCache")
 	}
 
 	if opts.Clock == nil {

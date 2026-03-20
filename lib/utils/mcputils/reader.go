@@ -26,8 +26,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // HandleParseErrorFunc handles parse errors.
@@ -110,7 +110,7 @@ func (c *MessageReaderConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("one of OnRequest or OnResponse must be set")
 	}
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "mcp")
+		c.Logger = slog.With(logconstants.ComponentKey, "mcp")
 	}
 	return nil
 }

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 type bufferConfig struct {
@@ -105,7 +106,7 @@ func NewCircularBuffer(opts ...BufferOption) *CircularBuffer {
 		opt(&cfg)
 	}
 	return &CircularBuffer{
-		logger:   slog.With(teleport.ComponentKey, teleport.ComponentBuffer),
+		logger:   slog.With(logconstants.ComponentKey, teleport.ComponentBuffer),
 		cfg:      cfg,
 		watchers: newWatcherTree(),
 	}

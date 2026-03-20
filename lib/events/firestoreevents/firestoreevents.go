@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var (
@@ -285,7 +286,7 @@ func New(cfg EventsConfig) (*Log, error) {
 	}
 
 	closeCtx, cancel := context.WithCancel(context.Background())
-	l := slog.With(teleport.ComponentKey, teleport.ComponentFirestore)
+	l := slog.With(logconstants.ComponentKey, teleport.ComponentFirestore)
 	l.InfoContext(closeCtx, "Initializing event backend.")
 	firestoreAdminClient, firestoreClient, err := firestorebk.CreateFirestoreClients(closeCtx, cfg.ProjectID, cfg.DatabaseID, cfg.EndPoint, cfg.CredentialsPath)
 	if err != nil {

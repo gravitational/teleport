@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/loglimit"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var (
@@ -164,13 +165,13 @@ func New(cfg Config) (*Mux, error) {
 
 	waitContext, waitCancel := context.WithCancel(context.TODO())
 	return &Mux{
-		logger:        slog.With(teleport.ComponentKey, teleport.Component("mx", cfg.ID)),
+		logger:        slog.With(logconstants.ComponentKey, teleport.Component("mx", cfg.ID)),
 		Config:        cfg,
 		context:       ctx,
 		cancel:        cancel,
 		waitContext:   waitContext,
 		waitCancel:    waitCancel,
-		sampledLogger: slog.New(logLimiter).With(teleport.ComponentKey, teleport.Component("mx", cfg.ID)),
+		sampledLogger: slog.New(logLimiter).With(logconstants.ComponentKey, teleport.Component("mx", cfg.ID)),
 	}, nil
 }
 

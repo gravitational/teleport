@@ -100,6 +100,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -132,7 +133,7 @@ const (
 
 const remoteForwardUnsupportedMessage = "ssh: tcpip-forward request denied by peer"
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentClient)
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentClient)
 
 // ForwardedPort specifies local tunnel to remote
 // destination managed by the client, is equivalent

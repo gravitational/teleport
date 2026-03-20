@@ -33,11 +33,11 @@ import (
 	"github.com/oracle/oci-go-sdk/v65/common"
 	"github.com/oracle/oci-go-sdk/v65/common/auth"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Claims are the claims extracted from the instance certificate.
@@ -178,7 +178,7 @@ func (l *oracleLogger) Log(logLevel int, format string, v ...any) error {
 
 func init() {
 	common.SetSDKLogger(&oracleLogger{
-		logger: logutils.NewPackageLogger().With(teleport.ComponentKey, "oracle"),
+		logger: logutils.NewPackageLogger().With(logconstants.ComponentKey, "oracle"),
 	})
 }
 

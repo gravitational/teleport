@@ -27,11 +27,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 
-	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
 	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // SFTPProxy proxies an SFTP session and emits audit events for the handled
@@ -54,7 +54,7 @@ func NewSFTPProxy(
 		return nil, trace.BadParameter("missing parameter channel")
 	}
 	if logger == nil {
-		logger = slog.With(teleport.ComponentKey, "SFTP")
+		logger = slog.With(logconstants.ComponentKey, "SFTP")
 	}
 
 	client, err := sftp.NewClient(scx.RemoteClient.Client)

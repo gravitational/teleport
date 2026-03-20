@@ -28,7 +28,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -44,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/typical"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // PresenceService records and reports the presence of all components
@@ -76,7 +76,7 @@ func NewPresenceService(b backend.Backend) *PresenceService {
 		panic("impossible: failed to construct relay_server service wrapper")
 	}
 	return &PresenceService{
-		logger:  slog.With(teleport.ComponentKey, "Presence"),
+		logger:  slog.With(logconstants.ComponentKey, "Presence"),
 		jitter:  retryutils.FullJitter,
 		Backend: b,
 

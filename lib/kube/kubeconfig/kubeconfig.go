@@ -39,9 +39,10 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentKubeClient)
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentKubeClient)
 
 const (
 	// extKubeClusterName is the name of the extension that contains the

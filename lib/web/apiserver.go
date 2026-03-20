@@ -113,6 +113,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/terminal"
 	"github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -501,7 +502,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	h := &Handler{
 		cfg:                  cfg,
-		logger:               slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
+		logger:               slog.Default().With(logconstants.ComponentKey, teleport.ComponentWeb),
 		clock:                clockwork.NewRealClock(),
 		clusterFeatures:      cfg.ClusterFeatures,
 		healthCheckAppServer: cfg.HealthCheckAppServer,
@@ -4255,7 +4256,7 @@ func (h *Handler) podConnect(
 		teleportCluster:     cluster.GetName(),
 		ws:                  ws,
 		keepAliveInterval:   netConfig.GetKeepAliveInterval(),
-		logger:              h.logger.With(teleport.ComponentKey, "pod"),
+		logger:              h.logger.With(logconstants.ComponentKey, "pod"),
 		userClient:          clt,
 		localCA:             hostCA,
 		configServerAddr:    serverAddr,

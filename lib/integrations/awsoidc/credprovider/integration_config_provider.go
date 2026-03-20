@@ -27,10 +27,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Options represents additional options for configuring the AWS credentials provider.
@@ -113,7 +113,7 @@ func (c *Config) checkAndSetDefaults() error {
 		return trace.BadParameter("missing token generator")
 	}
 	if c.Logger == nil {
-		c.Logger = slog.Default().With(teleport.ComponentKey, "AWS_OIDC_CONFIG_PROVIDER")
+		c.Logger = slog.Default().With(logconstants.ComponentKey, "AWS_OIDC_CONFIG_PROVIDER")
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()

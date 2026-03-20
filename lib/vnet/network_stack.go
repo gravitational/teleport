@@ -44,9 +44,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/vnet/dns"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, logComponent)
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, logComponent)
 
 const (
 	logComponent                     = "vnet"
@@ -268,8 +269,8 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	logger := slog.With(teleport.ComponentKey, logComponent)
-	dnsLogger := slog.With(teleport.ComponentKey, teleport.Component(logComponent, dnsLogComponent))
+	logger := slog.With(logconstants.ComponentKey, logComponent)
+	dnsLogger := slog.With(logconstants.ComponentKey, teleport.Component(logComponent, dnsLogComponent))
 
 	stack, linkEndpoint, err := createStack()
 	if err != nil {

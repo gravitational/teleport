@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var (
@@ -291,7 +292,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
-	cfg.Logger = cfg.Logger.With(teleport.ComponentKey, cfg.Component)
+	cfg.Logger = cfg.Logger.With(logconstants.ComponentKey, cfg.Component)
 
 	if cfg.LockWatcher == nil {
 		return trace.BadParameter("missing parameter LockWatcher")
@@ -1250,7 +1251,7 @@ func newLeafCluster(srv *server, domainName string, sconn ssh.Conn) (*leafCluste
 		domainName: domainName,
 		connInfo:   connInfo,
 		logger: slog.With(
-			teleport.ComponentKey, teleport.ComponentReverseTunnelServer,
+			logconstants.ComponentKey, teleport.ComponentReverseTunnelServer,
 			"cluster", domainName,
 		),
 		ctx:               closeContext,

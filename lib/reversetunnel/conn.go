@@ -32,10 +32,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // connKey is a key used to identify tunnel connections. It contains the UUID
@@ -116,7 +116,7 @@ type connConfig struct {
 
 func newRemoteConn(cfg *connConfig) *remoteConn {
 	c := &remoteConn{
-		logger:      slog.With(teleport.ComponentKey, "discovery"),
+		logger:      slog.With(logconstants.ComponentKey, "discovery"),
 		connConfig:  cfg,
 		clock:       clockwork.NewRealClock(),
 		newProxiesC: make(chan []types.Server, 100),

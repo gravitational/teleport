@@ -25,8 +25,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // TokenLimiter implements rate limiting middleware.
@@ -68,7 +68,7 @@ func New(config TokenLimiterConfig) (*TokenLimiter, error) {
 		defaultRates: config.Rates,
 		clock:        config.Clock,
 
-		log: slog.With(teleport.ComponentKey, "ratelimiter"),
+		log: slog.With(logconstants.ComponentKey, "ratelimiter"),
 	}
 
 	bucketSets, err := utils.NewFnCache(utils.FnCacheConfig{

@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -322,7 +323,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 	al := &AuditLog{
 		playbackDir:     filepath.Join(cfg.DataDir, PlaybackDir, SessionLogsDir, apidefaults.Namespace),
 		AuditLogConfig:  cfg,
-		log:             slog.With(teleport.ComponentKey, teleport.ComponentAuditLog),
+		log:             slog.With(logconstants.ComponentKey, teleport.ComponentAuditLog),
 		activeDownloads: make(map[string]context.Context),
 		ctx:             ctx,
 		cancel:          cancel,

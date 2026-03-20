@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -516,7 +517,7 @@ func promptTOTPRegisterChallenge(ctx context.Context, c *proto.TOTPRegisterChall
 
 func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
 	logger.DebugContext(ctx, "prompting MFA devices with origin",
-		teleport.ComponentKey, "WebAuthn",
+		logconstants.ComponentKey, "WebAuthn",
 		"origin", origin,
 	)
 
@@ -531,7 +532,7 @@ func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wan
 
 func promptTouchIDRegisterChallenge(origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, registerCallback, error) {
 	logger.DebugContext(context.TODO(), "prompting registration with origin",
-		teleport.ComponentKey, "TouchID",
+		logconstants.ComponentKey, "TouchID",
 		"origin", origin,
 	)
 

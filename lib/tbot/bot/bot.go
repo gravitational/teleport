@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal/heartbeat"
 	"github.com/gravitational/teleport/lib/tbot/internal/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/bot")
@@ -270,7 +271,7 @@ func (b *Bot) buildServices(ctx context.Context, registry *readyz.Registry) ([]*
 				return handle.statusReporter
 			},
 			Logger: b.cfg.Logger.With(
-				teleport.ComponentKey,
+				logconstants.ComponentKey,
 				teleport.Component(teleport.ComponentTBot, "svc", handle.name),
 			),
 		})
@@ -330,7 +331,7 @@ func (b *Bot) buildClientBuilder(resolver reversetunnelclient.Resolver) (*client
 		Connection: b.cfg.Connection,
 		Resolver:   resolver,
 		Logger: b.cfg.Logger.With(
-			teleport.ComponentKey,
+			logconstants.ComponentKey,
 			teleport.Component(teleport.ComponentTBot, "client"),
 		),
 		Metrics: b.cfg.ClientMetrics,
@@ -358,7 +359,7 @@ func (b *Bot) buildIdentityService(
 		Leeway:          b.cfg.Leeway,
 		FIPS:            b.cfg.FIPS,
 		Logger: b.cfg.Logger.With(
-			teleport.ComponentKey,
+			logconstants.ComponentKey,
 			teleport.Component(teleport.ComponentTBot, handle.name),
 		),
 		ClientBuilder:  clientBuilder,
@@ -409,7 +410,7 @@ func (b *Bot) buildHeartbeatService(
 		StartedAt:          startedAt,
 		JoinMethod:         b.cfg.Onboarding.JoinMethod,
 		Logger: b.cfg.Logger.With(
-			teleport.ComponentKey,
+			logconstants.ComponentKey,
 			teleport.Component(teleport.ComponentTBot, handle.name),
 		),
 		StatusReporter: handle.statusReporter,
@@ -426,7 +427,7 @@ func (b *Bot) buildProxyPinger(identityService *identity.Service) (connection.Pr
 		Connection: b.cfg.Connection,
 		Client:     identityService.GetClient(),
 		Logger: b.cfg.Logger.With(
-			teleport.ComponentKey,
+			logconstants.ComponentKey,
 			teleport.Component(teleport.ComponentTBot, "proxy-pinger"),
 		),
 	})
@@ -449,7 +450,7 @@ func (b *Bot) buildCARotationService(
 		GetBotIdentityFn:   identityService.GetIdentity,
 		BotIdentityReadyCh: identityService.Ready(),
 		Logger: b.cfg.Logger.With(
-			teleport.ComponentKey,
+			logconstants.ComponentKey,
 			teleport.Component(teleport.ComponentTBot, handle.name),
 		),
 		StatusReporter: handle.statusReporter,

@@ -28,6 +28,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // knownHostEntry is a parsed entry from a Teleport/OpenSSH known_hosts file,
@@ -117,7 +118,7 @@ func canPruneOldHostsEntry(oldEntry *knownHostEntry, newEntries []*knownHostEntr
 // duplicate entry exists. This may modify order of host keys, but will not
 // change their content.
 func pruneOldHostKeys(output []string) []string {
-	log := slog.With(teleport.ComponentKey, teleport.ComponentMigrate)
+	log := slog.With(logconstants.ComponentKey, teleport.ComponentMigrate)
 
 	var (
 		oldEntries   = make([]*knownHostEntry, 0)

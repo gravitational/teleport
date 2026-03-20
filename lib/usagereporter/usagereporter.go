@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var (
@@ -417,7 +418,7 @@ func NewUsageReporter[T any](options *Options[T]) *UsageReporter[T] {
 	}
 
 	reporter := &UsageReporter[T]{
-		logger:          options.Logger.With(teleport.ComponentKey, teleport.ComponentUsageReporting),
+		logger:          options.Logger.With(logconstants.ComponentKey, teleport.ComponentUsageReporting),
 		events:          make(chan []*SubmittedEvent[T], 1),
 		submissionQueue: make(chan []*SubmittedEvent[T], 1),
 		eventsClosed:    make(chan struct{}),

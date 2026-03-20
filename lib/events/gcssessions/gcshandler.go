@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var (
@@ -203,7 +204,7 @@ func NewHandler(ctx context.Context, cancelFunc context.CancelFunc, cfg Config, 
 		return nil, trace.Wrap(err)
 	}
 	h := &Handler{
-		logger:        slog.With(teleport.ComponentKey, teleport.SchemeGCS),
+		logger:        slog.With(logconstants.ComponentKey, teleport.SchemeGCS),
 		Config:        cfg,
 		gcsClient:     client,
 		clientContext: ctx,

@@ -30,10 +30,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/opensearch-project/opensearch-go/v2"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
@@ -73,7 +73,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 		port:      port,
 		tlsConfig: tlsConfig,
 		log: logtest.With(
-			teleport.ComponentKey, defaults.ProtocolOpenSearch,
+			logconstants.ComponentKey, defaults.ProtocolOpenSearch,
 			"name", config.Name,
 		),
 	}

@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/gravitational/teleport"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -36,6 +35,7 @@ import (
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // scoped role and assignment state is modeled with the following key ranges:
@@ -72,7 +72,7 @@ type ScopedAccessService struct {
 func NewScopedAccessService(bk backend.Backend) *ScopedAccessService {
 	return &ScopedAccessService{
 		bk:     bk,
-		logger: slog.With(teleport.ComponentKey, "scopedrole"),
+		logger: slog.With(logconstants.ComponentKey, "scopedrole"),
 	}
 }
 

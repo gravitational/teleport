@@ -160,6 +160,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var (
@@ -5995,7 +5996,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	logger := slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC))
+	logger := slog.With(logconstants.ComponentKey, teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC))
 
 	logger.DebugContext(context.Background(), "creating gRPC server",
 		"keep_alive_period", cfg.KeepAlivePeriod,
@@ -6042,7 +6043,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Emitter:    cfg.Emitter,
 		Reporter:   cfg.AuthServer.Services.UsageReporter,
 		Clock:      cfg.AuthServer.GetClock(),
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "users.service"),
+		Logger:     cfg.AuthServer.logger.With(logconstants.ComponentKey, "users.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6057,7 +6058,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Emitter:    cfg.Emitter,
 		Reporter:   cfg.AuthServer.Services.UsageReporter,
 		Clock:      cfg.AuthServer.GetClock(),
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "presence.service"),
+		Logger:     cfg.AuthServer.logger.With(logconstants.ComponentKey, "presence.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6067,7 +6068,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	inventoryService, err := inventoryv1.NewService(inventoryv1.ServiceConfig{
 		Authorizer:     cfg.Authorizer,
 		InventoryCache: cfg.AuthServer.GetInventoryCache(),
-		Logger:         cfg.AuthServer.logger.With(teleport.ComponentKey, "inventory.service"),
+		Logger:         cfg.AuthServer.logger.With(logconstants.ComponentKey, "inventory.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating inventory service")
@@ -6081,7 +6082,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Reporter:   cfg.AuthServer.Services.UsageReporter,
 		Emitter:    cfg.Emitter,
 		Clock:      cfg.AuthServer.GetClock(),
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "bot.service"),
+		Logger:     cfg.AuthServer.logger.With(logconstants.ComponentKey, "bot.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating bot service")
@@ -6106,7 +6107,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Emitter:    cfg.Emitter,
 		Clock:      cfg.AuthServer.GetClock(),
 		KeyStore:   cfg.AuthServer.keyStore,
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "workload-identity.service"),
+		Logger:     cfg.AuthServer.logger.With(logconstants.ComponentKey, "workload-identity.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating workload identity service")
@@ -6179,7 +6180,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "db_obj_import_rule"),
+		Logger:     cfg.AuthServer.logger.With(logconstants.ComponentKey, "db_obj_import_rule"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating database objectImportRule service")
@@ -6189,7 +6190,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	dbObjectService, err := dbobjectv1.NewDatabaseObjectService(dbobjectv1.DatabaseObjectServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "db_object"),
+		Logger:     cfg.AuthServer.logger.With(logconstants.ComponentKey, "db_object"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating database object service")
@@ -6199,7 +6200,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	stableUNIXUsersServiceServer, err := stableunixusers.New(stableunixusers.Config{
 		Authorizer: cfg.Authorizer,
 		Emitter:    cfg.Emitter,
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "stable_unix_users"),
+		Logger:     cfg.AuthServer.logger.With(logconstants.ComponentKey, "stable_unix_users"),
 
 		Backend:       cfg.AuthServer.bk,
 		ReadOnlyCache: cfg.AuthServer.ReadOnlyCache,
@@ -6333,7 +6334,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		KeyStoreManager: cfg.AuthServer.GetKeyStore(),
 		Clock:           cfg.AuthServer.clock,
 		Emitter:         cfg.Emitter,
-		Logger:          cfg.AuthServer.logger.With(teleport.ComponentKey, "integrations.service"),
+		Logger:          cfg.AuthServer.logger.With(logconstants.ComponentKey, "integrations.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6385,7 +6386,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		// This must be a function because cfg.AuthServer.UsageReporter is changed after `NewGRPCServer` is called.
 		// It starts as a DiscardUsageReporter, but when running in Cloud, gets replaced by a real reporter.
 		UsageReporter: func() usagereporter.UsageReporter { return cfg.AuthServer.UsageReporter },
-		Logger:        cfg.AuthServer.logger.With(teleport.ComponentKey, "discoveryconfig_crud_service"),
+		Logger:        cfg.AuthServer.logger.With(logconstants.ComponentKey, "discoveryconfig_crud_service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6432,7 +6433,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer:                cfg.Authorizer,
 		Uploader:                  cfg.AuthServer.Services,
 		KeyRotater:                cfg.AuthServer.Services,
-		Logger:                    cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
+		Logger:                    cfg.AuthServer.logger.With(logconstants.ComponentKey, teleport.ComponentRecordingEncryption),
 		SessionSummarizerProvider: cfg.APIConfig.AuthServer.sessionSummarizerProvider,
 		RecordingMetadataProvider: cfg.AuthServer.recordingMetadataProvider,
 		SessionStreamer:           cfg.AuthServer,

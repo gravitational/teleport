@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // PROXYHeaderSigner allows to sign PROXY headers for securely propagating original client IP information
@@ -187,7 +188,7 @@ func newProxySubsys(ctx context.Context, serverContext *srv.ServerContext, srv *
 	return &proxySubsys{
 		proxySubsysRequest: req,
 		ctx:                serverContext,
-		logger:             slog.With(teleport.ComponentKey, teleport.ComponentSubsystemProxy),
+		logger:             slog.With(logconstants.ComponentKey, teleport.ComponentSubsystemProxy),
 		closeC:             make(chan error),
 		router:             srv.router,
 		proxySigner:        srv.proxySigner,

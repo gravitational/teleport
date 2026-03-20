@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -128,7 +129,7 @@ func (cfg *querierConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.logger == nil {
-		cfg.logger = slog.With(teleport.ComponentKey, teleport.ComponentAthena)
+		cfg.logger = slog.With(logconstants.ComponentKey, teleport.ComponentAthena)
 	}
 	if cfg.clock == nil {
 		cfg.clock = clockwork.NewRealClock()

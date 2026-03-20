@@ -36,9 +36,9 @@ import (
 	"github.com/gocql/gocql"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
@@ -149,7 +149,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		server:    server,
 		ct:        ct,
 		logger: logtest.With(
-			teleport.ComponentKey, defaults.ProtocolCassandra,
+			logconstants.ComponentKey, defaults.ProtocolCassandra,
 			"name", config.Name,
 		),
 	}

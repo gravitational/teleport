@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/certreloader"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // CreateClientCertReloader creates a client reloader for postgres compatible connections. The
@@ -64,7 +65,7 @@ func CreateClientCertReloader(ctx context.Context, name, connString string, conn
 		},
 		KeyPairsReloadInterval: reloadInterval,
 	},
-		slog.With(teleport.ComponentKey, teleport.Component(teleport.Component(teleport.ComponentAuth, "certreloader"), "name", name)), callback)
+		slog.With(logconstants.ComponentKey, teleport.Component(teleport.Component(teleport.ComponentAuth, "certreloader"), "name", name)), callback)
 	if err := reloader.Run(ctx); err != nil {
 		return trace.Wrap(err)
 	}

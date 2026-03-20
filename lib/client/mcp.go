@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // MCPServerDialerClient defines a subset of TeleportClient functions that are
@@ -68,7 +69,7 @@ func NewMCPServerDialer(client MCPServerDialerClient, appName string) *MCPServer
 		appName: appName,
 		clock:   clockwork.NewRealClock(),
 		logger: slog.With(
-			teleport.ComponentKey,
+			logconstants.ComponentKey,
 			teleport.Component(teleport.ComponentMCP, "dialer"),
 		),
 	}

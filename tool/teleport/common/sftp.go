@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
 	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 type compositeCh struct {
@@ -282,7 +283,7 @@ func onSFTP() error {
 	defer auditFile.Close()
 
 	// Ensure the parent process will receive log messages from us
-	logger := slog.With(teleport.ComponentKey, teleport.ComponentSubsystemSFTP)
+	logger := slog.With(logconstants.ComponentKey, teleport.ComponentSubsystemSFTP)
 
 	currentUser, err := user.Current()
 	if err != nil {

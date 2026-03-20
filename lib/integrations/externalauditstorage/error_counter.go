@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -38,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -53,7 +53,7 @@ const (
 	syncInterval = 30 * time.Second
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "ExternalAuditStorage")
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, "ExternalAuditStorage")
 
 // ClusterAlertService abstracts a service providing Upsert and Delete
 // operations for cluster alerts.

@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const appHelp = `Teleport Updater
@@ -67,7 +68,7 @@ const (
 	notUpToDateExitCode = 3
 )
 
-var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
+var plog = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentUpdater)
 
 func main() {
 	if code := Run(os.Args[1:]); code != 0 {

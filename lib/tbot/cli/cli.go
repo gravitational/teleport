@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -50,7 +51,7 @@ const (
 	TBotConfigEnvVar = "TBOT_CONFIG"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentTBot)
 
 // CommandRunner defines a contract for `TryRun` that allows commands to
 // either execute (possibly returning an error), or pass execution to the next

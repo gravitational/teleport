@@ -40,10 +40,10 @@ import (
 	"modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 func init() {
@@ -253,7 +253,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	l := &Backend{
 		Config: cfg,
 		db:     db,
-		logger: slog.With(teleport.ComponentKey, BackendName),
+		logger: slog.With(logconstants.ComponentKey, BackendName),
 		clock:  cfg.Clock,
 		buf:    buf,
 		ctx:    closeCtx,

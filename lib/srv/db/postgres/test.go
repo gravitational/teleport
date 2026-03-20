@@ -38,10 +38,10 @@ import (
 	"github.com/jackc/pgproto3/v2"
 	"github.com/jackc/pgtype"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // MakeTestClient returns Postgres client connection according to the provided
@@ -170,7 +170,7 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 		port:      port,
 		tlsConfig: tlsConfig,
 		log: slog.Default().With(
-			teleport.ComponentKey, defaults.ProtocolPostgres,
+			logconstants.ComponentKey, defaults.ProtocolPostgres,
 			"name", config.Name,
 		),
 		parametersCh:           make(chan map[string]string, 100),

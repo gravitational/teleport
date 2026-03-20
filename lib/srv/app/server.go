@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 type appServerContextKey string
@@ -200,7 +201,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 	s := &Server{
 		c:             c,
-		log:           slog.With(teleport.ComponentKey, teleport.ComponentApp),
+		log:           slog.With(logconstants.ComponentKey, teleport.ComponentApp),
 		heartbeats:    make(map[string]srv.HeartbeatI),
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),

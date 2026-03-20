@@ -35,10 +35,10 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/proto"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
@@ -96,7 +96,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		port:      port,
 		tlsConfig: tlsConfig,
 		logger: logtest.With(
-			teleport.ComponentKey, defaults.ProtocolClickHouse,
+			logconstants.ComponentKey, defaults.ProtocolClickHouse,
 			"name", config.Name,
 		),
 	}

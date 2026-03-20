@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // DiscoveryResourceChecker defines an interface for checking database
@@ -69,7 +70,7 @@ func (c *DiscoveryResourceCheckerConfig) CheckAndSetDefaults() error {
 		c.Context = context.Background()
 	}
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, teleport.ComponentDatabase)
+		c.Logger = slog.With(logconstants.ComponentKey, teleport.ComponentDatabase)
 	}
 	return nil
 }

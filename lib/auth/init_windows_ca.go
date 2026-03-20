@@ -23,9 +23,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 type migrateWindowsCAParams struct {
@@ -70,7 +70,7 @@ func migrateWindowsCAOnCluster(
 	src := types.CertAuthID{Type: types.UserCA, DomainName: clusterName}
 
 	logger = logger.With(
-		teleport.ComponentKey, "WindowsCA",
+		logconstants.ComponentKey, "WindowsCA",
 		"cluster", clusterName,
 		"src", src.Type,
 		"dst", dst.Type,

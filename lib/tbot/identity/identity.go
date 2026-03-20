@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -69,7 +70,7 @@ const (
 	WriteTestKey = ".write-test"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentTBot)
 
 // Identity is collection of raw key and certificate data as well as the
 // parsed equivalents that make up a Teleport identity.

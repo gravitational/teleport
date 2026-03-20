@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // UsageLogger is a trivial audit log sink that forwards an anonymized subset of
@@ -79,7 +80,7 @@ func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 func New(reporter usagereporter.UsageReporter, log *slog.Logger, inner apievents.Emitter) (*UsageLogger, error) {
 	logger := cmp.Or(log, slog.Default())
 	return &UsageLogger{
-		logger:   logger.With(teleport.ComponentKey, teleport.ComponentUsageReporting),
+		logger:   logger.With(logconstants.ComponentKey, teleport.ComponentUsageReporting),
 		reporter: reporter,
 		inner:    inner,
 	}, nil

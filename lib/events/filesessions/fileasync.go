@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // UploaderConfig sets up configuration for uploader service
@@ -133,7 +134,7 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 
 	uploader := &Uploader{
 		cfg:           cfg,
-		log:           slog.With(teleport.ComponentKey, cfg.Component),
+		log:           slog.With(logconstants.ComponentKey, cfg.Component),
 		closeC:        make(chan struct{}),
 		semaphore:     make(chan struct{}, cfg.ConcurrentUploads),
 		eventsCh:      make(chan events.UploadEvent, cfg.ConcurrentUploads),

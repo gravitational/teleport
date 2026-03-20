@@ -29,11 +29,11 @@ import (
 	mssql "github.com/microsoft/go-mssqldb"
 	"github.com/microsoft/go-mssqldb/msdsn"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
@@ -134,7 +134,7 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log := logtest.With(teleport.ComponentKey, defaults.ProtocolSQLServer,
+	log := logtest.With(logconstants.ComponentKey, defaults.ProtocolSQLServer,
 		"name", config.Name,
 	)
 	server := &TestServer{

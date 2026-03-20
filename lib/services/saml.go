@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 type SAMLConnectorGetter interface {
@@ -101,7 +102,7 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 
 		sc.SetEntityDescriptor(entityDescriptor)
 		slog.DebugContext(context.Background(), " Successfully fetched entity descriptor for connector",
-			teleport.ComponentKey, teleport.ComponentSAML,
+			logconstants.ComponentKey, teleport.ComponentSAML,
 			"entity_descriptor_url", url,
 			"connector", sc.GetName(),
 		)
@@ -207,7 +208,7 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 		}
 		if preferredRequestBinding == types.SAMLRequestHTTPPostBinding {
 			slog.WarnContext(context.Background(), "SSO MFA does not support http-post binding request and will use the default http-redirect binding request",
-				teleport.ComponentKey, teleport.ComponentSAML,
+				logconstants.ComponentKey, teleport.ComponentSAML,
 				"preferred_request_binding", preferredRequestBinding,
 			)
 		}
@@ -215,7 +216,7 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 	}
 
 	slog.DebugContext(context.Background(), "connector validated",
-		teleport.ComponentKey, teleport.ComponentSAML,
+		logconstants.ComponentKey, teleport.ComponentSAML,
 		"sso", sc.GetSSO(),
 		"issuer", sc.GetIssuer(),
 		"acs", sc.GetAssertionConsumerService(),
@@ -320,7 +321,7 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 		// and we therefore configure the main key that gets used for all operations as the signing key.
 		// This is done because gosaml2 mandates an encryption key even if not used.
 		slog.InfoContext(context.Background(), "No assertion_key_pair was detected, falling back to signing key for all SAML operations",
-			teleport.ComponentKey, teleport.ComponentSAML,
+			logconstants.ComponentKey, teleport.ComponentSAML,
 		)
 		keyStore, err = utils.ParseKeyStorePEM(signingKeyPair.PrivateKey, signingKeyPair.Cert)
 		signingKeyStore = keyStore
@@ -332,7 +333,7 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 		// Since gosaml2 always uses the main key for encryption, we set it to assertion_key_pair.
 		// To handle signing correctly, we now instead set the optional signing key in gosaml2 to signing_key_pair.
 		slog.InfoContext(context.Background(), "Detected assertion_key_pair and configured it to decrypt SAML responses",
-			teleport.ComponentKey, teleport.ComponentSAML,
+			logconstants.ComponentKey, teleport.ComponentSAML,
 		)
 		keyStore, err = utils.ParseKeyStorePEM(encryptionKeyPair.PrivateKey, encryptionKeyPair.Cert)
 		if err != nil {
@@ -365,7 +366,7 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 	// be used.
 	switch sc.GetProvider() {
 	case teleport.ADFS, teleport.JumpCloud:
-		slog.DebugContext(context.Background(), "Setting ADFS/JumpCloud values", teleport.ComponentKey, teleport.ComponentSAML)
+		slog.DebugContext(context.Background(), "Setting ADFS/JumpCloud values", logconstants.ComponentKey, teleport.ComponentSAML)
 		if sp.SignAuthnRequests {
 			sp.SignAuthnRequestsCanonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList(dsig.DefaultPrefix)
 

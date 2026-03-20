@@ -30,9 +30,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/imds"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -90,7 +90,7 @@ func (conf *CloudConfig) checkAndSetDefaults() error {
 	}
 
 	conf.Clock = cmp.Or(conf.Clock, clockwork.NewRealClock())
-	conf.Log = cmp.Or(conf.Log, slog.With(teleport.ComponentKey, "cloudlabels"))
+	conf.Log = cmp.Or(conf.Log, slog.With(logconstants.ComponentKey, "cloudlabels"))
 	return nil
 }
 

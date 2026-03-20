@@ -31,9 +31,10 @@ import (
 	"github.com/gravitational/teleport"
 	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component("vnet", "diag"))
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.Component("vnet", "diag"))
 
 // DiagCheck is an individual diag check run by [GenerateReport].
 type DiagCheck interface {

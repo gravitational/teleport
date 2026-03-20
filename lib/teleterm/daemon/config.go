@@ -26,13 +26,13 @@ import (
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/grpc"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Storage defines an interface for cluster profile storage.
@@ -125,7 +125,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "daemon")
+		c.Logger = slog.With(logconstants.ComponentKey, "daemon")
 	}
 
 	if c.ConnectMyComputerRoleSetup == nil {

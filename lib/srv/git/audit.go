@@ -30,9 +30,9 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	log "github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // CommandRecorder records Git commands by implementing io.Writer to receive a
@@ -102,7 +102,7 @@ type pushCommandRecorder struct {
 func newPushCommandRecorder(parentCtx context.Context, command Command) *pushCommandRecorder {
 	return &pushCommandRecorder{
 		Command: command,
-		logger:  slog.With(teleport.ComponentKey, "git:packp"),
+		logger:  slog.With(logconstants.ComponentKey, "git:packp"),
 	}
 }
 

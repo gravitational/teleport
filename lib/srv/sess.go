@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const sessionRecorderID = "session-recorder"
@@ -180,7 +181,7 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 
 	return &SessionRegistry{
 		SessionRegistryConfig: cfg,
-		logger:                slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentSession, cfg.Srv.Component())),
+		logger:                slog.With(logconstants.ComponentKey, teleport.Component(teleport.ComponentSession, cfg.Srv.Component())),
 		sessions:              make(map[rsession.ID]*session),
 		users:                 cfg.Srv.GetHostUsers(),
 		sudoers:               cfg.Srv.GetHostSudoers(),
@@ -858,7 +859,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 	access := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
 	sess := &session{
 		logger: slog.With(
-			teleport.ComponentKey, teleport.Component(teleport.ComponentSession, r.Srv.Component()),
+			logconstants.ComponentKey, teleport.Component(teleport.ComponentSession, r.Srv.Component()),
 			"session_id", rsess.ID,
 		),
 		id:              rsess.ID,
@@ -2239,7 +2240,7 @@ func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx
 	pid := rsession.NewID()
 	return &party{
 		log: slog.With(
-			teleport.ComponentKey, teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
+			logconstants.ComponentKey, teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 			"party_id", pid,
 		),
 		user:          ctx.Identity.TeleportUser,

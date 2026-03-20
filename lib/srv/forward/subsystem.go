@@ -32,6 +32,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // RemoteSubsystem is a handle for a remote subsystem.
@@ -59,7 +60,7 @@ type remoteSubsystem struct {
 func parseRemoteSubsystem(ctx context.Context, subsystemName string, serverContext *srv.ServerContext) RemoteSubsystem {
 	r := &remoteSubsystem{
 		logger: slog.With(
-			teleport.ComponentKey, teleport.ComponentRemoteSubsystem,
+			logconstants.ComponentKey, teleport.ComponentRemoteSubsystem,
 			"name", subsystemName,
 		),
 		serverContext: serverContext,

@@ -26,9 +26,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
@@ -53,7 +53,7 @@ func NewTestProxy(target string, v2 bool) (*TestProxy, error) {
 		listener: listener,
 		target:   target,
 		closeCh:  make(chan struct{}),
-		log:      logtest.With(teleport.ComponentKey, "test:proxy"),
+		log:      logtest.With(logconstants.ComponentKey, "test:proxy"),
 		v2:       v2,
 	}, nil
 }

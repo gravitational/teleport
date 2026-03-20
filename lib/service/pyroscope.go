@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // TODO: Replace logger when pyroscope uses slog
@@ -159,7 +160,7 @@ func createPyroscopeConfig(ctx context.Context, logger *slog.Logger, address str
 
 // initPyroscope instruments Teleport to run with continuous profiling for Pyroscope
 func (process *TeleportProcess) initPyroscope(address string) {
-	logger := process.logger.With(teleport.ComponentKey, "pyroscope")
+	logger := process.logger.With(logconstants.ComponentKey, "pyroscope")
 	config, err := createPyroscopeConfig(process.ExitContext(), logger, address)
 	if err != nil {
 		logger.ErrorContext(process.ExitContext(), "failed to create Pyroscope config", "address", address, "error", err)

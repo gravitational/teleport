@@ -33,13 +33,14 @@ import (
 	"github.com/gravitational/teleport"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // NOTE: when making modifications to package, make sure to run tests with
 // `TEST_GITHUB_API=yes`. this will enable some additional tests that are not
 // run as part of normal CI.
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentVersionControl)
+var logger = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentVersionControl)
 
 // Visit uses the supplied visitor to aggregate release info from the github releases api.
 func Visit(visitor *vc.Visitor) error {

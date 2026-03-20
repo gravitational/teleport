@@ -26,11 +26,11 @@ import (
 	containerpb "cloud.google.com/go/container/apiv1/containerpb"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // GKEFetcherConfig configures the GKE fetcher.
@@ -69,7 +69,7 @@ func (c *GKEFetcherConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "fetcher:gke")
+		c.Logger = slog.With(logconstants.ComponentKey, "fetcher:gke")
 	}
 	return nil
 }

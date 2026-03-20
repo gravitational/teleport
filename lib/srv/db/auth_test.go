@@ -34,7 +34,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
@@ -42,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // TestAuthTokens verifies that proper IAM auth tokens are used when connecting
@@ -308,7 +308,7 @@ func newTestAuth(ac common.AuthConfig) (*testAuth, error) {
 	}
 	return &testAuth{
 		realAuth: auth,
-		Logger:   slog.With(teleport.ComponentKey, "auth:test"),
+		Logger:   slog.With(logconstants.ComponentKey, "auth:test"),
 	}, nil
 }
 

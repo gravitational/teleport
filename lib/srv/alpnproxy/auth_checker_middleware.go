@@ -25,7 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // AuthorizationCheckerMiddleware is a middleware that checks `Authorization` header of incoming requests.
@@ -45,7 +45,7 @@ var _ LocalProxyHTTPMiddleware = (*AuthorizationCheckerMiddleware)(nil)
 // CheckAndSetDefaults checks configuration validity and sets defaults.
 func (m *AuthorizationCheckerMiddleware) CheckAndSetDefaults() error {
 	if m.Log == nil {
-		m.Log = slog.With(teleport.ComponentKey, "authz")
+		m.Log = slog.With(logconstants.ComponentKey, "authz")
 	}
 
 	if m.Secret == "" {

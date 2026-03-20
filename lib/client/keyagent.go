@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // LocalKeyAgent holds Teleport certificates for a user connected to a cluster.
@@ -137,7 +138,7 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 		conf.Agent = keyring
 	}
 	a = &LocalKeyAgent{
-		log:           slog.With(teleport.ComponentKey, teleport.ComponentKeyAgent),
+		log:           slog.With(logconstants.ComponentKey, teleport.ComponentKeyAgent),
 		ExtendedAgent: conf.Agent,
 		clientStore:   conf.ClientStore,
 		noHosts:       make(map[string]bool),

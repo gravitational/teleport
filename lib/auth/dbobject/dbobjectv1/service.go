@@ -25,12 +25,12 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Backend interface for manipulating DatabaseObject resources.
@@ -55,7 +55,7 @@ func NewDatabaseObjectService(cfg DatabaseObjectServiceConfig) (*DatabaseObjectS
 		return nil, trace.BadParameter("backend service is required")
 	}
 	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, "db_object")
+		cfg.Logger = slog.With(logconstants.ComponentKey, "db_object")
 	}
 	return &DatabaseObjectService{
 		logger:     cfg.Logger,

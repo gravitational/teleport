@@ -159,6 +159,7 @@ import (
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -579,7 +580,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
+		cfg.Logger = slog.With(logconstants.ComponentKey, teleport.ComponentAuth)
 	}
 
 	if cfg.AWSOrganizationsClientGetter == nil {
@@ -914,7 +915,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	as.BotInstanceVersionReporter, err = machineidv1.NewAutoUpdateVersionReporter(machineidv1.AutoUpdateVersionReporterConfig{
 		Clock: cfg.Clock,
 		Logger: as.logger.With(
-			teleport.ComponentKey,
+			logconstants.ComponentKey,
 			teleport.Component(teleport.ComponentAuth, "bot-version-reporter"),
 		),
 		Semaphores: as,

@@ -30,12 +30,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Config is the config for users service.
@@ -106,7 +106,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Interval = 15 * time.Minute
 	}
 	if c.Log == nil {
-		c.Log = slog.With(teleport.ComponentKey, "clouduser")
+		c.Log = slog.With(logconstants.ComponentKey, "clouduser")
 	}
 	if c.awsClients == nil {
 		c.awsClients = defaultAWSClients{}

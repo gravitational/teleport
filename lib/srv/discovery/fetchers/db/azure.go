@@ -25,12 +25,12 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // azureListClient defines an interface for a common Azure client that can list
@@ -62,7 +62,7 @@ func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](conf
 	fetcher := &azureFetcher[DBType, ListClient]{
 		cfg: config,
 		logger: slog.With(
-			teleport.ComponentKey, "watch:azure",
+			logconstants.ComponentKey, "watch:azure",
 			"labels", config.Labels,
 			"regions", config.Regions,
 			"group", config.ResourceGroup,

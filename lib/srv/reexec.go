@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/uds"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // FileFD is a file descriptor passed down from a parent process when
@@ -1592,13 +1593,13 @@ func initLogger(name string, logWriter *os.File, cfg ExecLogConfig) {
 			ConfiguredFields: fields,
 			Padding:          cfg.Padding,
 		}))
-		slog.SetDefault(logger.With(teleport.ComponentKey, name))
+		slog.SetDefault(logger.With(logconstants.ComponentKey, name))
 	case "json":
 		logger := slog.New(logutils.NewSlogJSONHandler(logWriter, logutils.SlogJSONHandlerConfig{
 			Level:            cfg.Level,
 			ConfiguredFields: fields,
 		}))
-		slog.SetDefault(logger.With(teleport.ComponentKey, name))
+		slog.SetDefault(logger.With(logconstants.ComponentKey, name))
 	default:
 		return
 	}

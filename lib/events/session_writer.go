@@ -30,11 +30,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // NewSessionWriter returns a new instance of session writer
@@ -52,7 +52,7 @@ func NewSessionWriter(cfg SessionWriterConfig) (*SessionWriter, error) {
 	writer := &SessionWriter{
 		cfg:      cfg,
 		stream:   stream,
-		log:      slog.With(teleport.ComponentKey, cfg.Component),
+		log:      slog.With(logconstants.ComponentKey, cfg.Component),
 		cancel:   cancel,
 		closeCtx: ctx,
 		eventsCh: make(chan apievents.PreparedSessionEvent),

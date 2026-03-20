@@ -40,13 +40,13 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // certReissueClientWait is a duration for which Kube HTTP middleware will wait for cert reissuing until
@@ -132,7 +132,7 @@ func (m *KubeMiddleware) CheckAndSetDefaults() error {
 		m.clock = clockwork.NewRealClock()
 	}
 	if m.logger == nil {
-		m.logger = slog.With(teleport.ComponentKey, "local_proxy_kube")
+		m.logger = slog.With(logconstants.ComponentKey, "local_proxy_kube")
 	}
 	if m.closeContext == nil {
 		return trace.BadParameter("missing close context")

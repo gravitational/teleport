@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // portForwardRequest is a request that specifies port forwarding
@@ -93,7 +94,7 @@ func runPortForwardingHTTPStreams(req portForwardRequest) error {
 
 	h := &portForwardProxy{
 		logger: slog.With(
-			teleport.ComponentKey, teleport.Component(teleport.ComponentProxyKube),
+			logconstants.ComponentKey, teleport.Component(teleport.ComponentProxyKube),
 			events.RemoteAddr, req.httpRequest.RemoteAddr,
 		),
 		portForwardRequest:    req,

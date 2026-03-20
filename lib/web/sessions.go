@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // SessionContext is a context associated with a user's
@@ -1117,7 +1118,7 @@ func (s *sessionCache) upsertSessionContext(user string) *sessionResources {
 	}
 	ctx := &sessionResources{
 		log: s.log.With(
-			teleport.ComponentKey, "user-session",
+			logconstants.ComponentKey, "user-session",
 			"user", user,
 		),
 	}

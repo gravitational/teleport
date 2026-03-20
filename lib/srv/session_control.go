@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var userSessionLimitHitCount = prometheus.NewCounter(
@@ -115,7 +116,7 @@ func (c *SessionControllerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "SessionCtrl")
+		c.Logger = slog.With(logconstants.ComponentKey, "SessionCtrl")
 	}
 
 	if c.Clock == nil {

@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 func (process *TeleportProcess) initRelay() {
@@ -65,9 +66,9 @@ func (process *TeleportProcess) initRelay() {
 }
 
 func (process *TeleportProcess) runRelayService() error {
-	log := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentRelay, process.id))
+	log := process.logger.With(logconstants.ComponentKey, teleport.Component(teleport.ComponentRelay, process.id))
 	sublogger := func(subcomponent string) *slog.Logger {
-		return process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentRelay, process.id, subcomponent))
+		return process.logger.With(logconstants.ComponentKey, teleport.Component(teleport.ComponentRelay, process.id, subcomponent))
 	}
 
 	defer func() {

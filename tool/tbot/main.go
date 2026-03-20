@@ -44,9 +44,10 @@ import (
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentTBot)
 
 func main() {
 	if err := Run(os.Args[1:], os.Stdout); err != nil {

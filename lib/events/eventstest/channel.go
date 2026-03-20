@@ -23,9 +23,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // ChannelEmitter emits audit events by writing them to a channel.
@@ -37,7 +37,7 @@ type ChannelEmitter struct {
 // NewChannelEmitter returns a new instance of test emitter.
 func NewChannelEmitter(capacity int) *ChannelEmitter {
 	return &ChannelEmitter{
-		log:    slog.With(teleport.ComponentKey, "channel_emitter"),
+		log:    slog.With(logconstants.ComponentKey, "channel_emitter"),
 		events: make(chan apievents.AuditEvent, capacity),
 	}
 }
@@ -74,7 +74,7 @@ type ChannelRecorder struct {
 // NewChannelRecorder returns a new instance of test recorder.
 func NewChannelRecorder(capacity int) *ChannelRecorder {
 	return &ChannelRecorder{
-		log:    slog.With(teleport.ComponentKey, "channel_recorder"),
+		log:    slog.With(logconstants.ComponentKey, "channel_recorder"),
 		events: make(chan apievents.AuditEvent, capacity),
 	}
 }

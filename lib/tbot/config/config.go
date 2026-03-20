@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -59,7 +60,7 @@ const (
 	DefaultLeeway         = 1 * time.Minute
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentTBot)
 
 // BotConfig is the bot's root config object.
 // This is currently at version "v2".

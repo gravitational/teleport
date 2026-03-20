@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var (
@@ -221,7 +222,7 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	logger := slog.With(teleport.ComponentKey, teleport.ComponentForwardingGit,
+	logger := slog.With(logconstants.ComponentKey, teleport.ComponentForwardingGit,
 		"src_addr", cfg.SrcAddr.String(),
 		"dst_addr", cfg.DstAddr.String(),
 	)

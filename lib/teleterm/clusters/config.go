@@ -24,8 +24,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Config is the cluster service config
@@ -56,7 +56,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "conn:storage")
+		c.Logger = slog.With(logconstants.ComponentKey, "conn:storage")
 	}
 
 	if c.AddKeysToAgent == "" {

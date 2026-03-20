@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
@@ -100,7 +101,7 @@ func liteBackendConfig(t *testing.T) *backend.Config {
 func TestHSMRotation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	log := logtest.With(teleport.ComponentKey, "TestHSMRotation")
+	log := logtest.With(logconstants.ComponentKey, "TestHSMRotation")
 
 	log.DebugContext(ctx, "starting auth server")
 	authConfig := newHSMAuthConfig(t, liteBackendConfig(t), log, clockwork.NewRealClock())
@@ -213,7 +214,7 @@ func testAdminClient(t *testing.T, authDataDir string, authAddr string) {
 func TestHSMDualAuthRotation(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK", "1")
 	ctx := t.Context()
-	log := logtest.With(teleport.ComponentKey, "TestHSMDualAuthRotation")
+	log := logtest.With(logconstants.ComponentKey, "TestHSMDualAuthRotation")
 	storageConfig := liteBackendConfig(t)
 
 	// start a cluster with 1 auth server
@@ -397,7 +398,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 func TestHSMMigrate(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK", "1")
 	ctx := t.Context()
-	log := logtest.With(teleport.ComponentKey, "TestHSMMigrate")
+	log := logtest.With(logconstants.ComponentKey, "TestHSMMigrate")
 	storageConfig := liteBackendConfig(t)
 
 	// start a dual auth non-hsm cluster
@@ -548,7 +549,7 @@ func TestHSMMigrate(t *testing.T) {
 func TestHSMRevert(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	ctx := t.Context()
-	log := logtest.With(teleport.ComponentKey, "TestHSMRevert")
+	log := logtest.With(logconstants.ComponentKey, "TestHSMRevert")
 
 	// Start auth with an HSM attached and generate HSM keys.
 	log.DebugContext(ctx, "starting auth server")

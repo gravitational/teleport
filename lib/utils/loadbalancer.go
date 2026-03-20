@@ -31,8 +31,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // NewLoadBalancer returns new load balancer listening on frontend
@@ -59,7 +59,7 @@ func newLoadBalancer(ctx context.Context, frontend NetAddr, policy loadBalancerP
 		backends: backends,
 		policy:   policy,
 		logger: slog.With(
-			teleport.ComponentKey, "loadbalancer",
+			logconstants.ComponentKey, "loadbalancer",
 			"frontend_addr", frontend.FullAddress(),
 		),
 		connections: make(map[NetAddr]map[int64]net.Conn),

@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // connectionUpgrade handles connection upgrades.
@@ -188,7 +189,7 @@ func newWebSocketALPNServerConn(ctx context.Context, conn net.Conn, logger *slog
 	return &websocketALPNServerConn{
 		Conn:       conn,
 		logContext: ctx,
-		logger:     logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWeb, "alpnws")),
+		logger:     logger.With(logconstants.ComponentKey, teleport.Component(teleport.ComponentWeb, "alpnws")),
 	}
 }
 

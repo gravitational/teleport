@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	sessionpostprocessing "github.com/gravitational/teleport/lib/events/sessionpostprocessing"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // A KeyRotater facilitates rotation of encryption keys.
@@ -77,7 +78,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption)
+		cfg.Logger = slog.With(logconstants.ComponentKey, teleport.ComponentRecordingEncryption)
 	}
 
 	return &Service{

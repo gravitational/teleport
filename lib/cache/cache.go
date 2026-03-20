@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var (
@@ -930,7 +931,7 @@ func New(config Config) (*Cache, error) {
 		collections:           collections,
 		lowVolumeEventsFanout: utils.NewRoundRobin(lowVolumeFanouts),
 		Logger: slog.With(
-			teleport.ComponentKey, config.Component,
+			logconstants.ComponentKey, config.Component,
 			"target", config.target,
 		),
 	}

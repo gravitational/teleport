@@ -25,10 +25,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/grpc"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Config is the APIServer configuration
@@ -68,7 +68,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "conn:apiserver")
+		c.Logger = slog.With(logconstants.ComponentKey, "conn:apiserver")
 	}
 
 	if c.InstallationID == "" {

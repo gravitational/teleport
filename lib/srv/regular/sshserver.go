@@ -75,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Server implements SSH server that uses configuration backend and
@@ -917,7 +918,7 @@ func New(
 		component = teleport.ComponentNode
 	}
 
-	s.logger = slog.With(teleport.ComponentKey, component)
+	s.logger = slog.With(logconstants.ComponentKey, component)
 
 	if s.GetCreateHostUser() {
 		s.users = srv.NewHostUsers(ctx, s.storage, s.ID())

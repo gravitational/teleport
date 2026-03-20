@@ -35,7 +35,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -71,9 +70,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "join")
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, "join")
 
 // AuthService is the subset of the Auth service interface required by the
 // JoinServer to implement joining.
@@ -134,7 +134,7 @@ type Server struct {
 // NewServer returns a new [Server] instance.
 func NewServer(cfg *ServerConfig) *Server {
 	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, "join")
+		cfg.Logger = slog.With(logconstants.ComponentKey, "join")
 	}
 	return &Server{
 		cfg:               cfg,

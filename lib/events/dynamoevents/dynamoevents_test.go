@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
@@ -134,7 +135,7 @@ func TestSearchSessionEvensBySessionID(t *testing.T) {
 // if checkpoint date is outside of the window [fromUTC,toUTC].
 func TestCheckpointOutsideOfWindow(t *testing.T) {
 	tt := &Log{
-		logger: slog.With(teleport.ComponentKey, teleport.ComponentDynamoDB),
+		logger: slog.With(logconstants.ComponentKey, teleport.ComponentDynamoDB),
 	}
 
 	key := checkpointKey{

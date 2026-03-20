@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/internal/identity")
@@ -154,7 +155,7 @@ func (s *Service) GetGenerator() (*identity.Generator, error) {
 		FIPS:        s.cfg.FIPS,
 		Insecure:    s.cfg.Connection.Insecure,
 		Logger: s.log.With(
-			teleport.ComponentKey,
+			logconstants.ComponentKey,
 			teleport.Component(teleport.ComponentTBot, "identity-generator"),
 		),
 	})

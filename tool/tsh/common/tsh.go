@@ -107,6 +107,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/common/fido2"
 	"github.com/gravitational/teleport/tool/common/touchid"
@@ -114,7 +115,7 @@ import (
 )
 
 var (
-	logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTSH)
+	logger = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentTSH)
 )
 
 const (

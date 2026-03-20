@@ -34,13 +34,13 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/usertasks"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/server/installstatus"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -149,7 +149,7 @@ func (c *SSMInstallerConfig) checkAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = slog.Default().With(teleport.ComponentKey, "ssminstaller")
+		c.Logger = slog.Default().With(logconstants.ComponentKey, "ssminstaller")
 	}
 
 	if c.getWaiter == nil {

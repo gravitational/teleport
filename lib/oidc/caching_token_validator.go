@@ -36,9 +36,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component("oidc"))
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.Component("oidc"))
 
 const (
 	// discoveryTTL is the maximum duration a discovery configuration will be

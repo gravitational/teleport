@@ -41,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -109,7 +110,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, teleport.ComponentTracing)
+		c.Logger = slog.With(logconstants.ComponentKey, teleport.ComponentTracing)
 	}
 
 	if c.Client == nil && !c.WaitForDelayedClient && c.ExporterURL == "" {

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Supervisor implements the simple service logic - registering
@@ -222,7 +223,7 @@ func NewSupervisor(id string, parentLog *slog.Logger, clock clockwork.Clock) (*L
 		gracefulExitContext: gracefulExitContext,
 		signalGracefulExit:  signalGracefulExit,
 
-		log: parentLog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProcess, id)),
+		log: parentLog.With(logconstants.ComponentKey, teleport.Component(teleport.ComponentProcess, id)),
 
 		clock: clock,
 	}

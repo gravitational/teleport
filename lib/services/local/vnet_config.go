@@ -23,13 +23,13 @@ import (
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/util/validation"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // VnetConfigService implements the storage layer for the VnetConfig resource.
@@ -55,7 +55,7 @@ func NewVnetConfigService(b backend.Backend) (*VnetConfigService, error) {
 
 	return &VnetConfigService{
 		svc:  svc,
-		slog: slog.With(teleport.ComponentKey, "VnetConfig.local"),
+		slog: slog.With(logconstants.ComponentKey, "VnetConfig.local"),
 	}, nil
 }
 

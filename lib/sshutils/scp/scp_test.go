@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
@@ -50,7 +50,7 @@ func TestSend(t *testing.T) {
 	atime := testNow.Add(1 * time.Second)
 	dirModtime := testNow.Add(2 * time.Second)
 	dirAtime := testNow.Add(3 * time.Second)
-	logger := logtest.With(teleport.ComponentKey, "send")
+	logger := logtest.With(logconstants.ComponentKey, "send")
 	testCases := []struct {
 		desc   string
 		config Config
@@ -113,7 +113,7 @@ func TestReceive(t *testing.T) {
 	atime := testNow.Add(1 * time.Second)
 	dirModtime := testNow.Add(2 * time.Second)
 	dirAtime := testNow.Add(3 * time.Second)
-	logger := logtest.With(teleport.ComponentKey, "recv")
+	logger := logtest.With(logconstants.ComponentKey, "recv")
 	testCases := []struct {
 		desc       string
 		config     Config

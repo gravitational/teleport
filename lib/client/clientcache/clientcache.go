@@ -26,8 +26,8 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/singleflight"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Cache stores clients keyed by profile name and leaf cluster name.
@@ -100,7 +100,7 @@ func (c *Config) checkAndSetDefaults() error {
 		return trace.BadParameter("RetryWithReloginFunc is required")
 	}
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "clientcache")
+		c.Logger = slog.With(logconstants.ComponentKey, "clientcache")
 	}
 	return nil
 }

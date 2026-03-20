@@ -26,13 +26,13 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // DynamicAccessService manages dynamic RBAC
@@ -45,7 +45,7 @@ type DynamicAccessService struct {
 func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
 	return &DynamicAccessService{
 		Backend: backend,
-		logger:  slog.With(teleport.ComponentKey, "DynamicAccess"),
+		logger:  slog.With(logconstants.ComponentKey, "DynamicAccess"),
 	}
 }
 

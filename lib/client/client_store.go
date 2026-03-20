@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // Store is a storage interface for client data. Store is made up of three
@@ -98,7 +99,7 @@ func NewMemClientStore(opts ...StoreConfigOpt) *Store {
 func newClientStore(ks KeyStore, tcs TrustedCertsStore, ps ProfileStore, opts ...StoreConfigOpt) *Store {
 	// Start with default config
 	config := StoreConfig{
-		log: slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
+		log: slog.With(logconstants.ComponentKey, teleport.ComponentKeyStore),
 	}
 
 	// Apply opts

@@ -37,14 +37,14 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
-	"github.com/gravitational/teleport"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "circleci")
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, "circleci")
 
 // Validator is a function that can be used to validate CircleCI tokens
 type Validator func(ctx context.Context, issuerURL, organizationID, token string) (*IDTokenClaims, error)

@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // StderrLogWriter implements io.Writer and logs the content at configured log
@@ -47,7 +48,7 @@ func NewStderrLogWriter(ctx context.Context, log *slog.Logger, level slog.Level)
 	return &StderrLogWriter{
 		ctx:   ctx,
 		level: level,
-		log:   cmp.Or(log, slog.Default()).With(teleport.ComponentKey, teleport.Component("MCP:stderr")),
+		log:   cmp.Or(log, slog.Default()).With(logconstants.ComponentKey, teleport.Component("MCP:stderr")),
 	}
 }
 

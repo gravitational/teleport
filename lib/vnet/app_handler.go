@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 type tcpAppHandler struct {
@@ -59,7 +60,7 @@ func newTCPAppHandler(cfg *tcpAppHandlerConfig) *tcpAppHandler {
 	return &tcpAppHandler{
 		cfg: cfg,
 		log: log.With(
-			teleport.ComponentKey, teleport.Component("vnet", "tcp-app-handler"),
+			logconstants.ComponentKey, teleport.Component("vnet", "tcp-app-handler"),
 			"profile", cfg.appInfo.GetAppKey().GetProfile(),
 			"leaf_cluster", cfg.appInfo.GetAppKey().GetLeafCluster(),
 			"fqdn", cfg.appInfo.GetApp().GetPublicAddr()),

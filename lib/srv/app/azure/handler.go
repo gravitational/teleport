@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // ComponentKey is the Teleport component key for this handler.
@@ -72,7 +73,7 @@ func (s *HandlerConfig) CheckAndSetDefaults(ctx context.Context) error {
 		s.Clock = clockwork.NewRealClock()
 	}
 	if s.Log == nil {
-		s.Log = slog.With(teleport.ComponentKey, ComponentKey)
+		s.Log = slog.With(logconstants.ComponentKey, ComponentKey)
 	}
 	if s.getAccessToken == nil {
 		s.getAccessToken = lazyGetAccessTokenFromDefaultCredentialProvider(s.Log)

@@ -31,7 +31,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gravitational/teleport"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -45,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // ServiceConfig holds configuration options for the DiscoveryConfig gRPC service.
@@ -86,7 +86,7 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if s.Logger == nil {
-		s.Logger = slog.With(teleport.ComponentKey, "discoveryconfig_crud_service")
+		s.Logger = slog.With(logconstants.ComponentKey, "discoveryconfig_crud_service")
 	}
 
 	if s.Clock == nil {

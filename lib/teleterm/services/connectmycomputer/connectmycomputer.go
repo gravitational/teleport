@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -42,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 type RoleSetup struct {
@@ -281,7 +281,7 @@ type RoleSetupConfig struct {
 
 func (c *RoleSetupConfig) CheckAndSetDefaults() error {
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "CMC role")
+		c.Logger = slog.With(logconstants.ComponentKey, "CMC role")
 	}
 
 	return nil

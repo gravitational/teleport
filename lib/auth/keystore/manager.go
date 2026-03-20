@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -221,7 +222,7 @@ func (opts *Options) CheckAndSetDefaults() error {
 		return trace.BadParameter("AuthPreferenceGetter is required")
 	}
 	if opts.Logger == nil {
-		opts.Logger = slog.With(teleport.ComponentKey, "Keystore")
+		opts.Logger = slog.With(logconstants.ComponentKey, "Keystore")
 	}
 	if opts.Clock == nil {
 		opts.Clock = clockwork.NewRealClock()

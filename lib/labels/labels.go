@@ -31,9 +31,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // DynamicConfig is the configuration for dynamic labels.
@@ -48,7 +48,7 @@ type DynamicConfig struct {
 // CheckAndSetDefaults makes sure valid values were passed in to create
 // dynamic labels.
 func (c *DynamicConfig) CheckAndSetDefaults() error {
-	c.Log = cmp.Or(c.Log, slog.With(teleport.ComponentKey, "dynamiclabels"))
+	c.Log = cmp.Or(c.Log, slog.With(logconstants.ComponentKey, "dynamiclabels"))
 
 	// Loop over all labels and make sure the key name is valid and the interval
 	// is valid as well. If the interval is not valid, update the value.

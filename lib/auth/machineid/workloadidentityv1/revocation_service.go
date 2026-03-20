@@ -30,7 +30,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gravitational/teleport"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -39,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 type workloadIdentityX509RevocationReadWriter interface {
@@ -129,7 +129,7 @@ func NewRevocationService(cfg *RevocationServiceConfig) (*RevocationService, err
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, "workload_identity_revocation.service")
+		cfg.Logger = slog.With(logconstants.ComponentKey, "workload_identity_revocation.service")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()

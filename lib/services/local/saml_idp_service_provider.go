@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -87,7 +88,7 @@ func NewSAMLIdPServiceProviderService(b backend.Backend, opts ...SAMLIdPOption) 
 	samlSPService := &SAMLIdPServiceProviderService{
 		svc:     *svc,
 		backend: b,
-		logger:  slog.With(teleport.ComponentKey, "saml-idp"),
+		logger:  slog.With(logconstants.ComponentKey, "saml-idp"),
 	}
 
 	for _, opt := range opts {

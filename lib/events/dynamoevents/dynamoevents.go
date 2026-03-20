@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws/dynamodbutils"
 	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -309,7 +310,7 @@ const (
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, cfg Config) (*Log, error) {
-	l := slog.With(teleport.ComponentKey, teleport.ComponentDynamoDB)
+	l := slog.With(logconstants.ComponentKey, teleport.ComponentDynamoDB)
 	l.InfoContext(ctx, "Initializing event backend")
 
 	err := cfg.CheckAndSetDefaults()

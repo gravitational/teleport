@@ -28,11 +28,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // awsConfig is the config for the client that configures IAM for AWS databases.
@@ -77,7 +77,7 @@ func newAWS(ctx context.Context, config awsConfig) (*awsClient, error) {
 	}
 
 	logger := slog.With(
-		teleport.ComponentKey, "aws",
+		logconstants.ComponentKey, "aws",
 		"db", config.database.GetName(),
 	)
 	dbConfigurator, err := getDBConfigurator(logger, config)

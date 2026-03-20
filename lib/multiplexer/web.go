@@ -30,11 +30,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // WebListenerConfig is the web listener configuration.
@@ -68,7 +68,7 @@ func NewWebListener(cfg WebListenerConfig) (*WebListener, error) {
 	}
 	context, cancel := context.WithCancel(context.Background())
 	return &WebListener{
-		log:         slog.With(teleport.ComponentKey, "mxweb"),
+		log:         slog.With(logconstants.ComponentKey, "mxweb"),
 		cfg:         cfg,
 		webListener: newListener(context, cfg.Listener.Addr()),
 		dbListener:  newListener(context, cfg.Listener.Addr()),

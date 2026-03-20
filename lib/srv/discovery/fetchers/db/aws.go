@@ -26,10 +26,10 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // maxAWSPages is the maximum number of pages to iterate over when fetching aws
@@ -94,7 +94,7 @@ func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
 			credentialsSource = fmt.Sprintf("integration:%s", cfg.Integration)
 		}
 		cfg.Logger = slog.With(
-			teleport.ComponentKey, "watch:"+component,
+			logconstants.ComponentKey, "watch:"+component,
 			"labels", cfg.Labels,
 			"region", cfg.Region,
 			"role", cfg.AssumeRole,

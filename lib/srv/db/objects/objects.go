@@ -26,11 +26,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/databaseobject"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 type Objects interface {
@@ -121,7 +121,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 		return trace.BadParameter("missing parameter GCPClients")
 	}
 	if c.Log == nil {
-		c.Log = slog.Default().With(teleport.ComponentKey, "db:obj_importer")
+		c.Log = slog.Default().With(logconstants.ComponentKey, "db:obj_importer")
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()

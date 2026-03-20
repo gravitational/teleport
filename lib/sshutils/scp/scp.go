@@ -39,9 +39,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -178,7 +178,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		logger = slog.Default()
 	}
 	c.Log = logger.With(
-		teleport.ComponentKey, "SCP",
+		logconstants.ComponentKey, "SCP",
 		"local_addr", c.Flags.LocalAddr,
 		"remote_addr", c.Flags.RemoteAddr,
 		"target", c.Flags.Target,
