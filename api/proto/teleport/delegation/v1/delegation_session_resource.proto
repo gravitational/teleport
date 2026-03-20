@@ -56,8 +56,8 @@ message DelegationSessionSpec {
 // DelegationUserSpec describes a bot or workload who is allowed to use a
 // delegation session.
 message DelegationUserSpec {
-  // Type of user (currently only "bot" is supported).
-  string type = 1;
+  // Kind of user (currently only "bot" is supported).
+  string kind = 1;
 
   oneof matcher {
     // Name of the bot who may use the delegation session.

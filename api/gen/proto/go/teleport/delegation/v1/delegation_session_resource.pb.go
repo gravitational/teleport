@@ -189,8 +189,8 @@ func (x *DelegationSessionSpec) GetAuthorizedUsers() []*DelegationUserSpec {
 // delegation session.
 type DelegationUserSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Type of user (currently only "bot" is supported).
-	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	// Kind of user (currently only "bot" is supported).
+	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Types that are valid to be assigned to Matcher:
 	//
 	//	*DelegationUserSpec_BotName
@@ -229,9 +229,9 @@ func (*DelegationUserSpec) Descriptor() ([]byte, []int) {
 	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *DelegationUserSpec) GetType() string {
+func (x *DelegationUserSpec) GetKind() string {
 	if x != nil {
-		return x.Type
+		return x.Kind
 	}
 	return ""
 }
@@ -686,7 +686,7 @@ const file_teleport_delegation_v1_delegation_session_resource_proto_rawDesc = ""
 	"\tresources\x18\x02 \x03(\v2..teleport.delegation.v1.DelegationResourceSpecR\tresources\x12U\n" +
 	"\x10authorized_users\x18\x03 \x03(\v2*.teleport.delegation.v1.DelegationUserSpecR\x0fauthorizedUsers\"P\n" +
 	"\x12DelegationUserSpec\x12\x12\n" +
-	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1b\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x1b\n" +
 	"\bbot_name\x18\x02 \x01(\tH\x00R\abotNameB\t\n" +
 	"\amatcher\"\x9f\x03\n" +
 	"\x16DelegationResourceSpec\x12\x12\n" +

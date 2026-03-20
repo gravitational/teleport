@@ -111,11 +111,11 @@ func TestValidateDelegationSession(t *testing.T) {
 			func(p *delegationv1.DelegationSession) { p.Spec.AuthorizedUsers = nil },
 			"spec.authorized_users: at least one user is required",
 		},
-		"invalid user type": {
+		"invalid user kind": {
 			func(p *delegationv1.DelegationSession) {
-				p.Spec.AuthorizedUsers[0].Type = "dragon"
+				p.Spec.AuthorizedUsers[0].Kind = "dragon"
 			},
-			"spec.authorized_users[0].type: must be bot",
+			"spec.authorized_users[0].kind: must be bot",
 		},
 		"no bot name": {
 			func(p *delegationv1.DelegationSession) {
@@ -168,7 +168,7 @@ func validDelegationSession() *delegationv1.DelegationSession {
 			},
 			AuthorizedUsers: []*delegationv1.DelegationUserSpec{
 				{
-					Type:    types.KindBot,
+					Kind:    types.KindBot,
 					Matcher: &delegationv1.DelegationUserSpec_BotName{BotName: "my-bot"},
 				},
 			},

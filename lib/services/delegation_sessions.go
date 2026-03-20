@@ -78,8 +78,8 @@ func ValidateDelegationSession(p *delegationv1.DelegationSession) error {
 	}
 
 	for idx, user := range p.GetSpec().GetAuthorizedUsers() {
-		if user.GetType() != types.KindBot {
-			return trace.BadParameter("spec.authorized_users[%d].type: must be %s", idx, types.KindBot)
+		if user.GetKind() != types.KindBot {
+			return trace.BadParameter("spec.authorized_users[%d].kind: must be %s", idx, types.KindBot)
 		}
 		if user.GetBotName() == "" {
 			return trace.BadParameter("spec.authorized_users[%d].bot_name: is required", idx)
