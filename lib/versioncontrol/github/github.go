@@ -31,8 +31,8 @@ import (
 	"golang.org/x/mod/semver" //nolint:depguard // Usage precedes the x/mod/semver rule.
 
 	"github.com/gravitational/teleport"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // NOTE: when making modifications to package, make sure to run tests with

@@ -27,7 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // CloneConfig contains the configuration for cloning a [Backend].

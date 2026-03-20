@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/log"
+	log "github.com/gravitational/teleport/session/common/logutils"
 )
 
 // HeartbeatI abstracts over the basic interface of Heartbeat and HeartbeatV2. This can be removed

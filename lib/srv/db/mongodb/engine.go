@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log"
+	log "github.com/gravitational/teleport/session/common/logutils"
 )
 
 // NewEngine create new MongoDB engine.

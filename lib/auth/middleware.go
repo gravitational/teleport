@@ -55,7 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // AccessCacheWithEvents extends the [authclient.AccessCache] interface with [types.Events].

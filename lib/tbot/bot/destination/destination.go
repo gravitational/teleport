@@ -25,7 +25,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 var (

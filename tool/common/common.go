@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // ExitCodeError wraps an exit code as an error.

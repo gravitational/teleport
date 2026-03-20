@@ -55,7 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
-	"github.com/gravitational/teleport/lib/utils/log"
+	log "github.com/gravitational/teleport/session/common/logutils"
 )
 
 // TLSServerConfig is a configuration for TLS server

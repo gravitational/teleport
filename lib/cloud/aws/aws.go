@@ -31,7 +31,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 
 	"github.com/gravitational/teleport/lib/services"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // IsResourceAvailable checks if the input status indicates the resource is

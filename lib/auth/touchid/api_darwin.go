@@ -43,7 +43,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 const (

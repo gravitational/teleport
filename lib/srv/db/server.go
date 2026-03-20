@@ -76,7 +76,7 @@ import (
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log"
+	log "github.com/gravitational/teleport/session/common/logutils"
 )
 
 func init() {

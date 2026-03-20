@@ -53,9 +53,9 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/parse"
 	setutils "github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // DefaultImplicitRules provides access to the default set of implicit rules

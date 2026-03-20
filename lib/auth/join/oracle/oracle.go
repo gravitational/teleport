@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // Claims are the claims extracted from the instance certificate.

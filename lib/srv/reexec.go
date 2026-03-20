@@ -59,8 +59,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
 	"github.com/gravitational/teleport/lib/utils/host"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/uds"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // FileFD is a file descriptor passed down from a parent process when

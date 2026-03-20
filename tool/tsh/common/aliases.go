@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mattn/go-shellwords"
 
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // tshAliasEnvKey is an env variable storing the aliases that, so far, has been expanded, and should not be expanded again.

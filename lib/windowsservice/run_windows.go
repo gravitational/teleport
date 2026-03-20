@@ -29,7 +29,7 @@ import (
 	"golang.org/x/sys/windows/svc"
 
 	"github.com/gravitational/teleport"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 const defaultTerminateTimeout = 30 * time.Second

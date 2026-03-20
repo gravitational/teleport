@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuthority)

@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	relaytunnelv1alpha "github.com/gravitational/teleport/gen/proto/go/teleport/relaytunnel/v1alpha"
 	"github.com/gravitational/teleport/lib/tlsca"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // ClientConfig contains the parameters for [NewClient].

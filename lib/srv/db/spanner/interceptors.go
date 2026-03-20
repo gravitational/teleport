@@ -24,7 +24,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	logutil "github.com/gravitational/teleport/lib/utils/log"
+	logutil "github.com/gravitational/teleport/session/common/logutils"
 )
 
 // unaryServerLoggingInterceptor is gRPC middleware that logs some debug info.

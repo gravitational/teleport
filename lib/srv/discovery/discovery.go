@@ -71,9 +71,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	liborganizations "github.com/gravitational/teleport/lib/utils/aws/organizations"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/utils/spreadwork"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 var errNoInstances = errors.New("all fetched nodes already enrolled")

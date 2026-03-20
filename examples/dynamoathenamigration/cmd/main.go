@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/examples/dynamoathenamigration"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 func main() {

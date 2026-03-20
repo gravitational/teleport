@@ -43,8 +43,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // AccessChecker interface checks access to resources based on roles, traits,

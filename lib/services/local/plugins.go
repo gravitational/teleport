@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	libplugin "github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 const pluginsPrefix = "plugins"

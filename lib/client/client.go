@@ -53,8 +53,8 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/socks"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)

@@ -29,7 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // LogLeveler defines a struct that can retrieve and set log levels.

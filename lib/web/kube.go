@@ -51,8 +51,8 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web/terminal"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // podExecHandler connects Kube exec session and web-based terminal via a websocket.

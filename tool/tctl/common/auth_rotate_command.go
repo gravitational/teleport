@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 

@@ -26,7 +26,7 @@ import (
 	"os"
 
 	crdgen "github.com/gravitational/teleport/integrations/operator/crdgen"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 func main() {

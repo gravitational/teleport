@@ -27,7 +27,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 type mockLeveler struct {

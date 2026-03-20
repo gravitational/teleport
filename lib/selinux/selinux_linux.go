@@ -32,8 +32,8 @@ import (
 	ocselinux "github.com/opencontainers/selinux/go-selinux"
 
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/versioncontrol"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 const (

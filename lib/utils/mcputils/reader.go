@@ -27,7 +27,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/gravitational/teleport"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // HandleParseErrorFunc handles parse errors.

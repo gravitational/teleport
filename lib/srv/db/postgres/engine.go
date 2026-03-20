@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
-	logutil "github.com/gravitational/teleport/lib/utils/log"
+	logutil "github.com/gravitational/teleport/session/common/logutils"
 )
 
 // NewEngine create new Postgres engine.

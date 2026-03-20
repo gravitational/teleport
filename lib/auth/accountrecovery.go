@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	logutil "github.com/gravitational/teleport/lib/utils/log"
+	logutil "github.com/gravitational/teleport/session/common/logutils"
 )
 
 const (

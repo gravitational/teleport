@@ -44,8 +44,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/teleterm/autoupdate/common"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/windowsservice"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // ServiceCommand is the tsh subcommand that the Windows service manager invokes when starting the
