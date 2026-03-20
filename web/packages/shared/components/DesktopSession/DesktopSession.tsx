@@ -275,9 +275,23 @@ export function DesktopSession({
 
   function handleMouseMove(e: React.MouseEvent) {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    client.sendMouseMove(x, y);
+    const canvas = e.currentTarget as HTMLCanvasElement
+
+    const scale = Math.min(1, rect.width / canvas.width, rect.height / canvas.height);
+
+    const renderedWidth = canvas.width * scale;
+    const renderedHeight = canvas.height * scale;
+
+    // calculate offset from center
+    const offsetX = (rect.width - renderedWidth) / 2;
+    const offsetY = (rect.height - renderedHeight) / 2;
+
+    const x = Math.round((e.clientX - rect.left - offsetX) / scale);
+    const y = Math.round((e.clientY - rect.top - offsetY) / scale);
+    
+    if (x >= 0 && y >= 0) {
+      client.sendMouseMove(Math.round(x), Math.round(y));
+    }
   }
 
   function handleMouseDown(e: React.MouseEvent) {
