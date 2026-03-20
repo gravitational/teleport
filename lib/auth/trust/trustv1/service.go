@@ -114,6 +114,10 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
+	// For read without secrets, we use RiskyUnpinnedDecision, this is to allow
+	// scoped identities (regardless of their pinned scope) to be able to fetch
+	// cert_authority resources (which are currently unscoped/treated as root
+	// scope).
 	decisionFn := authCtx.CheckerContext.RiskyUnpinnedDecision
 	readVerb := types.VerbReadNoSecrets
 	if req.IncludeKey {
