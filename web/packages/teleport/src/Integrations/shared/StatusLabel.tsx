@@ -165,6 +165,11 @@ export function getStatus(item: IntegrationLike): {
         'The Slack integration must be invited to the default channel in order to receive access request notifications.'
       );
     case IntegrationStatusCode.Unauthorized:
+      if (item.kind === 'aws-identity-center') {
+        return FAILED(
+          'Access denied to the AWS IAM Identity Center SCIM API. Try rotating the AWS IAM Identity Center SCIM API token.'
+        );
+      }
       return FAILED(
         'Integration was denied access. This could be a result of revoked authorization on the 3rd party provider. Try removing and re-connecting the integration.'
       );

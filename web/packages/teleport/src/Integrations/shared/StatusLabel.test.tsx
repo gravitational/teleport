@@ -20,10 +20,11 @@ import { render, screen } from 'design/utils/testing';
 
 import {
   IntegrationKind,
+  IntegrationStatusCode,
   IntegrationWithSummary,
 } from 'teleport/services/integrations';
 
-import { SummaryStatusLabel } from './StatusLabel';
+import { getStatus, SummaryStatusLabel } from './StatusLabel';
 
 afterEach(() => {
   jest.useRealTimers();
@@ -56,6 +57,33 @@ test('SummaryStatusLabel shows healthy when sync timestamp is recent', () => {
 
   expect(screen.getByText('Healthy')).toBeInTheDocument();
   expect(screen.queryByText('(scanning in progress)')).not.toBeInTheDocument();
+});
+
+test('getStatus shows AWS IC specific guidance for unauthorized status', () => {
+  const status = getStatus({
+    resourceType: 'plugin',
+    kind: 'aws-identity-center',
+    statusCode: IntegrationStatusCode.Unauthorized,
+    status: {
+      code: IntegrationStatusCode.Unauthorized,
+      errorMessage: 'AWS IAM Identity Center SCIM authentication failed',
+    },
+  } as any);
+
+  expect(status.label).toBe('Failed');
+  expect(status.tooltip).toBe(
+    'Access denied to the AWS IAM Identity Center SCIM API. Try rotating the AWS IAM Identity Center SCIM API token.'
+  );
+});
+
+test('getStatus falls back to generic unauthorized message', () => {
+  const status = getStatus({
+    resourceType: 'plugin',
+    statusCode: IntegrationStatusCode.Unauthorized,
+  } as any);
+
+  expect(status.label).toBe('Failed');
+  expect(status.tooltip).toContain('Integration was denied access.');
 });
 
 function makeSummary(lastSyncMs: number): IntegrationWithSummary {
