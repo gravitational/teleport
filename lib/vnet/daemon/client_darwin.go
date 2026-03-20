@@ -36,9 +36,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils/darwinbundle"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component("vnet", "daemon"))
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.Component("vnet", "daemon"))
 
 // RegisterAndCall attempts to register the daemon as a login item, waits for the user to enable it
 // and then starts it by sending a message through XPC.

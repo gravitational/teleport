@@ -37,9 +37,9 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/linux"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // deviceStateFolderName starts without a "." on Linux systems.
@@ -106,7 +106,7 @@ func rewriteTPMPermissionError(err error) error {
 		return err
 	}
 	slog.DebugContext(context.Background(), "Replacing TPM permission error with a more friendly one",
-		teleport.ComponentKey, "TPM",
+		logconstants.ComponentKey, "TPM",
 		"error", err,
 	)
 
@@ -143,7 +143,7 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		osRelease, err := cddFuncs.parseOSRelease()
 		if err != nil {
 			slog.DebugContext(context.Background(), "Failed to parse /etc/os-release file",
-				teleport.ComponentKey, "TPM",
+				logconstants.ComponentKey, "TPM",
 				"error", err,
 			)
 			// err swallowed on purpose.
@@ -199,7 +199,7 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 
 func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
 	ctx := context.Background()
-	logger := slog.With(teleport.ComponentKey, "TPM")
+	logger := slog.With(logconstants.ComponentKey, "TPM")
 
 	dmiInfo, err := cddFuncs.dmiInfoFromSysfs()
 	if err == nil {
@@ -334,7 +334,7 @@ func saveDMIInfoToCache(dmiInfo *linux.DMIInfo) error {
 	if err := f.Close(); err != nil {
 		return trace.Wrap(err, "closing dmi.json after write")
 	}
-	slog.DebugContext(context.Background(), "Saved DMI information to local cache", teleport.ComponentKey, "TPM")
+	slog.DebugContext(context.Background(), "Saved DMI information to local cache", logconstants.ComponentKey, "TPM")
 
 	return nil
 }

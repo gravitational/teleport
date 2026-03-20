@@ -44,9 +44,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentCgroup)
+var logger = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentCgroup)
 
 // Config holds configuration for the cgroup service.
 type Config struct {

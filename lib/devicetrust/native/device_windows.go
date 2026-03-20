@@ -36,9 +36,9 @@ import (
 	"golang.org/x/sys/windows"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/windowsexec"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // deviceStateFolderName starts with a "." on Windows for backwards
@@ -169,7 +169,7 @@ func getDeviceBaseBoardSerial() (string, error) {
 
 func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error) {
 	ctx := context.Background()
-	logger := slog.With(teleport.ComponentKey, "TPM")
+	logger := slog.With(logconstants.ComponentKey, "TPM")
 
 	logger.DebugContext(ctx, "Collecting device data")
 

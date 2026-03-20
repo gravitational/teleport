@@ -69,8 +69,6 @@ const (
 const (
 	//go:fix inline
 	ComponentKey = logconstants.ComponentKey
-	//go:fix inline
-	ComponentFields = logconstants.ComponentFields
 
 	// ComponentMemory is a memory backend
 	ComponentMemory = "memory"

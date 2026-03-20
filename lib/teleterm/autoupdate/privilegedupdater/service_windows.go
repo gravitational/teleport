@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/autoupdate/common"
 	"github.com/gravitational/teleport/lib/windowsservice"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // ServiceCommand is the tsh subcommand that the Windows service manager invokes when starting the
@@ -81,7 +82,7 @@ func makePipeServerSecurityDescriptor(authenticatedUsersAccess uint32) string {
 		fmt.Sprintf("(A;;%#x;;;AU)", authenticatedUsersAccess) // Allow (A);; authenticatedUsersAccess ;;; Authenticated Users (AU)
 }
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "autoupdate")
+var log = logutils.NewPackageLogger(logconstants.ComponentKey, "autoupdate")
 
 // ServiceTestConfig allows overriding certain updater config properties.
 // For test use only.

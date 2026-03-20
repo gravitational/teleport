@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/windowsservice"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -126,7 +127,7 @@ func ServiceMain() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	logger := slog.With(teleport.ComponentKey, teleport.Component("vnet", "windows-service"))
+	logger := slog.With(logconstants.ComponentKey, teleport.Component("vnet", "windows-service"))
 
 	err = windowsservice.Run(&windowsservice.RunConfig{
 		Name:    serviceName,

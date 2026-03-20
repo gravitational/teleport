@@ -17,8 +17,8 @@ messages are not peristed to disk by default, every other level is logged and pe
 our codebase, default is functionally equivalent to warn.
 
 os_log_t can be distinguished by subsystem and category. Think of subsystem as a program (though
-multiple programs can share the same subsystem and category) and of category as teleport.ComponentKey.
-Unlike teleport.ComponentKey, subsystem and category needs to be set ahead of time when creating a
+multiple programs can share the same subsystem and category) and of category as logconstants.ComponentKey.
+Unlike logconstants.ComponentKey, subsystem and category needs to be set ahead of time when creating a
 logger and cannot be specified per message.
 
 Messages have a 1024-byte encoded size limit. Messages over this size will be truncated. The limit

@@ -31,8 +31,8 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows"
 
-	"github.com/gravitational/teleport"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 var native nativeWebauthn = newNativeImpl()
@@ -56,7 +56,7 @@ func newNativeImpl() *nativeImpl {
 
 	// Do not hold onto this logger. It is created before tsh has a chance to
 	// initialize it properly.
-	logger := slog.With(teleport.ComponentKey, "WebAuthnWin")
+	logger := slog.With(logconstants.ComponentKey, "WebAuthnWin")
 	ctx := context.Background()
 
 	// Explicitly loading the module avoids a panic when calling DLL functions if

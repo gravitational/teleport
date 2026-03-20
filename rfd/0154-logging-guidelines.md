@@ -189,7 +189,7 @@ created with `logutils.NewPackageLogger` which allows formatting of attributes t
 so that the correct formatter is used.
 
 ```go
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, "llama")
+var logger = logutils.NewPackageLogger(logconstants.ComponentKey, "llama")
 ```
 
 

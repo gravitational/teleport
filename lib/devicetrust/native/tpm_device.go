@@ -34,9 +34,9 @@ import (
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // tpmDevice implements the generic device trust client-side operations for
@@ -124,7 +124,7 @@ func createAndSaveAK(
 
 func (d *tpmDevice) enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	ctx := context.Background()
-	logger := slog.With(teleport.ComponentKey, "TPM")
+	logger := slog.With(logconstants.ComponentKey, "TPM")
 	stateDir, err := setupDeviceStateDir(userDirFunc)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
@@ -243,7 +243,7 @@ func (d *tpmDevice) getDeviceCredential() (*devicepb.DeviceCredential, error) {
 	defer func() {
 		if err := tpm.Close(); err != nil {
 			slog.DebugContext(context.Background(), "Failed to close TPM",
-				teleport.ComponentKey, "TPM",
+				logconstants.ComponentKey, "TPM",
 				"error", err,
 			)
 		}
@@ -271,7 +271,7 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 	debug bool,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
 	ctx := context.Background()
-	logger := slog.With(teleport.ComponentKey, "TPM")
+	logger := slog.With(logconstants.ComponentKey, "TPM")
 
 	stateDir, err := setupDeviceStateDir(userDirFunc)
 	if err != nil {
@@ -354,7 +354,7 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 //nolint:unused // Used by Windows builds.
 func (d *tpmDevice) handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret string) error {
 	ctx := context.Background()
-	logger := slog.With(teleport.ComponentKey, "TPM")
+	logger := slog.With(logconstants.ComponentKey, "TPM")
 
 	logger.DebugContext(ctx, "Performing credential activation")
 	// The two input parameters are base64 encoded, so decode them.
@@ -410,7 +410,7 @@ func (d *tpmDevice) solveTPMAuthnDeviceChallenge(
 	challenge *devicepb.TPMAuthenticateDeviceChallenge,
 ) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
 	ctx := context.Background()
-	logger := slog.With(teleport.ComponentKey, "TPM")
+	logger := slog.With(logconstants.ComponentKey, "TPM")
 
 	stateDir, err := setupDeviceStateDir(userDirFunc)
 	if err != nil {
@@ -450,7 +450,7 @@ func (d *tpmDevice) solveTPMAuthnDeviceChallenge(
 
 func attestPlatform(tpm *attest.TPM, ak *attest.AK, nonce []byte) (*attest.PlatformParameters, error) {
 	ctx := context.Background()
-	logger := slog.With(teleport.ComponentKey, "TPM")
+	logger := slog.With(logconstants.ComponentKey, "TPM")
 
 	config := &attest.PlatformAttestConfig{}
 

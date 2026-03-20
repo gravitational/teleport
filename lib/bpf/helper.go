@@ -32,9 +32,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentBPF)
+var logger = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentBPF)
 
 const (
 	// CommMax is the maximum length of a command from linux/sched.h.

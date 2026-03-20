@@ -176,8 +176,8 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 			// specified in the arguments, the one with the lowest index is used and the others are ignored.
 			// In the example below, the resulting component in the message output would be "alpaca".
 			//
-			//	logger := logger.With(teleport.ComponentKey, "fish")
-			//	logger.InfoContext(ctx, "llama llama llama", teleport.ComponentKey, "alpaca", "foo", 123, teleport.ComponentKey, "shark")
+			//	logger := logger.With(logconstants.ComponentKey, "fish")
+			//	logger.InfoContext(ctx, "llama llama llama", logconstants.ComponentKey, "alpaca", "foo", 123, logconstants.ComponentKey, "shark")
 			component := s.component
 			r.Attrs(func(attr slog.Attr) bool {
 				if attr.Key != logconstants.ComponentKey {

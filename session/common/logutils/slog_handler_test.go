@@ -287,20 +287,20 @@ func TestSlogTextHandlerRawComponent(t *testing.T) {
 	logger := slog.New(h)
 	logger.DebugContext(t.Context(), "bar", logconstants.ComponentKey, "foobarbaz")
 	require.Equal(t, "foobarbaz", out.lastRawComponent(),
-		"raw component wasn't properly processed when teleport.ComponentKey was passed only directly with message")
+		"raw component wasn't properly processed when logconstants.ComponentKey was passed only directly with message")
 
 	logger = logger.With(logconstants.ComponentKey, "foobarbaz")
 	logger.DebugContext(t.Context(), "bar")
 	require.Equal(t, "foobarbaz", out.lastRawComponent(),
-		"raw component wasn't properly processed when teleport.ComponentKey was passed to slog.Logger.With")
+		"raw component wasn't properly processed when logconstants.ComponentKey was passed to slog.Logger.With")
 
 	logger.With("quux", "xuuq").DebugContext(t.Context(), "bar")
 	require.Equal(t, "foobarbaz", out.lastRawComponent(),
-		"raw component wasn't properly cloned when teleport.ComponentKey wasn't passed to slog.Logger.With")
+		"raw component wasn't properly cloned when logconstants.ComponentKey wasn't passed to slog.Logger.With")
 
 	logger.DebugContext(t.Context(), "bar", logconstants.ComponentKey, "bazbarfoo")
 	require.Equal(t, "bazbarfoo", out.lastRawComponent(),
-		"raw component wasn't properly processed when teleport.ComponentKey was meant to override existing component")
+		"raw component wasn't properly processed when logconstants.ComponentKey was meant to override existing component")
 }
 
 // rawComponentWriter is a writer that persists only rawComponent values that were passed to its

@@ -48,7 +48,7 @@ Event Log supports just three levels: info, warning, error. Logs can also be dis
 event source and a category. You can think of an event source as a program, though multiple programs
 can share the same event source and categories.
 [Categories](https://learn.microsoft.com/en-us/windows/win32/eventlog/event-categories) are like our
-components set with teleport.ComponentKey. Unfortunately, categories, just like event IDs, must be
+components set with logconstants.ComponentKey. Unfortunately, categories, just like event IDs, must be
 set up ahead of time, so we don't use them.
 
 ## Reading logs

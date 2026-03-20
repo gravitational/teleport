@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 func init() {
@@ -101,7 +102,7 @@ func init() {
 	runtime.LockOSThread()
 }
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentPAM)
+var logger = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentPAM)
 
 const (
 	// maxMessageSize is the maximum size of a message to accept from PAM. In
