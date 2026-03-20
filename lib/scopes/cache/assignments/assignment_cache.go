@@ -229,6 +229,11 @@ func (c *AssignmentCache) Delete(name, subKind string) {
 	}.String())
 }
 
+// Len returns the total number of assignments in the cache.
+func (c *AssignmentCache) Len() int {
+	return c.cache.Len()
+}
+
 type assignmentKey struct {
 	name    string
 	subKind string
