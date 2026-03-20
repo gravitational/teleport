@@ -3347,6 +3347,12 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		kinds = append(kinds, types.KindSAMLIdPServiceProvider)
 	}
 
+	// include KindNode when KindBeam is requested so the unified resource cache returns them.
+	if slices.Contains(kinds, types.KindBeam) &&
+		!slices.Contains(kinds, types.KindNode) {
+		kinds = append(kinds, types.KindNode)
+	}
+
 	// set default kinds to be requested if none exist in the request
 	if len(kinds) == 0 {
 		kinds = []string{

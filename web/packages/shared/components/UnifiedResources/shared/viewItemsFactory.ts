@@ -23,6 +23,7 @@ import {
   GitHub as GitHubIcon,
   Kubernetes as KubernetesIcon,
   ModelContextProtocol as MCPIcon,
+  Planet as PlanetIcon,
   Server as ServerIcon,
 } from 'design/Icon';
 import { ResourceIconName } from 'design/ResourceIcon';
@@ -43,15 +44,25 @@ import {
 } from '../types';
 import { guessAppIcon } from './guessAppIcon';
 
+// TODO(nibrasohin): Remove this once we have finalized beam naming conventions
+// BEAM_HOSTNAME_PATTERN matches hostnames set by the Beams service: beam-<uuid>.
+const BEAM_HOSTNAME_PATTERN = /^beam-[0-9a-f]{8}-[0-9a-f]{4}-/i;
+
+export function isBeamNode(resource: UnifiedResourceNode): boolean {
+  return BEAM_HOSTNAME_PATTERN.test(resource.hostname);
+}
+
 export function makeUnifiedResourceViewItemNode(
   resource: UnifiedResourceNode,
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
-  const nodeSubKind = formatNodeSubKind(resource.subKind);
+  const beam = isBeamNode(resource);
+  const nodeSubKind = beam ? 'Beam' : formatNodeSubKind(resource.subKind);
   const addressIfNotTunnel = resource.tunnel ? '' : resource.addr;
 
   return {
     name: resource.hostname,
+    PrimaryIconComponent: beam ? PlanetIcon : undefined,
     SecondaryIcon: ServerIcon,
     primaryIconName: 'server',
     ActionButton: ui.ActionButton,

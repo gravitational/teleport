@@ -394,13 +394,24 @@ func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matc
 
 func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]struct{}) bool {
 	switch r.GetKind() {
-	case types.KindNode,
-		types.KindWindowsDesktop,
+	case types.KindWindowsDesktop,
 		types.KindGitServer,
 		types.KindDatabase,
 		types.KindKubernetesCluster:
 		_, ok := kinds[r.GetKind()]
 		return ok
+	case types.KindNode:
+		if _, ok := kinds[types.KindNode]; ok {
+			return true
+		}
+		// Beams are nodes labelled with BeamIDLabel. KindBeam acts as a
+		// virtual filter kind
+		if _, ok := kinds[types.KindBeam]; ok {
+			if _, hasLabel := r.GetLabel(types.BeamIDLabel); hasLabel {
+				return true
+			}
+		}
+		return false
 	case types.KindIdentityCenterAccount:
 		if _, ok := kinds[types.KindApp]; ok {
 			return ok

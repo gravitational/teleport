@@ -118,6 +118,10 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
       kind: 'mcp',
       disabled: !flags.applications,
     },
+    {
+      kind: 'beam',
+      disabled: !flags.nodes,
+    },
   ];
 };
 
@@ -128,6 +132,7 @@ export function ClusterResources({
   showCheckout = false,
   availabilityFilter,
   bulkActions = [],
+  headerExtra,
 }: {
   clusterId: string;
   isLeafCluster: boolean;
@@ -139,6 +144,7 @@ export function ClusterResources({
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
   availabilityFilter?: ResourceAvailabilityFilter;
+  headerExtra?: React.ReactNode;
 }) {
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
@@ -323,7 +329,8 @@ export function ClusterResources({
               justifyContent="space-between"
             >
               <FeatureHeaderTitle>Resources</FeatureHeaderTitle>
-              <Flex alignItems="center">
+              <Flex alignItems="center" gap={2}>
+                {headerExtra}
                 {!showCheckout && (
                   <AgentButtonAdd
                     agent={SearchResource.UNIFIED_RESOURCE}

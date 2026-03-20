@@ -131,7 +131,7 @@ const cfg = {
   ui: {
     scrollbackLines: 1000,
     showResources: 'requestable',
-    showBeamsOnboarding: false,
+    showBeamsOnboarding: true,
   },
 
   auth: {
