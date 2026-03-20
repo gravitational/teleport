@@ -28,7 +28,7 @@ import (
 
 // NewSlogEventLogHandler creates a new slog handler that writes to the Windows Event Log as source.
 // Requires registry entries to be set up first, see [eventlogutils.Install] and README in
-// lib/utils/log/eventlog.
+// session/common/utils/eventlog.
 //
 // The caller is expected to call the close function if the function does not return error.
 func NewSlogEventLogHandler(source string, level slog.Leveler) (*SlogTextHandler, func() error, error) {

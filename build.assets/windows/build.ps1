@@ -558,7 +558,7 @@ function Build-Connect {
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building Teleport Connect..."
         Install-Wintun -InstallDir "$TeleportSourceDirectory\wintun"
-        Compile-Message-File -MessageFile "$TeleportSourceDirectory\lib\utils\log\eventlog\msgfile.mc" -CompileDir "$TeleportSourceDirectory\msgfile"
+        Compile-Message-File -MessageFile "$TeleportSourceDirectory\session\common\logutils\eventlog\msgfile.mc" -CompileDir "$TeleportSourceDirectory\msgfile"
         $env:CONNECT_WINTUN_DLL_PATH = "$TeleportSourceDirectory\wintun\wintun.dll"
         $env:CONNECT_MSGFILE_DLL_PATH = "$TeleportSourceDirectory\msgfile\msgfile.dll"
         $env:CONNECT_TSH_BIN_PATH = "$SignedTshBinaryPath"

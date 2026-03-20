@@ -81,7 +81,7 @@ result in `msgfile.dll` being created in the `msgfile` directory.
 
 ```
 . .\build.assets\windows\build.ps1
-Compile-Message-File -MessageFile "$PWD\lib\utils\log\eventlog\msgfile.mc" -CompileDir "$PWD\msgfile"
+Compile-Message-File -MessageFile "$PWD\session\common\logutils\eventlog\msgfile.mc" -CompileDir "$PWD\msgfile"
 ```
 
 In Teleport Connect we distribute this file next to `tsh.exe`. The path to the DLL can be specified
