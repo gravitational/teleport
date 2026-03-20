@@ -253,19 +253,39 @@ func (r *fqdnResolver) tryResolveDB(ctx context.Context, profileNames []string, 
 		if !isDescendantSubdomain(fqdn, dbZone) {
 			continue
 		}
-		// Strip the db zone suffix to get "<db-user>.<db-service-name>".
+		// Strip the db zone suffix to get "<db-user>.<db-service-name>" or
+		// just "<db-service-name>" for auto-provisioned users.
+		// Database resource names cannot contain dots (enforced by
+		// ValidateDatabaseName), but database usernames can. Split on the
+		// last dot so that dotted usernames like "alice.smith" are handled
+		// correctly.
 		prefix := strings.TrimSuffix(fqdn, "."+fullyQualify(dbZone))
-		parts := strings.SplitN(prefix, ".", 2)
-		if len(parts) != 2 {
-			log.DebugContext(ctx, "Ignoring database FQDN with unexpected format", "fqdn", fqdn)
+		var dbUser, dbServiceName string
+		if i := strings.LastIndex(prefix, "."); i >= 0 {
+			dbUser, dbServiceName = prefix[:i], prefix[i+1:]
+		} else {
+			dbServiceName = prefix
+		}
+		// Verify the database resource exists and fetch its protocol.
+		page, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, rootClient.CurrentCluster(), &proto.ListResourcesRequest{
+			ResourceType:        types.KindDatabaseServer,
+			PredicateExpression: fmt.Sprintf(`name == %q`, dbServiceName),
+			Limit:               1,
+		})
+		if err != nil {
+			log.InfoContext(ctx, "Failed to list database servers, skipping DB resolution", "profile", profileName, "db_service", dbServiceName, "error", err)
 			continue
 		}
-		dbUser, dbServiceName := parts[0], parts[1]
+		if len(page.Resources) == 0 {
+			// No matching database found, fall through to SSH resolution.
+			continue
+		}
+		dbProtocol := page.Resources[0].GetDatabase().GetProtocol()
 		dialOpts, err := r.cfg.clientApplication.GetDialOptions(ctx, profileName)
 		if err != nil {
 			return nil, trace.Wrap(err, "getting dial options for database")
 		}
-		log.InfoContext(ctx, "Query matched a database", "profile", profileName, "db_service", dbServiceName, "db_user", dbUser)
+		log.InfoContext(ctx, "Query matched a database", "profile", profileName, "db_service", dbServiceName, "db_user", dbUser, "db_protocol", dbProtocol)
 		return &vnetv1.ResolveFQDNResponse{
 			Match: &vnetv1.ResolveFQDNResponse_MatchedDatabase{
 				MatchedDatabase: &vnetv1.MatchedDatabase{
@@ -275,6 +295,7 @@ func (r *fqdnResolver) tryResolveDB(ctx context.Context, profileNames []string, 
 					RootCluster:   rootClient.ClusterName(),
 					Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
 					DialOptions:   dialOpts,
+					DbProtocol:    dbProtocol,
 				},
 			},
 		}, nil
