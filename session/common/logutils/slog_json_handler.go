@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // SlogJSONHandlerConfig allows the SlogJSONHandler functionality
@@ -60,7 +60,7 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 			Level:     cfg.Level,
 			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 				switch a.Key {
-				case teleport.ComponentKey:
+				case logconstants.ComponentKey:
 					if !withComponent {
 						return slog.Attr{}
 					}

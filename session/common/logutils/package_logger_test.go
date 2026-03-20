@@ -25,15 +25,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 func TestPackageLogger(t *testing.T) {
 	ctx := context.Background()
 
-	logger := NewPackageLogger(teleport.ComponentKey, "test").With("animal", "llama")
+	logger := NewPackageLogger(logconstants.ComponentKey, "test").With("animal", "llama")
 
-	logger2 := NewPackageLogger(teleport.ComponentKey, "test2").WithGroup("a").With("1", "foo").WithGroup("b").With("2", "bar")
+	logger2 := NewPackageLogger(logconstants.ComponentKey, "test2").WithGroup("a").With("1", "foo").WithGroup("b").With("2", "bar")
 
 	w := &safeWriter{}
 	slog.SetDefault(slog.New(NewSlogTextHandler(w, SlogTextHandlerConfig{Level: TraceLevel, ConfiguredFields: []string{LevelField, ComponentField}})))

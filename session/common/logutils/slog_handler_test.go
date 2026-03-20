@@ -32,7 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // TestSlogTextHandler validates that the SlogTextHandler fulfills
@@ -263,7 +263,7 @@ func TestSlogTextHandlerComponentPadding(t *testing.T) {
 			}
 
 			logger := slog.New(h)
-			logger.DebugContext(t.Context(), "bar", teleport.ComponentKey, tt.component)
+			logger.DebugContext(t.Context(), "bar", logconstants.ComponentKey, tt.component)
 
 			require.Equal(t, tt.want, buf.String())
 		})
@@ -285,11 +285,11 @@ func TestSlogTextHandlerRawComponent(t *testing.T) {
 	h.out = out
 
 	logger := slog.New(h)
-	logger.DebugContext(t.Context(), "bar", teleport.ComponentKey, "foobarbaz")
+	logger.DebugContext(t.Context(), "bar", logconstants.ComponentKey, "foobarbaz")
 	require.Equal(t, "foobarbaz", out.lastRawComponent(),
 		"raw component wasn't properly processed when teleport.ComponentKey was passed only directly with message")
 
-	logger = logger.With(teleport.ComponentKey, "foobarbaz")
+	logger = logger.With(logconstants.ComponentKey, "foobarbaz")
 	logger.DebugContext(t.Context(), "bar")
 	require.Equal(t, "foobarbaz", out.lastRawComponent(),
 		"raw component wasn't properly processed when teleport.ComponentKey was passed to slog.Logger.With")
@@ -298,7 +298,7 @@ func TestSlogTextHandlerRawComponent(t *testing.T) {
 	require.Equal(t, "foobarbaz", out.lastRawComponent(),
 		"raw component wasn't properly cloned when teleport.ComponentKey wasn't passed to slog.Logger.With")
 
-	logger.DebugContext(t.Context(), "bar", teleport.ComponentKey, "bazbarfoo")
+	logger.DebugContext(t.Context(), "bar", logconstants.ComponentKey, "bazbarfoo")
 	require.Equal(t, "bazbarfoo", out.lastRawComponent(),
 		"raw component wasn't properly processed when teleport.ComponentKey was meant to override existing component")
 }

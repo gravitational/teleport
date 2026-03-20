@@ -15,7 +15,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 // handleState adapted from go/src/log/slog/handler.go
@@ -103,7 +103,7 @@ func (s *handleState) appendAttr(a slog.Attr) bool {
 	}
 
 	// Handle nested attributes from within component fields.
-	if a.Key == teleport.ComponentFields {
+	if a.Key == logconstants.ComponentFields {
 		nonEmpty := false
 		switch fields := a.Value.Any().(type) {
 		case map[string]any:
@@ -180,7 +180,7 @@ func (s *handleState) appendKey(key string) {
 	// These keys should not be included in the output to match
 	// the behavior of the lorgus formatter.
 	if key == slog.TimeKey ||
-		key == teleport.ComponentKey ||
+		key == logconstants.ComponentKey ||
 		key == slog.LevelKey ||
 		key == CallerField ||
 		key == slog.MessageKey ||
@@ -257,7 +257,7 @@ func (s *handleState) appendNonBuiltIns(r slog.Record) {
 		empty := true
 		r.Attrs(func(a slog.Attr) bool {
 			// The component is handled by the top level handler.
-			if a.Key == teleport.ComponentKey {
+			if a.Key == logconstants.ComponentKey {
 				return true
 			}
 			if s.appendAttr(a) {
