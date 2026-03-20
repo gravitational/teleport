@@ -434,6 +434,7 @@
     "loadbalancing",
     "localca",
     "localproxy",
+    "logconstants",
     "loginrule",
     "loginrulev",
     "logrus",
