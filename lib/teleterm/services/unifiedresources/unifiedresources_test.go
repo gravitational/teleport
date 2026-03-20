@@ -34,8 +34,7 @@ import (
 )
 
 func TestUnifiedResourcesList(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}
 
@@ -168,6 +167,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 		AutoUserProvisioning: &clusters.AutoUserProvisioning{
 			DatabaseRoles: []string{},
 		},
+		DatabaseUsers: []string{"testUser"},
 	}}, response.Resources[1])
 
 	require.Equal(t, UnifiedResource{Kube: &clusters.Kube{
@@ -215,12 +215,57 @@ func TestUnifiedResourcesList(t *testing.T) {
 		AutoUserProvisioning: &clusters.AutoUserProvisioning{
 			DatabaseRoles: []string{},
 		},
+		DatabaseUsers: []string{"testUser"},
 	}}, leafResponse.Resources[0])
+}
+
+func TestUnifiedResourcesListWildcardDatabaseUsers(t *testing.T) {
+	ctx := t.Context()
+
+	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}
+
+	database, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "testDb",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "localhost",
+		HostID:   uuid.New().String(),
+		Database: &types.DatabaseV3{
+			Spec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+			Metadata: types.Metadata{Name: "testDb"},
+		},
+	})
+	require.NoError(t, err)
+
+	wildcardRole, err := types.NewRole("wildcard-db-user", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseUsers:  []string{types.Wildcard},
+		},
+	})
+	require.NoError(t, err)
+
+	response, err := List(ctx, cluster, &mockClient{
+		paginatedResources: []*proto.PaginatedResource{
+			{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}},
+		},
+		roles: []types.Role{wildcardRole},
+	}, &proto.ListUnifiedResourcesRequest{})
+	require.NoError(t, err)
+	require.Len(t, response.Resources, 1)
+
+	db := response.Resources[0].Database
+	require.NotNil(t, db)
+	require.Nil(t, db.AutoUserProvisioning)
+	require.True(t, db.WildcardUserAllowed)
 }
 
 type mockClient struct {
 	paginatedResources []*proto.PaginatedResource
 	nextKey            string
+	roles              []types.Role
 }
 
 func (m *mockClient) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
@@ -231,6 +276,9 @@ func (m *mockClient) ListUnifiedResources(ctx context.Context, req *proto.ListUn
 }
 
 func (m *mockClient) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
+	if m.roles != nil {
+		return m.roles, nil
+	}
 	role, err := types.NewRole("auto-db-user", types.RoleSpecV6{
 		Options: types.RoleOptions{
 			CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,

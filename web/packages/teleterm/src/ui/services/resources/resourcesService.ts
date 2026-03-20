@@ -43,11 +43,6 @@ export class ResourcesService {
 
   constructor(private tshClient: TshdClient) {}
 
-  async getDbUsers(dbUri: uri.DatabaseUri): Promise<string[]> {
-    const { response } = await this.tshClient.listDatabaseUsers({ dbUri });
-    return response.users;
-  }
-
   /**
    * searchResources searches for the given list of space-separated keywords across all resource
    * types on the given cluster.
