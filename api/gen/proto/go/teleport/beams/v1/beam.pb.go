@@ -106,7 +106,7 @@ type Beam struct {
 	// Common metadata that all resources share.
 	Metadata *v1.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// Configuration of the beam.
-	Spec *BeamSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
+	Spec *BeamSpecV1 `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
 	// Status of the beam and its derived resources.
 	Status        *BeamStatus `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -171,7 +171,7 @@ func (x *Beam) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *Beam) GetSpec() *BeamSpec {
+func (x *Beam) GetSpec() *BeamSpecV1 {
 	if x != nil {
 		return x.Spec
 	}
@@ -185,8 +185,8 @@ func (x *Beam) GetStatus() *BeamStatus {
 	return nil
 }
 
-// BeamSpec contains the configuration of the beam.
-type BeamSpec struct {
+// BeamSpecV1 contains the configuration of the beam.
+type BeamSpecV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// EgressMode configures outgoing network connectivity from the beam.
 	Egress EgressMode `protobuf:"varint,1,opt,name=egress,proto3,enum=teleport.beams.v1.EgressMode" json:"egress,omitempty"`
@@ -197,20 +197,20 @@ type BeamSpec struct {
 	sizeCache      protoimpl.SizeCache
 }
 
-func (x *BeamSpec) Reset() {
-	*x = BeamSpec{}
+func (x *BeamSpecV1) Reset() {
+	*x = BeamSpecV1{}
 	mi := &file_teleport_beams_v1_beam_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *BeamSpec) String() string {
+func (x *BeamSpecV1) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*BeamSpec) ProtoMessage() {}
+func (*BeamSpecV1) ProtoMessage() {}
 
-func (x *BeamSpec) ProtoReflect() protoreflect.Message {
+func (x *BeamSpecV1) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_beams_v1_beam_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -222,19 +222,19 @@ func (x *BeamSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BeamSpec.ProtoReflect.Descriptor instead.
-func (*BeamSpec) Descriptor() ([]byte, []int) {
+// Deprecated: Use BeamSpecV1.ProtoReflect.Descriptor instead.
+func (*BeamSpecV1) Descriptor() ([]byte, []int) {
 	return file_teleport_beams_v1_beam_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *BeamSpec) GetEgress() EgressMode {
+func (x *BeamSpecV1) GetEgress() EgressMode {
 	if x != nil {
 		return x.Egress
 	}
 	return EgressMode_EGRESS_MODE_UNSPECIFIED
 }
 
-func (x *BeamSpec) GetAllowedDomains() []string {
+func (x *BeamSpecV1) GetAllowedDomains() []string {
 	if x != nil {
 		return x.AllowedDomains
 	}
@@ -265,7 +265,7 @@ type BeamStatus struct {
 	AppAddrHttp string `protobuf:"bytes,7,opt,name=app_addr_http,json=appAddrHttp,proto3" json:"app_addr_http,omitempty"`
 	// BotName is the name of the beam's bot identity.
 	BotName string `protobuf:"bytes,8,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
-	// JoinTokenName is the name of the beam's bound-keypair join token.
+	// JoinTokenName is the name of the beam's join token.
 	JoinTokenName string `protobuf:"bytes,9,opt,name=join_token_name,json=joinTokenName,proto3" json:"join_token_name,omitempty"`
 	// DelegationSessionID identifies the delegation session through which the
 	// beam is using the user's identity.
@@ -388,15 +388,16 @@ var File_teleport_beams_v1_beam_proto protoreflect.FileDescriptor
 
 const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	"\n" +
-	"\x1cteleport/beams/v1/beam.proto\x12\x11teleport.beams.v1\x1a!teleport/header/v1/metadata.proto\"\xf1\x01\n" +
+	"\x1cteleport/beams/v1/beam.proto\x12\x11teleport.beams.v1\x1a!teleport/header/v1/metadata.proto\"\xf3\x01\n" +
 	"\x04Beam\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12/\n" +
-	"\x04spec\x18\x05 \x01(\v2\x1b.teleport.beams.v1.BeamSpecR\x04spec\x125\n" +
-	"\x06status\x18\x06 \x01(\v2\x1d.teleport.beams.v1.BeamStatusR\x06status\"j\n" +
-	"\bBeamSpec\x125\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x121\n" +
+	"\x04spec\x18\x05 \x01(\v2\x1d.teleport.beams.v1.BeamSpecV1R\x04spec\x125\n" +
+	"\x06status\x18\x06 \x01(\v2\x1d.teleport.beams.v1.BeamStatusR\x06status\"l\n" +
+	"\n" +
+	"BeamSpecV1\x125\n" +
 	"\x06egress\x18\x01 \x01(\x0e2\x1d.teleport.beams.v1.EgressModeR\x06egress\x12'\n" +
 	"\x0fallowed_domains\x18\x02 \x03(\tR\x0eallowedDomains\"\xf8\x02\n" +
 	"\n" +
@@ -437,15 +438,15 @@ var file_teleport_beams_v1_beam_proto_msgTypes = make([]protoimpl.MessageInfo, 3
 var file_teleport_beams_v1_beam_proto_goTypes = []any{
 	(EgressMode)(0),     // 0: teleport.beams.v1.EgressMode
 	(*Beam)(nil),        // 1: teleport.beams.v1.Beam
-	(*BeamSpec)(nil),    // 2: teleport.beams.v1.BeamSpec
+	(*BeamSpecV1)(nil),  // 2: teleport.beams.v1.BeamSpecV1
 	(*BeamStatus)(nil),  // 3: teleport.beams.v1.BeamStatus
 	(*v1.Metadata)(nil), // 4: teleport.header.v1.Metadata
 }
 var file_teleport_beams_v1_beam_proto_depIdxs = []int32{
 	4, // 0: teleport.beams.v1.Beam.metadata:type_name -> teleport.header.v1.Metadata
-	2, // 1: teleport.beams.v1.Beam.spec:type_name -> teleport.beams.v1.BeamSpec
+	2, // 1: teleport.beams.v1.Beam.spec:type_name -> teleport.beams.v1.BeamSpecV1
 	3, // 2: teleport.beams.v1.Beam.status:type_name -> teleport.beams.v1.BeamStatus
-	0, // 3: teleport.beams.v1.BeamSpec.egress:type_name -> teleport.beams.v1.EgressMode
+	0, // 3: teleport.beams.v1.BeamSpecV1.egress:type_name -> teleport.beams.v1.EgressMode
 	4, // [4:4] is the sub-list for method output_type
 	4, // [4:4] is the sub-list for method input_type
 	4, // [4:4] is the sub-list for extension type_name

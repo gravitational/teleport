@@ -37,7 +37,7 @@ import (
 func TestBeamServiceGetBeamByAlias(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
@@ -76,7 +76,7 @@ func testBeam(alias string) *beamsv1.Beam {
 			Name:    uuid.NewString(),
 			Expires: timestamppb.New(time.Now().Add(time.Hour)),
 		},
-		Spec: &beamsv1.BeamSpec{
+		Spec: &beamsv1.BeamSpecV1{
 			Egress:         beamsv1.EgressMode_EGRESS_MODE_RESTRICTED,
 			AllowedDomains: []string{"example.com."},
 		},
