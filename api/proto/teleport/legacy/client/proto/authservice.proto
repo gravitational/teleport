@@ -519,6 +519,17 @@ message PingResponse {
     (gogoproto.stdtime) = true,
     (gogoproto.jsontag) = "licenseExpiry"
   ];
+  // ScopesStatus reports whether the scopes feature is enabled on the auth server.
+  ScopesStatus scopes_status = 11;
+}
+
+// ScopesStatus represents the state of the scopes feature on the auth server.
+enum ScopesStatus {
+  SCOPES_STATUS_UNSPECIFIED = 0;
+  // SCOPES_STATUS_ENABLED indicates the scopes feature is enabled.
+  SCOPES_STATUS_ENABLED = 1;
+  // SCOPES_STATUS_DISABLED indicates the scopes feature is disabled.
+  SCOPES_STATUS_DISABLED = 2;
 }
 
 // ProductType is the type of product.
