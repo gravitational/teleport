@@ -28,13 +28,58 @@ spec:
       - resources: [app]
         verbs: ['list', 'read', 'create', 'update', 'delete']
 ---
+kind: role
+version: v8
+metadata:
+  name: db-admin
+spec:
+  allow:
+    db_labels:
+      "*": "*"
+    rules:
+      - resources: [db]
+        verbs: ['list', 'read', 'create', 'update', 'delete']
+---
+kind: role
+version: v8
+metadata:
+  name: db-access
+spec:
+  allow:
+    db_labels:
+      "*": "*"
+    db_users: ["admin"]
+    db_names: ["postgres"]
+---
+kind: role
+version: v8
+metadata:
+  name: windows-desktop-admin
+spec:
+  allow:
+    windows_desktop_labels:
+      "*": "*"
+    rules:
+      - resources: [dynamic_windows_desktop]
+        verbs: ['list', 'read', 'create', 'update', 'delete']
+---
+kind: role
+version: v8
+metadata:
+  name: windows-access
+spec:
+  allow:
+    windows_desktop_labels:
+      "*": "*"
+    windows_desktop_logins: ["Administrator"]
+---
 kind: bot
 version: v1
 metadata:
   # name is a unique identifier for the Bot in the cluster.
   name: k8s-tbot
 spec:
-  roles: [k8s-editor, appsmith]
+  roles: [k8s-editor, appsmith, db-admin, windows-desktop-admin]
 ---
 kind: token
 version: v2
