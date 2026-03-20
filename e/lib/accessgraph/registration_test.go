@@ -150,7 +150,7 @@ func TestRegister_CallsReplaceCAsInAllCases(t *testing.T) {
 			}
 			err := Register(ctx, registrator, testConfig, func() (*tls.Certificate, error) {
 				return certSentinel, nil
-			}, auth, nil)
+			}, auth, nil, modulestest.OSSModules())
 			require.Equal(t, 1, registrator.registerCalled)
 			require.Equal(t, 1, registrator.replaceCAsCalled)
 
@@ -171,13 +171,6 @@ func TestRegister_CallsReplaceCAsInAllCases(t *testing.T) {
 }
 
 func TestRegister_Cloud_UsesLicenseIdentity(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Cloud: true,
-		},
-	})
-
 	licenseKeyPair, err := liblicense.ParseLicensePEM([]byte(fixtures.TestLicenseData))
 	require.NoError(t, err)
 
@@ -210,9 +203,15 @@ func TestRegister_Cloud_UsesLicenseIdentity(t *testing.T) {
 			return nil
 		},
 	}
+	testModules := &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	}
 	err = Register(ctx, registrator, testConfig, func() (*tls.Certificate, error) {
 		return certSentinel, nil
-	}, auth, license)
+	}, auth, license, testModules)
 	require.NoError(t, err)
 	require.Equal(t, 1, registrator.registerCalled)
 	require.Equal(t, 1, registrator.replaceCAsCalled)
@@ -289,7 +288,7 @@ func TestRegister_CARotation(t *testing.T) {
 			}
 			err := Register(ctx, registrator, testConfig, func() (*tls.Certificate, error) {
 				return certSentinel, nil
-			}, auth, nil)
+			}, auth, nil, modulestest.OSSModules())
 			require.NoError(t, err)
 			require.Equal(t, 1, registrator.registerCalled)
 			require.Equal(t, 1, registrator.replaceCAsCalled)

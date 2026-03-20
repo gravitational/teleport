@@ -199,7 +199,7 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		features := modules.GetModules().Features()
+		features := cfg.Modules.Features()
 		demoModeEnabled := getDemoModeEnabled(accessGraphSettings, features)
 
 		policyEnabled := features.GetEntitlement(entitlements.Policy).Enabled
@@ -208,7 +208,7 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 			return nil
 		}
 		if policyEnabled {
-			modules.GetModules().EnableAccessGraph()
+			cfg.Modules.EnableAccessGraph()
 			cfg.Logger.InfoContext(ctx, "Starting access graph service")
 		} else {
 			cfg.Logger.InfoContext(ctx, "Starting access graph service in demo mode")
@@ -242,7 +242,7 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 
 		// Retry registration first: after it succeeds once, we do not need to re-attempt it.
 		for {
-			err := Register(ctx, &registrator{}, config, conn.ClientGetCertificate, process.GetAuthServer(), license)
+			err := Register(ctx, &registrator{}, config, conn.ClientGetCertificate, process.GetAuthServer(), license, cfg.Modules)
 			if err == nil {
 				break
 			}
@@ -334,7 +334,7 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	features := modules.GetModules().Features()
+	features := cfg.Modules.Features()
 	// demoModeEnabled is true if demo mode is enabled in AccessGraphSettings and they have the demo mode entitlment.
 	demoModeEnabled := getDemoModeEnabled(accessGraphSettings, features)
 	// if the license has policy enabled, or they've already enabled demo mode, start the access graph service

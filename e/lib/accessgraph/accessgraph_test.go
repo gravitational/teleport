@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/clocki"
@@ -360,6 +361,7 @@ func initService(t *testing.T) testServiceComponents {
 		SkipPeriodicOperations: true,
 		Clock:                  clock,
 		HostUUID:               uuid.NewString(),
+		Modules:                modulestest.EnterpriseModules(),
 	}
 	authServer, err := auth.NewServer(authConfig)
 	require.NoError(t, err)

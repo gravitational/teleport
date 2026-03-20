@@ -62,7 +62,7 @@ type authServer interface {
 
 // Register registers the cluster as a tenant with the Access Graph server,
 // and submits additional Host CA certificates (if any exist due to ongoing CA rotation).
-func Register(ctx context.Context, reg Registrator, config ServiceClientConfig, getAdminCreds ClientCredentialsGetter, auth authServer, license *licensefile.LicenseFile) error {
+func Register(ctx context.Context, reg Registrator, config ServiceClientConfig, getAdminCreds ClientCredentialsGetter, auth authServer, license *licensefile.LicenseFile, mod modules.Modules) error {
 	// we need to call Register and ReplaceCAs with the same identity if we're
 	// not using the license file as registration credentials
 	adminCreds, err := getAdminCreds()
@@ -108,7 +108,7 @@ func Register(ctx context.Context, reg Registrator, config ServiceClientConfig, 
 	// credentials used to invoke Register()
 	regCreds := adminCreds
 	// In cloud, registration CA is the licensing CA.
-	if modules.GetModules().Features().Cloud {
+	if mod.Features().Cloud {
 		c, err := tls.X509KeyPair(license.KeyPair.CertPEM, license.KeyPair.KeyPEM)
 		if err != nil {
 			return trace.Wrap(err)
