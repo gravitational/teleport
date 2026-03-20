@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"net"
 	"net/url"
 	"os"
@@ -41,6 +40,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/dns"
+	libSet "github.com/gravitational/teleport/lib/utils/set"
+	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 const (
@@ -53,9 +54,17 @@ const (
 	// Active Directory environments may take longer to complete.
 	ldapRequestTimeout = 45 * time.Second
 
-	// maxReferralsCount is maximum number of referrals we will try for
-	// given LDAP search.
+	// maxReferralsCount is overall maximum number of referrals that
+	// we will attempt to follow when performing a recursive search.
 	maxReferralsCount = 10
+
+	// maxSearchDepth is the maximum number of referrals for a given referral
+	// chain that we will attempt to follow when performing a recursive search.
+	maxSearchDepth = 5
+
+	// maxSearchHosts is the maximum number of hosts we will attempt
+	// to contact for each referral when performing a recursive search.
+	maxSearchHosts = 5
 )
 
 // LocateServer contains parameters for locating LDAP servers
@@ -195,54 +204,71 @@ func convertLDAPError(err error) error {
 func (l *LDAPClient) GetActiveDirectorySIDAndDN(ctx context.Context, username string) (string, string, error) {
 	username, domain, _ := strings.Cut(username, "@")
 	domain = cmp.Or(domain, l.cfg.Domain)
-	followReferrals := domain != l.cfg.Domain
 
-	queries := []func() (string, []*ldap.Entry, error){
-		func() (string, []*ldap.Entry, error) {
-			// User principal name and configured baseDN
-			filter := fmt.Sprintf("(%s=%s)", AttrUserPrincipalName, ldap.EscapeFilter(username+"@"+domain))
-			entries, err := l.queryLDAP(ctx, filter, username, DomainDN(l.cfg.Domain), followReferrals)
-			return "UPN and configured baseDN", entries, err
+	// By default, search for the user without following referrals
+	searchFn := l.ReadWithFilter
+	externalDomain := domain != l.cfg.Domain
+	if externalDomain {
+		// The user does not belong to the Teleport configured domain. We may need
+		// to chase referrals to locate their SID.
+		searchFn = func(dn, filter string, attrs []string) ([]*ldap.Entry, error) {
+			return l.RecursiveReadWithFilter(ctx, dn, filter, attrs)
+		}
+	}
+
+	queries := []struct {
+		name  string
+		query func() ([]*ldap.Entry, error)
+	}{
+		{
+			name: "UPN and configured baseDN",
+			query: func() ([]*ldap.Entry, error) {
+				// User principal name and configured baseDN
+				filter := fmt.Sprintf("(%s=%s)", AttrUserPrincipalName, ldap.EscapeFilter(username+"@"+domain))
+				return searchFn(DomainDN(l.cfg.Domain), withSAMAccountFilter(filter), []string{AttrObjectSid})
+			},
 		},
-		func() (string, []*ldap.Entry, error) {
-			// User principal name and baseDN derived from username
-			filter := fmt.Sprintf("(%s=%s)", AttrUserPrincipalName, ldap.EscapeFilter(username+"@"+domain))
-			entries, err := l.queryLDAP(ctx, filter, username, DomainDN(domain), followReferrals)
-			return "UPN and derived baseDN", entries, err
+		{
+			name: "UPN and derived baseDN",
+			query: func() ([]*ldap.Entry, error) {
+				// User principal name and baseDN derived from username
+				filter := fmt.Sprintf("(%s=%s)", AttrUserPrincipalName, ldap.EscapeFilter(username+"@"+domain))
+				return searchFn(DomainDN(domain), withSAMAccountFilter(filter), []string{AttrObjectSid})
+			},
 		},
-		func() (string, []*ldap.Entry, error) {
-			// sAMAccountName and baseDN derived from username
-			// Limited to 20 characters by AD schema
-			// https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccountname
-			if len(username) > 20 {
-				l.cfg.Logger.WarnContext(ctx, "username used for querying sAMAccountName is longer than 20 characters, results might be invalid", "username", username)
-				username = username[:20]
-			}
-			filter := fmt.Sprintf("(%s=%s)", AttrSAMAccountName, ldap.EscapeFilter(username))
-			entries, err := l.queryLDAP(ctx, filter, username, DomainDN(domain), followReferrals)
-			return "sAMAccountName", entries, err
+		{
+			name: "sAMAccountName",
+			query: func() ([]*ldap.Entry, error) {
+				// sAMAccountName and baseDN derived from username
+				// Limited to 20 characters by AD schema
+				// https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccountname
+				if len(username) > 20 {
+					l.cfg.Logger.WarnContext(ctx, "username used for querying sAMAccountName is longer than 20 characters, results might be invalid", "username", username)
+					username = username[:20]
+				}
+				filter := fmt.Sprintf("(%s=%s)", AttrSAMAccountName, ldap.EscapeFilter(username))
+				return searchFn(DomainDN(domain), withSAMAccountFilter(filter), []string{AttrObjectSid})
+			},
 		},
 	}
 
-	var queryName string
-	var err error
 	var entries []*ldap.Entry
-	for i, query := range queries {
-		queryName, entries, err = query()
+	for _, query := range queries {
+		var err error
+		entries, err = query.query()
 		if err != nil {
+			l.cfg.Logger.DebugContext(ctx, "query succeeded", "query", query.name, "count", len(entries))
 			return "", "", trace.Wrap(err)
 		}
+
 		if len(entries) > 0 {
 			break
 		}
-		logger := l.cfg.Logger.With("query", queryName)
-		if i < len(queries)-1 {
-			logger.DebugContext(ctx, "query found 0 entries, trying another one")
-		} else {
-			logger.DebugContext(ctx, "query found 0 entries, no more queries left to check")
-		}
+		l.cfg.Logger.DebugContext(ctx, "query found 0 entries", "query", query.name)
 	}
+
 	if len(entries) == 0 {
+		l.cfg.Logger.DebugContext(ctx, "all SID queries exhausted with no results found")
 		return "", "", trace.NotFound("could not find Windows account %q", username)
 	}
 	if len(entries) > 1 {
@@ -257,16 +283,11 @@ func (l *LDAPClient) GetActiveDirectorySIDAndDN(ctx context.Context, username st
 	return activeDirectorySID, distinguishedName, nil
 }
 
-func (l *LDAPClient) queryLDAP(ctx context.Context, filter string, username string, domainDN string, followReferrals bool) ([]*ldap.Entry, error) {
-	filter = CombineLDAPFilters([]string{
+func withSAMAccountFilter(filter string) string {
+	return CombineLDAPFilters([]string{
 		fmt.Sprintf("(%s=%s)", AttrSAMAccountType, AccountTypeUser),
 		filter,
 	})
-	l.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter, "domain", domainDN)
-
-	entries, err := l.ReadWithFilter(ctx, domainDN, filter, []string{AttrObjectSid}, followReferrals)
-
-	return entries, err
 }
 
 // extractReferrals gathers referrals from ldapErr
@@ -312,7 +333,9 @@ func extractReferrals(ldapErr *ldap.Error) []string {
 func (l *LDAPClient) search(ctx context.Context, client ldap.Client, searchRequest *ldap.SearchRequest) (entries []*ldap.Entry, referrals []string, err error) {
 	l.cfg.Logger.DebugContext(ctx, "Executing paged query", "filter", searchRequest.Filter, "baseDN", searchRequest.BaseDN)
 	res, err := client.SearchWithPaging(searchRequest, searchPageSize)
-	if err != nil {
+
+	switch {
+	case err != nil:
 		var ldapErr *ldap.Error
 		if errors.As(err, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultReferral {
 			referrals := extractReferrals(ldapErr)
@@ -320,21 +343,192 @@ func (l *LDAPClient) search(ctx context.Context, client ldap.Client, searchReque
 			return nil, referrals, nil
 		}
 		return nil, nil, trace.Wrap(err)
-	}
-	if len(res.Entries) > 0 {
+	case len(res.Entries) > 0:
 		l.cfg.Logger.DebugContext(ctx, "Got results from paged query", "count", len(res.Entries))
 		return res.Entries, nil, nil
-	}
-	if len(res.Referrals) > 0 {
+	case len(res.Referrals) > 0:
 		l.cfg.Logger.DebugContext(ctx, "Got referrals from paged query", "referrals", res.Referrals)
 		return nil, res.Referrals, nil
+	default:
+		return nil, nil, trace.NotFound("no results found for LDAP query")
 	}
-	return nil, nil, nil
+}
+
+type ldapReferral struct {
+	// the raw referral received from LDAP server
+	raw string
+	// the result of parsing the raw referral as a URL
+	url url.URL
+}
+
+func newLDAPReferral(ref string) (ldapReferral, error) {
+	u, err := url.Parse(ref)
+	return ldapReferral{
+		raw: ref,
+		url: *u,
+	}, err
+}
+
+// A referral may be a hostname, or a *domain referral* which needs to be
+// resolved to a set of hosts. This function attempts an SRV lookup on the url.
+// Returns either a slice of the resolved hosts, or upon failure, a slice
+// containing only parsed hostname of the raw referral.
+func (r *ldapReferral) resolve(ctx context.Context, rslv resolver) []string {
+	_, records, err := rslv.LookupSRV(ctx, "ldap", "tcp", r.url.Hostname())
+	if err == nil && len(records) > 0 {
+		return libslices.Map(records, func(srv *net.SRV) string {
+			return srv.Target
+		})
+	}
+	return []string{r.url.Hostname()}
+}
+
+type searcher interface {
+	search(ctx context.Context, searchRequest *ldap.SearchRequest) (entries []*ldap.Entry, referrals []string, err error)
+}
+
+type searcherFunc func(ctx context.Context, searchRequest *ldap.SearchRequest) (entries []*ldap.Entry, referrals []string, err error)
+
+func (s searcherFunc) search(ctx context.Context, searchRequest *ldap.SearchRequest) (entries []*ldap.Entry, referrals []string, err error) {
+	return s(ctx, searchRequest)
+}
+
+func ldapSearcher(l *LDAPClient) searcher {
+	return searcherFunc(func(ctx context.Context, searchRequest *ldap.SearchRequest) (entries []*ldap.Entry, referrals []string, err error) {
+		return l.search(ctx, l.conn, searchRequest)
+	})
+}
+
+type resolver interface {
+	LookupSRV(ctx context.Context, service, proto, name string) (string, []*net.SRV, error)
+}
+
+// recursiveSearch maintains context for an LDAP
+// query that chases referrals.
+type recursiveSearch struct {
+	// Tracks raw referral strings that the search has encountered.
+	referrals libSet.Set[string]
+	// Limits how far down a given referral chain the search will go.
+	maxDepth uint
+	// Limits the how many referrals will be attempted overall.
+	maxReferrals uint
+	// Maximum number of hosts to try per referral.
+	maxHosts uint
+	// The actual LDAP query being performed.
+	request *ldap.SearchRequest
+	// constructor for new searcher (wrapped LDAP client)
+	newSearcher func(context.Context, string) (searcher, error)
+	// A resolver to use for SRV lookups when resolving domain referrals.
+	resolver resolver
+	logger   *slog.Logger
+}
+
+func (r *recursiveSearch) start(ctx context.Context, client searcher) ([]*ldap.Entry, error) {
+	return r.run(ctx, client, 0)
+}
+
+func (r *recursiveSearch) run(ctx context.Context, client searcher, depth uint) ([]*ldap.Entry, error) {
+	entries, referrals, err := client.search(ctx, r.request)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(entries) > 0 {
+		return entries, nil
+	}
+
+	if depth >= r.maxDepth {
+		return nil, trace.LimitExceeded("cannot chase LDAP referral chains beyond the maximum allowed length (%d)", r.maxDepth)
+	}
+
+	// Parse LDAP referrals, filter out those that have already been encountered,
+	// and add new ones to the referrals set.
+	parsedReferrals := libslices.FilterMapUnique(referrals, func(ref string) (ldapReferral, bool) {
+		defer r.referrals.Add(ref)
+		referral, err := newLDAPReferral(ref)
+		if err != nil {
+			r.logger.WarnContext(ctx, "Could not parse referral as URL", "referral", ref)
+			return ldapReferral{}, false
+		}
+		// Avoid following the same referral twice or exceeding the maximum referral limit
+		alreadySeen := r.referrals.Contains(ref)
+		maxReferralsReached := len(r.referrals) >= int(r.maxReferrals)
+		return referral, !alreadySeen && !maxReferralsReached
+	})
+
+referralLoop:
+	for _, ref := range parsedReferrals {
+		// The referral *may* resolve to multiple hosts
+		hosts := ref.resolve(ctx, r.resolver)
+		r.logger.InfoContext(ctx, "Chasing referral", "referral", ref.raw, "hosts", hosts)
+		for _, host := range hosts[:min(uint(len(hosts)), r.maxHosts)] {
+			// We're intentionally ignoring most errors while chasing referrals,
+			// but we should still be cognizant of context cancellations and deadlines.
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+
+			newClient, err := r.newSearcher(ctx, host)
+			if err != nil {
+				r.logger.InfoContext(ctx, "Failed to dial LDAPS server while chasing referral", "error", err, "hostname", host)
+				continue
+			}
+
+			entries, err := r.run(ctx, newClient, depth+1)
+			if err != nil {
+				r.logger.InfoContext(ctx, "Failed to execute LDAPS query while chasing referral", "error", err, "hostname", host)
+				continue
+			}
+
+			if len(entries) > 0 {
+				r.logger.InfoContext(ctx, "Terminating referral chase after successfully finding entries", "referral", ref.raw, "host", host)
+				return entries, nil
+			}
+			// We successfully contacted the referred domain, but it simply didn't
+			// have the data we're looking for. We don't need to continue contacting
+			// other hosts belonging to the same referral/domain.
+			continue referralLoop
+		}
+	}
+	// Referral chasing complete, but no relevant entries found.
+	return nil, nil
+}
+
+// RecursiveReadWithFilter follows referrals and executes the query/read recursively by
+// following referrals to other domains where the search request should be repeated.
+func (l *LDAPClient) RecursiveReadWithFilter(ctx context.Context, dn string, filter string, attrs []string) ([]*ldap.Entry, error) {
+	search := recursiveSearch{
+		referrals:    libSet.New[string](),
+		maxDepth:     maxSearchDepth,
+		maxHosts:     maxSearchHosts,
+		maxReferrals: maxReferralsCount,
+		request: ldap.NewSearchRequest(
+			dn,
+			ldap.ScopeWholeSubtree,
+			ldap.DerefAlways,
+			0,     // no SizeLimit
+			0,     // no TimeLimit
+			false, // TypesOnly == false, we want attribute values
+			filter,
+			attrs,
+			nil, // no Controls)
+		),
+		newSearcher: func(ctx context.Context, host string) (searcher, error) {
+			client, err := DialLDAP(ctx, &LDAPConfig{
+				Addr:   host,
+				Logger: l.cfg.Logger,
+			}, l.credentials)
+			return ldapSearcher(client), err
+		},
+		resolver: net.DefaultResolver,
+		logger:   l.cfg.Logger,
+	}
+	return search.start(ctx, ldapSearcher(l))
 }
 
 // ReadWithFilter searches the specified DN (and its children) using the specified LDAP filter.
 // See https://ldap.com/ldap-filters/ for more information on LDAP filter syntax.
-func (l *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter string, attrs []string, followReferrals bool) ([]*ldap.Entry, error) {
+func (l *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([]*ldap.Entry, error) {
 	req := ldap.NewSearchRequest(
 		dn,
 		ldap.ScopeWholeSubtree,
@@ -347,61 +541,12 @@ func (l *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter strin
 		nil, // no Controls
 	)
 
-	entries, referrals, err := l.search(ctx, l.conn, req)
+	res, err := l.conn.SearchWithPaging(req, searchPageSize)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(convertLDAPError(err), "fetching LDAP object %q with filter %q", dn, filter)
 	}
 
-	if len(entries) > 0 || !followReferrals {
-		return entries, nil
-	}
-
-	if len(referrals) == 0 {
-		return nil, trace.NotFound("no entries found and no referrals were provided")
-	}
-
-	visited := make(map[string]struct{})
-	for i := 0; i < len(referrals); i++ {
-		l.cfg.Logger.DebugContext(ctx, "Trying connection to referral", "referral", referrals[i])
-		visited[referrals[i]] = struct{}{}
-		referralURL, err := url.Parse(referrals[i])
-		if err != nil || referralURL.Scheme != "ldaps" {
-			l.cfg.Logger.DebugContext(ctx, "Referral format is invalid", "referral", referrals[i])
-			continue
-		}
-		addr := referralURL.Host
-		cfg := LDAPConfig{
-			Addr:     addr,
-			Username: l.cfg.Username,
-			SID:      l.cfg.SID,
-			Logger:   l.cfg.Logger,
-		}
-		if conn, err := cfg.createConnection(ctx, l.credentials); err == nil {
-			req.BaseDN = strings.TrimPrefix(referralURL.Path, "/")
-			entries, newReferrals, err := l.search(ctx, conn, req)
-			if err != nil {
-				l.cfg.Logger.DebugContext(ctx, "LDAP search failed", "referral", referrals[i], "error", err)
-				continue
-			}
-			if len(entries) > 0 {
-				return entries, nil
-			}
-			newReferrals = slices.DeleteFunc(newReferrals, func(s string) bool {
-				_, ok := visited[s]
-				return ok
-			})
-			if len(referrals) < maxReferralsCount {
-				referrals = append(referrals, newReferrals...)
-			}
-		} else {
-			l.cfg.Logger.DebugContext(ctx, "Can't connect to referral", "referral", referrals[i], "error", err)
-		}
-	}
-
-	referrals = slices.Collect(maps.Keys(visited))
-	l.cfg.Logger.DebugContext(ctx, "no referral provided by LDAP server can execute the query", "referrals", referrals)
-
-	return nil, nil
+	return res.Entries, nil
 }
 
 // Read fetches an LDAP entry at path and its children, if any. Only
@@ -412,8 +557,8 @@ func (l *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter strin
 // specific entry using ADSIEdit.msc.
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
-func (l *LDAPClient) Read(ctx context.Context, dn string, class string, attrs []string) ([]*ldap.Entry, error) {
-	return l.ReadWithFilter(ctx, dn, fmt.Sprintf("(%s=%s)", AttrObjectClass, class), attrs, false)
+func (l *LDAPClient) Read(dn string, class string, attrs []string) ([]*ldap.Entry, error) {
+	return l.ReadWithFilter(dn, fmt.Sprintf("(%s=%s)", AttrObjectClass, class), attrs)
 }
 
 // Create creates an LDAP entry at the given path, with the given class and
