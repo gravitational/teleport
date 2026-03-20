@@ -170,7 +170,9 @@ type ScopedTokenSpec struct {
 	// The Azure Devops-specific configuration used with the "azure_devops" join method.
 	AzureDevops *AzureDevops `protobuf:"bytes,9,opt,name=azure_devops,json=azureDevops,proto3" json:"azure_devops,omitempty"`
 	// The Oracle-specific configuration used with the "oracle" join method.
-	Oracle        *Oracle `protobuf:"bytes,10,opt,name=oracle,proto3" json:"oracle,omitempty"`
+	Oracle *Oracle `protobuf:"bytes,10,opt,name=oracle,proto3" json:"oracle,omitempty"`
+	// The Kubernetes-specific configuration used with the "kubernetes" join method.
+	Kubernetes    *Kubernetes `protobuf:"bytes,11,opt,name=kubernetes,proto3" json:"kubernetes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -271,6 +273,13 @@ func (x *ScopedTokenSpec) GetAzureDevops() *AzureDevops {
 func (x *ScopedTokenSpec) GetOracle() *Oracle {
 	if x != nil {
 		return x.Oracle
+	}
+	return nil
+}
+
+func (x *ScopedTokenSpec) GetKubernetes() *Kubernetes {
+	if x != nil {
+		return x.Kubernetes
 	}
 	return nil
 }
@@ -1012,6 +1021,84 @@ func (x *Oracle) GetAllow() []*Oracle_Rule {
 	return nil
 }
 
+// The Kubernetes-specific configuration used with the "kubernetes" join method.
+type Kubernetes struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow []*Kubernetes_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
+	// Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values:
+	// - `in_cluster`
+	// - `static_jwks`
+	// - `oidc`
+	// If unset, this defaults to `in_cluster`.
+	Type string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	// The configuration specific to the `static_jwks` type.
+	StaticJwks *Kubernetes_StaticJWKSConfig `protobuf:"bytes,3,opt,name=static_jwks,json=staticJwks,proto3" json:"static_jwks,omitempty"`
+	// The configuration specific to the `oidc` type.
+	Oidc          *Kubernetes_OIDCConfig `protobuf:"bytes,4,opt,name=oidc,proto3" json:"oidc,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Kubernetes) Reset() {
+	*x = Kubernetes{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Kubernetes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Kubernetes) ProtoMessage() {}
+
+func (x *Kubernetes) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Kubernetes.ProtoReflect.Descriptor instead.
+func (*Kubernetes) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *Kubernetes) GetAllow() []*Kubernetes_Rule {
+	if x != nil {
+		return x.Allow
+	}
+	return nil
+}
+
+func (x *Kubernetes) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *Kubernetes) GetStaticJwks() *Kubernetes_StaticJWKSConfig {
+	if x != nil {
+		return x.StaticJwks
+	}
+	return nil
+}
+
+func (x *Kubernetes) GetOidc() *Kubernetes_OIDCConfig {
+	if x != nil {
+		return x.Oidc
+	}
+	return nil
+}
+
 // A rule that a joining node must match in order to use the associated token
 // with AWS join methods.
 type AWS_Rule struct {
@@ -1036,7 +1123,7 @@ type AWS_Rule struct {
 
 func (x *AWS_Rule) Reset() {
 	*x = AWS_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[15]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1048,7 +1135,7 @@ func (x *AWS_Rule) String() string {
 func (*AWS_Rule) ProtoMessage() {}
 
 func (x *AWS_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[15]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1115,7 +1202,7 @@ type GCP_Rule struct {
 
 func (x *GCP_Rule) Reset() {
 	*x = GCP_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[16]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1127,7 +1214,7 @@ func (x *GCP_Rule) String() string {
 func (*GCP_Rule) ProtoMessage() {}
 
 func (x *GCP_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[16]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1178,7 +1265,7 @@ type Azure_Rule struct {
 
 func (x *Azure_Rule) Reset() {
 	*x = Azure_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[17]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1190,7 +1277,7 @@ func (x *Azure_Rule) String() string {
 func (*Azure_Rule) ProtoMessage() {}
 
 func (x *Azure_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[17]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1262,7 +1349,7 @@ type AzureDevops_Rule struct {
 
 func (x *AzureDevops_Rule) Reset() {
 	*x = AzureDevops_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1274,7 +1361,7 @@ func (x *AzureDevops_Rule) String() string {
 func (*AzureDevops_Rule) ProtoMessage() {}
 
 func (x *AzureDevops_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1367,7 +1454,7 @@ type Oracle_Rule struct {
 
 func (x *Oracle_Rule) Reset() {
 	*x = Oracle_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1379,7 +1466,7 @@ func (x *Oracle_Rule) String() string {
 func (*Oracle_Rule) ProtoMessage() {}
 
 func (x *Oracle_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1423,6 +1510,157 @@ func (x *Oracle_Rule) GetInstances() []string {
 	return nil
 }
 
+// The configuration specific to the `static_jwks` type.
+type Kubernetes_StaticJWKSConfig struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The JSON Web Key Set formatted public keys that the Kubernetes Cluster uses to sign service
+	// account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
+	Jwks          string `protobuf:"bytes,1,opt,name=jwks,proto3" json:"jwks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Kubernetes_StaticJWKSConfig) Reset() {
+	*x = Kubernetes_StaticJWKSConfig{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Kubernetes_StaticJWKSConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Kubernetes_StaticJWKSConfig) ProtoMessage() {}
+
+func (x *Kubernetes_StaticJWKSConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Kubernetes_StaticJWKSConfig.ProtoReflect.Descriptor instead.
+func (*Kubernetes_StaticJWKSConfig) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{14, 0}
+}
+
+func (x *Kubernetes_StaticJWKSConfig) GetJwks() string {
+	if x != nil {
+		return x.Jwks
+	}
+	return ""
+}
+
+// The configuration specific to the `oidc` type.
+type Kubernetes_OIDCConfig struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/oidc-configuration`
+	// endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT.
+	// For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...
+	Issuer string `protobuf:"bytes,1,opt,name=issuer,proto3" json:"issuer,omitempty"`
+	// If set, disables the requirement that the issuer must use HTTPS.
+	InsecureAllowHttpIssuer bool `protobuf:"varint,2,opt,name=insecure_allow_http_issuer,json=insecureAllowHttpIssuer,proto3" json:"insecure_allow_http_issuer,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *Kubernetes_OIDCConfig) Reset() {
+	*x = Kubernetes_OIDCConfig{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Kubernetes_OIDCConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Kubernetes_OIDCConfig) ProtoMessage() {}
+
+func (x *Kubernetes_OIDCConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Kubernetes_OIDCConfig.ProtoReflect.Descriptor instead.
+func (*Kubernetes_OIDCConfig) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{14, 1}
+}
+
+func (x *Kubernetes_OIDCConfig) GetIssuer() string {
+	if x != nil {
+		return x.Issuer
+	}
+	return ""
+}
+
+func (x *Kubernetes_OIDCConfig) GetInsecureAllowHttpIssuer() bool {
+	if x != nil {
+		return x.InsecureAllowHttpIssuer
+	}
+	return false
+}
+
+// A rule that a joining node must match in order to use the associated token
+// with the "kubernetes" join method.
+type Kubernetes_Rule struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The namespaced name of the Kubernetes service account. Its format is "namespace:service-account".
+	ServiceAccount string `protobuf:"bytes,1,opt,name=service_account,json=serviceAccount,proto3" json:"service_account,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *Kubernetes_Rule) Reset() {
+	*x = Kubernetes_Rule{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Kubernetes_Rule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Kubernetes_Rule) ProtoMessage() {}
+
+func (x *Kubernetes_Rule) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Kubernetes_Rule.ProtoReflect.Descriptor instead.
+func (*Kubernetes_Rule) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{14, 2}
+}
+
+func (x *Kubernetes_Rule) GetServiceAccount() string {
+	if x != nil {
+		return x.ServiceAccount
+	}
+	return ""
+}
+
 var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
@@ -1435,7 +1673,7 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
 	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\x12E\n" +
-	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\x8d\x04\n" +
+	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\xd5\x04\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
@@ -1449,7 +1687,10 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\x05azure\x18\b \x01(\v2!.teleport.scopes.joining.v1.AzureR\x05azure\x12J\n" +
 	"\fazure_devops\x18\t \x01(\v2'.teleport.scopes.joining.v1.AzureDevopsR\vazureDevops\x12:\n" +
 	"\x06oracle\x18\n" +
-	" \x01(\v2\".teleport.scopes.joining.v1.OracleR\x06oracle\"\xb6\x01\n" +
+	" \x01(\v2\".teleport.scopes.joining.v1.OracleR\x06oracle\x12F\n" +
+	"\n" +
+	"kubernetes\x18\v \x01(\v2&.teleport.scopes.joining.v1.KubernetesR\n" +
+	"kubernetes\"\xb6\x01\n" +
 	"\x0eHostCertParams\x12\x17\n" +
 	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12\x1b\n" +
 	"\tnode_name\x18\x02 \x01(\tR\bnodeName\x12\x12\n" +
@@ -1525,7 +1766,22 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\atenancy\x18\x01 \x01(\tR\atenancy\x12/\n" +
 	"\x13parent_compartments\x18\x02 \x03(\tR\x12parentCompartments\x12\x18\n" +
 	"\aregions\x18\x03 \x03(\tR\aregions\x12\x1c\n" +
-	"\tinstances\x18\x04 \x03(\tR\tinstancesBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
+	"\tinstances\x18\x04 \x03(\tR\tinstances\"\xc0\x03\n" +
+	"\n" +
+	"Kubernetes\x12A\n" +
+	"\x05allow\x18\x01 \x03(\v2+.teleport.scopes.joining.v1.Kubernetes.RuleR\x05allow\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\x12X\n" +
+	"\vstatic_jwks\x18\x03 \x01(\v27.teleport.scopes.joining.v1.Kubernetes.StaticJWKSConfigR\n" +
+	"staticJwks\x12E\n" +
+	"\x04oidc\x18\x04 \x01(\v21.teleport.scopes.joining.v1.Kubernetes.OIDCConfigR\x04oidc\x1a&\n" +
+	"\x10StaticJWKSConfig\x12\x12\n" +
+	"\x04jwks\x18\x01 \x01(\tR\x04jwks\x1aa\n" +
+	"\n" +
+	"OIDCConfig\x12\x16\n" +
+	"\x06issuer\x18\x01 \x01(\tR\x06issuer\x12;\n" +
+	"\x1ainsecure_allow_http_issuer\x18\x02 \x01(\bR\x17insecureAllowHttpIssuer\x1a/\n" +
+	"\x04Rule\x12'\n" +
+	"\x0fservice_account\x18\x01 \x01(\tR\x0eserviceAccountBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
 var (
 	file_teleport_scopes_joining_v1_token_proto_rawDescOnce sync.Once
@@ -1539,33 +1795,37 @@ func file_teleport_scopes_joining_v1_token_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_joining_v1_token_proto_rawDescData
 }
 
-var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
-	(*ScopedToken)(nil),            // 0: teleport.scopes.joining.v1.ScopedToken
-	(*ScopedTokenSpec)(nil),        // 1: teleport.scopes.joining.v1.ScopedTokenSpec
-	(*HostCertParams)(nil),         // 2: teleport.scopes.joining.v1.HostCertParams
-	(*SingleUseStatus)(nil),        // 3: teleport.scopes.joining.v1.SingleUseStatus
-	(*UsageStatus)(nil),            // 4: teleport.scopes.joining.v1.UsageStatus
-	(*ScopedTokenStatus)(nil),      // 5: teleport.scopes.joining.v1.ScopedTokenStatus
-	(*StaticScopedTokens)(nil),     // 6: teleport.scopes.joining.v1.StaticScopedTokens
-	(*StaticScopedTokensSpec)(nil), // 7: teleport.scopes.joining.v1.StaticScopedTokensSpec
-	(*ImmutableLabels)(nil),        // 8: teleport.scopes.joining.v1.ImmutableLabels
-	(*AWS)(nil),                    // 9: teleport.scopes.joining.v1.AWS
-	(*GCP)(nil),                    // 10: teleport.scopes.joining.v1.GCP
-	(*Azure)(nil),                  // 11: teleport.scopes.joining.v1.Azure
-	(*AzureDevops)(nil),            // 12: teleport.scopes.joining.v1.AzureDevops
-	(*Oracle)(nil),                 // 13: teleport.scopes.joining.v1.Oracle
-	nil,                            // 14: teleport.scopes.joining.v1.ImmutableLabels.SshEntry
-	(*AWS_Rule)(nil),               // 15: teleport.scopes.joining.v1.AWS.Rule
-	(*GCP_Rule)(nil),               // 16: teleport.scopes.joining.v1.GCP.Rule
-	(*Azure_Rule)(nil),             // 17: teleport.scopes.joining.v1.Azure.Rule
-	(*AzureDevops_Rule)(nil),       // 18: teleport.scopes.joining.v1.AzureDevops.Rule
-	(*Oracle_Rule)(nil),            // 19: teleport.scopes.joining.v1.Oracle.Rule
-	(*v1.Metadata)(nil),            // 20: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),  // 21: google.protobuf.Timestamp
+	(*ScopedToken)(nil),                 // 0: teleport.scopes.joining.v1.ScopedToken
+	(*ScopedTokenSpec)(nil),             // 1: teleport.scopes.joining.v1.ScopedTokenSpec
+	(*HostCertParams)(nil),              // 2: teleport.scopes.joining.v1.HostCertParams
+	(*SingleUseStatus)(nil),             // 3: teleport.scopes.joining.v1.SingleUseStatus
+	(*UsageStatus)(nil),                 // 4: teleport.scopes.joining.v1.UsageStatus
+	(*ScopedTokenStatus)(nil),           // 5: teleport.scopes.joining.v1.ScopedTokenStatus
+	(*StaticScopedTokens)(nil),          // 6: teleport.scopes.joining.v1.StaticScopedTokens
+	(*StaticScopedTokensSpec)(nil),      // 7: teleport.scopes.joining.v1.StaticScopedTokensSpec
+	(*ImmutableLabels)(nil),             // 8: teleport.scopes.joining.v1.ImmutableLabels
+	(*AWS)(nil),                         // 9: teleport.scopes.joining.v1.AWS
+	(*GCP)(nil),                         // 10: teleport.scopes.joining.v1.GCP
+	(*Azure)(nil),                       // 11: teleport.scopes.joining.v1.Azure
+	(*AzureDevops)(nil),                 // 12: teleport.scopes.joining.v1.AzureDevops
+	(*Oracle)(nil),                      // 13: teleport.scopes.joining.v1.Oracle
+	(*Kubernetes)(nil),                  // 14: teleport.scopes.joining.v1.Kubernetes
+	nil,                                 // 15: teleport.scopes.joining.v1.ImmutableLabels.SshEntry
+	(*AWS_Rule)(nil),                    // 16: teleport.scopes.joining.v1.AWS.Rule
+	(*GCP_Rule)(nil),                    // 17: teleport.scopes.joining.v1.GCP.Rule
+	(*Azure_Rule)(nil),                  // 18: teleport.scopes.joining.v1.Azure.Rule
+	(*AzureDevops_Rule)(nil),            // 19: teleport.scopes.joining.v1.AzureDevops.Rule
+	(*Oracle_Rule)(nil),                 // 20: teleport.scopes.joining.v1.Oracle.Rule
+	(*Kubernetes_StaticJWKSConfig)(nil), // 21: teleport.scopes.joining.v1.Kubernetes.StaticJWKSConfig
+	(*Kubernetes_OIDCConfig)(nil),       // 22: teleport.scopes.joining.v1.Kubernetes.OIDCConfig
+	(*Kubernetes_Rule)(nil),             // 23: teleport.scopes.joining.v1.Kubernetes.Rule
+	(*v1.Metadata)(nil),                 // 24: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),       // 25: google.protobuf.Timestamp
 }
 var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
-	20, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
+	24, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.scopes.joining.v1.ScopedToken.spec:type_name -> teleport.scopes.joining.v1.ScopedTokenSpec
 	5,  // 2: teleport.scopes.joining.v1.ScopedToken.status:type_name -> teleport.scopes.joining.v1.ScopedTokenStatus
 	8,  // 3: teleport.scopes.joining.v1.ScopedTokenSpec.immutable_labels:type_name -> teleport.scopes.joining.v1.ImmutableLabels
@@ -1574,25 +1834,29 @@ var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
 	11, // 6: teleport.scopes.joining.v1.ScopedTokenSpec.azure:type_name -> teleport.scopes.joining.v1.Azure
 	12, // 7: teleport.scopes.joining.v1.ScopedTokenSpec.azure_devops:type_name -> teleport.scopes.joining.v1.AzureDevops
 	13, // 8: teleport.scopes.joining.v1.ScopedTokenSpec.oracle:type_name -> teleport.scopes.joining.v1.Oracle
-	21, // 9: teleport.scopes.joining.v1.SingleUseStatus.used_at:type_name -> google.protobuf.Timestamp
-	21, // 10: teleport.scopes.joining.v1.SingleUseStatus.reusable_until:type_name -> google.protobuf.Timestamp
-	2,  // 11: teleport.scopes.joining.v1.SingleUseStatus.host_cert_params:type_name -> teleport.scopes.joining.v1.HostCertParams
-	3,  // 12: teleport.scopes.joining.v1.UsageStatus.single_use:type_name -> teleport.scopes.joining.v1.SingleUseStatus
-	4,  // 13: teleport.scopes.joining.v1.ScopedTokenStatus.usage:type_name -> teleport.scopes.joining.v1.UsageStatus
-	20, // 14: teleport.scopes.joining.v1.StaticScopedTokens.metadata:type_name -> teleport.header.v1.Metadata
-	7,  // 15: teleport.scopes.joining.v1.StaticScopedTokens.spec:type_name -> teleport.scopes.joining.v1.StaticScopedTokensSpec
-	0,  // 16: teleport.scopes.joining.v1.StaticScopedTokensSpec.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
-	14, // 17: teleport.scopes.joining.v1.ImmutableLabels.ssh:type_name -> teleport.scopes.joining.v1.ImmutableLabels.SshEntry
-	15, // 18: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
-	16, // 19: teleport.scopes.joining.v1.GCP.allow:type_name -> teleport.scopes.joining.v1.GCP.Rule
-	17, // 20: teleport.scopes.joining.v1.Azure.allow:type_name -> teleport.scopes.joining.v1.Azure.Rule
-	18, // 21: teleport.scopes.joining.v1.AzureDevops.allow:type_name -> teleport.scopes.joining.v1.AzureDevops.Rule
-	19, // 22: teleport.scopes.joining.v1.Oracle.allow:type_name -> teleport.scopes.joining.v1.Oracle.Rule
-	23, // [23:23] is the sub-list for method output_type
-	23, // [23:23] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	14, // 9: teleport.scopes.joining.v1.ScopedTokenSpec.kubernetes:type_name -> teleport.scopes.joining.v1.Kubernetes
+	25, // 10: teleport.scopes.joining.v1.SingleUseStatus.used_at:type_name -> google.protobuf.Timestamp
+	25, // 11: teleport.scopes.joining.v1.SingleUseStatus.reusable_until:type_name -> google.protobuf.Timestamp
+	2,  // 12: teleport.scopes.joining.v1.SingleUseStatus.host_cert_params:type_name -> teleport.scopes.joining.v1.HostCertParams
+	3,  // 13: teleport.scopes.joining.v1.UsageStatus.single_use:type_name -> teleport.scopes.joining.v1.SingleUseStatus
+	4,  // 14: teleport.scopes.joining.v1.ScopedTokenStatus.usage:type_name -> teleport.scopes.joining.v1.UsageStatus
+	24, // 15: teleport.scopes.joining.v1.StaticScopedTokens.metadata:type_name -> teleport.header.v1.Metadata
+	7,  // 16: teleport.scopes.joining.v1.StaticScopedTokens.spec:type_name -> teleport.scopes.joining.v1.StaticScopedTokensSpec
+	0,  // 17: teleport.scopes.joining.v1.StaticScopedTokensSpec.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
+	15, // 18: teleport.scopes.joining.v1.ImmutableLabels.ssh:type_name -> teleport.scopes.joining.v1.ImmutableLabels.SshEntry
+	16, // 19: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
+	17, // 20: teleport.scopes.joining.v1.GCP.allow:type_name -> teleport.scopes.joining.v1.GCP.Rule
+	18, // 21: teleport.scopes.joining.v1.Azure.allow:type_name -> teleport.scopes.joining.v1.Azure.Rule
+	19, // 22: teleport.scopes.joining.v1.AzureDevops.allow:type_name -> teleport.scopes.joining.v1.AzureDevops.Rule
+	20, // 23: teleport.scopes.joining.v1.Oracle.allow:type_name -> teleport.scopes.joining.v1.Oracle.Rule
+	23, // 24: teleport.scopes.joining.v1.Kubernetes.allow:type_name -> teleport.scopes.joining.v1.Kubernetes.Rule
+	21, // 25: teleport.scopes.joining.v1.Kubernetes.static_jwks:type_name -> teleport.scopes.joining.v1.Kubernetes.StaticJWKSConfig
+	22, // 26: teleport.scopes.joining.v1.Kubernetes.oidc:type_name -> teleport.scopes.joining.v1.Kubernetes.OIDCConfig
+	27, // [27:27] is the sub-list for method output_type
+	27, // [27:27] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_joining_v1_token_proto_init() }
@@ -1609,7 +1873,7 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_token_proto_rawDesc), len(file_teleport_scopes_joining_v1_token_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
