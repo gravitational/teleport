@@ -31,6 +31,7 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 )
@@ -75,6 +76,7 @@ type ServiceConfig struct {
 	Cache                         Cache
 	Backend                       Backend
 	Authorizer                    authz.Authorizer
+	ScopedAuthorizer              authz.ScopedAuthorizer
 	Emitter                       apievents.Emitter
 	AccessGraph                   AccessGraphConfig
 	ReadOnlyCache                 ReadOnlyCache
@@ -103,6 +105,7 @@ type Service struct {
 	cache                         Cache
 	backend                       Backend
 	authorizer                    authz.Authorizer
+	scopedAuthorizer              authz.ScopedAuthorizer
 	emitter                       apievents.Emitter
 	accessGraph                   AccessGraphConfig
 	readOnlyCache                 ReadOnlyCache
@@ -118,6 +121,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
 	}
@@ -136,6 +141,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cache:                         cfg.Cache,
 		backend:                       cfg.Backend,
 		authorizer:                    cfg.Authorizer,
+		scopedAuthorizer:              cfg.ScopedAuthorizer,
 		emitter:                       cfg.Emitter,
 		accessGraph:                   cfg.AccessGraph,
 		readOnlyCache:                 cfg.ReadOnlyCache,
@@ -145,12 +151,23 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 // GetAuthPreference returns the locally cached auth preference.
 func (s *Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
-	authzCtx, err := s.authorizer.Authorize(ctx)
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.CheckAccessToKind(types.KindClusterAuthPreference, types.VerbRead); err != nil {
+	// Use RiskyUnpinnedDecision to allow scoped identities (regardless of their
+	// scope pin) to call GetAuthPreference.
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyUnpinnedDecision(
+		ctx,
+		scopes.Root,
+		func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(
+				&ruleCtx, types.KindClusterAuthPreference, types.VerbRead,
+			)
+		},
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
