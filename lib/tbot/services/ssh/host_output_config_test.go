@@ -36,7 +36,7 @@ func TestSSHHostOutput_YAML(t *testing.T) {
 				Destination: dest,
 				Roles:       []string{"access"},
 				Principals:  []string{"host.example.com"},
-				CATypes:     []types.CertAuthType{types.UserCA},
+				CAType:      types.UserCA,
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
@@ -63,8 +63,22 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 					Destination: destination.NewMemory(),
 					Roles:       []string{"access"},
 					Principals:  []string{"host.example.com"},
-					CATypes:     []types.CertAuthType{types.UserCA, types.OpenSSHCA},
+					CAType:      types.OpenSSHCA,
 				}
+			},
+		},
+		{
+			name: "default ca_type",
+			in: func() *HostOutputConfig {
+				return &HostOutputConfig{
+					Destination: destination.NewMemory(),
+					Principals:  []string{"host.example.com"},
+				}
+			},
+			want: &HostOutputConfig{
+				Destination: destination.NewMemory(),
+				Principals:  []string{"host.example.com"},
+				CAType:      types.UserCA,
 			},
 		},
 		{
@@ -87,26 +101,15 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "at least one principal must be specified",
 		},
 		{
-			name: "invalid ca_types",
+			name: "invalid ca_type",
 			in: func() *HostOutputConfig {
 				return &HostOutputConfig{
 					Destination: destination.NewMemory(),
 					Principals:  []string{"host.example.com"},
-					CATypes:     []types.CertAuthType{"invalid"},
+					CAType:      types.CertAuthType("invalid"),
 				}
 			},
-			wantErr: `ca_types[0] ("invalid") is unsupported`,
-		},
-		{
-			name: "empty ca_types entry",
-			in: func() *HostOutputConfig {
-				return &HostOutputConfig{
-					Destination: destination.NewMemory(),
-					Principals:  []string{"host.example.com"},
-					CATypes:     []types.CertAuthType{""},
-				}
-			},
-			wantErr: `ca_types[0] must not be empty`,
+			wantErr: `ca_type ("invalid") is unsupported`,
 		},
 	}
 	testCheckAndSetDefaults(t, tests)
