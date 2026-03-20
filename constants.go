@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const (
@@ -65,11 +67,10 @@ const (
 )
 
 const (
-	// ComponentKey is a field that represents a component - e.g. service or
-	// function
-	ComponentKey = "trace.component"
-	// ComponentFields is a fields component
-	ComponentFields = "trace.fields"
+	//go:fix inline
+	ComponentKey = logconstants.ComponentKey
+	//go:fix inline
+	ComponentFields = logconstants.ComponentFields
 
 	// ComponentMemory is a memory backend
 	ComponentMemory = "memory"
@@ -434,8 +435,8 @@ const (
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
 
-	// DebugLevel is a debug logging level name
-	DebugLevel = "debug"
+	//go:fix inline
+	DebugLevel = logconstants.TeleportDebugLevel
 
 	// EnvVarAllowNoSecondFactor is used to allow disabling second factor auth
 	// todo(tross): DELETE WHEN ABLE TO
