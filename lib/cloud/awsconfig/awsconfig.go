@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
@@ -36,6 +36,7 @@ import (
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
@@ -385,26 +386,26 @@ func loadDefaultConfig(ctx context.Context, region string, cred aws.CredentialsP
 	return cfg, nil
 }
 
-func buildConfigOptions(region string, cred aws.CredentialsProvider, opts *options) []func(*config.LoadOptions) error {
-	configOpts := []func(*config.LoadOptions) error{
-		config.WithRegion(region),
-		config.WithCredentialsProvider(cred),
-		config.WithCredentialsCacheOptions(awsCredentialsCacheOptions),
+func buildConfigOptions(region string, cred aws.CredentialsProvider, opts *options) []func(*awsconfig.LoadOptions) error {
+	configOpts := []func(*awsconfig.LoadOptions) error{
+		awsconfig.WithRegion(region),
+		awsconfig.WithCredentialsProvider(cred),
+		awsconfig.WithCredentialsCacheOptions(awsCredentialsCacheOptions),
 	}
 	if modules.GetModules().IsBoringBinary() {
-		configOpts = append(configOpts, config.WithUseFIPSEndpoint(aws.FIPSEndpointStateEnabled))
+		configOpts = append(configOpts, awsconfig.WithUseFIPSEndpoint(aws.FIPSEndpointStateEnabled))
 	}
 	if opts.customRetryer != nil {
-		configOpts = append(configOpts, config.WithRetryer(opts.customRetryer))
+		configOpts = append(configOpts, awsconfig.WithRetryer(opts.customRetryer))
 	}
 	if opts.maxRetries != nil {
-		configOpts = append(configOpts, config.WithRetryMaxAttempts(*opts.maxRetries))
+		configOpts = append(configOpts, awsconfig.WithRetryMaxAttempts(*opts.maxRetries))
 	}
 	if opts.withFallbackRegionResolver == nil {
 		// if we pass WithDefaultRegion, then we will never get back an empty
 		// region, so we have to skip passing it here if we want to make use of
 		// a custom fallback resolver.
-		configOpts = append(configOpts, config.WithDefaultRegion(defaultRegion))
+		configOpts = append(configOpts, awsconfig.WithDefaultRegion(defaultRegion))
 	}
 	return configOpts
 }

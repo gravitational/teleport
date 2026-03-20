@@ -34,7 +34,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/applicationautoscaling"
 	autoscalingtypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
@@ -317,21 +318,21 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	opts := []func(*config.LoadOptions) error{
-		config.WithRegion(cfg.Region),
-		config.WithHTTPClient(&http.Client{
+	opts := []func(*awsconfig.LoadOptions) error{
+		awsconfig.WithRegion(cfg.Region),
+		awsconfig.WithHTTPClient(&http.Client{
 			Transport: &http.Transport{
 				Proxy:               http.ProxyFromEnvironment,
 				MaxIdleConns:        defaults.HTTPMaxIdleConns,
 				MaxIdleConnsPerHost: defaults.HTTPMaxIdleConnsPerHost,
 			},
 		}),
-		config.WithAPIOptions(awsmetrics.MetricsMiddleware()),
-		config.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Backend)),
+		awsconfig.WithAPIOptions(awsmetrics.MetricsMiddleware()),
+		awsconfig.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Backend)),
 	}
 
 	if cfg.CredentialsProvider != nil {
-		opts = append(opts, config.WithCredentialsProvider(cfg.CredentialsProvider))
+		opts = append(opts, awsconfig.WithCredentialsProvider(cfg.CredentialsProvider))
 	}
 
 	resolver, err := endpoint.NewLoggingResolver(
@@ -359,7 +360,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 			return nil, trace.BadParameter("configured DynamoDB events endpoint is invalid: %s", err.Error())
 		}
 
-		opts = append(opts, config.WithBaseEndpoint(cfg.Endpoint))
+		opts = append(opts, awsconfig.WithBaseEndpoint(cfg.Endpoint))
 	}
 
 	// FIPS settings are applied on the individual service instead of the aws config,

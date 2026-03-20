@@ -25,7 +25,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	awsConfig "github.com/aws/aws-sdk-go-v2/config"
+	awssdkconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 
 	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
+	awsConfig "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
@@ -165,7 +166,7 @@ func onIntegrationConfListDatabasesIAM(ctx context.Context, params config.Integr
 }
 
 func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.ExternalAuditStorageConfiguration) error {
-	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region))
+	cfg, err := awsConfig.LoadDefaultConfig(ctx, awssdkconfig.WithRegion(params.Region))
 	if err != nil {
 		return trace.Wrap(err)
 	}
