@@ -335,7 +335,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	// (You may need this configuration in order to use certificates to
 	// authenticate with LDAP when the LDAP server name is not correct
 	// in the certificate).
-	if cfg.LDAPConfig.CA != nil && cfg.LDAPConfig.InsecureSkipVerify {
+	if len(cfg.LDAPConfig.CAs) > 0 && cfg.LDAPConfig.InsecureSkipVerify {
 		cfg.Logger.WarnContext(context.Background(), insecureSkipVerifyWarning)
 	}
 
@@ -540,9 +540,11 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 		ServerName:         s.cfg.ServerName,
 	}
 
-	if s.cfg.CA != nil {
+	if len(s.cfg.CAs) > 0 {
 		pool := x509.NewCertPool()
-		pool.AddCert(s.cfg.CA)
+		for _, ca := range s.cfg.CAs {
+			pool.AddCert(ca)
+		}
 		tc.RootCAs = pool
 	}
 

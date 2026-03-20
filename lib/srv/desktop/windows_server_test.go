@@ -22,10 +22,12 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/base32"
 	"io"
 	"log/slog"
+	"math/big"
 	"os"
 	"testing"
 	"time"
@@ -36,8 +38,10 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
@@ -380,4 +384,87 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 	require.Equal(t, audit.desktop.GetAddr(), cs.DesktopAddr)
 	require.Equal(t, audit.clusterName, cs.ClusterName)
 	require.Equal(t, start, cs.Time)
+}
+func TestTLSConfigForLDAP(t *testing.T) {
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		ClusterName: "test-cluster",
+		Dir:         t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authServer.Close())
+	})
+
+	tlsServer, err := authServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, tlsServer.Close())
+	})
+
+	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, client.Close())
+	})
+
+	newWindowsService := func(clock clockwork.Clock, client *authclient.Client) *WindowsService {
+		return &WindowsService{
+			cfg: WindowsServiceConfig{
+				Clock:      clock,
+				AuthClient: client,
+				Logger:     slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+				LDAPConfig: windows.LDAPConfig{
+					Domain:   "test.example.com",
+					Username: "test-user",
+					Addr:     "ldap.example.com:389",
+					CAs:      []*x509.Certificate{newSelfSignedCA(t), newSelfSignedCA(t)},
+				},
+			},
+			closeCtx: context.Background(),
+		}
+	}
+
+	t.Run("issued cert supports multiple CAs", func(t *testing.T) {
+		s := newWindowsService(clockwork.NewFakeClock(), client)
+
+		config, err := s.tlsConfigForLDAP()
+		require.NoError(t, err)
+		// Validate that both configured CAs made it into
+		// the TLS config's cert pool.
+		assertCertInPool(t, config.RootCAs, *s.cfg.CAs[0])
+		assertCertInPool(t, config.RootCAs, *s.cfg.CAs[1])
+	})
+}
+
+func assertCertInPool(t *testing.T, pool *x509.CertPool, cert x509.Certificate) {
+	t.Helper()
+	if _, err := cert.Verify(x509.VerifyOptions{Roots: pool}); err != nil {
+		t.Fatalf("cert not found/trusted in pool: %v", err)
+	}
+}
+
+func newSelfSignedCA(t *testing.T) *x509.Certificate {
+	t.Helper()
+
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName: "test-ca",
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		MaxPathLenZero:        true,
+	}
+	certBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, signer.Public(), signer)
+	require.NoError(t, err)
+
+	cert, err := x509.ParseCertificate(certBytes)
+	require.NoError(t, err)
+	return cert
 }

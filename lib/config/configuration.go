@@ -2229,28 +2229,33 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACerts != "" {
 		return trace.BadParameter("WindowsDesktopService can not use both der_ca_file and ldap_ca_cert")
 	}
 
-	var cert *x509.Certificate
+	var certs []*x509.Certificate
 	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" {
 		rawCert, err := os.ReadFile(fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		if err != nil {
 			return trace.WrapWithMessage(err, "loading the LDAP CA from file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		}
 
-		cert, err = x509.ParseCertificate(rawCert)
+		derCert, err := x509.ParseCertificate(rawCert)
 		if err != nil {
 			return trace.WrapWithMessage(err, "parsing the LDAP root CA file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		}
+		certs = []*x509.Certificate{derCert}
 	}
 
-	if fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
-		cert, err = tlsca.ParseCertificatePEM([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACert))
+	if fc.WindowsDesktop.LDAP.PEMEncodedCACerts != "" {
+		pemCerts, err := tlsca.ParseCertificatePEMs([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACerts))
 		if err != nil {
-			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert")
+			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert(s)")
 		}
+		if len(pemCerts) == 0 {
+			return trace.BadParameter("ldap_ca_cert is set, but no certificates were parsed")
+		}
+		certs = pemCerts
 	}
 
 	cfg.WindowsDesktop.LDAP = servicecfg.LDAPConfig{
@@ -2260,7 +2265,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		Domain:             fc.WindowsDesktop.LDAP.Domain,
 		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
 		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
-		CA:                 cert,
+		CAs:                certs,
 	}
 
 	cfg.WindowsDesktop.PKIDomain = fc.WindowsDesktop.PKIDomain

@@ -2571,8 +2571,8 @@ type LDAPConfig struct {
 	ServerName string `yaml:"server_name,omitempty"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
-	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
-	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
+	// PEMEncodedCACerts are optional PEM encoded CA certs to be used for verification (if InsecureSkipVerify is set to false).
+	PEMEncodedCACerts string `yaml:"ldap_ca_cert,omitempty"`
 }
 
 // LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.
