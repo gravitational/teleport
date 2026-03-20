@@ -74,7 +74,9 @@ jobs:
 
       - name: Get cache paths
         id: cache-paths
-        run: echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+        run: |
+          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+          echo "pnpm-store=$(pnpm store path)" >> $GITHUB_OUTPUT
 
       - name: Restore Go module cache
         id: go-mod-cache
@@ -95,13 +97,13 @@ jobs:
           key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml',
             'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
 
-      - name: Restore pnpm cache
+      - name: Restore pnpm store cache
         id: pnpm-cache
         uses: actions/cache/restore@v5
         with:
-          path: node_modules
-          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-${{ runner.os }}-
+          path: ${{ steps.cache-paths.outputs.pnpm-store }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
 
       - name: Build Teleport, tctl, and tsh
         run: |
@@ -157,12 +159,12 @@ jobs:
           key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml',
             'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
 
-      - name: Save pnpm cache
+      - name: Save pnpm store cache
         if: github.event_name == 'push' && steps.pnpm-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
-          path: node_modules
-          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          path: ${{ steps.cache-paths.outputs.pnpm-store }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
   test:
     name: E2E Tests
@@ -201,12 +203,18 @@ jobs:
           echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
           apt-get update && apt-get install -y docker-ce-cli
 
-      - name: Restore pnpm cache
+      - name: Get pnpm store path
+        id: cache-paths
+        run: |
+          corepack enable
+          echo "pnpm-store=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Restore pnpm store cache
         uses: actions/cache/restore@v5
         with:
-          path: node_modules
-          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-${{ runner.os }}-
+          path: ${{ steps.cache-paths.outputs.pnpm-store }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
 
       - name: Setup e2e environment
         run: |
