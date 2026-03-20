@@ -86,25 +86,25 @@ $ sudo installer -pkg teleport-(=teleport.version=).pkg -target /
 
 1. Verify `tsh` is installed:
 ```code
-   $ tsh version
+$ tsh version
 ```
 
 2. Log in to your Teleport cluster:
 ```code
-   $ tsh login --proxy=example.teleport.sh
+$ tsh login --proxy=example.teleport.sh
 ```
 
    Replace `example.teleport.sh` with your cluster's address.
 
 3. List available resources:
 ```code
-   $ tsh ls
+$ tsh ls
 ```
 
 Here are some troubleshooting tips:
 - If `tsh` is not found, check where it's installed:
 ```code
-  $ which tsh
+$ which tsh
 ```
 - If you see `installer: must be run as root` when running the installer command, add `sudo` before the `installer` command.
 - If login fails with a certificate error, check that your system time is correct.
@@ -150,9 +150,11 @@ $ which teleport
 ```
 
 ### Verify Teleport is installed
+
 ```code
 $ teleport version
 ```
+
 <Admonition type="note">
 
 Running Teleport services in production is typically done on Linux servers. 
