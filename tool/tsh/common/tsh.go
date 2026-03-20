@@ -1036,7 +1036,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	aws.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 
 	// Generate AWS profiles via AWS Identity Center integration.
-	awsProfile := app.Command("aws-profile", "Write AWS profiles retrieved from the AWS IAM Identity Center integration to the AWS config file.")
+	awsProfile := app.Command("aws-profile", "Generate AWS config profiles by syncing with your integrated AWS IAM Identity Center account(s). Other profiles in the config file are left untouched.")
 	awsProfile.Flag("aws-sso-region", "AWS region for SSO. Auto-detected from cluster if not specified.").StringVar(&cf.AWSSSORegion)
 	awsProfile.Flag("dry-run", "Print the configuration that will be applied without modifying the AWS config file.").BoolVar(&cf.DryRun)
 
@@ -1119,12 +1119,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for.").Required().StringVar(&cf.AppName)
-	proxyApp.Flag("port", "Specifies the listening port used by by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
+	proxyApp.Flag("port", "Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	proxyMCP := proxy.Command("mcp", "Start local proxy for MCP access.")
 	proxyMCP.Arg("app", "The name of the MCP application to start local proxy for.").Required().StringVar(&cf.AppName)
-	proxyMCP.Flag("port", "Specifies the listening port used by by the proxy app listener.").Short('p').StringVar(&cf.LocalProxyPortMapping)
+	proxyMCP.Flag("port", "Specifies the listening port used by the proxy app listener.").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyMCP.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")

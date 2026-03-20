@@ -16,17 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { signup } from '../../helpers/signup';
-import { expect, test } from '../../helpers/test';
+import { signup } from '@gravitational/e2e/helpers/signup';
+import { deleteUser } from '@gravitational/e2e/helpers/tctl';
+import { expect, test } from '@gravitational/e2e/helpers/test';
 
 test('verify that a user can sign up with webauthn and login', async ({
   page,
-}) => {
-  await signup(page);
+}, testInfo) => {
+  const username = `testuser-${testInfo.workerIndex}`;
+
+  await signup(page, username);
 
   await page.getByRole('button', { name: 'User Menu' }).click();
   await page.getByText('Logout').click();
-  await page.getByRole('textbox', { name: 'Username' }).fill('testuser');
+  await page.getByRole('textbox', { name: 'Username' }).fill(username);
   await page.getByRole('textbox', { name: 'Username' }).press('Tab');
   await page.getByRole('textbox', { name: 'Password' }).fill('passwordtest123');
   await page
@@ -35,4 +38,6 @@ test('verify that a user can sign up with webauthn and login', async ({
     .click();
 
   await expect(page.getByRole('heading', { name: 'Resources' })).toBeVisible();
+
+  deleteUser(username);
 });

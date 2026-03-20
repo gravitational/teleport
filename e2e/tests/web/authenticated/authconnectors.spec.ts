@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { expect, test } from '../../helpers/test';
-import { mockWebAuthn } from '../../helpers/webauthn';
+import { expect, test } from '@gravitational/e2e/helpers/test';
+import { mockWebAuthn } from '@gravitational/e2e/helpers/webauthn';
 
 test('verify that a user can create and delete an auth connector', async ({
   page,

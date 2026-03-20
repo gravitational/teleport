@@ -19,16 +19,16 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { login } from '../helpers/login';
-import { test as setup } from '../helpers/test';
+import { login } from '@gravitational/e2e/helpers/login';
+import { test as setup } from '@gravitational/e2e/helpers/test';
 
-const authFile = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '../.auth/user.json'
-);
+const authDir = join(dirname(fileURLToPath(import.meta.url)), '../../.auth');
 
-setup('authenticate', async ({ page }) => {
+setup('authenticate', async ({ page }, testInfo) => {
   await login(page);
 
-  await page.context().storageState({ path: authFile });
+  const browser = testInfo.project.name.split(':')[0];
+  await page
+    .context()
+    .storageState({ path: join(authDir, `${browser}-user.json`) });
 });

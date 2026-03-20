@@ -49,6 +49,9 @@ type Config struct {
 	InstallationID string
 	// AddKeysToAgent is passed to [client.Config].
 	AddKeysToAgent string
+	// WebauthnLogin allows tests to override the Webauthn Login func.
+	// Defaults to wancli.Login.
+	WebauthnLogin client.WebauthnLoginFunc
 	// HardwareKeyAgent determines whether the daemon will run the hardware key agent.
 	HardwareKeyAgent bool
 }
@@ -90,6 +93,16 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.AddKeysToAgent == "" {
 		c.AddKeysToAgent = client.AddKeysToAgentAuto
+	}
+
+	if c.WebauthnLogin == nil {
+		// Enables WebAuthn mocking for E2E tests.
+		// Requires the `webauthnmock` build tag and must never be enabled in production builds.
+		webauthnLogin, err := webauthnLoginMock()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.WebauthnLogin = webauthnLogin
 	}
 
 	return nil

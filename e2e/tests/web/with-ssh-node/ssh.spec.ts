@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,20 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/**
- * This needs to be an .mjs file,
- * because Vite can't import .ts files from a workspace out of the box.
- * https://github.com/vitejs/vite/issues/5370
- */
+import { test } from '@gravitational/e2e/helpers/test';
 
-import path from 'node:path';
+test('verify that a user can SSH into a node', async ({
+  unifiedResourcesPage,
+}) => {
+  await unifiedResourcesPage.goto();
 
-import tsconfigPaths from 'vite-tsconfig-paths';
+  const terminal = await unifiedResourcesPage.connect('docker-node', 'root');
 
-const rootDirectory = path.resolve(import.meta.dirname, '../../../..');
-
-export function tsconfigPathsPlugin() {
-  return tsconfigPaths({
-    root: rootDirectory,
-  });
-}
+  await terminal.waitForReady();
+  await terminal.exec('ls /');
+  await terminal.waitForText('bin');
+});

@@ -37,6 +37,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |gcp|[object](#specgcp)|The GCP-specific configuration used with the "gcp" join method.|
 |immutable_labels|[object](#specimmutable_labels)|Immutable labels that should be applied to any resulting resources provisioned using this token.|
 |join_method|string|The joining method required in order to use this token. Supported joining methods for scoped tokens only include 'token'.|
+|kubernetes|[object](#speckubernetes)|The Kubernetes-specific configuration used with the "kubernetes" join method.|
 |oracle|[object](#specoracle)|The Oracle-specific configuration used with the "oracle" join method.|
 |roles|[]string|The list of roles associated with the token. They will be converted to metadata in the SSH and X509 certificates issued to the user of the token.|
 |usage_mode|string|The usage mode of the token. Can be "single_use" or "unlimited". Single use tokens can only be used to provision a single resource. Unlimited tokens can be be used to provision any number of resources until it expires.|
@@ -118,6 +119,34 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |key|string||
 |value|string||
+
+### spec.kubernetes
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#speckubernetesallow-items)|A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.|
+|oidc|[object](#speckubernetesoidc)|The configuration specific to the `oidc` type.|
+|static_jwks|[object](#speckubernetesstatic_jwks)|The configuration specific to the `static_jwks` type.|
+|type|string|Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values: - `in_cluster` - `static_jwks` - `oidc` If unset, this defaults to `in_cluster`.|
+
+### spec.kubernetes.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|service_account|string||
+
+### spec.kubernetes.oidc
+
+|Field|Type|Description|
+|---|---|---|
+|insecure_allow_http_issuer|boolean||
+|issuer|string||
+
+### spec.kubernetes.static_jwks
+
+|Field|Type|Description|
+|---|---|---|
+|jwks|string||
 
 ### spec.oracle
 

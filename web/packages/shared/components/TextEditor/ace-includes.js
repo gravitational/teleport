@@ -1,4 +1,4 @@
-/**
+/*
  * Teleport
  * Copyright (C) 2026  Gravitational, Inc.
  *
@@ -16,16 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { test } from '../../helpers/test';
-
-test('verify that a user can SSH into a node', async ({
-  unifiedResourcesPage,
-}) => {
-  await unifiedResourcesPage.goto();
-
-  const terminal = await unifiedResourcesPage.connect('docker-node', 'root');
-
-  await terminal.waitForReady();
-  await terminal.exec('ls /');
-  await terminal.expectSnapshot('ls-output.png');
-});
+// These are in a separate file that is imported after ace.js, so that we can
+// ensure that `ace` is defined as a global.
+// Importing them directly from TextEditor.jsx would result in oxfmt rearranging
+// the imports and putting these above the ace import, which would then cause them
+// to fail to load.
+import 'ace-builds/src-noconflict/ext-searchbox';
+import 'ace-builds/src-noconflict/mode-json';
+import 'ace-builds/src-noconflict/mode-terraform.js';
+import 'ace-builds/src-noconflict/mode-yaml';

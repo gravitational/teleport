@@ -6,7 +6,11 @@
     "noEmit": true,
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "paths": {
+      "@gravitational/e2e/helpers": ["./helpers"],
+      "@gravitational/e2e/helpers/*": ["./helpers/*"]
+    }
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules"]

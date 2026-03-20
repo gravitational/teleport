@@ -424,7 +424,7 @@
       }
     },
     {
-      "files": ["e2e/tests/**/*.ts"],
+      "files": ["e2e/tests/web/**/*.ts"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -433,7 +433,24 @@
               {
                 "name": "@playwright/test",
                 "importNames": ["test", "expect"],
-                "message": "Import 'test' and 'expect' from '../helpers/test' instead."
+                "message": "Import 'test' and 'expect' from '@gravitational/e2e/helpers/test' instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["e2e/tests/connect/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@playwright/test",
+                "importNames": ["test", "expect"],
+                "message": "Import 'test' and 'expect' from '@gravitational/e2e/helpers/connect' instead."
               }
             ]
           }

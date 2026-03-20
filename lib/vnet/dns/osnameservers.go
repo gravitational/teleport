@@ -18,6 +18,7 @@ package dns
 
 import (
 	"context"
+	"log/slog"
 	"net/netip"
 	"time"
 
@@ -31,10 +32,11 @@ import (
 // these nameservers.
 type OSUpstreamNameserverSource struct {
 	ttlCache *utils.FnCache
+	slog     *slog.Logger
 }
 
 // NewOSUpstreamNameserverSource returns a new *OSUpstreamNameserverSource.
-func NewOSUpstreamNameserverSource() (*OSUpstreamNameserverSource, error) {
+func NewOSUpstreamNameserverSource(logger *slog.Logger) (*OSUpstreamNameserverSource, error) {
 	ttlCache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL: 10 * time.Second,
 	})
@@ -43,19 +45,21 @@ func NewOSUpstreamNameserverSource() (*OSUpstreamNameserverSource, error) {
 	}
 	return &OSUpstreamNameserverSource{
 		ttlCache: ttlCache,
+		slog:     logger,
 	}, nil
 }
 
 // UpstreamNameservers returns a cached view of the host OS's current default
 // nameservers.
 func (s *OSUpstreamNameserverSource) UpstreamNameservers(ctx context.Context) ([]string, error) {
-	return utils.FnCacheGet(ctx, s.ttlCache, 0, loadUpstreamNameservers)
+	return utils.FnCacheGet(ctx, s.ttlCache, 0, s.loadUpstreamNameservers)
 }
 
-func loadUpstreamNameservers(ctx context.Context) ([]string, error) {
-	return platformLoadUpstreamNameservers(ctx)
+func (s *OSUpstreamNameserverSource) loadUpstreamNameservers(ctx context.Context) ([]string, error) {
+	return platformLoadUpstreamNameservers(ctx, s.slog)
 }
 
-func withDNSPort(addr netip.Addr) string {
+// AddrWithDNSPort returns addr with DNS port 53.
+func AddrWithDNSPort(addr netip.Addr) string {
 	return netip.AddrPortFrom(addr, 53).String()
 }

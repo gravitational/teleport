@@ -17,7 +17,7 @@
     "@swc/core": "^1.15.18",
     "@swc/plugin-styled-components": "^12.7.0",
     "@types/jsdom": "^27.0.0",
-    "@vitejs/plugin-react-swc": "^4.2.3",
+    "@vitejs/plugin-react-swc": "^4.3.0",
     "babel-plugin-styled-components": "^2.1.4",
     "globals": "^17.4.0",
     "jest-environment-jsdom": "^30.2.0",
@@ -25,7 +25,6 @@
     "jsdom": "^28.1.0",
     "rollup-plugin-visualizer": "^6.0.5",
     "vite-plugin-compression2": "^2.5.0",
-    "vite-plugin-wasm": "^3.5.0",
-    "vite-tsconfig-paths": "^6.1.1"
+    "vite-plugin-wasm": "^3.5.0"
   }
 }

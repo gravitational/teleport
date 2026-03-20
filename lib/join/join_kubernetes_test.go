@@ -20,18 +20,24 @@ package join_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/jointest"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
+	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
 type mockK8STokenReviewValidator struct {
@@ -45,6 +51,13 @@ func (m *mockK8STokenReviewValidator) Validate(_ context.Context, token, _ strin
 	}
 
 	return result, nil
+}
+
+func newFakeIDP(t *testing.T) *fakeissuer.IDP {
+	idp, err := fakeissuer.NewIDP(slog.Default())
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+	return idp
 }
 
 func TestJoinKubernetes(t *testing.T) {
@@ -84,6 +97,19 @@ func TestJoinKubernetes(t *testing.T) {
 		return result, nil
 	})
 
+	oidcIDP := newFakeIDP(t)
+	wrongOIDCIDP := newFakeIDP(t)
+	oidcIssuerURL := oidcIDP.IssuerURL()
+
+	oidcIDToken, err := oidcIDP.IssueKubeToken("oidc-pod", "oidc-namespace", "oidc-service-account", authServer.ClusterName())
+	require.NoError(t, err)
+	oidcAllowMismatchToken, err := oidcIDP.IssueKubeToken("oidc-pod", "oidc-namespace", "other-service-account", authServer.ClusterName())
+	require.NoError(t, err)
+	oidcInvalidAudienceToken, err := oidcIDP.IssueKubeToken("oidc-pod", "oidc-namespace", "oidc-service-account", "wrong-audience")
+	require.NoError(t, err)
+	oidcInvalidIssuerToken, err := wrongOIDCIDP.IssueKubeToken("oidc-pod", "oidc-namespace", "oidc-service-account", authServer.ClusterName())
+	require.NoError(t, err)
+
 	// Creating and loading our two Kubernetes ProvisionTokens
 	implicitInClusterPT, err := types.NewProvisionTokenFromSpec("implicit-in-cluster", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
 		JoinMethod: types.JoinMethodKubernetes,
@@ -122,9 +148,43 @@ func TestJoinKubernetes(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	oidcPT, err := types.NewProvisionTokenFromSpec("oidc", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodKubernetes,
+		Roles:      []types.SystemRole{types.RoleNode},
+		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Type: types.KubernetesJoinTypeOIDC,
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{ServiceAccount: "oidc-namespace:oidc-service-account"},
+			},
+			OIDC: &types.ProvisionTokenSpecV2Kubernetes_OIDCConfig{
+				Issuer:                  oidcIssuerURL,
+				InsecureAllowHTTPIssuer: true,
+			},
+		},
+	})
+	require.NoError(t, err)
 	require.NoError(t, auth.CreateToken(ctx, implicitInClusterPT))
 	require.NoError(t, auth.CreateToken(ctx, explicitInClusterPT))
 	require.NoError(t, auth.CreateToken(ctx, staticJWKSPT))
+	require.NoError(t, auth.CreateToken(ctx, oidcPT))
+
+	for _, pt := range []types.ProvisionToken{implicitInClusterPT, explicitInClusterPT, staticJWKSPT, oidcPT} {
+		ptv2, ok := pt.(*types.ProvisionTokenV2)
+		require.True(t, ok, "expected provision token to be types.ProvisionTokenSpecV2")
+		scoped, err := jointest.ScopedTokenFromProvisionTokenSpec(ptv2.Spec, &joiningv1.ScopedToken{
+			Scope: "/test",
+			Metadata: &headerv1.Metadata{
+				Name: "scoped_" + pt.GetName(),
+			},
+			Spec: &joiningv1.ScopedTokenSpec{
+				AssignedScope: "/test/one",
+				UsageMode:     string(joining.TokenUsageModeUnlimited),
+			},
+		})
+		require.NoError(t, err)
+		_, err = auth.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{Token: scoped})
+		require.NoError(t, err)
+	}
 
 	// Building a joinRequest builder
 	sshPrivateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
@@ -207,6 +267,36 @@ func TestJoinKubernetes(t *testing.T) {
 				require.ErrorContains(t, err, "invalid token")
 			},
 		},
+		{
+			"oidc: success",
+			oidcIDToken,
+			oidcPT,
+			require.NoError,
+		},
+		{
+			"oidc: allow rule mismatch",
+			oidcAllowMismatchToken,
+			oidcPT,
+			func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "kubernetes token did not match any allow rules")
+			},
+		},
+		{
+			"oidc: invalid audience",
+			oidcInvalidAudienceToken,
+			oidcPT,
+			func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "audience is not valid")
+			},
+		},
+		{
+			"oidc: invalid issuer",
+			oidcInvalidIssuerToken,
+			oidcPT,
+			func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "issuer does not match")
+			},
+		},
 	}
 
 	// Doing the real test
@@ -238,6 +328,20 @@ func TestJoinKubernetes(t *testing.T) {
 			t.Run("new joinclient", func(t *testing.T) {
 				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
 					Token:      tt.provisionToken.GetName(),
+					JoinMethod: types.JoinMethodKubernetes,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance, // RoleNode is not allowed
+						NodeName: "testnode",
+					},
+					IDToken:    tt.kubeToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+			})
+
+			t.Run("scoped join", func(t *testing.T) {
+				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      "scoped_" + tt.provisionToken.GetName(),
 					JoinMethod: types.JoinMethodKubernetes,
 					ID: state.IdentityID{
 						Role:     types.RoleInstance, // RoleNode is not allowed
