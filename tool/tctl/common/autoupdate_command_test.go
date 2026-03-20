@@ -174,12 +174,11 @@ func TestAutoUpdateAgentStatusCommand(t *testing.T) {
 					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 				},
 			},
-			expectedOutput: `Agent autoupdate mode: enabled
-Start version: 1.2.3
-Target version: 1.2.4
-Schedule is immediate. Every group immediately updates to the target version.
-
-`,
+			expectedOutput: "Agent autoupdate mode: enabled\n" +
+				"Start version: 1.2.3\n" +
+				"Target version: 1.2.4\n" +
+				"Schedule is immediate. Every group immediately updates to the target version.\n" +
+				"\n",
 		},
 		{
 			name: "rollout regular schedule time-based",
@@ -225,19 +224,18 @@ Schedule is immediate. Every group immediately updates to the target version.
 					TimeOverride: nil,
 				},
 			},
-			expectedOutput: `Agent autoupdate mode: enabled
-Rollout creation date: 2025-01-15 02:00:00
-Start version: 1.2.3
-Target version: 1.2.4
-Rollout state: Active
-Strategy: time-based
-
-Group Name State     Start Time          State Reason
----------- --------- ------------------- --------------
-dev        Done      2025-01-15 12:00:00 outside_window
-stage      Active    2025-01-15 14:00:00 in_window
-prod       Unstarted                     outside_window
-`,
+			expectedOutput: "Agent autoupdate mode: enabled\n" +
+				"Rollout creation date: 2025-01-15 02:00:00\n" +
+				"Start version: 1.2.3\n" +
+				"Target version: 1.2.4\n" +
+				"Rollout state: Active\n" +
+				"Strategy: time-based\n" +
+				"\n" +
+				"Group Name State     Start Time          State Reason   \n" +
+				"---------- --------- ------------------- -------------- \n" +
+				"dev        Done      2025-01-15 12:00:00 outside_window \n" +
+				"stage      Active    2025-01-15 14:00:00 in_window      \n" +
+				"prod       Unstarted                     outside_window \n",
 		},
 		{
 			name: "rollout regular schedule halt-on-error",
@@ -282,19 +280,18 @@ prod       Unstarted                     outside_window
 					TimeOverride: nil,
 				},
 			},
-			expectedOutput: `Agent autoupdate mode: enabled
-Rollout creation date: 2025-01-15 02:00:00
-Start version: 1.2.3
-Target version: 1.2.4
-Rollout state: Active
-Strategy: halt-on-error
-
-Group Name State     Start Time          State Reason
----------- --------- ------------------- --------------
-dev        Done      2025-01-15 12:00:00 outside_window
-stage      Active    2025-01-15 14:00:00 in_window
-prod       Unstarted                     outside_window
-`,
+			expectedOutput: "Agent autoupdate mode: enabled\n" +
+				"Rollout creation date: 2025-01-15 02:00:00\n" +
+				"Start version: 1.2.3\n" +
+				"Target version: 1.2.4\n" +
+				"Rollout state: Active\n" +
+				"Strategy: halt-on-error\n" +
+				"\n" +
+				"Group Name State     Start Time          State Reason   \n" +
+				"---------- --------- ------------------- -------------- \n" +
+				"dev        Done      2025-01-15 12:00:00 outside_window \n" +
+				"stage      Active    2025-01-15 14:00:00 in_window      \n" +
+				"prod       Unstarted                     outside_window \n",
 		},
 		{
 			name: "rollout regular schedule halt-on-error with progress",
@@ -343,19 +340,18 @@ prod       Unstarted                     outside_window
 					TimeOverride: nil,
 				},
 			},
-			expectedOutput: `Agent autoupdate mode: enabled
-Rollout creation date: 2025-01-15 02:00:00
-Start version: 1.2.3
-Target version: 1.2.4
-Rollout state: Active
-Strategy: halt-on-error
-
-Group Name       State     Start Time          State Reason   Agent Count Up-to-date
----------------- --------- ------------------- -------------- ----------- ----------
-dev              Done      2025-01-15 12:00:00 outside_window 1023        567
-stage            Active    2025-01-15 14:00:00 in_window      0           0
-prod (catch-all) Unstarted                     outside_window 789         0
-`,
+			expectedOutput: "Agent autoupdate mode: enabled\n" +
+				"Rollout creation date: 2025-01-15 02:00:00\n" +
+				"Start version: 1.2.3\n" +
+				"Target version: 1.2.4\n" +
+				"Rollout state: Active\n" +
+				"Strategy: halt-on-error\n" +
+				"\n" +
+				"Group Name       State     Start Time          State Reason   Agent Count Up-to-date \n" +
+				"---------------- --------- ------------------- -------------- ----------- ---------- \n" +
+				"dev              Done      2025-01-15 12:00:00 outside_window 1023        567        \n" +
+				"stage            Active    2025-01-15 14:00:00 in_window      0           0          \n" +
+				"prod (catch-all) Unstarted                     outside_window 789         0          \n",
 		},
 		{
 			name: "rollout regular schedule halt-on-error with progress, with canary",
@@ -425,19 +421,18 @@ prod (catch-all) Unstarted                     outside_window 789         0
 					TimeOverride: nil,
 				},
 			},
-			expectedOutput: `Agent autoupdate mode: enabled
-Rollout creation date: 2025-01-15 02:00:00
-Start version: 1.2.3
-Target version: 1.2.4
-Rollout state: Active
-Strategy: halt-on-error
-
-Group Name       State        Start Time          State Reason   Agent Count Up-to-date
----------------- ------------ ------------------- -------------- ----------- ----------
-dev              Done         2025-01-15 12:00:00 outside_window 1023        567
-stage            Canary (2/5) 2025-01-15 14:00:00 in_window      0           0
-prod (catch-all) Unstarted                        outside_window 789         0
-`,
+			expectedOutput: "Agent autoupdate mode: enabled\n" +
+				"Rollout creation date: 2025-01-15 02:00:00\n" +
+				"Start version: 1.2.3\n" +
+				"Target version: 1.2.4\n" +
+				"Rollout state: Active\n" +
+				"Strategy: halt-on-error\n" +
+				"\n" +
+				"Group Name       State        Start Time          State Reason   Agent Count Up-to-date \n" +
+				"---------------- ------------ ------------------- -------------- ----------- ---------- \n" +
+				"dev              Done         2025-01-15 12:00:00 outside_window 1023        567        \n" +
+				"stage            Canary (2/5) 2025-01-15 14:00:00 in_window      0           0          \n" +
+				"prod (catch-all) Unstarted                        outside_window 789         0          \n",
 		},
 	}
 
@@ -561,13 +556,12 @@ func TestAutoUpdateAgentReportCommand(t *testing.T) {
 				},
 			},
 			expectErr: require.NoError,
-			expectedOutput: `2 autoupdate agent reports aggregated
-
-Agent Version dev  prod stage
-------------- ---  ---- -----
-1.2.3         579  789  123
-1.2.4         801  0    0
-`,
+			expectedOutput: "2 autoupdate agent reports aggregated\n" +
+				"\n" +
+				"Agent Version dev  prod stage \n" +
+				"------------- ---  ---- ----- \n" +
+				"1.2.3         579  789  123   \n" +
+				"1.2.4         801  0    0     \n",
 		},
 		{
 			name: "valid reports with omissions",
@@ -618,17 +612,16 @@ Agent Version dev  prod stage
 				},
 			},
 			expectErr: require.NoError,
-			expectedOutput: `2 autoupdate agent reports aggregated
-
-Agent Version dev  prod stage
-------------- ---  ---- -----
-1.2.3         579  789  123
-1.2.4         801  0    0
-
-7 agents were omitted from the reports:
-- 2 omitted because: agent is too old
-- 5 omitted because: updater is disabled
-`,
+			expectedOutput: "2 autoupdate agent reports aggregated\n" +
+				"\n" +
+				"Agent Version dev  prod stage \n" +
+				"------------- ---  ---- ----- \n" +
+				"1.2.3         579  789  123   \n" +
+				"1.2.4         801  0    0     \n" +
+				"\n" +
+				"7 agents were omitted from the reports:\n" +
+				"- 2 omitted because: agent is too old\n" +
+				"- 5 omitted because: updater is disabled\n",
 		},
 	}
 
