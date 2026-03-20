@@ -54,11 +54,266 @@ You can view all available roles by navigating to **Zero Trust Access** > **Role
 
 ## Custom roles
 
-Organizations often require custom roles to enforce least-privilege access and follow internal security policies. By creating custom roles, you can align Teleport's access controls with your company's structure and security policies.
+While the preset roles are useful for administrative identities that your
+organization reserves as a fallback, you should use custom roles to ensure that
+no identity in your organization has unnecessary privileges.
 
-For instructions on creating custom roles and assigning roles to users, follow along with our [Getting Started with Teleport Access Controls](../zero-trust-access/rbac-get-started/role-demo.mdx) demo guide. 
+### Name the roles you need
 
-For mapping SSO users to roles, refer to our guide on [Configuring Single Sign-On](../zero-trust-access/sso/sso.mdx#how-teleport-uses-sso) for more information.
+To determine the custom roles you need, we recommend that you:
+
+1. List the teams in your organization that you want to define roles for. For
+   example, you may want to start with roles for the Core Team, which owns the
+   main product, and the Platform Team, which owns the infrastructure other
+   teams use to deploy and manage services.
+
+1. Determine the levels of access you want to enforce, such as read-only access,
+   read-write access to non-production resources, and read-write access to
+   production resources.
+
+1. Plan to define a role for each combination of team and access level.
+
+   Continuing our example, if you have the access levels `read-only`,
+   `rw-staging`, and `rw-prod`, and the teams `core` and `platform`, you would
+   want to define the following roles:
+   
+   - `core-read-only`
+   - `core-rw-staging`
+   - `core-rw-prod`
+   - `platform-read-only`
+   - `platform-rw-staging`
+   - `platform-rw-prod`
+
+### Configure each role
+
+For each role you need to define, consider the access patterns of team members
+with the given level of access:
+
+- **Which resources should they have access to?** You can configure a role to
+  allow and deny access to resources with certain labels, which you configured
+  in [Step 2](connect.mdx).
+- **Which actions should they be allowed to perform?** You can configure a role
+  to allow or deny certain principals, such as user accounts on a target server,
+  Kubernetes cluster, or database.
+
+To illustrate this, consider the examples of Teleport roles below, with
+explanations of the essential fields. Each role provides access to
+Teleport-protected servers, databases, and Kubernetes clusters, but with access
+tailored to each team and level of access.
+
+Note how these examples use the `env`, `service`, and `team` labels we mentioned
+in [Step 2](connect.mdx):
+
+<Tabs>
+<TabItem label="core-read-only">
+
+The `core-read-only` role has read-only access to any server, database, and
+Kubernetes cluster owned by the Core Team in the main product (`service:core`)
+across all environments. This role can only assume the `readonly` login on
+servers and the `readonly` user on databases:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: core-read-only
+spec:
+  allow:
+    logins: ['readonly']
+    node_labels:
+      team: core
+      service: core
+    db_labels:
+      team: core
+      service: core
+    db_users: ['readonly']
+    # Allow access to any database on the target database server
+    db_names: ['*']
+    kubernetes_labels:
+      team: core
+      service: core
+    kubernetes_groups: ['viewers']
+```
+
+</TabItem>
+<TabItem label="core-rw-staging">
+
+The `core-rw-staging` role has access to any server, database, and Kubernetes
+cluster owned by the Core Team within the main product (`service:core`) in the
+staging environment. On staging servers, this role can assume the `manager` user
+and, on databases, the privileged `dbuser` role:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: core-rw-staging
+spec:
+  allow:
+    logins: ['manager']
+    node_labels:
+      team: core
+      service: core
+      env: staging
+    db_labels:
+      team: core
+      service: core
+      env: staging
+    db_users: ['dbuser']
+    # Allow access to any database on the target database server
+    db_names: ['*']
+    kubernetes_labels:
+      team: core
+      service: core
+      env: staging
+    kubernetes_groups: ['developers']
+```
+
+Note that this role is identical to `core-rw-prod` except for the `env` label of
+the resources we allow access to.
+
+</TabItem>
+<TabItem label="core-rw-prod">
+
+The `core-rw-prod` role has access to any server, database, and Kubernetes
+cluster owned by the Core Team within the main product (`service:core`) in the
+production environment. On production servers, this role can assume the
+`manager` user and, on databases, the privileged `dbuser` role:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: core-rw-prod
+spec:
+  allow:
+    logins: ['manager']
+    node_labels:
+      team: core
+      service: core
+      env: prod
+    db_labels:
+      team: core
+      service: core
+      env: prod
+    db_users: ['dbuser']
+    # Allow access to any database on the target database server
+    db_names: ['*']
+    kubernetes_labels:
+      team: core
+      service: core
+      env: prod
+    kubernetes_groups: ['developers']
+```
+
+Note that this role is identical to `core-rw-staging` except for the `env` label
+of the resources we allow access to.
+
+</TabItem>
+<TabItem label="platform-read-only">
+
+The `platform-read-only` role has read-only access to any server, database, and
+Kubernetes cluster owned by the Platform Team within the `data-lake` service
+across all environments. This role can only assume the `readonly` login on
+servers and the `readonly` user on databases:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: platform-read-only
+spec:
+  allow:
+    logins: ['readonly']
+    node_labels:
+      team: platform
+      service: data-lake
+    db_labels:
+      team: platform
+      service: data-lake
+    db_users: ['readonly']
+    # Allow access to any database on the target database server
+    db_names: ['*']
+    kubernetes_labels:
+      team: platform
+      service: data-lake
+    kubernetes_groups: ['viewers']
+```
+
+</TabItem>
+<TabItem label="platform-rw-staging">
+
+The `platform-rw-staging` role has access to any server, database, and
+Kubernetes cluster owned by the Platform Team in the staging environment, as
+long as it is part of the `data-lake` service. On staging servers, this role can
+assume the `manager` user and, on databases, the privileged `dbuser` role:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: platform-rw-staging
+spec:
+  allow:
+    logins: ['manager']
+    node_labels:
+      team: platform
+      service: data-lake
+      env: staging
+    db_labels:
+      team: platform
+      service: data-lake
+      env: staging
+    db_users: ['dbuser']
+    # Allow access to any database on the target database server
+    db_names: ['*']
+    kubernetes_labels:
+      team: platform
+      service: data-lake
+      env: staging
+    kubernetes_groups: ['developers']
+```
+
+</TabItem>
+<TabItem label="platform-rw-prod">
+
+The `platform-rw-prod` role has access to any server, database, and Kubernetes
+cluster owned by the Platform Team within the `data-lake` service in the
+production environment. On production servers, this role can assume the
+`manager` user and, on databases, the privileged `dbuser` role:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: platform-rw-prod
+spec:
+  allow:
+    logins: ['manager']
+    node_labels:
+      team: platform
+      service: data-lake
+      env: prod
+    db_labels:
+      team: platform
+      service: data-lake
+      env: prod
+    db_users: ['dbuser']
+    # Allow access to any database on the target database server
+    db_names: ['*']
+    kubernetes_labels:
+      team: platform
+      service: data-lake
+      env: prod
+    kubernetes_groups: ['developers']
+```
+
+</TabItem>
+</Tabs>
+
+For instructions on creating custom roles and assigning roles to users, read the
+[Getting Started with Teleport Access
+Controls](../zero-trust-access/rbac-get-started/role-demo.mdx) demo guide.
 
 ## Next steps
 
@@ -67,3 +322,4 @@ In the final step of the Getting Started guide, we'll cover how to monitor activ
 <div style={{ marginTop: 'var(--m-4)' }}>
   <Button style={{ padding: '0 var(--m-2)' }} as="link" href="../audit/" variant="primary" shape="lg">Step 4 - Monitor Audit Logs <Icon name="arrowRight" inline size="sm"/> </Button>
 </div>
+
