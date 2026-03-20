@@ -176,6 +176,7 @@ require (
 	github.com/johannesboyne/gofakes3 v0.0.0-20250916175020-ebf3e50324d3
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531
+	github.com/jsimonetti/rtnetlink/v2 v2.0.1
 	github.com/json-iterator/go v1.1.12
 	github.com/julienschmidt/httprouter v1.3.0 // replaced
 	github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27 // replaced
@@ -472,7 +473,6 @@ require (
 	github.com/jedisct1/go-minisign v0.0.0-20230811132847-661be99b8267 // indirect
 	github.com/jmoiron/sqlx v1.4.0 // indirect
 	github.com/joshlf/testutil v0.0.0-20170608050642-b5d8aa79d93d // indirect
-	github.com/jsimonetti/rtnetlink v1.4.2 // indirect
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
 	github.com/klauspost/asmfmt v1.3.2 // indirect
 	github.com/klauspost/compress v1.18.2 // indirect

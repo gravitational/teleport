@@ -22,7 +22,7 @@ import (
 	"os/exec"
 
 	"github.com/gravitational/trace"
-	"github.com/jsimonetti/rtnetlink"
+	"github.com/jsimonetti/rtnetlink/v2"
 	"golang.org/x/sys/unix"
 )
 

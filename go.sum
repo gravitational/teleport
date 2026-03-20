@@ -1718,8 +1718,6 @@ github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531 h1:hgVxRoDDPtQE68PT4
 github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531/go.mod h1:fqTUQpVYBvhCNIsMXGl2GE9q6z94DIP6NtFKXCSTVbg=
 github.com/joshlf/testutil v0.0.0-20170608050642-b5d8aa79d93d h1:J8tJzRyiddAFF65YVgxli+TyWBi0f79Sld6rJP6CBcY=
 github.com/joshlf/testutil v0.0.0-20170608050642-b5d8aa79d93d/go.mod h1:b+Q3v8Yrg5o15d71PSUraUzYb+jWl6wQMSBXSGS/hv0=
-github.com/jsimonetti/rtnetlink v1.4.2 h1:Df9w9TZ3npHTyDn0Ev9e1uzmN2odmXd0QX+J5GTEn90=
-github.com/jsimonetti/rtnetlink v1.4.2/go.mod h1:92s6LJdE+1iOrw+F2/RO7LYI2Qd8pPpFNNUYW06gcoM=
 github.com/jsimonetti/rtnetlink/v2 v2.0.1 h1:xda7qaHDSVOsADNouv7ukSuicKZO7GgVUCXxpaIEIlM=
 github.com/jsimonetti/rtnetlink/v2 v2.0.1/go.mod h1:7MoNYNbb3UaDHtF8udiJo/RH6VsTKP1pqKLUTVCvToE=
 github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM=
