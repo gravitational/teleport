@@ -189,19 +189,26 @@ linters:
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
         test_packages:
           files:
-            - '!$test'
             - '!**/e/lib/aws/identitycenter/test/**'
             - '!**/e/lib/devicetrust/testenv/**'
             - '!**/e/lib/idp/saml/testenv/**'
             - '!**/e/lib/intune/testenv/**'
-            - '!**/e/lib/jamf/testenv/**'
-            - '!**/e/lib/operatortest/**'
-            - '!**/e/tests/**'
-            - '!**/integration/db/fixture.go'
-            - '!**/integration/helpers/**'
-            - '!**/integrations/lib/testing/**'
-            - '!**/integrations/operator/controllers/resources/testlib/**.go'
-            - '!**/lib/auth/authtest/**'
+            - '!**/test.go'
+            - '!${config-path}/e/lib/jamf/testenv/**'
+            - '!${config-path}/e/lib/operatortest/**'
+            - '!${config-path}/e/tests/**'
+            - '!${config-path}/integration/appaccess/fixtures.go'
+            - '!${config-path}/integration/appaccess/pack.go'
+            - '!${config-path}/integration/db/fixture.go'
+            - '!${config-path}/integration/helpers/**'
+            - '!${config-path}/integration/proxy/proxy_helpers.go'
+            - '!${config-path}/integrations/lib/testing/**'
+            - '!${config-path}/integrations/operator/controllers/resources/testlib/**.go'
+            - '!${config-path}/lib/auth/authtest/**'
+            - '!${config-path}/lib/multiplexer/testproxy.go'
+            - '!${config-path}/lib/utils/log/logtest/logtest_inline.go'
+            - '!${config-path}/tool/teleport/testenv/**'
+            - '!$test'
           deny:
             - pkg: github.com/gravitational/teleport/e/lib/aws/identitycenter/test
               desc: testing packages should not be imported outside of _test.go files
@@ -227,7 +234,9 @@ linters:
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/modules/modulestest
               desc: testing packages should not be imported outside of _test.go files
-            - pkg: github.com/gravitational/teleport/lib/utils/logtesttest
+            - pkg: github.com/gravitational/teleport/lib/utils/log/logtest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/session/common/logutils/logtest
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/auth/authcatest
               desc: testing packages should not be imported outside of _test.go files
@@ -320,6 +329,14 @@ linters:
           deny:
             - pkg: testing
               desc: testing should not be imported outside of tests
+        utils_log_only_e:
+          files:
+            - '!${config-path}/e/**'
+          deny:
+            - pkg: github.com/gravitational/teleport/lib/utils/log$
+              desc: use "github.com/gravitational/teleport/session/common/logutils" instead
+            - pkg: github.com/gravitational/teleport/lib/utils/log/logtest$
+              desc: use "github.com/gravitational/teleport/session/common/logutils/logtest" instead
     errorlint:
       errorf: true
       asserts: true
