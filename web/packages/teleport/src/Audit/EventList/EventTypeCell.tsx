@@ -20,6 +20,8 @@ import styled from 'styled-components';
 
 import { Cell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
+import Label from 'design/Label';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { Event, EventCode, eventCodes } from 'teleport/services/audit';
 
@@ -354,19 +356,61 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.WORKLOAD_CLUSTER_DELETE]: Icons.Info,
 };
 
+// TODO: Refactor beam/LLM detection logic. Currently uses heuristics (server_labels,
+// bot_name prefix, app_uri scheme) as a POC. Should be replaced with proper event
+// plumbing and dedicated event codes for beam and LLM sessions.
 export default function renderTypeCell(event: Event) {
-  const Icon = EventIconMap[event.code] || Icons.ListThin;
+  const isUserBeamSession = !!(event.raw as any)?.server_labels?.[
+    'teleport.internal/beam/id'
+  ];
+
+  // TODO: detect delegated beam sessions properly via event plumbing.
+  // For now, hacking on bot_name starting with "beam-" as a signal.
+  const rawEvent = event.raw as any;
+  const isDelegatedBeamSession =
+    !isUserBeamSession &&
+    (rawEvent?.bot_name?.startsWith('beam-') ||
+      rawEvent?.identity?.bot_name?.startsWith('beam-'));
+
+  const isBeam = isUserBeamSession || isDelegatedBeamSession;
+
+  const isLLMSession =
+    event.code === eventCodes.APP_SESSION_START &&
+    rawEvent?.app_uri?.startsWith('llm://');
+  const Icon =
+    isUserBeamSession &&
+    (event.code === eventCodes.SESSION_START ||
+      event.code === eventCodes.SESSION_END)
+      ? Icons.Planet
+      : EventIconMap[event.code] || Icons.ListThin;
 
   const iconProps = {
     p: 1,
     mr: 3,
   };
 
+  const beamTooltip = isUserBeamSession
+    ? 'User beam session'
+    : 'Delegated beam session';
+
   return (
     <Cell style={{ verticalAlign: 'inherit' }}>
       <StyledEventType>
         <Icon {...iconProps} size="medium" />
-        {event.codeDesc}
+        {isUserBeamSession && event.code === eventCodes.SESSION_START
+          ? 'Beam Session Started'
+          : isUserBeamSession && event.code === eventCodes.SESSION_END
+            ? 'Beam Session Ended'
+            : isLLMSession
+              ? 'LLM Session Started'
+              : event.codeDesc}
+        {isBeam && (
+          <HoverTooltip tipContent={beamTooltip}>
+            <Label kind="secondary" ml={2}>
+              Beams
+            </Label>
+          </HoverTooltip>
+        )}
       </StyledEventType>
     </Cell>
   );
