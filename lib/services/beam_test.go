@@ -174,7 +174,7 @@ func testBeam(alias string) *beamsv1.Beam {
 			Name:    uuid.NewString(),
 			Expires: timestamppb.New(time.Now().Add(time.Hour)),
 		},
-		Spec: &beamsv1.BeamSpec{
+		Spec: &beamsv1.BeamSpecV1{
 			Egress:         beamsv1.EgressMode_EGRESS_MODE_RESTRICTED,
 			AllowedDomains: []string{"example.com."},
 		},

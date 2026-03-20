@@ -36,14 +36,14 @@ message Beam {
   teleport.header.v1.Metadata metadata = 4;
 
   // Configuration of the beam.
-  BeamSpec spec = 5;
+  BeamSpecV1 spec = 5;
 
   // Status of the beam and its derived resources.
   BeamStatus status = 6;
 }
 
-// BeamSpec contains the configuration of the beam.
-message BeamSpec {
+// BeamSpecV1 contains the configuration of the beam.
+message BeamSpecV1 {
   // EgressMode configures outgoing network connectivity from the beam.
   EgressMode egress = 1;
 
@@ -99,7 +99,7 @@ message BeamStatus {
   // BotName is the name of the beam's bot identity.
   string bot_name = 8;
 
-  // JoinTokenName is the name of the beam's bound-keypair join token.
+  // JoinTokenName is the name of the beam's join token.
   string join_token_name = 9;
 
   // DelegationSessionID identifies the delegation session through which the
