@@ -97,7 +97,8 @@ Follow these steps to enroll your Ubuntu Linux server:
 
 1. In the Teleport Web UI, click **Enroll New Resource**, or navigate to **Add New** > **Resource** in the left sidebar.
 2. Select **Ubuntu** from the list of resource types.
-3. (Optional) Add labels like `env: staging` or `cloud: aws` for filtering or restricting access later.
+3. Add labels for filtering or restricting access later. Recall the
+   label scheme you designed [earlier in the guide](#define-a-label-scheme).
 4. Run the install script that Teleport provides on your Ubuntu server (or in your Docker container) to install the Teleport SSH Service. 
 5. Wait for the installation to complete. You should see a notification in the Teleport Web UI confirming the agent was successfully detected.
 6. Add `ubuntu` as an OS user you will use to connect to the server and test your connection to verify that the server is accessible before you finish the guided setup.

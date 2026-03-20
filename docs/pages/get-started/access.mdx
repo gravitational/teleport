@@ -135,6 +135,12 @@ spec:
     kubernetes_groups: ['viewers']
 ```
 
+Save this role as `core-read-only.yaml`, then create it:
+
+```code
+$ tctl create core-read-only.yaml
+```
+
 </TabItem>
 <TabItem label="core-rw-staging">
 
@@ -167,6 +173,12 @@ spec:
       service: core
       env: staging
     kubernetes_groups: ['developers']
+```
+
+Save this role as `core-rw-staging.yaml`, then create it:
+
+```code
+$ tctl create core-rw-staging.yaml
 ```
 
 Note that this role is identical to `core-rw-prod` except for the `env` label of
@@ -206,6 +218,12 @@ spec:
     kubernetes_groups: ['developers']
 ```
 
+Save this role as `core-rw-prod.yaml`, then create it:
+
+```code
+$ tctl create core-rw-prod.yaml
+```
+
 Note that this role is identical to `core-rw-staging` except for the `env` label
 of the resources we allow access to.
 
@@ -238,6 +256,12 @@ spec:
       team: platform
       service: data-lake
     kubernetes_groups: ['viewers']
+```
+
+Save this role as `platform-read-only.yaml`, then create it:
+
+```code
+$ tctl create platform-read-only.yaml
 ```
 
 </TabItem>
@@ -274,6 +298,12 @@ spec:
     kubernetes_groups: ['developers']
 ```
 
+Save this role as `platform-rw-staging.yaml`, then create it:
+
+```code
+$ tctl create platform-rw-staging.yaml
+```
+
 </TabItem>
 <TabItem label="platform-rw-prod">
 
@@ -308,12 +338,30 @@ spec:
     kubernetes_groups: ['developers']
 ```
 
+Save this role as `platform-rw-prod.yaml`, then create it:
+
+```code
+$ tctl create platform-rw-prod.yaml
+```
+
 </TabItem>
 </Tabs>
 
+Role fields such as `db_users`, `logins`, and `kubernetes_groups` indicate the
+principals that a user is allowed to assume on the target infrastructure. A
+principal must already exist before a user can connect to a resource.
+
+For example, if there is no user called `manager` on a Linux host, a user
+allowed to assume that principal with the `spec.allow.logins` field will still
+not be able to gain access. A role that allows a user to access the Ubuntu
+server we enrolled in [Step 2](connect.mdx) would need to include `ubuntu` in
+the list of permitted logins.
+
 For instructions on creating custom roles and assigning roles to users, read the
 [Getting Started with Teleport Access
-Controls](../zero-trust-access/rbac-get-started/role-demo.mdx) demo guide.
+Controls](../zero-trust-access/rbac-get-started/role-demo.mdx) demo guide. For a
+full description of Teleport role fields, see the [Teleport Role
+Reference](../reference/access-controls/roles.mdx). 
 
 ## Next steps
 
