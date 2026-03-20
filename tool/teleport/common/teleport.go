@@ -59,7 +59,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/session/common/logutils"
-	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
 const selinuxUnsupportedErr = "--enable-selinux is allowed only when the SSH service is the only service enabled"
@@ -1166,7 +1165,7 @@ func onSCP(scpFlags *scp.Flags) error {
 	// they're automatically replayed by the scp client)
 	var verbosity string
 	if scpFlags.Verbose {
-		verbosity = logconstants.TeleportDebugLevel
+		verbosity = "debug"
 	}
 	_, _, _, err := logutils.Initialize(logutils.Config{
 		Output:   logutils.LogOutputSyslog,
