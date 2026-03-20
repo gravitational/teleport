@@ -87,6 +87,9 @@ message ScopedTokenSpec {
 
   // The Oracle-specific configuration used with the "oracle" join method.
   Oracle oracle = 10;
+
+  // The Kubernetes-specific configuration used with the "kubernetes" join method.
+  Kubernetes kubernetes = 11;
 }
 
 // The host certificate parameters that should be cached and leveraged for
@@ -306,4 +309,43 @@ message Oracle {
   // A list of Rules for allowing use of this token. A node must match at least one
   // allow rule in order to use this token.
   repeated Rule allow = 1;
+}
+
+// The Kubernetes-specific configuration used with the "kubernetes" join method.
+message Kubernetes {
+  // The configuration specific to the `static_jwks` type.
+  message StaticJWKSConfig {
+    // The JSON Web Key Set formatted public keys that the Kubernetes Cluster uses to sign service
+    // account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
+    string jwks = 1;
+  }
+  // The configuration specific to the `oidc` type.
+  message OIDCConfig {
+    // The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/oidc-configuration`
+    // endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT.
+    // For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...
+    string issuer = 1;
+
+    // If set, disables the requirement that the issuer must use HTTPS.
+    bool insecure_allow_http_issuer = 2;
+  }
+  // A rule that a joining node must match in order to use the associated token
+  // with the "kubernetes" join method.
+  message Rule {
+    // The namespaced name of the Kubernetes service account. Its format is "namespace:service-account".
+    string service_account = 1;
+  }
+  // A list of Rules for allowing use of this token. A node must match at least one
+  // allow rule in order to use this token.
+  repeated Rule allow = 1;
+  // Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values:
+  // - `in_cluster`
+  // - `static_jwks`
+  // - `oidc`
+  // If unset, this defaults to `in_cluster`.
+  string type = 2;
+  // The configuration specific to the `static_jwks` type.
+  StaticJWKSConfig static_jwks = 3;
+  // The configuration specific to the `oidc` type.
+  OIDCConfig oidc = 4;
 }
