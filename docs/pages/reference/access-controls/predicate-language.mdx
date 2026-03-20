@@ -89,10 +89,11 @@ for an overview of label expressions and where they can be used.
 Label expressions support a predicate language with the following fields
 available:
 
-| Field              | Type                    | Description |
-|--------------------|-------------------------|-------------|
-| `labels`           | `map[string]string`     | Combined static and dynamic labels of the resource (server, application, etc.) being accessed. |
-| `user.spec.traits` | `map[string][]string`   | All traits of the user accessing the resource (referred to as `external` or `internal` in role template expressions). |
+| Field                | Type                    | Description |
+|----------------------|-------------------------|-------------|
+| `labels`             | `map[string]string`     | Combined static and dynamic labels of the resource (server, application, etc.) being accessed. |
+| `user.spec.traits`   | `map[string][]string`   | All traits of the user accessing the resource (referred to as `external` or `internal` in role template expressions). |
+| `user.metadata.name` | `string`                | The user's Teleport username. |
 
 The language supports the following operators:
 

@@ -336,6 +336,7 @@ func (m *manager) getConfigLocked(ctx context.Context, r types.ResourceWithLabel
 		matched, _, err := services.CheckLabelsMatch(
 			types.Allow,
 			cfg.getLabelMatchers(r.GetKind()),
+			"",  // username
 			nil, // userTraits
 			r,
 			false, // debug

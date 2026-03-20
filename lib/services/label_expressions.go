@@ -34,6 +34,7 @@ type labelExpression typical.Expression[labelExpressionEnv, bool]
 
 type labelExpressionEnv struct {
 	resourceLabelGetter LabelGetter
+	username            string
 	userTraits          map[string][]string
 }
 
@@ -59,6 +60,13 @@ func mustNewLabelExpressionParser() *typical.CachedParser[labelExpressionEnv, bo
 func newLabelExpressionParser() (*typical.CachedParser[labelExpressionEnv, bool], error) {
 	parser, err := typical.NewCachedParser[labelExpressionEnv, bool](typical.ParserSpec[labelExpressionEnv]{
 		Variables: map[string]typical.Variable{
+			"user.metadata.name": typical.DynamicVariable(
+				func(env labelExpressionEnv) (string, error) {
+					if env.username == "" {
+						return "", trace.NotFound("user.metadata.name is not available in this context")
+					}
+					return env.username, nil
+				}),
 			"user.spec.traits": typical.DynamicVariable(
 				func(env labelExpressionEnv) (map[string][]string, error) {
 					return env.userTraits, nil

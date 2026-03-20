@@ -246,6 +246,12 @@ func TestInterpolate(t *testing.T) {
 			res:    result{errCheck: errCheckIsNotFound, values: []string{}},
 		},
 		{
+			title:  "legacy user.name trait alias",
+			in:     "{{user.name}}",
+			traits: map[string][]string{"name": {"alice-from-trait"}},
+			res:    result{values: []string{"alice-from-trait"}},
+		},
+		{
 			title:  "traits with prefix and suffix",
 			in:     "IAM#{{external.foo}};",
 			traits: map[string][]string{"foo": {"a", "b"}, "bar": {"c"}},
@@ -306,6 +312,41 @@ func TestInterpolate(t *testing.T) {
 			require.Equal(t, tt.res.values, values)
 		})
 	}
+}
+
+func TestInterpolateWithUser(t *testing.T) {
+	t.Parallel()
+
+	expr, err := NewTraitsTemplateExpression("hello-{{user.metadata.name}}")
+	require.NoError(t, err)
+
+	noVarValidation := func(string, string) error {
+		return nil
+	}
+
+	values, err := expr.InterpolateWithUser(noVarValidation, "alice", nil)
+	require.NoError(t, err)
+	require.Equal(t, []string{"hello-alice"}, values)
+
+	_, err = expr.InterpolateWithUser(noVarValidation, "", nil)
+	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
+}
+
+func TestInterpolateWithUserPreservesLegacyUserNameTrait(t *testing.T) {
+	t.Parallel()
+
+	expr, err := NewTraitsTemplateExpression("hello-{{user.name}}")
+	require.NoError(t, err)
+
+	noVarValidation := func(string, string) error {
+		return nil
+	}
+
+	values, err := expr.InterpolateWithUser(noVarValidation, "alice", map[string][]string{
+		"name": {"alice-from-trait"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"hello-alice-from-trait"}, values)
 }
 
 // TestVarValidation tests that vars are validated during interpolation.

@@ -135,7 +135,7 @@ func collectSystemMastersTeleportRoles(s *clusterSession) []string {
 	// defined for each user's role.
 	matchers = append(
 		matchers,
-		services.NewKubernetesClusterLabelMatcher(s.kubeClusterLabels, accessChecker.Traits()),
+		services.NewKubernetesClusterLabelMatcher(s.kubeClusterLabels, accessChecker.AccessInfo().Username, accessChecker.Traits()),
 	)
 
 	// If the kubeResource is available, append an extra matcher that validates

@@ -939,7 +939,10 @@ func (a *Server) calculateGithubUser(ctx context.Context, diagCtx *SSODiagContex
 	p.KubeUsers = p.Traits[constants.TraitKubeUsers]
 
 	// Pick smaller for role: session TTL from role or requested TTL.
-	roles, err := services.FetchRoles(p.Roles, a, p.Traits)
+	roles, err := services.FetchRolesWithContext(p.Roles, a, services.RoleTemplateContext{
+		Username: p.Username,
+		Traits:   p.Traits,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
