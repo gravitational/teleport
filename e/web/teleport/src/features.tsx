@@ -323,7 +323,7 @@ class FeatureNewAccessList implements TeleportFeature {
 }
 
 class FeatureDeviceTrust implements TeleportFeature {
-  category = NavigationCategory.IdentityGovernance;
+  category = NavigationCategory.ZeroTrustAccess;
 
   route = {
     title: 'Trusted Devices',
@@ -722,6 +722,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     // - Access
     new FeatureUsersE(),
     new FeatureRoles(),
+    new FeatureDeviceTrust(),
     new OSS.FeatureBots(),
     new OSS.FeatureBotDetails(),
     new OSS.FeatureBotInstances(),
@@ -747,7 +748,6 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new FeatureAccessAutomations(),
     new OSS.FeatureLocks(),
     new FeatureNewLock(),
-    new FeatureDeviceTrust(),
     new FeatureAccessMonitoring(),
 
     // - Audit
