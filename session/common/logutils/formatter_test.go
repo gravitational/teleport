@@ -89,7 +89,7 @@ func TestOutput(t *testing.T) {
 		// 2) the message
 		// 3) the fields
 		// 4) the caller
-		outputRegex := regexp.MustCompile(`(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)(\s+.*)(".*diag_addr\.")(.*)(\slog/formatter_test.go:\d{3})`)
+		outputRegex := regexp.MustCompile(`(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)(\s+.*)(".*diag_addr\.")(.*)(\slogutils/formatter_test.go:\d{3})`)
 
 		expectedFields := map[string]string{
 			"local":        addr.String(),
@@ -170,7 +170,7 @@ func TestOutput(t *testing.T) {
 				// Match the log message
 				assert.Equal(t, `"Adding diagnostic debugging handlers.\t To connect with profiler, use go tool pprof diag_addr."`, slogMatches[3], "expected output messages to be identical")
 				// The last matches are the caller information
-				assert.Equal(t, fmt.Sprintf(" log/formatter_test.go:%d", slogTestLogLineNumber), slogMatches[5])
+				assert.Equal(t, fmt.Sprintf(" logutils/formatter_test.go:%d", slogTestLogLineNumber), slogMatches[5])
 
 				// The third matches are the fields which will be key value pairs(animal:llama) separated by a space. Since
 				// slog doesn't sort the fields, we can't assert equality and instead build a map of the key
@@ -256,7 +256,7 @@ func TestOutput(t *testing.T) {
 				slogCaller, ok := slogData["caller"].(string)
 				delete(slogData, "caller")
 				assert.True(t, ok, "caller was missing from slog output")
-				assert.Equal(t, fmt.Sprintf("log/formatter_test.go:%d", slogTestLogLineNumber), slogCaller)
+				assert.Equal(t, fmt.Sprintf("logutils/formatter_test.go:%d", slogTestLogLineNumber), slogCaller)
 
 				slogLevel, ok := slogData["level"].(string)
 				delete(slogData, "level")
