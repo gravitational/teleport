@@ -194,7 +194,6 @@ func newDefaultConfig() *Config {
 			"teleport.lib.teleterm.v1.TerminalService.GetAccessRequests":       {},
 			"teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles":     {},
 			"teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists": {},
-			"teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers":       {},
 			"teleport.lib.teleterm.v1.TerminalService.ListGateways":            {},
 			"teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources": {},
 			"teleport.lib.teleterm.v1.TerminalService.ListLeafClusters":        {},

@@ -1397,6 +1397,11 @@ For all performance tests
  1) Verify that there are no memory/goroutine/file descriptor leaks
  2) Compare the baseline metrics with the previous release to determine if resource usage has increased
 
+
+Where applicable nodes used should be configured as follows:
+
+ 1) [Transparent hugepages](https://docs.kernel.org/admin-guide/mm/transhuge.html#global-thp-controls) disabled.
+
 ### Ansible-like Test
 
 Run the [ansible-like](https://github.com/gravitational/teleport/tree/4fd411add0c6fa7d4d0d19b1cf0c5c13c541498e/assets/loadtest/ansible-like)
