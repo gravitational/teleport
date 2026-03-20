@@ -1467,6 +1467,66 @@ func TestAuthPreferenceSettings(t *testing.T) {
 	require.Empty(t, cmp.Diff(upsertedAP, gotAP, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
+func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	srv := newTestTLSServer(t)
+	ctx := t.Context()
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	defer adminClient.Close()
+
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "empty-role",
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/test/scope"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-reader")
+	require.NoError(t, err)
+
+	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: user.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "empty-role", Scope: "/test/scope"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	scopedClt, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope"))
+	require.NoError(t, err)
+	defer scopedClt.Close()
+
+	want, err := srv.AuthServer.AuthServer.GetAuthPreference(ctx)
+	require.NoError(t, err)
+	got, err := scopedClt.GetAuthPreference(ctx)
+	require.NoError(t, err)
+	if err == nil {
+		require.Empty(t, cmp.Diff(want, got))
+	}
+}
+
 func TestTunnelConnectionsCRUD(t *testing.T) {
 	t.Parallel()
 

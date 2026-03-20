@@ -6457,10 +6457,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	recordingencryptionv1pb.RegisterRecordingEncryptionServiceServer(server, recordingEncryptionService)
 
 	clusterConfigService, err := clusterconfigv1.NewService(clusterconfigv1.ServiceConfig{
-		Cache:      cfg.AuthServer.Cache,
-		Backend:    cfg.AuthServer.Services,
-		Authorizer: cfg.Authorizer,
-		Emitter:    cfg.Emitter,
+		Cache:            cfg.AuthServer.Cache,
+		Backend:          cfg.AuthServer.Services,
+		Authorizer:       cfg.Authorizer,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Emitter:          cfg.Emitter,
 		AccessGraph: clusterconfigv1.AccessGraphConfig{
 			Enabled:  cfg.APIConfig.AccessGraph.Enabled,
 			CA:       cfg.APIConfig.AccessGraph.CA,
