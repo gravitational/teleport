@@ -1,0 +1,176 @@
+/*
+ * Teleport
+ * Copyright (C) 2026  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package delegationv1
+
+import (
+	"context"
+	"log/slog"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/internal/cert"
+	sessionreq "github.com/gravitational/teleport/lib/auth/internal/session"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
+)
+
+// SessionService manages DelegationSession resources.
+type SessionService struct {
+	delegationv1.UnimplementedDelegationSessionServiceServer
+
+	authorizer        authz.Authorizer
+	sessionReader     SessionReader
+	sessionWriter     SessionWriter
+	resourceLister    ResourceLister
+	roleGetter        services.RoleGetter
+	userGetter        services.UserOrLoginStateGetter
+	certGenerator     CertGenerator
+	clusterNameGetter ClusterNameGetter
+	appSessionCreator AppSessionCreator
+	logger            *slog.Logger
+}
+
+// SessionServiceConfig contains the configuration of the SessionService.
+type SessionServiceConfig struct {
+	// Authorizer is used to authorize the user.
+	Authorizer authz.Authorizer
+
+	// SessionReader is used to read delegation session resources.
+	SessionReader SessionReader
+
+	// SessionWriter is used to write session resources.
+	SessionWriter SessionWriter
+
+	// ResourceLister is used to list resources when checking permissions,
+	ResourceLister ResourceLister
+
+	// RoleGetter is used to read roles.
+	RoleGetter services.RoleGetter
+
+	// UserGetter is used to read users and user login states (which carry
+	// additional traits from external identity providers like GitHub).
+	UserGetter services.UserOrLoginStateGetter
+
+	// CertGenerator is used to generate delegation certificates.
+	CertGenerator CertGenerator
+
+	// ClusterNameGetter is used to get the local cluster name.
+	ClusterNameGetter ClusterNameGetter
+
+	// AppSessionCreator is used to create web sessions for application access.
+	AppSessionCreator AppSessionCreator
+
+	// Logger to which errors and messages are written.
+	Logger *slog.Logger
+}
+
+// SessionReader is used to read delegation session resources.
+type SessionReader interface {
+	GetDelegationSession(ctx context.Context, id string) (*delegationv1.DelegationSession, error)
+}
+
+// SessionWriter is used to write delegation session resources.
+type SessionWriter interface {
+	CreateDelegationSession(ctx context.Context, session *delegationv1.DelegationSession) (*delegationv1.DelegationSession, error)
+}
+
+// ResourceLister is used to list resources when checking permissions.
+type ResourceLister interface {
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
+// CertGenerator is used to generate delegation certificates.
+type CertGenerator interface {
+	Generate(ctx context.Context, req cert.Request) (*proto.Certs, error)
+}
+
+// CertGeneratorFunc allows you to use a function as a CertGenerator.
+type CertGeneratorFunc func(context.Context, cert.Request) (*proto.Certs, error)
+
+// Generate satisfies the CertGenerator interface.
+func (fn CertGeneratorFunc) Generate(ctx context.Context, req cert.Request) (*proto.Certs, error) {
+	return fn(ctx, req)
+}
+
+// ClusterNameGetter is used to get the local cluster name.
+type ClusterNameGetter interface {
+	GetClusterName(context.Context) (types.ClusterName, error)
+}
+
+// AppSessionCreator is used to create web sessions for application access.
+type AppSessionCreator interface {
+	CreateAppSession(context.Context, sessionreq.NewAppSessionRequest) (types.WebSession, error)
+}
+
+// AppSessionCreatorFunc allows you to use a function as an AppSessionCreator.
+type AppSessionCreatorFunc func(context.Context, sessionreq.NewAppSessionRequest) (types.WebSession, error)
+
+// CreateAppSession satisfies the AppSessionCreator interface.
+func (fn AppSessionCreatorFunc) CreateAppSession(ctx context.Context, req sessionreq.NewAppSessionRequest) (types.WebSession, error) {
+	return fn(ctx, req)
+}
+
+// NewSessionService creates a SessionService with the given configuration.
+func NewSessionService(cfg SessionServiceConfig) (*SessionService, error) {
+	if cfg.Authorizer == nil {
+		return nil, trace.BadParameter("missing parameter Authorizer")
+	}
+	if cfg.SessionReader == nil {
+		return nil, trace.BadParameter("missing parameter SessionReader")
+	}
+	if cfg.SessionWriter == nil {
+		return nil, trace.BadParameter("missing parameter SessionWriter")
+	}
+	if cfg.ResourceLister == nil {
+		return nil, trace.BadParameter("missing parameter ResourceLister")
+	}
+	if cfg.RoleGetter == nil {
+		return nil, trace.BadParameter("missing parameter RoleGetter")
+	}
+	if cfg.UserGetter == nil {
+		return nil, trace.BadParameter("missing parameter UserGetter")
+	}
+	if cfg.CertGenerator == nil {
+		return nil, trace.BadParameter("missing parameter CertGenerator")
+	}
+	if cfg.ClusterNameGetter == nil {
+		return nil, trace.BadParameter("missing parameter ClusterNameGetter")
+	}
+	if cfg.AppSessionCreator == nil {
+		return nil, trace.BadParameter("missing parameter AppSessionCreator")
+	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+	return &SessionService{
+		authorizer:        cfg.Authorizer,
+		sessionReader:     cfg.SessionReader,
+		sessionWriter:     cfg.SessionWriter,
+		resourceLister:    cfg.ResourceLister,
+		roleGetter:        cfg.RoleGetter,
+		userGetter:        cfg.UserGetter,
+		certGenerator:     cfg.CertGenerator,
+		appSessionCreator: cfg.AppSessionCreator,
+		clusterNameGetter: cfg.ClusterNameGetter,
+		logger:            cfg.Logger,
+	}, nil
+}
