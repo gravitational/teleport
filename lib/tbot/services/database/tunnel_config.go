@@ -51,6 +51,11 @@ type TunnelConfig struct {
 	// Username is the database username to proxy as.
 	Username string `yaml:"username"`
 
+	// DelegationSessionID optionally identifies the delegation session the
+	// generated credentials will be associated with, enabling the bot to act
+	// on a (human) user's behalf.
+	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
+
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
 	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`

@@ -37,9 +37,10 @@ func TestSSHMultiplexerService_YAML(t *testing.T) {
 				Destination: &destination.Directory{
 					Path: "/opt/machine-id",
 				},
-				EnableResumption:   ptr(true),
-				ProxyTemplatesPath: "/etc/teleport/templates",
-				ProxyCommand:       []string{"rusty-boi"},
+				EnableResumption:    ptr(true),
+				ProxyTemplatesPath:  "/etc/teleport/templates",
+				ProxyCommand:        []string{"rusty-boi"},
+				DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
