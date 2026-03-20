@@ -702,6 +702,8 @@ Example:
 found: 1
 enrolled: 1
 failed: 1
+sync_start: # See description
+sync_end: # See description
 ```
 
 |Field Name|Description|Type|
@@ -709,6 +711,8 @@ failed: 1
 |enrolled|Holds the count of the resources that were successfully enrolled.|number|
 |failed|Holds the count of the resources that failed to enroll.|number|
 |found|Holds the count of resources found. After a resource is found, it starts the sync process and ends in either an enrolled or a failed resource.|number|
+|sync_end|Timestamp of when discovering the resources ended.||
+|sync_start|Timestamp of when discovering the resources started.||
 
 ## Spec
 
