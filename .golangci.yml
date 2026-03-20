@@ -23,6 +23,16 @@ linters:
   settings:
     depguard:
       rules:
+        api_constants:
+          files:
+            - '!$test'
+            - '${config-path}/api/*.go'
+            - '${config-path}/api/constants/*.go'
+          allow:
+            - 'encoding/json$'
+            - 'github.com/coreos/go-semver/semver$'
+            - 'github.com/gravitational/trace$'
+            - 'time$'
         cgo:
           files:
             - '!$test'
@@ -187,6 +197,20 @@ linters:
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
             - pkg: github.com/zitadel/oidc$
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
+        session_module_prep:
+          files:
+            - '${config-path}/session/**'
+          list-mode: lax
+          allow:
+            - 'github.com/gravitational/teleport/api/constants$'
+            - 'github.com/gravitational/teleport/api$'
+            - 'github.com/gravitational/teleport/session/'
+            - 'github.com/gravitational/teleport/session$'
+          deny:
+            - pkg: 'github.com/gravitational/teleport/'
+              desc: the session submodule cannot import packages from the other modules
+            - pkg: 'github.com/gravitational/teleport$'
+              desc: the session submodule cannot import packages from the other modules
         test_packages:
           files:
             - '!**/e/lib/aws/identitycenter/test/**'
