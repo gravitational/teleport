@@ -202,6 +202,42 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
+	// verify that kube labels are well-formed
+	for _, label := range role.GetSpec().GetKube().GetLabels() {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// node labels. we likely will support such things in the future, but its best to disallow
+		// them until that has landed.
+
+		if strings.ContainsAny(label.GetName(), "{}^$") {
+			return trace.BadParameter("scoped role %q has invalid kube label name %q", role.GetMetadata().GetName(), label.GetName())
+		}
+		for _, value := range label.GetValues() {
+			if strings.ContainsAny(value, "{}^$") {
+				return trace.BadParameter("scoped role %q has invalid kube label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
+			}
+		}
+	}
+
+	// verify that kube groups are well-formed
+	for _, group := range role.GetSpec().GetKube().GetGroups() {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// kube groups. we likely will support substitution in the future, but its best to disallow
+		// it until that has landed.
+		if strings.ContainsAny(group, "{}^$*") {
+			return trace.BadParameter("scoped role %q has invalid kube group %q", role.GetMetadata().GetName(), group)
+		}
+	}
+
+	// verify that kube users are well-formed
+	for _, user := range role.GetSpec().GetKube().GetUsers() {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// kube users. we likely will support substitution in the future, but its best to disallow
+		// it until that has landed.
+		if strings.ContainsAny(user, "{}^$*") {
+			return trace.BadParameter("scoped role %q has invalid kube user %q", role.GetMetadata().GetName(), user)
+		}
+	}
+
 	// verify that scoped role converts to a valid unscoped role
 	if _, err := ScopedRoleToRole(role, role.GetScope()); err != nil {
 		return trace.BadParameter("scoped role %q is malformed: %v", role.GetMetadata().GetName(), err)
