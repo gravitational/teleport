@@ -30,7 +30,7 @@ import (
 	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/gravitational/teleport"
-	eventlogutils "github.com/gravitational/teleport/lib/utils/log/eventlog"
+	eventlogutils "github.com/gravitational/teleport/session/common/logutils/eventlog"
 )
 
 // InstallConfig defines parameters for installing a Windows service
