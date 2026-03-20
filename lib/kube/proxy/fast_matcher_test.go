@@ -210,6 +210,105 @@ func TestNewMatcher(t *testing.T) {
 	}
 }
 
+// TestNamespaceKindFallback verifies that namespace kind requests go through defaultMatcher
+// and produce correct results for all the special cases in KubeResourceMatchesRegex:
+// - pod rule in namespace "foo" → user can list namespace "foo"
+// - explicit namespace rule → matched by name
+// - wildcard kind with namespace swapping
+// If someone removes the namespace guard from newMatcher, these will fail.
+func TestNamespaceKindFallback(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		verb    string
+		allowed []types.KubernetesResource
+		denied  []types.KubernetesResource
+		input   types.KubernetesResource
+	}{
+		{
+			name: "pod rule grants read-only namespace visibility",
+			verb: types.KubeVerbList,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "production", Name: "*", Verbs: []string{types.Wildcard}},
+			},
+			input: types.KubernetesResource{Kind: "namespaces", Name: "production", Verbs: []string{types.KubeVerbList}},
+		},
+		{
+			name: "pod rule does not grant visibility to other namespaces",
+			verb: types.KubeVerbList,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "production", Name: "*", Verbs: []string{types.Wildcard}},
+			},
+			input: types.KubernetesResource{Kind: "namespaces", Name: "staging", Verbs: []string{types.KubeVerbList}},
+		},
+		{
+			name: "explicit namespace rule matched by name",
+			verb: types.KubeVerbGet,
+			allowed: []types.KubernetesResource{
+				{Kind: "namespaces", Name: "default", Verbs: []string{types.KubeVerbGet}},
+			},
+			input: types.KubernetesResource{Kind: "namespaces", Name: "default", Verbs: []string{types.KubeVerbGet}},
+		},
+		{
+			name: "explicit namespace rule does not match different name",
+			verb: types.KubeVerbGet,
+			allowed: []types.KubernetesResource{
+				{Kind: "namespaces", Name: "default", Verbs: []string{types.KubeVerbGet}},
+			},
+			input: types.KubernetesResource{Kind: "namespaces", Name: "staging", Verbs: []string{types.KubeVerbGet}},
+		},
+		{
+			name: "wildcard kind with wildcard namespace uses name as target",
+			verb: types.KubeVerbGet,
+			allowed: []types.KubernetesResource{
+				{Kind: types.Wildcard, APIGroup: types.Wildcard, Namespace: types.Wildcard, Name: types.Wildcard, Verbs: []string{types.Wildcard}},
+			},
+			input: types.KubernetesResource{Kind: "namespaces", Name: "anything", Verbs: []string{types.KubeVerbGet}},
+		},
+		{
+			name: "deny rule blocks namespace visibility",
+			verb: types.KubeVerbGet,
+			allowed: []types.KubernetesResource{
+				{Kind: types.Wildcard, APIGroup: types.Wildcard, Namespace: types.Wildcard, Name: types.Wildcard, Verbs: []string{types.Wildcard}},
+			},
+			denied: []types.KubernetesResource{
+				{Kind: types.Wildcard, APIGroup: types.Wildcard, Namespace: types.Wildcard, Name: types.Wildcard, Verbs: []string{types.Wildcard}},
+			},
+			input: types.KubernetesResource{Kind: "namespaces", Name: "default", Verbs: []string{types.KubeVerbGet}},
+		},
+		{
+			name: "pod rule does not grant write access to namespace",
+			verb: types.KubeVerbUpdate,
+			allowed: []types.KubernetesResource{
+				{Kind: types.KindKubePod, Namespace: "production", Name: "*", Verbs: []string{types.Wildcard}},
+			},
+			input: types.KubernetesResource{Kind: "namespaces", Name: "production", Verbs: []string{types.KubeVerbUpdate}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mr := metaResource{
+				requestedResource: apiResource{resourceKind: "namespaces"},
+				verb:              tt.verb,
+			}
+			log := slog.New(slog.DiscardHandler)
+			m := newMatcher(mr, tt.allowed, tt.denied, log)
+			require.IsType(t, &defaultMatcher{}, m)
+
+			expected, err := matchKubernetesResource(tt.input, true, tt.allowed, tt.denied)
+			require.NoError(t, err)
+
+			got, err := m.match(tt.input.Name, tt.input.Namespace, tt.input.APIGroup)
+			require.NoError(t, err)
+			require.Equal(t, expected, got)
+		})
+	}
+}
+
 // TestMatcherEquivalence verifies that fastMatcher and defaultMatcher produce the same results.
 // The original function is the source of truth, no hardcoded expected values.
 func TestMatcherEquivalence(t *testing.T) {
