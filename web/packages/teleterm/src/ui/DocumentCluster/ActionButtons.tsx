@@ -30,6 +30,7 @@ import {
   MenuItemSectionLabel,
   MenuItemSectionSeparator,
 } from 'design/Menu/MenuItem';
+import { HoverTooltip } from 'design/Tooltip';
 import { App, PortRange } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
@@ -56,7 +57,6 @@ import {
   isMcp,
   isWebApp,
 } from 'teleterm/services/tshd/app';
-import { GatewayProtocol } from 'teleterm/services/tshd/gateway';
 import { appToAddrToCopy } from 'teleterm/services/vnet/app';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -67,9 +67,7 @@ import {
   connectToWindowsDesktop,
   setUpAppGateway,
 } from 'teleterm/ui/services/workspacesService';
-import { IAppContext } from 'teleterm/ui/types';
-import { DatabaseUri, routing } from 'teleterm/ui/uri';
-import { retryWithRelogin } from 'teleterm/ui/utils';
+import { routing } from 'teleterm/ui/uri';
 import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
 
 /**
@@ -214,35 +212,27 @@ export function ConnectDatabaseActionButton(props: {
   database: Database;
 }): React.JSX.Element {
   const appContext = useAppContext();
+  const { database } = props;
+
+  const noUsersAvailable =
+    !database.wildcardUserAllowed && database.databaseUsers.length === 0;
 
   function connect(dbUser: string): void {
     const { uri, name, protocol, gcpProjectId, autoUserProvisioning } =
-      props.database;
-
+      database;
     connectToDatabase(
       appContext,
-      {
-        uri,
-        name,
-        protocol,
-        dbUser,
-        gcpProjectId,
-        autoUserProvisioning,
-      },
+      { uri, name, protocol, dbUser, gcpProjectId, autoUserProvisioning },
       { origin: 'resource_table' }
     );
   }
 
-  if (props.database.autoUserProvisioning) {
+  if (database.autoUserProvisioning) {
     return (
       <ButtonBorder
         size="small"
         onClick={async () => {
-          const dbUsers = await getDatabaseUsers(
-            appContext,
-            props.database.uri
-          );
-          const autoProvisionedDbUser = dbUsers[0].login;
+          const autoProvisionedDbUser = database.databaseUsers?.[0] ?? '';
           connect(autoProvisionedDbUser);
         }}
         textTransform="none"
@@ -253,18 +243,36 @@ export function ConnectDatabaseActionButton(props: {
     );
   }
 
+  if (noUsersAvailable) {
+    return (
+      <HoverTooltip tipContent="No db username available">
+        <ButtonBorder
+          disabled
+          size="small"
+          textTransform="none"
+          width={buttonWidth}
+        >
+          Connect
+        </ButtonBorder>
+      </HoverTooltip>
+    );
+  }
+
   return (
     <MenuLogin
-      {...getDatabaseMenuLoginOptions(
-        props.database.protocol as GatewayProtocol
-      )}
+      {...getDatabaseMenuLoginOptions(database)}
+      inputType={
+        !database.wildcardUserAllowed
+          ? MenuInputType.FILTER
+          : MenuInputType.INPUT
+      }
       textTransform="none"
       width="195px"
       buttonWidth={buttonWidth}
-      getLoginItems={() => getDatabaseUsers(appContext, props.database.uri)}
-      onSelect={(_, user) => {
-        connect(user);
-      }}
+      getLoginItems={() =>
+        database.databaseUsers.map(user => ({ login: user, url: '' }))
+      }
+      onSelect={(_, user) => connect(user)}
       transformOrigin={{
         vertical: 'top',
         horizontal: 'right',
@@ -278,8 +286,9 @@ export function ConnectDatabaseActionButton(props: {
 }
 
 function getDatabaseMenuLoginOptions(
-  protocol: GatewayProtocol
+  database: Database
 ): Pick<MenuLoginProps, 'placeholder' | 'required'> {
+  const { protocol, databaseUsers, wildcardUserAllowed } = database;
   if (protocol === 'redis') {
     return {
       placeholder: 'Enter username (optional)',
@@ -287,28 +296,12 @@ function getDatabaseMenuLoginOptions(
     };
   }
 
-  return {
-    placeholder: 'Enter username',
-    required: true,
-  };
-}
+  const placeholder =
+    !wildcardUserAllowed && databaseUsers.length > 0
+      ? 'Search by username'
+      : 'Enter username';
 
-async function getDatabaseUsers(appContext: IAppContext, dbUri: DatabaseUri) {
-  try {
-    const dbUsers = await retryWithRelogin(appContext, dbUri, () =>
-      appContext.resourcesService.getDbUsers(dbUri)
-    );
-    return dbUsers.map(user => ({ login: user, url: '' }));
-  } catch (e) {
-    // Emitting a warning instead of an error here because fetching those username suggestions is
-    // not the most important part of the app.
-    appContext.notificationsService.notifyWarning({
-      title: 'Could not fetch database usernames',
-      description: e.message,
-    });
-
-    throw e;
-  }
+  return { placeholder, required: true };
 }
 
 function AppButton(props: {

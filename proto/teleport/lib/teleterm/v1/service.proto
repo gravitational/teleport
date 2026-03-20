@@ -63,8 +63,6 @@ service TerminalService {
   // StartHeadlessWatcher starts a headless watcher.
   // If the watcher is already running, it is restarted.
   rpc StartHeadlessWatcher(StartHeadlessWatcherRequest) returns (StartHeadlessWatcherResponse);
-  // ListDatabaseUsers lists allowed users for the given database based on the role set.
-  rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
   // ListDatabaseServers lists allowed users for the given database based on the role set.
   rpc ListDatabaseServers(ListDatabaseServersRequest) returns (ListDatabaseServersResponse);
   // GetAccessRequests lists filtered AccessRequests
@@ -503,14 +501,6 @@ message ListClustersResponse {
 
 message ListLeafClustersRequest {
   string cluster_uri = 1;
-}
-
-message ListDatabaseUsersRequest {
-  string db_uri = 1;
-}
-
-message ListDatabaseUsersResponse {
-  repeated string users = 1;
 }
 
 // ListResourcesParams describes different types of params

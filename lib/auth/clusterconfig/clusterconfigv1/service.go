@@ -249,7 +249,7 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 		Status:             eventStatus(err),
 		AdminActionsMFA:    GetAdminActionsMFAStatus(original, req.AuthPreference),
 	}); auditErr != nil {
-		slog.WarnContext(ctx, "Failed to emit auth preference update event event.", "error", auditErr)
+		slog.WarnContext(ctx, "Failed to emit auth preference update event.", "error", auditErr)
 	}
 
 	// don't handle the update error until after we emit an audit event
@@ -317,7 +317,7 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 		Status:             eventStatus(err),
 		AdminActionsMFA:    GetAdminActionsMFAStatus(original, req.AuthPreference),
 	}); auditErr != nil {
-		slog.WarnContext(ctx, "Failed to emit auth preference update event event.", "error", auditErr)
+		slog.WarnContext(ctx, "Failed to emit auth preference update event.", "error", auditErr)
 	}
 
 	// don't handle the update error until after we emit an audit event
@@ -380,7 +380,7 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 			Status:             eventStatus(err),
 			AdminActionsMFA:    GetAdminActionsMFAStatus(pref, defaultPreference),
 		}); auditErr != nil {
-			slog.WarnContext(ctx, "Failed to emit auth preference update event event.", "error", auditErr)
+			slog.WarnContext(ctx, "Failed to emit auth preference update event.", "error", auditErr)
 		}
 
 		// don't handle the update error until after we emit an audit event
@@ -521,7 +521,7 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
 	}); err != nil {
-		slog.WarnContext(ctx, "Failed to emit cluster networking config update event event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit cluster networking config update event.", "error", err)
 	}
 
 	if err != nil {
@@ -586,7 +586,7 @@ func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *cluste
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
 	}); err != nil {
-		slog.WarnContext(ctx, "Failed to emit cluster networking config update event event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit cluster networking config update event.", "error", err)
 	}
 
 	if err != nil {
@@ -658,7 +658,7 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 			ConnectionMetadata: authz.ConnectionMetadata(ctx),
 			Status:             eventStatus(err),
 		}); err != nil {
-			slog.WarnContext(ctx, "Failed to emit cluster networking config update event event.", "error", err)
+			slog.WarnContext(ctx, "Failed to emit cluster networking config update event.", "error", err)
 		}
 
 		if err != nil {
@@ -808,7 +808,7 @@ func (s *Service) UpdateSessionRecordingConfig(ctx context.Context, req *cluster
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
 	}); err != nil {
-		slog.WarnContext(ctx, "Failed to emit session recording config update event event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit session recording config update event.", "error", err)
 	}
 
 	if err != nil {
@@ -858,7 +858,7 @@ func (s *Service) UpsertSessionRecordingConfig(ctx context.Context, req *cluster
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
 	}); err != nil {
-		slog.WarnContext(ctx, "Failed to emit session recording config update event event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit session recording config update event.", "error", err)
 	}
 
 	if err != nil {
@@ -920,7 +920,7 @@ func (s *Service) ResetSessionRecordingConfig(ctx context.Context, _ *clustercon
 			ConnectionMetadata: authz.ConnectionMetadata(ctx),
 			Status:             eventStatus(err),
 		}); err != nil {
-			slog.WarnContext(ctx, "Failed to emit session recording config update event event.", "error", err)
+			slog.WarnContext(ctx, "Failed to emit session recording config update event.", "error", err)
 		}
 
 		if err != nil {
