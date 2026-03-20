@@ -35,6 +35,7 @@ jobs:
               - 'go.mod'
               - 'go.sum'
               - '**.rs'
+              - 'rust-toolchain.toml'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'e2e/**'
