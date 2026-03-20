@@ -34,6 +34,8 @@ message ProvisionBeamRequest {
   string beam_id = 1;
   // Tbot contains the tbot configuration to use during provisioning.
   TbotConfig tbot = 2;
+  // BeamAlias is the user-friendly identifier for the beam.
+  string beam_alias = 3;
 }
 
 // ProvisionBeameResponse is the result of provisioning a beam.

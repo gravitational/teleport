@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -31,6 +32,8 @@ import (
 type BeamReader interface {
 	// GetBeam fetches a beam by name.
 	GetBeam(ctx context.Context, name string) (*beamsv1.Beam, error)
+	// GetBeamByAlias fetches a beam by alias.
+	GetBeamByAlias(ctx context.Context, alias string) (*beamsv1.Beam, error)
 	// ListBeams lists beams with pagination.
 	ListBeams(ctx context.Context, limit int, startKey string) ([]*beamsv1.Beam, string, error)
 }
@@ -47,6 +50,10 @@ type Beams interface {
 	UpsertBeam(ctx context.Context, in *beamsv1.Beam) (*beamsv1.Beam, error)
 	// DeleteBeam deletes a beam.
 	DeleteBeam(ctx context.Context, name string) error
+	// CreateBeamAliasLease creates an alias lease for a beam.
+	CreateBeamAliasLease(ctx context.Context, alias, beamID string, expiry time.Time) error
+	// DeleteBeamAliasLease deletes an alias lease for a beam.
+	DeleteBeamAliasLease(ctx context.Context, alias string) error
 }
 
 // ValidateBeam validates the given beam resource.

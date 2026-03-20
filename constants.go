@@ -788,6 +788,10 @@ const (
 	// PresetMCPUserRoleName is a name of a preset role that allows
 	// accessing MCP servers.
 	PresetMCPUserRoleName = "mcp-user"
+
+	// PresetBeamsUserRoleName is a name of a preset role that allows
+	// users to access their own Beams resources.
+	PresetBeamsUserRoleName = "beams-user"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}

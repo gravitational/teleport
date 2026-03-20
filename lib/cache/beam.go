@@ -34,7 +34,10 @@ import (
 
 type beamIndex string
 
-const beamNameIndex beamIndex = "name"
+const (
+	beamNameIndex  beamIndex = "name"
+	beamAliasIndex beamIndex = "alias"
+)
 
 func newBeamCollection(upstream services.BeamReader, w types.WatchKind) (*collection[*beamsv1.Beam, beamIndex], error) {
 	if upstream == nil {
@@ -49,6 +52,7 @@ func newBeamCollection(upstream services.BeamReader, w types.WatchKind) (*collec
 				beamNameIndex: func(r *beamsv1.Beam) string {
 					return r.GetMetadata().GetName()
 				},
+				beamAliasIndex: beamAliasIndexKey,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*beamsv1.Beam, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListBeams))
@@ -65,6 +69,14 @@ func newBeamCollection(upstream services.BeamReader, w types.WatchKind) (*collec
 		},
 		watch: w,
 	}, nil
+}
+
+func beamAliasIndexKey(r *beamsv1.Beam) string {
+	if alias := r.GetStatus().GetAlias(); alias != "" {
+		return alias
+	}
+	// TODO(boxofrad): Remove this once pre-alias beams have expired.
+	return "!" + r.GetMetadata().GetName()
 }
 
 // ListBeams lists beams with pagination.
@@ -98,5 +110,20 @@ func (c *Cache) GetBeam(ctx context.Context, name string) (*beamsv1.Beam, error)
 		upstreamGet: c.Config.Beams.GetBeam,
 	}
 	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
+}
+
+// GetBeamByAlias fetches a beam by alias.
+func (c *Cache) GetBeamByAlias(ctx context.Context, alias string) (*beamsv1.Beam, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetBeamByAlias")
+	defer span.End()
+
+	getter := genericGetter[*beamsv1.Beam, beamIndex]{
+		cache:       c,
+		collection:  c.collections.beams,
+		index:       beamAliasIndex,
+		upstreamGet: c.Config.Beams.GetBeamByAlias,
+	}
+	out, err := getter.get(ctx, alias)
 	return out, trace.Wrap(err)
 }

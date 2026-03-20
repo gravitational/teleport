@@ -16,8 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createElement, useMemo, type ReactNode } from 'react';
+import {
+  createElement,
+  PropsWithChildren,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import styled from 'styled-components';
+
+import Flex from 'design/Flex';
+import { ChevronCircleDown, ChevronCircleUp } from 'design/Icon';
+import { P2 } from 'design/Text';
 
 export interface MarkdownOptions {
   /**
@@ -248,6 +258,27 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       continue;
     }
 
+    if (line.trim().startsWith('^^^')) {
+      const content: string[] = [];
+      i += 1; // skip the opening fence
+
+      while (i < lines.length && !lines[i].trim().startsWith('^^^')) {
+        content.push(lines[i]);
+        i += 1;
+      }
+
+      // Skip the closing fence if we found one.
+      if (i < lines.length) {
+        i += 1;
+      }
+
+      items.push(
+        <Section title={line.trim().split('^^^')[1] ?? 'Expand'}>
+          <Markdown text={content.join('\n')} />
+        </Section>
+      );
+    }
+
     const paragraphLines: string[] = [];
     const startI = i;
 
@@ -296,3 +327,34 @@ export function Markdown({ text, ...options }: MarkdownProps) {
     [text, ...Object.values(options)]
   );
 }
+
+function Section(props: { title: string } & PropsWithChildren) {
+  const { children, title } = props;
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <SectionContainer>
+      <SectionHeadingContainer onClick={() => setExpanded(prev => !prev)}>
+        <P2>
+          <strong>{title}</strong>
+        </P2>
+        {expanded ? <ChevronCircleUp /> : <ChevronCircleDown />}
+      </SectionHeadingContainer>
+      {expanded ? (
+        <SectionContentContainer>{children}</SectionContentContainer>
+      ) : undefined}
+    </SectionContainer>
+  );
+}
+
+const SectionContainer = styled.div``;
+
+const SectionHeadingContainer = styled(Flex)`
+  cursor: pointer;
+  gap: ${({ theme }) => theme.space[2]}px;
+`;
+
+const SectionContentContainer = styled.div`
+  padding-left: ${({ theme }) => theme.space[3]}px;
+  border-left: 4px solid
+    ${({ theme }) => theme.colors.interactive.tonal.neutral[0]};
+`;

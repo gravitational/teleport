@@ -280,6 +280,8 @@ type CLIConf struct {
 	BeamConsole bool
 	// BeamTCP switches "tsh beams publish" from HTTP to TCP protocol.
 	BeamTCP bool
+	// BeamCopySpec stores `tsh beams cp` source and destination paths.
+	BeamCopySpec []string
 	// BeamLocalPath is the local filesystem path used by `tsh beams push/pull`.
 	BeamLocalPath string
 	// BeamRemotePath is the remote filesystem path used by `tsh beams push/pull`.
@@ -1071,6 +1073,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beamsPublish.Arg("beam-id", "Beam ID to publish.").Required().StringVar(&cf.BeamID)
 	beamsPublish.Flag("tcp", "Publish as a TCP app instead of an HTTP app.").BoolVar(&cf.BeamTCP)
 	beamsPublish.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
+	beamsCP := beams.Command("cp", "Copy files between the local filesystem and a running beam environment.")
+	beamsCP.Arg("src, dest", "Source and destination to copy; exactly one must use the form BEAM_ID:PATH.").Required().StringsVar(&cf.BeamCopySpec)
+	beamsCP.Flag("recursive", "Recursive copy of subdirectories.").Short('r').BoolVar(&cf.RecursiveCopy)
+	beamsCP.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
 	beamsPush := beams.Command("push", "Copy a local file to a running beam environment.")
 	beamsPush.Arg("name", "Name of the beam to target.").Required().StringVar(&cf.BeamID)
 	beamsPush.Flag("local", "Local file to copy.").Required().StringVar(&cf.BeamLocalPath)
@@ -1854,6 +1860,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onBeamsAllow(&cf)
 	case beamsPublish.FullCommand():
 		err = onBeamsPublish(&cf)
+	case beamsCP.FullCommand():
+		err = onBeamsCopy(&cf)
 	case beamsPush.FullCommand():
 		err = onBeamsPush(&cf)
 	case beamsPull.FullCommand():

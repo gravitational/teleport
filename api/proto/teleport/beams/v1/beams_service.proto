@@ -55,8 +55,13 @@ message CreateBeamRequest {}
 
 // GetBeamRequest contains the parameters to GetBeam.
 message GetBeamRequest {
-  // BeamID identifies the beam that will be read.
-  string beam_id = 1;
+  oneof selector {
+    // ID identifies the beam that will be read.
+    string id = 1;
+
+    // Alias identifies the beam that will be read.
+    string alias = 2;
+  }
 }
 
 // DeleteBeamRequest contains the parameters to DeleteBeam.

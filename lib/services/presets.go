@@ -865,6 +865,37 @@ func NewPresetMCPUserRole() types.Role {
 	return role
 }
 
+// NewPresetBeamsUserRole returns a new pre-defined role that allows users to
+// access their own Beams (https://www.beams.sh/) resources.
+func NewPresetBeamsUserRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetBeamsUserRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Access Beams resources",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				// Allow SSH login as the beams OS user on beam nodes owned by this user.
+				Logins: []string{"beams"},
+				NodeLabels: types.Labels{
+					"teleport.internal/beam/owner": []string{"{{internal.username}}"},
+				},
+				// Allow access to LLM/egress beam apps, plus any app owned by this user.
+				AppLabelsExpression: `labels["teleport.internal/beams/app-type"] == "llm" || ` +
+					`labels["teleport.internal/beams/app-type"] == "egress" || ` +
+					`contains(user.spec.traits.username, labels["teleport.internal/beam/owner"])`,
+			},
+		},
+	}
+	return role
+}
+
 // VirtualDefaultHealthCheckConfigDB returns a health_check_config enabling
 // health checks for all databases resources, and is intended to be used as a
 // virtual default resource. Its name is "default" for historical reasons.

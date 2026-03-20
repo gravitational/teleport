@@ -42,7 +42,9 @@ type ProvisionBeamRequest struct {
 	// BeamID uniquely identifies the beam.
 	BeamId string `protobuf:"bytes,1,opt,name=beam_id,json=beamId,proto3" json:"beam_id,omitempty"`
 	// Tbot contains the tbot configuration to use during provisioning.
-	Tbot          *TbotConfig `protobuf:"bytes,2,opt,name=tbot,proto3" json:"tbot,omitempty"`
+	Tbot *TbotConfig `protobuf:"bytes,2,opt,name=tbot,proto3" json:"tbot,omitempty"`
+	// BeamAlias is the user-friendly identifier for the beam.
+	BeamAlias     string `protobuf:"bytes,3,opt,name=beam_alias,json=beamAlias,proto3" json:"beam_alias,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -89,6 +91,13 @@ func (x *ProvisionBeamRequest) GetTbot() *TbotConfig {
 		return x.Tbot
 	}
 	return nil
+}
+
+func (x *ProvisionBeamRequest) GetBeamAlias() string {
+	if x != nil {
+		return x.BeamAlias
+	}
+	return ""
 }
 
 // ProvisionBeameResponse is the result of provisioning a beam.
@@ -292,10 +301,12 @@ var File_teleport_beams_v1_beams_orchestrator_service_proto protoreflect.FileDes
 
 const file_teleport_beams_v1_beams_orchestrator_service_proto_rawDesc = "" +
 	"\n" +
-	"2teleport/beams/v1/beams_orchestrator_service.proto\x12\x11teleport.beams.v1\x1a\x1bgoogle/protobuf/empty.proto\"b\n" +
+	"2teleport/beams/v1/beams_orchestrator_service.proto\x12\x11teleport.beams.v1\x1a\x1bgoogle/protobuf/empty.proto\"\x81\x01\n" +
 	"\x14ProvisionBeamRequest\x12\x17\n" +
 	"\abeam_id\x18\x01 \x01(\tR\x06beamId\x121\n" +
-	"\x04tbot\x18\x02 \x01(\v2\x1d.teleport.beams.v1.TbotConfigR\x04tbot\"x\n" +
+	"\x04tbot\x18\x02 \x01(\v2\x1d.teleport.beams.v1.TbotConfigR\x04tbot\x12\x1d\n" +
+	"\n" +
+	"beam_alias\x18\x03 \x01(\tR\tbeamAlias\"x\n" +
 	"\x15ProvisionBeamResponse\x12\x19\n" +
 	"\bssh_addr\x18\x01 \x01(\tR\asshAddr\x12\"\n" +
 	"\rapp_addr_http\x18\x02 \x01(\tR\vappAddrHttp\x12 \n" +
