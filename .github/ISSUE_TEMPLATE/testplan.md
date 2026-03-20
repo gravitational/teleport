@@ -131,6 +131,10 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] AWS integration tests are passing
   - [ ] Audit log with Firestore
     - [ ] GCP integration tests are passing
+  - [ ] Audit log with PostgresSQL
+    - [ ] PostgresSQL integration tests are passing
+  - [ ] Audit log with Athena
+    - [ ] Athena integration tests are passing
   - [ ] Failed login attempts are recorded
   - [ ] Interactive sessions have the correct Server ID
     - [ ] `server_id` is the ID of the node in "session_recording: node" mode
