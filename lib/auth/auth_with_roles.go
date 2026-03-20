@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
+	sessionreq "github.com/gravitational/teleport/lib/auth/internal/session"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -74,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -3783,8 +3785,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if req.RouteToApp.Name != "" {
 		// Create a new app session using the same cert request. The user certs
 		// generated below will be linked to this session by the session ID.
-		ws, err := a.authServer.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
-			NewWebSessionRequest: NewWebSessionRequest{
+		ws, err := a.authServer.CreateAppSessionFromReq(ctx, sessionreq.NewAppSessionRequest{
+			NewWebSessionRequest: sessionreq.NewWebSessionRequest{
 				User:           req.Username,
 				LoginIP:        a.context.Identity.GetIdentity().LoginIP,
 				SessionTTL:     req.Expires.Sub(a.authServer.GetClock().Now()),
@@ -3803,7 +3805,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AzureIdentity:     req.RouteToApp.AzureIdentity,
 			GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
 			MFAVerified:       verifiedMFADeviceID,
-			DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
+			DeviceExtensions:  tlsca.DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
 			AppName:           req.RouteToApp.Name,
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
