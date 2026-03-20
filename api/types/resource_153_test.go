@@ -21,6 +21,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -329,5 +330,65 @@ func TestLegacyMetadataToResource(t *testing.T) {
 		require.Equal(t, chal.GetSubKind(), resource.GetSubKind())
 		require.Equal(t, chal.GetVersion(), resource.GetVersion())
 		require.Equal(t, types.Metadata{}, resource.GetMetadata())
+	})
+}
+
+func TestConvertResource(t *testing.T) {
+	t.Run("returns resource on direct type assertion", func(t *testing.T) {
+		user := &types.UserV2{
+			Kind: types.KindUser,
+			Metadata: types.Metadata{
+				Name: "alice",
+			},
+		}
+
+		converted, err := types.ConvertResource[*types.UserV2](user)
+		require.NoError(t, err)
+		require.Same(t, user, converted)
+	})
+
+	t.Run("unwraps resource153 adapter", func(t *testing.T) {
+		bot := &machineidv1.Bot{
+			Kind: types.KindBot,
+			Metadata: &headerv1.Metadata{
+				Name: "bernard",
+			},
+		}
+
+		resource := types.Resource153ToLegacy(bot)
+
+		converted, err := types.ConvertResource[*machineidv1.Bot](resource)
+		require.NoError(t, err)
+		require.Same(t, bot, converted)
+	})
+
+	t.Run("unwraps legacy metadata adapter", func(t *testing.T) {
+		chal := &mfav1.ValidatedMFAChallenge{
+			Kind: types.KindValidatedMFAChallenge,
+			Metadata: &types.Metadata{
+				Name: "challenge",
+			},
+		}
+
+		resource := types.LegacyMetadataToResource(chal)
+
+		converted, err := types.ConvertResource[*mfav1.ValidatedMFAChallenge](resource)
+		require.NoError(t, err)
+		require.Same(t, chal, converted)
+	})
+
+	t.Run("returns bad parameter on mismatched type", func(t *testing.T) {
+		user := &types.UserV2{
+			Kind: types.KindUser,
+			Metadata: types.Metadata{
+				Name: "changeling",
+			},
+		}
+
+		converted, err := types.ConvertResource[*machineidv1.Bot](user)
+		require.Nil(t, converted)
+
+		var expected *machineidv1.Bot
+		require.ErrorIs(t, err, trace.BadParameter("expected resource type %T, got %T", expected, user))
 	})
 }

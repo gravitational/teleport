@@ -50,6 +50,20 @@ func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Even
 	return ev
 }
 
+func requireNoEvent(t *testing.T, w types.Watcher, timeout time.Duration) {
+	t.Helper()
+
+	select {
+	case event := <-w.Events():
+		require.Fail(t, "Expected not to receive an event", event)
+
+	case <-w.Done():
+		require.Fail(t, "Watcher exited while waiting for no event", w.Error())
+
+	case <-time.After(timeout):
+	}
+}
+
 func newTestContext(t *testing.T) context.Context {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -212,46 +226,56 @@ func TestWatchers(t *testing.T) {
 			},
 		},
 		{
-			name: "validated MFA challenge PUT",
-			kind: types.KindValidatedMFAChallenge,
-			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
-				svc, err := NewMFAService(backend)
+			name:   "validated MFA challenge PUT",
+			kind:   types.KindValidatedMFAChallenge,
+			filter: (&types.ValidatedMFAChallengeFilter{TargetCluster: "leaf-a.example.com"}).IntoMap(),
+			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, bk backend.Backend) {
+				svc, err := NewMFAService(bk)
 				require.NoError(subtestT, err)
 
-				_, err = svc.CreateValidatedMFAChallenge(subtestCtx, "leaf.example.com", &mfav1.ValidatedMFAChallenge{
-					Kind:    types.KindValidatedMFAChallenge,
-					Version: types.V1,
-					Metadata: &types.Metadata{
-						Name: "challenge-1",
-					},
-					Spec: &mfav1.ValidatedMFAChallengeSpec{
-						Payload: &mfav1.SessionIdentifyingPayload{
-							Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("session-id")},
+				for _, chal := range []struct {
+					name          string
+					targetCluster string
+				}{
+					{name: "challenge-a", targetCluster: "leaf-a.example.com"},
+					{name: "challenge-b", targetCluster: "leaf-b.example.com"},
+				} {
+					_, err = svc.CreateValidatedMFAChallenge(subtestCtx, chal.targetCluster, &mfav1.ValidatedMFAChallenge{
+						Kind:    types.KindValidatedMFAChallenge,
+						Version: types.V1,
+						Metadata: &types.Metadata{
+							Name: chal.name,
 						},
-						SourceCluster: "root.example.com",
-						TargetCluster: "leaf.example.com",
-						Username:      "alice",
-					},
-				})
-				require.NoError(subtestT, err)
+						Spec: &mfav1.ValidatedMFAChallengeSpec{
+							Payload: &mfav1.SessionIdentifyingPayload{
+								Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("session-id")},
+							},
+							SourceCluster: "root.example.com",
+							TargetCluster: chal.targetCluster,
+							Username:      "alice",
+						},
+					})
+					require.NoError(subtestT, err)
+				}
 			},
 			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
 				event := fetchEvent(subtestT, watcher, fetchTimeout)
 				require.Equal(subtestT, types.OpPut, event.Type)
 
-				unwrapper, ok := event.Resource.(interface {
-					UnwrapT() *mfav1.ValidatedMFAChallenge
-				})
-				require.True(subtestT, ok)
-				chal := unwrapper.UnwrapT()
-				require.Equal(subtestT, types.KindValidatedMFAChallenge, chal.Kind)
-				require.Equal(subtestT, "challenge-1", chal.GetMetadata().GetName())
-				require.Equal(subtestT, "leaf.example.com", chal.GetSpec().GetTargetCluster())
+				chal, err := types.ConvertResource[*mfav1.ValidatedMFAChallenge](event.Resource)
+				require.NoError(subtestT, err)
+
+				require.Equal(subtestT, "challenge-a", chal.GetMetadata().GetName())
+				require.Equal(subtestT, "leaf-a.example.com", chal.GetSpec().GetTargetCluster())
+
+				// Ensure that we don't receive an event for the non-matching challenge.
+				requireNoEvent(subtestT, watcher, fetchTimeout)
 			},
 		},
 		{
-			name: "validated MFA challenge DELETE",
-			kind: types.KindValidatedMFAChallenge,
+			name:   "validated MFA challenge DELETE",
+			kind:   types.KindValidatedMFAChallenge,
+			filter: (&types.ValidatedMFAChallengeFilter{TargetCluster: "leaf.example.com"}).IntoMap(),
 			init: func(subtestCtx context.Context, subtestT *testing.T, bk backend.Backend) {
 				svc, err := NewMFAService(bk)
 				require.NoError(subtestT, err)
@@ -281,18 +305,12 @@ func TestWatchers(t *testing.T) {
 				event := fetchEvent(subtestT, watcher, fetchTimeout)
 				require.Equal(subtestT, types.OpDelete, event.Type)
 
-				unwrapper, ok := event.Resource.(interface {
-					UnwrapT() *mfav1.ValidatedMFAChallenge
-				})
-				require.True(subtestT, ok)
+				chal, err := types.ConvertResource[*mfav1.ValidatedMFAChallenge](event.Resource)
+				require.NoError(subtestT, err)
 
-				chal := unwrapper.UnwrapT()
 				require.Equal(subtestT, types.KindValidatedMFAChallenge, chal.GetKind())
 				require.Equal(subtestT, "challenge-1", chal.GetMetadata().GetName())
 				require.Equal(subtestT, "leaf.example.com", chal.GetSpec().GetTargetCluster())
-				require.Empty(subtestT, chal.GetSpec().GetSourceCluster())
-				require.Empty(subtestT, chal.GetSpec().GetUsername())
-				require.Nil(subtestT, chal.GetSpec().GetPayload())
 			},
 		},
 	}
