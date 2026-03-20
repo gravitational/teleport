@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows/svc/eventlog"
 
-	eventlogutils "github.com/gravitational/teleport/lib/utils/log/eventlog"
+	eventlogutils "github.com/gravitational/teleport/session/common/logutils/eventlog"
 )
 
 // NewSlogEventLogHandler creates a new slog handler that writes to the Windows Event Log as source.

@@ -22,7 +22,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/utils/log/oslog"
+	"github.com/gravitational/teleport/session/common/logutils/oslog"
 )
 
 // NewSlogOSLogHandler creates a SlogTextHandler that writes messages to os_log as subsystem.

@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/darwinbundle"
-	"github.com/gravitational/teleport/lib/utils/log/oslog"
+	"github.com/gravitational/teleport/session/common/logutils/oslog"
 )
 
 func getPlatformInitLoggerOpts(cf *CLIConf) []utils.LoggerOption {

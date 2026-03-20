@@ -21,7 +21,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/utils/log"
+	log "github.com/gravitational/teleport/session/common/logutils"
 )
 
 var initLoggerOnce = sync.Once{}
