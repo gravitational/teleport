@@ -483,7 +483,7 @@ linters:
       - linters:
           - forbidigo
         path: examples/dynamoathenamigration/migration.go
-        text: LoadDefaultConfig'
+        text: LoadDefaultConfig
       - linters:
           - forbidigo
         path: e/scripts/loadtest-login/main.go
