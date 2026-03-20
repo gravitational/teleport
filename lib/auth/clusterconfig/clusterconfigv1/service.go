@@ -156,6 +156,8 @@ func (s *Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetA
 		return nil, trace.Wrap(err)
 	}
 
+	// Use RiskyUnpinnedDecision to allow scoped identities (regardless of their
+	// scope pin) to call GetAuthPreference.
 	ruleCtx := authzCtx.RuleContext()
 	if err := authzCtx.CheckerContext.RiskyUnpinnedDecision(
 		ctx,
