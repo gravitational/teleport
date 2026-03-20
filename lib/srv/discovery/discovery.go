@@ -459,6 +459,11 @@ type Server struct {
 
 	// azureClientCache caches instances of integration-specific Azure clients.
 	azureClientCache *utils.FnCache
+
+	// azureSubscriptionCache caches integration-to-subscription-list mapping.
+	// This cache avoids repeated API calls when multiple discovery matchers for
+	// the same integration use a wildcard subscription.
+	azureSubscriptionCache *utils.FnCache
 }
 
 // New initializes a discovery Server
@@ -756,7 +761,56 @@ func (s *Server) azureServerFetchersFromMatchers(matchers []types.AzureMatcher, 
 		return matcherType == types.AzureMatcherVM
 	})
 
-	return server.MatchersToAzureInstanceFetchers(s.Log, serverMatchers, s.getAzureClients, discoveryConfigName)
+	return server.MatchersToAzureInstanceFetchers(s.ctx, s.Log, serverMatchers, s.getAzureClients, discoveryConfigName, s.getAzureSubscriptionList)
+}
+
+func (s *Server) getAzureSubscriptionListNoCache(ctx context.Context, integration string) ([]string, error) {
+	azureClients, err := s.getAzureClients(ctx, integration)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	subsClient, err := azureClients.GetSubscriptionClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	subscriptions, err := subsClient.ListSubscriptionIDs(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return subscriptions, nil
+}
+
+func (s *Server) getAzureSubscriptionList(ctx context.Context, integration string) ([]string, error) {
+	err := func() error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.azureSubscriptionCache == nil {
+			azureSubscriptionCache, err := utils.NewFnCache(utils.FnCacheConfig{
+				// Making an API call to list subscriptions at most once per
+				// minute is fine and limits the delay before changes to Azure
+				// permissions or subscriptions are seen by discovery services.
+				TTL:   time.Minute,
+				Clock: s.clock,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			s.azureSubscriptionCache = azureSubscriptionCache
+		}
+		return nil
+	}()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out, err := utils.FnCacheGet(ctx, s.azureSubscriptionCache, integration, func(ctx context.Context) ([]string, error) {
+		return s.getAzureSubscriptionListNoCache(ctx, integration)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
 }
 
 // gcpServerFetchersFromMatchers converts Matchers into a set of GCP Servers Fetchers.
@@ -1441,20 +1495,25 @@ func (s *Server) startAzureServerDiscovery() {
 
 	var azureWatcher *server.Watcher[*server.AzureInstances]
 
-	// static fetchers; can be cached, any changes require service restart.
-	staticFetchers := s.azureServerFetchersFromMatchers(s.Matchers.Azure, noDiscoveryConfig)
-
 	// a full refresh is somewhat wasteful, however not overly so due to inexpensive operations involved.
 	// a more selective approach would necessitate deeper refactoring.
 	fullRefresh := func() {
+		s.Log.DebugContext(s.ctx, "Refreshing Azure server fetchers")
 		replaceMap := make(map[string][]server.Fetcher[*server.AzureInstances])
-		replaceMap[noDiscoveryConfig] = staticFetchers
+		replaceMap[noDiscoveryConfig] = s.azureServerFetchersFromMatchers(s.Matchers.Azure, noDiscoveryConfig)
 
 		s.dynamicDiscoveryConfigMu.RLock()
+		// avoid holding the read lock while converting matchers to fetchers,
+		// in case of API calls, e.g., to expand subscription wildcard.
+		dynamicConfigs := make(map[string][]types.AzureMatcher, len(s.dynamicDiscoveryConfig))
 		for _, config := range s.dynamicDiscoveryConfig {
-			replaceMap[config.GetName()] = s.azureServerFetchersFromMatchers(config.Spec.Azure, config.GetName())
+			dynamicConfigs[config.GetName()] = config.Spec.Azure
 		}
 		s.dynamicDiscoveryConfigMu.RUnlock()
+
+		for configName, matchers := range dynamicConfigs {
+			replaceMap[configName] = s.azureServerFetchersFromMatchers(matchers, configName)
+		}
 		azureWatcher.ReplaceFetchers(replaceMap)
 	}
 
@@ -1501,6 +1560,8 @@ func (s *Server) startAzureServerDiscovery() {
 			}
 		}),
 		server.WithPostFetchHookFn[*server.AzureInstances](func() {
+			// refresh the fetchers after every iteration to avoid stale config
+			defer fullRefresh()
 			// update statuses of relevant discovery configs.
 			s.azureVMStatus.Store(sm)
 			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
@@ -2096,6 +2157,9 @@ func (s *Server) Wait() error {
 func (s *Server) getAzureSubscriptions(ctx context.Context, integration string, subs []string) ([]string, error) {
 	subscriptionIds := subs
 	if slices.Contains(subs, types.Wildcard) {
+		// TODO(gavin): instead of listing subscriptions during init, do it
+		// on every fetch to prevent stale discovery configuration when
+		// subscriptions are added or removed
 		azureClients, err := s.getAzureClients(ctx, integration)
 		if err != nil {
 			return nil, trace.Wrap(err)
