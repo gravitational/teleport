@@ -39,7 +39,7 @@ export async function launchApp(homeDir: string) {
   );
   const executablePath = requireFromApp('electron');
 
-  const app = await electron.launch({
+  const electronApp = await electron.launch({
     executablePath,
     args: [connectAppDir, '--insecure'],
     env: {
@@ -51,12 +51,16 @@ export async function launchApp(homeDir: string) {
   });
 
   try {
-    const page = await app.firstWindow();
+    const page = await electronApp.firstWindow();
     await page.waitForLoadState('domcontentloaded');
 
-    return { app, page, [Symbol.asyncDispose]: async () => app.close() };
+    return {
+      electronApp,
+      page,
+      [Symbol.asyncDispose]: async () => electronApp.close(),
+    };
   } catch (err) {
-    await app.close();
+    await electronApp.close();
     throw err;
   }
 }
@@ -104,7 +108,7 @@ export const test = base.extend<{
       await login(launchedApp.page);
     }
     await use({
-      electronApp: launchedApp.app,
+      electronApp: launchedApp.electronApp,
       page: launchedApp.page,
       appConfigPath,
     });

@@ -531,6 +531,58 @@ describe('setActiveWorkspace', () => {
 
     expect(workspacesService.getRootClusterUri()).toStrictEqual(clusterBar.uri);
   });
+
+  it('opens the documents-reopen dialog in the same tick as setting rootClusterUri', async () => {
+    const cluster = makeRootCluster();
+    const testWorkspace: PersistedWorkspace = {
+      localClusterUri: cluster.uri,
+      documents: [
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/terminal_shell_uri',
+          title: '/Users/alice/Documents',
+        },
+      ],
+      location: '/docs/terminal_shell_uri',
+    };
+
+    const { workspacesService, modalsService } = getTestSetup({
+      cluster,
+      persistedWorkspaces: { [cluster.uri]: testWorkspace },
+    });
+
+    workspacesService.restorePersistedState();
+
+    // Queue a microtask before starting activation. If an await is ever introduced between setting
+    // rootClusterUri and opening the dialog, this microtask will execute before the dialog opens,
+    // causing the assertion below to fail. This invariant matters because e2e tests rely on React
+    // rendering rootClusterUri and the dialog in the same batch.
+    let microtaskRan = false;
+    queueMicrotask(() => {
+      microtaskRan = true;
+    });
+
+    jest
+      .spyOn(modalsService, 'openRegularDialog')
+      .mockImplementation(dialog => {
+        expect(dialog.kind).toEqual('documents-reopen');
+        expect(microtaskRan).toBe(false);
+        expect(workspacesService.getRootClusterUri()).toBe(cluster.uri);
+        if (dialog.kind === 'documents-reopen') {
+          dialog.onDiscard();
+        }
+
+        return {
+          closeDialog: () => {},
+        };
+      });
+
+    await workspacesService.setActiveWorkspace(cluster.uri);
+    expect(modalsService.openRegularDialog).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'documents-reopen' }),
+      expect.any(AbortSignal)
+    );
+  });
 });
 
 function getTestSetup(options: {
