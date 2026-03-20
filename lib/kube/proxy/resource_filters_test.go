@@ -41,8 +41,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 func Test_filterBuffer(t *testing.T) {

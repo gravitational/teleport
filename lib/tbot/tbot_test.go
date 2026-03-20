@@ -77,7 +77,7 @@ import (
 	sshsvc "github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 

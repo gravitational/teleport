@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 func createProxyWithChannels(t *testing.T, channels automaticupgrades.Channels) string {

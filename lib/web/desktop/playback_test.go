@@ -35,8 +35,8 @@ import (
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web/desktop"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 func TestStreamsDesktopEvents(t *testing.T) {

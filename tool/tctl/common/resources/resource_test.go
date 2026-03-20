@@ -38,8 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 

@@ -25,7 +25,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -53,7 +53,7 @@ provider "teleportmwi" {
 data "teleportmwi_kubernetes" "example" {
   selector = {
     name = "%[3]s"
-  } 
+  }
 }
 
 provider "kubernetes" {

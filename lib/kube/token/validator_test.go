@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/kube/token/claims"
 	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 const (

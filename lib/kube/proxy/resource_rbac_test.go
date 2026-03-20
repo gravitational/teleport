@@ -53,7 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	tkm "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 func TestListPodRBAC(t *testing.T) {

@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 func TestCheckImpersonationPermissions(t *testing.T) {

@@ -30,8 +30,8 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 func TestInstallSystemdCmd(t *testing.T) {

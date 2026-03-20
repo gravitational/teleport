@@ -28,8 +28,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 // TestProxy is tcp passthrough proxy that sends a proxy-line when connecting

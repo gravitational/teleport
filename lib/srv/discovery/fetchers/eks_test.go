@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 func TestEKSFetcher(t *testing.T) {

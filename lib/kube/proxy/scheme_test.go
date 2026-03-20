@@ -31,7 +31,7 @@ import (
 	"k8s.io/metrics/pkg/apis/metrics"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 // TestNewClusterSchemaBuilder tests that newClusterSchemaBuilder doesn't panic

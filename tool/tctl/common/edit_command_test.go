@@ -45,7 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )

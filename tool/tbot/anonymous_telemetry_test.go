@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 type mockReportingServiceClient struct {

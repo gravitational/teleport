@@ -41,8 +41,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 func TestMain(m *testing.M) {

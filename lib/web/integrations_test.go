@@ -44,8 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web/ui"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 func TestIntegrationsCreateWithAudience(t *testing.T) {

@@ -41,8 +41,8 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web/terminal"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 // TestTerminalReadFromClosedConn verifies that Teleport recovers

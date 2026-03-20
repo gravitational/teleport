@@ -56,7 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"

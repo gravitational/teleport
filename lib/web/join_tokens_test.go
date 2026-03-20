@@ -57,8 +57,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
 	utils "github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web/ui"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 func TestGenerateIAMTokenName(t *testing.T) {

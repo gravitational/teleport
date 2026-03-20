@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 func TestSessionEndError(t *testing.T) {

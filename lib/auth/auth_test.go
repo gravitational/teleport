@@ -92,8 +92,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/slices"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 type testPack struct {

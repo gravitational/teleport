@@ -41,8 +41,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/slices"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 func TestAutoUpdateVersionReporter(t *testing.T) {

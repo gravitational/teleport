@@ -105,8 +105,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 type integrationTestSuite struct {

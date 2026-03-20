@@ -60,11 +60,11 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 // Pack contains identity as well as initialized Teleport clusters and instances.

@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 const (

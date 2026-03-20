@@ -36,7 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/sigstore"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/common/logutils/logtest"
 )
 
 var loopbackPrefixes = []string{"127.0.0.1/8", "::1/128"}
