@@ -933,7 +933,6 @@ impl LsaPolicy {
 }
 
 impl Drop for LsaPolicy {
-
     /// Closes policy handle returned by [`LsaOpenPolicy`] using [`LsaClose`]
     ///
     /// [`LsaOpenPolicy`]: https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsaopenpolicy

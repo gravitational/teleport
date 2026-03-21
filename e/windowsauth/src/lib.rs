@@ -54,7 +54,9 @@ unsafe extern "system" fn DllGetClassObject(
 
     // Construct the factory object and return its `IClassFactory` interface
     let factory: IClassFactory = ProviderFactory.into();
-    *ppv = mem::transmute(factory);
+    *ppv = mem::transmute::<windows::Win32::System::Com::IClassFactory, *mut std::ffi::c_void>(
+        factory,
+    );
     S_OK
 }
 
@@ -104,11 +106,21 @@ impl IClassFactory_Impl for ProviderFactory_Impl {
 
         if riid == ICredentialProvider::IID {
             let provider: ICredentialProvider = Provider::new().into();
-            unsafe { *ppvobject = mem::transmute(provider) };
+            unsafe {
+                *ppvobject = mem::transmute::<
+                    windows::Win32::UI::Shell::ICredentialProvider,
+                    *mut std::ffi::c_void,
+                >(provider)
+            };
             Ok(())
         } else if riid == ICredentialProviderFilter::IID {
             let filter: ICredentialProviderFilter = Filter {}.into();
-            unsafe { *ppvobject = mem::transmute(filter) };
+            unsafe {
+                *ppvobject = mem::transmute::<
+                    windows::Win32::UI::Shell::ICredentialProviderFilter,
+                    *mut std::ffi::c_void,
+                >(filter)
+            };
             Ok(())
         } else {
             Err(E_NOINTERFACE.into())

@@ -41,8 +41,15 @@ $(INSTALLER): installer/teleport.dll
 	cd installer && \
 	$(GO_FLAGS) go build -trimpath -ldflags "-s -w" -o "../$@" .
 
+.PHONY: exe
+exe: $(INSTALLER)
+
+.PHONY: lint
+lint:
+	cargo clippy --target=x86_64-pc-windows-gnu --locked -- -D warnings && cargo fmt -- --check
+
 .PHONY: format
 format:
-	clang-format -i *.c *.h
+	cargo fmt
 	go fmt ./...
 	gci write -s standard -s default .
