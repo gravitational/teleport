@@ -1,4 +1,4 @@
-policy_module(teleport_ssh, 1.0.0)
+policy_module(teleport_ssh, 1.0.1)
 
 require {
     attribute can_change_process_identity;
@@ -6,7 +6,6 @@ require {
 
     type bin_t;
     type config_home_t;
-    type default_t;
     type default_context_t;
     type devlog_t;
     type devpts_t;
@@ -22,7 +21,6 @@ require {
     type passwd_exec_t;
     type passwd_file_t;
     type ptmx_t;
-    type root_t;
     type security_t;
     type selinux_config_t;
     type semanage_store_t;
@@ -47,7 +45,7 @@ require {
     class chr_file { append read write };
     class dbus { send_msg };
     class file { create getattr ioctl map open read remove_name setattr unlink write };
-    class filesystem { getattr mount unmount };
+    class filesystem { getattr unmount };
     class process { setsched transition };
     class service { status };
     class sock_file { append create getattr open read setattr unlink write };
@@ -221,17 +219,19 @@ allow teleport_ssh_t wtmp_t:file rw_file_perms;
 allow teleport_ssh_t lastlog_t:file read_file_perms;
 
 # enhanced session recording
-allow teleport_ssh_t cgroup_t:filesystem { mount unmount };
+# TODO(capnspacehook) REMOVE IN v20: cleaning up cgroup dirs won't be needed by that point
+allow teleport_ssh_t cgroup_t:filesystem unmount;
 allow teleport_ssh_t cgroup_t:dir manage_dir_perms;
-allow teleport_ssh_t default_t:dir mounton;
+
 allow teleport_ssh_t self:bpf { map_create map_read map_write prog_load prog_run };
-allow teleport_ssh_t self:perf_event { cpu kernel open write };
+allow teleport_ssh_t sysfs_t:file map;
+allow teleport_ssh_t tracefs_t:filesystem getattr;
 allow teleport_ssh_t tracefs_t:file read_file_perms;
-allow teleport_ssh_t root_t:dir { add_name create mounton write };
+allow teleport_ssh_t self:perf_event { cpu kernel open tracepoint write };
 allow teleport_ssh_t self:capability sys_admin;
 # not available on RHEL 8
 optional_policy(`
-    require { 
+    require {
         class capability2 { bpf perfmon };
     };
     allow teleport_ssh_t self:capability2 { bpf perfmon };
