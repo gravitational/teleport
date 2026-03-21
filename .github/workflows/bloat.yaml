@@ -45,13 +45,28 @@ jobs:
           path: .github/shared-workflows
           ref: 664e788d45a7f56935cf63094b4fb52a41b12015 # workflows/v0.0.2
 
-      - name: Setup base cache
-        uses: actions/cache/restore@v3
+      - name: Restore cache from S3
         id: cache-build-restore
-        with:
-          path: |
-            ~/teleport_base_build_stats
-          key: ${{ github.job }}-${{ runner.os }}-${{ github.event.before }}
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.MINIO_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          if ! command -v aws &>/dev/null; then
+            pip install --quiet awscli 2>/dev/null || pip3 install --quiet awscli 2>/dev/null
+          fi
+          CACHE_KEY="s3://ci-artifacts/${{ github.repository }}/bloat-base-stats/${{ github.job }}-${{ runner.os }}-${{ github.event.before }}.tar.gz"
+          if aws s3 ls "$CACHE_KEY" --endpoint-url https://minio.spooty.io --no-verify-ssl 2>/dev/null; then
+            aws s3 cp "$CACHE_KEY" /tmp/cache.tar.gz --endpoint-url https://minio.spooty.io --no-verify-ssl 2>/dev/null
+            mkdir -p ~/
+            tar xzf /tmp/cache.tar.gz -C ~/ 2>/dev/null || true
+            echo "Cache restored from S3"
+            echo "cache-hit=true" >> $GITHUB_OUTPUT
+          else
+            echo "No cache found"
+            echo "cache-hit=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Generate GitHub Token
         id: generate_token
@@ -70,13 +85,25 @@ jobs:
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
 
       - if: ${{ steps.cache-build-restore.outputs.cache-hit != 'true' }}
-        name: Save base build
+        name: Save cache to S3
         id: base-build-save
-        uses: actions/cache/save@v3
-        with:
-          path: |
-            ${{ steps.build_base.outputs.base_stats_file }}
-          key: ${{ github.job }}-${{ runner.os }}-${{ github.event.before }}
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.MINIO_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          if ! command -v aws &>/dev/null; then
+            pip install --quiet awscli 2>/dev/null || pip3 install --quiet awscli 2>/dev/null
+          fi
+          CACHE_KEY="s3://ci-artifacts/${{ github.repository }}/bloat-base-stats/${{ github.job }}-${{ runner.os }}-${{ github.event.before }}.tar.gz"
+          if ! aws s3 ls "$CACHE_KEY" --endpoint-url https://minio.spooty.io --no-verify-ssl 2>/dev/null; then
+            tar czf /tmp/cache.tar.gz -C ~/ teleport_base_build_stats 2>/dev/null
+            aws s3 cp /tmp/cache.tar.gz "$CACHE_KEY" --endpoint-url https://minio.spooty.io --no-verify-ssl 2>/dev/null
+            echo "Cache saved to S3"
+          else
+            echo "Cache already exists"
+          fi
 
       - if: ${{ steps.cache-build-restore.outputs.cache-hit == 'true' }}
         name: Restore base stats

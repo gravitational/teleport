@@ -30,11 +30,13 @@ jobs:
           make binaries
 
       - name: Upload binaries
-        uses: actions/upload-artifact@v3
+        continue-on-error: true
+        uses: Anomalous-Ventures/devops/.github/actions/upload-s3@66345e915e2b88f14e9d1426ec37d7247c75921c # main
         with:
           name: build
           path: ${{ github.workspace }}/build/
-          retention-days: 1
+          access-key: ${{ secrets.MINIO_ACCESS_KEY }}
+          secret-key: ${{ secrets.MINIO_SECRET_KEY }}
 
   test:
     name: E2E Tests
@@ -43,10 +45,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v6
+      - uses: Anomalous-Ventures/devops/.github/actions/download-s3@66345e915e2b88f14e9d1426ec37d7247c75921c # main
         with:
           name: build
           path: ${{ github.workspace }}/build/
+          access-key: ${{ secrets.MINIO_ACCESS_KEY }}
+          secret-key: ${{ secrets.MINIO_SECRET_KEY }}
 
       - name: Chmod binaries
         run: |
