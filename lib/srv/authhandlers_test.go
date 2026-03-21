@@ -1289,8 +1289,14 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		require.NoError(t, err)
 
 		inPerms := &ssh.Permissions{
+			CriticalOptions: map[string]string{
+				"foo": "bar",
+			},
 			Extensions: map[string]string{
 				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+			ExtraData: map[any]any{
+				"baz": "qux",
 			},
 		}
 
@@ -1302,17 +1308,48 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 
 		legacyPerms, err := partialSuccessErr.Next.PublicKeyCallback(nil, nil)
 		require.NoError(t, err)
-		require.Equal(t, "true", legacyPerms.Extensions[utils.ExtIntLegacyPublicKeyAuthSucceeded])
+		require.NotSame(t, inPerms, legacyPerms)
+		require.Equal(t, inPerms.CriticalOptions, legacyPerms.CriticalOptions)
+		require.Equal(t, inPerms.Extensions, legacyPerms.Extensions)
+		require.Equal(t, inPerms.ExtraData, legacyPerms.ExtraData)
+
+		_, ok := inPerms.ExtraData[verifiedPublicKeyCallbackOverrideKey{}]
+		require.False(t, ok)
+
+		override, ok := legacyPerms.ExtraData[verifiedPublicKeyCallbackOverrideKey{}].(verifiedPublicKeyCallbackOverride)
+		require.True(t, ok)
+		require.Nil(t, override)
 
 		outPerms, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, legacyCert, legacyPerms, "")
 		require.NoError(t, err)
 		require.Same(t, legacyPerms, outPerms)
-		require.Contains(t, outPerms.Extensions, utils.ExtIntLegacyPublicKeyAuthSucceeded)
 
 		outPerms, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, legacyCert, outPerms, "")
 		require.NoError(t, err)
 		require.Same(t, legacyPerms, outPerms)
-		require.Contains(t, outPerms.Extensions, utils.ExtIntLegacyPublicKeyAuthSucceeded)
+	})
+
+	t.Run("callback override is honored", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		expectedPerms := &ssh.Permissions{}
+
+		inPerms := &ssh.Permissions{}
+		inPerms.ExtraData = map[any]any{
+			verifiedPublicKeyCallbackOverrideKey{}: verifiedPublicKeyCallbackOverride(
+				func(conn ssh.ConnMetadata, key ssh.PublicKey, permissions *ssh.Permissions, signatureAlgorithm string) (*ssh.Permissions, error) {
+					require.IsType(t, &mockConnMetadata{}, conn)
+					require.Same(t, cert, key)
+					require.Same(t, inPerms, permissions)
+					require.Equal(t, "ssh-rsa", signatureAlgorithm)
+					return expectedPerms, nil
+				},
+			),
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "ssh-rsa")
+		require.NoError(t, err)
+		require.Same(t, expectedPerms, outPerms)
 	})
 }
 

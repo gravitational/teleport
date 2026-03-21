@@ -525,12 +525,6 @@ const (
 	// ExtIntGitForwardingPermit is an internal extension used to propagate
 	// the git forwarding permit for the user.
 	ExtIntGitForwardingPermit = "git-forwarding-permit" + extIntSuffix
-	// ExtIntLegacyPublicKeyAuthSucceeded is an internal extension that marks successful legacy public-key auth. It
-	// prevents repeated fallback into keyboard-interactive auth because x/crypto/ssh may call VerifiedPublicKeyCallback
-	// multiple times for the same successful legacy flow.
-	//
-	// TODO(cthach): Remove in v20.0 when the legacy public-key auth flow is removed.
-	ExtIntLegacyPublicKeyAuthSucceeded = "legacy-public-key-auth-succeeded" + extIntSuffix
 )
 
 // IsInternalSSHExtension returns true if the extension has the internal

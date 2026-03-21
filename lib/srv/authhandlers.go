@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"os"
 	"time"
@@ -717,18 +718,21 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 // This method is intended to be used as the VerifiedPublicKeyCallback in ssh.ServerConfig after the client proves key
 // possession. Key acceptance decisions are performed in PublicKeyCallback.
 func (h *AuthHandlers) VerifiedPublicKeyCallback(
-	_ ssh.ConnMetadata,
+	conn ssh.ConnMetadata,
 	key ssh.PublicKey,
 	perms *ssh.Permissions,
-	_ string,
+	signatureAlgorithm string,
 ) (*ssh.Permissions, error) {
-	// Prevent looping into keyboard-interactive auth after successfully flowing through the legacy public key flow.
-	// Since VerifiedPublicKeyCallback is called after every public key auth, even
-	// ssh.PartialSuccessError.PublicKeyCallback, this is used to break the loop and not call keyboard-interactive auth
-	// again if the legacy public key flow succeeded.
+	// Check if there is a callback override function set during keyboard-interactive auth. If one is set, it means that
+	// we have already gone through this callback and we should invoke the override function to avoid running into
+	// infinite auth loops.
 	//  TODO(cthach): Remove in v20.0 when the legacy public-key auth flow is removed.
-	if _, ok := perms.Extensions[utils.ExtIntLegacyPublicKeyAuthSucceeded]; ok {
-		return perms, nil
+	if a, ok := perms.ExtraData[verifiedPublicKeyCallbackOverrideKey{}]; ok {
+		overrideFn := a.(verifiedPublicKeyCallbackOverride)
+		if overrideFn == nil {
+			return perms, nil
+		}
+		return overrideFn(conn, key, perms, signatureAlgorithm)
 	}
 
 	// Access preconditions are only set in the SSH access permit. For all other permit types, it is expected for this
@@ -760,6 +764,35 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 		ident,
 		perms,
 	)
+}
+
+type verifiedPublicKeyCallbackOverrideKey struct{}
+
+type verifiedPublicKeyCallbackOverride func(
+	conn ssh.ConnMetadata,
+	key ssh.PublicKey,
+	permissions *ssh.Permissions,
+	signatureAlgorithm string,
+) (*ssh.Permissions, error)
+
+func withVerifiedPublicKeyCallbackOverride(
+	perms *ssh.Permissions,
+	override verifiedPublicKeyCallbackOverride,
+) *ssh.Permissions {
+	// Clone the permissions to avoid mutating the input.
+	clonedPerms := &ssh.Permissions{
+		CriticalOptions: maps.Clone(perms.CriticalOptions),
+		Extensions:      maps.Clone(perms.Extensions),
+		ExtraData:       maps.Clone(perms.ExtraData),
+	}
+
+	if clonedPerms.ExtraData == nil {
+		clonedPerms.ExtraData = make(map[any]any)
+	}
+
+	clonedPerms.ExtraData[verifiedPublicKeyCallbackOverrideKey{}] = override
+
+	return clonedPerms
 }
 
 func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
