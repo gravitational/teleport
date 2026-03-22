@@ -28,9 +28,11 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dustin/go-humanize"
+	"github.com/ghodss/yaml"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -39,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	filesftp "github.com/gravitational/teleport/lib/sshutils/sftp"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func onBeamsAdd(cf *CLIConf) error {
@@ -152,8 +155,34 @@ func onBeamsList(cf *CLIConf) error {
 		return strings.Compare(a.GetMetadata().GetName(), b.GetMetadata().GetName())
 	})
 
-	fmt.Fprint(cf.Stdout(), renderBeamsTable(beams, tc.WebProxyHost()))
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeBeams(beams, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintln(cf.Stdout(), out)
+	default:
+		fmt.Fprint(cf.Stdout(), renderBeamsTable(beams, tc.WebProxyHost()))
+	}
 	return nil
+}
+
+func serializeBeams(beams []*beamsv1.Beam, format string) (string, error) {
+	if beams == nil {
+		beams = []*beamsv1.Beam{}
+	}
+	var (
+		out []byte
+		err error
+	)
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(beams, "", "  ")
+	} else {
+		out, err = yaml.Marshal(beams)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func onBeamsDelete(cf *CLIConf) error {

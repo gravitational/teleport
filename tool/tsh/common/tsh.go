@@ -1064,6 +1064,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beamsExec.Arg("beam-id", "Beam ID to execute on.").Required().StringVar(&cf.BeamID)
 	beamsExec.Arg("command", "Command to execute on the beam.").Required().StringsVar(&cf.RemoteCommand)
 	beamsLS := beams.Command("ls", "List your beams.")
+	beamsLS.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	beamsRM := beams.Command("rm", "Delete an existing beam.")
 	beamsRM.Arg("beam-id", "Beam ID to delete.").Required().StringVar(&cf.BeamID)
 	beamsAllow := beams.Command("allow", "Allow a domain for an existing beam.")
