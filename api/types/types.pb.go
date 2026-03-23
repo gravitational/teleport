@@ -16177,7 +16177,7 @@ type LockTarget struct {
 	MFADevice string `protobuf:"bytes,5,opt,name=MFADevice,proto3" json:"mfa_device,omitempty"`
 	// WindowsDesktop specifies the name of a Windows desktop.
 	WindowsDesktop string `protobuf:"bytes,6,opt,name=WindowsDesktop,proto3" json:"windows_desktop,omitempty"`
-	// AccessRequest specifies the UUID of an access request.
+	// AccessRequest specifies the UUID of an Access Request.
 	AccessRequest string `protobuf:"bytes,7,opt,name=AccessRequest,proto3" json:"access_request,omitempty"`
 	// Device is the device ID of a trusted device.
 	// Requires Teleport Enterprise.
