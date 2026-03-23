@@ -32,25 +32,51 @@ import {
 // These tests manage the app lifecycle manually (multiple launches/closes), so they do not use the
 // `app` fixture.
 test.describe('state restoration from disk', () => {
-  let tempPath: string;
+  // Run all tests in this block sequentially in a single worker so that beforeAll runs exactly
+  // once, not once per test (which fullyParallel would otherwise cause).
+  test.describe.configure({ mode: 'serial' });
 
-  test.beforeEach(async () => {
-    tempPath = await fs.mkdtemp(path.join(os.tmpdir(), 'connect-e2e-state-'));
-    await initializeDataDir(tempPath, withDefaultAppConfig({}));
+  // A snapshot of a data dir with a logged-in session, created once in beforeAll. Tests that need
+  // logged-in state copy this snapshot instead of calling login again, keeping total login calls to
+  // a minimum (important to avoid rate-limiting when running full Connect suite).
+  let loggedInSnapshotPath: string;
+
+  test.beforeAll(async () => {
+    loggedInSnapshotPath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'connect-e2e-state-snapshot-')
+    );
+    await initializeDataDir(loggedInSnapshotPath, withDefaultAppConfig({}));
+
+    // Login once to populate the data dir with session state.
+    {
+      await using app = await launchApp(loggedInSnapshotPath);
+      await login(app.page);
+    }
   });
 
-  test.afterEach(async () => {
-    await fs.rm(tempPath, { recursive: true, force: true });
+  test.afterAll(async () => {
+    await fs.rm(loggedInSnapshotPath, { recursive: true, force: true });
   });
+
+  /**
+   * Creates a fresh disposable temp dir pre-populated with the logged-in snapshot.
+   */
+  async function loggedInDataDir() {
+    const temp = await fs.mkdtempDisposable(
+      path.join(os.tmpdir(), 'connect-e2e-state-')
+    );
+    await fs.cp(loggedInSnapshotPath, temp.path, { recursive: true });
+    return temp;
+  }
 
   test('relaunch restores tabs', async () => {
-    // Login and create extra tabs.
-    {
-      await using app = await launchApp(tempPath);
-      const { page } = app;
-      await login(page);
+    await using temp = await loggedInDataDir();
 
-      // Open a terminal tab so there are 2 tabs (cluster + terminal).
+    // Open a terminal tab so there are 2 tabs (cluster + terminal).
+    {
+      await using app = await launchApp(temp.path);
+      const { page } = app;
+
       await page.getByTitle('Additional Actions').click();
       await page.getByText('Open new terminal').click();
       await expect(
@@ -60,7 +86,7 @@ test.describe('state restoration from disk', () => {
 
     // Relaunch – the app should offer to restore the terminal tab.
     {
-      await using app = await launchApp(tempPath);
+      await using app = await launchApp(temp.path);
       const { page } = app;
       await expect(page.getByText('Reopen previous session')).toBeVisible();
       await page.getByRole('button', { name: 'Reopen' }).click();
@@ -77,18 +103,14 @@ test.describe('state restoration from disk', () => {
   });
 
   test('missing app_state.json does not crash the app', async () => {
-    // Login to create state files on disk.
-    {
-      await using app = await launchApp(tempPath);
-      await login(app.page);
-    }
+    await using temp = await loggedInDataDir();
 
     // Remove app_state.json (keep tsh dir) – the app should not crash.
-    const appStatePath = path.join(tempPath, 'userData', 'app_state.json');
+    const appStatePath = path.join(temp.path, 'userData', 'app_state.json');
     await fs.rm(appStatePath);
 
     {
-      await using app = await launchApp(tempPath);
+      await using app = await launchApp(temp.path);
 
       // Without app_state.json, the app has no saved rootClusterUri, so no workspace is activated
       // and the cluster connect panel prompts the user to pick one.
@@ -99,18 +121,14 @@ test.describe('state restoration from disk', () => {
   });
 
   test('missing tsh home directory does not crash the app', async () => {
-    // Login to create state files on disk.
-    {
-      await using app = await launchApp(tempPath);
-      await login(app.page);
-    }
+    await using temp = await loggedInDataDir();
 
     // Remove the tsh home directory (keep app_state.json) – the app should not crash.
-    const tshHomePath = path.join(tempPath, 'home', '.tsh');
+    const tshHomePath = path.join(temp.path, 'home', '.tsh');
     await fs.rm(tshHomePath, { recursive: true });
 
     {
-      await using app = await launchApp(tempPath);
+      await using app = await launchApp(temp.path);
       const { page } = app;
 
       // With no tsh dir, no cluster can be connected.
@@ -123,9 +141,9 @@ test.describe('state restoration from disk', () => {
   });
 
   test('logout clears previous tabs', async () => {
-    await using app = await launchApp(tempPath);
+    await using temp = await loggedInDataDir();
+    await using app = await launchApp(temp.path);
     const { page } = app;
-    await login(page);
 
     // Open a terminal tab.
     await page.getByTitle('Additional Actions').click();
@@ -159,11 +177,12 @@ test.describe('state restoration from disk', () => {
   });
 
   test('identical workspace shape does not trigger restore dialog', async () => {
-    // Login, then replace the default cluster tab with a new one (same shape).
+    await using temp = await loggedInDataDir();
+
+    // Replace the default cluster tab with a new one (same shape).
     {
-      await using app = await launchApp(tempPath);
+      await using app = await launchApp(temp.path);
       const { page } = app;
-      await login(page);
 
       const clusterTab = page.locator(
         '[role="tab"][data-doc-kind="doc.cluster"]'
@@ -179,7 +198,7 @@ test.describe('state restoration from disk', () => {
 
     // Relaunch – no restore dialog since the workspace has the same shape.
     {
-      await using app = await launchApp(tempPath);
+      await using app = await launchApp(temp.path);
       const { page } = app;
 
       const clusterTab = page.locator(
@@ -191,10 +210,20 @@ test.describe('state restoration from disk', () => {
   });
 
   test('window remembers size and position after restart', async () => {
+    await using temp = await fs.mkdtempDisposable(
+      path.join(os.tmpdir(), 'connect-e2e-state-')
+    );
+    await initializeDataDir(temp.path, withDefaultAppConfig({}));
+
     // Launch the app and resize the window.
-    let targetBounds: { x: number; y: number; width: number; height: number };
+    let targetBounds: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
     {
-      await using app = await launchApp(tempPath);
+      await using app = await launchApp(temp.path);
       const { page } = app;
       await expect(page.getByText('Connect a Cluster')).toBeVisible();
 
@@ -240,7 +269,7 @@ test.describe('state restoration from disk', () => {
 
     // Relaunch – the window should restore to the same size & position.
     {
-      await using app = await launchApp(tempPath);
+      await using app = await launchApp(temp.path);
 
       // Wait for the app to fully initialize before reading bounds and closing, otherwise the
       // app may close before the renderer acks the initial cluster store message, causing a
