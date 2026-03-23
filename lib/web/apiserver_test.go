@@ -3677,7 +3677,11 @@ func TestSearchClusterEvents(t *testing.T) {
 			// Session prints do not have IDs, only sessionStart and sessionEnd.
 			// When retrieving events for sessionStart and sessionEnd, sessionStart is returned first.
 			if tc.TestStartKey {
-				require.Equal(t, tc.StartKeyValue, result.StartKey)
+				if tc.StartKeyValue == "" {
+					require.Empty(t, result.StartKey)
+				} else {
+					require.True(t, strings.HasPrefix(result.StartKey, tc.StartKeyValue))
+				}
 			}
 		})
 	}

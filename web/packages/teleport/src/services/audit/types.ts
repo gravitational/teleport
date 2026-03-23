@@ -2504,8 +2504,8 @@ export type Event = Events[EventCode];
 export type SessionEnd = Events[typeof eventCodes.SESSION_END];
 
 export type EventQuery = {
-  from: Date;
-  to: Date;
+  from?: Date;
+  to?: Date;
   limit?: number;
   startKey?: string;
   filterBy?: string;

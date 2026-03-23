@@ -20,6 +20,7 @@ package pgevents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -58,6 +59,8 @@ const (
 	defaultCleanupInterval    = time.Hour
 	defaultCertReloadInterval = 0
 )
+
+const eventIndexExpr = "COALESCE((events.event_data->>'ei')::bigint, 0)"
 
 // URL parameters for configuration.
 const (
@@ -428,9 +431,9 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 func (l *Log) searchEvents(
 	ctx context.Context,
 	fromTime, toTime time.Time,
-	eventTypes []string, cond *utils.ToFieldsConditionConfig, sessionID string,
+	eventTypes []string, cond *utils.ToFieldsConditionConfig, sessionID, search string,
 	limit int, order types.EventOrder, startKey string,
-) ([]apievents.AuditEvent, string, error) {
+) ([]events.EventFields, string, error) {
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
@@ -438,11 +441,14 @@ func (l *Log) searchEvents(
 		return nil, "", trace.BadParameter("limit %v exceeds %v", limit, defaults.MaxIterationLimit)
 	}
 
-	var startTime time.Time
-	var startID uuid.UUID
+	var start paginationKey
 	if startKey != "" {
 		var err error
-		startTime, startID, err = fromStartKey(startKey)
+		start, err = fromStartKey(startKey)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		start, err = l.hydrateLegacyPaginationKey(ctx, start)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -456,6 +462,8 @@ func (l *Log) searchEvents(
 			return nil, "", trace.Wrap(err)
 		}
 	}
+
+	searchTerms := strings.Fields(strings.ToLower(search))
 
 	sessionUUID := l.deriveSessionID(ctx, sessionID)
 
@@ -473,16 +481,19 @@ func (l *Log) searchEvents(
 		// no matter what the argument is
 		qb.WriteString(" AND events.session_id != '00000000-0000-0000-0000-000000000000' AND events.session_id = @session_id")
 	}
+	for i := range searchTerms {
+		fmt.Fprintf(&qb, " AND POSITION(@search_term_%d IN lower(events.event_data::text)) > 0", i)
+	}
 	if order != types.EventOrderDescending {
 		if startKey != "" {
-			qb.WriteString(" AND (events.event_time, events.event_id) > (@start_time, @start_id)")
+			fmt.Fprintf(&qb, " AND (events.event_time, %s, events.event_id) > (@start_time, @start_index, @start_id)", eventIndexExpr)
 		}
-		qb.WriteString(" ORDER BY events.event_time, events.event_id")
+		fmt.Fprintf(&qb, " ORDER BY events.event_time, %s, events.event_id", eventIndexExpr)
 	} else {
 		if startKey != "" {
-			qb.WriteString(" AND (events.event_time, events.event_id) < (@start_time, @start_id)")
+			fmt.Fprintf(&qb, " AND (events.event_time, %s, events.event_id) < (@start_time, @start_index, @start_id)", eventIndexExpr)
 		}
-		qb.WriteString(" ORDER BY events.event_time DESC, events.event_id DESC")
+		fmt.Fprintf(&qb, " ORDER BY events.event_time DESC, %s DESC, events.event_id DESC", eventIndexExpr)
 	}
 
 	queryString := qb.String()
@@ -491,16 +502,21 @@ func (l *Log) searchEvents(
 		"to_time":     toTime,
 		"event_types": eventTypes,
 		"session_id":  sessionUUID,
-		"start_time":  startTime,
-		"start_id":    startID,
+		"start_time":  start.time,
+		"start_index": start.index,
+		"start_id":    start.id,
+	}
+	for i, term := range searchTerms {
+		queryArgs[fmt.Sprintf("search_term_%d", i)] = term
 	}
 
 	const fetchSize = defaults.EventsIterationLimit
 	fetchQuery := fmt.Sprintf("FETCH %d FROM cur", fetchSize)
 
-	var evs []apievents.AuditEvent
+	var evs []events.EventFields
 	var sizeLimit bool
 	var endTime time.Time
+	var endIndex int64
 	var endID uuid.UUID
 
 	transactionStart := time.Now()
@@ -511,6 +527,7 @@ func (l *Log) searchEvents(
 		evs = nil
 		sizeLimit = false
 		endTime = time.Time{}
+		endIndex = 0
 		endID = uuid.Nil
 
 		// the query already has 16 options; if we were to add more - by adding
@@ -545,14 +562,9 @@ func (l *Log) searchEvents(
 					return nil
 				}
 				totalSize += len(data)
-
-				ev, err := events.FromEventFields(evf)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				evs = append(evs, ev)
+				evs = append(evs, evf)
 				endTime = t
+				endIndex = int64(evf.GetInt(events.EventIndex))
 				endID = id
 
 				if len(evs) >= limit {
@@ -582,17 +594,63 @@ func (l *Log) searchEvents(
 
 	var nextKey string
 	if len(evs) > 0 && (len(evs) >= limit || sizeLimit) {
-		nextKey = toNextKey(endTime, endID)
+		nextKey = toNextKey(endTime, endIndex, endID)
 	}
 
 	return evs, nextKey, nil
+}
+
+func (l *Log) hydrateLegacyPaginationKey(ctx context.Context, start paginationKey) (paginationKey, error) {
+	if start.hasIndex {
+		return start, nil
+	}
+
+	err := l.pool.QueryRow(ctx,
+		fmt.Sprintf("SELECT %s FROM events WHERE event_time = $1 AND event_id = $2", eventIndexExpr),
+		start.time,
+		start.id,
+	).Scan(&start.index)
+	if err == nil {
+		start.hasIndex = true
+		return start, nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return paginationKey{}, trace.BadParameter("unknown legacy pagination key")
+	}
+	return paginationKey{}, trace.Wrap(err)
 }
 
 // SearchEvents implements [events.AuditLogger].
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	var emptyCond *utils.ToFieldsConditionConfig
 	const emptySessionID = ""
-	return l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Limit, req.Order, req.StartKey)
+
+	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Search, req.Limit, req.Order, req.StartKey)
+	if err != nil {
+		return nil, next, trace.Wrap(err)
+	}
+
+	evts, err := events.FromEventFieldsSlice(evtsRaw)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
+}
+
+// SearchUnstructuredEvents implements [events.AuditLogger].
+func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	var emptyCond *utils.ToFieldsConditionConfig
+	const emptySessionID = ""
+
+	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Search, req.Limit, req.Order, req.StartKey)
+	if err != nil {
+		return nil, next, trace.Wrap(err)
+	}
+	evts, err := events.FromEventFieldsSliceToUnstructured(evtsRaw)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
@@ -605,7 +663,16 @@ func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEvent
 
 // SearchSessionEvents implements [events.AuditLogger].
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	return l.searchEvents(ctx, req.From, req.To, events.SessionRecordingEvents, req.Cond, req.SessionID, req.Limit, req.Order, req.StartKey)
+	const emptySearch = ""
+	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, events.SessionRecordingEvents, req.Cond, req.SessionID, emptySearch, req.Limit, req.Order, req.StartKey)
+	if err != nil {
+		return nil, next, trace.Wrap(err)
+	}
+	evts, err := events.FromEventFieldsSlice(evtsRaw)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 // sessionIDBase is a randomly-generated UUID used as the basis for deriving

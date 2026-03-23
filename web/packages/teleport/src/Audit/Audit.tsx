@@ -19,7 +19,7 @@
 import { useState, type PropsWithChildren } from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonSecondary, Flex } from 'design';
+import { Box, Flex } from 'design';
 import { Danger } from 'design/Alert';
 import { SearchPanel } from 'shared/components/Search';
 import { useInfiniteScroll } from 'shared/hooks';
@@ -54,6 +54,7 @@ export function Audit(props: State) {
     clusterId,
     fetchNextPage,
     hasNextPage,
+    isPlaceholderData,
     isFetchingNextPage,
     error,
     isLoading,
@@ -68,9 +69,12 @@ export function Audit(props: State) {
 
   const [errorMessage, setErrorMessage] = useState('');
 
+  const canFetchNextPage =
+    hasNextPage && !isFetchingNextPage && !isError && !isPlaceholderData;
+
   const { setTrigger } = useInfiniteScroll({
     fetch: async () => {
-      if (hasNextPage && !isFetchingNextPage && !isError) {
+      if (canFetchNextPage) {
         fetchNextPage();
       }
     },
@@ -80,11 +84,10 @@ export function Audit(props: State) {
     refetch();
   };
 
-  const onLoadMoreClicked = () => {
-    if (hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
-    }
-  };
+  const showSkeleton =
+    (isLoading && events.length === 0) ||
+    isFetchingNextPage ||
+    isPlaceholderData;
 
   return (
     <FeatureBox unsetHeight>
@@ -121,7 +124,7 @@ export function Audit(props: State) {
           hideAdvancedSearch={true}
           filter={{ search }}
         />
-        {!isLoading && (
+        {!isLoading && !isPlaceholderData && (
           <EventList
             events={events}
             search={search}
@@ -130,17 +133,8 @@ export function Audit(props: State) {
             setSort={setSort}
           />
         )}
-        {((isLoading && events.length === 0) || isFetchingNextPage) && (
-          <EventListSkeleton />
-        )}
-        <div ref={setTrigger} />
-        {isError && events.length > 0 && !isLoading && (
-          <Box mt={2} textAlign="center">
-            <ButtonSecondary onClick={onLoadMoreClicked}>
-              Load more
-            </ButtonSecondary>
-          </Box>
-        )}
+        {showSkeleton && <EventListSkeleton />}
+        {!isPlaceholderData && <div ref={setTrigger} />}
       </Box>
     </FeatureBox>
   );

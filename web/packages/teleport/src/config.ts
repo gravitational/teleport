@@ -612,6 +612,13 @@ const cfg = {
   },
 
   getClusterEventsUrl(clusterId: string, params: UrlClusterEventsParams) {
+    return generatePath(cfg.api.clusterEventsPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getClusterEventsV2Url(clusterId: string, params: UrlClusterEventsParams) {
     return generatePath(cfg.api.clusterEventsPathV2, {
       clusterId,
       ...params,
@@ -1969,8 +1976,8 @@ export interface UrlSessionRecordingsParams {
 }
 
 export interface UrlClusterEventsParams {
-  start: string;
-  end: string;
+  start?: string;
+  end?: string;
   limit?: number;
   include?: string;
   startKey?: string;

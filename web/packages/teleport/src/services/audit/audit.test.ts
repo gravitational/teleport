@@ -17,9 +17,14 @@
  */
 
 import api from 'teleport/services/api';
+import { ApiError } from 'teleport/services/api/parseError';
 
 import AuditService from './audit';
 import { EventQuery } from './types';
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
 test('fetch events', async () => {
   const audit = new AuditService();
@@ -89,6 +94,64 @@ test('fetch events', async () => {
 
   expect(response.events[0].codeDesc).toBe('Unknown');
   expect(response.events[0].message).toBe('Unknown');
+});
+
+test('fetchEventsV2 falls back to v1 endpoint on missing v2 route', async () => {
+  const audit = new AuditService();
+
+  jest
+    .spyOn(api, 'get')
+    .mockRejectedValueOnce(
+      new ApiError({
+        message: '404 - https://llama/v2/webapi/sites/clusterId/events/search',
+        response: {
+          status: 404,
+          url: 'https://llama/v2/webapi/sites/clusterId/events/search',
+        } as Response,
+      })
+    )
+    .mockResolvedValueOnce({ events: [] });
+
+  await audit.fetchEventsV2('clusterId', params);
+
+  expect(api.get).toHaveBeenNthCalledWith(
+    1,
+    expect.stringContaining('/v2/webapi/sites/clusterId/events/search'),
+    undefined
+  );
+  expect(api.get).toHaveBeenNthCalledWith(
+    2,
+    expect.stringContaining('/v1/webapi/sites/clusterId/events/search')
+  );
+});
+
+test('fetchEventsV2 fallback provides default date bounds when missing', async () => {
+  jest.useFakeTimers().setSystemTime(new Date('2026-04-09T15:30:00.000Z'));
+
+  const audit = new AuditService();
+  jest
+    .spyOn(api, 'get')
+    .mockRejectedValueOnce(
+      new ApiError({
+        message: '404 - https://llama/v2/webapi/sites/clusterId/events/search',
+        response: {
+          status: 404,
+          url: 'https://llama/v2/webapi/sites/clusterId/events/search',
+        } as Response,
+      })
+    )
+    .mockResolvedValueOnce({ events: [] });
+
+  await audit.fetchEventsV2('clusterId', { order: 'DESC' });
+
+  expect(api.get).toHaveBeenNthCalledWith(
+    2,
+    expect.stringContaining(
+      'from=2026-04-08T15:30:00.000Z&to=2026-04-09T15:30:00.000Z'
+    )
+  );
+
+  jest.useRealTimers();
 });
 
 const params: EventQuery = {

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { subHours } from 'date-fns';
+
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
@@ -26,6 +28,14 @@ import { EventQuery, EventResponse } from './types';
 class AuditService {
   maxFetchLimit = 5000;
 
+  getFallbackDateRange() {
+    const to = new Date();
+    return {
+      from: subHours(to, 24),
+      to,
+    };
+  }
+
   async fetchEventsV2(
     clusterId: string,
     params: EventQuery,
@@ -33,7 +43,7 @@ class AuditService {
   ): Promise<EventResponse> {
     const limit = params.limit || this.maxFetchLimit;
 
-    const url = cfg.getClusterEventsUrl(clusterId, {
+    const url = cfg.getClusterEventsV2Url(clusterId, {
       start: params.from && params.from.toISOString(),
       end: params.to && params.to.toISOString(),
       limit,
@@ -56,8 +66,10 @@ class AuditService {
   }
 
   fetchEvents(clusterId: string, params: EventQuery): Promise<EventResponse> {
-    const start = params.from.toISOString();
-    const end = params.to.toISOString();
+    const fallbackRange =
+      params.from && params.to ? undefined : this.getFallbackDateRange();
+    const start = (params.from || fallbackRange?.from)?.toISOString();
+    const end = (params.to || fallbackRange?.to)?.toISOString();
 
     const url = cfg.getClusterEventsUrl(clusterId, {
       start,

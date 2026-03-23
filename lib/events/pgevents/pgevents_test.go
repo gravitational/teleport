@@ -20,12 +20,15 @@ package pgevents
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/binary"
 	"net/url"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -78,6 +81,10 @@ func TestPostgresEvents(t *testing.T) {
 	t.Run("SearchSessionEventsBySessionID", func(t *testing.T) {
 		truncateEvents(t)
 		suite.SearchSessionEventsBySessionID(t)
+	})
+	t.Run("SearchEventsBySearchTerm", func(t *testing.T) {
+		truncateEvents(t)
+		suite.SearchEventsBySearchTerm(t)
 	})
 }
 
@@ -137,7 +144,8 @@ func TestLog_nonStandardSessionID(t *testing.T) {
 		[]string{appStartEvent.Metadata.Type}, // eventTypes
 		nil,                                   // cond
 		appStartEvent.SessionID,
-		2, // limit
+		"", // search
+		2,  // limit
 		types.EventOrderAscending,
 		"", // startKey
 	)
@@ -146,6 +154,77 @@ func TestLog_nonStandardSessionID(t *testing.T) {
 	if diff := cmp.Diff(want, appEvents, protocmp.Transform()); diff != "" {
 		t.Errorf("searchEvents mismatch (-want +got)\n%s", diff)
 	}
+}
+
+func TestSearchEventsLegacyCursorUsesEventIndexTiebreak(t *testing.T) {
+	// Don't t.Parallel(), relies on the database backed by urlEnvVar.
+	eventsLog := newLogForTesting(t)
+
+	ctx := context.Background()
+	_, err := eventsLog.pool.Exec(ctx, "TRUNCATE events")
+	require.NoError(t, err, "truncate events")
+
+	baseTime := time.Now().UTC().Truncate(time.Microsecond)
+	inputs := []struct {
+		id    string
+		user  string
+		index int64
+	}{
+		{id: "ffffffff-ffff-ffff-ffff-ffffffffffff", user: "first", index: 1},
+		{id: "00000000-0000-0000-0000-000000000000", user: "second", index: 2},
+		{id: "11111111-1111-1111-1111-111111111111", user: "third", index: 3},
+	}
+
+	for _, input := range inputs {
+		err := eventsLog.EmitAuditEvent(ctx, &apievents.UserLogin{
+			Method:       events.LoginMethodSAML,
+			Status:       apievents.Status{Success: true},
+			UserMetadata: apievents.UserMetadata{User: input.user},
+			Metadata: apievents.Metadata{
+				ID:    input.id,
+				Index: input.index,
+				Type:  events.UserLoginEvent,
+				Time:  baseTime,
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	firstPage, _, err := eventsLog.SearchEvents(ctx, events.SearchEventsRequest{
+		From:  baseTime.Add(-time.Second),
+		To:    baseTime.Add(time.Second),
+		Limit: 2,
+		Order: types.EventOrderAscending,
+	})
+	require.NoError(t, err)
+	require.Len(t, firstPage, 2)
+
+	firstUsers := []string{
+		firstPage[0].(*apievents.UserLogin).User,
+		firstPage[1].(*apievents.UserLogin).User,
+	}
+	require.Equal(t, []string{"first", "second"}, firstUsers)
+
+	legacyStartKey := legacyPaginationKey(baseTime, inputs[1].id)
+	secondPage, nextKey, err := eventsLog.SearchEvents(ctx, events.SearchEventsRequest{
+		From:     baseTime.Add(-time.Second),
+		To:       baseTime.Add(time.Second),
+		Limit:    2,
+		Order:    types.EventOrderAscending,
+		StartKey: legacyStartKey,
+	})
+	require.NoError(t, err)
+	require.Len(t, secondPage, 1)
+	require.Equal(t, "third", secondPage[0].(*apievents.UserLogin).User)
+	require.Empty(t, nextKey)
+}
+
+func legacyPaginationKey(t time.Time, id string) string {
+	var b [8 + 16]byte
+	binary.LittleEndian.PutUint64(b[0:8], uint64(t.UnixMicro()))
+	parsedID := uuid.MustParse(id)
+	copy(b[8:], parsedID[:])
+	return base64.URLEncoding.EncodeToString(b[:])
 }
 
 func newLogForTesting(t *testing.T) *Log {

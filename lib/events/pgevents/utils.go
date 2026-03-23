@@ -27,31 +27,46 @@ import (
 	"github.com/gravitational/trace"
 )
 
+type paginationKey struct {
+	time     time.Time
+	index    int64
+	id       uuid.UUID
+	hasIndex bool
+}
+
 // toNextKey returns a URL-safe pagination key for SearchEvents and
-// SearchSessionEvents, to begin reading after the given (time, id) pair. The
-// timestamp is assumed to be precise to the microsecond, as that's the Postgres
-// timestamptz granularity.
-func toNextKey(t time.Time, id uuid.UUID) string {
-	var b [8 + 16]byte
+// SearchSessionEvents, to begin reading after the given (time, index, id)
+// tuple. The timestamp is assumed to be precise to the microsecond, as that's
+// the Postgres timestamptz granularity.
+func toNextKey(t time.Time, index int64, id uuid.UUID) string {
+	var b [8 + 8 + 16]byte
 	binary.LittleEndian.PutUint64(b[0:8], uint64(t.UnixMicro()))
-	copy(b[8:8+16], id[:])
+	binary.LittleEndian.PutUint64(b[8:16], uint64(index))
+	copy(b[16:16+16], id[:])
 	return base64.URLEncoding.EncodeToString(b[:])
 }
 
-// fromStartKey parses a URL-safe pagination key as returned by [toNextKey] into
-// a (time, id) pair.
-func fromStartKey(key string) (time.Time, uuid.UUID, error) {
+// fromStartKey parses a URL-safe pagination key as returned by [toNextKey].
+// It also accepts the legacy v18 format that only encoded time and id.
+func fromStartKey(key string) (paginationKey, error) {
 	b, err := base64.URLEncoding.DecodeString(key)
 	if err != nil {
-		return time.Time{}, uuid.Nil, trace.Wrap(err)
-	}
-	if len(b) != 8+16 {
-		return time.Time{}, uuid.Nil, trace.BadParameter("malformed pagination key")
+		return paginationKey{}, trace.Wrap(err)
 	}
 
-	t := time.UnixMicro(int64(binary.LittleEndian.Uint64(b[0:8]))).UTC()
-	var id uuid.UUID
-	copy(id[:], b[8:8+16])
-
-	return t, id, nil
+	switch len(b) {
+	case 8 + 16:
+		t := time.UnixMicro(int64(binary.LittleEndian.Uint64(b[0:8]))).UTC()
+		var id uuid.UUID
+		copy(id[:], b[8:8+16])
+		return paginationKey{time: t, id: id}, nil
+	case 8 + 8 + 16:
+		t := time.UnixMicro(int64(binary.LittleEndian.Uint64(b[0:8]))).UTC()
+		index := int64(binary.LittleEndian.Uint64(b[8:16]))
+		var id uuid.UUID
+		copy(id[:], b[16:16+16])
+		return paginationKey{time: t, index: index, id: id, hasIndex: true}, nil
+	default:
+		return paginationKey{}, trace.BadParameter("malformed pagination key")
+	}
 }

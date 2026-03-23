@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -670,4 +671,38 @@ func ToEventFields(event events.AuditEvent) (EventFields, error) {
 	}
 
 	return fields, nil
+}
+
+// FromEventFieldsSlice converts a slice of dynamic event fields into typed
+// audit events.
+func FromEventFieldsSlice(fieldsArray []EventFields) ([]events.AuditEvent, error) {
+	eventArr := make([]events.AuditEvent, 0, len(fieldsArray))
+	for _, fields := range fieldsArray {
+		event, err := FromEventFields(fields)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		eventArr = append(eventArr, event)
+	}
+
+	return eventArr, nil
+}
+
+// FromEventFieldsSliceToUnstructured converts a slice of dynamic event fields
+// into unstructured audit events.
+func FromEventFieldsSliceToUnstructured(fieldsArray []EventFields) ([]*auditlogpb.EventUnstructured, error) {
+	eventArr := make([]*auditlogpb.EventUnstructured, 0, len(fieldsArray))
+	for _, fields := range fieldsArray {
+		event, err := FromEventFields(fields)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		unstructured, err := events.ToUnstructured(event)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		eventArr = append(eventArr, unstructured)
+	}
+
+	return eventArr, nil
 }
