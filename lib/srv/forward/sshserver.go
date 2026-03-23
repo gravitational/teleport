@@ -783,6 +783,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 		},
 		HostKeyCallback: s.authHandlers.HostKeyAuth,
 		Timeout:         netConfig.GetSSHDialTimeout(),
+		ClientVersion:   apidefaults.SSHClientVersion,
 	}
 
 	// Ciphers, KEX, and MACs preferences are honored by both the in-memory
