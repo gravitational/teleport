@@ -42,8 +42,14 @@ jobs:
               - 'web/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'tsconfig*.json'
+              - 'gen/proto/ts/**'
+              - '.github/actions/prepare-workspace/action.yml'
+              - 'common.mk'
               - 'build.assets/Makefile'
               - 'build.assets/Dockerfile*'
+              - 'build.assets/build-webassets-if-changed.sh'
               - 'Makefile'
 
   build:
