@@ -16,17 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Text } from 'design';
 import { ACL } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { DesktopSession } from 'shared/components/DesktopSession';
+import useDesktopSession, {
+  clipboardSharingMessage,
+  directorySharingPossible,
+  isSharingClipboard,
+  isSharingDirectory,
+} from 'shared/components/DesktopSession/useDesktopSession';
 import {
   Attempt,
   makeProcessingAttempt,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
-import { SharedDirectoryAccess, TdpClient, useListener } from 'shared/libs/tdp';
+import {
+  ButtonState,
+  SharedDirectoryAccess,
+  TdpClient,
+  useListener,
+} from 'shared/libs/tdp';
 import { TdpTransport } from 'shared/libs/tdp/client';
 
 import Logger from 'teleterm/logger';
@@ -71,6 +82,8 @@ function DesktopSessionComponent(props: {
   const appCtx = useAppContext();
   const { documentsService } = useWorkspaceContext();
   const loggedInUser = useWorkspaceLoggedInUser();
+  const { activeDesktopSessionService } = useAppContext();
+
   const acl = useMemo<Attempt<ACL>>(() => {
     if (!loggedInUser?.acl) {
       return makeProcessingAttempt();
@@ -127,6 +140,60 @@ function DesktopSessionComponent(props: {
     )
   );
 
+  const sharing = useDesktopSession(client, acl, true);
+
+  const handleCtrlAltDel = useCallback(() => {
+    client.sendKeyboardInput('ControlLeft', ButtonState.DOWN);
+    client.sendKeyboardInput('AltLeft', ButtonState.DOWN);
+    client.sendKeyboardInput('Delete', ButtonState.DOWN);
+  }, [client]);
+
+  const handleDisconnect = useCallback(() => {
+    client.shutdown();
+  }, [client]);
+
+  // Publish session state to the status bar when visible; clear it when hidden.
+  const isConnected = props.doc.status === 'connected';
+  useEffect(() => {
+    if (!props.visible) {
+      activeDesktopSessionService.setState(null);
+      return;
+    }
+    activeDesktopSessionService.setState({
+      isSharingClipboard: isSharingClipboard(sharing.clipboardSharingState),
+      clipboardSharingMessage: clipboardSharingMessage(
+        sharing.clipboardSharingState
+      ),
+      canShareDirectory: directorySharingPossible(
+        sharing.directorySharingState
+      ),
+      isSharingDirectory: isSharingDirectory(sharing.directorySharingState),
+      onShareDirectory: sharing.onShareDirectory,
+      onCtrlAltDel: handleCtrlAltDel,
+      onDisconnect: handleDisconnect,
+      alerts: sharing.alerts,
+      onRemoveAlert: sharing.onRemoveAlert,
+      isConnected,
+    });
+  }, [
+    props.visible,
+    activeDesktopSessionService,
+    sharing.clipboardSharingState,
+    sharing.directorySharingState,
+    sharing.onShareDirectory,
+    sharing.alerts,
+    sharing.onRemoveAlert,
+    handleCtrlAltDel,
+    handleDisconnect,
+    isConnected,
+  ]);
+
+  // Clear status bar state when the component unmounts.
+  useEffect(() => {
+    return () => activeDesktopSessionService.setState(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   let content = (
     <Text m="auto" mt={10} textAlign="center">
       Cannot open a connection to "{desktopUri}".
@@ -145,7 +212,10 @@ function DesktopSessionComponent(props: {
         client={client}
         username={login}
         aclAttempt={acl}
-        browserSupportsSharing
+        showTopBar={false}
+        {...sharing}
+        onCtrlAltDel={handleCtrlAltDel}
+        onDisconnect={handleDisconnect}
       />
     );
   }

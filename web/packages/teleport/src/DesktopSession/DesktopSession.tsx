@@ -21,7 +21,7 @@ import { useParams } from 'react-router';
 
 import {
   DisconnectedState,
-  DesktopSession as SharedDesktopSession,
+  DesktopSessionWithSharing as SharedDesktopSession,
 } from 'shared/components/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
 import { selectDirectoryInBrowser, TdpClient } from 'shared/libs/tdp';

@@ -30,7 +30,9 @@ import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/Connec
 
 import { AccessRequestCheckoutButton } from './AccessRequestCheckoutButton';
 import { statusBarHeight } from './constants';
+import { DesktopSessionControls } from './DesktopSessionControls';
 import { ShareFeedback } from './ShareFeedback';
+import { useActiveDesktopSession } from './useActiveDesktopSession';
 import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
 
 export function StatusBar(props: { onAssumedRolesClick(): void }) {
@@ -43,6 +45,7 @@ export function StatusBar(props: { onAssumedRolesClick(): void }) {
 
   const assumed = useAssumedRequests(rootClusterUri);
   const assumedRolesText = getAssumedRoles(assumed);
+  const desktopSessionStatus = useActiveDesktopSession();
 
   return (
     <Flex
@@ -125,6 +128,9 @@ export function StatusBar(props: { onAssumedRolesClick(): void }) {
               {assumedRolesText}
             </Text>
           </ButtonPrimary>
+        )}
+        {desktopSessionStatus?.isConnected && (
+          <DesktopSessionControls status={desktopSessionStatus} />
         )}
         <AccessRequestCheckoutButton />
         <ShareFeedback />

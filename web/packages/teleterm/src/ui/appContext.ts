@@ -26,6 +26,7 @@ import {
   TshdEventContextBridgeService,
 } from 'teleterm/types';
 import { cleanUpBeforeLogout } from 'teleterm/ui/ClusterLogout/cleanUpBeforeLogout';
+import { ActiveDesktopSessionService } from 'teleterm/ui/services/activeDesktopSession/activeDesktopSessionService';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
@@ -51,6 +52,7 @@ import { CommandLauncher } from './commandLauncher';
 import { createTshdEventsContextBridgeService } from './tshdEvents';
 
 export default class AppContext implements IAppContext {
+  activeDesktopSessionService: ActiveDesktopSessionService;
   clustersService: ClustersService;
   modalsService: ModalsService;
   notificationsService: NotificationsService;
@@ -95,6 +97,7 @@ export default class AppContext implements IAppContext {
     this.setupTshdEventContextBridgeService =
       config.setupTshdEventContextBridgeService;
     this.mainProcessClient = mainProcessClient;
+    this.activeDesktopSessionService = new ActiveDesktopSessionService();
     this.notificationsService = new NotificationsService();
     this.configService = this.mainProcessClient.configService;
     this.getPathForFile = config.getPathForFile;

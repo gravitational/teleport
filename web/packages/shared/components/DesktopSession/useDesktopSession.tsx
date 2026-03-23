@@ -89,9 +89,9 @@ export default function useDesktopSession(
   }, []);
 
   const [alerts, setAlerts] = useState<ToastNotificationItem[]>([]);
-  const onRemoveAlert = (id: string) => {
+  const onRemoveAlert = useCallback((id: string) => {
     setAlerts(prevState => prevState.filter(alert => alert.id !== id));
-  };
+  }, []);
   const addAlert = useCallback((alert: Omit<ToastNotificationItem, 'id'>) => {
     setAlerts(prevState => [
       ...prevState,
@@ -126,7 +126,7 @@ export default function useDesktopSession(
     }
   }
 
-  const onShareDirectory = async () => {
+  const onShareDirectory = useCallback(async () => {
     try {
       await tdpClient.shareDirectory();
       setDirectorySharingState({
@@ -147,7 +147,7 @@ export default function useDesktopSession(
         },
       });
     }
-  };
+  }, [tdpClient, addAlert]);
 
   /** Clears sharing state. */
   const clearSharing = useCallback(() => {

@@ -35,6 +35,7 @@ import {
   CanvasRendererRef,
 } from 'shared/components/CanvasRenderer';
 import { Latency } from 'shared/components/LatencyDiagnostic';
+import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 import {
   Attempt,
   makeEmptyAttempt,
@@ -43,6 +44,7 @@ import {
 } from 'shared/hooks/useAsync';
 import {
   ButtonState,
+  ClipboardData,
   ScrollAxis,
   TdpClient,
   useListener,
@@ -51,11 +53,13 @@ import { TdpError } from 'shared/libs/tdp/client';
 
 import { InputHandler } from './InputHandler';
 import TopBar from './TopBar';
-import useDesktopSession, {
+import {
   clipboardSharingMessage,
   directorySharingPossible,
   isSharingClipboard,
   isSharingDirectory,
+  type ClipboardSharingState,
+  type DirectorySharingState,
 } from './useDesktopSession';
 
 export interface DesktopSessionProps {
@@ -64,48 +68,57 @@ export interface DesktopSessionProps {
   username: string;
   /** Desktop name for display purposes. */
   desktop: string;
-  aclAttempt: Attempt<{
-    clipboardSharingEnabled: boolean;
-    directorySharingEnabled: boolean;
-  }>;
-  /** Determines if the browser client support directory and clipboard sharing. */
-  browserSupportsSharing: boolean;
   /**
    * Injects a custom component that overrides other connection states.
    * Useful for per-session MFA, which differs between Web UI and Connect.
    * Provides a callback to retry the connection.
    */
   customConnectionState?(args: { retry(): void }): React.ReactElement;
+  aclAttempt: Attempt<{
+    clipboardSharingEnabled: boolean;
+    directorySharingEnabled: boolean;
+  }>;
   hasAnotherSession(): Promise<boolean>;
   /**
    * Keyboard layout identifier for desired layout on remote session
    * Spec can be found here: https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
    */
   keyboardLayout?: number;
+  showTopBar?: boolean;
+  clipboardSharingState: ClipboardSharingState;
+  directorySharingState: DirectorySharingState;
+  clearSharing(): void;
+  onShareDirectory(): void;
+  alerts: ToastNotificationItem[];
+  onRemoveAlert(id: string): void;
+  addAlert(alert: Omit<ToastNotificationItem, 'id'>): void;
+  sendLocalClipboardToRemote(): void;
+  onClipboardData(clipboardData: ClipboardData): void;
+  onCtrlAltDel(): void;
+  onDisconnect(): void;
 }
 
 export function DesktopSession({
   client,
-  aclAttempt,
   username,
   desktop,
+  aclAttempt,
   hasAnotherSession,
   customConnectionState,
   keyboardLayout = 0,
-  browserSupportsSharing,
+  showTopBar,
+  clipboardSharingState,
+  directorySharingState,
+  clearSharing,
+  onShareDirectory,
+  alerts,
+  onRemoveAlert,
+  addAlert,
+  sendLocalClipboardToRemote,
+  onClipboardData,
+  onCtrlAltDel,
+  onDisconnect,
 }: DesktopSessionProps) {
-  const {
-    directorySharingState,
-    onClipboardData,
-    sendLocalClipboardToRemote,
-    clipboardSharingState,
-    clearSharing,
-    onShareDirectory,
-    alerts,
-    onRemoveAlert,
-    addAlert,
-  } = useDesktopSession(client, aclAttempt, browserSupportsSharing);
-
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
 
@@ -323,12 +336,6 @@ export function DesktopSession({
     e.preventDefault();
   }
 
-  function handleCtrlAltDel() {
-    client.sendKeyboardInput('ControlLeft', ButtonState.DOWN);
-    client.sendKeyboardInput('AltLeft', ButtonState.DOWN);
-    client.sendKeyboardInput('Delete', ButtonState.DOWN);
-  }
-
   /** Cleans attempts to rerun effects. */
   const onRetry = async () => {
     setTdpConnectionStatus({ status: '' });
@@ -352,22 +359,24 @@ export function DesktopSession({
         height: 100%;
       `}
     >
-      <TopBar
-        isConnected={screenState.state === 'canvas-visible'}
-        onDisconnect={() => {
-          client.shutdown();
-        }}
-        userHost={`${username} on ${desktop}`}
-        canShareDirectory={directorySharingPossible(directorySharingState)}
-        isSharingDirectory={isSharingDirectory(directorySharingState)}
-        isSharingClipboard={isSharingClipboard(clipboardSharingState)}
-        clipboardSharingMessage={clipboardSharingMessage(clipboardSharingState)}
-        onShareDirectory={onShareDirectory}
-        onCtrlAltDel={handleCtrlAltDel}
-        alerts={alerts}
-        onRemoveAlert={onRemoveAlert}
-        latency={latencyStats}
-      />
+      {showTopBar && (
+        <TopBar
+          isConnected={screenState.state === 'canvas-visible'}
+          onDisconnect={onDisconnect}
+          userHost={`${username} on ${desktop}`}
+          canShareDirectory={directorySharingPossible(directorySharingState)}
+          isSharingDirectory={isSharingDirectory(directorySharingState)}
+          isSharingClipboard={isSharingClipboard(clipboardSharingState)}
+          clipboardSharingMessage={clipboardSharingMessage(
+            clipboardSharingState
+          )}
+          onShareDirectory={onShareDirectory}
+          onCtrlAltDel={onCtrlAltDel}
+          alerts={alerts}
+          onRemoveAlert={onRemoveAlert}
+          latency={latencyStats}
+        />
+      )}
 
       {/* The UI states below (except the loading indicator) take up space.*/}
       {/* They're hidden while the canvas is visible, so when `connect()` reads the screen size, */}
