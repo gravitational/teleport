@@ -60,7 +60,7 @@ your Teleport cluster. The structure of the path of this URI is up to you.
 For the purposes of this guide, we will be granting access to GCP to the
 `spiffe://example.teleport.sh/svc/example-service` SPIFFE ID.
 
-If you have already deployed Teleport Workload Identity, then you will already
+If you have already deployed Teleport Workload Identity, then you will 
 have a SPIFFE ID structure in place. If you have not, then you will need to
 decide on a structure for your SPIFFE IDs.
 
@@ -142,15 +142,15 @@ Use the `gcloud` CLI to create a workload identity provider:
 ```code
 # Replace "workload-id-pool" with the name of the pool you just created and
 # "workload-id-oidc" with a meaningful, unique name.
+# Replace example.teleport.sh with the hostname of your Proxy Service's 
+# public address for issuer-uri. 
+# The `attribute-mapping` maps the `sub` claim within the JWT to the `google.subject` attribute.
+# This will allow it to be used to make Authz decisions in GCP.
+
 $ gcloud iam workload-identity-pools providers create-oidc workload-id-oidc \
     --location="global" \
-    # This should match the name of the pool you just created.
     --workload-identity-pool="workload-id-pool" \
-    # Replace example.teleport.sh with the hostname of your Proxy Service's
-    # public address.
     --issuer-uri="https://example.teleport.sh/workload-identity" \
-    # Maps the `sub` claim within the JWT to the `google.subject` attribute.
-    # This will allow it to be used to make Authz decisions in GCP.
     --attribute-mapping="google.subject=assertion.sub"
 ```
 
