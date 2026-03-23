@@ -270,7 +270,7 @@ jobs:
           failed=0
           wait $pid_docker || { echo "::error::docker pull failed with exit code $?"; failed=1; }
           wait $pid_pnpm   || { echo "::error::pnpm install failed with exit code $?"; failed=1; }
-          [ $failed -eq 0 ] || exit 1
+          exit $failed
 
       - name: Upload setup logs
         if: failure()
