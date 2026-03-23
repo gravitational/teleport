@@ -1,0 +1,295 @@
+---
+title: Beams
+sidebar_label: Beams
+description: Trusted Runtimes for Infrastructure Agents
+tags:
+  - conceptual
+  - ai
+---
+
+[Beams](https://beams.run) are ephemeral, isolated runtimes for AI agents. Each
+beam is a short-lived [Firecracker](https://firecracker-microvm.github.io/)
+micro-VM provisioned with a Teleport-issued identity and connected to your
+infrastructure and inference services — with no secrets, no static API keys, and
+full audit coverage.
+
+Beams are part of the [Teleport Agentic Identity
+Framework](../agentic-identity-framework.mdx) and are designed to solve the core
+adoption blockers for running agents in production: security, IAM, and
+operational overhead.
+
+## How Beams work
+
+When you run `tsh beams add`, Teleport's orchestrator provisions an isolated
+Firecracker micro-VM, injects a short-lived identity certificate, starts an SSH
+server, and configures virtual networking — all before your agent executes its
+first line of code.
+
+Each beam runs a Debian-based environment that comes with Teleport's `tsh`
+command line and an assortment of common tooling.
+
+### Identity delegation
+
+Beams use Teleport's identity delegation mechanism to allow agents to act on a
+user's behalf without sharing secrets. All actions taken in the beam are attributed
+to both the originating user and the beam's unique workload identity in Teleport's
+audit log.
+
+In the beta, each beam's delegation session inherits the user's full permission
+set. In future iterations, users will be able to provide a more restrictive
+delegation profile and even allow agents to interactively request additional
+permissions.
+
+### Inference endpoints
+
+Each beam comes preconfigured with VNet networking in place to proxy requests to
+popular inference endpoints.
+
+Beams currently support both OpenAI and Anthropic inference APIs. The standard
+`$OPENAI_BASE_URL` and `$ANTHROPIC_BASE_URL` are set automatically, so tools
+that respect these environment variables will work without additional
+configuration.
+
+Teleport automatically injects credentials when proxying requests to inference
+endpoints. This means no API keys are stored on the beam, and no configuration
+is necessary in order to make requests.
+
+In the beta release, inference credentials are configured automatically by
+Teleport. Future iterations will allow users to configure their own inference
+endpoints and bring their own credentials.
+
+## Use cases
+
+### Coding agents
+
+Drop an agent into a beam and let Teleport handle access to internal services
+and inference endpoints with full audit and access control.
+
+```code
+$ tsh beams add
+◆ created tidal-memory
+beams@tidal-memory:~$ claude --dangerously-skip-permissions \
+  "Connect to the HR database and tell me who hasn't had a pay raise in a while"
+```
+
+### Sandboxed app development
+
+Check out a repo, spin up an AI coding assistant, and test against staging or
+production without exposing secrets.
+
+```code
+$ tsh beams add
+◆ created warm-orbit
+
+# Clone a repo inside the isolated VM
+beams@warm-orbit:~$ git clone github.com/org/repo
+
+# Start an AI assistant and start coding
+beams@warm-orbit:~$ claude init
+```
+
+You can even share your app with others by publishing it to the Teleport cluster.
+Configure the app to bind to port 8080, and publish the app with `tsh beams publish`.
+
+```code
+$ tsh beams publish warm-orbit
+```
+
+By default, `tsh beams publish` will register a [web
+application](../enroll-resources/application-access/protect-apps/connecting-apps.mdx)
+with automatic TLS termination.
+
+Apps that expose gRPC APIs are better suited as [TCP
+applications](../enroll-resources/application-access/protect-apps/tcp.mdx)
+than web applications. Run `tsh beams publish` with the `--tcp` flag to register
+the app as a TCP application.
+
+## Interacting with Beams via `tsh`
+
+All beam operations are performed through the `tsh beams` subcommand.
+
+| Command | Description |
+|---|---|
+| `tsh beams ls` | List running beam instances. |
+| `tsh beams add` | Create a new beam instance. |
+| `tsh beams ssh <name>` | Start an interactive shell in a beam. |
+| `tsh beams rm <name>` | Delete a running beam instance. |
+| `tsh beams exec <name> -- <cmd>` | Run a command on an existing beam. |
+| `tsh beams publish <name>` | Publish an HTTP or TCP service running in a beam. |
+| `tsh beams scp <src> <dst>` | Copy files into or out of beams. |
+
+### Creating a beam
+
+Create a new beam with `tsh beams add`. This provisions a Firecracker micro-VM
+and returns when the beam is ready (typically under 5 seconds).
+
+```code
+$ tsh beams add
+◆ created warm-orbit
+
+Name:      warm-orbit
+Owner:     alice@example.com
+Expiry:    2027-02-05 22:04 UTC
+```
+
+Beam names are auto-generated. You do not specify a name when creating a beam.
+
+By default, `tsh beams add` will connect to the beam automatically and drop you
+into a console. To start a beam without also opening a console session, add the
+`--no-console` flag.
+
+For structured output, use `tsh beams add --format=json`.
+
+### Listing beams
+
+View your active beams:
+
+```code
+$ tsh beams ls
+Name          URL                                      Expiry
+------------- ---------------------------------------- --------------------
+warm-orbit    https://warm-orbit.example.teleport.sh/  2027-02-05 22:04 UTC
+nimble-signal -                                        2027-02-06 12:15 UTC
+```
+
+### Running commands
+
+Run a one-off command inside a running beam:
+
+```code
+$ tsh beams exec warm-orbit -- python /home/beam-user/agent.py
+```
+
+Or start an interactive shell:
+
+```code
+$ tsh beams ssh warm-orbit
+beams@warm-orbit:~$
+```
+
+### Removing a beam
+
+Beams are ephemeral and automatically purged after 24 hours.
+To manually remove a beam prior to its expiration, use `tsh beams rm`:
+
+```code
+$ tsh beams rm warm-orbit
+```
+
+## How do I…
+
+### Copy files into or out of a beam
+
+Use `tsh beams scp` to transfer files. The command accepts two arguments, one
+of which must refer to a file on a beam with the `<name>:<file>` syntax.
+
+```code
+# Copy a local file into the beam
+$ tsh beams scp ./example.txt warm-orbit:/tmp/example.txt
+Copied successfully.
+
+# Copy a file from the beam to your local machine
+$ tsh beams scp warm-orbit:/home/beam-user/output.csv ./output.csv
+Copied successfully.
+```
+
+### Connect to a beam interactively
+
+```code
+$ tsh beams ssh warm-orbit
+beams@warm-orbit:~$
+```
+
+You get a full shell inside the Debian-based user container. `tsh` is
+pre-installed and authenticated with the beam's delegated identity, so you can
+access Teleport resources directly from within the beam.
+
+### Publish an app from a beam
+
+If your agent starts an HTTP server or TCP service inside the beam on port
+`8080`, you can expose it through Teleport application access:
+
+```code
+# Expose the beam's port 8080 as an HTTP application
+$ tsh beams publish warm-orbit
+Beam service exposed.
+
+URL:    https://warm-orbit.example.teleport.sh/
+```
+
+The published URL is accessible to authorized users through the Teleport Proxy
+with full TLS and authentication. The Envoy sidecar inside the beam handles
+mTLS termination for the connection from the control plane.
+
+Only port `8080` is supported in the initial beta. To publish a generic TCP
+application instead of a web application, add the `--tcp` flag.
+
+## Authorization
+
+Beams are single-user by design. Only the user who created a beam can access it.
+
+Access control is enforced using owner labels on the beam's node and application
+resources (`teleport.internal/beam/owner: <username>`) and a `beam-user` role
+that restricts access to matching resources:
+
+```code
+kind: role
+version: v7
+metadata:
+  name: beam-user
+spec:
+  allow:
+    logins:
+      - beams
+    node_labels:
+      teleport.internal/beam/owner: '{{internal.username}}'
+    app_labels_expression: |
+      labels["teleport.internal/beams/app-type"] == "llm" ||
+      contains(user.spec.traits.username, labels["teleport.internal/beam/owner"])
+    rules:
+      - resources: [beam]
+        verbs: ["*"]
+    beam_labels:
+      teleport.internal/beam/owner: '{{internal.username}}'
+```
+
+This role is automatically assigned to users on Beams-enabled clusters.
+
+## Security model
+
+Beams run on the Teleport Cloud platform. Each beam runs in a restricted
+containerized environment inside of a dedicated Firecracker microVM.
+
+A beam can only access your Teleport resources (like apps and databases) if it
+is granted the appropriate permissions. For now, beams run with a delegated
+identify inheriting the full privileges of the user who started them. In the
+future, users will be able to delegate a subset of their permissions to the
+beam.
+
+Durning the beta period beams have unrestricted access to the public internet.
+In the future, beams will have restricted egress networking by default.
+
+Ingress traffic to beams is either protected by Teleport SSH (for console access)
+or via Teleport application tunnels (for published apps).
+
+Egress traffic to inference APIs is proxied by Teleport VNet. Credentials are
+injected after traffic leaves the beam, ensuring that sensitive API keys do not
+reside on the beam.
+
+## Resource limits
+
+Each beam is provisioned with the following compute resources:
+
+| Component | CPU | Memory | Ephemeral Storage |
+|---|---|---|---|
+| User container | 1700m | 7808 Mi | 20 Gi |
+| `tbot` sidecar | 100m | 128 Mi | 1 Gi |
+| Envoy sidecar | 200m | 256 Mi | 1 Gi |
+| **Total per beam** | **2 vCPU** | **8 GiB** | **22 Gi** |
+
+During the beta period, we enforce the following limits:
+
+- **Beam count cap**: a maximum of 20 concurrent beams per tenant
+- **Rate limits**: a maximum of 5 new beams per minute per tenant
+- **Beam TTL**: beams expire after 24 hours, preventing runaway agents
+- **Inference limits**: inference endpoint consumption is capped per tenant

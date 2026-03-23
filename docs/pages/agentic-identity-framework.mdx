@@ -5,6 +5,8 @@ template: landing-page
 
 {/* cspell:disable */}
 
+{/* TODO(zmb3): link to beams */}
+
 import LandingHero from '@site/src/components/Pages/Landing/LandingHero';
 import EnrollmentMethods, { Method } from '@site/src/components/Pages/Landing/EnrollmentMethods/EnrollmentMethods';
 import Resources from '@site/src/components/Pages/Homepage/Resources';
@@ -98,9 +100,9 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
   Integrate security into agentic systems from the initial design phase.
 </LandingHero>
 
-<EnrollmentMethods 
-  title="Agentic Identity" 
-  description="You can use Teleport to issue and manage cryptographic identities for agents, including delegated identities and identities for long-running agents across all of your infrastructure." 
+<EnrollmentMethods
+  title="Agentic Identity"
+  description="You can use Teleport to issue and manage cryptographic identities for agents, including delegated identities and identities for long-running agents across all of your infrastructure."
   desktopColumnsCount={3}
   linkColor="purple"
   fontSize="xl"
@@ -142,8 +144,8 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
   </Method>
 </EnrollmentMethods>
 
-<EnrollmentMethods 
-  title="Agentic Access" 
+<EnrollmentMethods
+  title="Agentic Access"
   description="You can use Teleport to manage authorization to infrastructure, services, and data with discovery of MCP servers and LLM controls, including rate limiting, load balancing, budgets, prompt/response tracking, and guardrails."
   desktopColumnsCount={3}
   linkColor="purple"
@@ -188,8 +190,8 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
   </Method>
 </EnrollmentMethods>
 
-<EnrollmentMethods 
-  title="Agentic Security" 
+<EnrollmentMethods
+  title="Agentic Security"
   description="Teleport provides discovery, detection, and analytics for AI agents and MCP servers to reduce shadow deployments and context poisoning attacks."
   desktopColumnsCount={3}
   linkColor="purple"
@@ -219,8 +221,8 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
   </Method>
 </EnrollmentMethods>
 
-<EnrollmentMethods 
-  title="Scheduling & Orchestration" 
+<EnrollmentMethods
+  title="Scheduling & Orchestration"
   description="Integrations and SDKs for modern agentic orchestration tools enable secure identities for agentic workflows accessing resources like databases and git repositories, as well as file sharing and developer tooling."
   desktopColumnsCount={3}
   linkColor="purple"
@@ -331,12 +333,12 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
       title: 'Redis',
       iconColor: '#FF45391A',
       iconComponent: redisSvg,
-    }, 
+    },
     {
       title: 'Elasticsearch',
       iconColor: '#1BA9F51A',
       iconComponent: elasticsearchSvg,
-    }, 
+    },
   ]}
   noBackgroundColor={true}
 />
