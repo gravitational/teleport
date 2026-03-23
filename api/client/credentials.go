@@ -605,6 +605,7 @@ func (d *DynamicIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) 
 			}),
 		},
 		HostKeyCallback: hostKeyCallback,
+		ClientVersion:   defaults.SSHClientVersion,
 		Timeout:         defaults.DefaultIOTimeout,
 		// We use this because we can't always guarantee that a user will have
 		// a principal other than this (they may not have access to SSH nodes)

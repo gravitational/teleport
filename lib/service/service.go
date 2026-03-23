@@ -540,6 +540,7 @@ func (c *Connector) clientSSHClientConfig(fips bool) (*ssh.ClientConfig, error) 
 			return []ssh.Signer{c.clientState.Load().sshCertSigner}, nil
 		})},
 		HostKeyCallback: hostKeyCallback,
+		ClientVersion:   apidefaults.SSHClientVersion,
 		Timeout:         apidefaults.DefaultIOTimeout,
 	}, nil
 }

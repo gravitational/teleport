@@ -32,7 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
@@ -1209,6 +1209,9 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	modernClientConn := &mockConnMetadata{clientVersion: []byte(apidefaults.SSHClientVersion)}
+	legacyClientConn := &mockConnMetadata{clientVersion: []byte("SSH-2.0-OpenSSH_9.9")}
+
 	t.Run("no access permit returns original permissions", func(t *testing.T) {
 		ah := &AuthHandlers{}
 
@@ -1297,7 +1300,7 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		}
 
 		outPerms, err := ah.VerifiedPublicKeyCallback(
-			&mockConnMetadata{clientVersion: []byte(defaults.SSHClientVersion)},
+			modernClientConn,
 			cert,
 			inPerms,
 			"",
@@ -1319,7 +1322,7 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 			},
 		}
 
-		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
+		outPerms, err := ah.VerifiedPublicKeyCallback(legacyClientConn, cert, inPerms, "")
 		require.ErrorIs(t, err, services.ErrSessionMFARequired)
 		require.Nil(t, outPerms)
 	})
@@ -1333,7 +1336,7 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 			},
 		}
 
-		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, mfaCert, inPerms, "")
+		outPerms, err := ah.VerifiedPublicKeyCallback(legacyClientConn, mfaCert, inPerms, "")
 		require.NoError(t, err)
 		require.Same(t, inPerms, outPerms)
 	})
@@ -1347,7 +1350,7 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 			},
 		}
 
-		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, hardwareKeyMFACert, inPerms, "")
+		outPerms, err := ah.VerifiedPublicKeyCallback(legacyClientConn, hardwareKeyMFACert, inPerms, "")
 		require.NoError(t, err)
 		require.Same(t, inPerms, outPerms)
 	})
@@ -1363,7 +1366,7 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 			},
 		}
 
-		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, mfaCert, inPerms, "")
+		outPerms, err := ah.VerifiedPublicKeyCallback(legacyClientConn, mfaCert, inPerms, "")
 		require.Error(t, err)
 		require.ErrorContains(t, err, `legacy public key authentication is forbidden`)
 		require.Nil(t, outPerms)
@@ -1385,7 +1388,7 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		}
 
 		outPerms, err := ah.VerifiedPublicKeyCallback(
-			&mockConnMetadata{clientVersion: []byte(defaults.SSHClientVersion)},
+			modernClientConn,
 			cert,
 			inPerms,
 			"",

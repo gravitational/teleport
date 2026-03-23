@@ -101,6 +101,7 @@ func TestLoadIdentityFile(t *testing.T) {
 	sshConfig, err := creds.SSHClientConfig()
 	require.NoError(t, err)
 	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
+	requireTeleportSSHClientVersion(t, sshConfig)
 
 	expiry, ok := creds.Expiry()
 	require.True(t, ok, "Expiry should be known when we build creds from an identity file")
@@ -153,6 +154,7 @@ func TestLoadIdentityFileFromString(t *testing.T) {
 	sshConfig, err := creds.SSHClientConfig()
 	require.NoError(t, err)
 	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
+	requireTeleportSSHClientVersion(t, sshConfig)
 
 	expiry, ok := creds.Expiry()
 	require.True(t, ok, "expiry should be known when we build creds from an identity file")
@@ -273,6 +275,7 @@ func testProfileContents(t *testing.T, dir, name string) {
 	sshConfig, err := creds.SSHClientConfig()
 	require.NoError(t, err)
 	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
+	requireTeleportSSHClientVersion(t, sshConfig)
 
 	expiry, ok := creds.Expiry()
 	require.True(t, ok, "expiry should be known when we build creds from a profile")
@@ -332,6 +335,12 @@ func requireEqualSSHConfig(t *testing.T, expected *ssh.ClientConfig, actual *ssh
 	require.Empty(t, cmp.Diff(expected, actual,
 		cmpopts.IgnoreFields(ssh.ClientConfig{}, "Auth", "HostKeyCallback"),
 	))
+}
+
+func requireTeleportSSHClientVersion(t *testing.T, cfg *ssh.ClientConfig) {
+	t.Helper()
+
+	require.Equal(t, defaults.SSHClientVersion, cfg.ClientVersion)
 }
 
 var (
@@ -536,6 +545,10 @@ func TestDynamicIdentityFileCreds(t *testing.T) {
 	expiry, ok = cred.Expiry()
 	require.True(t, ok, "expiry should be known when we build creds from an identity file")
 	require.Equal(t, newExpiry, expiry)
+
+	sshConfig, err := cred.SSHClientConfig()
+	require.NoError(t, err)
+	requireTeleportSSHClientVersion(t, sshConfig)
 }
 
 func ExampleDynamicIdentityFileCreds() {
