@@ -21,7 +21,7 @@ import (
 	"log/slog"
 	"sync"
 
-	log "github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 var initLoggerOnce = sync.Once{}
@@ -39,7 +39,7 @@ func InitLogger(verbose func() bool) {
 			return
 		}
 
-		log.Initialize(log.Config{
+		logutils.Initialize(logutils.Config{
 			Severity: slog.LevelDebug.String(),
 			Format:   "json",
 		})

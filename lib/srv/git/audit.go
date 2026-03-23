@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
-	log "github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
@@ -119,11 +119,11 @@ func (r *pushCommandRecorder) Write(p []byte) (int, error) {
 	//
 	// https://git-scm.com/docs/pack-protocol#_reference_update_request_and_packfile_transfer
 	if r.seenFlush {
-		r.logger.Log(r.parentCtx, log.TraceLevel, "Discarding packet protocol", "packet_length", len(p))
+		r.logger.Log(r.parentCtx, logutils.TraceLevel, "Discarding packet protocol", "packet_length", len(p))
 		return len(p), nil
 	}
 
-	r.logger.Log(r.parentCtx, log.TraceLevel, "Recording Git command in packet protocol", "packet", string(p))
+	r.logger.Log(r.parentCtx, logutils.TraceLevel, "Recording Git command in packet protocol", "packet", string(p))
 	r.payload = append(r.payload, p...)
 	if bytes.HasSuffix(p, pktline.FlushPkt) {
 		r.seenFlush = true

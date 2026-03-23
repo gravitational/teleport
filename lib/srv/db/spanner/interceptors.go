@@ -24,7 +24,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	logutil "github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // unaryServerLoggingInterceptor is gRPC middleware that logs some debug info.
@@ -60,5 +60,5 @@ func logRPC(ctx context.Context, log *slog.Logger, fullMethod string, handlerErr
 		log.DebugContext(ctx, "failed to handle Spanner RPC", "full_method", fullMethod, "error", handlerErr)
 		return
 	}
-	log.Log(ctx, logutil.TraceLevel, "Handled Spanner RPC", "full_method", fullMethod)
+	log.Log(ctx, logutils.TraceLevel, "Handled Spanner RPC", "full_method", fullMethod)
 }

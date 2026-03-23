@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	log "github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // workerConfig is the configuration for a [workerI].
@@ -233,8 +233,8 @@ func (w *worker) run() {
 func (w *worker) startHealthCheckInterval(ctx context.Context) {
 	w.log.InfoContext(ctx, "Health checker started",
 		"health_check_config", w.healthCheckCfg.name,
-		"interval", log.StringerAttr(w.healthCheckCfg.interval),
-		"timeout", log.StringerAttr(w.healthCheckCfg.timeout),
+		"interval", logutils.StringerAttr(w.healthCheckCfg.interval),
+		"timeout", logutils.StringerAttr(w.healthCheckCfg.timeout),
 		"healthy_threshold", w.healthCheckCfg.healthyThreshold,
 		"unhealthy_threshold", w.healthCheckCfg.unhealthyThreshold,
 	)
@@ -322,8 +322,8 @@ func (w *worker) updateHealthCheckConfig(ctx context.Context, newCfg *healthChec
 	}
 	w.log.DebugContext(ctx, "Updated health check config",
 		"health_check_config", w.healthCheckCfg.name,
-		"interval", log.StringerAttr(w.healthCheckCfg.interval),
-		"timeout", log.StringerAttr(w.healthCheckCfg.timeout),
+		"interval", logutils.StringerAttr(w.healthCheckCfg.interval),
+		"timeout", logutils.StringerAttr(w.healthCheckCfg.timeout),
 		"healthy_threshold", w.healthCheckCfg.healthyThreshold,
 		"unhealthy_threshold", w.healthCheckCfg.unhealthyThreshold,
 	)

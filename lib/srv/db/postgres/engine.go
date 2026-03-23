@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
-	logutil "github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 // NewEngine create new Postgres engine.
@@ -342,7 +342,7 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 			clientErrCh <- err
 			return
 		}
-		log.Log(e.Context, logutil.TraceLevel, "Received client message", "message", message)
+		log.Log(e.Context, logutils.TraceLevel, "Received client message", "message", message)
 		ctr.Inc()
 
 		switch msg := message.(type) {
@@ -481,7 +481,7 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 
 			count += 1
 			ctr.Inc()
-			log.Log(e.Context, logutil.TraceLevel, "Received client message", "message", message)
+			log.Log(e.Context, logutils.TraceLevel, "Received client message", "message", message)
 			e.auditResult(sessionCtx, message)
 		}
 	}()
