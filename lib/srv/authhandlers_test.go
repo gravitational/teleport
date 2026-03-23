@@ -1243,7 +1243,7 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 
 		inPerms := &ssh.Permissions{
 			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: "{}",
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
 			},
 		}
 
@@ -1261,7 +1261,7 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 
 		inPerms := &ssh.Permissions{
 			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: "{}",
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
 			},
 		}
 
@@ -1284,6 +1284,31 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
 		require.NoError(t, err)
 		require.Same(t, inPerms, outPerms)
+	})
+
+	t.Run("permit with unsupported preconditions fails closed", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		unsupportedPermitRaw, err := protojson.Marshal(
+			&decisionpb.SSHAccessPermit{
+				Preconditions: []*decisionpb.Precondition{
+					{
+						Kind: decisionpb.PreconditionKind(999),
+					},
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(unsupportedPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
+		require.ErrorContains(t, err, "unexpected precondition type")
+		require.Nil(t, outPerms)
 	})
 
 	t.Run("permit with MFA required preconditions and modern client requires additional auth", func(t *testing.T) {

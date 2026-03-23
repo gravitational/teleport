@@ -37,33 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
-func TestKeyboardInteractiveAuth_NoPreconds(t *testing.T) {
-	t.Parallel()
-
-	h, id := setupKeyboardInteractiveAuthTestWithVerifier(t, &mockMFAServiceClient{})
-
-	preconds := []*decisionpb.Precondition{
-		// No preconditions.
-	}
-
-	inPerms := &ssh.Permissions{
-		Extensions: map[string]string{
-			"foo": "bar",
-		},
-	}
-
-	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
-	require.NoError(t, err)
-	require.Empty(
-		t,
-		cmp.Diff(
-			inPerms,
-			outPerms,
-		),
-		"KeyboardInteractiveAuth() perms mismatch (-want +got)",
-	)
-}
-
 func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 	t.Parallel()
 
@@ -194,24 +167,6 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_EmptySessionID(t *testing.T) {
 	)
 	require.Nil(t, outPerms)
 	require.ErrorIs(t, err, trace.BadParameter("params SessionID must be set and be non-empty"))
-}
-
-func TestKeyboardInteractiveAuth_PreCondUnknownKind(t *testing.T) {
-	t.Parallel()
-
-	h, id := setupKeyboardInteractiveAuthTestWithVerifier(t, &mockMFAServiceClient{})
-
-	preconds := []*decisionpb.Precondition{
-		{
-			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED,
-		},
-	}
-
-	inPerms := &ssh.Permissions{}
-
-	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
-	require.Nil(t, outPerms)
-	require.ErrorIs(t, err, trace.BadParameter(`unexpected precondition type "PRECONDITION_KIND_UNSPECIFIED" found (this is a bug)`))
 }
 
 func TestKeyboardInteractiveAuth_EmptyClusterName(t *testing.T) {

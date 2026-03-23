@@ -30,20 +30,15 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
-// KeyboardInteractiveAuth performs keyboard-interactive authentication based on the provided preconditions. If no
-// preconditions are provided, it returns the input permissions as-is. If further authentication is required, it returns
-// a PartialSuccessError containing the necessary SSH server auth callbacks that the SSH server can use to continue the
-// authentication process.
+// KeyboardInteractiveAuth performs keyboard-interactive authentication based on the provided preconditions. If further
+// authentication is required, it returns a PartialSuccessError containing the necessary SSH server auth callback that
+// the SSH server can use to continue the authentication process.
 func (h *AuthHandlers) KeyboardInteractiveAuth(
 	ctx context.Context,
 	preconds []*decisionpb.Precondition,
 	id *sshca.Identity,
 	perms *ssh.Permissions,
 ) (*ssh.Permissions, error) {
-	if len(preconds) == 0 {
-		return perms, nil
-	}
-
 	// Source cluster must be the cluster the user will perform the MFA ceremony with. This is usually the cluster the
 	// user is trying to access, but in some cases, such as trusted clusters, the user has to perform the MFA ceremony
 	// with the root cluster instead. In those cases, the RouteToCluster field will be set to the root cluster, so we
@@ -51,11 +46,6 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	sourceCluster := cmp.Or(id.RouteToCluster, id.ClusterName)
 	if sourceCluster == "" {
 		return nil, trace.BadParameter("identity missing cluster name (this is a bug)")
-	}
-
-	// If an unknown or unsupported precondition is provided, fail close to prevent potential authentication bypasses.
-	if err := ensureSupportedPreconditions(preconds); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// keyboardInteractiveCallback handles keyboard-interactive authentication for modern clients.
@@ -93,18 +83,4 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 			KeyboardInteractiveCallback: keyboardInteractiveCallback,
 		},
 	}
-}
-
-func ensureSupportedPreconditions(preconds []*decisionpb.Precondition) error {
-	for _, precond := range preconds {
-		switch precond.GetKind() {
-		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
-			// OK
-
-		default:
-			return trace.BadParameter("unexpected precondition type %q found (this is a bug)", precond.GetKind())
-		}
-	}
-
-	return nil
 }

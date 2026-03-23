@@ -725,7 +725,7 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 	signatureAlgorithm string,
 ) (*ssh.Permissions, error) {
 	// Access preconditions are only set in the SSH access permit. For all other permit types, it is expected for this
-	// entry to be unset, so return the input permissions to grant access.
+	// entry to be unset, so grant access.
 	rawPermit, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]
 	if !ok {
 		return perms, nil
@@ -734,6 +734,27 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 	permit := &decisionpb.SSHAccessPermit{}
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(rawPermit), permit); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// If no preconditions are set, allow the connection to proceed without additional checks.
+	if len(permit.GetPreconditions()) == 0 {
+		return perms, nil
+	}
+
+	// If an unknown or unsupported precondition is provided, fail close to prevent potential authentication bypasses.
+	if err := ensureSupportedPreconditions(permit.GetPreconditions()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mfaRequired := slices.ContainsFunc(
+		permit.GetPreconditions(),
+		func(p *decisionpb.Precondition) bool {
+			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
+		},
+	)
+	if !mfaRequired {
+		// MFA not required, grant access.
+		return perms, nil
 	}
 
 	cert, ok := key.(*ssh.Certificate)
@@ -747,12 +768,6 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 	}
 
 	var (
-		mfaRequired = slices.ContainsFunc(
-			permit.GetPreconditions(),
-			func(p *decisionpb.Precondition) bool {
-				return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
-			},
-		)
 		forceInBandMFA      = os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes"
 		isModernClient      = string(conn.ClientVersion()) == defaults.SSHClientVersion
 		isLegacyClient      = !isModernClient
@@ -763,10 +778,6 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 	// TODO(cthach): DELETE IN v20.0 when in-band MFA is required for all clients and backwards compatibility with
 	// legacy clients is no longer supported.
 	switch {
-	case !mfaRequired:
-		// MFA is not required, grant access.
-		return perms, nil
-
 	case !forceInBandMFA && isLegacyClient && isRegularSSHCert:
 		// In-band MFA is optional, but MFA is required and client is using a regular cert, deny.
 		return nil, services.ErrSessionMFARequired
@@ -792,6 +803,20 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 		ident,
 		perms,
 	)
+}
+
+func ensureSupportedPreconditions(preconds []*decisionpb.Precondition) error {
+	for _, precond := range preconds {
+		switch precond.GetKind() {
+		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
+			// OK
+
+		default:
+			return trace.BadParameter("unexpected precondition type %q found (this is a bug)", precond.GetKind())
+		}
+	}
+
+	return nil
 }
 
 func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {

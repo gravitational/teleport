@@ -148,9 +148,8 @@ func ProxyClientSSHConfig(sshCert *ssh.Certificate, priv crypto.Signer, knownHos
 	}
 
 	cfg := &ssh.ClientConfig{
-		Auth:          []ssh.AuthMethod{authMethod},
-		ClientVersion: defaults.SSHClientVersion,
-		Timeout:       defaults.DefaultIOTimeout,
+		Auth:    []ssh.AuthMethod{authMethod},
+		Timeout: defaults.DefaultIOTimeout,
 	}
 
 	// The KeyId is not always a valid principal, so we use the first valid principal instead.
