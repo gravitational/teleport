@@ -409,6 +409,7 @@ func (d *fsRequestHandler) handleSharedDirectoryMoveRequest(completionID uint32,
 	err := sendToServer(&tdpb.SharedDirectoryResponse{
 		CompletionId: completionID,
 		ErrorCode:    uint32(SharedDirectoryErrCodeFailed),
+		Operation:    &tdpbv1.SharedDirectoryResponse_Move_{},
 	})
 	if err != nil {
 		return trace.Wrap(err)
