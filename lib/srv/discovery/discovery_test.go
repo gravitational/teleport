@@ -936,7 +936,26 @@ func TestDiscoveryServer(t *testing.T) {
 					require.Equal(t, want.ErrorMessage, got.ErrorMessage)
 					for expectedKey, expectedValue := range want.IntegrationDiscoveredResources {
 						require.Contains(t, got.IntegrationDiscoveredResources, expectedKey)
-						require.Equal(t, expectedValue, got.IntegrationDiscoveredResources[expectedKey])
+						gotResourcesSummary := got.IntegrationDiscoveredResources[expectedKey]
+
+						cmpDiff := cmp.Diff(expectedValue, gotResourcesSummary,
+							protocmp.Transform(),
+							protocmp.IgnoreFields(&discoveryconfigv1.ResourcesDiscoveredSummary{}, "sync_end", "sync_start"),
+						)
+						require.Empty(t, cmpDiff, "expected discovery config status summary does not match actual summary, diff: %s", cmpDiff)
+
+						if expectedValue.AwsEc2 != nil {
+							requireSyncTimesSet(t, gotResourcesSummary.AwsEc2)
+						}
+						if expectedValue.AwsEks != nil {
+							requireSyncTimesSet(t, gotResourcesSummary.AwsEks)
+						}
+						if expectedValue.AwsRds != nil {
+							requireSyncTimesSet(t, gotResourcesSummary.AwsRds)
+						}
+						if expectedValue.AzureVms != nil {
+							requireSyncTimesSet(t, gotResourcesSummary.AzureVms)
+						}
 					}
 					return true
 				}, 1*time.Second, 50*time.Millisecond)
@@ -946,6 +965,12 @@ func TestDiscoveryServer(t *testing.T) {
 			}
 		})
 	}
+}
+
+func requireSyncTimesSet(t *testing.T, summary *discoveryconfigv1.ResourcesDiscoveredSummary) {
+	require.NotNil(t, summary)
+	require.True(t, summary.SyncStart.AsTime().After(time.Unix(0, 0)))
+	require.True(t, summary.SyncEnd.AsTime().After(time.Unix(0, 0)))
 }
 
 func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTasks, minUserTaskResources int) []*usertasksv1.UserTask {

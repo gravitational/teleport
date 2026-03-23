@@ -206,12 +206,14 @@ func (s *Server) startKubeIntegrationWatchers() error {
 }
 
 func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
-	allFetchers := s.getKubeIntegrationFetchers()
-	if len(allFetchers) == 0 {
-		return
-	}
+	// TODO(marco): EKS discovery is highly async during enrollment part.
+	// now() does not represent the time when the cluster was discovered, but rather when starting a new iteration.
+	// This should be fixed, to ensure that we correctly track when discovered clusters are enrolled.
+	s.awsEKSResourcesStatus.iterationEnded(s.clock.Now())
+	discoveryConfigs := s.awsEKSResourcesStatus.iterationDiscoveryConfigs()
+	s.updateDiscoveryConfigStatus(discoveryConfigs...)
 
-	s.submitFetchersEvent(allFetchers)
+	allFetchers := s.getKubeIntegrationFetchers()
 
 	awsResultGroups := libslices.FilterMapUnique(
 		allFetchers,
@@ -225,16 +227,13 @@ func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
 		},
 	)
 
-	discoveryConfigs := libslices.FilterMapUnique(awsResultGroups, func(g awsResourceGroup) (s string, include bool) {
-		return g.discoveryConfigName, true
-	})
-	s.updateDiscoveryConfigStatus(discoveryConfigs...)
-	s.awsEKSResourcesStatus.reset()
-	for _, g := range awsResultGroups {
-		s.awsEKSResourcesStatus.iterationStarted(g)
-	}
+	s.awsEKSResourcesStatus.iterationStarted(awsResultGroups, s.clock.Now())
 
 	s.awsEKSTasks.reset()
+
+	if len(allFetchers) > 0 {
+		s.submitFetchersEvent(allFetchers)
+	}
 }
 
 func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName string, clusters []types.DiscoveredEKSCluster, agentVersion *semver.Version, mu *sync.Mutex, enrollingClusters map[string]bool) {
