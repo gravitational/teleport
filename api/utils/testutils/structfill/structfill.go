@@ -31,7 +31,7 @@ func Fill(ptr any) error {
 		return trace.BadParameter("missing pointer")
 	}
 	root := reflect.ValueOf(ptr)
-	if root.Kind() != reflect.Pointer || root.IsNil() {
+	if root.Kind() != reflect.Ptr || root.IsNil() {
 		return trace.BadParameter("must pass a non-nil pointer")
 	}
 	return trace.Wrap(fill(root.Elem()))
@@ -105,7 +105,7 @@ func fill(v reflect.Value) error {
 		v.Set(m)
 		return nil
 
-	case reflect.Pointer:
+	case reflect.Ptr:
 		elem := reflect.New(v.Type().Elem())
 		if err := fill(elem.Elem()); err != nil {
 			return trace.Wrap(err)

@@ -144,7 +144,7 @@ func FindAllEmpty(item any, ignoreOpts ...string) []string {
 	// dereference pointers and interfaces so that the root find logic starts from
 	// a concrete type (makes the returned paths more consistent/understandable).
 	switch value.Kind() {
-	case reflect.Pointer, reflect.Interface:
+	case reflect.Ptr, reflect.Interface:
 		if value.IsNil() {
 			panic("FindAllEmpty called with nil top-level pointer/interface")
 		}
