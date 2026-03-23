@@ -17,7 +17,7 @@ For an overview of Teleport installation methods and supported platforms, see
 
 Teleport supports macOS 12 (Monterey) and later for both Intel and Apple Silicon Macs.
 
-## Client tools
+### Install client tools
 
 Most macOS users install Teleport to connect to an existing cluster. Teleport provides several client tools:
 
@@ -27,11 +27,9 @@ Most macOS users install Teleport to connect to an existing cluster. Teleport pr
 | `tctl` | Administrative CLI for managing Teleport clusters (cluster administrators only) |
 | Teleport Connect | Desktop application with a graphical interface for accessing resources |
 
-### Install client tools
-
 Choose one of the following methods to install the Teleport client tools.
 
-#### Teleport Connect
+### Teleport Connect
 
 Teleport Connect is a desktop application that provides a graphical interface for connecting to SSH servers, databases, Kubernetes clusters, and web applications.
 
@@ -41,9 +39,8 @@ Download Teleport Connect from the [Downloads page](https://goteleport.com/downl
 
 Open the `.dmg` file and drag Teleport Connect to your Applications folder.
 
-Teleport Connect includes `tsh` as an installation option:
-
-![Connect tsh](../../img/deploy-a-cluster/connect-tsh-option.png)
+To install `tsh` from Teleport Connect, click the three-dot menu in the upper-right corner of the Teleport Connect window 
+and select **Install tsh in PATH**.
 
 <Checkpoint
   title="Verify Teleport Connect installation"
@@ -62,7 +59,7 @@ Here are some troubleshooting tips:
 
 </Checkpoint>
 
-#### Command-line tools only
+### Command-line tools only
 
 If you prefer to use `tsh` and `tctl` without the desktop application, download the PKG installer:
 
@@ -163,7 +160,7 @@ macOS is primarily used for client access and local development. For production 
 </Admonition>
 
 For guidance on configuring and running Teleport, see:
-- [Teleport daemon on macOS via launchd](../zero-trust-access/deploy-a-cluster/macos-launchd.mdx)
+- [Teleport daemon on macOS via launchd](../enroll-resources/server-access/macos-launchd.mdx)
 - [Deploy a Cluster](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx) for self-hosted deployments
 - [Machine ID Getting Started](../machine-workload-identity/workload-identity/getting-started.mdx) for workload identity
 

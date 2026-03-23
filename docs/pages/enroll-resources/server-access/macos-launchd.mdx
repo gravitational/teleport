@@ -16,7 +16,18 @@ configuration file is already in place. See the
 [configuration reference page](../../reference/deployment/config.mdx)
 for more information.
 
-{/* lint ignore page-structure remark-lint */} 
+## How it works
+
+A `launchd` service ensures that the Teleport daemon starts
+automatically when your Mac boots and restarts if it ever exits
+unexpectedly. This keeps the node continuously connected to your
+Teleport cluster without requiring manual intervention.
+
+After the first successful join, Teleport stores its host identity in
+the configured `data_dir` (by default `/var/lib/teleport`). On
+subsequent starts, including automatic restarts by `launchd`, Teleport
+uses this stored identity to reconnect to the cluster without requiring
+a join token.
 
 ## Prerequisites
 
@@ -102,6 +113,12 @@ output to log files on disk. This is important because Teleport logs to
 `stderr` by default, and without these keys the log output would be
 inaccessible when the service runs in the background under `launchd`.
 
+<Admonition type="important">
+If the `teleport` binary path changes after reinstalling from an
+official distribution, update the `ProgramArguments` path in the plist
+and reload the service.
+</Admonition>
+
 ## Step 3/4. Set required permissions
 
 LaunchDaemons must be owned by `root:wheel` with mode `644`. Set the
@@ -123,9 +140,8 @@ $ sudo launchctl enable system/com.teleport.node
 $ sudo launchctl kickstart -k system/com.teleport.node
 ```
 
-macOS displays a "Background Items Added" notification when the LaunchDaemon is first registered. No action is required.
-
-![Background Item added](../../../img/deploy-a-cluster/launchd-plist-macos.png)
+macOS displays a “Background Items Added” notification when the LaunchDaemon is first registered. No action is required.
+You can manage this behavior at any time in System Settings -> General -> Login Items if you prefer to disable it at startup.
 
 To reload after changes to the plist:
 
@@ -219,6 +235,4 @@ After the first successful join, Teleport stores its identity in the
 configured `data_dir` (by default `/var/lib/teleport`). A join token is
 no longer required for subsequent starts.
 
-If the `teleport` binary path changes after reinstalling from an
-official distribution, update the `ProgramArguments` path in the plist
-and reload the service.
+
