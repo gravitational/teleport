@@ -284,7 +284,7 @@ func (m *SAMLCertExpiryMonitor) upsertAlert(ctx context.Context, id, message str
 		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindSAML, types.VerbRead)),
 		types.WithAlertExpires(m.Clock.Now().Add(samlCertExpiryAlertExpires)),
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
-		// TODO: Link to better documentation page when it's created.
+		// TODO(nixpig): Link to better documentation page when it's created.
 		types.WithAlertLabel(types.AlertLink, "https://goteleport.com/docs/reference/infrastructure-as-code/teleport-resources/saml-connector-v2/#saml-connector-spec-v2"),
 		types.WithAlertLabel(types.AlertLinkText, "Learn More"),
 	)
