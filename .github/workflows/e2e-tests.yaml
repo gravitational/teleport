@@ -36,10 +36,10 @@ jobs:
           filters: |
             changed:
               - '.github/workflows/e2e-tests.yaml'
-              - '**.go'
+              - '**/*.go'
               - 'go.mod'
               - 'go.sum'
-              - '**.rs'
+              - '**/*.rs'
               - 'rust-toolchain.toml'
               - 'Cargo.toml'
               - 'Cargo.lock'
