@@ -262,7 +262,7 @@ const auth = {
     return api.put(cfg.getHeadlessSsoPath(transactionId), request);
   },
 
-  browserMFAPut(mfa: MfaState, requestId: string, abortSignal: AbortSignal) {
+  browserMfaPut(mfa: MfaState, requestId: string, abortSignal: AbortSignal) {
     return mfa.getChallengeResponse().then((res: MfaChallengeResponse) => {
       const request = {
         ...res,
