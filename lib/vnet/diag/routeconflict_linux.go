@@ -56,6 +56,12 @@ func (lr *LinuxRouting) GetRouteDestinations() ([]RouteDest, error) {
 		dst := route.Attributes.Dst
 		ifaceIndex := int(route.Attributes.OutIface)
 
+		// Routes with no output interface (OutIface == 0) don't forward traffic to a network interface
+		// This includes blackhole, unreachable, prohibit, throw routes and ECMP/multipath. Skip them.
+		if ifaceIndex == 0 {
+			continue
+		}
+
 		// A nil destination means the default route (0.0.0.0/0).
 		if dst == nil {
 			addr := netip.IPv4Unspecified()
