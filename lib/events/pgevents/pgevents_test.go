@@ -78,6 +78,10 @@ func TestPostgresEvents(t *testing.T) {
 		truncateEvents(t)
 		suite.SearchSessionEventsBySessionID(t)
 	})
+	t.Run("SearchEventsBySearchTerm", func(t *testing.T) {
+		truncateEvents(t)
+		suite.SearchEventsBySearchTerm(t)
+	})
 }
 
 // TestLog_nonStandardSessionID tests for
@@ -136,7 +140,8 @@ func TestLog_nonStandardSessionID(t *testing.T) {
 		[]string{appStartEvent.Metadata.Type}, // eventTypes
 		nil,                                   // cond
 		appStartEvent.SessionID,
-		2, // limit
+		"", // search
+		2,  // limit
 		types.EventOrderAscending,
 		"", // startKey
 	)
