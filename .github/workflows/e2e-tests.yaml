@@ -114,19 +114,29 @@ jobs:
 
       - name: Build Teleport, tctl, and tsh
         run: |
+          set -o pipefail
           cargo --version && rustc --version && echo "ARCH=$(uname -m)"
-          make build/teleport & pid1=$!
-          make build/tctl & pid2=$!
-          go build -tags webauthnmock -o build/tsh-e2e-webauthnmock ./tool/tsh & pid3=$!
+          mkdir -p build-logs
+          make build/teleport 2>&1 | tee build-logs/teleport.log & pid_teleport=$!
+          make build/tctl 2>&1 | tee build-logs/tctl.log & pid_tctl=$!
+          go build -tags webauthnmock -o build/tsh-e2e-webauthnmock ./tool/tsh 2>&1 | tee build-logs/tsh.log & pid_tsh=$!
           failed=0
-          wait $pid1 || failed=1
-          wait $pid2 || failed=1
-          wait $pid3 || failed=1
+          wait $pid_teleport || { echo "::error::make build/teleport failed with exit code $?"; failed=1; }
+          wait $pid_tctl    || { echo "::error::make build/tctl failed with exit code $?"; failed=1; }
+          wait $pid_tsh     || { echo "::error::go build tsh failed with exit code $?"; failed=1; }
           exit $failed
         env:
           RDPCLIENT_SKIP_BUILD: '0'
           IRONRDP_SKIP_BUILD: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
           RDPCLIENT_SKIP_CARGO: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
+
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-logs
+          path: build-logs/
+          retention-days: 7
 
       - name: Build e2e runner
         run: cd e2e/runner && go build -o e2e .
@@ -225,19 +235,29 @@ jobs:
 
       - name: Setup e2e environment
         run: |
+          set -o pipefail
           for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break || sleep 1; done
           docker info >/dev/null 2>&1 || { echo "Docker failed to start"; exit 1; }
-          docker pull debian:bookworm-slim & pid1=$!
+          mkdir -p setup-logs
+          docker pull debian:bookworm-slim 2>&1 | tee setup-logs/docker-pull.log & pid_docker=$!
 
           corepack enable
-          pnpm install --frozen-lockfile & pid2=$!
+          pnpm install --frozen-lockfile 2>&1 | tee setup-logs/pnpm-install.log & pid_pnpm=$!
 
           failed=0
-          wait $pid1 || failed=1
-          wait $pid2 || failed=1
+          wait $pid_docker || { echo "::error::docker pull failed with exit code $?"; failed=1; }
+          wait $pid_pnpm   || { echo "::error::pnpm install failed with exit code $?"; failed=1; }
           [ $failed -eq 0 ]
 
           pnpm --filter=@gravitational/e2e type-check
+
+      - name: Upload setup logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: setup-logs
+          path: setup-logs/
+          retention-days: 7
 
       - uses: actions/download-artifact@v8
         with:
