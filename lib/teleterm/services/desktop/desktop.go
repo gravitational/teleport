@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/proxy"
+	"github.com/gravitational/teleport/api/client/proxy/transport/transportv1"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -121,7 +122,13 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 	}
 
 	// conn is the server connection
-	conn, err := proxyClient.ProxyWindowsDesktopSession(ctx, clusterClient.SiteName, s.desktopName(), cert, tlsConfig.RootCAs, tdpb.ProtocolName)
+	conn, err := proxyClient.ProxyWindowsDesktopSession(ctx, transportv1.WindowsDesktopSessionConfig{
+		Cluster:     clusterClient.SiteName,
+		DesktopName: s.desktopName(),
+		DesktopCert: cert,
+		RootCAs:     tlsConfig.RootCAs,
+		Protocol:    tdpb.ProtocolName,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
