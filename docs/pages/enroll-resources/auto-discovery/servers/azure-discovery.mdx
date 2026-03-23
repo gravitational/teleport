@@ -203,15 +203,14 @@ and replace the subscription in `assignableScopes` with your own subscription id
 
 (!docs/pages/includes/server-access/azure-assign-service-principal.mdx!)
 
-## Step 3/5. Set up managed identities for discovered nodes
+## Step 3/5. Set up an identity for discovered nodes
 
-Every Azure VM to be discovered must have a managed identity assigned to it
-with at least the `Microsoft.Compute/virtualMachines/read` permission.
+Every Azure VM to be discovered must have an identity assigned to it: either system assigned or user assigned managed identity.
 
-(!docs/pages/includes/server-access/azure-join-managed-identity.mdx!)
+(!docs/pages/includes/provision-token/azure-join-enable-identity.mdx!)
 
-If the VMs to be discovered have more than one managed identity assigned to
-them, save the client ID of the identity you just created for step 5.
+If the VMs to be discovered have no system-managed identity and more than one user-managed identity assigned to them,
+copy the client ID of one of your user-managed identities for Step 5.
 
 ## Step 4/5. Install the Teleport Discovery Service
 

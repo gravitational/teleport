@@ -78,9 +78,10 @@ func (instances *AzureInstances) MakeEvents(failures []AzureInstallFailure) map[
 			continue
 		}
 		events[azureEventPrefix+id] = &usageeventsv1.ResourceCreateEvent{
-			ResourceType:   resourceType,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  types.CloudAzure,
+			ResourceType:        resourceType,
+			ResourceOrigin:      types.OriginCloud,
+			CloudProvider:       types.CloudAzure,
+			DiscoveryConfigName: instances.DiscoveryConfigName,
 		}
 	}
 	return events

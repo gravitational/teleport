@@ -631,7 +631,7 @@ client's role type, based on the cluster role binding:
 |Role field|Purpose|How we assign it|
 |---|---|---|
 |`allow.kubernetes_labels`|Labels for Teleport-registered Kubernetes clusters that a user with this role is allowed to access.|Based on the Teleport-registered Kubernetes cluster that the cluster role binding belongs to.|
-|`allow.kubernetes_resources`|Kubernetes pods in specific namespaces that that a user with this role is allowed to access.|Allow access to all namespaces, since cluster role bindings are not restricted by namespace.|
+|`allow.kubernetes_resources`|Kubernetes pods in specific namespaces that a user with this role is allowed to access.|Allow access to all namespaces, since cluster role bindings are not restricted by namespace.|
 |`allow.kubernetes_users` and `allow.kubernetes_groups`|The Kubernetes groups and users that a Teleport user with this role will assume when interacting with the Kubernetes cluster.|Supply the names of any users or groups connected to the cluster role binding.|
 
 ### Creating a Teleport role from a Kubernetes role binding
@@ -814,7 +814,7 @@ servers registered with Teleport (`teleport.GetKubernetesServers`) and checks if
 there is a registered Kubernetes cluster that matches the one you specified.
 
 If a matching Kubernetes cluster exists, the code calls the
-`createTeleportRolesForKubeClusters` function we defined earlier. If not, the
+`createTeleportRolesForKubeCluster` function we defined earlier. If not, the
 program prints an error message and a stack trace by calling Go's built-in
 `panic` function.
 

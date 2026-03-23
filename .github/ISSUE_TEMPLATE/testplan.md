@@ -686,7 +686,6 @@ apiVersion: "stable.example.com/v1"
 kind: Global
 metadata:
   name: my-new-global-object-1
-  namespace: foo
 spec:
   glSpec: "* * * * */5"
   glImage: my-awesome-gl-image
@@ -696,7 +695,6 @@ apiVersion: "stable.example.com/v1"
 kind: Global
 metadata:
   name: my-new-global-object-2
-  namespace: foo
 spec:
   glSpec: "* * * * */2"
   glImage: my-awesome-gl-image-2
@@ -769,23 +767,13 @@ NOTE: Unless specified otherwise, the `verb` field of `kubernetes_resource` sche
     * [ ] Verify access denied
     * [ ] Add a deny rule to a specific cluster-wide CRD `{"kind":"crontabs","name":"*","namespace":"","api_group":"stable.example.com","verbs":["*"]}`
     * [ ] Verify access denied
-* [ ] Verify support for Teleport v17
-  * [ ] Start a v17 kubernetes_service
+* [ ] Verify support for Teleport v18
+  * [ ] Start a v18 kubernetes_service
   * [ ] Verify happy path
     * [ ] Create a role v8 with rbac entries that existed in v7 (pods, deployments, clusterroles)
-          ex: `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"clusterroles","name":"*"}`, `{"kind":"deplyments","name":"*","namespace":"*"}`.
-    * [ ] Verify access to pods, clusterroles and deployments on the v17 cluster
+          ex: `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"clusterroles","name":"*"}`, `{"kind":"deployments","name":"*","namespace":"*"}`.
+    * [ ] Verify access to pods, clusterroles and deployments on the v18 cluster
     * [ ] Verify access denied to other namespaced and cluster-wide resources `services`, `nodes`, `crontabs`, `globals`.
-  * [ ] Verify incomptible role, CRD
-    * [ ] Create a role v8 with access to pods and a crd.
-         ex:  `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"crontabs","api_group":"*","name":"*","namespace":"*"}`
-    * [ ] Verify access denied to explicit resources `pods`, `crontabs` andother resources `services`, `globals`, `nodes`.
-  * [ ] Verify incompatible role, namespace
-    * [ ] Create a role v8 with access to a namespace `{"kind":"namespaces","name":"foo","verbs":["*"]}`
-    * [ ] Verify access denied to the namespace and any other resources
-  * [ ] Verify incompatible role, wildcard kind - cluster-wide
-    * [ ] Create a role v8 with a cluster-wide wildcard kind `{"kind":"*","api_group":"*","name":"*","namespace":"","verbs":["*"]}`
-    * [ ] Verify access denied to any resource
 
 ### Kubernetes Access Request
 
@@ -829,10 +817,6 @@ NOTE: Unless specified otherwise, the `verb` field of `kubernetes_resource` sche
     * [ ] Verify you can request access to all cluster-wide resources with `--resource '/TELEPORT_CLUSTER_NAME/kube:cw:*.*/K8S_CLSUTER_NAME/*`
     * [ ] Verify you can access resources like `nodes` and `persistentvolumes` with `kubectl` using `tsh kube login`
     * [ ] Verify you can't request access to `configmaps` or `services`
-* [ ] Verify tsh v17 support (TODO(@creack) Remove this section in v19)
-  * [ ] Using tsh v17, verify you can search for `pod` and `secret` (can use a role with wildcard permission)
-  * [ ] Using tsh v17, verify you can request access for `pod` and `secret`
-    * [ ] Verify you can list `pod` with `secret` with `kubectl` after the request is granted using `tsh kube login`
 
 ### Teleport with FIPS mode
 
@@ -1383,8 +1367,8 @@ For web, run each session in a different browser.
 
 Ensure the default `terminationPolicy` of `terminate` has not been changed.
 
-For each of the following cases, create a moderated session with the user using `tsh ssh` and join this session with the moderator using `tsh join --role moderator`:
- - [ ] Ensure that `Ctrl+C` in the user terminal disconnects the moderator as the session has ended.
+For each of the following cases, create a moderated session with the user using `tsh ssh` and join this session with the moderator using `tsh join --mode moderator`:
+ - [ ] Ensure that `Ctrl+D` in the user terminal disconnects the moderator as the session has ended.
  - [ ] Ensure that `Ctrl+C` in the moderator terminal disconnects the moderator and terminates the user's session as the session no longer has a moderator.
  - [ ] Ensure that `t` in the moderator terminal terminates the session for all participants.
  - [ ] Upload file (web only).
@@ -1396,6 +1380,11 @@ For all performance tests
 
  1) Verify that there are no memory/goroutine/file descriptor leaks
  2) Compare the baseline metrics with the previous release to determine if resource usage has increased
+
+
+Where applicable nodes used should be configured as follows:
+
+ 1) [Transparent hugepages](https://docs.kernel.org/admin-guide/mm/transhuge.html#global-thp-controls) disabled.
 
 ### Ansible-like Test
 
@@ -1557,9 +1546,11 @@ manualy testing.
   - [ ] Amazon Keyspaces
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Amazon RDS Oracle (with Kerberos keytab)
+  - [ ] Amazon RDS SQL Server (with AD/Kerberos keytab)
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] GCP Cloud Spanner.
+  - [ ] GCP AlloyDB.
   - [ ] Azure Cache for Redis.
   - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
   - [ ] Azure flexible-server MySQL
@@ -1567,43 +1558,10 @@ manualy testing.
   - [ ] Azure SQL Server.
   - [ ] Snowflake.
   - [ ] MongoDB Atlas.
-- [ ] Connect to a database within a remote cluster via a trusted cluster.
+- [ ] Connect to a database within a remote trusted cluster via `tsh db connect` (smoke check).
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
-  - [ ] Self-hosted MariaDB.
-  - [ ] Self-hosted MongoDB.
-  - [ ] Self-hosted CockroachDB.
-  - [ ] Self-hosted Redis/Valkey.
-  - [ ] Self-hosted Redis Cluster.
-  - [ ] Self-hosted MSSQL.
-  - [ ] Self-hosted MSSQL with PKINIT authentication.
-  - [ ] Self-hosted Elasticsearch.
-  - [ ] Self-hosted Cassandra/ScyllaDB.
   - [ ] Self-hosted Oracle.
-  - [ ] Self-hosted ClickHouse.
-  - [ ] Amazon Aurora Postgres.
-  - [ ] Amazon Aurora MySQL.
-  - [ ] Amazon RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
-  - [ ] Amazon Redshift.
-  - [ ] Amazon Redshift Serverless.
-  - [ ] Amazon ElastiCache.
-  - [ ] Amazon ElastiCache Serverless.
-  - [ ] Amazon MemoryDB.
-  - [ ] Amazon OpenSearch.
-  - [ ] Amazon Dynamodb.
-  - [ ] Amazon DocumentDB
-  - [ ] Amazon Keyspaces
-  - [ ] Amazon RDS Oracle (with Kerberos keytab)
-  - [ ] GCP Cloud SQL Postgres.
-  - [ ] GCP Cloud SQL MySQL.
-  - [ ] GCP Cloud Spanner.
-  - [ ] Azure Cache for Redis.
-  - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
-  - [ ] Azure flexible-server MySQL
-  - [ ] Azure flexible-server Postgres
-  - [ ] Azure SQL Server.
-  - [ ] Snowflake.
-  - [ ] MongoDB Atlas.
 - [ ] Verify auto user provisioning.
   Verify all supported modes: `keep`, `best_effort_drop`
   - [ ] Self-hosted Postgres.
@@ -1614,8 +1572,10 @@ manualy testing.
   - [x] Amazon RDS MySQL. (coverved by E2E test)
   - [ ] Amazon RDS MariaDB.
   - [x] Amazon Redshift (coverved by E2E test).
-- [ ] Verify Database Access Control
-  - [ ] Postgres (tables)
+- [ ] Verify Database Access Control (`db_permissions`)
+  - [ ] Postgres (tables): object-level permissions (SELECT/INSERT/UPDATE/DELETE) are enforced.
+  - [ ] Permissions are granted per-connection and revoked on disconnect.
+  - [ ] Simultaneous connections require identical permissions.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -1680,22 +1640,35 @@ manualy testing.
   - [ ] Database servers (`$ tctl get db_server`) include `db_server.status.target_health` info
   - [ ] Updating `health_check_config` resets `db_server.status.target_health.status` for matching databases (may take several minutes)
   - [ ] Updating a `health_check_config` (or deleting it), such that a database should no longer have health checks enabled, resets that database's `db_server.status.target_health` to "unknown/disabled" (may take several minutes)
+  - [ ] `tctl db ls --query 'health.status == "unhealthy"'` filters to unhealthy databases.
+  - [ ] Configurable health check parameters are respected.
+    - [ ] Custom `interval` changes time between health checks.
+    - [ ] Custom `timeout` changes health check connection timeout.
+    - [ ] Custom `unhealthy_threshold` (e.g. 3) requires that many consecutive failures before status becomes "unhealthy".
+    - [ ] Custom `healthy_threshold` requires that many consecutive passes before status becomes "healthy".
   - [ ] Verify health check web UI indicators
     Configure a database agent with a database that has an unreachable URI (e.g. localhost:5432).
     - [ ] The web UI resource page shows an warning indicator for that database with error details.
     - [ ] Without restarting the agent, make the database endpoint reachable and observe that the indicator in the web UI resources page disappears after some time.
+- [ ] Verify `tsh db` CLI commands.
+  - [ ] `tsh db config` prints connection info (host, port, CA, cert paths) for use with GUI clients.
+  - [ ] `tsh db env` outputs environment variables for database connection.
+  - [ ] `tsh db login --db-roles` selects a subset of allowed roles for an auto-provisioned user.
+  - [ ] `tsh db exec` executes a command against multiple databases.
+    - [ ] `tsh db exec --parallel` runs commands in parallel across databases.
+    - [ ] `tsh db exec --output-dir` writes per-database output files and a summary.json.
 - [ ] Verify [database access via MCP](https://goteleport.com/docs/connect-your-client/model-context-protocol/database-access/)
   - [ ] Postgres
   - [ ] Redshift
   - [ ] CockroachDB
   - [ ] Verify Teleport MCP servers can be configured and function correctly across various clients
-   - [ ]`tsh mcp db config`
-    - [ ] Claude Desktop
-    - [ ] VSCode
-    - [ ] Cursor
-    - [ ] `claude`
-    - [ ] `codex`
-   - [ ] Dev testing via MCP inspector
+    - [ ] `tsh mcp db config`
+      - [ ] Claude Desktop
+      - [ ] VSCode
+      - [ ] Cursor
+      - [ ] `claude`
+      - [ ] `codex`
+    - [ ] Dev testing via MCP inspector
 
 ## Git Proxy
 - [ ] [GitHub proxy](https://goteleport.com/docs/admin-guides/management/guides/github-integration/)
@@ -2071,6 +2044,34 @@ also managed, but not considered for role-based host user creation.
   - [ ] Windows Desktop
   - [ ] App Access
 
+## Relay service
+
+[Relay docs](https://goteleport.com/docs/reference/architecture/relay/)
+
+[Relay chart](https://goteleport.com/docs/reference/helm-reference/teleport-relay/)
+
+- Relay service and relay tunnels
+  - [ ] Relay agents can start and join the cluster
+  - [ ] SSH agents (from the previous and current major version) can open tunnels to the Relay group
+    - Verify this through the agent logs and from the `relay_ids` in the `node` heartbeats
+  - [ ] Kube agents (from the previous and current major version) can open tunnels to the Relay group
+    - Verify this through the agent logs and from the `relay_ids` in the `kube_server` heartbeats
+- `tsh` can be configured to use the relay
+  - [ ] `tsh login` with the `default_relay_addr` user trait
+  - [ ] `tsh login --relay`
+  - [ ] `tsh ssh` goes through the relay if an address is configured with the above
+    - [ ] `tsh ssh --relay none` does not
+  - [ ] `tsh ssh --relay` goes through the relay
+  - [ ] `tsh proxy ssh` goes through the relay if appropriate (as called by `ProxyCommand` in `tsh config`)
+  - [ ] `tsh kube login` generates a kubeconfig file that uses the appropriate relay
+  - [ ] `tsh proxy kube` goes through the relay
+- Relay rollouts and relay peering
+  - [ ] Different relay agents bounce connections between them correctly
+    - Verify this by setting the `target_connection_count` to less than the replica count and checking logs
+  - [ ] Rolling the relay chart results in agents maintaining no less than `target_connection_count` tunnels open
+  - [ ] SSH (with connection resumption) can keep a connection going through a relay rollout
+
+
 ## SSH Connection Resumption
 
 Verify that SSH works, and that resumable SSH is not interrupted across a Teleport Cloud tenant upgrade.
@@ -2238,6 +2239,77 @@ Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guid
     - [ ] Verify that users/groups are flattened on import, and are not duplicated on sync when their membership is inherited via nested Access Lists.
   - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in Okta.
   - [ ] Verify access to Okta apps granted by access_list/access_request.
+  - [ ] Verify that Permission granted by Access Request to Okta Resources are revoked after expiration.
+    - [ ] Verify access request expiration revocation flow when Access List Sync is Enabled.
+    - [ ] Verify access request expiration revocation flow when Access List Sync is Disabled.
+  - [ ] Verify Okta SCIM sync functionality
+    - [ ] Verify Okta SCIM only functionality.
+      - [ ] Verify Okta users are pushed to Teleport.
+      - [ ] Verify that users deleted in Okta are removed from Teleport.
+      - [ ] Verify Okta SCIM User Locking:
+        - [ ] Deactivating a user in Okta locks them in Teleport
+        - [ ] Reactivating the user in Okta unlocks them in Teleport.
+    - [ ]  Verify Okta SCIM functionality with Access List Sync
+      - [ ] Verify Okta users are pushed to Teleport.
+      - [ ] Verify that users deleted in Okta are removed from Teleport.
+      - [ ] Verify Okta SCIM User Locking:
+        - [ ] Deactivating a user in Okta locks them in Teleport (not deleted).
+        - [ ] Reactivating the user in Okta unlocks them in Teleport.
+      - [ ] Verify Okta groups are pushed to Teleport.
+
+- [ ] Verify Okta Enrollment Flow
+  - [ ] Verify Web UI flow
+    - [ ] Verify Okta SAML Connector setup
+      - [ ] Verify that Okta SSO integration can be created with preexisting Okta SSO connector.
+      - [ ] Verify that Okta SSO integration can be created from SSO metadataURL
+    - [ ] Verified that Okta Plugin can be config with partial setup via Okta integration updates:
+      -  [ ] SSO only
+      -  [ ] SSO + SCIM
+      -  [ ] SSO + Access List Sync
+      -  [ ] SSO + SCIM + Access List Sync
+      -  [ ] SSO  Access List Sync + SCIM
+    -  Verify that in any time Okta Plugin can be updated via Okta Plugin status page and the change is reflected by Okta Sync
+    - [ ] Verify that the Okta Oauth credential - clientID can be updated
+    - [ ] Verify that Access List groups/app filters can be updated and the update is reflected by Okta Sync
+    - [ ] Verify that Bidirectional sync can be disabled/enabled in any time and when it is enabled Teleport doest push any changes to Okta
+  - [ ] Verify CLI Enrollment Flow
+    - [ ] Plugin can be installed using `tctl plugins install okta`.
+    - [ ] Plugin settings can be updated using `tctl edit plugins/okta`.
+    - [ ] Plugin can be uninstalled using:
+      - `tctl plugin cleanup okta` / `tctl plugins delete okta`
+
+## Teleport AWS Identity Center Integration
+- [ ] Verify **CLI Enrollment Flow**
+  - [ ] Verify plugin enrollment via CLI.
+  - [ ] AWS account and group filters can be updated using and change are elected by AWS IC Sync.
+    - `tctl edit plugin/aws-identity-center`
+- [ ] Verify **Access List Synchronization**
+  - [ ] Moving users in/out of Teleport Access Lists updates AWS IC groups accordingly.
+  - [ ] Updating role assignments in Teleport Access Lists updates AWS IC group assignments.
+  - [ ] Creating a new Access List in Teleport creates a corresponding group in AWS IC.
+  - For a new Access List:
+    - [ ] Role updates or deletions are synced to AWS IC.
+    - [ ] Member assignments/unassignments are reflected in AWS IC.
+- [ ] Verify AWS IC Access Request flow
+  - [ ] SSO user without permissions can request access to AWS IC resources.
+  - [ ] Access List owner can approve/reject AWS IC access requests.
+  - [ ] When approved, user gains access to AWS IC resource.
+  - [ ] When request expires, user loses access to AWS IC resource.
+  - [ ] When a user is locked, permissions are revoked in AWS IC.
+- [ ] Verify that when a user is Locked the permissions are revoked in AWS IC
+- [ ] Verify **Direct Role Assignment in AWS IC**
+  - [ ] Assigning/removing roles with AWS IC permissions updates the user’s permissions in AWS IC.
+  - [ ] Locked roles result in permission de-provisioning from AWS IC:
+    - [ ] Teleport role locks are reflected in AWS IC.
+    - [ ] User lock leads to removal of AWS permissions and is reflected in the Access List.
+- [ ] Verify **Access List**.
+  - [ ] Membership expiration in Teleport Access Lists is reflected in AWS IC.
+  - [ ] Renaming an Access List title in Teleport is reflected in AWS IC without breaking sync.
+  - [ ] **Nested Access List**
+    - [ ] Nested Access Lists are provisioned as a combination of all included Access Lists.
+    - [ ] Adding/removing users from a child list updates the parent Access List accordingly.
+    - [ ] Deleting a child Access List removes users from the parent.
+    - [ ] Verify behavior when users are moved between overlapping Access Lists with different permissions.
 
 ## Teleport SAML Identity Provider
 Verify SAML IdP service provider resource management.
@@ -2306,35 +2378,35 @@ The following should work with SSO MFA, automatically opening the SSO MFA redire
 
 ## MCP Access
 - [ ] Verify Teleport supports MCP servers in various transports
- - [ ] Teleport demo server (special in-memory MCP)
- - [ ] stdio
-  - [ ] Verify Teleport/tsh can automatically reconnect if client connection is disrupted
-  - [ ] Verify the MCP process (node, python, etc.) is stopped after session is done
-  - [ ] Verify docker containers are removed after session is done for docker-based MCPs.
-  - [ ] Verify `run_as_host_user` with a different user than caller.
- - [ ] streamable-HTTP
-  - [ ] Verify custom headers can be set via `app.rewrite.headers`
-  - [ ] Verify Teleport can passthrough custom headers from client side (e.g. github PAT via `tsh db connect --header`)
-  - [ ] Verify Teleport can passthrough 3rd party OAuth flow (e.g. Cloudflare OAuth)
-  - [ ] Verify egress auth with JWT token (e.g. Grafana that trust's Teleport JWT)
-  - [ ] Verify egress auth with OpenID token (e.g. AWS AgentCore MCP Gateway)
- - [ ] SSE (deprecated but still in-use)
+  - [ ] Teleport demo server (special in-memory MCP)
+  - [ ] stdio
+    - [ ] Verify Teleport/tsh can automatically reconnect if client connection is disrupted
+    - [ ] Verify the MCP process (node, python, etc.) is stopped after session is done
+    - [ ] Verify docker containers are removed after session is done for docker-based MCPs.
+    - [ ] Verify `run_as_host_user` with a different user than caller.
+  - [ ] streamable-HTTP
+    - [ ] Verify custom headers can be set via `app.rewrite.headers`
+    - [ ] Verify Teleport can passthrough custom headers from client side (e.g. github PAT via `tsh db connect --header`)
+    - [ ] Verify Teleport can passthrough 3rd party OAuth flow (e.g. Cloudflare OAuth)
+    - [ ] Verify egress auth with JWT token (e.g. Grafana that trust's Teleport JWT)
+    - [ ] Verify egress auth with OpenID token (e.g. AWS AgentCore MCP Gateway)
+  - [ ] SSE (deprecated but still in-use)
 - [ ] Verify Teleport MCP servers can be configured and function correctly across various clients
- - [ ] `tsh mcp config`
-  - [ ] Claude Desktop
-  - [ ] VSCode
-  - [ ] Cursor
-  - [ ] `claude`
-  - [ ] `codex`
- - [ ] Web UI deep links
-  - [ ] VSCode
-  - [ ] Cursor
- - [ ] Dev testing via MCP inspector
+  - [ ] `tsh mcp config`
+    - [ ] Claude Desktop
+    - [ ] VSCode
+    - [ ] Cursor
+    - [ ] `claude`
+    - [ ] `codex`
+  - [ ] Web UI deep links
+    - [ ] VSCode
+    - [ ] Cursor
+  - [ ] Dev testing via MCP inspector
 - [ ] Verify Teleport MCP servers hint on "tsh login" when tsh session is expired (via chat/prompt)
 - [ ] RBAC
- - [ ] Verify users can only see MCP servers allowed by `allow.app_labels`
- - [ ] Verify MCP client can only see allowed tools
- - [ ] Verify `deny.mcp.tools` is greedy (deny overrides allow)
+  - [ ] Verify users can only see MCP servers allowed by `allow.app_labels`
+  - [ ] Verify MCP client can only see allowed tools
+  - [ ] Verify `deny.mcp.tools` is greedy (deny overrides allow)
 
 ## Resources
 

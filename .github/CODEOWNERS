@@ -7,6 +7,7 @@
 # Owners for JS dependency updates.
 /pnpm-lock.yaml @avatus @gzdunek @ravicious @zmb3 @r0mant
 /web/packages/teleterm/package.json @gzdunek @ravicious
+/e2e/pnpm-lock.yaml @ryanclark @avatus @ravicious
 
 # Owners for Go dependency updates.
 /go.mod @russjones @r0mant @zmb3 @rosstimothy

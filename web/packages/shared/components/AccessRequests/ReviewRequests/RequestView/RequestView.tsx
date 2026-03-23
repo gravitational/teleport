@@ -28,7 +28,6 @@ import {
   H3,
   Indicator,
   Label,
-  LabelState,
   Text,
 } from 'design';
 import Table from 'design/DataTable';
@@ -40,7 +39,7 @@ import {
   CircleCross,
   Key,
 } from 'design/Icon';
-import { LabelKind } from 'design/LabelState/LabelState';
+import { Status, StatusDot, StatusKind } from 'design/Status';
 import { TeleportGearIcon } from 'design/SVGIcon';
 import { HoverTooltip } from 'design/Tooltip';
 import ResourcesRequested from 'shared/components/AccessRequests/ReviewRequests/RequestView/ResourcesRequested';
@@ -118,11 +117,11 @@ export function RequestView({
   }
 
   if (fetchRequestAttempt.status === 'error') {
-    return <Alert kind="danger" children={fetchRequestAttempt.statusText} />;
+    return <Alert kind="danger">{fetchRequestAttempt.statusText}</Alert>;
   }
 
   if (assumeRoleAttempt.status === 'error') {
-    return <Alert kind="danger" children={assumeRoleAttempt.statusText} />;
+    return <Alert kind="danger">{assumeRoleAttempt.statusText}</Alert>;
   }
 
   const request =
@@ -217,7 +216,6 @@ export function RequestView({
                   state={request.state}
                   mr={3}
                   px={3}
-                  py={1}
                   style={{ fontWeight: 'bold' }}
                 />
                 <H3>
@@ -537,7 +535,7 @@ function Comment({
         <Text typography="body3">{createdDuration}</Text>
       </Flex>
       {comment && (
-        <Box p={3} bg="levels.elevated">
+        <Box p={3} bg="levels.elevated" css="white-space: pre-wrap;">
           {comment}
         </Box>
       )}
@@ -579,12 +577,7 @@ function Comment({
 
 function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
   const $reviewers = reviewers.map((reviewer, index) => {
-    let kind: LabelKind = 'warning';
-    if (reviewer.state === 'APPROVED' || reviewer.state === 'PROMOTED') {
-      kind = 'success';
-    } else if (reviewer.state === 'DENIED') {
-      kind = 'danger';
-    }
+    let dotKind: StatusKind = stateToStatusKind(reviewer.state);
 
     return (
       <Flex
@@ -613,15 +606,7 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
         >
           {reviewer.name}
         </Text>
-        <LabelState
-          kind={kind}
-          width="10px"
-          p={0}
-          style={{
-            minHeight: '10px',
-            minWidth: '10px',
-          }}
-        />
+        <StatusDot kind={dotKind} />
       </Flex>
     );
   });
@@ -661,29 +646,33 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
   );
 }
 
-function StateLabel(props: { state: RequestState; [key: string]: any }) {
-  const { state, ...styles } = props;
+function stateToStatusKind(state: RequestState): StatusKind {
   switch (state) {
     case 'APPROVED':
     case 'PROMOTED':
-      return (
-        <LabelState kind="success" {...styles}>
-          {state}
-        </LabelState>
-      );
+      return 'success';
     case 'DENIED':
-      return (
-        <LabelState kind="danger" {...styles}>
-          {state}
-        </LabelState>
-      );
+      return 'danger';
+    case 'NONE':
     case 'PENDING':
-      return (
-        <LabelState kind="warning" {...styles}>
-          {state}
-        </LabelState>
-      );
+    case 'APPLIED':
+    case '':
+      return 'warning';
+    default:
+      state satisfies never;
+      return 'warning';
   }
+}
+
+function StateLabel(props: { state: RequestState; [key: string]: any }) {
+  const { state, ...styles } = props;
+  let kind: StatusKind = stateToStatusKind(state);
+
+  return (
+    <Status kind={kind} variant="filled" icon={false} {...styles}>
+      {state}
+    </Status>
+  );
 }
 
 function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {

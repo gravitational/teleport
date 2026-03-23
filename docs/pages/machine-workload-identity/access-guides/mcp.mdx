@@ -9,7 +9,7 @@ tags:
  - mcp
 ---
 
-Teleport protects and control access to Model Context Protocol (MCP) servers.
+Teleport protects and controls access to Model Context Protocol (MCP) servers.
 Machine & Workload Identity (MWI) can then be used to grant machines and
 workloads secure and short-lived access to these MCP servers without the need
 for long-lived static secrets.
@@ -132,7 +132,7 @@ MCP client you are using.
             from langchain_mcp_adapters.client import MultiServerMCPClient
             client = MultiServerMCPClient({
                 "my-mcp-server": {
-                    "command": "tsh"
+                    "command": "tsh",
                     "args": [
                         "mcp",
                         "connect",

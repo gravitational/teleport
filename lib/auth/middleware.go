@@ -376,20 +376,6 @@ func getCustomRate(endpoint string) *limiter.RateSet {
 			return nil
 		}
 		return rates
-	// Passwordless RPCs (potential unauthenticated challenge generation).
-	case "/proto.AuthService/CreateAuthenticateChallenge":
-		const period = defaults.LimiterPeriod
-		const average = defaults.LimiterAverage
-		const burst = defaults.LimiterBurst
-		rates := limiter.NewRateSet()
-		if err := rates.Add(period, average, burst); err != nil {
-			logger.DebugContext(context.Background(), "Failed to define a custom rate for rpc method, using default rate",
-				"error", err,
-				"rpc_method", endpoint,
-			)
-			return nil
-		}
-		return rates
 	}
 	return nil
 }

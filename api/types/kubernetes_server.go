@@ -74,6 +74,8 @@ type KubeServer interface {
 	SetTargetHealthStatus(status TargetHealthStatus)
 	// GetScope returns the scope this server belongs to.
 	GetScope() string
+	// IsEqual determines if two kube server resources are equivalent to one another.
+	IsEqual(i KubeServer) bool
 }
 
 // NewKubernetesServerV3 creates a new kube server instance.

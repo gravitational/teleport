@@ -55,7 +55,7 @@ roles—by using the following configuration options:
 - `deny.request.claims_to_roles`
 
 Here is an example, which allows the `employee` user to request the `dev` and
-`dba` role, and specifies some more complex restrictions that we will explain
+`dba` roles, and specifies some more complex restrictions that we will explain
 below:
 
 ```yaml
@@ -240,7 +240,7 @@ The value of `max_duration` can never exceed fourteen days.
 Teleport uses the following logic to determine how long an Access Request is
 valid while it awaits approval:
 
-1. Begin with with the base expiration of the Access Request, which a user can
+1. Begin with the base expiration of the Access Request, which a user can
    set with the `--request-ttl` flag of the [`tsh request
    create`](../../reference/cli/tsh.mdx) command. If this is
    unset, the request TTL is one hour.
@@ -436,7 +436,7 @@ Each threshold includes the following fields:
 
 In the `devops` role above, there are two thresholds associated with the
 `dbadmin` role. As a result, one of the following conditions must obtain before
-the request is approved is denied:
+the request is approved or denied:
 
 1. Three users must approve the request, and two users must deny it, as long as
    those users do not have a `team` trait with the value `dev`.
@@ -764,7 +764,7 @@ func getMyAnnotation(req types.AccessRequest) ([]string, error) {
 
 This function uses the `GetSystemAnnotations` method of the
 `types.AccessRequest` type to get all the annotation values of an Access
-Requests with the key `my-annotation`.
+Request with the key `my-annotation`.
 
 ## Further reading
 

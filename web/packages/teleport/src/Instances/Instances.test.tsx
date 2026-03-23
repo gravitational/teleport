@@ -17,10 +17,9 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { createMemoryHistory } from 'history';
 import { http, HttpResponse } from 'msw';
 import { PropsWithChildren } from 'react';
-import { MemoryRouter, Route, Router } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
@@ -274,15 +273,13 @@ function renderComponent(options?: {
   initialUrl?: string;
 }) {
   const user = userEvent.setup();
-  const history = createMemoryHistory({
-    initialEntries: [options?.initialUrl || cfg.routes.instances],
-  });
+  const initialUrl = options?.initialUrl || cfg.routes.instances;
 
   return {
     ...render(<Instances />, {
       wrapper: makeWrapper({
         customAcl: options?.customAcl,
-        history,
+        initialUrl,
       }),
     }),
     user,
@@ -290,11 +287,11 @@ function renderComponent(options?: {
 }
 
 function makeWrapper(options: {
-  history: ReturnType<typeof createMemoryHistory>;
+  initialUrl: string;
   customAcl?: ReturnType<typeof makeAcl>;
 }) {
   const {
-    history,
+    initialUrl,
     customAcl = makeAcl({
       instances: {
         ...defaultAccess,
@@ -317,13 +314,13 @@ function makeWrapper(options: {
     ctx.storeUser.state.cluster.authVersion = '18.2.4';
 
     return (
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialUrl]}>
         <QueryClientProvider client={testQueryClient}>
           <ConfiguredThemeProvider theme={darkTheme}>
             <ContextProvider ctx={ctx}>
-              <Router history={history}>
-                <Route path={cfg.routes.instances}>{children}</Route>
-              </Router>
+              <Routes>
+                <Route path={cfg.routes.instances} element={children} />
+              </Routes>
             </ContextProvider>
           </ConfiguredThemeProvider>
         </QueryClientProvider>

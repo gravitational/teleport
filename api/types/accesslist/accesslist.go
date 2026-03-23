@@ -309,6 +309,10 @@ type Grants struct {
 
 	// Traits are the traits that are granted to users who are members of the access list.
 	Traits trait.Traits `json:"traits" yaml:"traits"`
+
+	// ScopedRoles are the scoped roels that are granted to users who are
+	// members of the access list.
+	ScopedRoles []ScopedRoleGrant `json:"scoped_roles" yaml:"scoped_roles"`
 }
 
 // Clone returns a copy of the Grants.
@@ -317,9 +321,19 @@ func (grants *Grants) Clone() Grants {
 		return Grants{}
 	}
 	return Grants{
-		Roles:  slices.Clone(grants.Roles),
-		Traits: grants.Traits.Clone(),
+		Roles:       slices.Clone(grants.Roles),
+		Traits:      grants.Traits.Clone(),
+		ScopedRoles: slices.Clone(grants.ScopedRoles),
 	}
+}
+
+// ScopedRoleGrant describes a scoped role granted at a specific scope.
+type ScopedRoleGrant struct {
+	// Role is the name of the scoped role to be granted.
+	Role string `json:"role" yaml:"role"`
+	// Scope is the scope the role will be assigned at. It must be an assignable
+	// scope of the role.
+	Scope string `json:"scope" yaml:"scope"`
 }
 
 // Status contains dynamic fields calculated during retrieval.

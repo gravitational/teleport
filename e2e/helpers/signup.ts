@@ -18,12 +18,18 @@
 
 import type { Page } from '@playwright/test';
 
+import { generateInviteURL } from './tctl';
 import { mockWebAuthn } from './webauthn';
 
-export async function signup(page: Page) {
+export async function signup(page: Page, username: string) {
+  await page.addInitScript(() =>
+    localStorage.setItem('grv_teleport_license_acknowledged', 'true')
+  );
+
   await mockWebAuthn(page);
 
-  await page.goto(process.env.E2E_INVITE_URL);
+  const inviteURL = generateInviteURL(username);
+  await page.goto(inviteURL);
 
   await page.getByRole('button', { name: 'Get started' }).click();
   await page.getByRole('textbox', { name: 'Password', exact: true }).click();

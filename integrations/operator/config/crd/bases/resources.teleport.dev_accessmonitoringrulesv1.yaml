@@ -86,43 +86,40 @@ spec:
                     type: array
                 type: object
               schedules:
+                additionalProperties:
+                  nullable: true
+                  properties:
+                    time:
+                      description: TimeSchedule specifies an in-line schedule.
+                      nullable: true
+                      properties:
+                        shifts:
+                          description: Shifts contains a set of shifts that make up
+                            the schedule.
+                          items:
+                            properties:
+                              end:
+                                type: string
+                              start:
+                                type: string
+                              weekday:
+                                type: string
+                            type: object
+                          nullable: true
+                          type: array
+                        timezone:
+                          description: Timezone specifies the schedule timezone. This
+                            field is optional and defaults to "UTC". Accepted values
+                            use timezone locations as defined in the IANA Time Zone
+                            Database, such as "America/Los_Angeles", "Europe/Lisbon",
+                            or "Asia/Singapore".  See https://data.iana.org/time-zones/tzdb/zone1970.tab
+                            for a list of supported values.
+                          type: string
+                      type: object
+                  type: object
                 description: schedules specifies a map of schedules that can be used
                   to configure the access monitoring rule conditions.
                 nullable: true
-                properties:
-                  key:
-                    type: string
-                  value:
-                    nullable: true
-                    properties:
-                      time:
-                        description: TimeSchedule specifies an in-line schedule.
-                        nullable: true
-                        properties:
-                          shifts:
-                            description: Shifts contains a set of shifts that make
-                              up the schedule.
-                            items:
-                              properties:
-                                end:
-                                  type: string
-                                start:
-                                  type: string
-                                weekday:
-                                  type: string
-                              type: object
-                            nullable: true
-                            type: array
-                          timezone:
-                            description: Timezone specifies the schedule timezone.
-                              This field is optional and defaults to "UTC". Accepted
-                              values use timezone locations as defined in the IANA
-                              Time Zone Database, such as "America/Los_Angeles", "Europe/Lisbon",
-                              or "Asia/Singapore".  See https://data.iana.org/time-zones/tzdb/zone1970.tab
-                              for a list of supported values.
-                            type: string
-                        type: object
-                    type: object
                 type: object
               states:
                 description: states are the desired state which the monitoring rule
