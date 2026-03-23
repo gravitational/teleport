@@ -100,6 +100,20 @@ jobs:
           echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
           echo "pnpm-store=$(pnpm store path)" >> $GITHUB_OUTPUT
 
+      - name: Restore pnpm store cache
+        id: pnpm-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ steps.cache-paths.outputs.pnpm-store }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
+
+      - name: Install node modules
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check e2e tests
+        run: pnpm --filter=@gravitational/e2e type-check
+
       - name: Restore Go module cache
         id: go-mod-cache
         uses: actions/cache/restore@v5
@@ -118,20 +132,6 @@ jobs:
             lib/srv/desktop/rdp/rdpclient/librdpclient.h
           key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml', 'Makefile', 'build.assets/Makefile',
             'build.assets/versions.mk', 'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
-
-      - name: Restore pnpm store cache
-        id: pnpm-cache
-        uses: actions/cache/restore@v5
-        with:
-          path: ${{ steps.cache-paths.outputs.pnpm-store }}
-          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-store-${{ runner.os }}-
-
-      - name: Install node modules
-        run: pnpm install --frozen-lockfile
-
-      - name: Type-check e2e tests
-        run: pnpm --filter=@gravitational/e2e type-check
 
       - name: Build Teleport, tctl, and tsh
         shell: bash
