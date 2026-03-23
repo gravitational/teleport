@@ -21,8 +21,6 @@ package srv
 import (
 	"cmp"
 	"context"
-	"os"
-	"slices"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -60,33 +58,6 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		return nil, trace.Wrap(err)
 	}
 
-	// At this point we know that the client already completed public key authentication because this method should only
-	// be called after successful public key authentication (bug otherwise). We don't know yet whether the client is a
-	// legacy client that only supports public key authentication or a modern client that supports keyboard-interactive
-	// authentication. Therefore, we will set up both callbacks and let the SSH server decide which one to invoke based
-	// on what the client supports.
-
-	// legacyPublicKeyCallback allows a legacy client to proceed with just public key authentication for backwards
-	// compatibility, skipping keyboard-interactive authentication altogether. If MFA is required by the preconditions,
-	// only per-session MFA certificates are allowed since they indicate that MFA was already performed (see RFD 0234).
-	//
-	// TODO(cthach): Remove in v20.0 and only set KeyboardInteractiveCallback.
-	legacyPublicKeyCallback := func(_ ssh.ConnMetadata, _ ssh.PublicKey) (*ssh.Permissions, error) {
-		if err := denyRegularSSHCertsIfMFARequired(preconds, id); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Set nil as the override function to indicate that the legacy public key callback was invoked. This will allow
-		// the next call to VerifiedPublicKeyCallback to detect this and proceed to grant access without looping back
-		// into this callback i.e., break an infinite auth loop.
-		return withVerifiedPublicKeyCallbackOverride(perms, nil), nil
-	}
-	if os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes" {
-		legacyPublicKeyCallback = func(_ ssh.ConnMetadata, _ ssh.PublicKey) (*ssh.Permissions, error) {
-			return nil, trace.AccessDenied(`legacy public key authentication is forbidden (TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA = "yes")`)
-		}
-	}
-
 	// keyboardInteractiveCallback handles keyboard-interactive authentication for modern clients.
 	keyboardInteractiveCallback := func(metadata ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
 		var verifiers []srvssh.PromptVerifier
@@ -119,7 +90,6 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	// Return the PartialSuccessError to indicate that further authentication is required to complete SSH authentication.
 	return nil, &ssh.PartialSuccessError{
 		Next: ssh.ServerAuthCallbacks{
-			PublicKeyCallback:           legacyPublicKeyCallback,
 			KeyboardInteractiveCallback: keyboardInteractiveCallback,
 		},
 	}
@@ -134,28 +104,6 @@ func ensureSupportedPreconditions(preconds []*decisionpb.Precondition) error {
 		default:
 			return trace.BadParameter("unexpected precondition type %q found (this is a bug)", precond.GetKind())
 		}
-	}
-
-	return nil
-}
-
-func denyRegularSSHCertsIfMFARequired(
-	preconds []*decisionpb.Precondition,
-	id *sshca.Identity,
-) error {
-	// Determine if MFA is required based on the provided preconditions.
-	mfaRequired := slices.ContainsFunc(
-		preconds,
-		func(p *decisionpb.Precondition) bool {
-			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
-		},
-	)
-
-	// A regular SSH certificate is one that does not have per-session MFA verification.
-	isRegularSSHCert := id.MFAVerified == "" && !id.PrivateKeyPolicy.MFAVerified()
-
-	if mfaRequired && isRegularSSHCert {
-		return trace.AccessDenied("regular SSH certificates are forbidden when MFA is required and using legacy public key authentication")
 	}
 
 	return nil

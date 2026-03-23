@@ -206,6 +206,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		Auth:            tc.AuthMethods,
 		HostKeyCallback: tc.HostKeyCallback,
 		Timeout:         dialTimeout,
+		ClientVersion:   defaults.SSHClientVersion,
 	}
 
 	nodeClient, err := client.NewNodeClient(

@@ -44,6 +44,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -936,6 +937,7 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.P
 		Auth:            tc.AuthMethods,
 		HostKeyCallback: tc.HostKeyCallback,
 		Timeout:         t.sshDialTimeout,
+		ClientVersion:   apidefaults.SSHClientVersion,
 	}
 
 	clt, err := client.NewNodeClient(ctx, sshConfig, conn,
@@ -989,6 +991,7 @@ func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, scopePin 
 		Auth:            authMethods,
 		HostKeyCallback: tc.HostKeyCallback,
 		Timeout:         t.sshDialTimeout,
+		ClientVersion:   apidefaults.SSHClientVersion,
 	}
 
 	// connect to the node again with the new certs

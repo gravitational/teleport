@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -120,7 +122,9 @@ func (m *mockGitForwardingChecker) evaluateGitForwarding(_ *sshca.Identity, _ ty
 	return nil, nil
 }
 
-type mockConnMetadata struct{}
+type mockConnMetadata struct {
+	clientVersion []byte
+}
 
 func (m mockConnMetadata) User() string {
 	return "testuser"
@@ -131,7 +135,7 @@ func (m mockConnMetadata) SessionID() []byte {
 }
 
 func (m mockConnMetadata) ClientVersion() []byte {
-	return nil
+	return m.clientVersion
 }
 
 func (m mockConnMetadata) ServerVersion() []byte {
@@ -1138,8 +1142,6 @@ func TestAuthAttemptAuditEvent(t *testing.T) {
 }
 
 func TestVerifiedPublicKeyCallback(t *testing.T) {
-	t.Parallel()
-
 	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
@@ -1162,6 +1164,49 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 	require.NoError(t, err)
 
 	cert, err := sshutils.ParseCertificate(rawCert)
+	require.NoError(t, err)
+
+	rawMFACert, err := testauthority.GenerateUserCert(
+		sshca.UserCertificateRequest{
+			CASigner:      caSigner,
+			PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+			Identity: sshca.Identity{
+				Username:    "testuser",
+				ClusterName: "localhost",
+				MFAVerified: "verified",
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	mfaCert, err := sshutils.ParseCertificate(rawMFACert)
+	require.NoError(t, err)
+
+	rawHardwareKeyMFACert, err := testauthority.GenerateUserCert(
+		sshca.UserCertificateRequest{
+			CASigner:      caSigner,
+			PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+			Identity: sshca.Identity{
+				Username:         "testuser",
+				ClusterName:      "localhost",
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	hardwareKeyMFACert, err := sshutils.ParseCertificate(rawHardwareKeyMFACert)
+	require.NoError(t, err)
+
+	precondsPermitRaw, err := protojson.Marshal(
+		&decisionpb.SSHAccessPermit{
+			Preconditions: []*decisionpb.Precondition{
+				{
+					Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+				},
+			},
+		},
+	)
 	require.NoError(t, err)
 
 	t.Run("no access permit returns original permissions", func(t *testing.T) {
@@ -1190,7 +1235,25 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		require.Nil(t, outPerms)
 	})
 
-	t.Run("non certificate key fails", func(t *testing.T) {
+	t.Run("certificate with invalid identity fails", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: "{}",
+			},
+		}
+
+		invalidIdentityCert, err := sshutils.ParseCertificate(rawCert)
+		require.NoError(t, err)
+		invalidIdentityCert.Extensions[teleport.CertExtensionTeleportTraits] = "{"
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, invalidIdentityCert, inPerms, "")
+		require.ErrorContains(t, err, "failed to decode ssh identity from cert")
+		require.Nil(t, outPerms)
+	})
+
+	t.Run("non-certificate key fails", func(t *testing.T) {
 		ah := &AuthHandlers{}
 
 		inPerms := &ssh.Permissions{
@@ -1206,7 +1269,7 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		require.Nil(t, outPerms)
 	})
 
-	t.Run("permit with no preconditions allows auth", func(t *testing.T) {
+	t.Run("permit with no MFA required preconditions allows auth", func(t *testing.T) {
 		ah := &AuthHandlers{}
 
 		inPerms := &ssh.Permissions{
@@ -1220,23 +1283,35 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		require.Same(t, inPerms, outPerms)
 	})
 
-	t.Run("permit with preconditions requires additional auth", func(t *testing.T) {
+	t.Run("permit with MFA required preconditions and modern client requires additional auth", func(t *testing.T) {
 		ah := &AuthHandlers{
 			c: &AuthHandlerConfig{
 				ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
 			},
 		}
 
-		precondsPermitRaw, err := protojson.Marshal(
-			&decisionpb.SSHAccessPermit{
-				Preconditions: []*decisionpb.Precondition{
-					{
-						Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-					},
-				},
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
 			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(
+			&mockConnMetadata{clientVersion: []byte(defaults.SSHClientVersion)},
+			cert,
+			inPerms,
+			"",
 		)
-		require.NoError(t, err)
+		require.Error(t, err)
+		require.Nil(t, outPerms)
+
+		var partialSuccessErr *ssh.PartialSuccessError
+		require.ErrorAs(t, err, &partialSuccessErr)
+		require.NotNil(t, partialSuccessErr.Next.KeyboardInteractiveCallback)
+	})
+
+	t.Run("permit with MFA required preconditions and legacy client with regular cert is denied", func(t *testing.T) {
+		ah := &AuthHandlers{}
 
 		inPerms := &ssh.Permissions{
 			Extensions: map[string]string{
@@ -1245,111 +1320,82 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		}
 
 		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
-		require.Error(t, err)
+		require.ErrorIs(t, err, services.ErrSessionMFARequired)
 		require.Nil(t, outPerms)
-
-		var partialSuccessErr *ssh.PartialSuccessError
-		require.ErrorAs(t, err, &partialSuccessErr)
-		require.NotNil(t, partialSuccessErr.Next.PublicKeyCallback)
-		require.NotNil(t, partialSuccessErr.Next.KeyboardInteractiveCallback)
 	})
 
-	t.Run("legacy public key fallback does not loop back into partial success", func(t *testing.T) {
+	t.Run("permit with MFA required preconditions and legacy client with per-session MFA cert is allowed", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, mfaCert, inPerms, "")
+		require.NoError(t, err)
+		require.Same(t, inPerms, outPerms)
+	})
+
+	t.Run("permit with MFA required preconditions and legacy client with hardware-key MFA cert is allowed", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, hardwareKeyMFACert, inPerms, "")
+		require.NoError(t, err)
+		require.Same(t, inPerms, outPerms)
+	})
+
+	t.Run("permit with MFA required preconditions and forced in-band MFA denies legacy client", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
+
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, mfaCert, inPerms, "")
+		require.Error(t, err)
+		require.ErrorContains(t, err, `legacy public key authentication is forbidden`)
+		require.Nil(t, outPerms)
+	})
+
+	t.Run("permit with MFA required preconditions and forced in-band MFA still requires additional auth for modern client", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
+
 		ah := &AuthHandlers{
 			c: &AuthHandlerConfig{
 				ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
 			},
 		}
 
-		legacyRawCert, err := testauthority.GenerateUserCert(
-			sshca.UserCertificateRequest{
-				CASigner:      caSigner,
-				PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
-				Identity: sshca.Identity{
-					Username:    "testuser",
-					ClusterName: "localhost",
-					MFAVerified: "verified",
-				},
-			},
-		)
-		require.NoError(t, err)
-
-		legacyCert, err := sshutils.ParseCertificate(legacyRawCert)
-		require.NoError(t, err)
-
-		precondsPermitRaw, err := protojson.Marshal(
-			&decisionpb.SSHAccessPermit{
-				Preconditions: []*decisionpb.Precondition{
-					{
-						Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-					},
-				},
-			},
-		)
-		require.NoError(t, err)
-
 		inPerms := &ssh.Permissions{
-			CriticalOptions: map[string]string{
-				"foo": "bar",
-			},
 			Extensions: map[string]string{
 				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
 			},
-			ExtraData: map[any]any{
-				"baz": "qux",
-			},
 		}
 
-		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, legacyCert, inPerms, "")
+		outPerms, err := ah.VerifiedPublicKeyCallback(
+			&mockConnMetadata{clientVersion: []byte(defaults.SSHClientVersion)},
+			cert,
+			inPerms,
+			"",
+		)
+		require.Error(t, err)
 		require.Nil(t, outPerms)
 
 		var partialSuccessErr *ssh.PartialSuccessError
 		require.ErrorAs(t, err, &partialSuccessErr)
-
-		legacyPerms, err := partialSuccessErr.Next.PublicKeyCallback(nil, nil)
-		require.NoError(t, err)
-		require.NotSame(t, inPerms, legacyPerms)
-		require.Equal(t, inPerms.CriticalOptions, legacyPerms.CriticalOptions)
-		require.Equal(t, inPerms.Extensions, legacyPerms.Extensions)
-		require.Equal(t, inPerms.ExtraData, legacyPerms.ExtraData)
-
-		_, ok := inPerms.ExtraData[verifiedPublicKeyCallbackOverrideKey{}]
-		require.False(t, ok)
-
-		override, ok := legacyPerms.ExtraData[verifiedPublicKeyCallbackOverrideKey{}].(verifiedPublicKeyCallbackOverride)
-		require.True(t, ok)
-		require.Nil(t, override)
-
-		outPerms, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, legacyCert, legacyPerms, "")
-		require.NoError(t, err)
-		require.Same(t, legacyPerms, outPerms)
-
-		outPerms, err = ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, legacyCert, outPerms, "")
-		require.NoError(t, err)
-		require.Same(t, legacyPerms, outPerms)
-	})
-
-	t.Run("callback override is honored", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		expectedPerms := &ssh.Permissions{}
-
-		inPerms := &ssh.Permissions{}
-		inPerms.ExtraData = map[any]any{
-			verifiedPublicKeyCallbackOverrideKey{}: verifiedPublicKeyCallbackOverride(
-				func(conn ssh.ConnMetadata, key ssh.PublicKey, permissions *ssh.Permissions, signatureAlgorithm string) (*ssh.Permissions, error) {
-					require.IsType(t, &mockConnMetadata{}, conn)
-					require.Same(t, cert, key)
-					require.Same(t, inPerms, permissions)
-					require.Equal(t, "ssh-rsa", signatureAlgorithm)
-					return expectedPerms, nil
-				},
-			),
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "ssh-rsa")
-		require.NoError(t, err)
-		require.Same(t, expectedPerms, outPerms)
+		require.NotNil(t, partialSuccessErr.Next.KeyboardInteractiveCallback)
 	})
 }
 

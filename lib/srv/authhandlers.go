@@ -23,9 +23,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"net"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -723,18 +724,6 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 	perms *ssh.Permissions,
 	signatureAlgorithm string,
 ) (*ssh.Permissions, error) {
-	// Check if there is a callback override function set during keyboard-interactive auth. If one is set, it means that
-	// we have already gone through this callback and we should invoke the override function to avoid running into
-	// infinite auth loops.
-	//  TODO(cthach): Remove in v20.0 when the legacy public-key auth flow is removed.
-	if a, ok := perms.ExtraData[verifiedPublicKeyCallbackOverrideKey{}]; ok {
-		overrideFn := a.(verifiedPublicKeyCallbackOverride)
-		if overrideFn == nil {
-			return perms, nil
-		}
-		return overrideFn(conn, key, perms, signatureAlgorithm)
-	}
-
 	// Access preconditions are only set in the SSH access permit. For all other permit types, it is expected for this
 	// entry to be unset, so return the input permissions to grant access.
 	rawPermit, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]
@@ -757,6 +746,40 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v %v", key.Type(), sshutils.Fingerprint(key))
 	}
 
+	var (
+		mfaRequired = slices.ContainsFunc(
+			permit.GetPreconditions(),
+			func(p *decisionpb.Precondition) bool {
+				return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
+			},
+		)
+		forceInBandMFA      = os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes"
+		isModernClient      = string(conn.ClientVersion()) == defaults.SSHClientVersion
+		isLegacyClient      = !isModernClient
+		isRegularSSHCert    = ident.MFAVerified == "" && !ident.PrivateKeyPolicy.MFAVerified()
+		isPerSessionMFACert = !isRegularSSHCert
+	)
+
+	// TODO(cthach): DELETE IN v20.0 when in-band MFA is required for all clients and backwards compatibility with
+	// legacy clients is no longer supported.
+	switch {
+	case !mfaRequired:
+		// MFA is not required, grant access.
+		return perms, nil
+
+	case !forceInBandMFA && isLegacyClient && isRegularSSHCert:
+		// In-band MFA is optional, but MFA is required and client is using a regular cert, deny.
+		return nil, services.ErrSessionMFARequired
+
+	case !forceInBandMFA && isLegacyClient && isPerSessionMFACert:
+		// In-band MFA is optional, allow access to legacy client as long as they are using a per-session MFA cert.
+		return perms, nil
+
+	case forceInBandMFA && isLegacyClient:
+		// In-band MFA is required and is a legacy client that doesn't support in-band MFA, deny.
+		return nil, trace.AccessDenied(`legacy public key authentication is forbidden (TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA = "yes")`)
+	}
+
 	// Proceed to keyboard-interactive auth to ensure all preconditions are met.
 	return h.KeyboardInteractiveAuth(
 		context.Background(),
@@ -764,35 +787,6 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 		ident,
 		perms,
 	)
-}
-
-type verifiedPublicKeyCallbackOverrideKey struct{}
-
-type verifiedPublicKeyCallbackOverride func(
-	conn ssh.ConnMetadata,
-	key ssh.PublicKey,
-	permissions *ssh.Permissions,
-	signatureAlgorithm string,
-) (*ssh.Permissions, error)
-
-func withVerifiedPublicKeyCallbackOverride(
-	perms *ssh.Permissions,
-	override verifiedPublicKeyCallbackOverride,
-) *ssh.Permissions {
-	// Clone the permissions to avoid mutating the input.
-	clonedPerms := &ssh.Permissions{
-		CriticalOptions: maps.Clone(perms.CriticalOptions),
-		Extensions:      maps.Clone(perms.Extensions),
-		ExtraData:       maps.Clone(perms.ExtraData),
-	}
-
-	if clonedPerms.ExtraData == nil {
-		clonedPerms.ExtraData = make(map[any]any)
-	}
-
-	clonedPerms.ExtraData[verifiedPublicKeyCallbackOverrideKey{}] = override
-
-	return clonedPerms
 }
 
 func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
