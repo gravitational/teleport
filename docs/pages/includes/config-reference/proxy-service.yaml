@@ -25,7 +25,7 @@ proxy_service:
     # Because the PROXY protocol spec does not support source and destination addresses
     # with mixed TCP versions, this allows for environments where Teleport is proxying
     # between IPv6 networks into IPv4 networks. Downgrading to IPv4 comes with the
-    # posibility of collisions, which means IP pinning functionality will not work for
+    # possibility of collisions, which means IP pinning functionality will not work for
     # downgraded connections.
     proxy_protocol_allow_downgrade: on
 
