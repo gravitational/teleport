@@ -145,6 +145,7 @@ async function approveInWebUi(requestUrl: string) {
 }
 
 test.use({ autoLogin: true });
+// Increase timeout because this test runs several sub-steps in one flow.
 test.setTimeout(30_000);
 
 test('headless auth modal flows', async ({ app }) => {
