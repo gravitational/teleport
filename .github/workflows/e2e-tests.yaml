@@ -207,7 +207,7 @@ jobs:
   test:
     name: E2E Tests
     needs: [changes, build]
-    if: ${{ needs.changes.outputs.changed == 'true' }}
+    if: ${{ needs.changes.outputs.changed == 'true' && needs.build.result == 'success' }}
     runs-on: ubuntu-22.04-8core
     timeout-minutes: 30
 
