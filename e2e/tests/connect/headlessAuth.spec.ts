@@ -46,25 +46,30 @@ async function startHeadlessRequestProcess(options?: {
   abortSignal?: AbortSignal;
 }): Promise<HeadlessRequestProcess> {
   const proxyHost = new URL(startUrl).host;
-  const homeDir = await fs.mkdtemp(path.join(os.tmpdir(), 'headless-e2e-'));
 
-  const child: ChildProcessWithoutNullStreams = spawn(
-    connectTshBin,
-    [
-      'ls',
-      '--headless',
-      '--insecure',
-      `--user=${HEADLESS_USER}`,
-      `--proxy=${proxyHost}`,
-    ],
-    {
-      env: {
-        ...process.env,
-        TELEPORT_HOME: homeDir,
-      },
-      signal: options?.abortSignal,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }
+  await using disposer = new AsyncDisposableStack();
+  const homeDir = disposer.use(
+    await fs.mkdtempDisposable(path.join(os.tmpdir(), 'headless-e2e-'))
+  );
+  const child: ChildProcessWithoutNullStreams = disposer.use(
+    spawn(
+      connectTshBin,
+      [
+        'ls',
+        '--headless',
+        '--insecure',
+        `--user=${HEADLESS_USER}`,
+        `--proxy=${proxyHost}`,
+      ],
+      {
+        env: {
+          ...process.env,
+          TELEPORT_HOME: homeDir.path,
+        },
+        signal: options?.abortSignal,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }
+    )
   );
 
   let output = '';
@@ -112,13 +117,11 @@ async function startHeadlessRequestProcess(options?: {
     }),
   ]);
 
+  const disposables = disposer.move();
   return {
     request,
     waitForExit: () => exited.promise,
-    async [Symbol.asyncDispose]() {
-      child.kill('SIGKILL');
-      await fs.rm(homeDir, { recursive: true, force: true });
-    },
+    [Symbol.asyncDispose]: () => disposables.disposeAsync(),
   };
 }
 
