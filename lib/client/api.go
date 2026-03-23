@@ -2067,10 +2067,10 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	case !errors.Is(mfaErr, io.EOF) && // Ignore any errors from MFA due to locks being enforced, the direct error will be friendlier
 		!errors.As(mfaErr, new(*MFARequiredUnknownError)) && // Ignore any failures that occurred before determining if MFA was required
 		!errors.Is(mfaErr, services.ErrSessionMFANotRequired): // Ignore any errors caused by attempting the MFA ceremony when MFA will not grant access
-		log.DebugContext(ctx, "Failed to connect to node, returning MFA ceremony error and ignoring direct connection error", "direct_error", directErr)
+		log.WithError(directErr).Debug("Failed to connect to node, returning MFA ceremony error and ignoring direct connection error")
 		return nil, trace.Wrap(mfaErr)
 	default:
-		log.DebugContext(ctx, "Failed to connect to node, returning direct connection error and ignoring MFA ceremony error", "mfa_error", mfaErr)
+		log.WithError(mfaErr).Debug(ctx, "Failed to connect to node, returning direct connection error and ignoring MFA ceremony error")
 		return nil, trace.Wrap(directErr)
 	}
 }
