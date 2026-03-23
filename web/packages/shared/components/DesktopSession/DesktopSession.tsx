@@ -325,11 +325,6 @@ export function DesktopSession({
   }
 
   function handleMouseUp(e: React.MouseEvent<HTMLCanvasElement>) {
-    const scaled = scaleEvent(e);
-    if (!scaled.inBounds) {
-      return;
-    }
-
     inputHandler.current.handleInputEvent({
       cli: client,
       e: e.nativeEvent,
