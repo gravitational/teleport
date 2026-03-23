@@ -53,6 +53,7 @@ jobs:
               - '.github/actions/prepare-workspace/action.yml'
               - 'common.mk'
               - 'build.assets/Makefile'
+              - 'build.assets/versions.mk'
               - 'build.assets/Dockerfile*'
               - 'build.assets/build-webassets-if-changed.sh'
               - 'Makefile'
@@ -115,7 +116,7 @@ jobs:
             target/x86_64-unknown-linux-gnu/release/librdp_client.a
             lib/srv/desktop/rdp/rdpclient/librdpclient.h
           key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml', 'Makefile', 'build.assets/Makefile',
-            'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
+            'build.assets/versions.mk', 'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
 
       - name: Restore pnpm store cache
         id: pnpm-cache
@@ -193,7 +194,7 @@ jobs:
             target/x86_64-unknown-linux-gnu/release/librdp_client.a
             lib/srv/desktop/rdp/rdpclient/librdpclient.h
           key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml', 'Makefile', 'build.assets/Makefile',
-            'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
+            'build.assets/versions.mk', 'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
 
       - name: Save pnpm store cache
         if: github.event_name == 'push' && steps.pnpm-cache.outputs.cache-hit != 'true'
