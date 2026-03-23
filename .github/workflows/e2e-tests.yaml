@@ -137,7 +137,6 @@ jobs:
           wait $pid_tsh     || { echo "::error::go build tsh failed with exit code $?"; failed=1; }
           exit $failed
         env:
-          RDPCLIENT_SKIP_BUILD: '0'
           IRONRDP_SKIP_BUILD: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
           RDPCLIENT_SKIP_CARGO: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
 
