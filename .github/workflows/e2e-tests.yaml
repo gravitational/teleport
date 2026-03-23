@@ -94,19 +94,9 @@ jobs:
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
 
-      - name: Get cache paths
+      - name: Get go mod cache path
         id: cache-paths
-        run: |
-          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
-          echo "pnpm-store=$(pnpm store path)" >> $GITHUB_OUTPUT
-
-      - name: Restore pnpm store cache
-        id: pnpm-cache
-        uses: actions/cache/restore@v5
-        with:
-          path: ${{ steps.cache-paths.outputs.pnpm-store }}
-          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-store-${{ runner.os }}-
+        run: echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Install node modules
         run: pnpm install --frozen-lockfile
@@ -197,13 +187,6 @@ jobs:
           key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml', 'Makefile', 'build.assets/Makefile',
             'build.assets/versions.mk', 'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
 
-      - name: Save pnpm store cache
-        if: github.event_name == 'push' && steps.pnpm-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5
-        with:
-          path: ${{ steps.cache-paths.outputs.pnpm-store }}
-          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-
   test:
     name: E2E Tests
     needs: [changes, build]
@@ -243,19 +226,6 @@ jobs:
           echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
           apt-get update && apt-get install -y docker-ce-cli
 
-      - name: Get pnpm store path
-        id: cache-paths
-        run: |
-          corepack enable
-          echo "pnpm-store=$(pnpm store path)" >> $GITHUB_OUTPUT
-
-      - name: Restore pnpm store cache
-        uses: actions/cache/restore@v5
-        with:
-          path: ${{ steps.cache-paths.outputs.pnpm-store }}
-          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-store-${{ runner.os }}-
-
       - name: Setup e2e environment
         shell: bash
         run: |
@@ -265,6 +235,7 @@ jobs:
           mkdir -p setup-logs
           docker pull debian:bookworm-slim 2>&1 | tee setup-logs/docker-pull.log & pid_docker=$!
 
+          corepack enable
           pnpm install --frozen-lockfile 2>&1 | tee setup-logs/pnpm-install.log & pid_pnpm=$!
 
           failed=0
