@@ -28,6 +28,10 @@ type TenantsServiceClient interface {
 	GetAccountUpgradeWindowStartHour(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetAccountUpgradeWindowStartHourResponse, error)
 	// UpdateAccountUpgradeWindowStartHour updates tenant account upgrade window start
 	UpdateAccountUpgradeWindowStartHour(ctx context.Context, in *UpdateAccountUpgradeWindowStartHourRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// GetEnvironmentProfile returns tenant environment profile
+	GetEnvironmentProfile(ctx context.Context, in *GetEnvironmentProfileRequest, opts ...grpc.CallOption) (*GetEnvironmentProfileResponse, error)
+	// UpdateEnvironmentProfile updates tenant environment profile
+	UpdateEnvironmentProfile(ctx context.Context, in *UpdateEnvironmentProfileRequest, opts ...grpc.CallOption) (*GetEnvironmentProfileResponse, error)
 	// SendAccountRecoveryLink sends an email with the recovery link to the user who requested to recover their account.
 	SendAccountRecoveryLink(ctx context.Context, in *SendAccountRecoveryLinkRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// SendAccountLocked sends an email to the user whose account is locked due to max failed attempts at recovering.
@@ -98,12 +102,25 @@ type TenantsServiceClient interface {
 	GetClientIPRestrictions(ctx context.Context, in *GetClientIPRestrictionsRequest, opts ...grpc.CallOption) (*GetClientIPRestrictionsResponse, error)
 	// PutClientIPRestrictions replaces the tenant's client IP ingress allow list.
 	PutClientIPRestrictions(ctx context.Context, in *PutClientIPRestrictionsRequest, opts ...grpc.CallOption) (*PutClientIPRestrictionsResponse, error)
+	// Deprecated: Do not use.
 	// ChildCluster is used for managing the lifecycle of a Teleport Cloud child cluster.
 	ChildCluster(ctx context.Context, in *ChildClusterRequest, opts ...grpc.CallOption) (*ChildClusterResponse, error)
 	// GetFile gets static UI files to render on the Teleport UI.
 	// The response is streamed in chunks. The first chunk carries only the
 	// content_encoding field and no data; subsequent chunks carry data only.
 	GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (TenantsService_GetFileClient, error)
+	// CreateChildCluster creates a new child cluster.
+	CreateChildCluster(ctx context.Context, in *CreateChildClusterRequest, opts ...grpc.CallOption) (*CreateChildClusterResponse, error)
+	// GetChildCluster retrieves the current configuration and status for a child cluster.
+	GetChildCluster(ctx context.Context, in *GetChildClusterRequest, opts ...grpc.CallOption) (*GetChildClusterResponse, error)
+	// UpdateChildCluster updates the requested child cluster.
+	UpdateChildCluster(ctx context.Context, in *UpdateChildClusterRequest, opts ...grpc.CallOption) (*UpdateChildClusterResponse, error)
+	// UpsertChildCluster creates the child cluster if it does not exist, otherwise the existing child cluster is udpated.
+	UpsertChildCluster(ctx context.Context, in *UpsertChildClusterRequest, opts ...grpc.CallOption) (*UpsertChildClusterResponse, error)
+	// SuspendChildCluster suspends the requested child cluster and returns the configuration and status.
+	SuspendChildCluster(ctx context.Context, in *SuspendChildClusterRequest, opts ...grpc.CallOption) (*SuspendChildClusterResponse, error)
+	// ListChildClusters returns a paginated list of child clusters.
+	ListChildClusters(ctx context.Context, in *ListChildClustersRequest, opts ...grpc.CallOption) (*ListChildClustersResponse, error)
 }
 
 type tenantsServiceClient struct {
@@ -135,6 +152,24 @@ func (c *tenantsServiceClient) GetAccountUpgradeWindowStartHour(ctx context.Cont
 func (c *tenantsServiceClient) UpdateAccountUpgradeWindowStartHour(ctx context.Context, in *UpdateAccountUpgradeWindowStartHourRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
 	out := new(EmptyResponse)
 	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/UpdateAccountUpgradeWindowStartHour", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) GetEnvironmentProfile(ctx context.Context, in *GetEnvironmentProfileRequest, opts ...grpc.CallOption) (*GetEnvironmentProfileResponse, error) {
+	out := new(GetEnvironmentProfileResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetEnvironmentProfile", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) UpdateEnvironmentProfile(ctx context.Context, in *UpdateEnvironmentProfileRequest, opts ...grpc.CallOption) (*GetEnvironmentProfileResponse, error) {
+	out := new(GetEnvironmentProfileResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/UpdateEnvironmentProfile", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -394,6 +429,7 @@ func (c *tenantsServiceClient) PutClientIPRestrictions(ctx context.Context, in *
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *tenantsServiceClient) ChildCluster(ctx context.Context, in *ChildClusterRequest, opts ...grpc.CallOption) (*ChildClusterResponse, error) {
 	out := new(ChildClusterResponse)
 	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/ChildCluster", in, out, opts...)
@@ -435,6 +471,60 @@ func (x *tenantsServiceGetFileClient) Recv() (*GetFileResponse, error) {
 	return m, nil
 }
 
+func (c *tenantsServiceClient) CreateChildCluster(ctx context.Context, in *CreateChildClusterRequest, opts ...grpc.CallOption) (*CreateChildClusterResponse, error) {
+	out := new(CreateChildClusterResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/CreateChildCluster", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) GetChildCluster(ctx context.Context, in *GetChildClusterRequest, opts ...grpc.CallOption) (*GetChildClusterResponse, error) {
+	out := new(GetChildClusterResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetChildCluster", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) UpdateChildCluster(ctx context.Context, in *UpdateChildClusterRequest, opts ...grpc.CallOption) (*UpdateChildClusterResponse, error) {
+	out := new(UpdateChildClusterResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/UpdateChildCluster", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) UpsertChildCluster(ctx context.Context, in *UpsertChildClusterRequest, opts ...grpc.CallOption) (*UpsertChildClusterResponse, error) {
+	out := new(UpsertChildClusterResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/UpsertChildCluster", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) SuspendChildCluster(ctx context.Context, in *SuspendChildClusterRequest, opts ...grpc.CallOption) (*SuspendChildClusterResponse, error) {
+	out := new(SuspendChildClusterResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/SuspendChildCluster", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) ListChildClusters(ctx context.Context, in *ListChildClustersRequest, opts ...grpc.CallOption) (*ListChildClustersResponse, error) {
+	out := new(ListChildClustersResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/ListChildClusters", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TenantsServiceServer is the server API for TenantsService service.
 // All implementations must embed UnimplementedTenantsServiceServer
 // for forward compatibility
@@ -445,6 +535,10 @@ type TenantsServiceServer interface {
 	GetAccountUpgradeWindowStartHour(context.Context, *EmptyRequest) (*GetAccountUpgradeWindowStartHourResponse, error)
 	// UpdateAccountUpgradeWindowStartHour updates tenant account upgrade window start
 	UpdateAccountUpgradeWindowStartHour(context.Context, *UpdateAccountUpgradeWindowStartHourRequest) (*EmptyResponse, error)
+	// GetEnvironmentProfile returns tenant environment profile
+	GetEnvironmentProfile(context.Context, *GetEnvironmentProfileRequest) (*GetEnvironmentProfileResponse, error)
+	// UpdateEnvironmentProfile updates tenant environment profile
+	UpdateEnvironmentProfile(context.Context, *UpdateEnvironmentProfileRequest) (*GetEnvironmentProfileResponse, error)
 	// SendAccountRecoveryLink sends an email with the recovery link to the user who requested to recover their account.
 	SendAccountRecoveryLink(context.Context, *SendAccountRecoveryLinkRequest) (*EmptyResponse, error)
 	// SendAccountLocked sends an email to the user whose account is locked due to max failed attempts at recovering.
@@ -515,12 +609,25 @@ type TenantsServiceServer interface {
 	GetClientIPRestrictions(context.Context, *GetClientIPRestrictionsRequest) (*GetClientIPRestrictionsResponse, error)
 	// PutClientIPRestrictions replaces the tenant's client IP ingress allow list.
 	PutClientIPRestrictions(context.Context, *PutClientIPRestrictionsRequest) (*PutClientIPRestrictionsResponse, error)
+	// Deprecated: Do not use.
 	// ChildCluster is used for managing the lifecycle of a Teleport Cloud child cluster.
 	ChildCluster(context.Context, *ChildClusterRequest) (*ChildClusterResponse, error)
 	// GetFile gets static UI files to render on the Teleport UI.
 	// The response is streamed in chunks. The first chunk carries only the
 	// content_encoding field and no data; subsequent chunks carry data only.
 	GetFile(*GetFileRequest, TenantsService_GetFileServer) error
+	// CreateChildCluster creates a new child cluster.
+	CreateChildCluster(context.Context, *CreateChildClusterRequest) (*CreateChildClusterResponse, error)
+	// GetChildCluster retrieves the current configuration and status for a child cluster.
+	GetChildCluster(context.Context, *GetChildClusterRequest) (*GetChildClusterResponse, error)
+	// UpdateChildCluster updates the requested child cluster.
+	UpdateChildCluster(context.Context, *UpdateChildClusterRequest) (*UpdateChildClusterResponse, error)
+	// UpsertChildCluster creates the child cluster if it does not exist, otherwise the existing child cluster is udpated.
+	UpsertChildCluster(context.Context, *UpsertChildClusterRequest) (*UpsertChildClusterResponse, error)
+	// SuspendChildCluster suspends the requested child cluster and returns the configuration and status.
+	SuspendChildCluster(context.Context, *SuspendChildClusterRequest) (*SuspendChildClusterResponse, error)
+	// ListChildClusters returns a paginated list of child clusters.
+	ListChildClusters(context.Context, *ListChildClustersRequest) (*ListChildClustersResponse, error)
 	mustEmbedUnimplementedTenantsServiceServer()
 }
 
@@ -536,6 +643,12 @@ func (UnimplementedTenantsServiceServer) GetAccountUpgradeWindowStartHour(contex
 }
 func (UnimplementedTenantsServiceServer) UpdateAccountUpgradeWindowStartHour(context.Context, *UpdateAccountUpgradeWindowStartHourRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateAccountUpgradeWindowStartHour not implemented")
+}
+func (UnimplementedTenantsServiceServer) GetEnvironmentProfile(context.Context, *GetEnvironmentProfileRequest) (*GetEnvironmentProfileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetEnvironmentProfile not implemented")
+}
+func (UnimplementedTenantsServiceServer) UpdateEnvironmentProfile(context.Context, *UpdateEnvironmentProfileRequest) (*GetEnvironmentProfileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateEnvironmentProfile not implemented")
 }
 func (UnimplementedTenantsServiceServer) SendAccountRecoveryLink(context.Context, *SendAccountRecoveryLinkRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendAccountRecoveryLink not implemented")
@@ -624,6 +737,24 @@ func (UnimplementedTenantsServiceServer) ChildCluster(context.Context, *ChildClu
 func (UnimplementedTenantsServiceServer) GetFile(*GetFileRequest, TenantsService_GetFileServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetFile not implemented")
 }
+func (UnimplementedTenantsServiceServer) CreateChildCluster(context.Context, *CreateChildClusterRequest) (*CreateChildClusterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateChildCluster not implemented")
+}
+func (UnimplementedTenantsServiceServer) GetChildCluster(context.Context, *GetChildClusterRequest) (*GetChildClusterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetChildCluster not implemented")
+}
+func (UnimplementedTenantsServiceServer) UpdateChildCluster(context.Context, *UpdateChildClusterRequest) (*UpdateChildClusterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateChildCluster not implemented")
+}
+func (UnimplementedTenantsServiceServer) UpsertChildCluster(context.Context, *UpsertChildClusterRequest) (*UpsertChildClusterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertChildCluster not implemented")
+}
+func (UnimplementedTenantsServiceServer) SuspendChildCluster(context.Context, *SuspendChildClusterRequest) (*SuspendChildClusterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SuspendChildCluster not implemented")
+}
+func (UnimplementedTenantsServiceServer) ListChildClusters(context.Context, *ListChildClustersRequest) (*ListChildClustersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListChildClusters not implemented")
+}
 func (UnimplementedTenantsServiceServer) mustEmbedUnimplementedTenantsServiceServer() {}
 
 // UnsafeTenantsServiceServer may be embedded to opt out of forward compatibility for this service.
@@ -687,6 +818,42 @@ func _TenantsService_UpdateAccountUpgradeWindowStartHour_Handler(srv interface{}
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TenantsServiceServer).UpdateAccountUpgradeWindowStartHour(ctx, req.(*UpdateAccountUpgradeWindowStartHourRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_GetEnvironmentProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetEnvironmentProfileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).GetEnvironmentProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/GetEnvironmentProfile",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).GetEnvironmentProfile(ctx, req.(*GetEnvironmentProfileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_UpdateEnvironmentProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateEnvironmentProfileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).UpdateEnvironmentProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/UpdateEnvironmentProfile",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).UpdateEnvironmentProfile(ctx, req.(*UpdateEnvironmentProfileRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1216,6 +1383,114 @@ func (x *tenantsServiceGetFileServer) Send(m *GetFileResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _TenantsService_CreateChildCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateChildClusterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).CreateChildCluster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/CreateChildCluster",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).CreateChildCluster(ctx, req.(*CreateChildClusterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_GetChildCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetChildClusterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).GetChildCluster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/GetChildCluster",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).GetChildCluster(ctx, req.(*GetChildClusterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_UpdateChildCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateChildClusterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).UpdateChildCluster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/UpdateChildCluster",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).UpdateChildCluster(ctx, req.(*UpdateChildClusterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_UpsertChildCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertChildClusterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).UpsertChildCluster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/UpsertChildCluster",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).UpsertChildCluster(ctx, req.(*UpsertChildClusterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_SuspendChildCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SuspendChildClusterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).SuspendChildCluster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/SuspendChildCluster",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).SuspendChildCluster(ctx, req.(*SuspendChildClusterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_ListChildClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListChildClustersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).ListChildClusters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/ListChildClusters",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).ListChildClusters(ctx, req.(*ListChildClustersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TenantsService_ServiceDesc is the grpc.ServiceDesc for TenantsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1234,6 +1509,14 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateAccountUpgradeWindowStartHour",
 			Handler:    _TenantsService_UpdateAccountUpgradeWindowStartHour_Handler,
+		},
+		{
+			MethodName: "GetEnvironmentProfile",
+			Handler:    _TenantsService_GetEnvironmentProfile_Handler,
+		},
+		{
+			MethodName: "UpdateEnvironmentProfile",
+			Handler:    _TenantsService_UpdateEnvironmentProfile_Handler,
 		},
 		{
 			MethodName: "SendAccountRecoveryLink",
@@ -1346,6 +1629,30 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ChildCluster",
 			Handler:    _TenantsService_ChildCluster_Handler,
+		},
+		{
+			MethodName: "CreateChildCluster",
+			Handler:    _TenantsService_CreateChildCluster_Handler,
+		},
+		{
+			MethodName: "GetChildCluster",
+			Handler:    _TenantsService_GetChildCluster_Handler,
+		},
+		{
+			MethodName: "UpdateChildCluster",
+			Handler:    _TenantsService_UpdateChildCluster_Handler,
+		},
+		{
+			MethodName: "UpsertChildCluster",
+			Handler:    _TenantsService_UpsertChildCluster_Handler,
+		},
+		{
+			MethodName: "SuspendChildCluster",
+			Handler:    _TenantsService_SuspendChildCluster_Handler,
+		},
+		{
+			MethodName: "ListChildClusters",
+			Handler:    _TenantsService_ListChildClusters_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

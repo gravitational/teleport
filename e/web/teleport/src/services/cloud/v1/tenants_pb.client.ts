@@ -6,6 +6,18 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TenantsService } from "./tenants_pb";
+import type { ListChildClustersResponse } from "./tenants_pb";
+import type { ListChildClustersRequest } from "./tenants_pb";
+import type { SuspendChildClusterResponse } from "./tenants_pb";
+import type { SuspendChildClusterRequest } from "./tenants_pb";
+import type { UpsertChildClusterResponse } from "./tenants_pb";
+import type { UpsertChildClusterRequest } from "./tenants_pb";
+import type { UpdateChildClusterResponse } from "./tenants_pb";
+import type { UpdateChildClusterRequest } from "./tenants_pb";
+import type { GetChildClusterResponse } from "./tenants_pb";
+import type { GetChildClusterRequest } from "./tenants_pb";
+import type { CreateChildClusterResponse } from "./tenants_pb";
+import type { CreateChildClusterRequest } from "./tenants_pb";
 import type { GetFileResponse } from "./tenants_pb";
 import type { GetFileRequest } from "./tenants_pb";
 import type { ServerStreamingCall } from "@protobuf-ts/runtime-rpc";
@@ -43,6 +55,9 @@ import type { GetFeaturesResponse } from "./tenants_pb";
 import type { SendAccountRecoveredRequest } from "./tenants_pb";
 import type { SendAccountLockedRequest } from "./tenants_pb";
 import type { SendAccountRecoveryLinkRequest } from "./tenants_pb";
+import type { UpdateEnvironmentProfileRequest } from "./tenants_pb";
+import type { GetEnvironmentProfileResponse } from "./tenants_pb";
+import type { GetEnvironmentProfileRequest } from "./tenants_pb";
 import type { EmptyResponse } from "./tenants_pb";
 import type { UpdateAccountUpgradeWindowStartHourRequest } from "./tenants_pb";
 import type { GetAccountUpgradeWindowStartHourResponse } from "./tenants_pb";
@@ -75,6 +90,18 @@ export interface ITenantsServiceClient {
      * @generated from protobuf rpc: UpdateAccountUpgradeWindowStartHour
      */
     updateAccountUpgradeWindowStartHour(input: UpdateAccountUpgradeWindowStartHourRequest, options?: RpcOptions): UnaryCall<UpdateAccountUpgradeWindowStartHourRequest, EmptyResponse>;
+    /**
+     * GetEnvironmentProfile returns tenant environment profile
+     *
+     * @generated from protobuf rpc: GetEnvironmentProfile
+     */
+    getEnvironmentProfile(input: GetEnvironmentProfileRequest, options?: RpcOptions): UnaryCall<GetEnvironmentProfileRequest, GetEnvironmentProfileResponse>;
+    /**
+     * UpdateEnvironmentProfile updates tenant environment profile
+     *
+     * @generated from protobuf rpc: UpdateEnvironmentProfile
+     */
+    updateEnvironmentProfile(input: UpdateEnvironmentProfileRequest, options?: RpcOptions): UnaryCall<UpdateEnvironmentProfileRequest, GetEnvironmentProfileResponse>;
     /**
      * SendAccountRecoveryLink sends an email with the recovery link to the user who requested to recover their account.
      *
@@ -256,6 +283,7 @@ export interface ITenantsServiceClient {
     /**
      * ChildCluster is used for managing the lifecycle of a Teleport Cloud child cluster.
      *
+     * @deprecated
      * @generated from protobuf rpc: ChildCluster
      */
     childCluster(input: ChildClusterRequest, options?: RpcOptions): UnaryCall<ChildClusterRequest, ChildClusterResponse>;
@@ -267,6 +295,42 @@ export interface ITenantsServiceClient {
      * @generated from protobuf rpc: GetFile
      */
     getFile(input: GetFileRequest, options?: RpcOptions): ServerStreamingCall<GetFileRequest, GetFileResponse>;
+    /**
+     * CreateChildCluster creates a new child cluster.
+     *
+     * @generated from protobuf rpc: CreateChildCluster
+     */
+    createChildCluster(input: CreateChildClusterRequest, options?: RpcOptions): UnaryCall<CreateChildClusterRequest, CreateChildClusterResponse>;
+    /**
+     * GetChildCluster retrieves the current configuration and status for a child cluster.
+     *
+     * @generated from protobuf rpc: GetChildCluster
+     */
+    getChildCluster(input: GetChildClusterRequest, options?: RpcOptions): UnaryCall<GetChildClusterRequest, GetChildClusterResponse>;
+    /**
+     * UpdateChildCluster updates the requested child cluster.
+     *
+     * @generated from protobuf rpc: UpdateChildCluster
+     */
+    updateChildCluster(input: UpdateChildClusterRequest, options?: RpcOptions): UnaryCall<UpdateChildClusterRequest, UpdateChildClusterResponse>;
+    /**
+     * UpsertChildCluster creates the child cluster if it does not exist, otherwise the existing child cluster is udpated.
+     *
+     * @generated from protobuf rpc: UpsertChildCluster
+     */
+    upsertChildCluster(input: UpsertChildClusterRequest, options?: RpcOptions): UnaryCall<UpsertChildClusterRequest, UpsertChildClusterResponse>;
+    /**
+     * SuspendChildCluster suspends the requested child cluster and returns the configuration and status.
+     *
+     * @generated from protobuf rpc: SuspendChildCluster
+     */
+    suspendChildCluster(input: SuspendChildClusterRequest, options?: RpcOptions): UnaryCall<SuspendChildClusterRequest, SuspendChildClusterResponse>;
+    /**
+     * ListChildClusters returns a paginated list of child clusters.
+     *
+     * @generated from protobuf rpc: ListChildClusters
+     */
+    listChildClusters(input: ListChildClustersRequest, options?: RpcOptions): UnaryCall<ListChildClustersRequest, ListChildClustersResponse>;
 }
 /**
  * TenantsService is the API service for interacting with the tenants-operator
@@ -307,12 +371,30 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
         return stackIntercept<UpdateAccountUpgradeWindowStartHourRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
+     * GetEnvironmentProfile returns tenant environment profile
+     *
+     * @generated from protobuf rpc: GetEnvironmentProfile
+     */
+    getEnvironmentProfile(input: GetEnvironmentProfileRequest, options?: RpcOptions): UnaryCall<GetEnvironmentProfileRequest, GetEnvironmentProfileResponse> {
+        const method = this.methods[3], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetEnvironmentProfileRequest, GetEnvironmentProfileResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * UpdateEnvironmentProfile updates tenant environment profile
+     *
+     * @generated from protobuf rpc: UpdateEnvironmentProfile
+     */
+    updateEnvironmentProfile(input: UpdateEnvironmentProfileRequest, options?: RpcOptions): UnaryCall<UpdateEnvironmentProfileRequest, GetEnvironmentProfileResponse> {
+        const method = this.methods[4], opt = this._transport.mergeOptions(options);
+        return stackIntercept<UpdateEnvironmentProfileRequest, GetEnvironmentProfileResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
      * SendAccountRecoveryLink sends an email with the recovery link to the user who requested to recover their account.
      *
      * @generated from protobuf rpc: SendAccountRecoveryLink
      */
     sendAccountRecoveryLink(input: SendAccountRecoveryLinkRequest, options?: RpcOptions): UnaryCall<SendAccountRecoveryLinkRequest, EmptyResponse> {
-        const method = this.methods[3], opt = this._transport.mergeOptions(options);
+        const method = this.methods[5], opt = this._transport.mergeOptions(options);
         return stackIntercept<SendAccountRecoveryLinkRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -321,7 +403,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: SendAccountLocked
      */
     sendAccountLocked(input: SendAccountLockedRequest, options?: RpcOptions): UnaryCall<SendAccountLockedRequest, EmptyResponse> {
-        const method = this.methods[4], opt = this._transport.mergeOptions(options);
+        const method = this.methods[6], opt = this._transport.mergeOptions(options);
         return stackIntercept<SendAccountLockedRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -330,7 +412,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: SendAccountRecovered
      */
     sendAccountRecovered(input: SendAccountRecoveredRequest, options?: RpcOptions): UnaryCall<SendAccountRecoveredRequest, EmptyResponse> {
-        const method = this.methods[5], opt = this._transport.mergeOptions(options);
+        const method = this.methods[7], opt = this._transport.mergeOptions(options);
         return stackIntercept<SendAccountRecoveredRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -339,7 +421,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetFeatures
      */
     getFeatures(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, GetFeaturesResponse> {
-        const method = this.methods[6], opt = this._transport.mergeOptions(options);
+        const method = this.methods[8], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, GetFeaturesResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -349,7 +431,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetBillingSummaryInformation
      */
     getBillingSummaryInformation(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, GetBillingSummaryInformationResponse> {
-        const method = this.methods[7], opt = this._transport.mergeOptions(options);
+        const method = this.methods[9], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, GetBillingSummaryInformationResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -359,7 +441,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetSurveyCompany
      */
     getSurveyCompany(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, SurveyCompanyResponse> {
-        const method = this.methods[8], opt = this._transport.mergeOptions(options);
+        const method = this.methods[10], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, SurveyCompanyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -368,7 +450,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetUsage
      */
     getUsage(input: GetUsageRequest, options?: RpcOptions): UnaryCall<GetUsageRequest, GetUsageResponse> {
-        const method = this.methods[9], opt = this._transport.mergeOptions(options);
+        const method = this.methods[11], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetUsageRequest, GetUsageResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -377,7 +459,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: SetSurveyResults
      */
     setSurveyResults(input: SetSurveyResultsRequest, options?: RpcOptions): UnaryCall<SetSurveyResultsRequest, EmptyResponse> {
-        const method = this.methods[10], opt = this._transport.mergeOptions(options);
+        const method = this.methods[12], opt = this._transport.mergeOptions(options);
         return stackIntercept<SetSurveyResultsRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -386,7 +468,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: SendTeleportInvite
      */
     sendTeleportInvite(input: SendTeleportInviteRequest, options?: RpcOptions): UnaryCall<SendTeleportInviteRequest, EmptyResponse> {
-        const method = this.methods[11], opt = this._transport.mergeOptions(options);
+        const method = this.methods[13], opt = this._transport.mergeOptions(options);
         return stackIntercept<SendTeleportInviteRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -396,7 +478,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: ClusterAlertInfo
      */
     clusterAlertInfo(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, ClusterAlertInfoResponse> {
-        const method = this.methods[12], opt = this._transport.mergeOptions(options);
+        const method = this.methods[14], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, ClusterAlertInfoResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -406,7 +488,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetUpdatedLicense
      */
     getUpdatedLicense(input: GetUpdatedLicenseRequest, options?: RpcOptions): UnaryCall<GetUpdatedLicenseRequest, GetUpdatedLicenseResponse> {
-        const method = this.methods[13], opt = this._transport.mergeOptions(options);
+        const method = this.methods[15], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetUpdatedLicenseRequest, GetUpdatedLicenseResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -415,7 +497,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetContacts
      */
     getContacts(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, GetContactsResponse> {
-        const method = this.methods[14], opt = this._transport.mergeOptions(options);
+        const method = this.methods[16], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, GetContactsResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -424,7 +506,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: CreateContact
      */
     createContact(input: CreateContactRequest, options?: RpcOptions): UnaryCall<CreateContactRequest, CreateContactResponse> {
-        const method = this.methods[15], opt = this._transport.mergeOptions(options);
+        const method = this.methods[17], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateContactRequest, CreateContactResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -434,7 +516,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: RemoveContact
      */
     removeContact(input: RemoveContactRequest, options?: RpcOptions): UnaryCall<RemoveContactRequest, RemoveContactResponse> {
-        const method = this.methods[16], opt = this._transport.mergeOptions(options);
+        const method = this.methods[18], opt = this._transport.mergeOptions(options);
         return stackIntercept<RemoveContactRequest, RemoveContactResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -444,7 +526,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: SubmitUsageReports
      */
     submitUsageReports(input: SubmitUsageReportsRequest, options?: RpcOptions): UnaryCall<SubmitUsageReportsRequest, EmptyResponse> {
-        const method = this.methods[17], opt = this._transport.mergeOptions(options);
+        const method = this.methods[19], opt = this._transport.mergeOptions(options);
         return stackIntercept<SubmitUsageReportsRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -454,7 +536,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: CreateSetupIntent
      */
     createSetupIntent(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, CreateSetupIntentResponse> {
-        const method = this.methods[18], opt = this._transport.mergeOptions(options);
+        const method = this.methods[20], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, CreateSetupIntentResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -464,7 +546,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: AddCard
      */
     addCard(input: AddCardRequest, options?: RpcOptions): UnaryCall<AddCardRequest, EmptyResponse> {
-        const method = this.methods[19], opt = this._transport.mergeOptions(options);
+        const method = this.methods[21], opt = this._transport.mergeOptions(options);
         return stackIntercept<AddCardRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -474,7 +556,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: RemoveCard
      */
     removeCard(input: RemoveCardRequest, options?: RpcOptions): UnaryCall<RemoveCardRequest, EmptyResponse> {
-        const method = this.methods[20], opt = this._transport.mergeOptions(options);
+        const method = this.methods[22], opt = this._transport.mergeOptions(options);
         return stackIntercept<RemoveCardRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -484,7 +566,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdateCard
      */
     updateCard(input: UpdateCardRequest, options?: RpcOptions): UnaryCall<UpdateCardRequest, EmptyResponse> {
-        const method = this.methods[21], opt = this._transport.mergeOptions(options);
+        const method = this.methods[23], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateCardRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -494,7 +576,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetPaymentsInvoicesInformation
      */
     getPaymentsInvoicesInformation(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, GetPaymentsInvoicesInformationResponse> {
-        const method = this.methods[22], opt = this._transport.mergeOptions(options);
+        const method = this.methods[24], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, GetPaymentsInvoicesInformationResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -504,7 +586,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetInvoiceSettingsInformation
      */
     getInvoiceSettingsInformation(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, GetInvoiceSettingsInformationResponse> {
-        const method = this.methods[23], opt = this._transport.mergeOptions(options);
+        const method = this.methods[25], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, GetInvoiceSettingsInformationResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -514,7 +596,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdateStripeAddress
      */
     updateStripeAddress(input: StripeBillingAddressRequest, options?: RpcOptions): UnaryCall<StripeBillingAddressRequest, EmptyResponse> {
-        const method = this.methods[24], opt = this._transport.mergeOptions(options);
+        const method = this.methods[26], opt = this._transport.mergeOptions(options);
         return stackIntercept<StripeBillingAddressRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -524,7 +606,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdateEmail
      */
     updateEmail(input: UpdateEmailRequest, options?: RpcOptions): UnaryCall<UpdateEmailRequest, EmptyResponse> {
-        const method = this.methods[25], opt = this._transport.mergeOptions(options);
+        const method = this.methods[27], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateEmailRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -534,7 +616,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdatePurchaseOrderPrefix
      */
     updatePurchaseOrderPrefix(input: UpdatePurchaseOrderPrefixRequest, options?: RpcOptions): UnaryCall<UpdatePurchaseOrderPrefixRequest, EmptyResponse> {
-        const method = this.methods[26], opt = this._transport.mergeOptions(options);
+        const method = this.methods[28], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdatePurchaseOrderPrefixRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -544,7 +626,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: CancelSubscription
      */
     cancelSubscription(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, EmptyResponse> {
-        const method = this.methods[27], opt = this._transport.mergeOptions(options);
+        const method = this.methods[29], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -553,7 +635,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetClientIPRestrictions
      */
     getClientIPRestrictions(input: GetClientIPRestrictionsRequest, options?: RpcOptions): UnaryCall<GetClientIPRestrictionsRequest, GetClientIPRestrictionsResponse> {
-        const method = this.methods[28], opt = this._transport.mergeOptions(options);
+        const method = this.methods[30], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetClientIPRestrictionsRequest, GetClientIPRestrictionsResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -562,16 +644,17 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: PutClientIPRestrictions
      */
     putClientIPRestrictions(input: PutClientIPRestrictionsRequest, options?: RpcOptions): UnaryCall<PutClientIPRestrictionsRequest, PutClientIPRestrictionsResponse> {
-        const method = this.methods[29], opt = this._transport.mergeOptions(options);
+        const method = this.methods[31], opt = this._transport.mergeOptions(options);
         return stackIntercept<PutClientIPRestrictionsRequest, PutClientIPRestrictionsResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * ChildCluster is used for managing the lifecycle of a Teleport Cloud child cluster.
      *
+     * @deprecated
      * @generated from protobuf rpc: ChildCluster
      */
     childCluster(input: ChildClusterRequest, options?: RpcOptions): UnaryCall<ChildClusterRequest, ChildClusterResponse> {
-        const method = this.methods[30], opt = this._transport.mergeOptions(options);
+        const method = this.methods[32], opt = this._transport.mergeOptions(options);
         return stackIntercept<ChildClusterRequest, ChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -582,7 +665,61 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetFile
      */
     getFile(input: GetFileRequest, options?: RpcOptions): ServerStreamingCall<GetFileRequest, GetFileResponse> {
-        const method = this.methods[31], opt = this._transport.mergeOptions(options);
+        const method = this.methods[33], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetFileRequest, GetFileResponse>("serverStreaming", this._transport, method, opt, input);
+    }
+    /**
+     * CreateChildCluster creates a new child cluster.
+     *
+     * @generated from protobuf rpc: CreateChildCluster
+     */
+    createChildCluster(input: CreateChildClusterRequest, options?: RpcOptions): UnaryCall<CreateChildClusterRequest, CreateChildClusterResponse> {
+        const method = this.methods[34], opt = this._transport.mergeOptions(options);
+        return stackIntercept<CreateChildClusterRequest, CreateChildClusterResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * GetChildCluster retrieves the current configuration and status for a child cluster.
+     *
+     * @generated from protobuf rpc: GetChildCluster
+     */
+    getChildCluster(input: GetChildClusterRequest, options?: RpcOptions): UnaryCall<GetChildClusterRequest, GetChildClusterResponse> {
+        const method = this.methods[35], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetChildClusterRequest, GetChildClusterResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * UpdateChildCluster updates the requested child cluster.
+     *
+     * @generated from protobuf rpc: UpdateChildCluster
+     */
+    updateChildCluster(input: UpdateChildClusterRequest, options?: RpcOptions): UnaryCall<UpdateChildClusterRequest, UpdateChildClusterResponse> {
+        const method = this.methods[36], opt = this._transport.mergeOptions(options);
+        return stackIntercept<UpdateChildClusterRequest, UpdateChildClusterResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * UpsertChildCluster creates the child cluster if it does not exist, otherwise the existing child cluster is udpated.
+     *
+     * @generated from protobuf rpc: UpsertChildCluster
+     */
+    upsertChildCluster(input: UpsertChildClusterRequest, options?: RpcOptions): UnaryCall<UpsertChildClusterRequest, UpsertChildClusterResponse> {
+        const method = this.methods[37], opt = this._transport.mergeOptions(options);
+        return stackIntercept<UpsertChildClusterRequest, UpsertChildClusterResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * SuspendChildCluster suspends the requested child cluster and returns the configuration and status.
+     *
+     * @generated from protobuf rpc: SuspendChildCluster
+     */
+    suspendChildCluster(input: SuspendChildClusterRequest, options?: RpcOptions): UnaryCall<SuspendChildClusterRequest, SuspendChildClusterResponse> {
+        const method = this.methods[38], opt = this._transport.mergeOptions(options);
+        return stackIntercept<SuspendChildClusterRequest, SuspendChildClusterResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * ListChildClusters returns a paginated list of child clusters.
+     *
+     * @generated from protobuf rpc: ListChildClusters
+     */
+    listChildClusters(input: ListChildClustersRequest, options?: RpcOptions): UnaryCall<ListChildClustersRequest, ListChildClustersResponse> {
+        const method = this.methods[39], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ListChildClustersRequest, ListChildClustersResponse>("unary", this._transport, method, opt, input);
     }
 }

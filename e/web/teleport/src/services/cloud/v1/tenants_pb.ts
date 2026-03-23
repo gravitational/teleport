@@ -437,6 +437,37 @@ export interface UpdateAccountUpgradeWindowStartHourRequest {
     upgradeWindowStartHour: number;
 }
 /**
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetEnvironmentProfileRequest
+ */
+export interface GetEnvironmentProfileRequest {
+}
+/**
+ * GetEnvironmentProfileResponse describes environment profile response
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetEnvironmentProfileResponse
+ */
+export interface GetEnvironmentProfileResponse {
+    /**
+     * environment_profile is the environment profile value
+     *
+     * @generated from protobuf field: string environment_profile = 1
+     */
+    environmentProfile: string;
+}
+/**
+ * UpdateEnvironmentProfileRequest describes environment profile request
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.UpdateEnvironmentProfileRequest
+ */
+export interface UpdateEnvironmentProfileRequest {
+    /**
+     * environment_profile is the environment profile value
+     *
+     * @generated from protobuf field: string environment_profile = 1
+     */
+    environmentProfile: string;
+}
+/**
  * SendAccountRecoveryLinkRequest describes account recovery request.
  *
  * @generated from protobuf message gravitational.cloud.tenants.v1.SendAccountRecoveryLinkRequest
@@ -911,6 +942,20 @@ export interface Alert {
      * @generated from protobuf field: bool dismissible = 4
      */
     dismissible: boolean;
+    /**
+     * @generated from protobuf field: string action_content = 5
+     */
+    actionContent: string;
+    /**
+     * @generated from protobuf field: string action_link = 6
+     */
+    actionLink: string;
+    /**
+     * @generated from protobuf field: map<string, string> tags = 7
+     */
+    tags: {
+        [key: string]: string;
+    };
 }
 /**
  * UsageCycle contains the usage metrics of a subscription or customer in a given billing cycle.
@@ -1990,11 +2035,339 @@ export interface GetFileResponse {
      */
     data: Uint8Array;
     /**
-     * content_encoding is the encoding applied to data (e.g. "gzip"). Empty means no encoding.
+     * content_encoding is the encoding applied to data (e.g. "gzip").
+     * An empty first junk means no encoding. In subsequent chunks, this field will be empty.
      *
      * @generated from protobuf field: string content_encoding = 2
      */
     contentEncoding: string;
+}
+/**
+ * ChildCluster contains configuration and status for a child cluster
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.ChildCluster
+ */
+export interface ChildCluster {
+    /**
+     * name is the name of the child cluster
+     *
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * revision is the most recent version of the child cluster
+     *
+     * @generated from protobuf field: string revision = 2
+     */
+    revision: string;
+    /**
+     * spec contains configuration for the child cluster such as regions and bot name
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ChildClusterSpec spec = 3
+     */
+    spec?: ChildClusterSpec;
+    /**
+     * status contains current status of the child cluster
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ChildClusterStatus status = 4
+     */
+    status?: ChildClusterStatus;
+}
+/**
+ * ChildClusterSpec contains configuration for a child cluster
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.ChildClusterSpec
+ */
+export interface ChildClusterSpec {
+    /**
+     * regions detail where Teleport Auth service is deployed
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.Region regions = 1
+     */
+    regions: Region[];
+    /**
+     * bot_name is the name of the bot created in the child Teleport Cloud cluster
+     *
+     * @generated from protobuf field: string bot_name = 2
+     */
+    botName: string;
+    /**
+     * join_method is the join method used for the bot's token
+     *
+     * @generated from protobuf field: string join_method = 3
+     */
+    joinMethod: string;
+    /**
+     * Allow is rules to accept joining from
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.Allow allow = 4
+     */
+    allow: Allow[];
+}
+/**
+ * ChildClusterStatus contains status of a child cluster
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.ChildClusterStatus
+ */
+export interface ChildClusterStatus {
+    /**
+     * state is a computed state from the Subscription's State and Tenant's ready column
+     *
+     * @generated from protobuf field: string state = 1
+     */
+    state: string;
+    /**
+     * domain is the FQDN of the Teleport Proxy address
+     *
+     * @generated from protobuf field: string domain = 2
+     */
+    domain: string;
+}
+/**
+ * CreateChildClusterRequest is the request for CreateChildCluster
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.CreateChildClusterRequest
+ */
+export interface CreateChildClusterRequest {
+    /**
+     * name is the name of the child cluster
+     *
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * regions configure where to deploy the Teleport Auth service
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.Region regions = 2
+     */
+    regions: Region[];
+    /**
+     * bot_name is the name of the bot, token, and role to create in a new child cluster
+     *
+     * @generated from protobuf field: string bot_name = 3
+     */
+    botName: string;
+    /**
+     * join_method is the join method used for the bot's token
+     *
+     * @generated from protobuf field: string join_method = 4
+     */
+    joinMethod: string;
+    /**
+     * Allow is rules to accept joining from
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.Allow allow = 5
+     */
+    allow: Allow[];
+}
+/**
+ * CreateChildClusterResponse is the response from CreateChildCluster
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.CreateChildClusterResponse
+ */
+export interface CreateChildClusterResponse {
+    /**
+     * cluster contains configuration and status for the requested child cluster
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ChildCluster cluster = 1
+     */
+    cluster?: ChildCluster;
+}
+/**
+ * GetChildClusterRequest is the request for GetChildCluster
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetChildClusterRequest
+ */
+export interface GetChildClusterRequest {
+    /**
+     * name is the name of the child cluster
+     *
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+}
+/**
+ * GetChildClusterResponse is the response from GetChildCluster
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetChildClusterResponse
+ */
+export interface GetChildClusterResponse {
+    /**
+     * cluster contains configuration and status for the requested child cluster
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ChildCluster cluster = 1
+     */
+    cluster?: ChildCluster;
+}
+/**
+ * UpdateChildClusterRequest is the request for UpdateChildCluster
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.UpdateChildClusterRequest
+ */
+export interface UpdateChildClusterRequest {
+    /**
+     * name is the name of the child cluster
+     *
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * revision is the most recent version of the child cluster
+     *
+     * @generated from protobuf field: string revision = 2
+     */
+    revision: string;
+    /**
+     * regions configure where to deploy the Teleport Auth service
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.Region regions = 3
+     */
+    regions: Region[];
+    /**
+     * bot_name is the name of the bot, token, and role to create in the child cluster
+     *
+     * @generated from protobuf field: string bot_name = 4
+     */
+    botName: string;
+    /**
+     * join_method is the join method used for the bot's token
+     *
+     * @generated from protobuf field: string join_method = 5
+     */
+    joinMethod: string;
+    /**
+     * Allow is rules to accept joining from
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.Allow allow = 6
+     */
+    allow: Allow[];
+}
+/**
+ * UpdateChildClusterResponse is the response from UpdateChildCluster
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.UpdateChildClusterResponse
+ */
+export interface UpdateChildClusterResponse {
+    /**
+     * cluster contains configuration and status for the requested child cluster
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ChildCluster cluster = 1
+     */
+    cluster?: ChildCluster;
+}
+/**
+ * UpsertChildClusterRequest is the request for UpsertChildCluster
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.UpsertChildClusterRequest
+ */
+export interface UpsertChildClusterRequest {
+    /**
+     * name is the name of the child cluster
+     *
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * regions configure where to deploy the Teleport Auth service
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.Region regions = 2
+     */
+    regions: Region[];
+    /**
+     * bot_name is the name of the bot, token, and role to create in the child cluster
+     *
+     * @generated from protobuf field: string bot_name = 3
+     */
+    botName: string;
+    /**
+     * join_method is the join method used for the bot's token
+     *
+     * @generated from protobuf field: string join_method = 4
+     */
+    joinMethod: string;
+    /**
+     * Allow is rules to accept joining from
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.Allow allow = 5
+     */
+    allow: Allow[];
+}
+/**
+ * UpsertChildClusterResponse is the response from UpsertChildCluster
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.UpsertChildClusterResponse
+ */
+export interface UpsertChildClusterResponse {
+    /**
+     * cluster contains configuration and status for the requested child cluster
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ChildCluster cluster = 1
+     */
+    cluster?: ChildCluster;
+}
+/**
+ * SuspendChildClusterRequest is the request for SuspendChildCluster
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.SuspendChildClusterRequest
+ */
+export interface SuspendChildClusterRequest {
+    /**
+     * name is the name of the child cluster
+     *
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+}
+/**
+ * SuspendChildClusterResponse is the response from SuspendChildCluster
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.SuspendChildClusterResponse
+ */
+export interface SuspendChildClusterResponse {
+    /**
+     * cluster contains configuration and status for the requested child cluster
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ChildCluster cluster = 1
+     */
+    cluster?: ChildCluster;
+}
+/**
+ * ListChildClustersRequest is request for ListChildClusters.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.ListChildClustersRequest
+ */
+export interface ListChildClustersRequest {
+    /**
+     * page_size is the limit of child clusters per page to return
+     *
+     * @generated from protobuf field: int32 page_size = 1
+     */
+    pageSize: number;
+    /**
+     * page_token indicates where to continue listing results from
+     *
+     * @generated from protobuf field: string page_token = 2
+     */
+    pageToken: string;
+}
+/**
+ * ListChildClustersResponse is response from ListChildClusters.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.ListChildClustersResponse
+ */
+export interface ListChildClustersResponse {
+    /**
+     * clusters contains child clusters for the requested page
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.ChildCluster clusters = 1
+     */
+    clusters: ChildCluster[];
+    /**
+     * next_page_token is a token for continuing to list results where an empty string indicates no more results
+     *
+     * @generated from protobuf field: string next_page_token = 2
+     */
+    nextPageToken: string;
 }
 /**
  * UsageResourceType is the type of consumed Teleport resource
@@ -3149,6 +3522,138 @@ class UpdateAccountUpgradeWindowStartHourRequest$Type extends MessageType<Update
  */
 export const UpdateAccountUpgradeWindowStartHourRequest = new UpdateAccountUpgradeWindowStartHourRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class GetEnvironmentProfileRequest$Type extends MessageType<GetEnvironmentProfileRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetEnvironmentProfileRequest", []);
+    }
+    create(value?: PartialMessage<GetEnvironmentProfileRequest>): GetEnvironmentProfileRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetEnvironmentProfileRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetEnvironmentProfileRequest): GetEnvironmentProfileRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetEnvironmentProfileRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetEnvironmentProfileRequest
+ */
+export const GetEnvironmentProfileRequest = new GetEnvironmentProfileRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetEnvironmentProfileResponse$Type extends MessageType<GetEnvironmentProfileResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetEnvironmentProfileResponse", [
+            { no: 1, name: "environment_profile", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetEnvironmentProfileResponse>): GetEnvironmentProfileResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.environmentProfile = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetEnvironmentProfileResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetEnvironmentProfileResponse): GetEnvironmentProfileResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string environment_profile */ 1:
+                    message.environmentProfile = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetEnvironmentProfileResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string environment_profile = 1; */
+        if (message.environmentProfile !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.environmentProfile);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetEnvironmentProfileResponse
+ */
+export const GetEnvironmentProfileResponse = new GetEnvironmentProfileResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpdateEnvironmentProfileRequest$Type extends MessageType<UpdateEnvironmentProfileRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.UpdateEnvironmentProfileRequest", [
+            { no: 1, name: "environment_profile", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UpdateEnvironmentProfileRequest>): UpdateEnvironmentProfileRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.environmentProfile = "";
+        if (value !== undefined)
+            reflectionMergePartial<UpdateEnvironmentProfileRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateEnvironmentProfileRequest): UpdateEnvironmentProfileRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string environment_profile */ 1:
+                    message.environmentProfile = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpdateEnvironmentProfileRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string environment_profile = 1; */
+        if (message.environmentProfile !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.environmentProfile);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.UpdateEnvironmentProfileRequest
+ */
+export const UpdateEnvironmentProfileRequest = new UpdateEnvironmentProfileRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class SendAccountRecoveryLinkRequest$Type extends MessageType<SendAccountRecoveryLinkRequest> {
     constructor() {
         super("gravitational.cloud.tenants.v1.SendAccountRecoveryLinkRequest", [
@@ -4007,7 +4512,10 @@ class Alert$Type extends MessageType<Alert> {
             { no: 1, name: "kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "details", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "dismissible", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 4, name: "dismissible", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 5, name: "action_content", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "action_link", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "tags", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
         ]);
     }
     create(value?: PartialMessage<Alert>): Alert {
@@ -4016,6 +4524,9 @@ class Alert$Type extends MessageType<Alert> {
         message.name = "";
         message.details = "";
         message.dismissible = false;
+        message.actionContent = "";
+        message.actionLink = "";
+        message.tags = {};
         if (value !== undefined)
             reflectionMergePartial<Alert>(this, message, value);
         return message;
@@ -4037,6 +4548,15 @@ class Alert$Type extends MessageType<Alert> {
                 case /* bool dismissible */ 4:
                     message.dismissible = reader.bool();
                     break;
+                case /* string action_content */ 5:
+                    message.actionContent = reader.string();
+                    break;
+                case /* string action_link */ 6:
+                    message.actionLink = reader.string();
+                    break;
+                case /* map<string, string> tags */ 7:
+                    this.binaryReadMap7(message.tags, reader, options);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -4047,6 +4567,22 @@ class Alert$Type extends MessageType<Alert> {
             }
         }
         return message;
+    }
+    private binaryReadMap7(map: Alert["tags"], reader: IBinaryReader, options: BinaryReadOptions): void {
+        let len = reader.uint32(), end = reader.pos + len, key: keyof Alert["tags"] | undefined, val: Alert["tags"][any] | undefined;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case 1:
+                    key = reader.string();
+                    break;
+                case 2:
+                    val = reader.string();
+                    break;
+                default: throw new globalThis.Error("unknown map entry field for gravitational.cloud.tenants.v1.Alert.tags");
+            }
+        }
+        map[key ?? ""] = val ?? "";
     }
     internalBinaryWrite(message: Alert, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string kind = 1; */
@@ -4061,6 +4597,15 @@ class Alert$Type extends MessageType<Alert> {
         /* bool dismissible = 4; */
         if (message.dismissible !== false)
             writer.tag(4, WireType.Varint).bool(message.dismissible);
+        /* string action_content = 5; */
+        if (message.actionContent !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.actionContent);
+        /* string action_link = 6; */
+        if (message.actionLink !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.actionLink);
+        /* map<string, string> tags = 7; */
+        for (let k of globalThis.Object.keys(message.tags))
+            writer.tag(7, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.LengthDelimited).string(message.tags[k]).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -6589,6 +7134,880 @@ class GetFileResponse$Type extends MessageType<GetFileResponse> {
  * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetFileResponse
  */
 export const GetFileResponse = new GetFileResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ChildCluster$Type extends MessageType<ChildCluster> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.ChildCluster", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "revision", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "spec", kind: "message", T: () => ChildClusterSpec },
+            { no: 4, name: "status", kind: "message", T: () => ChildClusterStatus }
+        ]);
+    }
+    create(value?: PartialMessage<ChildCluster>): ChildCluster {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.revision = "";
+        if (value !== undefined)
+            reflectionMergePartial<ChildCluster>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ChildCluster): ChildCluster {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string revision */ 2:
+                    message.revision = reader.string();
+                    break;
+                case /* gravitational.cloud.tenants.v1.ChildClusterSpec spec */ 3:
+                    message.spec = ChildClusterSpec.internalBinaryRead(reader, reader.uint32(), options, message.spec);
+                    break;
+                case /* gravitational.cloud.tenants.v1.ChildClusterStatus status */ 4:
+                    message.status = ChildClusterStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ChildCluster, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string revision = 2; */
+        if (message.revision !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.revision);
+        /* gravitational.cloud.tenants.v1.ChildClusterSpec spec = 3; */
+        if (message.spec)
+            ChildClusterSpec.internalBinaryWrite(message.spec, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* gravitational.cloud.tenants.v1.ChildClusterStatus status = 4; */
+        if (message.status)
+            ChildClusterStatus.internalBinaryWrite(message.status, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.ChildCluster
+ */
+export const ChildCluster = new ChildCluster$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ChildClusterSpec$Type extends MessageType<ChildClusterSpec> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.ChildClusterSpec", [
+            { no: 1, name: "regions", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Region },
+            { no: 2, name: "bot_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "join_method", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "allow", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Allow }
+        ]);
+    }
+    create(value?: PartialMessage<ChildClusterSpec>): ChildClusterSpec {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.regions = [];
+        message.botName = "";
+        message.joinMethod = "";
+        message.allow = [];
+        if (value !== undefined)
+            reflectionMergePartial<ChildClusterSpec>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ChildClusterSpec): ChildClusterSpec {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated gravitational.cloud.tenants.v1.Region regions */ 1:
+                    message.regions.push(Region.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string bot_name */ 2:
+                    message.botName = reader.string();
+                    break;
+                case /* string join_method */ 3:
+                    message.joinMethod = reader.string();
+                    break;
+                case /* repeated gravitational.cloud.tenants.v1.Allow allow */ 4:
+                    message.allow.push(Allow.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ChildClusterSpec, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated gravitational.cloud.tenants.v1.Region regions = 1; */
+        for (let i = 0; i < message.regions.length; i++)
+            Region.internalBinaryWrite(message.regions[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* string bot_name = 2; */
+        if (message.botName !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.botName);
+        /* string join_method = 3; */
+        if (message.joinMethod !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.joinMethod);
+        /* repeated gravitational.cloud.tenants.v1.Allow allow = 4; */
+        for (let i = 0; i < message.allow.length; i++)
+            Allow.internalBinaryWrite(message.allow[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.ChildClusterSpec
+ */
+export const ChildClusterSpec = new ChildClusterSpec$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ChildClusterStatus$Type extends MessageType<ChildClusterStatus> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.ChildClusterStatus", [
+            { no: 1, name: "state", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "domain", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ChildClusterStatus>): ChildClusterStatus {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.state = "";
+        message.domain = "";
+        if (value !== undefined)
+            reflectionMergePartial<ChildClusterStatus>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ChildClusterStatus): ChildClusterStatus {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string state */ 1:
+                    message.state = reader.string();
+                    break;
+                case /* string domain */ 2:
+                    message.domain = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ChildClusterStatus, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string state = 1; */
+        if (message.state !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.state);
+        /* string domain = 2; */
+        if (message.domain !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.domain);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.ChildClusterStatus
+ */
+export const ChildClusterStatus = new ChildClusterStatus$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CreateChildClusterRequest$Type extends MessageType<CreateChildClusterRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.CreateChildClusterRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "regions", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Region },
+            { no: 3, name: "bot_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "join_method", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "allow", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Allow }
+        ]);
+    }
+    create(value?: PartialMessage<CreateChildClusterRequest>): CreateChildClusterRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.regions = [];
+        message.botName = "";
+        message.joinMethod = "";
+        message.allow = [];
+        if (value !== undefined)
+            reflectionMergePartial<CreateChildClusterRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CreateChildClusterRequest): CreateChildClusterRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* repeated gravitational.cloud.tenants.v1.Region regions */ 2:
+                    message.regions.push(Region.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string bot_name */ 3:
+                    message.botName = reader.string();
+                    break;
+                case /* string join_method */ 4:
+                    message.joinMethod = reader.string();
+                    break;
+                case /* repeated gravitational.cloud.tenants.v1.Allow allow */ 5:
+                    message.allow.push(Allow.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CreateChildClusterRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* repeated gravitational.cloud.tenants.v1.Region regions = 2; */
+        for (let i = 0; i < message.regions.length; i++)
+            Region.internalBinaryWrite(message.regions[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* string bot_name = 3; */
+        if (message.botName !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.botName);
+        /* string join_method = 4; */
+        if (message.joinMethod !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.joinMethod);
+        /* repeated gravitational.cloud.tenants.v1.Allow allow = 5; */
+        for (let i = 0; i < message.allow.length; i++)
+            Allow.internalBinaryWrite(message.allow[i], writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.CreateChildClusterRequest
+ */
+export const CreateChildClusterRequest = new CreateChildClusterRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CreateChildClusterResponse$Type extends MessageType<CreateChildClusterResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.CreateChildClusterResponse", [
+            { no: 1, name: "cluster", kind: "message", T: () => ChildCluster }
+        ]);
+    }
+    create(value?: PartialMessage<CreateChildClusterResponse>): CreateChildClusterResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<CreateChildClusterResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CreateChildClusterResponse): CreateChildClusterResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* gravitational.cloud.tenants.v1.ChildCluster cluster */ 1:
+                    message.cluster = ChildCluster.internalBinaryRead(reader, reader.uint32(), options, message.cluster);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CreateChildClusterResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* gravitational.cloud.tenants.v1.ChildCluster cluster = 1; */
+        if (message.cluster)
+            ChildCluster.internalBinaryWrite(message.cluster, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.CreateChildClusterResponse
+ */
+export const CreateChildClusterResponse = new CreateChildClusterResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetChildClusterRequest$Type extends MessageType<GetChildClusterRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetChildClusterRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetChildClusterRequest>): GetChildClusterRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetChildClusterRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetChildClusterRequest): GetChildClusterRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetChildClusterRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetChildClusterRequest
+ */
+export const GetChildClusterRequest = new GetChildClusterRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetChildClusterResponse$Type extends MessageType<GetChildClusterResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetChildClusterResponse", [
+            { no: 1, name: "cluster", kind: "message", T: () => ChildCluster }
+        ]);
+    }
+    create(value?: PartialMessage<GetChildClusterResponse>): GetChildClusterResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetChildClusterResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetChildClusterResponse): GetChildClusterResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* gravitational.cloud.tenants.v1.ChildCluster cluster */ 1:
+                    message.cluster = ChildCluster.internalBinaryRead(reader, reader.uint32(), options, message.cluster);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetChildClusterResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* gravitational.cloud.tenants.v1.ChildCluster cluster = 1; */
+        if (message.cluster)
+            ChildCluster.internalBinaryWrite(message.cluster, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetChildClusterResponse
+ */
+export const GetChildClusterResponse = new GetChildClusterResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpdateChildClusterRequest$Type extends MessageType<UpdateChildClusterRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.UpdateChildClusterRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "revision", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "regions", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Region },
+            { no: 4, name: "bot_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "join_method", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "allow", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Allow }
+        ]);
+    }
+    create(value?: PartialMessage<UpdateChildClusterRequest>): UpdateChildClusterRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.revision = "";
+        message.regions = [];
+        message.botName = "";
+        message.joinMethod = "";
+        message.allow = [];
+        if (value !== undefined)
+            reflectionMergePartial<UpdateChildClusterRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateChildClusterRequest): UpdateChildClusterRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string revision */ 2:
+                    message.revision = reader.string();
+                    break;
+                case /* repeated gravitational.cloud.tenants.v1.Region regions */ 3:
+                    message.regions.push(Region.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string bot_name */ 4:
+                    message.botName = reader.string();
+                    break;
+                case /* string join_method */ 5:
+                    message.joinMethod = reader.string();
+                    break;
+                case /* repeated gravitational.cloud.tenants.v1.Allow allow */ 6:
+                    message.allow.push(Allow.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpdateChildClusterRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string revision = 2; */
+        if (message.revision !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.revision);
+        /* repeated gravitational.cloud.tenants.v1.Region regions = 3; */
+        for (let i = 0; i < message.regions.length; i++)
+            Region.internalBinaryWrite(message.regions[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* string bot_name = 4; */
+        if (message.botName !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.botName);
+        /* string join_method = 5; */
+        if (message.joinMethod !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.joinMethod);
+        /* repeated gravitational.cloud.tenants.v1.Allow allow = 6; */
+        for (let i = 0; i < message.allow.length; i++)
+            Allow.internalBinaryWrite(message.allow[i], writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.UpdateChildClusterRequest
+ */
+export const UpdateChildClusterRequest = new UpdateChildClusterRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpdateChildClusterResponse$Type extends MessageType<UpdateChildClusterResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.UpdateChildClusterResponse", [
+            { no: 1, name: "cluster", kind: "message", T: () => ChildCluster }
+        ]);
+    }
+    create(value?: PartialMessage<UpdateChildClusterResponse>): UpdateChildClusterResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<UpdateChildClusterResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateChildClusterResponse): UpdateChildClusterResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* gravitational.cloud.tenants.v1.ChildCluster cluster */ 1:
+                    message.cluster = ChildCluster.internalBinaryRead(reader, reader.uint32(), options, message.cluster);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpdateChildClusterResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* gravitational.cloud.tenants.v1.ChildCluster cluster = 1; */
+        if (message.cluster)
+            ChildCluster.internalBinaryWrite(message.cluster, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.UpdateChildClusterResponse
+ */
+export const UpdateChildClusterResponse = new UpdateChildClusterResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpsertChildClusterRequest$Type extends MessageType<UpsertChildClusterRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.UpsertChildClusterRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "regions", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Region },
+            { no: 3, name: "bot_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "join_method", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "allow", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Allow }
+        ]);
+    }
+    create(value?: PartialMessage<UpsertChildClusterRequest>): UpsertChildClusterRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.regions = [];
+        message.botName = "";
+        message.joinMethod = "";
+        message.allow = [];
+        if (value !== undefined)
+            reflectionMergePartial<UpsertChildClusterRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpsertChildClusterRequest): UpsertChildClusterRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* repeated gravitational.cloud.tenants.v1.Region regions */ 2:
+                    message.regions.push(Region.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string bot_name */ 3:
+                    message.botName = reader.string();
+                    break;
+                case /* string join_method */ 4:
+                    message.joinMethod = reader.string();
+                    break;
+                case /* repeated gravitational.cloud.tenants.v1.Allow allow */ 5:
+                    message.allow.push(Allow.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpsertChildClusterRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* repeated gravitational.cloud.tenants.v1.Region regions = 2; */
+        for (let i = 0; i < message.regions.length; i++)
+            Region.internalBinaryWrite(message.regions[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* string bot_name = 3; */
+        if (message.botName !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.botName);
+        /* string join_method = 4; */
+        if (message.joinMethod !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.joinMethod);
+        /* repeated gravitational.cloud.tenants.v1.Allow allow = 5; */
+        for (let i = 0; i < message.allow.length; i++)
+            Allow.internalBinaryWrite(message.allow[i], writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.UpsertChildClusterRequest
+ */
+export const UpsertChildClusterRequest = new UpsertChildClusterRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpsertChildClusterResponse$Type extends MessageType<UpsertChildClusterResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.UpsertChildClusterResponse", [
+            { no: 1, name: "cluster", kind: "message", T: () => ChildCluster }
+        ]);
+    }
+    create(value?: PartialMessage<UpsertChildClusterResponse>): UpsertChildClusterResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<UpsertChildClusterResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpsertChildClusterResponse): UpsertChildClusterResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* gravitational.cloud.tenants.v1.ChildCluster cluster */ 1:
+                    message.cluster = ChildCluster.internalBinaryRead(reader, reader.uint32(), options, message.cluster);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpsertChildClusterResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* gravitational.cloud.tenants.v1.ChildCluster cluster = 1; */
+        if (message.cluster)
+            ChildCluster.internalBinaryWrite(message.cluster, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.UpsertChildClusterResponse
+ */
+export const UpsertChildClusterResponse = new UpsertChildClusterResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SuspendChildClusterRequest$Type extends MessageType<SuspendChildClusterRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.SuspendChildClusterRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SuspendChildClusterRequest>): SuspendChildClusterRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        if (value !== undefined)
+            reflectionMergePartial<SuspendChildClusterRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SuspendChildClusterRequest): SuspendChildClusterRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SuspendChildClusterRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.SuspendChildClusterRequest
+ */
+export const SuspendChildClusterRequest = new SuspendChildClusterRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SuspendChildClusterResponse$Type extends MessageType<SuspendChildClusterResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.SuspendChildClusterResponse", [
+            { no: 1, name: "cluster", kind: "message", T: () => ChildCluster }
+        ]);
+    }
+    create(value?: PartialMessage<SuspendChildClusterResponse>): SuspendChildClusterResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<SuspendChildClusterResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SuspendChildClusterResponse): SuspendChildClusterResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* gravitational.cloud.tenants.v1.ChildCluster cluster */ 1:
+                    message.cluster = ChildCluster.internalBinaryRead(reader, reader.uint32(), options, message.cluster);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SuspendChildClusterResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* gravitational.cloud.tenants.v1.ChildCluster cluster = 1; */
+        if (message.cluster)
+            ChildCluster.internalBinaryWrite(message.cluster, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.SuspendChildClusterResponse
+ */
+export const SuspendChildClusterResponse = new SuspendChildClusterResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListChildClustersRequest$Type extends MessageType<ListChildClustersRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.ListChildClustersRequest", [
+            { no: 1, name: "page_size", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 2, name: "page_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ListChildClustersRequest>): ListChildClustersRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.pageSize = 0;
+        message.pageToken = "";
+        if (value !== undefined)
+            reflectionMergePartial<ListChildClustersRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListChildClustersRequest): ListChildClustersRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* int32 page_size */ 1:
+                    message.pageSize = reader.int32();
+                    break;
+                case /* string page_token */ 2:
+                    message.pageToken = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListChildClustersRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* int32 page_size = 1; */
+        if (message.pageSize !== 0)
+            writer.tag(1, WireType.Varint).int32(message.pageSize);
+        /* string page_token = 2; */
+        if (message.pageToken !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.pageToken);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.ListChildClustersRequest
+ */
+export const ListChildClustersRequest = new ListChildClustersRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListChildClustersResponse$Type extends MessageType<ListChildClustersResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.ListChildClustersResponse", [
+            { no: 1, name: "clusters", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ChildCluster },
+            { no: 2, name: "next_page_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ListChildClustersResponse>): ListChildClustersResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.clusters = [];
+        message.nextPageToken = "";
+        if (value !== undefined)
+            reflectionMergePartial<ListChildClustersResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListChildClustersResponse): ListChildClustersResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated gravitational.cloud.tenants.v1.ChildCluster clusters */ 1:
+                    message.clusters.push(ChildCluster.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string next_page_token */ 2:
+                    message.nextPageToken = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListChildClustersResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated gravitational.cloud.tenants.v1.ChildCluster clusters = 1; */
+        for (let i = 0; i < message.clusters.length; i++)
+            ChildCluster.internalBinaryWrite(message.clusters[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* string next_page_token = 2; */
+        if (message.nextPageToken !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.nextPageToken);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.ListChildClustersResponse
+ */
+export const ListChildClustersResponse = new ListChildClustersResponse$Type();
 /**
  * @generated ServiceType for protobuf service gravitational.cloud.tenants.v1.TenantsService
  */
@@ -6596,6 +8015,8 @@ export const TenantsService = new ServiceType("gravitational.cloud.tenants.v1.Te
     { name: "GetBillingInformation", options: {}, I: EmptyRequest, O: GetBillingInformationResponse },
     { name: "GetAccountUpgradeWindowStartHour", options: {}, I: EmptyRequest, O: GetAccountUpgradeWindowStartHourResponse },
     { name: "UpdateAccountUpgradeWindowStartHour", options: {}, I: UpdateAccountUpgradeWindowStartHourRequest, O: EmptyResponse },
+    { name: "GetEnvironmentProfile", options: {}, I: GetEnvironmentProfileRequest, O: GetEnvironmentProfileResponse },
+    { name: "UpdateEnvironmentProfile", options: {}, I: UpdateEnvironmentProfileRequest, O: GetEnvironmentProfileResponse },
     { name: "SendAccountRecoveryLink", options: {}, I: SendAccountRecoveryLinkRequest, O: EmptyResponse },
     { name: "SendAccountLocked", options: {}, I: SendAccountLockedRequest, O: EmptyResponse },
     { name: "SendAccountRecovered", options: {}, I: SendAccountRecoveredRequest, O: EmptyResponse },
@@ -6624,5 +8045,11 @@ export const TenantsService = new ServiceType("gravitational.cloud.tenants.v1.Te
     { name: "GetClientIPRestrictions", options: {}, I: GetClientIPRestrictionsRequest, O: GetClientIPRestrictionsResponse },
     { name: "PutClientIPRestrictions", options: {}, I: PutClientIPRestrictionsRequest, O: PutClientIPRestrictionsResponse },
     { name: "ChildCluster", options: {}, I: ChildClusterRequest, O: ChildClusterResponse },
-    { name: "GetFile", serverStreaming: true, options: {}, I: GetFileRequest, O: GetFileResponse }
+    { name: "GetFile", serverStreaming: true, options: {}, I: GetFileRequest, O: GetFileResponse },
+    { name: "CreateChildCluster", options: {}, I: CreateChildClusterRequest, O: CreateChildClusterResponse },
+    { name: "GetChildCluster", options: {}, I: GetChildClusterRequest, O: GetChildClusterResponse },
+    { name: "UpdateChildCluster", options: {}, I: UpdateChildClusterRequest, O: UpdateChildClusterResponse },
+    { name: "UpsertChildCluster", options: {}, I: UpsertChildClusterRequest, O: UpsertChildClusterResponse },
+    { name: "SuspendChildCluster", options: {}, I: SuspendChildClusterRequest, O: SuspendChildClusterResponse },
+    { name: "ListChildClusters", options: {}, I: ListChildClustersRequest, O: ListChildClustersResponse }
 ]);
