@@ -53,6 +53,8 @@ type MockedClient struct {
 	// MockRemoveContact removes a contact type from a contact. If the contact has no other
 	// flags set, the contact itself will be removed.
 	MockRemoveContact func(ctx context.Context, in *v1.RemoveContactRequest, opts ...grpc.CallOption) (*v1.RemoveContactResponse, error)
+	// MockGetFile returns a static file to be rendered on the Teleport UI.
+	MockGetFile func(ctx context.Context, in *v1.GetFileRequest, opts ...grpc.CallOption) (v1.TenantsService_GetFileClient, error)
 }
 
 func (m *MockedClient) SubmitUsageReports(ctx context.Context, in *v1.SubmitUsageReportsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
@@ -200,4 +202,13 @@ func (m *MockedClient) GetContacts(ctx context.Context, req *v1.EmptyRequest, op
 	}
 
 	return nil, trace.NotImplemented("GetContacts is not implemented")
+}
+
+// GetFile calls MockGetFile if it exists and returns trace.NotImplemented otherwise.
+func (m *MockedClient) GetFile(ctx context.Context, in *v1.GetFileRequest, opts ...grpc.CallOption) (v1.TenantsService_GetFileClient, error) {
+	if m.MockGetFile != nil {
+		return m.MockGetFile(ctx, in)
+	}
+
+	return nil, trace.NotImplemented("GetFile is not implemented")
 }

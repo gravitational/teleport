@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
@@ -32,6 +34,36 @@ func (t *testClient) Hostname() string { return "teleport.example.com" }
 
 // Close implements cloud.Client interface for mocked client
 func (t *testClient) Close() error { return nil }
+
+// fakeGetFileStream implements cloudapi.TenantsService_GetFileClient for testing.
+// It mimics the real server: first chunk carries ContentEncoding metadata, second carries Data.
+type fakeGetFileStream struct {
+	resp *cloudapi.GetFileResponse
+	sent int
+}
+
+func (f *fakeGetFileStream) Recv() (*cloudapi.GetFileResponse, error) {
+	if f.resp == nil {
+		return nil, io.EOF
+	}
+	switch f.sent {
+	case 0:
+		f.sent++
+		return &cloudapi.GetFileResponse{ContentEncoding: f.resp.ContentEncoding}, nil
+	case 1:
+		f.sent++
+		return &cloudapi.GetFileResponse{Data: f.resp.Data}, nil
+	default:
+		return nil, io.EOF
+	}
+}
+
+func (f *fakeGetFileStream) Header() (metadata.MD, error) { return nil, nil }
+func (f *fakeGetFileStream) Trailer() metadata.MD         { return nil }
+func (f *fakeGetFileStream) CloseSend() error             { return nil }
+func (f *fakeGetFileStream) Context() context.Context     { return context.Background() }
+func (f *fakeGetFileStream) SendMsg(m any) error          { return nil }
+func (f *fakeGetFileStream) RecvMsg(m any) error          { return nil }
 
 func TestPlugin_getBillingSummaryInformationHandle(t *testing.T) {
 	t.Parallel()
@@ -302,6 +334,83 @@ func TestPlugin_deleteClusterContactHandle(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "tokenid", calledWith.VerifyToken)
 	require.Equal(t, int32(2), calledWith.ContactType)
+}
+
+func TestPlugin_getCloudAssetHandle(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                    string
+		path                    string
+		response                *cloudapi.GetFileResponse
+		clientErr               error
+		expectedStatus          int
+		expectedContentType     string
+		expectedContentEncoding string
+		expectedBody            []byte
+	}{
+		{
+			name: "returns js file with correct content-type",
+			path: "/enterprise/cloud/assets/app.js",
+			response: &cloudapi.GetFileResponse{
+				Data: []byte("console.log('hello')"),
+			},
+			expectedStatus:      http.StatusOK,
+			expectedContentType: "text/javascript; charset=utf-8",
+			expectedBody:        []byte("console.log('hello')"),
+		},
+		{
+			name: "sets Content-Encoding when present",
+			path: "/enterprise/cloud/assets/app.js",
+			response: &cloudapi.GetFileResponse{
+				Data: []byte("gzip-data"),
+				// decompression is handled by the browser
+				ContentEncoding: "gzip",
+			},
+			expectedStatus:          http.StatusOK,
+			expectedContentType:     "text/javascript; charset=utf-8",
+			expectedContentEncoding: "gzip",
+			expectedBody:            []byte("gzip-data"),
+		},
+		{
+			name:           "returns error when client fails",
+			path:           "/enterprise/cloud/assets/app.js",
+			clientErr:      trace.NotFound("file not found"),
+			expectedStatus: http.StatusOK, // error is propagated via return value, not written to w
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			s := newWebSuite(t)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+
+			client := &testClient{
+				MockedClient: cloud.MockedClient{
+					MockGetFile: func(ctx context.Context, in *cloudapi.GetFileRequest, opts ...grpc.CallOption) (cloudapi.TenantsService_GetFileClient, error) {
+						if tt.clientErr != nil {
+							return nil, tt.clientErr
+						}
+						return &fakeGetFileStream{resp: tt.response}, nil
+					},
+				},
+			}
+
+			_, err := s.webPlugin.getCloudAssetHandle(w, r, nil, client)
+			if tt.clientErr != nil {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedContentType, w.Header().Get("Content-Type"))
+			require.Equal(t, tt.expectedContentEncoding, w.Header().Get("Content-Encoding"))
+			require.Equal(t, tt.expectedBody, w.Body.Bytes())
+		})
+	}
 }
 
 func TestPlugin_withCloudCache(t *testing.T) {

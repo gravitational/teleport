@@ -2,9 +2,13 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -72,6 +76,9 @@ func (p *Plugin) registerCloudHandlers() {
 	// client IP restrictions
 	p.h.GET("/enterprise/sites/:site/clientiprestrictions", p.withCloudClusterAuth(p.withCloudClusterCache(p.getClientIPRestrictions)))
 	p.h.PUT("/enterprise/sites/:site/clientiprestrictions", p.withCloudClusterAuth(p.putClientIPRestrictions))
+
+	// assets
+	p.h.GET("/enterprise/cloud/assets/*path", p.withCloud(p.getCloudAssetHandle))
 }
 
 // TODO(michellescripts) safe to remove in v19
@@ -280,6 +287,45 @@ func (p *Plugin) deleteClusterContactHandle(w http.ResponseWriter, r *http.Reque
 		return nil, trail.FromGRPC(err)
 	}
 	return web.OK(), nil
+}
+
+func (p *Plugin) getCloudAssetHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (any, error) {
+	filePath := strings.TrimPrefix(strings.TrimPrefix(r.URL.Path, "/enterprise/cloud/assets"), "/")
+
+	stream, err := client.GetFile(r.Context(), &cloudapi.GetFileRequest{
+		Filepath: filePath,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	headersWritten := false
+	for {
+		chunk, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+
+		// Set response headers from the first chunk, before writing any body bytes.
+		if !headersWritten {
+			ext := filepath.Ext(filePath)
+			w.Header().Set("Content-Type", mime.TypeByExtension(ext))
+			if chunk.ContentEncoding != "" {
+				w.Header().Set("Content-Encoding", chunk.ContentEncoding)
+			}
+			headersWritten = true
+		}
+
+		if _, err := w.Write(chunk.Data); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Return nil to prevent the middleware from overwriting the response with application/json.
+	return nil, nil
 }
 
 // readProtoJSON reads a protojson-encoded request and unmarshals it

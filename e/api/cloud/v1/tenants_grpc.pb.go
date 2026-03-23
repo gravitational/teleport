@@ -22,8 +22,6 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TenantsServiceClient interface {
-	// SubmitUsageReports reports usage
-	SubmitUsageReports(ctx context.Context, in *SubmitUsageReportsRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// GetBillingInformation returns customer billing information
 	GetBillingInformation(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetBillingInformationResponse, error)
 	// GetAccountUpgradeWindowStartHour returns tenant account upgrade window start
@@ -63,6 +61,9 @@ type TenantsServiceClient interface {
 	// RemoveContact removes a contact type from a contact. If the contact has no other
 	// flags set, the contact itself will be removed.
 	RemoveContact(ctx context.Context, in *RemoveContactRequest, opts ...grpc.CallOption) (*RemoveContactResponse, error)
+	// SubmitUsageReports reports usage
+	// Deprecated; implementation for backwards compatibility and potentially capturing old running instances of Teleport E
+	SubmitUsageReports(ctx context.Context, in *SubmitUsageReportsRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// Deprecated: Do not use.
 	// CreateSetupIntent creates an intent in stripe and returns the client secret
 	CreateSetupIntent(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*CreateSetupIntentResponse, error)
@@ -97,6 +98,12 @@ type TenantsServiceClient interface {
 	GetClientIPRestrictions(ctx context.Context, in *GetClientIPRestrictionsRequest, opts ...grpc.CallOption) (*GetClientIPRestrictionsResponse, error)
 	// PutClientIPRestrictions replaces the tenant's client IP ingress allow list.
 	PutClientIPRestrictions(ctx context.Context, in *PutClientIPRestrictionsRequest, opts ...grpc.CallOption) (*PutClientIPRestrictionsResponse, error)
+	// ChildCluster is used for managing the lifecycle of a Teleport Cloud child cluster.
+	ChildCluster(ctx context.Context, in *ChildClusterRequest, opts ...grpc.CallOption) (*ChildClusterResponse, error)
+	// GetFile gets static UI files to render on the Teleport UI.
+	// The response is streamed in chunks. The first chunk carries only the
+	// content_encoding field and no data; subsequent chunks carry data only.
+	GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (TenantsService_GetFileClient, error)
 }
 
 type tenantsServiceClient struct {
@@ -105,15 +112,6 @@ type tenantsServiceClient struct {
 
 func NewTenantsServiceClient(cc grpc.ClientConnInterface) TenantsServiceClient {
 	return &tenantsServiceClient{cc}
-}
-
-func (c *tenantsServiceClient) SubmitUsageReports(ctx context.Context, in *SubmitUsageReportsRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
-	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/SubmitUsageReports", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *tenantsServiceClient) GetBillingInformation(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetBillingInformationResponse, error) {
@@ -269,6 +267,15 @@ func (c *tenantsServiceClient) RemoveContact(ctx context.Context, in *RemoveCont
 	return out, nil
 }
 
+func (c *tenantsServiceClient) SubmitUsageReports(ctx context.Context, in *SubmitUsageReportsRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
+	out := new(EmptyResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/SubmitUsageReports", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Deprecated: Do not use.
 func (c *tenantsServiceClient) CreateSetupIntent(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*CreateSetupIntentResponse, error) {
 	out := new(CreateSetupIntentResponse)
@@ -387,12 +394,51 @@ func (c *tenantsServiceClient) PutClientIPRestrictions(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *tenantsServiceClient) ChildCluster(ctx context.Context, in *ChildClusterRequest, opts ...grpc.CallOption) (*ChildClusterResponse, error) {
+	out := new(ChildClusterResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/ChildCluster", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (TenantsService_GetFileClient, error) {
+	stream, err := c.cc.NewStream(ctx, &TenantsService_ServiceDesc.Streams[0], "/gravitational.cloud.tenants.v1.TenantsService/GetFile", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &tenantsServiceGetFileClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type TenantsService_GetFileClient interface {
+	Recv() (*GetFileResponse, error)
+	grpc.ClientStream
+}
+
+type tenantsServiceGetFileClient struct {
+	grpc.ClientStream
+}
+
+func (x *tenantsServiceGetFileClient) Recv() (*GetFileResponse, error) {
+	m := new(GetFileResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // TenantsServiceServer is the server API for TenantsService service.
 // All implementations must embed UnimplementedTenantsServiceServer
 // for forward compatibility
 type TenantsServiceServer interface {
-	// SubmitUsageReports reports usage
-	SubmitUsageReports(context.Context, *SubmitUsageReportsRequest) (*EmptyResponse, error)
 	// GetBillingInformation returns customer billing information
 	GetBillingInformation(context.Context, *EmptyRequest) (*GetBillingInformationResponse, error)
 	// GetAccountUpgradeWindowStartHour returns tenant account upgrade window start
@@ -432,6 +478,9 @@ type TenantsServiceServer interface {
 	// RemoveContact removes a contact type from a contact. If the contact has no other
 	// flags set, the contact itself will be removed.
 	RemoveContact(context.Context, *RemoveContactRequest) (*RemoveContactResponse, error)
+	// SubmitUsageReports reports usage
+	// Deprecated; implementation for backwards compatibility and potentially capturing old running instances of Teleport E
+	SubmitUsageReports(context.Context, *SubmitUsageReportsRequest) (*EmptyResponse, error)
 	// Deprecated: Do not use.
 	// CreateSetupIntent creates an intent in stripe and returns the client secret
 	CreateSetupIntent(context.Context, *EmptyRequest) (*CreateSetupIntentResponse, error)
@@ -466,6 +515,12 @@ type TenantsServiceServer interface {
 	GetClientIPRestrictions(context.Context, *GetClientIPRestrictionsRequest) (*GetClientIPRestrictionsResponse, error)
 	// PutClientIPRestrictions replaces the tenant's client IP ingress allow list.
 	PutClientIPRestrictions(context.Context, *PutClientIPRestrictionsRequest) (*PutClientIPRestrictionsResponse, error)
+	// ChildCluster is used for managing the lifecycle of a Teleport Cloud child cluster.
+	ChildCluster(context.Context, *ChildClusterRequest) (*ChildClusterResponse, error)
+	// GetFile gets static UI files to render on the Teleport UI.
+	// The response is streamed in chunks. The first chunk carries only the
+	// content_encoding field and no data; subsequent chunks carry data only.
+	GetFile(*GetFileRequest, TenantsService_GetFileServer) error
 	mustEmbedUnimplementedTenantsServiceServer()
 }
 
@@ -473,9 +528,6 @@ type TenantsServiceServer interface {
 type UnimplementedTenantsServiceServer struct {
 }
 
-func (UnimplementedTenantsServiceServer) SubmitUsageReports(context.Context, *SubmitUsageReportsRequest) (*EmptyResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SubmitUsageReports not implemented")
-}
 func (UnimplementedTenantsServiceServer) GetBillingInformation(context.Context, *EmptyRequest) (*GetBillingInformationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBillingInformation not implemented")
 }
@@ -527,6 +579,9 @@ func (UnimplementedTenantsServiceServer) CreateContact(context.Context, *CreateC
 func (UnimplementedTenantsServiceServer) RemoveContact(context.Context, *RemoveContactRequest) (*RemoveContactResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveContact not implemented")
 }
+func (UnimplementedTenantsServiceServer) SubmitUsageReports(context.Context, *SubmitUsageReportsRequest) (*EmptyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SubmitUsageReports not implemented")
+}
 func (UnimplementedTenantsServiceServer) CreateSetupIntent(context.Context, *EmptyRequest) (*CreateSetupIntentResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSetupIntent not implemented")
 }
@@ -563,6 +618,12 @@ func (UnimplementedTenantsServiceServer) GetClientIPRestrictions(context.Context
 func (UnimplementedTenantsServiceServer) PutClientIPRestrictions(context.Context, *PutClientIPRestrictionsRequest) (*PutClientIPRestrictionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutClientIPRestrictions not implemented")
 }
+func (UnimplementedTenantsServiceServer) ChildCluster(context.Context, *ChildClusterRequest) (*ChildClusterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ChildCluster not implemented")
+}
+func (UnimplementedTenantsServiceServer) GetFile(*GetFileRequest, TenantsService_GetFileServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetFile not implemented")
+}
 func (UnimplementedTenantsServiceServer) mustEmbedUnimplementedTenantsServiceServer() {}
 
 // UnsafeTenantsServiceServer may be embedded to opt out of forward compatibility for this service.
@@ -574,24 +635,6 @@ type UnsafeTenantsServiceServer interface {
 
 func RegisterTenantsServiceServer(s grpc.ServiceRegistrar, srv TenantsServiceServer) {
 	s.RegisterService(&TenantsService_ServiceDesc, srv)
-}
-
-func _TenantsService_SubmitUsageReports_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SubmitUsageReportsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TenantsServiceServer).SubmitUsageReports(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/SubmitUsageReports",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TenantsServiceServer).SubmitUsageReports(ctx, req.(*SubmitUsageReportsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _TenantsService_GetBillingInformation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -900,6 +943,24 @@ func _TenantsService_RemoveContact_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TenantsService_SubmitUsageReports_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubmitUsageReportsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).SubmitUsageReports(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/SubmitUsageReports",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).SubmitUsageReports(ctx, req.(*SubmitUsageReportsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TenantsService_CreateSetupIntent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EmptyRequest)
 	if err := dec(in); err != nil {
@@ -1116,6 +1177,45 @@ func _TenantsService_PutClientIPRestrictions_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TenantsService_ChildCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChildClusterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).ChildCluster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/ChildCluster",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).ChildCluster(ctx, req.(*ChildClusterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_GetFile_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetFileRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(TenantsServiceServer).GetFile(m, &tenantsServiceGetFileServer{stream})
+}
+
+type TenantsService_GetFileServer interface {
+	Send(*GetFileResponse) error
+	grpc.ServerStream
+}
+
+type tenantsServiceGetFileServer struct {
+	grpc.ServerStream
+}
+
+func (x *tenantsServiceGetFileServer) Send(m *GetFileResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 // TenantsService_ServiceDesc is the grpc.ServiceDesc for TenantsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1123,10 +1223,6 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "gravitational.cloud.tenants.v1.TenantsService",
 	HandlerType: (*TenantsServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "SubmitUsageReports",
-			Handler:    _TenantsService_SubmitUsageReports_Handler,
-		},
 		{
 			MethodName: "GetBillingInformation",
 			Handler:    _TenantsService_GetBillingInformation_Handler,
@@ -1196,6 +1292,10 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TenantsService_RemoveContact_Handler,
 		},
 		{
+			MethodName: "SubmitUsageReports",
+			Handler:    _TenantsService_SubmitUsageReports_Handler,
+		},
+		{
 			MethodName: "CreateSetupIntent",
 			Handler:    _TenantsService_CreateSetupIntent_Handler,
 		},
@@ -1243,7 +1343,17 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "PutClientIPRestrictions",
 			Handler:    _TenantsService_PutClientIPRestrictions_Handler,
 		},
+		{
+			MethodName: "ChildCluster",
+			Handler:    _TenantsService_ChildCluster_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "GetFile",
+			Handler:       _TenantsService_GetFile_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "api/tenants/v1/tenants.proto",
 }

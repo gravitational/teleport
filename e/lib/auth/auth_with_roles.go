@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"errors"
+	"io"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -221,6 +223,30 @@ func (ac *cloudWithRoles) GetClientIPRestrictions(ctx context.Context, in *v1.Ge
 	}
 
 	return ac.plugin.cloudClient.GetClientIPRestrictions(ctx, in)
+}
+
+func (ac *cloudWithRoles) GetFile(req *v1.GetFileRequest, srv v1.TenantsService_GetFileServer) error {
+	if ac.plugin.cloudClient == nil {
+		return trace.AccessDenied("cloud features are disabled")
+	}
+
+	clientStream, err := ac.plugin.cloudClient.GetFile(srv.Context(), req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for {
+		chunk, err := clientStream.Recv()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := srv.Send(chunk); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 }
 
 func (ac *cloudWithRoles) PutClientIPRestrictions(ctx context.Context, in *v1.PutClientIPRestrictionsRequest) (*v1.PutClientIPRestrictionsResponse, error) {
