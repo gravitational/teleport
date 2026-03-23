@@ -37,7 +37,6 @@ import { useVnetContext, VnetContextProvider } from './vnetContext';
 import { VnetSliderStep as Component } from './VnetSliderStep';
 
 type StoryProps = {
-  platform: 'darwin' | 'win32' | 'linux';
   startVnet: 'success' | 'error' | 'processing';
   autoStart: boolean;
   appDnsZones: string[];
@@ -59,7 +58,6 @@ type StoryProps = {
 };
 
 const defaultArgs: StoryProps = {
-  platform: 'darwin',
   startVnet: 'success',
   autoStart: true,
   appDnsZones: ['teleport.example.com', 'company.test'],
@@ -86,10 +84,6 @@ const meta: Meta<StoryProps> = {
     },
   ],
   argTypes: {
-    platform: {
-      control: { type: 'inline-radio' },
-      options: ['darwin', 'win32', 'linux'],
-    },
     startVnet: {
       control: { type: 'inline-radio' },
       options: ['success', 'error', 'processing'],
@@ -136,7 +130,7 @@ const meta: Meta<StoryProps> = {
 export default meta;
 
 function VnetSliderStep(props: StoryProps) {
-  const appContext = new MockAppContext({ platform: props.platform });
+  const appContext = new MockAppContext();
 
   if (props.installTimeRequirementsCheck === 'windows-service-not-installed') {
     appContext.vnet.checkInstallTimeRequirements = () =>
