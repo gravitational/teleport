@@ -53,9 +53,19 @@ func (t *TermHandlers) HandleExec(ctx context.Context, ch ssh.Channel, req *ssh.
 	// If a terminal was previously allocated for this command, run command in
 	// an interactive session. Otherwise run it in an exec session.
 	if scx.GetTerm() != nil {
-		return t.SessionRegistry.OpenSession(ctx, ch, scx)
+		if err := t.SessionRegistry.OpenSession(ctx, ch, scx); err != nil {
+			return trace.Wrap(err)
+		}
+		scx.FinishSessionEstablishmentActivity()
+		return nil
 	}
-	return t.SessionRegistry.OpenExecSession(ctx, ch, scx)
+
+	if err := t.SessionRegistry.OpenExecSession(ctx, ch, scx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	scx.FinishSessionEstablishmentActivity()
+	return nil
 }
 
 // HandlePTYReq handles requests of type "pty-req" which allocate a TTY for
@@ -135,7 +145,12 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 		}
 	}
 
-	return t.SessionRegistry.OpenSession(ctx, ch, scx)
+	if err := t.SessionRegistry.OpenSession(ctx, ch, scx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	scx.FinishSessionEstablishmentActivity()
+	return nil
 }
 
 // HandleFileTransferDecision handles requests of type "file-transfer-decision@goteleport.com" which will

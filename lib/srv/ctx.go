@@ -392,6 +392,10 @@ type ServerContext struct {
 	// client inactivity, set to 0 if not setup
 	clientIdleTimeout time.Duration
 
+	// sessionEstablishmentActivityActive reports synthetic activity while a
+	// session channel is still establishing.
+	sessionEstablishmentActivityActive atomic.Bool
+
 	// cancelContext signals closure to all outstanding operations
 	cancelContext context.Context
 
@@ -671,6 +675,34 @@ func (c *ServerContext) GetServer() Server {
 // use the returned ssh.Channel instead of the original one.
 func (c *ServerContext) TrackActivity(ch ssh.Channel) ssh.Channel {
 	return newTrackingChannel(ch, c)
+}
+
+// BeginSessionEstablishmentActivity reports synthetic activity until the
+// session handlers explicitly mark establishment complete.
+func (c *ServerContext) BeginSessionEstablishmentActivity() {
+	if c.clientIdleTimeout == 0 {
+		return
+	}
+	c.sessionEstablishmentActivityActive.Store(true)
+}
+
+// FinishSessionEstablishmentActivity switches back to real connection activity
+// once session setup has completed.
+func (c *ServerContext) FinishSessionEstablishmentActivity() {
+	if !c.sessionEstablishmentActivityActive.Swap(false) {
+		return
+	}
+	c.ConnectionContext.UpdateClientActivity()
+}
+
+// GetClientLastActive reports the last client activity timestamp. While a
+// session is still establishing it reports synthetic "now" activity so idle
+// timeout enforcement does not race session setup.
+func (c *ServerContext) GetClientLastActive() time.Time {
+	if c.sessionEstablishmentActivityActive.Load() {
+		return c.srv.GetClock().Now().UTC()
+	}
+	return c.ConnectionContext.GetClientLastActive()
 }
 
 // AddCloser adds any closer in ctx that will be called

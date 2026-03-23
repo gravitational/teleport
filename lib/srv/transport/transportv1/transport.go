@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh/agent"
@@ -41,6 +42,7 @@ import (
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -212,6 +214,16 @@ func (c clusterStream) Send(frame []byte) error {
 	return trace.Wrap(c.stream.Send(&transportv1pb.ProxyClusterResponse{Frame: &transportv1pb.Frame{Payload: frame}}))
 }
 
+// noIdleTimeoutAccessChecker wraps a [services.AccessChecker] for the
+// sole purpose of disabling idle timeouts.
+type noIdleTimeoutAccessChecker struct {
+	services.AccessChecker
+}
+
+func (noIdleTimeoutAccessChecker) AdjustClientIdleTimeout(ttl time.Duration) time.Duration {
+	return 0
+}
+
 // ProxySSH establishes a connection to a host and proxies both the SSH and SSH
 // Agent protocol over the stream. The first request from the client must contain
 // a valid dial target before the connection can be established.
@@ -333,6 +345,11 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	var monitorCtx context.Context
 	var userConn net.Conn
 	if unscopedCtx, ok := authzContext.UnscopedContext(); ok {
+		// Override the access checker with one that never enforces an idle timeout.
+		// The target host enforces idle timeout to prevent slow session establishment
+		// from killing sessions for small idle timeout values.
+		unscopedCtx.Checker = noIdleTimeoutAccessChecker{AccessChecker: unscopedCtx.Checker}
+
 		monitorCtx, userConn, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, unscopedCtx, conn)
 		if err != nil {
 			return trace.Wrap(err)

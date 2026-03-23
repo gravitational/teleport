@@ -1717,6 +1717,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	scx.AddCloser(ch)
 	scx.ExecType = teleport.ChanSession
 	scx.SetAllowFileCopying(s.allowFileCopying)
+	scx.BeginSessionEstablishmentActivity()
 	defer scx.Close()
 
 	trackingChan := scx.TrackActivity(ch)
@@ -2114,6 +2115,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 		serverContext.SendSubsystemResult(ctx, srv.SubsystemResult{Err: trace.Wrap(err)})
 		return trace.Wrap(err)
 	}
+	serverContext.FinishSessionEstablishmentActivity()
 	go func() {
 		err := sb.Wait()
 		serverContext.Logger.DebugContext(ctx, "Subsystem finished", "subsystem", sb, "error", err)
