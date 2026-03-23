@@ -42,7 +42,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/defaults"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/utils/grpc/stream"
@@ -561,6 +560,7 @@ func TestClient_SSHConfig(t *testing.T) {
 
 	proxy := newFakeProxy(t, fakeTransportService{})
 	cfg := proxy.clientConfig(t)
+	cfg.SSHConfig.ClientVersion = "SSH-2.0-CustomClient_1.0"
 
 	clt, err := NewClient(context.Background(), cfg)
 	require.NoError(t, err)
@@ -570,8 +570,8 @@ func TestClient_SSHConfig(t *testing.T) {
 	sshConfig := clt.SSHConfig(user)
 	require.NotNil(t, sshConfig)
 	require.Equal(t, user, sshConfig.User)
-	require.Equal(t, defaults.SSHClientVersion, sshConfig.ClientVersion)
-	require.Empty(t, cmp.Diff(cfg.SSHConfig, sshConfig, cmpopts.IgnoreFields(ssh.ClientConfig{}, "User", "Auth", "HostKeyCallback", "ClientVersion")))
+	require.Equal(t, cfg.SSHConfig.ClientVersion, sshConfig.ClientVersion)
+	require.Empty(t, cmp.Diff(cfg.SSHConfig, sshConfig, cmpopts.IgnoreFields(ssh.ClientConfig{}, "User", "Auth", "HostKeyCallback")))
 }
 
 type fakeTransportCredentials struct {

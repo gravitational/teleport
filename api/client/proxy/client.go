@@ -446,7 +446,7 @@ func (c *Client) SSHConfig(user string) *ssh.ClientConfig {
 		Auth:              c.cfg.SSHConfig.Auth,
 		HostKeyCallback:   c.cfg.SSHConfig.HostKeyCallback,
 		BannerCallback:    c.cfg.SSHConfig.BannerCallback,
-		ClientVersion:     defaults.SSHClientVersion,
+		ClientVersion:     c.cfg.SSHConfig.ClientVersion,
 		HostKeyAlgorithms: c.cfg.SSHConfig.HostKeyAlgorithms,
 		Timeout:           c.cfg.SSHConfig.Timeout,
 	}
