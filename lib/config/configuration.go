@@ -1928,8 +1928,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				TrustSystemCertPool: database.TLS.TrustSystemCertPool,
 			},
 			AdminUser: servicecfg.DatabaseAdminUser{
-				Name:            database.AdminUser.Name,
-				DefaultDatabase: database.AdminUser.DefaultDatabase,
+				Name:             database.AdminUser.Name,
+				DefaultDatabase:  database.AdminUser.DefaultDatabase,
+				ReassignmentUser: database.AdminUser.ReassignmentUser,
 			},
 			Oracle: convOracleOptions(database.Oracle),
 			AWS: servicecfg.DatabaseAWS{
