@@ -82,6 +82,7 @@ jobs:
 
       - name: Get Playwright version
         id: playwright-version
+        shell: bash
         run: |
           version=$(node -p "require('./e2e/package.json').devDependencies['@playwright/test']")
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
