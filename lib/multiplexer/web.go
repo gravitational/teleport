@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
-
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/netutils"

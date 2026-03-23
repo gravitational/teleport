@@ -36,7 +36,6 @@ import (
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-
 	"github.com/gravitational/teleport/session/common/netutils"
 )
 

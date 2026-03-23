@@ -33,7 +33,6 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
-
 	"github.com/gravitational/teleport/session/common/netutils"
 )
 

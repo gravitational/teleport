@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-
 	"github.com/gravitational/teleport/lib/utils/mcptest"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/session/common/netutils"

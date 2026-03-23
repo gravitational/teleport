@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/fixtures"
-
 	"github.com/gravitational/teleport/session/common/netutils"
 )
 

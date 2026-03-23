@@ -36,7 +36,6 @@ import (
 	"google.golang.org/grpc/peer"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-
 	"github.com/gravitational/teleport/session/common/netutils"
 )
 

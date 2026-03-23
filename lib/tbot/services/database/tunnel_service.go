@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tlsca"
-
 	"github.com/gravitational/teleport/session/common/netutils"
 )
 

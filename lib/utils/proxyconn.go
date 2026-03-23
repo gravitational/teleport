@@ -23,8 +23,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // CombinedStdio reads from standard input and writes to standard output.

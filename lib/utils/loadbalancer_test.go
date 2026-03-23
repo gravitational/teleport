@@ -26,8 +26,9 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 var randomLocalAddr = *netutils.MustParseAddr("127.0.0.1:0")

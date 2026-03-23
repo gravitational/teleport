@@ -22,8 +22,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestProxyJumpParsing(t *testing.T) {

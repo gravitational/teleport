@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tlsca"
-
 	"github.com/gravitational/teleport/session/common/netutils"
 )
 

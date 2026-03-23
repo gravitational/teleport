@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/netutils"
 )

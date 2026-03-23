@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-
 	"github.com/gravitational/teleport/lib/winpki"
 	"github.com/gravitational/teleport/session/common/netutils"
 )

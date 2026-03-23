@@ -22,8 +22,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 var reProxyJump = regexp.MustCompile(

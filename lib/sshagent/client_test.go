@@ -29,7 +29,6 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/lib/sshagent"
-
 	"github.com/gravitational/teleport/session/common/netutils"
 )
 

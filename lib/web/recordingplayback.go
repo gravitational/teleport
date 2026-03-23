@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/session"
-
 	"github.com/gravitational/teleport/session/common/netutils"
 )
 

@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/tlsca"
-
 	"github.com/gravitational/teleport/session/common/netutils"
 )
 

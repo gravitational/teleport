@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
-
 	"github.com/gravitational/teleport/session/common/netutils"
 )
 

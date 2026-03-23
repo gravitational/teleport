@@ -24,8 +24,9 @@ import (
 	"net"
 	"testing"
 
-	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestTrackingReaderEOF(t *testing.T) {
