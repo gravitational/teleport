@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type fakeConn struct {
@@ -54,7 +54,7 @@ func (f *fakeConn) Close() error {
 }
 
 func (f *fakeConn) RemoteAddr() net.Addr {
-	return &utils.NetAddr{
+	return &netutils.NetAddr{
 		Addr:        "127.0.0.1:6514",
 		AddrNetwork: "tcp",
 	}

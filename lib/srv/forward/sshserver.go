@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -895,7 +896,7 @@ func (s *Server) handleClientChannels(ctx context.Context, forwardedTCPIP <-chan
 
 		go func() {
 			defer span.End()
-			if err := s.handleForwardedTCPIPRequest(ctx, nch); err != nil && !utils.IsOKNetworkError(err) {
+			if err := s.handleForwardedTCPIPRequest(ctx, nch); err != nil && !netutils.IsOKNetworkError(err) {
 				s.logger.ErrorContext(ctx, "Error handling forwarded-tcpip request", "error", err)
 			}
 		}()

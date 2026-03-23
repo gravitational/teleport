@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // ProxyServer runs inside Teleport proxy and is responsible to accepting
@@ -188,7 +189,7 @@ func (s *ProxyServer) ServePostgres(listener net.Listener) error {
 		// The connection is expected to come through via multiplexer.
 		clientConn, err := listener.Accept()
 		if err != nil {
-			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
+			if netutils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -198,7 +199,7 @@ func (s *ProxyServer) ServePostgres(listener net.Listener) error {
 		go func() {
 			defer clientConn.Close()
 			err := s.PostgresProxy().HandleConnection(s.closeCtx, clientConn)
-			if err != nil && !utils.IsOKNetworkError(err) {
+			if err != nil && !netutils.IsOKNetworkError(err) {
 				s.log.ErrorContext(s.closeCtx, "Failed to handle Postgres client connection.", "error", err)
 			}
 		}()
@@ -213,7 +214,7 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 		// Accept the connection from a MySQL client.
 		clientConn, err := listener.Accept()
 		if err != nil {
-			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
+			if netutils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -222,7 +223,7 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 		go func() {
 			defer clientConn.Close()
 			err := s.MySQLProxy().HandleConnection(s.closeCtx, clientConn)
-			if err != nil && !utils.IsOKNetworkError(err) {
+			if err != nil && !netutils.IsOKNetworkError(err) {
 				s.log.ErrorContext(s.closeCtx, "Failed to handle MySQL client connection.", "error", err)
 			}
 		}()
@@ -242,7 +243,7 @@ func (s *ProxyServer) serveGenericTLS(listener net.Listener, tlsConfig *tls.Conf
 	for {
 		clientConn, err := listener.Accept()
 		if err != nil {
-			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
+			if netutils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -252,7 +253,7 @@ func (s *ProxyServer) serveGenericTLS(listener net.Listener, tlsConfig *tls.Conf
 			defer clientConn.Close()
 			tlsConn := tls.Server(clientConn, tlsConfig)
 			if err := tlsConn.HandshakeContext(s.closeCtx); err != nil {
-				if !utils.IsOKNetworkError(err) {
+				if !netutils.IsOKNetworkError(err) {
 					s.log.ErrorContext(s.closeCtx, "TLS handshake failed.", "db_type", dbName)
 				}
 				return
@@ -272,7 +273,7 @@ func (s *ProxyServer) ServeTLS(listener net.Listener) error {
 	for {
 		clientConn, err := listener.Accept()
 		if err != nil {
-			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
+			if netutils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
 				return nil
 			}
 			return trace.Wrap(err)

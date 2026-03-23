@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy/peer/internal"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -168,7 +169,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 func (s *Server) Serve(l net.Listener) error {
 	if err := s.server.Serve(l); err != nil {
 		if errors.Is(err, grpc.ErrServerStopped) ||
-			utils.IsUseOfClosedNetworkError(err) {
+			netutils.IsUseOfClosedNetworkError(err) {
 			return nil
 		}
 		return trace.Wrap(err)

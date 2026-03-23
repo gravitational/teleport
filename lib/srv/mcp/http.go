@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -56,7 +57,7 @@ func (s *Server) serveHTTPConn(ctx context.Context, conn net.Conn, handler http.
 	}
 
 	listener := listenerutils.NewSingleUseListener(waitConn)
-	if err := httpServer.Serve(listener); err != nil && !utils.IsOKNetworkError(err) {
+	if err := httpServer.Serve(listener); err != nil && !netutils.IsOKNetworkError(err) {
 		return trace.Wrap(err)
 	}
 	waitConn.Wait()

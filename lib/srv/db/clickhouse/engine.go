@@ -27,7 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func NewEngine(ec common.EngineConfig) common.Engine {
@@ -69,7 +70,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 }
 
 func (e *Engine) SendError(err error) {
-	if err == nil || utils.IsOKNetworkError(err) {
+	if err == nil || netutils.IsOKNetworkError(err) {
 		return
 	}
 

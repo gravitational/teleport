@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,31 +36,31 @@ func TestProxyJumpParsing(t *testing.T) {
 	testCases := []tc{
 		{
 			in:  "host:12345",
-			out: []JumpHost{{Addr: NetAddr{Addr: "host:12345", AddrNetwork: "tcp"}}},
+			out: []JumpHost{{Addr: netutils.NetAddr{Addr: "host:12345", AddrNetwork: "tcp"}}},
 		},
 		{
 			in:  "host",
-			out: []JumpHost{{Addr: NetAddr{Addr: "host", AddrNetwork: "tcp"}}},
+			out: []JumpHost{{Addr: netutils.NetAddr{Addr: "host", AddrNetwork: "tcp"}}},
 		},
 		{
 			in:  "bob@host",
-			out: []JumpHost{{Username: "bob", Addr: NetAddr{Addr: "host", AddrNetwork: "tcp"}}},
+			out: []JumpHost{{Username: "bob", Addr: netutils.NetAddr{Addr: "host", AddrNetwork: "tcp"}}},
 		},
 		{
 			in:  "alice@127.0.0.1:7777",
-			out: []JumpHost{{Username: "alice", Addr: NetAddr{Addr: "127.0.0.1:7777", AddrNetwork: "tcp"}}},
+			out: []JumpHost{{Username: "alice", Addr: netutils.NetAddr{Addr: "127.0.0.1:7777", AddrNetwork: "tcp"}}},
 		},
 		{
 			in:  "alice@127.0.0.1:7777, bob@localhost",
-			out: []JumpHost{{Username: "alice", Addr: NetAddr{Addr: "127.0.0.1:7777", AddrNetwork: "tcp"}}, {Username: "bob", Addr: NetAddr{Addr: "localhost", AddrNetwork: "tcp"}}},
+			out: []JumpHost{{Username: "alice", Addr: netutils.NetAddr{Addr: "127.0.0.1:7777", AddrNetwork: "tcp"}}, {Username: "bob", Addr: netutils.NetAddr{Addr: "localhost", AddrNetwork: "tcp"}}},
 		},
 		{
 			in:  "alice@[::1]:7777, bob@localhost",
-			out: []JumpHost{{Username: "alice", Addr: NetAddr{Addr: "[::1]:7777", AddrNetwork: "tcp"}}, {Username: "bob", Addr: NetAddr{Addr: "localhost", AddrNetwork: "tcp"}}},
+			out: []JumpHost{{Username: "alice", Addr: netutils.NetAddr{Addr: "[::1]:7777", AddrNetwork: "tcp"}}, {Username: "bob", Addr: netutils.NetAddr{Addr: "localhost", AddrNetwork: "tcp"}}},
 		},
 		{
 			in:  "alice@domain.com@[::1]:7777, bob@localhost@localhost",
-			out: []JumpHost{{Username: "alice@domain.com", Addr: NetAddr{Addr: "[::1]:7777", AddrNetwork: "tcp"}}, {Username: "bob@localhost", Addr: NetAddr{Addr: "localhost", AddrNetwork: "tcp"}}},
+			out: []JumpHost{{Username: "alice@domain.com", Addr: netutils.NetAddr{Addr: "[::1]:7777", AddrNetwork: "tcp"}}, {Username: "bob@localhost", Addr: netutils.NetAddr{Addr: "localhost", AddrNetwork: "tcp"}}},
 		},
 	}
 	for _, tc := range testCases {

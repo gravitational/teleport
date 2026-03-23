@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // leafCluster is a leaf cluster is a Teleport cluster that has established
@@ -433,7 +434,7 @@ func (s *leafCluster) handleHeartbeat(ctx context.Context, conn *remoteConn, ch 
 		proxyResyncTicker.Stop()
 		logger.InfoContext(ctx, "Cluster connection closed")
 
-		if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+		if err := conn.Close(); err != nil && !netutils.IsUseOfClosedNetworkError(err) {
 			logger.WarnContext(ctx, "Failed to close connection for leaf cluster", "error", err)
 		}
 

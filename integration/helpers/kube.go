@@ -36,7 +36,8 @@ import (
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func EnableKubernetesService(t *testing.T, config *servicecfg.Config) {
@@ -52,7 +53,7 @@ func EnableKube(t *testing.T, config *servicecfg.Config, clusterName string) err
 
 	genKubeConfig(t, kubeConfigPath, clusterName)
 	config.Kube.Enabled = true
-	config.Kube.ListenAddr = utils.MustParseAddr(NewListener(t, service.ListenerKube, &config.FileDescriptors))
+	config.Kube.ListenAddr = netutils.MustParseAddr(NewListener(t, service.ListenerKube, &config.FileDescriptors))
 	return nil
 }
 

@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestMain(m *testing.M) {
@@ -124,8 +125,8 @@ func withDenyToolsRole(t *testing.T) setupTestContextOptionFunc {
 func makeDualPipeNetConn(t *testing.T) (net.Conn, net.Conn) {
 	t.Helper()
 	clientSourceConn, clientDestConn, err := utils.DualPipeNetConn(
-		utils.MustParseAddr("127.0.0.1:1111"),
-		utils.MustParseAddr("127.0.0.1:2222"),
+		netutils.MustParseAddr("127.0.0.1:1111"),
+		netutils.MustParseAddr("127.0.0.1:2222"),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {

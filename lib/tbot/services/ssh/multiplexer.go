@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/uds"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -502,7 +503,7 @@ func (s *MultiplexerService) Run(ctx context.Context) (err error) {
 		for {
 			downstream, err := muxListener.Accept()
 			if err != nil {
-				if utils.IsUseOfClosedNetworkError(err) {
+				if netutils.IsUseOfClosedNetworkError(err) {
 					return nil
 				}
 
@@ -548,7 +549,7 @@ func (s *MultiplexerService) Run(ctx context.Context) (err error) {
 		for {
 			conn, err := agentListener.Accept()
 			if err != nil {
-				if utils.IsUseOfClosedNetworkError(err) {
+				if netutils.IsUseOfClosedNetworkError(err) {
 					return nil
 				}
 
@@ -576,7 +577,7 @@ func (s *MultiplexerService) Run(ctx context.Context) (err error) {
 				s.log.DebugContext(egCtx, "Serving agent connection")
 				//nolint:staticcheck // SA4023. ServeAgent always returns a non-nil error. This is fine.
 				err := agent.ServeAgent(currentAgent, conn)
-				if err != nil && !utils.IsOKNetworkError(err) {
+				if err != nil && !netutils.IsOKNetworkError(err) {
 					s.log.WarnContext(
 						egCtx,
 						"Error encountered serving agent connection",
@@ -617,7 +618,7 @@ func (s *MultiplexerService) handleConn(
 	)
 	defer func() { tracing.EndSpan(span, err) }()
 	defer func() {
-		if err := downstream.Close(); err != nil && !utils.IsOKNetworkError(err) {
+		if err := downstream.Close(); err != nil && !netutils.IsOKNetworkError(err) {
 			s.log.DebugContext(ctx, "Error closing downstream connection", "error", err)
 		}
 	}()
@@ -770,7 +771,7 @@ func (s *MultiplexerService) handleConn(
 		}
 	}
 	defer func() {
-		if err := upstream.Close(); err != nil && !utils.IsOKNetworkError(err) {
+		if err := upstream.Close(); err != nil && !netutils.IsOKNetworkError(err) {
 			s.log.DebugContext(ctx, "Error closing upstream connection", "error", err)
 		}
 	}()
@@ -806,7 +807,7 @@ func (s *MultiplexerService) handleConn(
 			return
 		}
 		_, err := io.Copy(upstream, downstream)
-		if utils.IsOKNetworkError(err) {
+		if netutils.IsOKNetworkError(err) {
 			err = nil
 		}
 		errCh <- trace.Wrap(err, "downstream->upstream")
@@ -816,7 +817,7 @@ func (s *MultiplexerService) handleConn(
 		defer upstream.Close()
 		defer downstream.Close()
 		_, err := io.Copy(downstream, upstream)
-		if utils.IsOKNetworkError(err) {
+		if netutils.IsOKNetworkError(err) {
 			err = nil
 		}
 		errCh <- trace.Wrap(err, "upstream->downstream")

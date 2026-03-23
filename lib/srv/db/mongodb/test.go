@@ -40,10 +40,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // MakeTestClient returns MongoDB client connection according to the provided
@@ -176,7 +176,7 @@ func (s *TestServer) Serve() error {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			if utils.IsOKNetworkError(err) {
+			if netutils.IsOKNetworkError(err) {
 				return nil
 			}
 			s.logger.ErrorContext(ctx, "Failed to accept connection", "error", err)
@@ -189,7 +189,7 @@ func (s *TestServer) Serve() error {
 			atomic.AddInt32(&s.activeConnection, 1)
 			defer atomic.AddInt32(&s.activeConnection, -1)
 			if err := s.handleConnection(conn); err != nil {
-				if !utils.IsOKNetworkError(err) {
+				if !netutils.IsOKNetworkError(err) {
 					s.logger.ErrorContext(ctx, "Failed to handle connection", "error", err)
 				}
 			}

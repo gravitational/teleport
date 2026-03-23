@@ -53,8 +53,8 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // TestJoinToken tests the full cycle of proxy and node joining via the join service.
@@ -528,7 +528,7 @@ func TestJoinError(t *testing.T) {
 		{
 			desc: "auth direct",
 			joinParams: joinclient.JoinParams{
-				AuthServers: []utils.NetAddr{utils.FromAddr(authService.TLS.Listener.Addr())},
+				AuthServers: []netutils.NetAddr{netutils.FromAddr(authService.TLS.Listener.Addr())},
 			},
 			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
 				// Should get AccessDenied and should not fall back to joining
@@ -543,7 +543,7 @@ func TestJoinError(t *testing.T) {
 			// proxy addresses.
 			desc: "proxy as auth",
 			joinParams: joinclient.JoinParams{
-				AuthServers: []utils.NetAddr{utils.FromAddr(proxyListener.Addr())},
+				AuthServers: []netutils.NetAddr{netutils.FromAddr(proxyListener.Addr())},
 				Insecure:    true,
 			},
 			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
@@ -556,7 +556,7 @@ func TestJoinError(t *testing.T) {
 		{
 			desc: "proxy direct",
 			joinParams: joinclient.JoinParams{
-				ProxyServer: utils.FromAddr(proxyListener.Addr()),
+				ProxyServer: netutils.FromAddr(proxyListener.Addr()),
 				Insecure:    true,
 			},
 			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
@@ -569,7 +569,7 @@ func TestJoinError(t *testing.T) {
 		{
 			desc: "bad auth address",
 			joinParams: joinclient.JoinParams{
-				AuthServers: []utils.NetAddr{utils.FromAddr(badListener.Addr())},
+				AuthServers: []netutils.NetAddr{netutils.FromAddr(badListener.Addr())},
 			},
 			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
 				// Should fall back to a legacy join attempt before failing.
@@ -579,7 +579,7 @@ func TestJoinError(t *testing.T) {
 		{
 			desc: "bad proxy address",
 			joinParams: joinclient.JoinParams{
-				ProxyServer: utils.FromAddr(badListener.Addr()),
+				ProxyServer: netutils.FromAddr(badListener.Addr()),
 			},
 			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
 				// Should fall back to a legacy join attempt before failing.
@@ -724,7 +724,7 @@ func joinViaProxyWithSecret(
 			Role:     types.RoleInstance,
 			NodeName: "node",
 		},
-		ProxyServer: utils.NetAddr{
+		ProxyServer: netutils.NetAddr{
 			AddrNetwork: addr.Network(),
 			Addr:        addr.String(),
 		},

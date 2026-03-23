@@ -45,6 +45,7 @@ import (
 	tbotsystemd "github.com/gravitational/teleport/lib/tbot/config/systemd"
 	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/versioncontrol"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // Base paths for constructing namespaced directories.
@@ -871,7 +872,7 @@ func (ns *Namespace) overrideFromConfig(ctx context.Context) {
 		ns.log.DebugContext(ctx, "Unable to find proxy in config", "config_file", configFile)
 		return
 	}
-	netaddr, err := libutils.ParseHostPortAddr(addr, port)
+	netaddr, err := netutils.ParseHostPortAddr(addr, port)
 	if err != nil {
 		ns.log.DebugContext(ctx, "Unable to parse proxy in config", "config_file", configFile, "proxy_addr", addr, "proxy_port", port, errorKey, err)
 		return

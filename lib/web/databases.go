@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/terminal"
 	webui "github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // createOrOverwriteDatabaseRequest contains the necessary basic information
@@ -725,7 +726,7 @@ func (s *databaseInteractiveSession) Run() error {
 	// handler.
 	go func() {
 		alpnConnWithAddr := utils.NewConnWithAddr(s.alpnConn, s.ws.LocalAddr(), s.ws.RemoteAddr())
-		if err := s.alpnHandler(s.ctx, alpnConnWithAddr); err != nil && !utils.IsOKNetworkError(err) {
+		if err := s.alpnHandler(s.ctx, alpnConnWithAddr); err != nil && !netutils.IsOKNetworkError(err) {
 			s.log.ErrorContext(s.ctx, "ALPN handler for database interactive session failed", "error", err)
 		}
 	}()
@@ -763,7 +764,7 @@ func (s *databaseInteractiveSession) Close() error {
 		s.log.ErrorContext(s.ctx, "Unable to close web socket terminal stream", "error", err)
 	}
 
-	if err := s.replConn.Close(); !utils.IsOKNetworkError(err) {
+	if err := s.replConn.Close(); !netutils.IsOKNetworkError(err) {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -841,7 +842,7 @@ func (s *databaseInteractiveSession) makeReplConn() (*tls.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	proxyAddr, err := utils.ParseAddr(s.proxyAddr)
+	proxyAddr, err := netutils.ParseAddr(s.proxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

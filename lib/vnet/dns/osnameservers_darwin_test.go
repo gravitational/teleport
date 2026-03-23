@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // TestOSUpstreamNameservers configures the DNS server to forward requests for all addresses to the OS's real
@@ -52,7 +52,7 @@ func TestOSUpstreamNameservers(t *testing.T) {
 		Name: "nameserver",
 		Task: func(ctx context.Context) error {
 			err := server.ListenAndServeUDP(ctx, conn)
-			if err == nil || utils.IsOKNetworkError(err) {
+			if err == nil || netutils.IsOKNetworkError(err) {
 				return nil
 			}
 			return trace.Wrap(err)

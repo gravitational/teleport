@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // LocalProxy allows upgrading incoming connection to TLS where custom TLS values are set SNI ALPN and
@@ -135,7 +136,7 @@ func (cfg *LocalProxyConfig) CheckAndSetDefaults() error {
 
 	// If SNI is not set, default to cfg.RemoteProxyAddr.
 	if cfg.SNI == "" {
-		address, err := utils.ParseAddr(cfg.RemoteProxyAddr)
+		address, err := netutils.ParseAddr(cfg.RemoteProxyAddr)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -193,7 +194,7 @@ func (l *LocalProxy) start(ctx context.Context) error {
 
 		conn, err := l.cfg.Listener.Accept()
 		if err != nil {
-			if utils.IsOKNetworkError(err) {
+			if netutils.IsOKNetworkError(err) {
 				return nil
 			}
 			l.cfg.Log.ErrorContext(ctx, "Failed to accept client connection", "error", err)
@@ -204,7 +205,7 @@ func (l *LocalProxy) start(ctx context.Context) error {
 		if l.cfg.Middleware != nil {
 			if err := l.cfg.Middleware.OnNewConnection(ctx, l); err != nil {
 				l.cfg.Log.ErrorContext(ctx, "Middleware failed to handle client connection", "error", err)
-				if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+				if err := conn.Close(); err != nil && !netutils.IsUseOfClosedNetworkError(err) {
 					l.cfg.Log.DebugContext(ctx, "Failed to close client connection", "error", err)
 				}
 				continue
@@ -213,7 +214,7 @@ func (l *LocalProxy) start(ctx context.Context) error {
 
 		go func() {
 			if err := l.handleDownstreamConnection(ctx, conn); err != nil {
-				if utils.IsOKNetworkError(err) {
+				if netutils.IsOKNetworkError(err) {
 					return
 				}
 				l.cfg.Log.ErrorContext(ctx, "Failed to handle connection", "error", err)
@@ -293,7 +294,7 @@ func dialALPNMaybePing(ctx context.Context, addr string, cfg client.ALPNDialerCo
 func (l *LocalProxy) Close() error {
 	l.cancel()
 	if l.cfg.Listener != nil {
-		if err := l.cfg.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+		if err := l.cfg.Listener.Close(); err != nil && !netutils.IsUseOfClosedNetworkError(err) {
 			return trace.Wrap(err)
 		}
 	}
@@ -373,7 +374,7 @@ func (l *LocalProxy) startHTTPAccessProxy(ctx context.Context) error {
 
 			// Requests from forward proxy have original hostnames instead of
 			// localhost. Set appropriate header to keep this information.
-			if addr, err := utils.ParseAddr(req.Host); err == nil && !addr.IsLocal() {
+			if addr, err := netutils.ParseAddr(req.Host); err == nil && !addr.IsLocal() {
 				req.Header.Set("X-Forwarded-Host", req.Host)
 			} else { // ensure that there is no client provided X-Forwarded-Host
 				req.Header.Del("X-Forwarded-Host")
@@ -398,7 +399,7 @@ func (l *LocalProxy) startHTTPAccessProxy(ctx context.Context) error {
 
 	// Use the custom server to listen and serve
 	err := server.Serve(l.cfg.Listener)
-	if err != nil && err != http.ErrServerClosed && !utils.IsUseOfClosedNetworkError(err) {
+	if err != nil && err != http.ErrServerClosed && !netutils.IsUseOfClosedNetworkError(err) {
 		return trace.Wrap(err)
 	}
 	return nil

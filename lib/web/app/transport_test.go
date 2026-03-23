@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func Test_transport_rewriteRedirect(t *testing.T) {
@@ -495,7 +496,7 @@ func Test_transport_with_integration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctxWithClientSrcAddr := authz.ContextWithClientSrcAddr(t.Context(), &utils.NetAddr{
+	ctxWithClientSrcAddr := authz.ContextWithClientSrcAddr(t.Context(), &netutils.NetAddr{
 		AddrNetwork: "tcp",
 		Addr:        net.JoinHostPort("127.0.0.1", "55555"),
 	})

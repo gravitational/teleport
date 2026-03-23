@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // transportConfig is configuration for a rewriting transport.
@@ -161,7 +162,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	// log and return a helpful error message to the user and Teleport
 	// administrator.
 	resp, err := t.tr.RoundTrip(r)
-	if message, ok := utils.CanExplainNetworkError(err); ok {
+	if message, ok := netutils.CanExplainNetworkError(err); ok {
 		if t.log.Enabled(r.Context(), slog.LevelDebug) {
 			t.log.DebugContext(r.Context(), "application request failed with a network error",
 				"raw_error", err, "human_error", strings.Join(strings.Fields(message), " "))

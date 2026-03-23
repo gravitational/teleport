@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type APIConfig struct {
@@ -263,7 +264,7 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 	}
 	// if server sent "local" IP address to us, replace the ip/host part with the remote address we see
 	// on the socket, but keep the original port:
-	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), r.RemoteAddr))
+	server.SetAddr(netutils.ReplaceLocalhost(server.GetAddr(), r.RemoteAddr))
 	if req.TTL != 0 {
 		server.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}

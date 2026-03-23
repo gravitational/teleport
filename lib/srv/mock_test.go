@@ -52,9 +52,9 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) *ServerContext {
@@ -68,8 +68,8 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	require.NoError(t, err)
 
 	sshConn := &mockSSHConn{}
-	sshConn.localAddr, _ = utils.ParseAddr("127.0.0.1:3022")
-	sshConn.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
+	sshConn.localAddr, _ = netutils.ParseAddr("127.0.0.1:3022")
+	sshConn.remoteAddr, _ = netutils.ParseAddr("10.0.0.5:4817")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	recConfig := types.DefaultSessionRecordingConfig()

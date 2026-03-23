@@ -27,7 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestMakeAddr(t *testing.T) {
@@ -37,7 +37,7 @@ func TestMakeAddr(t *testing.T) {
 }
 
 func TestDefaultAddresses(t *testing.T) {
-	table := map[string]*utils.NetAddr{
+	table := map[string]*netutils.NetAddr{
 		"tcp://0.0.0.0:3025":   AuthListenAddr(),
 		"tcp://127.0.0.1:3025": AuthConnectAddr(),
 		"tcp://0.0.0.0:3023":   ProxyListenAddr(),

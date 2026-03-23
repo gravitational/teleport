@@ -52,7 +52,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type KeyAgentTestSuite struct {
@@ -841,7 +842,7 @@ func startDebugAgent(t *testing.T) error {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				if !utils.IsUseOfClosedNetworkError(err) {
+				if !netutils.IsUseOfClosedNetworkError(err) {
 					log.WarnContext(context.Background(), "Unexpected response from listener.Accept", "error", err)
 				}
 				return

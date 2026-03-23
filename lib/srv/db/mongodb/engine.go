@@ -30,8 +30,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
-	"github.com/gravitational/teleport/lib/utils"
+
 	log "github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // NewEngine create new MongoDB engine.
@@ -69,7 +70,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 
 // SendError sends an error to the connected client in MongoDB understandable format.
 func (e *Engine) SendError(err error) {
-	if err != nil && !utils.IsOKNetworkError(err) {
+	if err != nil && !netutils.IsOKNetworkError(err) {
 		e.replyError(e.clientConn, nil, err)
 	}
 }

@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -1070,13 +1071,13 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	require.NoError(t, err)
 	authPref.SetOrigin(types.OriginDefaults)
 
-	var proxyPublicAddr utils.NetAddr
+	var proxyPublicAddr netutils.NetAddr
 	process, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithAuthPreference(authPref),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			proxyPublicAddr = cfg.Proxy.WebAddr
 			proxyPublicAddr.Addr = fmt.Sprintf("localhost:%v", proxyPublicAddr.Port(0))
-			cfg.Proxy.PublicAddrs = []utils.NetAddr{proxyPublicAddr}
+			cfg.Proxy.PublicAddrs = []netutils.NetAddr{proxyPublicAddr}
 		}),
 	)
 	require.NoError(t, err)
@@ -1189,7 +1190,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	require.NoError(t, err)
 	s.localAdminClient, err = authclient.Connect(ctx, &authclient.Config{
 		TLS:         localAdminTLS,
-		AuthServers: []utils.NetAddr{*authAddr},
+		AuthServers: []netutils.NetAddr{*authAddr},
 		Log:         logtest.NewLogger(),
 	})
 	require.NoError(t, err)

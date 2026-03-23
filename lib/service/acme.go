@@ -29,11 +29,12 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type hostPolicyCheckerConfig struct {
 	// publicAddrs is a list of pubic addresses to support acme for
-	publicAddrs []utils.NetAddr
+	publicAddrs []netutils.NetAddr
 	// clusterGetter is used to retrieve connected Teleport clusters.
 	clusterGetter reversetunnelclient.ClusterGetter
 	// clusterName is a name of this cluster

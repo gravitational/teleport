@@ -51,8 +51,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestMain(m *testing.M) {
@@ -231,8 +231,8 @@ func TestForwardServer(t *testing.T) {
 				HostCertificate: hostCert,
 				ParentContext:   ctx,
 				LockWatcher:     makeLockWatcher(t),
-				SrcAddr:         utils.MustParseAddr("127.0.0.1:12345"),
-				DstAddr:         utils.MustParseAddr("127.0.0.1:2222"),
+				SrcAddr:         netutils.MustParseAddr("127.0.0.1:12345"),
+				DstAddr:         netutils.MustParseAddr("127.0.0.1:2222"),
 				// Not used in test, yet.
 				KeyManager: new(KeyManager),
 			})
@@ -348,7 +348,7 @@ func newMockGitHostingService(t *testing.T, caSigner ssh.Signer) *mockGitHosting
 	}
 	server, err := sshutils.NewServer(
 		"git.test",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		m,
 		sshutils.StaticHostSigners(hostCert),
 		sshutils.AuthMethods{NoClient: true},

@@ -37,8 +37,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/lib/winpki"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -373,7 +374,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 	}
 
 	s.cfg.Logger.DebugContext(ctx, "resolved desktop host", "hostname", hostname, "addrs", addrs)
-	addr, err := utils.ParseHostPortAddr(addrs[0], cfg.RDPPort)
+	addr, err := netutils.ParseHostPortAddr(addrs[0], cfg.RDPPort)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

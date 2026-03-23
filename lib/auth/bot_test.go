@@ -66,8 +66,8 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 var errMockInvalidToken = errors.New("invalid token")
@@ -157,7 +157,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(srv.Addr().String())},
 	})
 	require.NoError(t, err)
 	checkCertLoginIP(t, result.Certs.TLS, "127.0.0.1")
@@ -298,7 +298,7 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(srv.Addr().String())},
 		KubernetesReadFileFunc: func(name string) ([]byte, error) {
 			return []byte(fakePSAT), nil
 		},
@@ -409,7 +409,7 @@ func TestRegisterBotInstance(t *testing.T) {
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(srv.Addr().String())},
 	})
 	require.NoError(t, err)
 
@@ -555,7 +555,7 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(srv.Addr().String())},
 	})
 	require.NoError(t, err)
 
@@ -631,7 +631,7 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(srv.Addr().String())},
 	})
 	require.NoError(t, err)
 	checkCertLoginIP(t, result.Certs.TLS, "127.0.0.1")
@@ -784,7 +784,7 @@ func defaultIdentityRequestTemplateInput(challenge string) identityRequestTempla
 
 // authClientForRegisterResult is a test helper that creats an auth client for
 // the given [*joinclient.JoinResult].
-func authClientForRegisterResult(t *testing.T, ctx context.Context, addr *utils.NetAddr, result *joinclient.JoinResult) *authclient.Client {
+func authClientForRegisterResult(t *testing.T, ctx context.Context, addr *netutils.NetAddr, result *joinclient.JoinResult) *authclient.Client {
 	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
 	require.NoError(t, err)
 	sshPub, err := ssh.NewPublicKey(result.PrivateKey.Public())
@@ -826,7 +826,7 @@ func authClientForRegisterResult(t *testing.T, ctx context.Context, addr *utils.
 	authClientConfig := &authclient.Config{
 		TLS:         tlsConfig,
 		SSH:         sshConfig,
-		AuthServers: []utils.NetAddr{*addr},
+		AuthServers: []netutils.NetAddr{*addr},
 		Log:         log,
 		Insecure:    true,
 		ProxyDialer: dialer,
@@ -859,7 +859,7 @@ func instanceIDFromCerts(t *testing.T, certs *proto.Certs) (string, uint64) {
 // where possible. Overrides may be applied with `fns`.
 func registerHelper(
 	ctx context.Context, token types.ProvisionToken,
-	addr *utils.NetAddr,
+	addr *netutils.NetAddr,
 	fns ...func(*joinclient.JoinParams),
 ) (*joinclient.JoinResult, error) {
 	params := joinclient.JoinParams{
@@ -868,7 +868,7 @@ func registerHelper(
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthServers: []utils.NetAddr{*addr},
+		AuthServers: []netutils.NetAddr{*addr},
 		KubernetesReadFileFunc: func(name string) ([]byte, error) {
 			return []byte("jwks-matching-service-account"), nil
 		},
@@ -893,7 +893,7 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 
 	srv := newTestTLSServer(t)
 	a := srv.Auth()
-	addr := utils.MustParseAddr(srv.Addr().String())
+	addr := netutils.MustParseAddr(srv.Addr().String())
 
 	// Configure mock join methods
 	k8sTokenName := "jwks-matching-service-account"
@@ -1194,7 +1194,7 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(srv.Addr().String())},
 	})
 	require.NoError(t, err)
 	certsA := resultA.Certs
@@ -1207,7 +1207,7 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(srv.Addr().String())},
 	})
 	require.NoError(t, err)
 	certsB := resultB.Certs

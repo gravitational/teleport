@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestAuth_RegisterUsingToken(t *testing.T) {
@@ -374,7 +374,7 @@ func TestJoin_Bot(t *testing.T) {
 				ID: state.IdentityID{
 					Role: types.RoleBot,
 				},
-				AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+				AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(srv.Addr().String())},
 			})
 			test.assertErr(t, err)
 
@@ -470,7 +470,7 @@ func TestJoin_Bot_Expiry(t *testing.T) {
 				ID: state.IdentityID{
 					Role: types.RoleBot,
 				},
-				AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+				AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(srv.Addr().String())},
 				Expires:     tt.requestExpires,
 			})
 			require.NoError(t, err)

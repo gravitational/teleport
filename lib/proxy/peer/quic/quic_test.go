@@ -44,8 +44,8 @@ import (
 	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
 	"github.com/gravitational/teleport/lib/proxy/peer/internal"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestMain(m *testing.M) {
@@ -282,10 +282,10 @@ func TestBasicFunctionality(t *testing.T) {
 		return client.Dial(
 			uuid.NewString()+".testcluster",
 			"/example/scope",
-			&utils.NetAddr{
+			&netutils.NetAddr{
 				AddrNetwork: "tcp",
 				Addr:        "1.2.3.4:56",
-			}, &utils.NetAddr{
+			}, &netutils.NetAddr{
 				AddrNetwork: "tcp",
 				Addr:        "7.8.9.0:12",
 			},
@@ -341,10 +341,10 @@ func TestBasicFunctionality(t *testing.T) {
 		conn, err := client.Dial(
 			"echo.echo",
 			"/echo",
-			&utils.NetAddr{
+			&netutils.NetAddr{
 				AddrNetwork: "tcp",
 				Addr:        "1.2.3.4:56",
-			}, &utils.NetAddr{
+			}, &netutils.NetAddr{
 				AddrNetwork: "tcp",
 				Addr:        "7.8.9.0:12",
 			},

@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 var (
@@ -68,7 +69,7 @@ func TestServer(t *testing.T) {
 			Name: fmt.Sprintf("upstream nameserver %d", i),
 			Task: func(ctx context.Context) error {
 				err := upstreamServer.ListenAndServeUDP(ctx, conn)
-				if err == nil || utils.IsOKNetworkError(err) {
+				if err == nil || netutils.IsOKNetworkError(err) {
 					return nil
 				}
 				return trace.Wrap(err)
@@ -118,7 +119,7 @@ func TestServer(t *testing.T) {
 		Name: "nameserver under test",
 		Task: func(ctx context.Context) error {
 			err := server.ListenAndServeUDP(ctx, conn)
-			if err == nil || utils.IsOKNetworkError(err) {
+			if err == nil || netutils.IsOKNetworkError(err) {
 				return nil
 			}
 			return trace.Wrap(err)

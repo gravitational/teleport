@@ -28,6 +28,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // withRouterAuth authenticates requests then hands the request to a
@@ -74,7 +75,7 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 		return trace.BadParameter("redirecting to launcher when using client certificate, is not allowed")
 	}
 
-	addr, err := utils.ParseAddr(r.Host)
+	addr, err := netutils.ParseAddr(r.Host)
 	if err != nil {
 		return trace.Wrap(err)
 	}

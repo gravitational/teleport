@@ -42,9 +42,9 @@ import (
 	quicpeeringv1a "github.com/gravitational/teleport/gen/proto/go/teleport/quicpeering/v1alpha"
 	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
 	"github.com/gravitational/teleport/lib/proxy/peer/internal"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // ServerConfig holds the parameters for [NewServer].
@@ -378,11 +378,11 @@ func (s *Server) handleStream(stream *quic.Stream, conn *quic.Conn, log *slog.Lo
 	}
 
 	nodeConn, err := s.dialer.Dial(clusterName, peerdial.DialParams{
-		From: &utils.NetAddr{
+		From: &netutils.NetAddr{
 			Addr:        req.GetSource().GetAddr(),
 			AddrNetwork: req.GetSource().GetNetwork(),
 		},
-		To: &utils.NetAddr{
+		To: &netutils.NetAddr{
 			Addr:        req.GetDestination().GetAddr(),
 			AddrNetwork: req.GetDestination().GetNetwork(),
 		},
@@ -401,7 +401,7 @@ func (s *Server) handleStream(stream *quic.Stream, conn *quic.Conn, log *slog.Lo
 		if _, err := stream.Write([]byte(dialResponseOK)); err != nil {
 			return trace.Wrap(err)
 		}
-		if _, err := ignoreCodeZero2(io.Copy(stream, nodeConn)); err != nil && !utils.IsOKNetworkError(err) {
+		if _, err := ignoreCodeZero2(io.Copy(stream, nodeConn)); err != nil && !netutils.IsOKNetworkError(err) {
 			return trace.Wrap(err)
 		}
 		_ = stream.Close()
@@ -420,7 +420,7 @@ func (s *Server) handleStream(stream *quic.Stream, conn *quic.Conn, log *slog.Lo
 		case <-conn.Context().Done():
 			return trace.Wrap(context.Cause(conn.Context()))
 		}
-		if _, err := ignoreCodeZero2(io.Copy(nodeConn, stream)); err != nil && !utils.IsOKNetworkError(err) {
+		if _, err := ignoreCodeZero2(io.Copy(nodeConn, stream)); err != nil && !netutils.IsOKNetworkError(err) {
 			return trace.Wrap(err)
 		}
 		stream.CancelRead(noStreamErrorCode)

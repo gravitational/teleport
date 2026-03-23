@@ -48,9 +48,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // NewEngine create new Redis engine.
@@ -182,7 +182,7 @@ func (e *Engine) checkDefaultUserRequired() error {
 
 // SendError sends error message to connected client.
 func (e *Engine) SendError(redisErr error) {
-	if redisErr == nil || utils.IsOKNetworkError(redisErr) {
+	if redisErr == nil || netutils.IsOKNetworkError(redisErr) {
 		return
 	}
 
@@ -575,7 +575,7 @@ func (e *Engine) processServerResponse(cmd *redis.Cmd, err error, sessionCtx *co
 		// Do not return Deadline Exceeded to the client as it's not very self-explanatory.
 		// Return "connection timeout" as this is what most likely happened.
 		return nil, trace.ConnectionProblem(err, "connection timeout")
-	case utils.IsConnectionRefused(err):
+	case netutils.IsConnectionRefused(err):
 		// "connection refused" is returned when we fail to connect to the DB or a connection
 		// has been lost. Replace with more meaningful error.
 		return nil, trace.ConnectionProblem(err, "failed to connect to the target database")

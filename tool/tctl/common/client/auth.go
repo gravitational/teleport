@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/gravitational/teleport/tool/common"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -83,8 +83,8 @@ func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 		client, err := authclient.Connect(ctx, clientConfig)
 		if err != nil {
 			slog.WarnContext(ctx, "failed to connect to auth server", "error", err)
-			if utils.IsUntrustedCertErr(err) {
-				err = trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
+			if netutils.IsUntrustedCertErr(err) {
+				err = trace.WrapWithMessage(err, netutils.SelfSignedCertsMsg)
 			}
 			fmt.Fprintf(os.Stderr,
 				"ERROR: Cannot connect to the auth server. Is the auth server running on %q?\n",

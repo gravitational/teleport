@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type fragmentRequest struct {
@@ -63,7 +64,7 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 	q := r.URL.Query()
 
 	requiredApps := strings.Split(q.Get("required-apps"), ",")
-	reqAddr, err := utils.ParseAddr(r.Host)
+	reqAddr, err := netutils.ParseAddr(r.Host)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -237,7 +238,7 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 		requiredAppFQDNs:    strings.Join(requiredApps, ","),
 		requiresAppRedirect: true,
 	}
-	addr, err := utils.ParseAddr(webLauncherURLParams.publicAddr)
+	addr, err := netutils.ParseAddr(webLauncherURLParams.publicAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -255,7 +256,7 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		reqAddr, err := utils.ParseAddr(r.Host)
+		reqAddr, err := netutils.ParseAddr(r.Host)
 		if err != nil {
 			return trace.Wrap(err)
 		}

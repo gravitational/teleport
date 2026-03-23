@@ -54,9 +54,9 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // AccessCacheWithEvents extends the [authclient.AccessCache] interface with [types.Events].
@@ -279,7 +279,7 @@ func (t *TLSServer) Close() error {
 		}
 	}
 
-	if err := t.mux.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+	if err := t.mux.Close(); err != nil && !netutils.IsUseOfClosedNetworkError(err) {
 		errors = append(errors, err)
 	}
 
@@ -307,7 +307,7 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 		}
 	}
 
-	if err := t.mux.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+	if err := t.mux.Close(); err != nil && !netutils.IsUseOfClosedNetworkError(err) {
 		errors = append(errors, err)
 	}
 

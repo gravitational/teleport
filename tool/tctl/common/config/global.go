@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // GlobalCLIFlags keeps the CLI flags that apply to all tctl commands
@@ -111,7 +112,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 
 	// --auth-server flag(-s)
 	if len(ccf.AuthServerAddr) != 0 {
-		authServers, err := utils.ParseAddrs(ccf.AuthServerAddr)
+		authServers, err := netutils.ParseAddrs(ccf.AuthServerAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -147,7 +148,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 	// If auth server is not provided on the command line or in file
 	// configuration, use the default.
 	if len(cfg.AuthServerAddresses()) == 0 {
-		authServers, err := utils.ParseAddrs([]string{defaults.AuthConnectAddr().Addr})
+		authServers, err := netutils.ParseAddrs([]string{defaults.AuthConnectAddr().Addr})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

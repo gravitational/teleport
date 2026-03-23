@@ -55,7 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -163,8 +163,8 @@ func testDatabaseLogin(t *testing.T) {
 			// separate MySQL port with TLS routing.
 			// set the public address to be sure even on v2+, tsh clients will see the separate port.
 			mySQLAddr := localListenerAddr()
-			cfg.Proxy.MySQLAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: mySQLAddr}
-			cfg.Proxy.MySQLPublicAddrs = []utils.NetAddr{{AddrNetwork: "tcp", Addr: mySQLAddr}}
+			cfg.Proxy.MySQLAddr = netutils.NetAddr{AddrNetwork: "tcp", Addr: mySQLAddr}
+			cfg.Proxy.MySQLPublicAddrs = []netutils.NetAddr{{AddrNetwork: "tcp", Addr: mySQLAddr}}
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
 				{
@@ -2252,8 +2252,8 @@ func TestMongoDBSeparatePortCommandError(t *testing.T) {
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			mongoPublicAddr := localListenerAddr()
-			cfg.Proxy.MongoAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: mongoPublicAddr}
-			cfg.Proxy.MongoPublicAddrs = []utils.NetAddr{{AddrNetwork: "tcp", Addr: mongoPublicAddr}}
+			cfg.Proxy.MongoAddr = netutils.NetAddr{AddrNetwork: "tcp", Addr: mongoPublicAddr}
+			cfg.Proxy.MongoPublicAddrs = []netutils.NetAddr{{AddrNetwork: "tcp", Addr: mongoPublicAddr}}
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
 				{

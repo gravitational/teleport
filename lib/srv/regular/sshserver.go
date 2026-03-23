@@ -76,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // Server implements SSH server that uses configuration backend and
@@ -86,7 +87,7 @@ type Server struct {
 	logger *slog.Logger
 
 	namespace string
-	addr      utils.NetAddr
+	addr      netutils.NetAddr
 	hostname  string
 
 	srv         *sshutils.Server
@@ -111,9 +112,9 @@ type Server struct {
 	proxyAccessPoint   authclient.ReadProxyAccessPoint
 	peerAddr           string
 
-	advertiseAddr   *utils.NetAddr
-	proxyPublicAddr utils.NetAddr
-	publicAddrs     []utils.NetAddr
+	advertiseAddr   *netutils.NetAddr
+	proxyPublicAddr netutils.NetAddr
+	publicAddrs     []netutils.NetAddr
 
 	// server UUID gets generated once on the first start and never changes
 	// usually stored in a file inside the data dir
@@ -790,7 +791,7 @@ func SetSELinuxEnabled(enabled bool) ServerOption {
 }
 
 // SetPublicAddrs sets the server's public addresses
-func SetPublicAddrs(addrs []utils.NetAddr) ServerOption {
+func SetPublicAddrs(addrs []netutils.NetAddr) ServerOption {
 	return func(s *Server) error {
 		s.publicAddrs = addrs
 		return nil
@@ -842,13 +843,13 @@ func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 // New returns an unstarted server
 func New(
 	ctx context.Context,
-	addr utils.NetAddr,
+	addr netutils.NetAddr,
 	hostname string,
 	getHostSigners sshutils.GetHostSignersFunc,
 	authService srv.AccessPoint,
 	dataDir string,
 	advertiseAddr string,
-	proxyPublicAddr utils.NetAddr,
+	proxyPublicAddr netutils.NetAddr,
 	auth authclient.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
@@ -870,7 +871,7 @@ func New(
 		return nil, trace.Wrap(err)
 	}
 	if advertiseAddr != "" {
-		s.advertiseAddr, err = utils.ParseAddr(advertiseAddr)
+		s.advertiseAddr, err = netutils.ParseAddr(advertiseAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1105,13 +1106,13 @@ func (s *Server) PermitUserEnvironment() bool {
 	return s.permitUserEnvironment
 }
 
-func (s *Server) setAdvertiseAddr(addr *utils.NetAddr) {
+func (s *Server) setAdvertiseAddr(addr *netutils.NetAddr) {
 	s.Lock()
 	defer s.Unlock()
 	s.advertiseAddr = addr
 }
 
-func (s *Server) getAdvertiseAddr() *utils.NetAddr {
+func (s *Server) getAdvertiseAddr() *netutils.NetAddr {
 	s.Lock()
 	defer s.Unlock()
 	return s.advertiseAddr
@@ -1212,7 +1213,7 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 			ImmutableLabels: s.immutableLabels,
 		},
 	}
-	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
+	srv.SetPublicAddrs(netutils.NetAddrsToStrings(s.publicAddrs))
 	srv.SetComponentFeatures(componentfeatures.ForSSHServer(s))
 
 	return srv
@@ -2401,7 +2402,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				if !utils.IsOKNetworkError(err) {
+				if !netutils.IsOKNetworkError(err) {
 					slog.WarnContext(ctx, "failed to accept connection", "error", err)
 				}
 				return

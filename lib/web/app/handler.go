@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // HandlerConfig is the configuration for an application handler.
@@ -61,7 +62,7 @@ type HandlerConfig struct {
 	// ClusterGetter holds connections to leaf clusters.
 	ClusterGetter reversetunnelclient.ClusterGetter
 	// ProxyPublicAddrs contains web proxy public addresses.
-	ProxyPublicAddrs []utils.NetAddr
+	ProxyPublicAddrs []netutils.NetAddr
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
 	CipherSuites []uint16
@@ -540,8 +541,8 @@ func HasClientCert(r *http.Request) bool {
 // HasName checks if the client is attempting to connect to a
 // host that is different than the public address of the proxy. If it is, it
 // redirects back to the application launcher in the Web UI.
-func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
-	raddr, err := utils.ParseAddr(r.Host)
+func HasName(r *http.Request, proxyPublicAddrs []netutils.NetAddr) (string, bool) {
+	raddr, err := netutils.ParseAddr(r.Host)
 	if err != nil {
 		return "", false
 	}
@@ -551,7 +552,7 @@ func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 		//  * The request is for localhost or loopback.
 		//  * The request is for an IP address.
 		//  * The request is for the public address of the proxy.
-		if utils.IsLocalhost(raddr.Host()) {
+		if netutils.IsLocalhost(raddr.Host()) {
 			return "", false
 		}
 		if net.ParseIP(raddr.Host()) != nil {

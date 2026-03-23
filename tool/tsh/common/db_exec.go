@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -505,7 +506,7 @@ func newDatabaseExecCommandMaker(ctx context.Context, tc *client.TeleportClient,
 }
 
 func (m *databaseExecCommandMaker) makeCommand(ctx context.Context, dbInfo *databaseInfo, lpAddr, command string) (*exec.Cmd, error) {
-	addr, err := utils.ParseAddr(lpAddr)
+	addr, err := netutils.ParseAddr(lpAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -29,7 +29,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestIngressReporter(t *testing.T) {
@@ -86,7 +87,7 @@ type wrappedConn struct {
 }
 
 func newConn(t *testing.T, addr string) net.Conn {
-	netaddr, err := utils.ParseAddr(addr)
+	netaddr, err := netutils.ParseAddr(addr)
 	require.NoError(t, err)
 
 	return &wrappedConn{

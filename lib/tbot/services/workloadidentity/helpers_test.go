@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -197,10 +198,10 @@ func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 		testenv.WithClusterName("root")(o)
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Logger = log
-			cfg.Proxy.PublicAddrs = []utils.NetAddr{
+			cfg.Proxy.PublicAddrs = []netutils.NetAddr{
 				{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
 			}
-			cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+			cfg.Proxy.TunnelPublicAddrs = []netutils.NetAddr{
 				cfg.Proxy.ReverseTunnelListenAddr,
 			}
 		})(o)

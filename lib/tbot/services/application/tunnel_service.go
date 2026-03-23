@@ -38,7 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TunnelServiceBuilder(
@@ -102,7 +103,7 @@ func (s *TunnelService) Run(ctx context.Context) error {
 			return trace.Wrap(err, "opening listener")
 		}
 		defer func() {
-			if err := l.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			if err := l.Close(); err != nil && !netutils.IsUseOfClosedNetworkError(err) {
 				s.log.ErrorContext(ctx, "Failed to close listener", "error", err)
 			}
 		}()

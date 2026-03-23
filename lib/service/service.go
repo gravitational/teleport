@@ -196,6 +196,7 @@ import (
 	webapp "github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -1351,11 +1352,11 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		// port appears undefined, attempt early listener creation so that we can get the real port
 		listener, err := process.importOrCreateListener(ListenerAuth, process.Config.Auth.ListenAddr.Addr)
 		if err == nil {
-			process.Config.SetAuthServerAddress(utils.FromAddr(listener.Addr()))
+			process.Config.SetAuthServerAddress(netutils.FromAddr(listener.Addr()))
 		}
 	}
 
-	var resolverAddr utils.NetAddr
+	var resolverAddr netutils.NetAddr
 	if cfg.Version == defaults.TeleportConfigVersionV3 && !cfg.ProxyServer.IsEmpty() {
 		resolverAddr = cfg.ProxyServer
 	} else {
@@ -2819,7 +2820,7 @@ func (process *TeleportProcess) initAuthService() error {
 		// advertise-ip is not set, while the CA is listening on 0.0.0.0? lets try
 		// to guess the 'advertise ip' then:
 		if net.ParseIP(host).IsUnspecified() {
-			ip, err := utils.GuessHostIP()
+			ip, err := netutils.GuessHostIP()
 			if err != nil {
 				logger.WarnContext(process.ExitContext(), "failed guessing the host ip address", "error", err)
 			} else {
@@ -3341,9 +3342,9 @@ func (process *TeleportProcess) GetRotation(role types.SystemRole) (*types.Rotat
 	return rotation, nil
 }
 
-func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
+func (process *TeleportProcess) proxyPublicAddr() netutils.NetAddr {
 	if len(process.Config.Proxy.PublicAddrs) == 0 {
-		return utils.NetAddr{}
+		return netutils.NetAddr{}
 	}
 	return process.Config.Proxy.PublicAddrs[0]
 }
@@ -3666,7 +3667,7 @@ func (process *TeleportProcess) initSSH() error {
 			}
 
 			go func() {
-				if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+				if err := mux.Serve(); err != nil && !netutils.IsOKNetworkError(err) {
 					process.logger.ErrorContext(process.ExitContext(), "node ssh multiplexer terminated unexpectedly", "error", err, "mux_id", mux.ID)
 				}
 			}()
@@ -4150,7 +4151,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	process.RegisterFunc("diagnostic.service", func() error {
 		listenerHTTP := muxListener.HTTP()
 		go func() {
-			if err := muxListener.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+			if err := muxListener.Serve(); err != nil && !netutils.IsOKNetworkError(err) {
 				process.logger.ErrorContext(process.ExitContext(), "Mux encountered error serving", "error", err, "mux_id", muxListener.ID)
 			}
 		}()
@@ -4310,7 +4311,7 @@ func (process *TeleportProcess) initTracingService() error {
 func (process *TeleportProcess) instanceAdditionalPrincipals() (principals []string, dnsNames []string) {
 	if process.Config.Hostname != "" {
 		principals = append(principals, process.Config.Hostname)
-		if lh := utils.ToLowerCaseASCII(process.Config.Hostname); lh != process.Config.Hostname {
+		if lh := netutils.ToLowerCaseASCII(process.Config.Hostname); lh != process.Config.Hostname {
 			// openssh expects all hostnames to be lowercase
 			principals = append(principals, lh)
 		}
@@ -4325,7 +4326,7 @@ func (process *TeleportProcess) instanceAdditionalPrincipals() (principals []str
 func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, hostUUID string) (principals []string, dnsNames []string, err error) {
 	if process.Config.Hostname != "" {
 		principals = append(principals, process.Config.Hostname)
-		if lh := utils.ToLowerCaseASCII(process.Config.Hostname); lh != process.Config.Hostname {
+		if lh := netutils.ToLowerCaseASCII(process.Config.Hostname); lh != process.Config.Hostname {
 			// openssh expects all hostnames to be lowercase
 			principals = append(principals, lh)
 		}
@@ -4333,7 +4334,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 	// Add default DNSNames to the dnsNames list.
 	dnsNames = append(dnsNames, auth.DefaultDNSNamesForRole(role)...)
 
-	var addrs []utils.NetAddr
+	var addrs []netutils.NetAddr
 	switch role {
 	case types.RoleProxy:
 		addrs = append(process.Config.Proxy.PublicAddrs,
@@ -4342,10 +4343,10 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 			process.Config.Proxy.ReverseTunnelListenAddr,
 			process.Config.Proxy.MySQLAddr,
 			process.Config.Proxy.PeerAddress,
-			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
-			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
-			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
-			utils.NetAddr{Addr: reversetunnelclient.LocalKubernetes},
+			netutils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
+			netutils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
+			netutils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
+			netutils.NetAddr{Addr: reversetunnelclient.LocalKubernetes},
 		)
 		addrs = append(addrs, process.Config.Proxy.SSHPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.TunnelPublicAddrs...)
@@ -4355,7 +4356,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 		addrs = append(addrs, process.Config.Proxy.PeerPublicAddr)
 		// Automatically add wildcards for every proxy public address for k8s SNI routing
 		if process.Config.Proxy.Kube.Enabled {
-			for _, publicAddr := range utils.JoinAddrSlices(process.Config.Proxy.PublicAddrs, process.Config.Proxy.Kube.PublicAddrs) {
+			for _, publicAddr := range netutils.JoinAddrSlices(process.Config.Proxy.PublicAddrs, process.Config.Proxy.Kube.PublicAddrs) {
 				host, err := utils.Host(publicAddr.Addr)
 				if err != nil {
 					return nil, nil, trace.Wrap(err)
@@ -4379,7 +4380,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 		// add in the default (0.0.0.0) which will be replaced by the Auth Server
 		// when a host certificate is issued.
 		if process.Config.AdvertiseIP != "" {
-			advertiseIP, err := utils.ParseAddr(process.Config.AdvertiseIP)
+			advertiseIP, err := netutils.ParseAddr(process.Config.AdvertiseIP)
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
@@ -4389,10 +4390,10 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 		}
 	case types.RoleKube:
 		addrs = append(addrs,
-			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
-			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
-			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
-			utils.NetAddr{Addr: reversetunnelclient.LocalKubernetes},
+			netutils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
+			netutils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
+			netutils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
+			netutils.NetAddr{Addr: reversetunnelclient.LocalKubernetes},
 		)
 		addrs = append(addrs, process.Config.Kube.PublicAddrs...)
 		if process.Config.RelayServer != "" {
@@ -4402,18 +4403,18 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 		principals = append(principals, hostUUID)
 	case types.RoleWindowsDesktop:
 		addrs = append(addrs,
-			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
-			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
-			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
-			utils.NetAddr{Addr: reversetunnelclient.LocalWindowsDesktop},
-			utils.NetAddr{Addr: desktop.WildcardServiceDNS},
+			netutils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
+			netutils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
+			netutils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
+			netutils.NetAddr{Addr: reversetunnelclient.LocalWindowsDesktop},
+			netutils.NetAddr{Addr: desktop.WildcardServiceDNS},
 		)
 		addrs = append(addrs, process.Config.WindowsDesktop.PublicAddrs...)
 	}
 
 	if process.Config.OpenSSH.Enabled {
 		for _, a := range process.Config.OpenSSH.AdditionalPrincipals {
-			addr, err := utils.ParseAddr(a)
+			addr, err := netutils.ParseAddr(a)
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
@@ -4621,7 +4622,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		listeners.ssh = mux.SSH()
 		listeners.sshGRPC = mux.TLS()
 		go func() {
-			if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+			if err := mux.Serve(); err != nil && !netutils.IsOKNetworkError(err) {
 				process.logger.ErrorContext(process.ExitContext(), "Mux encountered error serving", "error", err, "mux_id", mux.ID)
 			}
 		}()
@@ -4717,7 +4718,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			listeners.reverseTunnel = listeners.mux.SSH()
 		}
 		go func() {
-			if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+			if err := listeners.mux.Serve(); err != nil && !netutils.IsOKNetworkError(err) {
 				process.logger.ErrorContext(process.ExitContext(), "Mux encountered error serving", "error", err, "mux_id", listeners.mux.ID)
 			}
 		}()
@@ -4749,7 +4750,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			}
 		}
 		go func() {
-			if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+			if err := listeners.mux.Serve(); err != nil && !netutils.IsOKNetworkError(err) {
 				process.logger.ErrorContext(process.ExitContext(), "Mux encountered error serving", "error", err, "mux_id", listeners.mux.ID)
 			}
 		}()
@@ -4796,7 +4797,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 				listeners.web = listeners.mux.TLS()
 				process.muxPostgresOnWebPort(cfg, &listeners)
 				go func() {
-					if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+					if err := listeners.mux.Serve(); err != nil && !netutils.IsOKNetworkError(err) {
 						process.logger.ErrorContext(process.ExitContext(), "Mux encountered error serving", "error", err, "mux_id", listeners.mux.ID)
 					}
 				}()
@@ -5264,7 +5265,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				DatabaseServerWatcher:   databaseServerWatcher,
 				CertAuthorityWatcher:    caWatcher,
 				CircuitBreakerConfig:    process.Config.CircuitBreakerConfig,
-				LocalAuthAddresses:      utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
+				LocalAuthAddresses:      netutils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
 				IngressReporter:         ingressReporter,
 				PROXYSigner:             proxySigner,
 				EICEDialer:              awsoidc.DialInstance,
@@ -5364,9 +5365,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			traceClt = clt
 		}
 
-		var accessGraphAddr utils.NetAddr
+		var accessGraphAddr netutils.NetAddr
 		if cfg.AccessGraph.Enabled {
-			addr, err := utils.ParseAddr(cfg.AccessGraph.Addr)
+			addr, err := netutils.ParseAddr(cfg.AccessGraph.Addr)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -5473,7 +5474,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AuthServers:               cfg.AuthServerAddresses()[0],
 			ProxyClient:               conn.Client,
 			ProxySSHAddr:              proxySSHAddr,
-			ProxyWebAddr:              utils.FromAddr(listeners.web.Addr()),
+			ProxyWebAddr:              netutils.FromAddr(listeners.web.Addr()),
 			ProxyPublicAddrs:          cfg.Proxy.PublicAddrs,
 			ProxyGroupID:              cfg.Proxy.ProxyGroupID,
 			CipherSuites:              cfg.CipherSuites,
@@ -5828,7 +5829,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				logger.ErrorContext(process.ExitContext(), "Failed to set up SSH proxy server", "error", err)
 				return
 			}
-			if err := sshProxy.Serve(listener); err != nil && !utils.IsOKNetworkError(err) {
+			if err := sshProxy.Serve(listener); err != nil && !netutils.IsOKNetworkError(err) {
 				logger.ErrorContext(process.ExitContext(), "SSH proxy server terminated unexpectedly", "error", err)
 			}
 		}()
@@ -5840,7 +5841,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				logger.ErrorContext(process.ExitContext(), "Failed to set up SSH proxy server", "error", err)
 				return
 			}
-			if err := sshGRPCServer.Serve(listener); err != nil && !utils.IsOKNetworkError(err) && !errors.Is(err, grpc.ErrServerStopped) {
+			if err := sshGRPCServer.Serve(listener); err != nil && !netutils.IsOKNetworkError(err) && !errors.Is(err, grpc.ErrServerStopped) {
 				logger.ErrorContext(process.ExitContext(), "SSH gRPC server terminated unexpectedly", "error", err)
 			}
 		}()
@@ -5860,11 +5861,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		AccessPoint:         accessPoint,
 		AuthMethods:         conn.ClientAuthMethods(),
 		LocalCluster:        clusterName,
-		KubeDialAddr:        utils.DialAddrFromListenAddr(kubeDialAddr(cfg.Proxy, clusterNetworkConfig.GetProxyListenerMode())),
+		KubeDialAddr:        netutils.DialAddrFromListenAddr(kubeDialAddr(cfg.Proxy, clusterNetworkConfig.GetProxyListenerMode())),
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
 		Logger:              rcWatchLog,
-		LocalAuthAddresses:  utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
+		LocalAuthAddresses:  netutils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
 		PROXYSigner:         proxySigner,
 	})
 	if err != nil {
@@ -6150,7 +6151,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		authDialerService := alpnproxyauth.NewAuthProxyDialerService(
 			tsrv,
 			clusterName,
-			utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
+			netutils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
 			proxySigner,
 			process.TracingProvider.Tracer(teleport.ComponentProxy))
 
@@ -6306,7 +6307,7 @@ func (process *TeleportProcess) readOrInitPeerStatelessResetKey() (*quic.Statele
 // by remote trusted cluster.
 // If the proxy is running with Multiplex mode the WebPort is returned
 // where connections are forwarded to kube service by ALPN SNI router.
-func kubeDialAddr(config servicecfg.ProxyConfig, mode types.ProxyListenerMode) utils.NetAddr {
+func kubeDialAddr(config servicecfg.ProxyConfig, mode types.ProxyListenerMode) netutils.NetAddr {
 	if mode == types.ProxyListenerMode_Multiplex {
 		return config.WebAddr
 	}
@@ -6933,7 +6934,7 @@ func warnOnErr(ctx context.Context, err error, log *slog.Logger) {
 	if err != nil {
 		// don't warn on double close, happens sometimes when
 		// calling accept on a closed listener
-		if utils.IsOKNetworkError(err) {
+		if netutils.IsOKNetworkError(err) {
 			return
 		}
 		log.WarnContext(ctx, "Got error while cleaning up.", "error", err)
@@ -7164,7 +7165,7 @@ func (process *TeleportProcess) initDebugApp() {
 // SingleProcessModeResolver returns the reversetunnel.Resolver that should be used when running all components needed
 // within the same process. It's used for development and demo purposes.
 func (process *TeleportProcess) SingleProcessModeResolver(mode types.ProxyListenerMode) reversetunnelclient.Resolver {
-	return func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
+	return func(context.Context) (*netutils.NetAddr, types.ProxyListenerMode, error) {
 		addr, ok := process.singleProcessMode(mode)
 		if !ok {
 			return nil, mode, trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
@@ -7175,7 +7176,7 @@ func (process *TeleportProcess) SingleProcessModeResolver(mode types.ProxyListen
 
 // singleProcessMode returns true when running all components needed within
 // the same process. It's used for development and demo purposes.
-func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) (*utils.NetAddr, bool) {
+func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) (*netutils.NetAddr, bool) {
 	if !process.Config.Proxy.Enabled || !process.Config.Auth.Enabled {
 		return nil, false
 	}
@@ -7184,7 +7185,7 @@ func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) 
 	}
 
 	if !process.Config.Proxy.DisableTLS && !process.Config.Proxy.DisableALPNSNIListener && mode == types.ProxyListenerMode_Multiplex {
-		var addr utils.NetAddr
+		var addr netutils.NetAddr
 		switch {
 		// Use the public address if available.
 		case len(process.Config.Proxy.PublicAddrs) != 0:
@@ -7196,7 +7197,7 @@ func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) 
 		// the valid principal list.
 		default:
 			addr = process.Config.Proxy.WebAddr
-			addr.Addr = utils.ReplaceUnspecifiedHost(&addr, defaults.HTTPListenPort)
+			addr.Addr = netutils.ReplaceUnspecifiedHost(&addr, defaults.HTTPListenPort)
 		}
 
 		// In case the address has "https" scheme for TLS Routing, make sure
@@ -7208,7 +7209,7 @@ func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) 
 	}
 
 	if len(process.Config.Proxy.TunnelPublicAddrs) == 0 {
-		addr, err := utils.ParseHostPortAddr(string(teleport.PrincipalLocalhost), defaults.SSHProxyTunnelListenPort)
+		addr, err := netutils.ParseHostPortAddr(string(teleport.PrincipalLocalhost), defaults.SSHProxyTunnelListenPort)
 		if err != nil {
 			return nil, false
 		}
@@ -7413,7 +7414,7 @@ type initSecureGRPCServerCfg struct {
 	conn            *Connector
 	limiter         *limiter.Limiter
 	listener        net.Listener
-	kubeProxyAddr   utils.NetAddr
+	kubeProxyAddr   netutils.NetAddr
 	accessPoint     authclient.ProxyAccessPoint
 	lockWatcher     *services.LockWatcher
 	emitter         apievents.Emitter

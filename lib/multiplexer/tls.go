@@ -33,9 +33,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // TLSListenerConfig specifies listener configuration
@@ -125,7 +126,7 @@ func (l *TLSListener) Serve() error {
 			go l.detectAndForward(tlsConn)
 			continue
 		}
-		if utils.IsUseOfClosedNetworkError(err) {
+		if netutils.IsUseOfClosedNetworkError(err) {
 			<-l.context.Done()
 			return nil
 		}

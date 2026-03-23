@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // Default port numbers used by all teleport tools
@@ -638,54 +638,54 @@ func ConfigureLimiter(lc *limiter.Config) {
 }
 
 // AuthListenAddr returns the default listening address for the Auth service
-func AuthListenAddr() *utils.NetAddr {
+func AuthListenAddr() *netutils.NetAddr {
 	return makeAddr(BindIP, AuthListenPort)
 }
 
 // AuthConnectAddr returns the default address to search for auth. service on
-func AuthConnectAddr() *utils.NetAddr {
+func AuthConnectAddr() *netutils.NetAddr {
 	return makeAddr("127.0.0.1", AuthListenPort)
 }
 
 // ProxyListenAddr returns the default listening address for the SSH Proxy service
-func ProxyListenAddr() *utils.NetAddr {
+func ProxyListenAddr() *netutils.NetAddr {
 	return makeAddr(BindIP, SSHProxyListenPort)
 }
 
 // KubeProxyListenAddr returns the default listening address for the Kubernetes Proxy service
-func KubeProxyListenAddr() *utils.NetAddr {
+func KubeProxyListenAddr() *netutils.NetAddr {
 	return makeAddr(BindIP, KubeListenPort)
 }
 
 // ProxyWebListenAddr returns the default listening address for the Web-based SSH Proxy service
-func ProxyWebListenAddr() *utils.NetAddr {
+func ProxyWebListenAddr() *netutils.NetAddr {
 	return makeAddr(BindIP, HTTPListenPort)
 }
 
 // SSHServerListenAddr returns the default listening address for the Web-based SSH Proxy service
-func SSHServerListenAddr() *utils.NetAddr {
+func SSHServerListenAddr() *netutils.NetAddr {
 	return makeAddr(BindIP, SSHServerListenPort)
 }
 
 // ReverseTunnelListenAddr returns the default listening address for the SSH Proxy service used
 // by the SSH nodes to establish proxy<->ssh_node connection from behind a firewall which
 // blocks inbound connecions to ssh_nodes
-func ReverseTunnelListenAddr() *utils.NetAddr {
+func ReverseTunnelListenAddr() *netutils.NetAddr {
 	return makeAddr(BindIP, SSHProxyTunnelListenPort)
 }
 
 // MetricsServiceListenAddr returns the default listening address for the metrics service
-func MetricsServiceListenAddr() *utils.NetAddr {
+func MetricsServiceListenAddr() *netutils.NetAddr {
 	return makeAddr(BindIP, MetricsListenPort)
 }
 
-func ProxyPeeringListenAddr() *utils.NetAddr {
+func ProxyPeeringListenAddr() *netutils.NetAddr {
 	return makeAddr(BindIP, ProxyPeeringListenPort)
 }
 
-func makeAddr(host string, port int16) *utils.NetAddr {
+func makeAddr(host string, port int16) *netutils.NetAddr {
 	addrSpec := fmt.Sprintf("tcp://%s:%d", host, port)
-	retval, err := utils.ParseAddr(addrSpec)
+	retval, err := netutils.ParseAddr(addrSpec)
 	if err != nil {
 		panic(fmt.Sprintf("%s: error parsing '%v'", initError, addrSpec))
 	}

@@ -66,9 +66,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type Suite struct {
@@ -198,7 +198,7 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 		tconf.Logger = logtest.NewLogger()
 		tconf.Hostname = tunnelNodeHostname
 		tconf.SetToken("token")
-		tconf.SetAuthServerAddress(utils.NetAddr{
+		tconf.SetAuthServerAddress(netutils.NetAddr{
 			AddrNetwork: "tcp",
 			Addr:        p.leaf.Web,
 		})
@@ -576,7 +576,7 @@ func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
 	nodeConfig.Version = defaults.TeleportConfigVersionV3
 	nodeConfig.Hostname = nodeName
 	nodeConfig.SetToken("token")
-	nodeConfig.ProxyServer = *utils.MustParseAddr(proxyAddr)
+	nodeConfig.ProxyServer = *netutils.MustParseAddr(proxyAddr)
 	nodeConfig.Auth.Enabled = false
 	nodeConfig.Proxy.Enabled = false
 	nodeConfig.SSH.Enabled = true
@@ -643,7 +643,7 @@ func mustCreateIAMJoinProvisionToken(t *testing.T, name, awsAccountID, allowedAR
 	return provisionToken
 }
 
-func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token string, credentials aws.CredentialsProvider) {
+func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr netutils.NetAddr, token string, credentials aws.CredentialsProvider) {
 	t.Helper()
 
 	cred, err := credentials.Retrieve(context.Background())

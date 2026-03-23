@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // Config describes teleterm configuration
@@ -39,7 +39,7 @@ type Config struct {
 	InsecureSkipVerify bool
 	// ListeningC propagates the address on which the gRPC server listens. Mostly useful in tests, as
 	// the Electron app gets the server port from stdout.
-	ListeningC chan<- utils.NetAddr
+	ListeningC chan<- netutils.NetAddr
 	// KubeconfigsDir is the directory containing kubeconfigs for Kubernetes
 	// Acesss.
 	KubeconfigsDir string
@@ -70,7 +70,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing network address")
 	}
 
-	addr, err := utils.ParseAddr(c.Addr)
+	addr, err := netutils.ParseAddr(c.Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}

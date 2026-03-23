@@ -25,7 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // KubeConfig specifies configuration for Teleport's Kubernetes service
@@ -35,11 +35,11 @@ type KubeConfig struct {
 
 	// ListenAddr is the address to listen on for incoming kubernetes requests.
 	// Optional.
-	ListenAddr *utils.NetAddr
+	ListenAddr *netutils.NetAddr
 
 	// PublicAddrs is a list of the public addresses the Teleport kubernetes
 	// service can be reached by the proxy service.
-	PublicAddrs []utils.NetAddr
+	PublicAddrs []netutils.NetAddr
 
 	// KubeClusterName is the name of a kubernetes cluster this proxy is running
 	// in. If empty, defaults to the Teleport cluster name.

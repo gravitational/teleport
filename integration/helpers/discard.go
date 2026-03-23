@@ -26,7 +26,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // DiscardServer is a SSH server that discards SSH exec requests and starts
@@ -41,7 +41,7 @@ func NewDiscardServer(hostSigner ssh.Signer, listener net.Listener) (*DiscardSer
 	// create underlying ssh server
 	sshServer, err := sshutils.NewServer(
 		"integration-discard-server",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: listener.Addr().String()},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: listener.Addr().String()},
 		ds,
 		sshutils.StaticHostSigners(hostSigner),
 		sshutils.AuthMethods{

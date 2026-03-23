@@ -160,6 +160,7 @@ import (
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -8505,7 +8506,7 @@ func (a *Server) getProxyPublicAddr(ctx context.Context) string {
 			if addr == "" {
 				continue
 			}
-			if _, err := utils.ParseAddr(addr); err != nil {
+			if _, err := netutils.ParseAddr(addr); err != nil {
 				a.logger.WarnContext(a.closeCtx, "Invalid public address found in proxy",
 					"proxy", p.GetName(),
 					"public_addr", addr,

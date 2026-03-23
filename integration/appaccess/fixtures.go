@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type AppTestOptions struct {
@@ -447,7 +448,7 @@ func newTCPServer(t *testing.T, handleConn func(net.Conn)) net.Listener {
 			if err == nil {
 				go handleConn(conn)
 			}
-			if err != nil && !utils.IsOKNetworkError(err) {
+			if err != nil && !netutils.IsOKNetworkError(err) {
 				t.Error(err)
 				return
 			}

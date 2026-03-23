@@ -42,8 +42,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
-	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func (process *TeleportProcess) initWindowsDesktopService() {
@@ -280,7 +281,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		}
 
 		go func() {
-			if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+			if err := mux.Serve(); err != nil && !netutils.IsOKNetworkError(err) {
 				process.logger.ErrorContext(process.ExitContext(), "mux encountered error serving", "mux_id", mux.ID, "error", err)
 			}
 		}()

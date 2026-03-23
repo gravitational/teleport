@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 var (
@@ -282,7 +283,7 @@ func (m *Mux) Serve() error {
 				continue
 			}
 		}
-		if utils.IsUseOfClosedNetworkError(err) {
+		if netutils.IsUseOfClosedNetworkError(err) {
 			<-m.context.Done()
 			return nil
 		}
@@ -335,7 +336,7 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		var err error
 		postDetect, err = m.PreDetect(conn)
 		if err != nil {
-			if !utils.IsOKNetworkError(err) {
+			if !netutils.IsOKNetworkError(err) {
 				logger.LogAttrs(m.context, slog.LevelWarn, "Failed to send early data",
 					slog.Any("error", err),
 				)
@@ -403,7 +404,7 @@ func getTCPAddr(a net.Addr) net.TCPAddr {
 		return *addr
 	}
 
-	parsedAddr := utils.FromAddr(a)
+	parsedAddr := netutils.FromAddr(a)
 	return net.TCPAddr{
 		IP:   net.ParseIP(parsedAddr.Host()),
 		Port: parsedAddr.Port(-1),

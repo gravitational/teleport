@@ -64,6 +64,7 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -1033,7 +1034,7 @@ func setupTLSConfigServerName(tlsConfig *tls.Config, database types.Database) er
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		addr, err := utils.ParseAddr(u.Host)
+		addr, err := netutils.ParseAddr(u.Host)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1042,7 +1043,7 @@ func setupTLSConfigServerName(tlsConfig *tls.Config, database types.Database) er
 	default:
 		// For other databases we're always connecting to the server specified
 		// in URI so set ServerName ourselves.
-		addr, err := utils.ParseAddr(database.GetURI())
+		addr, err := netutils.ParseAddr(database.GetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // FileConfig structure represents the teleport configuration stored in a config file
@@ -387,7 +388,7 @@ func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled b
 		}
 		if flags.PublicAddr != "" {
 			// default to 443 if port is not specified
-			publicAddr, err := utils.ParseHostPortAddr(flags.PublicAddr, teleport.StandardHTTPSPort)
+			publicAddr, err := netutils.ParseHostPortAddr(flags.PublicAddr, teleport.StandardHTTPSPort)
 			if err != nil {
 				return Proxy{}, trace.Wrap(err)
 			}
@@ -2739,7 +2740,7 @@ type ReverseTunnel struct {
 // ConvertAndValidate returns validated services.ReverseTunnel or nil and error otherwize
 func (t *ReverseTunnel) ConvertAndValidate() (types.ReverseTunnel, error) {
 	for i := range t.Addresses {
-		addr, err := utils.ParseHostPortAddr(t.Addresses[i], defaults.SSHProxyTunnelListenPort)
+		addr, err := netutils.ParseHostPortAddr(t.Addresses[i], defaults.SSHProxyTunnelListenPort)
 		if err != nil {
 			return nil, trace.Wrap(err, "Invalid address for tunnel %v", t.DomainName)
 		}

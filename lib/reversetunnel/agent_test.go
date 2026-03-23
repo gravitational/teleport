@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type mockSSHClient struct {
@@ -152,7 +152,7 @@ type mockAgentInjection struct {
 func (m *mockAgentInjection) handleTransport(context.Context, ssh.Channel, <-chan *ssh.Request, apisshutils.Conn) {
 }
 
-func (m *mockAgentInjection) DialContext(context.Context, utils.NetAddr) (SSHClient, error) {
+func (m *mockAgentInjection) DialContext(context.Context, netutils.NetAddr) (SSHClient, error) {
 	return m.client, nil
 }
 
@@ -170,7 +170,7 @@ func testAgent(t *testing.T, config agentConfig) (*agent, *mockSSHClient) {
 		require.NoError(t, err)
 	}
 
-	config.addr = utils.NetAddr{Addr: "test-proxy-addr"}
+	config.addr = netutils.NetAddr{Addr: "test-proxy-addr"}
 
 	config.lease = config.tracker.TryAcquire()
 	require.NotNil(t, config.lease)
@@ -500,7 +500,7 @@ func setupMockServerAndAgent(t *testing.T, tt *testAgentTimeoutCase) (*mockHeart
 
 	sshServer, err := sshutils.NewServer(
 		"test",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		mock,
 		sshutils.StaticHostSigners(cert),
 		sshutils.AuthMethods{NoClient: true},
@@ -518,8 +518,8 @@ func setupMockServerAndAgent(t *testing.T, tt *testAgentTimeoutCase) (*mockHeart
 	signer, err := ssh.NewSignerFromKey(priv)
 	require.NoError(t, err)
 
-	resolver := func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
-		return utils.MustParseAddr(sshServer.Addr()), types.ProxyListenerMode_Multiplex, nil
+	resolver := func(context.Context) (*netutils.NetAddr, types.ProxyListenerMode, error) {
+		return netutils.MustParseAddr(sshServer.Addr()), types.ProxyListenerMode_Multiplex, nil
 	}
 
 	pool, err := NewAgentPool(ctx, AgentPoolConfig{

@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 var (
@@ -298,7 +299,7 @@ func (r *Router) DialHost(ctx context.Context, scopePin *scopesv1.Pin, clientSrc
 
 	conn, err := cluster.Dial(reversetunnelclient.DialParams{
 		From:                  clientSrcAddr,
-		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
+		To:                    &netutils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
 		OriginalClientDstAddr: clientDstAddr,
 		GetUserAgent:          agentGetter,
 		AgentlessSigner:       sshSigner,

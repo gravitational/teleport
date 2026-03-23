@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // ConnectionConfig contains configuration needed to connect to Windows desktop service.
@@ -105,7 +106,7 @@ func tryConnect(ctx context.Context, desktopServiceID string, config *Connection
 
 	conn, err = config.Cluster.DialTCP(reversetunnelclient.DialParams{
 		From:                  config.ClientSrcAddr,
-		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
+		To:                    &netutils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
 		ConnType:              types.WindowsDesktopTunnel,
 		ServerID:              service.GetName() + "." + config.ClusterName,
 		ProxyIDs:              service.GetProxyIDs(),

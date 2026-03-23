@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/internal/identity")
@@ -752,13 +753,13 @@ func botIdentityFromToken(
 
 	switch cfg.Connection.AddressKind {
 	case connection.AddressKindAuth:
-		parsed, err := utils.ParseAddr(cfg.Connection.Address)
+		parsed, err := netutils.ParseAddr(cfg.Connection.Address)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse addr")
 		}
-		params.AuthServers = []utils.NetAddr{*parsed}
+		params.AuthServers = []netutils.NetAddr{*parsed}
 	case connection.AddressKindProxy:
-		parsed, err := utils.ParseAddr(cfg.Connection.Address)
+		parsed, err := netutils.ParseAddr(cfg.Connection.Address)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse addr")
 		}

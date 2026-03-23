@@ -37,8 +37,8 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // DatabaseServerWatcher defines an interface for watching database servers in a cluster.
@@ -320,7 +320,7 @@ func Connect(ctx context.Context, params ConnectParams) (net.Conn, ConnectStats,
 		stats.dialAttempts++
 		serviceConn, err := params.Dialer.Dial(reversetunnelclient.DialParams{
 			From:                  params.ClientSrcAddr,
-			To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
+			To:                    &netutils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
 			OriginalClientDstAddr: params.ClientDstAddr,
 			ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), params.ClusterName),
 			ConnType:              types.DatabaseTunnel,

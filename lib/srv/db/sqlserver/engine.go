@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/kerberos"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // NewEngine create new SQL Server engine.
@@ -63,7 +63,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) er
 
 // SendError sends an error to SQL Server client.
 func (e *Engine) SendError(err error) {
-	if err != nil && !utils.IsOKNetworkError(err) {
+	if err != nil && !netutils.IsOKNetworkError(err) {
 		if errSend := protocol.WriteErrorResponse(e.clientConn, err); errSend != nil {
 			e.Log.WarnContext(e.Context, "Failed to send error to client.", "engine_error", err, "send_error", errSend)
 		}
@@ -147,7 +147,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 	for {
 		p, err := protocol.ReadPacket(clientConn)
 		if err != nil {
-			if utils.IsOKNetworkError(err) {
+			if netutils.IsOKNetworkError(err) {
 				e.Log.DebugContext(e.Context, "Client connection closed.")
 				return
 			}
@@ -214,7 +214,7 @@ func (e *Engine) receiveFromServer(serverConn, clientConn io.ReadWriteCloser, se
 	// The total bytes written is still available as a metric.
 	defer clientConn.Close()
 	_, err := io.Copy(clientConn, serverConn)
-	if err != nil && !utils.IsOKNetworkError(err) {
+	if err != nil && !netutils.IsOKNetworkError(err) {
 		serverErrCh <- trace.Wrap(err)
 	}
 }

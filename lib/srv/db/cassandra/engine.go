@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/cassandra/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // NewEngine create new Cassandra engine.
@@ -65,7 +65,7 @@ type Engine struct {
 // Cassandra wire protocol relies on streamID to that are set by the client and server response needs to
 // set the correct streamID in order to get streamID SendError reads a first message send by the client.
 func (e *Engine) SendError(sErr error) {
-	if utils.IsOKNetworkError(sErr) || sErr == nil {
+	if netutils.IsOKNetworkError(sErr) || sErr == nil {
 		return
 	}
 	e.Log.DebugContext(e.Context, "Cassandra connection error.", "error", sErr)
@@ -131,7 +131,7 @@ func (e *Engine) handleClientServerConn(ctx context.Context, clientConn *protoco
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		case err := <-errC:
-			if err != nil && !utils.IsOKNetworkError(errors.Unwrap(err)) && !errors.Is(err, io.EOF) {
+			if err != nil && !netutils.IsOKNetworkError(errors.Unwrap(err)) && !errors.Is(err, io.EOF) {
 				errs = append(errs, err)
 			}
 		}

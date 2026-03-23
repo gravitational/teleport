@@ -29,7 +29,8 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/lib/sshagent"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestSSHAgentClient(t *testing.T) {
@@ -54,7 +55,7 @@ func TestSSHAgentClient(t *testing.T) {
 			for {
 				conn, err := l.Accept()
 				if err != nil {
-					assert.True(t, utils.IsUseOfClosedNetworkError(err))
+					assert.True(t, netutils.IsUseOfClosedNetworkError(err))
 					return
 				}
 

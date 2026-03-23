@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // ServerMessageProcessor defines an interface that process JSON RPC responses
@@ -123,7 +124,7 @@ func (r *httpSSEResponseReplacer) Read(p []byte) (int, error) {
 	if err != nil {
 		// Note that the underlying connection may be canceled by connection
 		// monitoring.
-		if utils.IsOKNetworkError(err) || errors.Is(err, context.Canceled) {
+		if netutils.IsOKNetworkError(err) || errors.Is(err, context.Canceled) {
 			return 0, io.EOF
 		}
 		return 0, trace.Wrap(err)

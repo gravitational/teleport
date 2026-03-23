@@ -114,6 +114,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -219,17 +220,17 @@ type Config struct {
 	// Proxy provides a means to look up clusters.
 	Proxy reversetunnelclient.ClusterGetter
 	// AuthServers is a list of auth servers this proxy talks to
-	AuthServers utils.NetAddr
+	AuthServers netutils.NetAddr
 	// ProxyClient is a client that authenticated as proxy
 	ProxyClient authclient.ClientI
 	// ProxySSHAddr points to the SSH address of the proxy
-	ProxySSHAddr utils.NetAddr
+	ProxySSHAddr netutils.NetAddr
 	// ProxyKubeAddr points to the Kube address of the proxy
-	ProxyKubeAddr utils.NetAddr
+	ProxyKubeAddr netutils.NetAddr
 	// ProxyWebAddr points to the web (HTTPS) address of the proxy
-	ProxyWebAddr utils.NetAddr
+	ProxyWebAddr netutils.NetAddr
 	// ProxyPublicAddr contains web proxy public addresses.
-	ProxyPublicAddrs []utils.NetAddr
+	ProxyPublicAddrs []netutils.NetAddr
 	// ProxyGroupID is reverse tunnel group ID, used by reverse tunnel agents
 	// in proxy peering mode.
 	ProxyGroupID string
@@ -326,7 +327,7 @@ type Config struct {
 	PresenceChecker PresenceChecker
 
 	// AccessGraphAddr is the address of the Access Graph service GRPC API
-	AccessGraphAddr utils.NetAddr
+	AccessGraphAddr netutils.NetAddr
 
 	// AutomaticUpgradesChannels is a map of all version channels used by the
 	// proxy built-in version server to retrieve target versions. This is part
@@ -382,7 +383,7 @@ type APIHandler struct {
 type ConnectionHandler func(ctx context.Context, conn net.Conn) error
 
 func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
-	raddr, err := utils.ParseAddr(r.Host)
+	raddr, err := netutils.ParseAddr(r.Host)
 	if err != nil {
 		return
 	}
@@ -463,11 +464,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	proxyAddrs := h.handler.cfg.ProxyPublicAddrs
 	if len(proxyAddrs) == 0 && h.appHandler != nil {
 		clusterName := h.handler.auth.clusterName
-		raddr, err := utils.ParseAddr(r.Host)
+		raddr, err := netutils.ParseAddr(r.Host)
 		if err == nil && clusterName != "" && strings.HasSuffix(raddr.Host(), "."+clusterName) {
 			port := raddr.Port(443)
 			host := net.JoinHostPort(clusterName, strconv.Itoa(port))
-			proxyAddrs = []utils.NetAddr{{Addr: host}}
+			proxyAddrs = []netutils.NetAddr{{Addr: host}}
 		}
 	}
 
@@ -557,7 +558,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	sessionCache, err := newSessionCache(h.cfg.Context, sessionCacheOptions{
 		proxyClient:               cfg.ProxyClient,
 		accessPoint:               cfg.AccessPoint,
-		servers:                   []utils.NetAddr{cfg.AuthServers},
+		servers:                   []netutils.NetAddr{cfg.AuthServers},
 		cipherSuites:              cfg.CipherSuites,
 		clock:                     h.clock,
 		sessionLingeringThreshold: sessionLingeringThreshold,
@@ -1429,7 +1430,7 @@ func (h *Handler) PublicProxyAddr() string {
 }
 
 // AccessGraphAddr returns the TAG API address
-func (h *Handler) AccessGraphAddr() utils.NetAddr {
+func (h *Handler) AccessGraphAddr() netutils.NetAddr {
 	return h.cfg.AccessGraphAddr
 }
 
@@ -5532,7 +5533,7 @@ func (h *Handler) kubeProxyHostPort() string {
 // As such, replace 0.0.0.0 with localhost in this case: proxy listens on
 // all interfaces and localhost is always included in the valid principal
 // set.
-func createHostPort(netAddr utils.NetAddr, port int) string {
+func createHostPort(netAddr netutils.NetAddr, port int) string {
 	if netAddr.IsHostUnspecified() {
 		return fmt.Sprintf("localhost:%v", netAddr.Port(port))
 	}

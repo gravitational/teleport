@@ -62,8 +62,8 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshagent"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // CommandOptions controls how the SSH command is built.
@@ -431,7 +431,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.ReverseTunnelListenAddr.Addr = NewListener(t, service.ListenerProxyTunnel, &cfg.FileDescriptors)
 	cfg.Proxy.WebAddr.Addr = NewListener(t, service.ListenerProxyWeb, &cfg.FileDescriptors)
-	cfg.Proxy.PublicAddrs = []utils.NetAddr{
+	cfg.Proxy.PublicAddrs = []netutils.NetAddr{
 		cfg.Proxy.WebAddr,
 	}
 	cfg.Proxy.DisableWebInterface = true
@@ -455,7 +455,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 
 // MakeTestDatabaseServer creates a Database Service
 // It receives the Proxy Address, a Token (to join the cluster) and a list of Datbases
-func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string, resMatchers []services.ResourceMatcher, dbs ...servicecfg.Database) (db *service.TeleportProcess) {
+func MakeTestDatabaseServer(t *testing.T, proxyAddr netutils.NetAddr, token string, resMatchers []services.ResourceMatcher, dbs ...servicecfg.Database) (db *service.TeleportProcess) {
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.DebugService.Enabled = false
 	// Proxy uses self-signed certificates in tests.
@@ -491,7 +491,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 
 // MakeAgentServer creates SSH agent Service
 // It receives the Proxy Address, a Token (to join the cluster).
-func MakeAgentServer(t *testing.T, cfg *servicecfg.Config, proxyAddr utils.NetAddr, token string) *service.TeleportProcess {
+func MakeAgentServer(t *testing.T, cfg *servicecfg.Config, proxyAddr netutils.NetAddr, token string) *service.TeleportProcess {
 	// Proxy uses self-signed certificates in tests.
 	cfg.InsecureMode = true
 	cfg.Hostname = "localhost"

@@ -50,9 +50,10 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/lib/utils/mcptest"
 	"github.com/gravitational/teleport/lib/web/app"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // TestAppAccess runs the full application access integration test suite.
@@ -700,7 +701,7 @@ func TestTCP(t *testing.T) {
 	evilUser, _ := pack.CreateUser(t)
 	sessionUsername := pack.tc.Username
 
-	rootTCPAppAddr, err := utils.ParseAddr(pack.rootTCPAppURI)
+	rootTCPAppAddr, err := netutils.ParseAddr(pack.rootTCPAppURI)
 	require.NoError(t, err)
 	rootTCPAppPort := rootTCPAppAddr.Port(0)
 

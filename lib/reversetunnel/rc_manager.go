@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // RemoteClusterTunnelManager manages AgentPools for trusted (remote) clusters. It
@@ -78,7 +78,7 @@ type RemoteClusterTunnelManagerConfig struct {
 	// this proxy over a tunnel.
 	ReverseTunnelServer reversetunnelclient.Server
 	// KubeDialAddr is an optional address of a local kubernetes proxy.
-	KubeDialAddr utils.NetAddr
+	KubeDialAddr netutils.NetAddr
 	// FIPS indicates if Teleport was started in FIPS mode.
 	FIPS bool
 	// InsecureMode defines whether insecure connections are allowed.

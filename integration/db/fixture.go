@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type DatabasePack struct {
@@ -131,7 +132,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	conf.SetToken("static-token-value")
 	conf.InsecureMode = true
 
-	conf.SetAuthServerAddress(utils.NetAddr{
+	conf.SetAuthServerAddress(netutils.NetAddr{
 		AddrNetwork: "tcp",
 		Addr:        pack.Cluster.Web,
 	})
@@ -449,8 +450,8 @@ func (p *DatabasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 	conf := servicecfg.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
 	conf.SetToken("static-token-value")
-	conf.DiagnosticAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerDiagnostic, &conf.FileDescriptors))
-	conf.SetAuthServerAddress(utils.NetAddr{
+	conf.DiagnosticAddr = *netutils.MustParseAddr(helpers.NewListener(t, service.ListenerDiagnostic, &conf.FileDescriptors))
+	conf.SetAuthServerAddress(netutils.NetAddr{
 		AddrNetwork: "tcp",
 		Addr:        p.Root.Cluster.Web,
 	})

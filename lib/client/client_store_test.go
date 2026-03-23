@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type testAuthority struct {
@@ -425,7 +425,7 @@ func TestProxySSHConfig(t *testing.T) {
 
 		srv, err := sshutils.NewServer(
 			"test",
-			utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+			netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 			handler,
 			sshutils.StaticHostSigners(hostSigner),
 			sshutils.AuthMethods{

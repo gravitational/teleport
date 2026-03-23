@@ -38,7 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // maxRequestRange is the maximum allowed time range for a request
@@ -269,7 +270,7 @@ func (s *recordingPlayback) writeLoop() {
 // logWebsocketError handles errors that occur during websocket writes.
 func (s *recordingPlayback) logWebsocketError(err error) {
 	if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) &&
-		!utils.IsOKNetworkError(err) {
+		!netutils.IsOKNetworkError(err) {
 		s.logger.ErrorContext(s.ctx, "websocket write error", "error", err)
 	}
 }

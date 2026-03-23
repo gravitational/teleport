@@ -32,7 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -148,7 +148,7 @@ func (r *SSHServerWrapper) PreDetect(nc net.Conn) (multiplexer.PostDetectFunc, e
 	return func(conn *multiplexer.Conn) net.Conn {
 		isResumeV1, err := peekPrelude(conn, clientPreludeV1)
 		if err != nil {
-			if !utils.IsOKNetworkError(err) {
+			if !netutils.IsOKNetworkError(err) {
 				slog.ErrorContext(context.TODO(), "error while peeking resumption prelude", "error", err)
 			}
 			_ = conn.Close()
@@ -192,7 +192,7 @@ func (r *SSHServerWrapper) HandleConnection(nc net.Conn) {
 
 	serverVersionCRLF := serverVersionCRLFV1(dhKey.PublicKey(), r.hostID)
 	if _, err := nc.Write([]byte(serverVersionCRLF)); err != nil {
-		if !utils.IsOKNetworkError(err) {
+		if !netutils.IsOKNetworkError(err) {
 			slog.ErrorContext(context.TODO(), "error while sending SSH identification string", "error", err)
 		}
 		_ = nc.Close()
@@ -203,7 +203,7 @@ func (r *SSHServerWrapper) HandleConnection(nc net.Conn) {
 
 	isResumeV1, err := peekPrelude(conn, clientPreludeV1)
 	if err != nil {
-		if !utils.IsOKNetworkError(err) {
+		if !netutils.IsOKNetworkError(err) {
 			slog.ErrorContext(context.TODO(), "error while peeking resumption prelude", "error", err)
 		}
 		_ = conn.Close()

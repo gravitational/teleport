@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // Dialer is the interface that groups basic dialing methods.
@@ -254,7 +255,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		for {
 			req, err := stream.Recv()
 			if err != nil {
-				if !utils.IsOKNetworkError(err) && !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
+				if !netutils.IsOKNetworkError(err) && !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
 					s.cfg.Logger.ErrorContext(ctx, "ssh stream terminated unexpectedly", "error", err)
 				}
 
@@ -324,7 +325,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		hostConn.Close()
 	}()
 
-	targetAddr, err := utils.ParseAddr(req.DialTarget.HostPort)
+	targetAddr, err := netutils.ParseAddr(req.DialTarget.HostPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}

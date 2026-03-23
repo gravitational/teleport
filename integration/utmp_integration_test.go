@@ -55,7 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // teleportFakeUser is a user that doesn't exist, used for tests.
@@ -327,13 +327,13 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	nodeDir := t.TempDir()
 	srv, err := regular.New(
 		ctx,
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		sshutils.StaticHostSigners(s.signer),
 		s.nodeClient,
 		nodeDir,
 		"",
-		utils.NetAddr{},
+		netutils.NetAddr{},
 		s.nodeClient,
 		regular.SetUUID(s.nodeID),
 		regular.SetNamespace(apidefaults.Namespace),

@@ -36,7 +36,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestMiddlewareGetUser(t *testing.T) {
@@ -280,7 +281,7 @@ func TestWrapContextWithUser(t *testing.T) {
 					PeerCertificates:  tt.peers,
 					HandshakeComplete: !tt.needsHandshake,
 				},
-				remoteAddr: utils.MustParseAddr("127.0.0.1:4242"),
+				remoteAddr: netutils.MustParseAddr("127.0.0.1:4242"),
 			}
 
 			parentCtx := context.Background()

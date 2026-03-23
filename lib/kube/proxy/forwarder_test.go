@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 var (
@@ -219,7 +220,7 @@ func TestAuthenticate(t *testing.T) {
 				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "local",
-					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					remoteAddr: *netutils.MustParseAddr(remoteAddr),
 				},
 				kubeServers: newKubeServersFromKubeClusters(
 					t,
@@ -296,7 +297,7 @@ func TestAuthenticate(t *testing.T) {
 				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "local",
-					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					remoteAddr: *netutils.MustParseAddr(remoteAddr),
 				},
 				kubeServers: newKubeServersFromKubeClusters(
 					t,
@@ -344,7 +345,7 @@ func TestAuthenticate(t *testing.T) {
 				certExpires:       certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "local",
-					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					remoteAddr: *netutils.MustParseAddr(remoteAddr),
 				},
 				kubeServers: newKubeServersFromKubeClusters(
 					t,
@@ -388,7 +389,7 @@ func TestAuthenticate(t *testing.T) {
 				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
 					name:       "local",
-					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					remoteAddr: *netutils.MustParseAddr(remoteAddr),
 				},
 
 				kubeServers: newKubeServersFromKubeClusters(
@@ -434,7 +435,7 @@ func TestAuthenticate(t *testing.T) {
 				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
 					name:       "local",
-					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					remoteAddr: *netutils.MustParseAddr(remoteAddr),
 				},
 				kubeServers: newKubeServersFromKubeClusters(
 					t,
@@ -462,7 +463,7 @@ func TestAuthenticate(t *testing.T) {
 				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
-					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					remoteAddr: *netutils.MustParseAddr(remoteAddr),
 					isRemote:   true,
 				},
 			},
@@ -479,7 +480,7 @@ func TestAuthenticate(t *testing.T) {
 				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
-					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					remoteAddr: *netutils.MustParseAddr(remoteAddr),
 					isRemote:   true,
 				},
 			},
@@ -496,7 +497,7 @@ func TestAuthenticate(t *testing.T) {
 				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
-					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					remoteAddr: *netutils.MustParseAddr(remoteAddr),
 					isRemote:   true,
 				},
 			},
@@ -542,7 +543,7 @@ func TestAuthenticate(t *testing.T) {
 				certExpires:       certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "local",
-					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					remoteAddr: *netutils.MustParseAddr(remoteAddr),
 				},
 				kubeServers: newKubeServersFromKubeClusters(
 					t,
@@ -603,7 +604,7 @@ func TestAuthenticate(t *testing.T) {
 				certExpires:       certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "local",
-					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					remoteAddr: *netutils.MustParseAddr(remoteAddr),
 				},
 				kubeServers: newKubeServersFromKubeClusters(
 					t,
@@ -665,7 +666,7 @@ func TestAuthenticate(t *testing.T) {
 				},
 				teleportCluster: teleportClusterClient{
 					name:       "local",
-					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					remoteAddr: *netutils.MustParseAddr(remoteAddr),
 				},
 				kubeServers: newKubeServersFromKubeClusters(
 					t,
@@ -698,7 +699,7 @@ func TestAuthenticate(t *testing.T) {
 				certExpires:     certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
-					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					remoteAddr: *netutils.MustParseAddr(remoteAddr),
 					isRemote:   true,
 				},
 			},

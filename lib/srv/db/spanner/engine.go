@@ -34,8 +34,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/lib/utils/listener"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // NewEngine creates a new Spanner engine.
@@ -104,7 +105,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 }
 
 func (e *Engine) SendError(err error) {
-	if err == nil || utils.IsOKNetworkError(err) {
+	if err == nil || netutils.IsOKNetworkError(err) {
 		return
 	}
 	// the grpc server handles sending all errors, if an error is sent outside

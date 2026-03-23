@@ -84,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // teleportTestUser is additional user used for tests
@@ -264,13 +265,13 @@ func newCustomFixture(t testing.TB, mutateCfg func(*authtest.ServerConfig), sshO
 
 	sshSrv, err := New(
 		ctx,
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		testServer.ClusterName(),
 		sshutils.StaticHostSigners(signer),
 		nodeClient,
 		nodeDir,
 		"",
-		utils.NetAddr{},
+		netutils.NetAddr{},
 		nodeClient,
 		serverOptions...)
 	require.NoError(t, err)
@@ -1113,9 +1114,9 @@ func TestAdvertiseAddr(t *testing.T) {
 	require.Equal(t, f.ssh.srv.Addr(), f.ssh.srv.AdvertiseAddr())
 
 	var (
-		advIP      = utils.MustParseAddr("10.10.10.1")
-		advIPPort  = utils.MustParseAddr("10.10.10.1:1234")
-		advBadAddr = &utils.NetAddr{Addr: "localhost:badport", AddrNetwork: "tcp"}
+		advIP      = netutils.MustParseAddr("10.10.10.1")
+		advIPPort  = netutils.MustParseAddr("10.10.10.1:1234")
+		advBadAddr = &netutils.NetAddr{Addr: "localhost:badport", AddrNetwork: "tcp"}
 	)
 	// IP-only advertiseAddr should use the port from srvAddress.
 	f.ssh.srv.setAdvertiseAddr(advIP)
@@ -1720,9 +1721,9 @@ func testClient(t *testing.T, f *sshTestFixture, proxyAddr, targetAddr, remoteAd
 	// Request opening TCP connection to the remote host
 	require.NoError(t, se.RequestSubsystem(ctx, fmt.Sprintf("proxy:%v", targetAddr)))
 
-	local, err := utils.ParseAddr("tcp://" + proxyAddr)
+	local, err := netutils.ParseAddr("tcp://" + proxyAddr)
 	require.NoError(t, err)
-	remote, err := utils.ParseAddr("tcp://" + remoteAddr)
+	remote, err := netutils.ParseAddr("tcp://" + remoteAddr)
 	require.NoError(t, err)
 
 	pipeNetConn := utils.NewPipeNetConn(
@@ -1760,10 +1761,10 @@ func testClient(t *testing.T, f *sshTestFixture, proxyAddr, targetAddr, remoteAd
 	require.Equal(t, "hello\n", string(out))
 }
 
-func mustListen(t *testing.T) (net.Listener, utils.NetAddr) {
+func mustListen(t *testing.T) (net.Listener, netutils.NetAddr) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	addr := utils.NetAddr{AddrNetwork: "tcp", Addr: l.Addr().String()}
+	addr := netutils.NetAddr{AddrNetwork: "tcp", Addr: l.Addr().String()}
 	return l, addr
 }
 
@@ -1838,13 +1839,13 @@ func TestProxyRoundRobin(t *testing.T) {
 
 	proxy, err := New(
 		ctx,
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
 		sshutils.StaticHostSigners(f.signer),
 		proxyClient,
 		t.TempDir(),
 		"",
-		utils.NetAddr{},
+		netutils.NetAddr{},
 		proxyClient,
 		SetUUID(uuid.NewString()),
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
@@ -1862,8 +1863,8 @@ func TestProxyRoundRobin(t *testing.T) {
 	require.NoError(t, proxy.Start())
 	defer proxy.Close()
 
-	resolver := func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
-		return &utils.NetAddr{Addr: reverseTunnelAddress.Addr, AddrNetwork: "tcp"}, types.ProxyListenerMode_Separate, nil
+	resolver := func(context.Context) (*netutils.NetAddr, types.ProxyListenerMode, error) {
+		return &netutils.NetAddr{Addr: reverseTunnelAddress.Addr, AddrNetwork: "tcp"}, types.ProxyListenerMode_Separate, nil
 	}
 
 	pool1, err := reversetunnel.NewAgentPool(ctx, reversetunnel.AgentPoolConfig{
@@ -1985,13 +1986,13 @@ func TestProxyDirectAccess(t *testing.T) {
 
 	proxy, err := New(
 		ctx,
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
 		sshutils.StaticHostSigners(f.signer),
 		proxyClient,
 		t.TempDir(),
 		"",
-		utils.NetAddr{},
+		netutils.NetAddr{},
 		proxyClient,
 		SetUUID(uuid.NewString()),
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
@@ -2184,13 +2185,13 @@ func TestLimiter(t *testing.T) {
 	nodeStateDir := t.TempDir()
 	srv, err := New(
 		ctx,
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		f.testSrv.ClusterName(),
 		sshutils.StaticHostSigners(f.signer),
 		nodeClient,
 		nodeStateDir,
 		"",
-		utils.NetAddr{},
+		netutils.NetAddr{},
 		nodeClient,
 		SetUUID(uuid.NewString()),
 		SetLimiter(limiter),
@@ -2667,13 +2668,13 @@ func TestParseSubsystemRequest(t *testing.T) {
 
 		proxy, err := New(
 			ctx,
-			utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+			netutils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 			f.testSrv.ClusterName(),
 			sshutils.StaticHostSigners(f.signer),
 			proxyClient,
 			t.TempDir(),
 			"",
-			utils.NetAddr{},
+			netutils.NetAddr{},
 			proxyClient,
 			SetUUID(uuid.NewString()),
 			SetProxyMode("", reverseTunnelServer, proxyClient, router),
@@ -2926,13 +2927,13 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 
 	proxy, err := New(
 		ctx,
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
 		sshutils.StaticHostSigners(f.signer),
 		proxyClient,
 		t.TempDir(),
 		"",
-		utils.NetAddr{},
+		netutils.NetAddr{},
 		proxyClient,
 		SetUUID(uuid.NewString()),
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
@@ -2974,9 +2975,9 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	// Request proxy subsystem routing TCP connection to the remote host
 	require.NoError(t, se.RequestSubsystem(ctx, fmt.Sprintf("proxy:%v", f.ssh.srvAddress)))
 
-	local, err := utils.ParseAddr("tcp://" + proxy.Addr())
+	local, err := netutils.ParseAddr("tcp://" + proxy.Addr())
 	require.NoError(t, err)
-	remote, err := utils.ParseAddr("tcp://" + f.ssh.srv.Addr())
+	remote, err := netutils.ParseAddr("tcp://" + f.ssh.srv.Addr())
 	require.NoError(t, err)
 
 	pipeNetConn := utils.NewPipeNetConn(
@@ -3090,13 +3091,13 @@ func TestEventMetadata(t *testing.T) {
 
 	sshSrv, err := New(
 		ctx,
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		testServer.ClusterName(),
 		sshutils.StaticHostSigners(newSigner(t, ctx, testServer)),
 		nodeClient,
 		nodeDir,
 		"",
-		utils.NetAddr{},
+		netutils.NetAddr{},
 		nodeClient,
 		serverOptions...)
 	require.NoError(t, err)
@@ -3390,13 +3391,13 @@ func TestHostUserCreationProxy(t *testing.T) {
 
 	proxy, err := New(
 		ctx,
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
 		sshutils.StaticHostSigners(f.signer),
 		proxyClient,
 		t.TempDir(),
 		"",
-		utils.NetAddr{},
+		netutils.NetAddr{},
 		proxyClient,
 		SetUUID(uuid.NewString()),
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),

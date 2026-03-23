@@ -45,9 +45,10 @@ import (
 	"github.com/gravitational/teleport/lib/inventory/internal/delay"
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
-	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/lib/utils/interval"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // Auth is an interface representing the subset of the auth API that must be made available
@@ -931,7 +932,7 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 	// if a peer address is available in the context, use it to override zero-value addresses from
 	// the server heartbeat.
 	if handle.PeerAddr() != "" {
-		sshServer.SetAddr(utils.ReplaceLocalhost(sshServer.GetAddr(), handle.PeerAddr()))
+		sshServer.SetAddr(netutils.ReplaceLocalhost(sshServer.GetAddr(), handle.PeerAddr()))
 	}
 
 	sshServer.SetExpiry(time.Now().Add(c.serverTTL).UTC())

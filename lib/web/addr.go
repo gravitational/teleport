@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const xForwardedForHeader = "X-Forwarded-For"
@@ -100,7 +101,7 @@ func parseXForwardedForHeaders(observedAddr string, xForwardedForHeaders []strin
 	}
 
 	var port int
-	if parsed, err := utils.ParseAddr(observedAddr); err == nil {
+	if parsed, err := netutils.ParseAddr(observedAddr); err == nil {
 		port = parsed.Port(port)
 	}
 

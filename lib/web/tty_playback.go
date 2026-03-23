@@ -33,8 +33,9 @@ import (
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -152,7 +153,7 @@ func (h *Handler) ttyPlaybackHandle(
 		for {
 			typ, b, err := ws.ReadMessage()
 			if err != nil {
-				if !utils.IsOKNetworkError(err) {
+				if !netutils.IsOKNetworkError(err) {
 					h.logger.WarnContext(ctx, "websocket read error", "error", err)
 				}
 				return

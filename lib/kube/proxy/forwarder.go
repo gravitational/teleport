@@ -89,6 +89,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // KubeServiceType specifies a Teleport service type which can forward Kubernetes requests
@@ -512,7 +513,7 @@ func (c *authContext) eventUserMetaWithLogin(login string) apievents.UserMetadat
 // teleportClusterClient is a client for either a k8s endpoint in local cluster or a
 // proxy endpoint in a remote cluster.
 type teleportClusterClient struct {
-	remoteAddr utils.NetAddr
+	remoteAddr netutils.NetAddr
 	name       string
 	isRemote   bool
 }
@@ -745,7 +746,7 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 		rw.Header().Set(responsewriters.ContentTypeHeader, "application/json")
 		rw.WriteHeader(http.StatusTooManyRequests)
 
-		if _, err := rw.Write(data); err != nil && !utils.IsOKNetworkError(err) {
+		if _, err := rw.Write(data); err != nil && !netutils.IsOKNetworkError(err) {
 			f.log.WarnContext(f.ctx, "Failed writing kube error response body", "error", err)
 		}
 		return
@@ -773,7 +774,7 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 	// `Error from server (InternalError): an error on the server ("unknown")
 	// has prevented the request from succeeding`` instead of the correct reason.
 	rw.WriteHeader(trace.ErrorToCode(respErr))
-	if _, err := rw.Write(data); err != nil && !utils.IsOKNetworkError(err) {
+	if _, err := rw.Write(data); err != nil && !netutils.IsOKNetworkError(err) {
 		f.log.WarnContext(f.ctx, "Failed writing kube error response body", "error", err)
 	}
 }
@@ -865,7 +866,7 @@ func (f *Forwarder) setupContext(
 		disconnectExpiredCert:    authCtx.GetDisconnectCertExpiry(authPref),
 		teleportCluster: teleportClusterClient{
 			name:       teleportClusterName,
-			remoteAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
+			remoteAddr: netutils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
 			isRemote:   isRemoteCluster,
 		},
 		kubeServers:              kubeServers,

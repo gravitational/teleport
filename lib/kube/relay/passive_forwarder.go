@@ -33,8 +33,9 @@ import (
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // SNISuffix is the suffix of the server name that signals that a connection is
@@ -400,7 +401,7 @@ func (p *PassiveForwarder) forward(sniPrefix string, transcript *bytes.Buffer, c
 }
 
 func traceIfOKNetworkError(err error, l slog.Level) slog.Level {
-	if err == nil || utils.IsOKNetworkError(err) {
+	if err == nil || netutils.IsOKNetworkError(err) {
 		return logutils.TraceLevel
 	}
 	return l

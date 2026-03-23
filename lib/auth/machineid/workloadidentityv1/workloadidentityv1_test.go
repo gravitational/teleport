@@ -77,9 +77,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils/grpctest"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestMain(m *testing.M) {
@@ -317,7 +317,7 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthServers: []utils.NetAddr{*utils.MustParseAddr(tp.srv.Addr().String())},
+		AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(tp.srv.Addr().String())},
 		KubernetesReadFileFunc: func(name string) ([]byte, error) {
 			return []byte(fakePSAT), nil
 		},

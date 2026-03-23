@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/uds"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // FileFD is a file descriptor passed down from a parent process when
@@ -219,7 +220,7 @@ type PAMConfig struct {
 // UaccMetadata contains information the child needs from the parent for user accounting.
 type UaccMetadata struct {
 	// RemoteAddr is the address of the remote host.
-	RemoteAddr utils.NetAddr `json:"remote_addr"`
+	RemoteAddr netutils.NetAddr `json:"remote_addr"`
 
 	// UtmpPath is the path of the system utmp database.
 	UtmpPath string `json:"utmp_path,omitempty"`
@@ -834,7 +835,7 @@ func RunNetworking() (code int, err error) {
 		fbuf := make([]*os.File, 1)
 		n, fn, err := uds.ReadWithFDs(parentConn, buf, fbuf)
 		if err != nil {
-			if utils.IsOKNetworkError(err) {
+			if netutils.IsOKNetworkError(err) {
 				// parent connection closed, process should exit.
 				return teleport.RemoteCommandSuccess, nil
 			}

@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // JoinHostPort is a wrapper for net.JoinHostPort that takes a uint32 port.
@@ -37,7 +37,7 @@ func JoinHostPort(host string, port uint32) string {
 // Note that unlike net.SplitHostPort, a missing port is valid and will return
 // a zero port.
 func SplitHostPort(addrString string) (string, uint32, error) {
-	addr, err := utils.ParseHostPortAddr(addrString, 0)
+	addr, err := netutils.ParseHostPortAddr(addrString, 0)
 	if err != nil {
 		return "", 0, trace.Wrap(err)
 	}

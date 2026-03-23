@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // IsConnectRequest returns true if the request is a HTTP CONNECT tunnel
@@ -104,7 +105,7 @@ func (p *ForwardProxy) Start() error {
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 	}
 	err := server.Serve(p.cfg.Listener)
-	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
+	if err != nil && !netutils.IsUseOfClosedNetworkError(err) {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -112,7 +113,7 @@ func (p *ForwardProxy) Start() error {
 
 // Close closes the forward proxy.
 func (p *ForwardProxy) Close() error {
-	if err := p.cfg.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+	if err := p.cfg.Listener.Close(); err != nil && !netutils.IsUseOfClosedNetworkError(err) {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -415,7 +416,7 @@ func writeHeaderToHijackedConnection(conn net.Conn, req *http.Request, statusCod
 		ProtoMinor: req.ProtoMinor,
 	}
 	err := resp.Write(conn)
-	if err != nil && !utils.IsOKNetworkError(err) {
+	if err != nil && !netutils.IsOKNetworkError(err) {
 		slog.ErrorContext(req.Context(), "Failed to write status code to client connection", "error", err, "status_code", statusCode)
 		return false
 	}

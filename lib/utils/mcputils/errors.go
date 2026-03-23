@@ -23,7 +23,7 @@ import (
 	"io"
 	"io/fs"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // IsOKCloseError checks if provided error is a common close error that
@@ -31,7 +31,7 @@ import (
 func IsOKCloseError(err error) bool {
 	return errors.Is(err, io.ErrClosedPipe) ||
 		isFileClosedError(err) ||
-		utils.IsOKNetworkError(err)
+		netutils.IsOKNetworkError(err)
 }
 
 // isFileClosedError check if the error is a common error when exec.Command

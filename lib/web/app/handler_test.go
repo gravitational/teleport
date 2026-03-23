@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type eventCheckFn func(t *testing.T, events []apievents.AuditEvent)
@@ -287,7 +288,7 @@ func TestHasName(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, test.reqURL, nil)
 			require.NoError(t, err)
 
-			addrs := utils.MustParseAddrList(test.addrs...)
+			addrs := netutils.MustParseAddrList(test.addrs...)
 			u, ok := HasName(req, addrs)
 			require.Equal(t, test.expectedURL, u)
 			require.Equal(t, test.hasName, ok)

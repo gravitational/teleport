@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -78,7 +79,7 @@ func ReceivePlaybackActions(
 		if err := ws.ReadJSON(&action); err != nil {
 			// Connection close errors are expected if the user closes the tab.
 			// Only log unexpected errors to avoid cluttering the logs.
-			if !utils.IsOKNetworkError(err) {
+			if !netutils.IsOKNetworkError(err) {
 				logger.WarnContext(ctx, "websocket read error", "error", err)
 			}
 			return
@@ -153,7 +154,7 @@ func PlayRecording(
 			if err := ws.WriteMessage(websocket.BinaryMessage, msg); err != nil {
 				// Connection close errors are expected if the user closes the tab.
 				// Only log unexpected errors to avoid cluttering the logs.
-				if !utils.IsOKNetworkError(err) {
+				if !netutils.IsOKNetworkError(err) {
 					log.WarnContext(ctx, "websocket write error", "error", err)
 				}
 				return

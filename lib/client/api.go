@@ -101,6 +101,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -153,7 +154,7 @@ type ForwardedPorts []ForwardedPort
 func (p *ForwardedPort) ToString() string {
 	sport := strconv.Itoa(p.SrcPort)
 	dport := strconv.Itoa(p.DestPort)
-	if utils.IsLocalhost(p.SrcIP) {
+	if netutils.IsLocalhost(p.SrcIP) {
 		return sport + ":" + net.JoinHostPort(p.DestHost, dport)
 	}
 	return net.JoinHostPort(p.SrcIP, sport) + ":" + net.JoinHostPort(p.DestHost, dport)
@@ -178,7 +179,7 @@ type DynamicForwardedPorts []DynamicForwardedPort
 // with OpenSSH's -D flag, i.e. "src_host:src_port".
 func (p *DynamicForwardedPort) ToString() string {
 	sport := strconv.Itoa(p.SrcPort)
-	if utils.IsLocalhost(p.SrcIP) {
+	if netutils.IsLocalhost(p.SrcIP) {
 		return sport
 	}
 	return net.JoinHostPort(p.SrcIP, sport)
@@ -1108,7 +1109,7 @@ func (c *Config) ParseProxyHost(proxyHost string) error {
 // KubeProxyHostPort returns the host and port of the Kubernetes proxy.
 func (c *Config) KubeProxyHostPort() (string, int) {
 	if c.KubeProxyAddr != "" {
-		addr, err := utils.ParseAddr(c.KubeProxyAddr)
+		addr, err := netutils.ParseAddr(c.KubeProxyAddr)
 		if err == nil {
 			return addr.Host(), addr.Port(defaults.KubeListenPort)
 		}
@@ -1128,7 +1129,7 @@ func (c *Config) KubeClusterAddr() string {
 // WebProxyHostPort returns the host and port of the web proxy.
 func (c *Config) WebProxyHostPort() (string, int) {
 	if c.WebProxyAddr != "" {
-		addr, err := utils.ParseAddr(c.WebProxyAddr)
+		addr, err := netutils.ParseAddr(c.WebProxyAddr)
 		if err == nil {
 			return addr.Host(), addr.Port(defaults.HTTPListenPort)
 		}
@@ -1151,7 +1152,7 @@ func (c *Config) WebProxyPort() int {
 // SSHProxyHostPort returns the host and port of the SSH proxy.
 func (c *Config) SSHProxyHostPort() (string, int) {
 	if c.SSHProxyAddr != "" {
-		addr, err := utils.ParseAddr(c.SSHProxyAddr)
+		addr, err := netutils.ParseAddr(c.SSHProxyAddr)
 		if err == nil {
 			return addr.Host(), addr.Port(defaults.SSHProxyListenPort)
 		}
@@ -1164,7 +1165,7 @@ func (c *Config) SSHProxyHostPort() (string, int) {
 // PostgresProxyHostPort returns the host and port of Postgres proxy.
 func (c *Config) PostgresProxyHostPort() (string, int) {
 	if c.PostgresProxyAddr != "" {
-		addr, err := utils.ParseAddr(c.PostgresProxyAddr)
+		addr, err := netutils.ParseAddr(c.PostgresProxyAddr)
 		if err == nil {
 			return addr.Host(), addr.Port(c.WebProxyPort())
 		}
@@ -1175,7 +1176,7 @@ func (c *Config) PostgresProxyHostPort() (string, int) {
 // MongoProxyHostPort returns the host and port of Mongo proxy.
 func (c *Config) MongoProxyHostPort() (string, int) {
 	if c.MongoProxyAddr != "" {
-		addr, err := utils.ParseAddr(c.MongoProxyAddr)
+		addr, err := netutils.ParseAddr(c.MongoProxyAddr)
 		if err == nil {
 			return addr.Host(), addr.Port(defaults.MongoListenPort)
 		}
@@ -1186,7 +1187,7 @@ func (c *Config) MongoProxyHostPort() (string, int) {
 // MySQLProxyHostPort returns the host and port of MySQL proxy.
 func (c *Config) MySQLProxyHostPort() (string, int) {
 	if c.MySQLProxyAddr != "" {
-		addr, err := utils.ParseAddr(c.MySQLProxyAddr)
+		addr, err := netutils.ParseAddr(c.MySQLProxyAddr)
 		if err == nil {
 			return addr.Host(), addr.Port(defaults.MySQLListenPort)
 		}
@@ -4683,7 +4684,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 		switch {
 		// PublicAddr is the first preference.
 		case proxySettings.Kube.PublicAddr != "":
-			if _, err := utils.ParseAddr(proxySettings.Kube.PublicAddr); err != nil {
+			if _, err := netutils.ParseAddr(proxySettings.Kube.PublicAddr); err != nil {
 				return trace.BadParameter(
 					"failed to parse value received from the server: %q, contact your administrator for help",
 					proxySettings.Kube.PublicAddr)
@@ -4691,7 +4692,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 			tc.KubeProxyAddr = proxySettings.Kube.PublicAddr
 		// ListenAddr is the second preference unless TLS routing is enabled.
 		case proxySettings.Kube.ListenAddr != "" && !proxySettings.TLSRoutingEnabled:
-			addr, err := utils.ParseAddr(proxySettings.Kube.ListenAddr)
+			addr, err := netutils.ParseAddr(proxySettings.Kube.ListenAddr)
 			if err != nil {
 				return trace.BadParameter(
 					"failed to parse value received from the server: %q, contact your administrator for help",
@@ -4719,7 +4720,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 
 	// Read in settings for HTTP endpoint of the proxy.
 	if proxySettings.SSH.PublicAddr != "" {
-		addr, err := utils.ParseAddr(proxySettings.SSH.PublicAddr)
+		addr, err := netutils.ParseAddr(proxySettings.SSH.PublicAddr)
 		if err != nil {
 			return trace.BadParameter(
 				"failed to parse value received from the server: %q, contact your administrator for help",
@@ -4740,7 +4741,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 	// was set. This is to maintain backward compatibility when Teleport only
 	// supported public_addr.
 	if proxySettings.SSH.ListenAddr != "" {
-		addr, err := utils.ParseAddr(proxySettings.SSH.ListenAddr)
+		addr, err := netutils.ParseAddr(proxySettings.SSH.ListenAddr)
 		if err != nil {
 			return trace.BadParameter(
 				"failed to parse value received from the server: %q, contact your administrator for help",
@@ -4751,7 +4752,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 	}
 	// If ssh_public_addr is set, override settings from listen_addr.
 	if proxySettings.SSH.SSHPublicAddr != "" {
-		addr, err := utils.ParseAddr(proxySettings.SSH.SSHPublicAddr)
+		addr, err := netutils.ParseAddr(proxySettings.SSH.SSHPublicAddr)
 		if err != nil {
 			return trace.BadParameter(
 				"failed to parse value received from the server: %q, contact your administrator for help",
@@ -4763,7 +4764,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 	// Read Postgres proxy settings.
 	switch {
 	case proxySettings.DB.PostgresPublicAddr != "":
-		addr, err := utils.ParseAddr(proxySettings.DB.PostgresPublicAddr)
+		addr, err := netutils.ParseAddr(proxySettings.DB.PostgresPublicAddr)
 		if err != nil {
 			return trace.BadParameter("failed to parse Postgres public address received from server: %q, contact your administrator for help",
 				proxySettings.DB.PostgresPublicAddr)
@@ -4771,7 +4772,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 		tc.PostgresProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(tc.WebProxyPort())))
 		// Listen address port applies if set and not in TLS routing mode.
 	case proxySettings.DB.PostgresListenAddr != "" && !proxySettings.TLSRoutingEnabled:
-		addr, err := utils.ParseAddr(proxySettings.DB.PostgresListenAddr)
+		addr, err := netutils.ParseAddr(proxySettings.DB.PostgresListenAddr)
 		if err != nil {
 			return trace.BadParameter("failed to parse Postgres listen address received from server: %q, contact your administrator for help",
 				proxySettings.DB.PostgresListenAddr)
@@ -4785,14 +4786,14 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 	// Read Mongo proxy settings.
 	switch {
 	case proxySettings.DB.MongoPublicAddr != "":
-		addr, err := utils.ParseAddr(proxySettings.DB.MongoPublicAddr)
+		addr, err := netutils.ParseAddr(proxySettings.DB.MongoPublicAddr)
 		if err != nil {
 			return trace.BadParameter("failed to parse Mongo public address received from server: %q, contact your administrator for help",
 				proxySettings.DB.MongoPublicAddr)
 		}
 		tc.MongoProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(tc.WebProxyPort())))
 	case proxySettings.DB.MongoListenAddr != "":
-		addr, err := utils.ParseAddr(proxySettings.DB.MongoListenAddr)
+		addr, err := netutils.ParseAddr(proxySettings.DB.MongoListenAddr)
 		if err != nil {
 			return trace.BadParameter("failed to parse Mongo listen address received from server: %q, contact your administrator for help",
 				proxySettings.DB.MongoListenAddr)
@@ -4803,14 +4804,14 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 	// Read MySQL proxy settings if enabled on the server.
 	switch {
 	case proxySettings.DB.MySQLPublicAddr != "":
-		addr, err := utils.ParseAddr(proxySettings.DB.MySQLPublicAddr)
+		addr, err := netutils.ParseAddr(proxySettings.DB.MySQLPublicAddr)
 		if err != nil {
 			return trace.BadParameter("failed to parse MySQL public address received from server: %q, contact your administrator for help",
 				proxySettings.DB.MySQLPublicAddr)
 		}
 		tc.MySQLProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(defaults.MySQLListenPort)))
 	case proxySettings.DB.MySQLListenAddr != "":
-		addr, err := utils.ParseAddr(proxySettings.DB.MySQLListenAddr)
+		addr, err := netutils.ParseAddr(proxySettings.DB.MySQLListenAddr)
 		if err != nil {
 			return trace.BadParameter("failed to parse MySQL listen address received from server: %q, contact your administrator for help",
 				proxySettings.DB.MySQLListenAddr)

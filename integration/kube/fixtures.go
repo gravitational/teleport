@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // For this test suite to work, the target Kubernetes cluster must have the
@@ -50,7 +50,7 @@ type ProxyConfig struct {
 	Impersonation       *rest.ImpersonationConfig
 	RouteToCluster      string
 	CustomTLSServerName string
-	TargetAddress       utils.NetAddr
+	TargetAddress       netutils.NetAddr
 }
 
 // ProxyClient returns kubernetes client using local teleport proxy

@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/interval"
 	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const updateClientsJoinWarning = "This agent joined the cluster during the update_clients phase of a host CA rotation, so its services might not be usable by clients that haven't logged in recently."
@@ -670,8 +671,8 @@ func (process *TeleportProcess) instanceJoin() (*state.Identity, error) {
 	process.logger.InfoContext(process.ExitContext(), "Joining the cluster with a secure token.")
 	result, err := joinclient.Join(process.GracefulExitContext(), *joinParams)
 	if err != nil {
-		if utils.IsUntrustedCertErr(err) {
-			return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
+		if netutils.IsUntrustedCertErr(err) {
+			return nil, trace.WrapWithMessage(err, netutils.SelfSignedCertsMsg)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -705,8 +706,8 @@ func (process *TeleportProcess) legacyJoinWithHostUUID(role types.SystemRole, ho
 	process.logger.InfoContext(process.ExitContext(), "Joining the cluster with a secure token.")
 	joinResult, err := joinclient.LegacyJoin(process.GracefulExitContext(), *joinParams)
 	if err != nil {
-		if utils.IsUntrustedCertErr(err) {
-			return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
+		if netutils.IsUntrustedCertErr(err) {
+			return nil, trace.WrapWithMessage(err, netutils.SelfSignedCertsMsg)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -1409,7 +1410,7 @@ func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Cli
 	// for config v1 and v2, attempt to directly connect to the auth server and fall back to tunneling
 	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2:
 		// if we don't have a proxy address, try to connect to the auth server directly
-		logger := process.logger.With("auth_addrs", utils.NetAddrsToStrings(authServers))
+		logger := process.logger.With("auth_addrs", netutils.NetAddrsToStrings(authServers))
 
 		directClient, resp, directErr := connectToAuthServer(logger)
 		if directErr == nil {
@@ -1435,8 +1436,8 @@ func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Cli
 			}
 			process.logger.ErrorContext(process.ExitContext(), "- connecting to auth server through tunnel", "error", err)
 			collectedErrs := trace.NewAggregate(directErr, err)
-			if utils.IsUntrustedCertErr(collectedErrs) {
-				collectedErrs = trace.Wrap(collectedErrs, utils.SelfSignedCertsMsg)
+			if netutils.IsUntrustedCertErr(collectedErrs) {
+				collectedErrs = trace.Wrap(collectedErrs, netutils.SelfSignedCertsMsg)
 			}
 			return nil, nil, trace.Wrap(collectedErrs, "Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
 		}
@@ -1461,7 +1462,7 @@ func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Cli
 		}
 
 		// if we don't have a proxy address, try to connect to the auth server directly
-		logger := process.logger.With("auth_server", utils.NetAddrsToStrings(authServers))
+		logger := process.logger.With("auth_server", netutils.NetAddrsToStrings(authServers))
 
 		return connectToAuthServer(logger)
 	}
@@ -1520,7 +1521,7 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 	return clt, &resp, nil
 }
 
-func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*authclient.Client, *proto.PingResponse, error) {
+func (process *TeleportProcess) newClientDirect(authServers []netutils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*authclient.Client, *proto.PingResponse, error) {
 	var cltParams []roundtrip.ClientParam
 	if process.Config.Testing.ClientTimeout != 0 {
 		cltParams = []roundtrip.ClientParam{
@@ -1543,7 +1544,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 
 	clt, err := authclient.NewClient(apiclient.Config{
 		Context: process.ExitContext(),
-		Addrs:   utils.NetAddrsToStrings(authServers),
+		Addrs:   netutils.NetAddrsToStrings(authServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},

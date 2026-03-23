@@ -55,7 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -142,11 +142,11 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 			}
 			cfg.InsecureMode = true
 			cfg.Kube.Enabled = true
-			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+			cfg.Kube.ListenAddr = netutils.MustParseAddr(localListenerAddr())
 			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster1, rootKubeCluster2)
 			cfg.Kube.StaticLabels = rootLabels
 			cfg.Proxy.Kube.Enabled = true
-			cfg.Proxy.Kube.ListenAddr = *utils.MustParseAddr(localListenerAddr())
+			cfg.Proxy.Kube.ListenAddr = *netutils.MustParseAddr(localListenerAddr())
 			cfg.SSH.Enabled = false
 		}),
 		withLeafCluster(),
@@ -157,7 +157,7 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 				}
 				cfg.InsecureMode = true
 				cfg.Kube.Enabled = true
-				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+				cfg.Kube.ListenAddr = netutils.MustParseAddr(localListenerAddr())
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
 				cfg.Kube.StaticLabels = leafLabels
 				cfg.SSH.Enabled = false
@@ -376,7 +376,7 @@ func TestKubeSelection(t *testing.T) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.SSH.Enabled = false
 			cfg.Kube.Enabled = true
-			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+			cfg.Kube.ListenAddr = netutils.MustParseAddr(localListenerAddr())
 			cfg.Kube.ResourceMatchers = []services.ResourceMatcher{{
 				Labels: map[string]apiutils.Strings{"*": {"*"}},
 			}}
@@ -593,7 +593,7 @@ func TestKubeSelection(t *testing.T) {
 
 	t.Run("login", func(t *testing.T) {
 		t.Parallel()
-		webProxyAddr, err := utils.ParseAddr(s.root.Config.Proxy.WebAddr.String())
+		webProxyAddr, err := netutils.ParseAddr(s.root.Config.Proxy.WebAddr.String())
 		require.NoError(t, err)
 		// profile kube config path depends on web proxy host
 		webProxyHost := webProxyAddr.Host()

@@ -43,8 +43,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type AgentState string
@@ -74,7 +74,7 @@ type transportHandler interface {
 // sshDialer is an ssh dialer that returns an SSHClient
 type sshDialer interface {
 	// DialContext dials the given address and creates a new SSHClient.
-	DialContext(context.Context, utils.NetAddr) (SSHClient, error)
+	DialContext(context.Context, netutils.NetAddr) (SSHClient, error)
 }
 
 // versionGetter gets the connected auth server version.
@@ -102,7 +102,7 @@ type SSHClient interface {
 // agentConfig represents an agent configuration.
 type agentConfig struct {
 	// addr is the target address to dial.
-	addr utils.NetAddr
+	addr netutils.NetAddr
 	// keepAlive is the interval at which the agent will send heartbeats.
 	keepAlive time.Duration
 	// keepAliveCount specifies the amount of missed ping heartbeats
@@ -650,7 +650,7 @@ func (a *agent) sendKeepalives() error {
 		_, _, err := a.client.SendRequest(a.ctx, teleport.KeepAliveReqType, wantReplyTrue, nil)
 		ticker.Reset(retryutils.SeventhJitter(a.keepAlive))
 		if err != nil {
-			if !utils.IsOKNetworkError(err) {
+			if !netutils.IsOKNetworkError(err) {
 				a.logger.WarnContext(
 					a.ctx,
 					"Failed to send keepalive request",

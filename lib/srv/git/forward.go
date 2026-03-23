@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 var (
@@ -264,7 +265,7 @@ func (s *ForwardServer) Serve() {
 	defer s.logger.DebugContext(s.cfg.ParentContext, "Finished forwarding git")
 	server, err := sshutils.NewServer(
 		teleport.ComponentForwardingGit,
-		utils.NetAddr{}, /* empty addr, this is one time use so no use for listener*/
+		netutils.NetAddr{}, /* empty addr, this is one time use so no use for listener*/
 		sshutils.NewChanHandlerFunc(s.onChannel),
 		sshutils.StaticHostSigners(s.cfg.HostCertificate),
 		sshutils.AuthMethods{
@@ -285,13 +286,13 @@ func (s *ForwardServer) Serve() {
 }
 
 func (s *ForwardServer) close() {
-	if err := s.serverConn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+	if err := s.serverConn.Close(); err != nil && !netutils.IsOKNetworkError(err) {
 		s.logger.WarnContext(s.cfg.ParentContext, "Failed to close server conn", "error", err)
 	}
-	if err := s.clientConn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+	if err := s.clientConn.Close(); err != nil && !netutils.IsOKNetworkError(err) {
 		s.logger.WarnContext(s.cfg.ParentContext, "Failed to close client conn", "error", err)
 	}
-	if err := s.cfg.TargetConn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+	if err := s.cfg.TargetConn.Close(); err != nil && !netutils.IsOKNetworkError(err) {
 		s.logger.WarnContext(s.cfg.ParentContext, "Failed to close target conn", "error", err)
 	}
 }

@@ -32,7 +32,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	relaytunnelv1alpha "github.com/gravitational/teleport/gen/proto/go/teleport/relaytunnel/v1alpha"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // yamuxTunnelALPN is the ALPN protocol name for the bespoke protocol used by
@@ -118,7 +118,7 @@ func addrFromProto(a *relaytunnelv1alpha.Addr) net.Addr {
 		return nil
 	}
 
-	return &utils.NetAddr{
+	return &netutils.NetAddr{
 		AddrNetwork: a.GetNetwork(),
 		Addr:        a.GetAddr(),
 	}

@@ -161,6 +161,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 var (
@@ -3742,7 +3743,7 @@ func (g *GRPCServer) UpsertNode(ctx context.Context, node *types.ServerV2) (*typ
 	if !ok {
 		return nil, trace.BadParameter("unable to find peer")
 	}
-	node.SetAddr(utils.ReplaceLocalhost(node.GetAddr(), p.Addr.String()))
+	node.SetAddr(netutils.ReplaceLocalhost(node.GetAddr(), p.Addr.String()))
 
 	keepAlive, err := auth.ServerWithRoles.UpsertNode(ctx, node)
 	if err != nil {
@@ -4497,7 +4498,7 @@ func (g *GRPCServer) UpsertWindowsDesktopService(ctx context.Context, service *t
 		g.logger.WarnContext(ctx, "error getting client address from context", "error", err)
 		return nil, status.Errorf(codes.FailedPrecondition, "client address not found in request context")
 	}
-	service.Spec.Addr = utils.ReplaceLocalhost(service.GetAddr(), clientAddr.String())
+	service.Spec.Addr = netutils.ReplaceLocalhost(service.GetAddr(), clientAddr.String())
 
 	keepAlive, err := auth.UpsertWindowsDesktopService(ctx, service)
 	if err != nil {

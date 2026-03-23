@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // NewEngine create new MySQL engine.
@@ -264,7 +264,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 	for {
 		packet, err := protocol.ParsePacket(clientConn)
 		if err != nil {
-			if utils.IsOKNetworkError(err) {
+			if netutils.IsOKNetworkError(err) {
 				log.DebugContext(e.Context, "Client connection closed")
 				return
 			}
@@ -383,7 +383,7 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 	// which is read by the analysis goroutine above.
 	total, err := io.Copy(clientConn, io.TeeReader(serverConn, copyWriter))
 	if err != nil {
-		if utils.IsOKNetworkError(err) {
+		if netutils.IsOKNetworkError(err) {
 			log.DebugContext(e.Context, "Server connection closed")
 		} else {
 			log.WarnContext(e.Context, "Server -> Client copy finished with unexpected error", "error", err)

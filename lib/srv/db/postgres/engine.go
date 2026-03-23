@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/utils"
 	logutil "github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // NewEngine create new Postgres engine.
@@ -83,7 +83,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 
 // SendError sends an error to connected client in a Postgres understandable format.
 func (e *Engine) SendError(err error) {
-	if err := e.client.Send(toErrorResponse(err)); err != nil && !utils.IsOKNetworkError(err) {
+	if err := e.client.Send(toErrorResponse(err)); err != nil && !netutils.IsOKNetworkError(err) {
 		e.Log.ErrorContext(e.Context, "Failed to send error to client.", "error", err)
 	}
 }
@@ -173,7 +173,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 	defer func() {
 		err = serverConn.Close(ctx)
-		if err != nil && !utils.IsOKNetworkError(err) {
+		if err != nil && !netutils.IsOKNetworkError(err) {
 			e.Log.ErrorContext(e.Context, "Failed to close connection.", "error", err)
 		}
 	}()

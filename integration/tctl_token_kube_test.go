@@ -46,8 +46,8 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/gravitational/teleport/tool/tctl/common"
 )
 
@@ -176,7 +176,7 @@ func TestTCTLTokenConfigureKubeCommand_OIDC(t *testing.T) {
 	// Test execution: create the tctl command.
 	stdout := &bytes.Buffer{}
 	tctlCfg := &servicecfg.Config{}
-	err = tctlCfg.SetAuthServerAddresses([]utils.NetAddr{*addr})
+	err = tctlCfg.SetAuthServerAddresses([]netutils.NetAddr{*addr})
 	require.NoError(t, err)
 	tctlCommand := common.TokensCommand{
 		Stdout:     stdout,
@@ -280,7 +280,7 @@ func TestTCTLTokenConfigureKubeCommand_JWKS(t *testing.T) {
 	// Test execution: create the tctl command.
 	stdout := &bytes.Buffer{}
 	tctlCfg := &servicecfg.Config{}
-	err = tctlCfg.SetAuthServerAddresses([]utils.NetAddr{*addr})
+	err = tctlCfg.SetAuthServerAddresses([]netutils.NetAddr{*addr})
 	require.NoError(t, err)
 	tctlCommand := common.TokensCommand{
 		Stdout:     stdout,

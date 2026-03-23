@@ -25,7 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // Conn is a connection wrapper that supports
@@ -195,7 +195,7 @@ func NewPROXYEnabledListener(cfg Config) (*PROXYEnabledListener, error) {
 	}
 	muxListener := mux.SSH()
 	go func() {
-		if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+		if err := mux.Serve(); err != nil && !netutils.IsOKNetworkError(err) {
 			mux.logger.ErrorContext(cfg.Context, "Mux encountered err serving", "error", err)
 		}
 	}()

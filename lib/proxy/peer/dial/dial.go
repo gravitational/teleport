@@ -20,7 +20,7 @@ import (
 	"net"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // Dialer dials a node in the given cluster.
@@ -30,8 +30,8 @@ type Dialer interface {
 
 // DialParams defines the target for a [Dialer.Dial].
 type DialParams struct {
-	From        *utils.NetAddr
-	To          *utils.NetAddr
+	From        *netutils.NetAddr
+	To          *netutils.NetAddr
 	ServerID    string
 	ConnType    types.TunnelType
 	TargetScope string

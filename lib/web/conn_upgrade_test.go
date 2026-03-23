@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/listener"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestHandlerConnectionUpgrade(t *testing.T) {
@@ -304,7 +305,7 @@ func mustReadClientWebSocketClosed(t *testing.T, clientConn net.Conn, expectedPa
 	t.Helper()
 
 	_, err := ws.ReadFrame(clientConn)
-	require.True(t, utils.IsOKNetworkError(err))
+	require.True(t, netutils.IsOKNetworkError(err))
 }
 
 // responseWriterHijacker is a mock http.ResponseWriter that also serves a

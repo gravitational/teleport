@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const sockSuffix = ".sock"
@@ -77,14 +78,14 @@ func (r *SSHServerWrapper) attemptHandover(conn *multiplexer.Conn, token resumpt
 	remoteIP16 := remoteIP.As16()
 
 	if _, err := handoverConn.Write(remoteIP16[:]); err != nil {
-		if !utils.IsOKNetworkError(err) {
+		if !netutils.IsOKNetworkError(err) {
 			slog.ErrorContext(context.TODO(), "error while forwarding remote address to handover socket", "error", err)
 		}
 		return
 	}
 
 	slog.DebugContext(context.TODO(), "forwarding resumable connection to handover socket")
-	if err := utils.ProxyConn(context.Background(), conn, handoverConn); err != nil && !utils.IsOKNetworkError(err) {
+	if err := utils.ProxyConn(context.Background(), conn, handoverConn); err != nil && !netutils.IsOKNetworkError(err) {
 		slog.DebugContext(context.TODO(), "finished forwarding resumable connection to handover socket", "error", err)
 	}
 }
@@ -140,7 +141,7 @@ func (r *SSHServerWrapper) runHandoverListener(l net.Listener, entry *connEntry)
 		}
 
 		if tempErr, ok := err.(interface{ Temporary() bool }); !ok || !tempErr.Temporary() {
-			if !utils.IsOKNetworkError(err) {
+			if !netutils.IsOKNetworkError(err) {
 				slog.WarnContext(context.TODO(), "accept error in handover listener", "error", err)
 			}
 			return
@@ -157,7 +158,7 @@ func (r *SSHServerWrapper) handleHandoverConnection(conn net.Conn, entry *connEn
 
 	var remoteIP16 [16]byte
 	if _, err := io.ReadFull(conn, remoteIP16[:]); err != nil {
-		if !utils.IsOKNetworkError(err) {
+		if !netutils.IsOKNetworkError(err) {
 			slog.ErrorContext(context.TODO(), "error while reading remote address from handover socket", "error", err)
 		}
 		return

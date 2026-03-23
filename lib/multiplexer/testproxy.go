@@ -26,10 +26,10 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // TestProxy is tcp passthrough proxy that sends a proxy-line when connecting
@@ -109,7 +109,7 @@ func (p *TestProxy) handleConnection(clientConn net.Conn) error {
 	for range 2 {
 		select {
 		case err := <-errCh:
-			if err != nil && !utils.IsOKNetworkError(err) {
+			if err != nil && !netutils.IsOKNetworkError(err) {
 				errs = append(errs, err)
 			}
 		case <-p.closeCh:
@@ -122,11 +122,11 @@ func (p *TestProxy) handleConnection(clientConn net.Conn) error {
 
 // sendProxyLine sends proxy-line to the server.
 func (p *TestProxy) sendProxyLine(clientConn, serverConn net.Conn) error {
-	clientAddr, err := utils.ParseAddr(clientConn.RemoteAddr().String())
+	clientAddr, err := netutils.ParseAddr(clientConn.RemoteAddr().String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serverAddr, err := utils.ParseAddr(serverConn.RemoteAddr().String())
+	serverAddr, err := netutils.ParseAddr(serverConn.RemoteAddr().String())
 	if err != nil {
 		return trace.Wrap(err)
 	}

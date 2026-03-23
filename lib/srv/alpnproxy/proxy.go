@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // ProxyConfig  is the configuration for an ALPN proxy server.
@@ -332,7 +333,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
 		if err != nil {
-			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) || ctx.Err() != nil {
+			if netutils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) || ctx.Err() != nil {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -343,13 +344,13 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			// service handler returned will break service logic.
 			// https://github.com/gravitational/teleport/blob/master/lib/sshutils/server.go#L397
 			if err := p.handleConn(ctx, clientConn, nil, common.ConnHandlerSourceListener); err != nil {
-				if cerr := clientConn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
+				if cerr := clientConn.Close(); cerr != nil && !netutils.IsOKNetworkError(cerr) {
 					p.log.WarnContext(ctx, "Failed to close client connection", "error", cerr)
 				}
 				switch {
 				case trace.IsBadParameter(err):
 					p.log.WarnContext(ctx, "Failed to handle client connection", "error", err)
-				case utils.IsOKNetworkError(err):
+				case netutils.IsOKNetworkError(err):
 				case isConnRemoteError(err):
 					p.log.DebugContext(ctx, "Connection rejected by client", "error", err, "remote_addr", clientConn.RemoteAddr())
 				default:
@@ -499,7 +500,7 @@ func (p *Proxy) handlePingConnection(ctx context.Context, conn *tls.Conn) utils.
 			case <-ticker.C:
 				err := pingConn.WritePing()
 				if err != nil {
-					if !utils.IsOKNetworkError(err) {
+					if !netutils.IsOKNetworkError(err) {
 						p.log.WarnContext(ctx, "Failed to write ping message", "error", err)
 					}
 
@@ -669,7 +670,7 @@ func (p *Proxy) MakeConnectionHandler(defaultOverride *tls.Config, connSource co
 	return func(ctx context.Context, conn net.Conn) error {
 		if err := p.handleConn(ctx, conn, defaultOverride, connSource); err != nil {
 			// Make sure we close the connection on error.
-			if cerr := conn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
+			if cerr := conn.Close(); cerr != nil && !netutils.IsOKNetworkError(cerr) {
 				p.log.WarnContext(ctx, "Failed to close client connection", "error", cerr, "remote_addr", logutils.StringerAttr(conn.RemoteAddr()))
 			}
 			// Still return the error for caller to report/log.

@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/envutils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 var ctxID int32
@@ -870,7 +871,7 @@ func (c *ServerContext) HandleX11Listener(ctx context.Context, l net.Listener, s
 		for {
 			xconn, err := l.Accept()
 			if err != nil {
-				if !utils.IsOKNetworkError(err) {
+				if !netutils.IsOKNetworkError(err) {
 					c.Logger.DebugContext(ctx, "Encountered error accepting XServer connection", "error", err)
 				}
 				return
@@ -1281,7 +1282,7 @@ func closeAll(closers ...io.Closer) error {
 func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
 	utmpPath, wtmpPath, btmpPath, wtmpdbPath := c.srv.GetUserAccountingPaths()
 	return &UaccMetadata{
-		RemoteAddr: utils.FromAddr(c.ConnectionContext.ServerConn.RemoteAddr()),
+		RemoteAddr: netutils.FromAddr(c.ConnectionContext.ServerConn.RemoteAddr()),
 		UtmpPath:   utmpPath,
 		WtmpPath:   wtmpPath,
 		BtmpPath:   btmpPath,

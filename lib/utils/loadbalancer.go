@@ -33,22 +33,23 @@ import (
 
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // NewLoadBalancer returns new load balancer listening on frontend
 // and redirecting requests to backends using round robin algo
-func NewLoadBalancer(ctx context.Context, frontend NetAddr, backends ...NetAddr) (*LoadBalancer, error) {
+func NewLoadBalancer(ctx context.Context, frontend netutils.NetAddr, backends ...netutils.NetAddr) (*LoadBalancer, error) {
 	return newLoadBalancer(ctx, frontend, roundRobinPolicy(), backends...)
 }
 
 // NewRandomLoadBalancer returns new load balancer listening on frontend
 // and redirecting requests to backends randomly.
-func NewRandomLoadBalancer(ctx context.Context, frontend NetAddr, backends ...NetAddr) (*LoadBalancer, error) {
+func NewRandomLoadBalancer(ctx context.Context, frontend netutils.NetAddr, backends ...netutils.NetAddr) (*LoadBalancer, error) {
 	return newLoadBalancer(ctx, frontend, randomPolicy(), backends...)
 }
 
 // newLoadBalancer returns new load balancer with the given load balance policy.
-func newLoadBalancer(ctx context.Context, frontend NetAddr, policy loadBalancerPolicy, backends ...NetAddr) (*LoadBalancer, error) {
+func newLoadBalancer(ctx context.Context, frontend netutils.NetAddr, policy loadBalancerPolicy, backends ...netutils.NetAddr) (*LoadBalancer, error) {
 	if ctx == nil {
 		return nil, trace.BadParameter("missing parameter context")
 	}
@@ -62,19 +63,19 @@ func newLoadBalancer(ctx context.Context, frontend NetAddr, policy loadBalancerP
 			logconstants.ComponentKey, "loadbalancer",
 			"frontend_addr", frontend.FullAddress(),
 		),
-		connections: make(map[NetAddr]map[int64]net.Conn),
+		connections: make(map[netutils.NetAddr]map[int64]net.Conn),
 	}, nil
 }
 
 // loadBalancerPolicy selects which backend to send traffic to.
-type loadBalancerPolicy func([]NetAddr) (NetAddr, error)
+type loadBalancerPolicy func([]netutils.NetAddr) (netutils.NetAddr, error)
 
 // roundRobinPolicy selects backends in sequential order
 func roundRobinPolicy() loadBalancerPolicy {
 	next := -1
-	return func(backends []NetAddr) (NetAddr, error) {
+	return func(backends []netutils.NetAddr) (netutils.NetAddr, error) {
 		if len(backends) == 0 {
-			return NetAddr{}, trace.ConnectionProblem(nil, "no backends")
+			return netutils.NetAddr{}, trace.ConnectionProblem(nil, "no backends")
 		}
 
 		next++
@@ -88,9 +89,9 @@ func roundRobinPolicy() loadBalancerPolicy {
 
 // randomPolicy selects backends in a random order.
 func randomPolicy() loadBalancerPolicy {
-	return func(backends []NetAddr) (NetAddr, error) {
+	return func(backends []netutils.NetAddr) (netutils.NetAddr, error) {
 		if len(backends) == 0 {
-			return NetAddr{}, trace.ConnectionProblem(nil, "no backends")
+			return netutils.NetAddr{}, trace.ConnectionProblem(nil, "no backends")
 		}
 		i := rand.N(len(backends))
 		return backends[i], nil
@@ -103,18 +104,18 @@ type LoadBalancer struct {
 	sync.RWMutex
 	connID      int64
 	logger      *slog.Logger
-	frontend    NetAddr
-	backends    []NetAddr
+	frontend    netutils.NetAddr
+	backends    []netutils.NetAddr
 	ctx         context.Context
 	policy      loadBalancerPolicy
 	listener    net.Listener
-	connections map[NetAddr]map[int64]net.Conn
+	connections map[netutils.NetAddr]map[int64]net.Conn
 
 	PROXYHeader []byte // optional PROXY header that load balancer will send to the backend on every new connection.
 }
 
 // trackeConnection adds connection to the connection tracker
-func (l *LoadBalancer) trackConnection(backend NetAddr, conn net.Conn) int64 {
+func (l *LoadBalancer) trackConnection(backend netutils.NetAddr, conn net.Conn) int64 {
 	l.Lock()
 	defer l.Unlock()
 	l.connID++
@@ -128,7 +129,7 @@ func (l *LoadBalancer) trackConnection(backend NetAddr, conn net.Conn) int64 {
 }
 
 // untrackConnection removes connection from connection tracker
-func (l *LoadBalancer) untrackConnection(backend NetAddr, id int64) {
+func (l *LoadBalancer) untrackConnection(backend netutils.NetAddr, id int64) {
 	l.Lock()
 	defer l.Unlock()
 	tracker, ok := l.connections[backend]
@@ -139,7 +140,7 @@ func (l *LoadBalancer) untrackConnection(backend NetAddr, id int64) {
 }
 
 // dropConnections drops connections associated with backend
-func (l *LoadBalancer) dropConnections(backend NetAddr) {
+func (l *LoadBalancer) dropConnections(backend netutils.NetAddr) {
 	tracker := l.connections[backend]
 	for _, conn := range tracker {
 		conn.Close()
@@ -148,7 +149,7 @@ func (l *LoadBalancer) dropConnections(backend NetAddr) {
 }
 
 // AddBackend adds backend
-func (l *LoadBalancer) AddBackend(b NetAddr) {
+func (l *LoadBalancer) AddBackend(b netutils.NetAddr) {
 	l.Lock()
 	defer l.Unlock()
 	l.backends = append(l.backends, b)
@@ -156,7 +157,7 @@ func (l *LoadBalancer) AddBackend(b NetAddr) {
 }
 
 // RemoveBackend removes backend
-func (l *LoadBalancer) RemoveBackend(b NetAddr) error {
+func (l *LoadBalancer) RemoveBackend(b netutils.NetAddr) error {
 	l.Lock()
 	defer l.Unlock()
 	for i := range l.backends {
@@ -169,12 +170,12 @@ func (l *LoadBalancer) RemoveBackend(b NetAddr) error {
 	return trace.NotFound("lb has no backend matching: %+v", b)
 }
 
-func (l *LoadBalancer) nextBackend() (NetAddr, error) {
+func (l *LoadBalancer) nextBackend() (netutils.NetAddr, error) {
 	l.Lock()
 	defer l.Unlock()
 	backend, err := l.policy(l.backends)
 	if err != nil {
-		return NetAddr{}, trace.Wrap(err)
+		return netutils.NetAddr{}, trace.Wrap(err)
 	}
 
 	return backend, nil
@@ -221,7 +222,7 @@ func (l *LoadBalancer) Serve() error {
 	for {
 		conn, err := l.listener.Accept()
 		if err != nil {
-			if IsUseOfClosedNetworkError(err) {
+			if netutils.IsUseOfClosedNetworkError(err) {
 				return trace.Wrap(err, "listener is closed")
 			}
 			select {

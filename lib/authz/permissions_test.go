@@ -50,7 +50,8 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -1000,7 +1001,7 @@ func TestCheckIPPinning(t *testing.T) {
 	for _, tt := range testCases {
 		ctx := context.Background()
 		if tt.clientAddr != "" {
-			ctx = authz.ContextWithClientSrcAddr(ctx, utils.MustParseAddr(tt.clientAddr))
+			ctx = authz.ContextWithClientSrcAddr(ctx, netutils.MustParseAddr(tt.clientAddr))
 		}
 		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
 

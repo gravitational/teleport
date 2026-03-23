@@ -27,8 +27,8 @@ import (
 
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // Config is the APIServer configuration
@@ -46,7 +46,7 @@ type Config struct {
 	Clock           clockwork.Clock
 	// ListeningC propagates the address on which the gRPC server listens. Mostly useful in tests, as
 	// the Electron app gets the server port from stdout.
-	ListeningC chan<- utils.NetAddr
+	ListeningC chan<- netutils.NetAddr
 }
 
 // CheckAndSetDefaults checks and sets default config values.

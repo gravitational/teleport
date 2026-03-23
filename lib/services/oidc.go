@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // GetRedirectURL gets a redirect URL for the given connector. If the connector
@@ -41,7 +42,7 @@ func GetRedirectURL(conn types.OIDCConnector, proxyAddr string) (string, error) 
 		return conn.GetRedirectURLs()[0], nil
 	}
 
-	proxyNetAddr, err := utils.ParseAddr(proxyAddr)
+	proxyNetAddr, err := netutils.ParseAddr(proxyAddr)
 	if err != nil {
 		return "", trace.Wrap(err, "invalid proxy address %v", proxyAddr)
 	}

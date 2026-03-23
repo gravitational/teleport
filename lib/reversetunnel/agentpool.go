@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -116,7 +117,7 @@ type AgentPoolConfig struct {
 	// system clock is used
 	Clock clockwork.Clock
 	// KubeDialAddr is an address of a kubernetes proxy
-	KubeDialAddr utils.NetAddr
+	KubeDialAddr netutils.NetAddr
 	// Server is either an SSH or application server. It can handle a connection
 	// (perform handshake and handle request).
 	Server ServerHandler
@@ -631,7 +632,7 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 			"dial_addr", dialReq.Address,
 		)
 	}
-	if src, err := utils.ParseAddr(dialReq.ClientSrcAddr); err == nil {
+	if src, err := netutils.ParseAddr(dialReq.ClientSrcAddr); err == nil {
 		conn = utils.NewConnWithSrcAddr(conn, getTCPAddr(src))
 	}
 
@@ -752,7 +753,7 @@ func (c *agentPoolRuntimeConfig) useALPNRouting() bool {
 	return c.proxyListenerMode == types.ProxyListenerMode_Multiplex
 }
 
-func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.NetAddr) error {
+func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *netutils.NetAddr) error {
 	c.updateRemoteMu.Lock()
 	defer c.updateRemoteMu.Unlock()
 

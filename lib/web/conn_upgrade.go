@@ -37,9 +37,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // connectionUpgrade handles connection upgrades.
@@ -92,7 +92,7 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 		return nil, nil
 	}
 
-	if err := upgradeHandler(ctx, conn); err != nil && !utils.IsOKNetworkError(err) {
+	if err := upgradeHandler(ctx, conn); err != nil && !netutils.IsOKNetworkError(err) {
 		// Upgrader hijacks the connection so no point returning an error here.
 		h.logger.ErrorContext(ctx, "Failed to handle WebSocket upgrade request",
 			"protocol", wsConn.Subprotocol(),
@@ -131,7 +131,7 @@ func (h *Handler) startPing(ctx context.Context, pingConn pingWriter) {
 		case <-ticker.C:
 			err := pingConn.WritePing()
 			if err != nil {
-				if !utils.IsOKNetworkError(err) {
+				if !netutils.IsOKNetworkError(err) {
 					h.logger.WarnContext(ctx, "Failed to write ping message.", "error", err)
 				}
 				return

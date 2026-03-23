@@ -23,6 +23,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/gravitational/trace"
 )
 
@@ -83,7 +84,7 @@ func ProxyConn(ctx context.Context, client, server io.ReadWriteCloser) error {
 	for range 2 {
 		select {
 		case err := <-errCh:
-			if err != nil && !IsOKNetworkError(err) {
+			if err != nil && !netutils.IsOKNetworkError(err) {
 				errors = append(errors, err)
 			}
 		case <-ctx.Done():

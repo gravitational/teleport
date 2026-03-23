@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // AppGetter defines interface for fetching application resources.
@@ -81,7 +82,7 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 	// The app's spec has already been validated in CheckAndSetDefaults, so we can assume the public address is a valid
 	// address. The remainder of this function focuses on detecting conflicts with proxy public addresses because the
 	// proxy addresses are not part of the app spec and need to be fetched separately.
-	appAddr, err := utils.ParseAddr(app.GetPublicAddr())
+	appAddr, err := netutils.ParseAddr(app.GetPublicAddr())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -105,7 +106,7 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 	// public address of any proxy. If an application shares a public address with a proxy, requests intended for the
 	// proxy could be misrouted to the application, compromising security.
 	for _, proxyServer := range proxyServers {
-		proxyAddrs, err := utils.ParseAddrs(proxyServer.GetPublicAddrs())
+		proxyAddrs, err := netutils.ParseAddrs(proxyServer.GetPublicAddrs())
 		if err != nil {
 			return trace.Wrap(err)
 		}

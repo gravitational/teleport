@@ -49,11 +49,12 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
-	"github.com/gravitational/teleport/lib/utils"
+
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -961,7 +962,7 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, targetCfg targetCon
 
 func getProxyAddrFromConfig(cfg *servicecfg.Config, flags configurators.BootstrapFlags) (string, error) {
 	if flags.Proxy != "" {
-		addr, err := utils.ParseHostPortAddr(flags.Proxy, defaults.HTTPListenPort)
+		addr, err := netutils.ParseHostPortAddr(flags.Proxy, defaults.HTTPListenPort)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

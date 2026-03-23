@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -739,7 +740,7 @@ func (ns *NodeSession) pipeInOut(ctx context.Context, shell io.ReadWriteCloser, 
 	go func() {
 		defer ns.closer.Close()
 		_, err := io.Copy(ns.terminal.Stdout(), shell)
-		if err != nil && !utils.IsOKNetworkError(err) {
+		if err != nil && !netutils.IsOKNetworkError(err) {
 			log.ErrorContext(ctx, "Failed copying data to session", "error", err)
 		}
 	}()

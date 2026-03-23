@@ -38,8 +38,9 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // number of goroutines that copy SFTP data from a SSH channel to
@@ -239,7 +240,7 @@ func (s *sftpSubsys) Wait() error {
 	errs := []error{waitErr}
 	for range copyingGoroutines {
 		err := <-s.errCh
-		if err != nil && !utils.IsOKNetworkError(err) {
+		if err != nil && !netutils.IsOKNetworkError(err) {
 			s.logger.WarnContext(ctx, "Connection problem", "error", err)
 			errs = append(errs, err)
 		}

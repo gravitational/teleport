@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/debug"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
-	libutils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -512,11 +512,11 @@ func sameProxies(a, b string) bool {
 	if a == b {
 		return true
 	}
-	addrA, err := libutils.ParseAddr(a)
+	addrA, err := netutils.ParseAddr(a)
 	if err != nil {
 		return false
 	}
-	addrB, err := libutils.ParseAddr(b)
+	addrB, err := netutils.ParseAddr(b)
 	if err != nil {
 		return false
 	}
@@ -961,7 +961,7 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig, id string) (FindR
 	if cfg.Spec.Proxy == "" {
 		return FindResp{}, trace.Errorf("Teleport proxy URL must be specified with --proxy or present in %s", UpdateConfigName)
 	}
-	addr, err := libutils.ParseAddr(cfg.Spec.Proxy)
+	addr, err := netutils.ParseAddr(cfg.Spec.Proxy)
 	if err != nil {
 		return FindResp{}, trace.Wrap(err, "failed to parse proxy server address")
 	}

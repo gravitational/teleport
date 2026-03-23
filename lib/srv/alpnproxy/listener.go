@@ -32,7 +32,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // ListenerMuxWrapper wraps the net.Listener and multiplex incoming connection from serviceListener and connection
@@ -101,7 +102,7 @@ func (l *ListenerMuxWrapper) startAcceptingConnectionServiceListener() {
 	for {
 		conn, err := l.Listener.Accept()
 		if err != nil {
-			if !utils.IsUseOfClosedNetworkError(err) {
+			if !netutils.IsUseOfClosedNetworkError(err) {
 				l.errC <- err
 			}
 			return

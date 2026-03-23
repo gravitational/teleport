@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestKubeGateway(t *testing.T) {
@@ -242,7 +243,7 @@ func mustStartMockProxyWithKubeAPI(t *testing.T, identity tlsca.Identity) *mockP
 func mustGenCAForProxyKubeAddr(t *testing.T, key *keys.PrivateKey, hostAddr string) (tls.Certificate, *tlsca.CertAuthority) {
 	t.Helper()
 
-	addr, err := utils.ParseAddr(hostAddr)
+	addr, err := netutils.ParseAddr(hostAddr)
 	require.NoError(t, err)
 
 	certPem, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{

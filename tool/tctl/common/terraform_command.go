@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -300,7 +301,7 @@ func (c *TerraformCommand) checkIfRoleExists(ctx context.Context, client roleCli
 // Later, the Terraform provider will read those environment variables to build its Teleport client.
 // Note: the function also returns the SSH Host CA cert encoded in the known host format.
 // The identity.Identity uses a different format (authorized keys).
-func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr utils.NetAddr, token string, clt *authclient.Client) (*identity.Identity, [][]byte, error) {
+func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr netutils.NetAddr, token string, clt *authclient.Client) (*identity.Identity, [][]byte, error) {
 	credential := &clientcredentials.UnstableConfig{}
 	credentialLifetime := bot.CredentialLifetime{
 		TTL:             c.botTTL,

@@ -27,7 +27,8 @@ import (
 
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func nullImpersonationCheck(context.Context, string, authztypes.SelfSubjectAccessReviewInterface) error {
@@ -68,5 +69,5 @@ func StartAndWait(process *service.TeleportProcess, expectedEvents []string) ([]
 
 func EnableDesktopService(config *servicecfg.Config) {
 	config.WindowsDesktop.Enabled = true
-	config.WindowsDesktop.ListenAddr = *utils.MustParseAddr("127.0.0.1:0")
+	config.WindowsDesktop.ListenAddr = *netutils.MustParseAddr("127.0.0.1:0")
 }

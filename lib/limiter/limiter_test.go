@@ -35,8 +35,8 @@ import (
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport/lib/limiter/internal/ratelimit"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestMain(m *testing.M) {
@@ -306,7 +306,7 @@ func TestListener(t *testing.T) {
 			config: Config{MaxConnections: 0},
 			listener: &fakeListener{
 				acceptConn: &fakeConn{
-					addr: &utils.NetAddr{
+					addr: &netutils.NetAddr{
 						Addr:        "abcd",
 						AddrNetwork: "tcp",
 					},

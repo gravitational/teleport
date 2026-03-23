@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/winpki"
+	"github.com/gravitational/teleport/session/common/netutils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
@@ -1248,7 +1249,7 @@ func (a *AuthCommand) checkProxyAddr(ctx context.Context, clusterAPI certificate
 			return nil
 		}
 
-		_, err := utils.ParseAddr(addr)
+		_, err := netutils.ParseAddr(addr)
 		if err != nil {
 			slog.WarnContext(ctx, "Invalid public address on the proxy",
 				"proxy", p.GetName(),

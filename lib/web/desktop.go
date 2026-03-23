@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -860,7 +861,7 @@ func (p desktopWebsocketProxy) run(ctx context.Context) error {
 	// connection proxy. We can inspect this singular error chain for any "real"
 	// network errors (as opposed to errors that are expected from a normal teardown).
 	err = proxy.Run()
-	if utils.IsOKNetworkError(err) {
+	if netutils.IsOKNetworkError(err) {
 		err = nil
 	}
 

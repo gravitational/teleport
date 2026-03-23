@@ -155,6 +155,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/terminal"
 	webui "github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -382,13 +383,13 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	nodeDataDir := t.TempDir()
 	node, err := regular.New(
 		ctx,
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		nodeID,
 		sshutils.StaticHostSigners(signer),
 		nodeClient,
 		nodeDataDir,
 		"",
-		utils.NetAddr{},
+		netutils.NetAddr{},
 		nodeClient,
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
@@ -527,13 +528,13 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	// proxy server:
 	s.proxy, err = regular.New(
 		ctx,
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		sshutils.StaticHostSigners(signer),
 		s.proxyClient,
 		t.TempDir(),
 		"",
-		utils.NetAddr{},
+		netutils.NetAddr{},
 		s.proxyClient,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode("", revTunServer, s.proxyClient, router),
@@ -568,7 +569,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		ClusterFeatures:                 features,
 		Modules:                         cfg.modules,
 		Proxy:                           revTunServer,
-		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
+		AuthServers:                     netutils.FromAddr(s.server.TLS.Addr()),
 		ProxyClient:                     s.proxyClient,
 		CipherSuites:                    utils.DefaultCipherSuites(),
 		AccessPoint:                     s.proxyClient,
@@ -629,9 +630,9 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		}
 	}
 
-	proxyAddr := utils.MustParseAddr(s.proxy.Addr())
+	proxyAddr := netutils.MustParseAddr(s.proxy.Addr())
 
-	addr := utils.MustParseAddr(s.webServer.Listener.Addr().String())
+	addr := netutils.MustParseAddr(s.webServer.Listener.Addr().String())
 	handler.handler.cfg.ProxyWebAddr = *addr
 	handler.handler.cfg.ProxySSHAddr = *proxyAddr
 	_, sshPort, err := net.SplitHostPort(proxyAddr.String())
@@ -716,13 +717,13 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 	// create SSH service:
 	node, err := regular.New(
 		context.Background(),
-		utils.NetAddr{AddrNetwork: "tcp", Addr: address},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: address},
 		hostname,
 		sshutils.StaticHostSigners(signer),
 		nodeClient,
 		t.TempDir(),
 		"",
-		utils.NetAddr{},
+		netutils.NetAddr{},
 		nodeClient,
 		regular.SetUUID(uuid),
 		regular.SetNamespace(apidefaults.Namespace),
@@ -4611,7 +4612,7 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	// Init fake gRPC Kube service.
 	initGRPCServer(t, env, listener)
-	addr := utils.MustParseAddr(listener.Addr().String())
+	addr := netutils.MustParseAddr(listener.Addr().String())
 	proxy.handler.handler.cfg.ProxyWebAddr = *addr
 
 	user := "test-user@example.com"
@@ -8458,13 +8459,13 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	nodeDataDir := t.TempDir()
 	node, err := regular.New(
 		ctx,
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		nodeID,
 		sshutils.StaticHostSigners(hostSigners...),
 		nodeClient,
 		nodeDataDir,
 		"",
-		utils.NetAddr{},
+		netutils.NetAddr{},
 		nodeClient,
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
@@ -8700,7 +8701,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	t.Cleanup(func() { require.NoError(t, mux.Close()) })
 
 	go func() {
-		if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+		if err := mux.Serve(); err != nil && !netutils.IsOKNetworkError(err) {
 			slog.ErrorContext(context.Background(), "Mux encountered error serving", "error", err)
 		}
 	}()
@@ -8788,20 +8789,20 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	transportpb.RegisterTransportServiceServer(sshGRPCServer, transportService)
 
 	go func() {
-		if err := sshGRPCServer.Serve(mux.TLS()); err != nil && !utils.IsOKNetworkError(err) {
+		if err := sshGRPCServer.Serve(mux.TLS()); err != nil && !netutils.IsOKNetworkError(err) {
 			slog.ErrorContext(context.Background(), "gRPC proxy server terminated unexpectedly", "error", err)
 		}
 	}()
 
 	proxyServer, err := regular.New(
 		ctx,
-		utils.NetAddr{AddrNetwork: proxyListener.Addr().Network(), Addr: mux.SSH().Addr().String()},
+		netutils.NetAddr{AddrNetwork: proxyListener.Addr().Network(), Addr: mux.SSH().Addr().String()},
 		authServer.ClusterName(),
 		sshutils.StaticHostSigners(hostSigners...),
 		client,
 		t.TempDir(),
 		"",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "proxy-1.example.com:443"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "proxy-1.example.com:443"},
 		client,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode("", revTunServer, client, router),
@@ -8811,7 +8812,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		regular.SetClock(clock),
 		regular.SetLockWatcher(proxyLockWatcher),
 		regular.SetSessionController(sessionController),
-		regular.SetPublicAddrs([]utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}),
+		regular.SetPublicAddrs([]netutils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}),
 		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
@@ -8828,9 +8829,9 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
 		Proxy:            revTunServer,
-		AuthServers:      utils.FromAddr(authServer.Addr()),
+		AuthServers:      netutils.FromAddr(authServer.Addr()),
 		ProxyClient:      client,
-		ProxyPublicAddrs: utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
+		ProxyPublicAddrs: netutils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
 		CipherSuites:     utils.DefaultCipherSuites(),
 		AccessPoint:      client,
 		Context:          ctx,
@@ -8863,15 +8864,15 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	webServer := httptest.NewTLSServer(handler)
 	t.Cleanup(webServer.Close)
 	go func() {
-		if err := proxyServer.Serve(mux.SSH()); err != nil && !utils.IsOKNetworkError(err) {
+		if err := proxyServer.Serve(mux.SSH()); err != nil && !netutils.IsOKNetworkError(err) {
 			slog.ErrorContext(context.Background(), "SSH proxy server terminated unexpectedly", "error", err)
 		}
 	}()
 
 	proxyAddr := mux.Listener.Addr()
-	addr := utils.MustParseAddr(webServer.Listener.Addr().String())
+	addr := netutils.MustParseAddr(webServer.Listener.Addr().String())
 	handler.handler.cfg.ProxyWebAddr = *addr
-	handler.handler.cfg.ProxySSHAddr = utils.NetAddr{AddrNetwork: proxyAddr.Network(), Addr: proxyAddr.String()}
+	handler.handler.cfg.ProxySSHAddr = netutils.NetAddr{AddrNetwork: proxyAddr.Network(), Addr: proxyAddr.String()}
 
 	_, sshPort, err := net.SplitHostPort(proxyAddr.String())
 	require.NoError(t, err)
@@ -8887,7 +8888,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 				revTunnel:   revTunServer,
 			},
 		)
-		handler.handler.cfg.ProxyKubeAddr = utils.FromAddr(kubeProxyAddr)
+		handler.handler.cfg.ProxyKubeAddr = netutils.FromAddr(kubeProxyAddr)
 	}
 	handler.handler.cfg.PublicProxyAddr = webServer.Listener.Addr().String()
 	url, err := url.Parse("https://" + webServer.Listener.Addr().String())
@@ -10367,10 +10368,10 @@ func TestGetKubeExecClusterData(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h := Handler{}
 			if tt.proxyWebAddr != "" {
-				h.cfg.ProxyWebAddr = *utils.MustParseAddr(tt.proxyWebAddr)
+				h.cfg.ProxyWebAddr = *netutils.MustParseAddr(tt.proxyWebAddr)
 			}
 			if tt.proxyKubeAddr != "" {
-				h.cfg.ProxyKubeAddr = *utils.MustParseAddr(tt.proxyKubeAddr)
+				h.cfg.ProxyKubeAddr = *netutils.MustParseAddr(tt.proxyKubeAddr)
 			}
 
 			netConfig := types.ClusterNetworkingConfigV2{Spec: types.ClusterNetworkingConfigSpecV2{

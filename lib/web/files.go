@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // fileTransferRequest describes HTTP file transfer request
@@ -171,12 +171,12 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 
 	clientDstAddr := h.cfg.ProxyWebAddr
 	if srvConn, err := authz.ConnFromContext(r.Context()); err == nil {
-		clientDstAddr = utils.FromAddr(srvConn.LocalAddr())
+		clientDstAddr = netutils.FromAddr(srvConn.LocalAddr())
 	}
 	conn, err := h.cfg.Router.DialHost(
 		ctx,
 		ident.ScopePin,
-		&utils.NetAddr{Addr: r.RemoteAddr},
+		&netutils.NetAddr{Addr: r.RemoteAddr},
 		&clientDstAddr,
 		req.serverID,
 		"0",
@@ -232,7 +232,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	}
 	remoteTarget := sftp.Target{
 		Login: req.login,
-		Addr: &utils.NetAddr{
+		Addr: &netutils.NetAddr{
 			Addr: req.serverID + ":0",
 		},
 		Path: req.remoteLocation,

@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestMain(m *testing.M) {
@@ -232,7 +233,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	log.DebugContext(ctx, "Starting load balancer")
 	lb, err := utils.NewLoadBalancer(
 		ctx,
-		*utils.MustParseAddr(net.JoinHostPort("localhost", "0")),
+		*netutils.MustParseAddr(net.JoinHostPort("localhost", "0")),
 		auth1.authAddr(t),
 	)
 	require.NoError(t, err)
@@ -425,7 +426,7 @@ func TestHSMMigrate(t *testing.T) {
 	log.DebugContext(ctx, "Starting load balancer")
 	lb, err := utils.NewLoadBalancer(
 		ctx,
-		*utils.MustParseAddr(net.JoinHostPort("localhost", "0")),
+		*netutils.MustParseAddr(net.JoinHostPort("localhost", "0")),
 		auth1.authAddr(t),
 		auth2.authAddr(t),
 	)

@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 var (
@@ -213,10 +213,10 @@ func withKubeService(t *testing.T, matchers ...services.ResourceMatcher) testOpt
 		options.serviceConfigFuncs = append(options.serviceConfigFuncs, func(cfg *servicecfg.Config) {
 			// Enable kubernetes proxy
 			cfg.Proxy.Kube.Enabled = true
-			cfg.Proxy.Kube.ListenAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerProxyKube, &(cfg.FileDescriptors)))
+			cfg.Proxy.Kube.ListenAddr = *netutils.MustParseAddr(helpers.NewListener(t, service.ListenerProxyKube, &(cfg.FileDescriptors)))
 			// set kubernetes specific parameters
 			cfg.Kube.Enabled = true
-			cfg.Kube.ListenAddr = utils.MustParseAddr(helpers.NewListener(t, service.ListenerKube, &(cfg.FileDescriptors)))
+			cfg.Kube.ListenAddr = netutils.MustParseAddr(helpers.NewListener(t, service.ListenerKube, &(cfg.FileDescriptors)))
 			cfg.Kube.ResourceMatchers = matchers
 		})
 	}

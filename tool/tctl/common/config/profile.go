@@ -34,8 +34,9 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
@@ -104,7 +105,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	}
 	// Do not override auth servers from command line
 	if len(ccf.AuthServerAddr) == 0 {
-		webProxyAddr, err := utils.ParseAddr(profile.ProxyURL.Host)
+		webProxyAddr, err := netutils.ParseAddr(profile.ProxyURL.Host)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

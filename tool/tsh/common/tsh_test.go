@@ -101,6 +101,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/gravitational/teleport/tool/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -2806,7 +2807,7 @@ func TestSSHCommands(t *testing.T) {
 		testserver.WithSSHPublicAddrs("127.0.0.1:0"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = true
-			cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
+			cfg.SSH.PublicAddrs = []netutils.NetAddr{cfg.SSH.Addr}
 			cfg.SSH.DisableCreateHostUser = true
 		}),
 	}
@@ -4279,7 +4280,7 @@ func withSSHLabel(key, value string) testServerOptFunc {
 }
 
 // deprecated: Use `tools/teleport/testenv.NewTeleportProcess` instead.
-func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOptFunc) *service.TeleportProcess {
+func makeTestSSHNode(t *testing.T, authAddr *netutils.NetAddr, opts ...testServerOptFunc) *service.TeleportProcess {
 	var options testServersOpts
 	for _, opt := range opts {
 		opt(&options)
@@ -4296,8 +4297,8 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = true
-	cfg.SSH.Addr = *utils.MustParseAddr("127.0.0.1:0")
-	cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
+	cfg.SSH.Addr = *netutils.MustParseAddr("127.0.0.1:0")
+	cfg.SSH.PublicAddrs = []netutils.NetAddr{cfg.SSH.Addr}
 	cfg.SSH.DisableCreateHostUser = true
 	cfg.Logger = logtest.NewLogger()
 	// Disabling debug service for tests so that it doesn't break if the data
@@ -4320,7 +4321,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 		opt(&options)
 	}
 
-	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	authAddr := netutils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	var err error
 	// Set up a test auth server.
 	cfg := servicecfg.MakeDefaultConfig()
@@ -4344,9 +4345,9 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Auth.ListenAddr = authAddr
 	cfg.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
 	cfg.Proxy.Enabled = true
-	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
-	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
-	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.Proxy.WebAddr = netutils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.Proxy.SSHAddr = netutils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.Proxy.ReverseTunnelListenAddr = netutils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Logger = logtest.NewLogger()
 	// Disabling debug service for tests so that it doesn't break if the data
@@ -6812,7 +6813,7 @@ func testListingResources[T any](t *testing.T, pack listPack[T], unmarshalFunc f
 
 	tests := []struct {
 		name      string
-		proxyAddr *utils.NetAddr
+		proxyAddr *netutils.NetAddr
 		cluster   string
 		auth      *auth.Server
 		recursive bool
@@ -7003,7 +7004,7 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 			outPort:    4022,
 			outCluster: "us.example.com",
 			outJumpHosts: []utils.JumpHost{{
-				Addr: utils.NetAddr{
+				Addr: netutils.NetAddr{
 					Addr:        "us.example.com:443",
 					AddrNetwork: "tcp",
 				},
@@ -7019,7 +7020,7 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 			outPort:    4022,
 			outCluster: "us.example.com",
 			outJumpHosts: []utils.JumpHost{{
-				Addr: utils.NetAddr{
+				Addr: netutils.NetAddr{
 					Addr:        "us.example.com:443",
 					AddrNetwork: "tcp",
 				},
@@ -7035,7 +7036,7 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 			outPort:    4022,
 			outCluster: "us.example.com",
 			outJumpHosts: []utils.JumpHost{{
-				Addr: utils.NetAddr{
+				Addr: netutils.NetAddr{
 					Addr:        "us.example.com:443",
 					AddrNetwork: "tcp",
 				},
@@ -7052,7 +7053,7 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 			outPort:    4022,
 			outCluster: "us.example.com",
 			outJumpHosts: []utils.JumpHost{{
-				Addr: utils.NetAddr{
+				Addr: netutils.NetAddr{
 					Addr:        "specified.proxy.com:443",
 					AddrNetwork: "tcp",
 				},
@@ -7137,7 +7138,7 @@ func TestResolve(t *testing.T) {
 		testserver.WithSSHPublicAddrs("127.0.0.1:0"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = true
-			cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
+			cfg.SSH.PublicAddrs = []netutils.NetAddr{cfg.SSH.Addr}
 			cfg.SSH.DisableCreateHostUser = true
 			cfg.SSH.Labels = map[string]string{
 				"animal": "llama",
@@ -7315,7 +7316,7 @@ func TestInteractiveCompatibilityFlags(t *testing.T) {
 		withConfig(func(cfg *servicecfg.Config) {
 			cfg.Hostname = hostname
 			cfg.SSH.Enabled = true
-			cfg.SSH.Addr = utils.NetAddr{
+			cfg.SSH.Addr = netutils.NetAddr{
 				AddrNetwork: "tcp",
 				Addr:        net.JoinHostPort("127.0.0.1", ports.Pop()),
 			}
@@ -7436,7 +7437,7 @@ func TestSCP(t *testing.T) {
 		testserver.WithSSHPublicAddrs("127.0.0.1:0"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = true
-			cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
+			cfg.SSH.PublicAddrs = []netutils.NetAddr{cfg.SSH.Addr}
 			cfg.SSH.DisableCreateHostUser = true
 			cfg.SSH.Labels = map[string]string{
 				"animal": "llama",

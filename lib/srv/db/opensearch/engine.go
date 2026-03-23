@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/utils"
 	libaws "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // NewEngine create new OpenSearch engine.
@@ -85,7 +86,7 @@ type errorResponse struct {
 
 // SendError sends an error to OpenSearch client.
 func (e *Engine) SendError(err error) {
-	if e.clientConn == nil || err == nil || utils.IsOKNetworkError(err) {
+	if e.clientConn == nil || err == nil || netutils.IsOKNetworkError(err) {
 		return
 	}
 

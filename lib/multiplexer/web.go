@@ -32,9 +32,10 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
-	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // WebListenerConfig is the web listener configuration.
@@ -103,7 +104,7 @@ func (l *WebListener) Serve() error {
 	for {
 		conn, err := l.cfg.Listener.Accept()
 		if err != nil {
-			if utils.IsUseOfClosedNetworkError(err) {
+			if netutils.IsUseOfClosedNetworkError(err) {
 				<-l.context.Done()
 				return trace.Wrap(err, "listener is closed")
 			}

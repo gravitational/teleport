@@ -27,7 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // Target is an SFTP destination to copy to or from.
@@ -35,7 +35,7 @@ type Target struct {
 	// Login is a login username.
 	Login string
 	// Addr is the host and port to copy to/from. If nil, target is a local path.
-	Addr *utils.NetAddr
+	Addr *netutils.NetAddr
 	// Path is a path to copy to/from.
 	// An empty path name is valid, and it refers to the user's default directory (usually
 	// the user's home directory).
@@ -120,7 +120,7 @@ func ParseTarget(input string, port int) (Target, error) {
 	// the path will start after the first colon, unless the host is an
 	// IPv6 address
 	pathStartIdx := firstColonIdx + 1
-	var host *utils.NetAddr
+	var host *netutils.NetAddr
 	// if the host begins with '[', it is most likely an IPv6 address,
 	// so attempt to parse it as such
 	afterLogin := input[hostStartIdx:]
@@ -138,7 +138,7 @@ func ParseTarget(input string, port int) (Target, error) {
 	// the host could not be parsed as an IPv6 address, try parsing it raw
 	if host == nil {
 		var err error
-		host, err = utils.ParseAddr(input[hostStartIdx:firstColonIdx])
+		host, err = netutils.ParseAddr(input[hostStartIdx:firstColonIdx])
 		if err != nil {
 			return Target{}, trace.Wrap(err)
 		}
@@ -162,7 +162,7 @@ func ParseTarget(input string, port int) (Target, error) {
 // parseIPv6Host returns the parsed host in input and the index of input
 // where the host ends. parseIPv6Host assumes the host contained in
 // input starts with '['.
-func parseIPv6Host(input string, start int) (*utils.NetAddr, int, error) {
+func parseIPv6Host(input string, start int) (*netutils.NetAddr, int, error) {
 	hostStr := input[start:]
 	// if there is only one ':' in the entire input, the host isn't
 	// an IPv6 address
@@ -180,7 +180,7 @@ func parseIPv6Host(input string, start int) (*utils.NetAddr, int, error) {
 	}
 
 	maybeAddr := hostStr[:rbraceIdx+1]
-	host, err := utils.ParseAddr(maybeAddr)
+	host, err := netutils.ParseAddr(maybeAddr)
 	if err != nil {
 		return nil, 0, trace.Wrap(err)
 	}
@@ -195,7 +195,7 @@ type Sources struct {
 	// Login is a login username.
 	Login string
 	// Addr is the host and port to copy to/from. If nil, target is a local path.
-	Addr *utils.NetAddr
+	Addr *netutils.NetAddr
 	// Paths are the paths to copy from.
 	Paths []string
 }

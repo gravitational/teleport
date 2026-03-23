@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // ProxyConfig specifies the configuration for Teleport's Proxy Service
@@ -56,7 +56,7 @@ type ProxyConfig struct {
 	DisableDatabaseProxy bool
 
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
-	ReverseTunnelListenAddr utils.NetAddr
+	ReverseTunnelListenAddr netutils.NetAddr
 
 	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
@@ -66,58 +66,58 @@ type ProxyConfig struct {
 	PROXYAllowDowngrade bool
 
 	// WebAddr is address for web portal of the proxy
-	WebAddr utils.NetAddr
+	WebAddr netutils.NetAddr
 
 	// SSHAddr is address of ssh proxy
-	SSHAddr utils.NetAddr
+	SSHAddr netutils.NetAddr
 
 	// MySQLAddr is address of MySQL proxy.
-	MySQLAddr utils.NetAddr
+	MySQLAddr netutils.NetAddr
 
 	// MySQLServerVersion  allows to override the default MySQL Engine Version propagated by Teleport Proxy.
 	MySQLServerVersion string
 
 	// PostgresAddr is address of Postgres proxy.
-	PostgresAddr utils.NetAddr
+	PostgresAddr netutils.NetAddr
 
 	// MongoAddr is address of Mongo proxy.
-	MongoAddr utils.NetAddr
+	MongoAddr netutils.NetAddr
 
 	// PeerAddress is the proxy peering address.
-	PeerAddress utils.NetAddr
+	PeerAddress netutils.NetAddr
 
 	// PeerPublicAddr is the public address the proxy advertises for proxy
 	// peering clients.
-	PeerPublicAddr utils.NetAddr
+	PeerPublicAddr netutils.NetAddr
 
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
 	// for the HTTP endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
-	PublicAddrs []utils.NetAddr
+	PublicAddrs []netutils.NetAddr
 
 	// SSHPublicAddrs is a list of the public addresses the proxy advertises
 	// for the SSH endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
-	SSHPublicAddrs []utils.NetAddr
+	SSHPublicAddrs []netutils.NetAddr
 
 	// TunnelPublicAddrs is a list of the public addresses the proxy advertises
 	// for the tunnel endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
-	TunnelPublicAddrs []utils.NetAddr
+	TunnelPublicAddrs []netutils.NetAddr
 
 	// PostgresPublicAddrs is a list of the public addresses the proxy
 	// advertises for Postgres clients.
-	PostgresPublicAddrs []utils.NetAddr
+	PostgresPublicAddrs []netutils.NetAddr
 
 	// MySQLPublicAddrs is a list of the public addresses the proxy
 	// advertises for MySQL clients.
-	MySQLPublicAddrs []utils.NetAddr
+	MySQLPublicAddrs []netutils.NetAddr
 
 	// MongoPublicAddrs is a list of the public addresses the proxy
 	// advertises for Mongo clients.
-	MongoPublicAddrs []utils.NetAddr
+	MongoPublicAddrs []netutils.NetAddr
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
@@ -216,7 +216,7 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 // PublicPeerAddr attempts to returns the public address the proxy advertises
 // for proxy peering clients if available; otherwise, it falls back to trying to
 // guess an appropriate public address based on the listen address.
-func (c ProxyConfig) PublicPeerAddr() (*utils.NetAddr, error) {
+func (c ProxyConfig) PublicPeerAddr() (*netutils.NetAddr, error) {
 	addr := &c.PeerPublicAddr
 	if !addr.IsEmpty() && !addr.IsHostUnspecified() {
 		return addr, nil
@@ -230,13 +230,13 @@ func (c ProxyConfig) PublicPeerAddr() (*utils.NetAddr, error) {
 		return addr, nil
 	}
 
-	ip, err := utils.GuessHostIP()
+	ip, err := netutils.GuessHostIP()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	port := addr.Port(defaults.ProxyPeeringListenPort)
-	addr, err = utils.ParseAddr(net.JoinHostPort(ip.String(), strconv.Itoa(port)))
+	addr, err = netutils.ParseAddr(net.JoinHostPort(ip.String(), strconv.Itoa(port)))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -246,7 +246,7 @@ func (c ProxyConfig) PublicPeerAddr() (*utils.NetAddr, error) {
 
 // PeerListenAddr returns the proxy peering listen address that was configured,
 // or the default one otherwise.
-func (c ProxyConfig) PeerListenAddr() *utils.NetAddr {
+func (c ProxyConfig) PeerListenAddr() *netutils.NetAddr {
 	if c.PeerAddress.IsEmpty() {
 		return defaults.ProxyPeeringListenAddr()
 	}
@@ -259,7 +259,7 @@ type KubeProxyConfig struct {
 	Enabled bool
 
 	// ListenAddr is the address to listen on for incoming kubernetes requests.
-	ListenAddr utils.NetAddr
+	ListenAddr netutils.NetAddr
 
 	// ClusterOverride causes all traffic to go to a specific remote
 	// cluster, used only in tests
@@ -267,7 +267,7 @@ type KubeProxyConfig struct {
 
 	// PublicAddrs is a list of the public addresses the Teleport Kube proxy can be accessed by,
 	// it also affects the host principals and routing logic
-	PublicAddrs []utils.NetAddr
+	PublicAddrs []netutils.NetAddr
 
 	// KubeconfigPath is a path to kubeconfig
 	KubeconfigPath string

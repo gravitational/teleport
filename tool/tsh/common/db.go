@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // onListDatabases implements "tsh db ls" command.
@@ -655,7 +656,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 		}
 	}()
 
-	addr, err := utils.ParseAddr(lp.GetAddr())
+	addr, err := netutils.ParseAddr(lp.GetAddr())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

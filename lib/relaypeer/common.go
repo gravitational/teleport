@@ -26,7 +26,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	relaypeeringv1alpha "github.com/gravitational/teleport/gen/proto/go/teleport/relaypeering/v1alpha"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // simpleALPN is the ALPN protocol name for the bespoke protocol used by peer
@@ -103,7 +103,7 @@ func addrFromProto(a *relaypeeringv1alpha.Addr) net.Addr {
 		return nil
 	}
 
-	return &utils.NetAddr{
+	return &netutils.NetAddr{
 		AddrNetwork: a.GetNetwork(),
 		Addr:        a.GetAddr(),
 	}

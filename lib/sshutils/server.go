@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 var proxyConnectionLimitHitCount = prometheus.NewCounter(
@@ -68,7 +69,7 @@ type Server struct {
 	component string
 
 	// addr is the address this server binds to and listens on
-	addr utils.NetAddr
+	addr netutils.NetAddr
 
 	// listener is usually the listening TCP/IP socket
 	listener net.Listener
@@ -193,7 +194,7 @@ func SetClusterName(clusterName string) ServerOption {
 
 func NewServer(
 	component string,
-	a utils.NetAddr,
+	a netutils.NetAddr,
 	h NewChanHandler,
 	getHostSigners GetHostSignersFunc,
 	ah AuthMethods,
@@ -422,7 +423,7 @@ func (s *Server) Close() error {
 
 	if s.listener != nil {
 		err := s.listener.Close()
-		if utils.IsUseOfClosedNetworkError(err) {
+		if netutils.IsUseOfClosedNetworkError(err) {
 			return nil
 		}
 		return trace.Wrap(err)
@@ -444,7 +445,7 @@ func (s *Server) acceptConnections() {
 				continue
 			}
 
-			if utils.IsUseOfClosedNetworkError(err) {
+			if netutils.IsUseOfClosedNetworkError(err) {
 				logger.DebugContext(s.closeContext, "Server has closed")
 				return
 			}
@@ -623,10 +624,10 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				break
 			}
 
-			if err := sconn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+			if err := sconn.Close(); err != nil && !netutils.IsOKNetworkError(err) {
 				s.logger.WarnContext(ctx, "failed to close ssh server connection", "error", err)
 			}
-			if err := conn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+			if err := conn.Close(); err != nil && !netutils.IsOKNetworkError(err) {
 				s.logger.WarnContext(ctx, "failed to close ssh client connection", "error", err)
 			}
 			return
@@ -747,7 +748,7 @@ func StaticHostSigners(hostSigners ...ssh.Signer) GetHostSignersFunc {
 	}
 }
 
-func (s *Server) checkArguments(a utils.NetAddr, h NewChanHandler, getHostSigners GetHostSignersFunc, ah AuthMethods) error {
+func (s *Server) checkArguments(a netutils.NetAddr, h NewChanHandler, getHostSigners GetHostSignersFunc, ah AuthMethods) error {
 	// If the server is not in tunnel mode, an address must be specified.
 	if s.listener != nil {
 		if a.Addr == "" || a.AddrNetwork == "" {

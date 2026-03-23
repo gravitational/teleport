@@ -41,7 +41,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // NewEngine create new Snowflake engine.
@@ -96,7 +97,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 }
 
 func (e *Engine) SendError(err error) {
-	if e.clientConn == nil || err == nil || utils.IsOKNetworkError(err) {
+	if e.clientConn == nil || err == nil || netutils.IsOKNetworkError(err) {
 		return
 	}
 

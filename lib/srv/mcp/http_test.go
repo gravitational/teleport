@@ -42,6 +42,7 @@ import (
 	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func Test_handleStreamableHTTP(t *testing.T) {
@@ -99,7 +100,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				assert.True(t, utils.IsOKNetworkError(err))
+				assert.True(t, netutils.IsOKNetworkError(err))
 				return
 			}
 			wg.Go(func() {
@@ -227,7 +228,7 @@ func Test_handleAuthErrHTTP(t *testing.T) {
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
-			assert.True(t, utils.IsOKNetworkError(err))
+			assert.True(t, netutils.IsOKNetworkError(err))
 			return
 		}
 		defer conn.Close()

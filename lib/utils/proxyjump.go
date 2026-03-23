@@ -22,6 +22,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/gravitational/trace"
 )
 
@@ -35,7 +36,7 @@ type JumpHost struct {
 	// Username to login as
 	Username string
 	// Addr is a target addr
-	Addr NetAddr
+	Addr netutils.NetAddr
 }
 
 // ParseProxyJump parses strings like user@host:port,bob@host:port
@@ -50,7 +51,7 @@ func ParseProxyJump(in string) ([]JumpHost, error) {
 		if len(match) == 0 {
 			return nil, trace.BadParameter("could not parse %q, expected format user@host:port,user@host:port", in)
 		}
-		addr, err := ParseAddr(match[2])
+		addr, err := netutils.ParseAddr(match[2])
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

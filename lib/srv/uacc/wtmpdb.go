@@ -27,6 +27,7 @@ import (
 	sqlite3 "modernc.org/sqlite/lib"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // defaultWtmpdbPath is the default location of the wtmpdb db file.
@@ -63,7 +64,7 @@ func (w *WtmpdbBackend) Login(ttyName, username string, remote net.Addr, ts time
 		return 0, trace.Wrap(err)
 	}
 	defer stmt.Close()
-	addr := utils.FromAddr(remote)
+	addr := netutils.FromAddr(remote)
 	result, err := stmt.Exec(userProcess, username, ts.UnixMicro(), ttyName, addr.Host())
 	if err != nil {
 		var e *sqlite.Error

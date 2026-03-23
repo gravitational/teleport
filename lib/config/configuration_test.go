@@ -55,8 +55,8 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type testConfigFiles struct {
@@ -1162,7 +1162,7 @@ func TestPostgresPublicAddr(t *testing.T) {
 			cfg := servicecfg.MakeDefaultConfig()
 			err := applyProxyConfig(test.fc, cfg)
 			require.NoError(t, err)
-			require.EqualValues(t, test.out, utils.NetAddrsToStrings(cfg.Proxy.PostgresPublicAddrs))
+			require.EqualValues(t, test.out, netutils.NetAddrsToStrings(cfg.Proxy.PostgresPublicAddrs))
 		})
 	}
 }
@@ -1861,9 +1861,9 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 				},
 			},
 			want: servicecfg.ProxyConfig{
-				WebAddr:                 *utils.MustParseAddr("0.0.0.0:3080"),
-				ReverseTunnelListenAddr: *utils.MustParseAddr("0.0.0.0:3024"),
-				SSHAddr:                 *utils.MustParseAddr("0.0.0.0:3023"),
+				WebAddr:                 *netutils.MustParseAddr("0.0.0.0:3080"),
+				ReverseTunnelListenAddr: *netutils.MustParseAddr("0.0.0.0:3024"),
+				SSHAddr:                 *netutils.MustParseAddr("0.0.0.0:3023"),
 				Enabled:                 true,
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: false,
@@ -1890,7 +1890,7 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 				},
 			},
 			want: servicecfg.ProxyConfig{
-				WebAddr: *utils.MustParseAddr("0.0.0.0:9999"),
+				WebAddr: *netutils.MustParseAddr("0.0.0.0:9999"),
 				Enabled: true,
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: true,
@@ -2111,7 +2111,7 @@ func TestProxyKube(t *testing.T) {
 			}},
 			want: servicecfg.KubeProxyConfig{
 				Enabled:         true,
-				ListenAddr:      *utils.MustParseAddr("0.0.0.0:8080"),
+				ListenAddr:      *netutils.MustParseAddr("0.0.0.0:8080"),
 				LegacyKubeProxy: true,
 			},
 			checkErr: require.NoError,
@@ -2125,9 +2125,9 @@ func TestProxyKube(t *testing.T) {
 			}},
 			want: servicecfg.KubeProxyConfig{
 				Enabled:         true,
-				ListenAddr:      *utils.MustParseAddr("0.0.0.0:8080"),
+				ListenAddr:      *netutils.MustParseAddr("0.0.0.0:8080"),
 				KubeconfigPath:  "/tmp/kubeconfig",
-				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr(constants.KubeTeleportProxyALPNPrefix + "example.com:443")},
+				PublicAddrs:     []netutils.NetAddr{*netutils.MustParseAddr(constants.KubeTeleportProxyALPNPrefix + "example.com:443")},
 				LegacyKubeProxy: true,
 			},
 			checkErr: require.NoError,
@@ -2137,7 +2137,7 @@ func TestProxyKube(t *testing.T) {
 			cfg:  Proxy{KubeAddr: "0.0.0.0:8080"},
 			want: servicecfg.KubeProxyConfig{
 				Enabled:    true,
-				ListenAddr: *utils.MustParseAddr("0.0.0.0:8080"),
+				ListenAddr: *netutils.MustParseAddr("0.0.0.0:8080"),
 			},
 			checkErr: require.NoError,
 		},
@@ -2163,7 +2163,7 @@ func TestProxyKube(t *testing.T) {
 			},
 			want: servicecfg.KubeProxyConfig{
 				Enabled:    true,
-				ListenAddr: *utils.MustParseAddr("0.0.0.0:8080"),
+				ListenAddr: *netutils.MustParseAddr("0.0.0.0:8080"),
 			},
 			checkErr: require.NoError,
 		},
@@ -2212,7 +2212,7 @@ func TestProxyConfigurationVersion(t *testing.T) {
 				},
 			},
 			want: servicecfg.ProxyConfig{
-				WebAddr: *utils.MustParseAddr("0.0.0.0:3080"),
+				WebAddr: *netutils.MustParseAddr("0.0.0.0:3080"),
 				Enabled: true,
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: true,
@@ -2241,7 +2241,7 @@ func TestProxyConfigurationVersion(t *testing.T) {
 			},
 			want: servicecfg.ProxyConfig{
 				Enabled: true,
-				WebAddr: *utils.MustParseAddr("0.0.0.0:9999"),
+				WebAddr: *netutils.MustParseAddr("0.0.0.0:9999"),
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: true,
 				},
@@ -4365,7 +4365,7 @@ func TestApplyKubeConfig(t *testing.T) {
 			},
 			wantError: false,
 			wantServiceConfig: servicecfg.KubeConfig{
-				ListenAddr:     utils.MustParseAddr("0.0.0.0:8888"),
+				ListenAddr:     netutils.MustParseAddr("0.0.0.0:8888"),
 				KubeconfigPath: "path-to-kubeconfig",
 				ResourceMatchers: []services.ResourceMatcher{
 					{
@@ -4404,8 +4404,8 @@ func TestApplyKubeConfig(t *testing.T) {
 				}},
 			},
 			wantServiceConfig: servicecfg.KubeConfig{
-				ListenAddr:      utils.MustParseAddr("0.0.0.0:8888"),
-				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr("example.com:3026"), *utils.MustParseAddr("example.with.port.com:4444")},
+				ListenAddr:      netutils.MustParseAddr("0.0.0.0:8888"),
+				PublicAddrs:     []netutils.NetAddr{*netutils.MustParseAddr("example.com:3026"), *netutils.MustParseAddr("example.with.port.com:4444")},
 				KubeconfigPath:  "path-to-kubeconfig",
 				KubeClusterName: "kube-name",
 				ResourceMatchers: []services.ResourceMatcher{

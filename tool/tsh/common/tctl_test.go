@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 	toolcommon "github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/tctl/common"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -202,26 +202,26 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 		desc           string
 		authServerFlag []string
 		configFileFlag string
-		want           []utils.NetAddr
+		want           []netutils.NetAddr
 	}{
 		{
 			desc:           "ignores agent config file and loads profile setting",
 			configFileFlag: mustWriteFileConfig(t, fileConfigAgent),
-			want:           []utils.NetAddr{*proxyAddr},
+			want:           []netutils.NetAddr{*proxyAddr},
 		},
 		{
 			desc: "sets default web proxy addr without auth server flag",
-			want: []utils.NetAddr{*proxyAddr},
+			want: []netutils.NetAddr{*proxyAddr},
 		},
 		{
 			desc:           "sets auth addr from auth server flag ignoring profile setting",
 			authServerFlag: []string{authAddr.String()},
-			want:           []utils.NetAddr{*authAddr},
+			want:           []netutils.NetAddr{*authAddr},
 		},
 		{
 			desc:           "sets auth addr from auth server flag when profile is not found",
 			authServerFlag: []string{"site.not.in.profile.com:3080"},
-			want: []utils.NetAddr{
+			want: []netutils.NetAddr{
 				{
 					Addr:        "site.not.in.profile.com:3080",
 					AddrNetwork: "tcp",

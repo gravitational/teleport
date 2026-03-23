@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
@@ -152,7 +153,7 @@ func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicA
 		return "", trace.BadParameter("cluster has no proxy registered, at least one proxy must be registered for application access")
 	}
 	if servers[0].GetPublicAddr() != "" {
-		addr, err := utils.ParseAddr(servers[0].GetPublicAddr())
+		addr, err := netutils.ParseAddr(servers[0].GetPublicAddr())
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

@@ -32,7 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // Config holds configuration parameters for connecting to the auth service.
@@ -42,7 +42,7 @@ type Config struct {
 	// SSH is client SSH config.
 	SSH *ssh.ClientConfig
 	// AuthServers is a list of possible auth or proxy server addresses.
-	AuthServers []utils.NetAddr
+	AuthServers []netutils.NetAddr
 	// Log sets the logger for the client to use.
 	Log *slog.Logger
 	// CircuitBreakerConfig is the configuration for the auth client circuit breaker.
@@ -88,7 +88,7 @@ func Connect(ctx context.Context, cfg *Config) (*Client, error) {
 func connectViaAuthDirect(ctx context.Context, cfg *Config) (*Client, error) {
 	// Try connecting to the auth server directly over TLS.
 	directClient, err := NewClient(apiclient.Config{
-		Addrs: utils.NetAddrsToStrings(cfg.AuthServers),
+		Addrs: netutils.NetAddrsToStrings(cfg.AuthServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
 		},

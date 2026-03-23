@@ -36,9 +36,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // TestClientConn defines interface for client.Conn.
@@ -185,7 +186,7 @@ func (s *TestServer) Serve() error {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			if utils.IsOKNetworkError(err) {
+			if netutils.IsOKNetworkError(err) {
 				return nil
 			}
 			s.log.ErrorContext(ctx, "Failed to accept connection", "error", err)

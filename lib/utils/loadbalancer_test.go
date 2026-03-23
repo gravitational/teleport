@@ -26,10 +26,11 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/stretchr/testify/require"
 )
 
-var randomLocalAddr = *MustParseAddr("127.0.0.1:0")
+var randomLocalAddr = *netutils.MustParseAddr("127.0.0.1:0")
 
 func TestSingleBackendLB(t *testing.T) {
 	t.Parallel()
@@ -112,8 +113,8 @@ func TestDropConnections(t *testing.T) {
 	require.Error(t, err)
 }
 
-func startBackends(t *testing.T, count int) []NetAddr {
-	addrs := make([]NetAddr, 0, count)
+func startBackends(t *testing.T, count int) []netutils.NetAddr {
+	addrs := make([]netutils.NetAddr, 0, count)
 	for i := range count {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "backend %d", i+1)
@@ -125,12 +126,12 @@ func startBackends(t *testing.T, count int) []NetAddr {
 	return addrs
 }
 
-func urlToNetAddr(u string) NetAddr {
+func urlToNetAddr(u string) netutils.NetAddr {
 	parsed, err := url.Parse(u)
 	if err != nil {
 		panic(err)
 	}
-	return *MustParseAddr(parsed.Host)
+	return *netutils.MustParseAddr(parsed.Host)
 }
 
 func httpGet(addr string) (string, error) {

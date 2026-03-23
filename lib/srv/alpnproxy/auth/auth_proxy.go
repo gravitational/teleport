@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type ClusterGetter interface {
@@ -194,7 +195,7 @@ func (s *AuthProxyDialerService) proxyConn(ctx context.Context, upstreamConn, do
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		case err := <-errC:
-			if err != nil && !utils.IsOKNetworkError(err) {
+			if err != nil && !netutils.IsOKNetworkError(err) {
 				errs = append(errs, err)
 			}
 		}

@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -56,7 +56,7 @@ func (r *SSHServerWrapper) handleResumptionExchangeV1(conn *multiplexer.Conn, dh
 
 	var dhBuf [ecdhP256UncompressedSize]byte
 	if _, err := io.ReadFull(conn, dhBuf[:]); err != nil {
-		if !utils.IsOKNetworkError(err) {
+		if !netutils.IsOKNetworkError(err) {
 			slog.ErrorContext(context.TODO(), "error while reading resumption handshake", "error", err)
 		}
 		return
@@ -78,7 +78,7 @@ func (r *SSHServerWrapper) handleResumptionExchangeV1(conn *multiplexer.Conn, dh
 
 	tag, err := conn.ReadByte()
 	if err != nil {
-		if !utils.IsOKNetworkError(err) {
+		if !netutils.IsOKNetworkError(err) {
 			slog.ErrorContext(context.TODO(), "error while reading resumption handshake", "error", err)
 		}
 		return
@@ -140,7 +140,7 @@ func (r *SSHServerWrapper) handleResumptionExchangeV1(conn *multiplexer.Conn, dh
 		entry.increaseRunning()
 		defer entry.decreaseRunning()
 		const firstConn = true
-		if err := runResumeV1Unlocking(resumableConn, conn, firstConn); utils.IsOKNetworkError(err) {
+		if err := runResumeV1Unlocking(resumableConn, conn, firstConn); netutils.IsOKNetworkError(err) {
 			slog.DebugContext(context.TODO(), "handling new resumable connection", "error", err)
 		} else {
 			slog.WarnContext(context.TODO(), "handling new resumable connection", "error", err)
@@ -151,7 +151,7 @@ func (r *SSHServerWrapper) handleResumptionExchangeV1(conn *multiplexer.Conn, dh
 
 	var token resumptionToken
 	if _, err := io.ReadFull(conn, token[:]); err != nil {
-		if !utils.IsOKNetworkError(err) {
+		if !netutils.IsOKNetworkError(err) {
 			slog.ErrorContext(context.TODO(), "error while reading resumption handshake", "error", err)
 		}
 		return
@@ -187,7 +187,7 @@ func (r *SSHServerWrapper) resumeConnection(entry *connEntry, conn net.Conn, rem
 	}
 
 	if _, err := conn.Write([]byte{successServerExchangeTag}); err != nil {
-		if !utils.IsOKNetworkError(err) {
+		if !netutils.IsOKNetworkError(err) {
 			slog.ErrorContext(context.TODO(), "error while writing resumption handshake", "error", err)
 		}
 		return
@@ -197,7 +197,7 @@ func (r *SSHServerWrapper) resumeConnection(entry *connEntry, conn net.Conn, rem
 	defer entry.decreaseRunning()
 	const notFirstConn = false
 	entry.conn.mu.Lock()
-	if err := runResumeV1Unlocking(entry.conn, conn, notFirstConn); utils.IsOKNetworkError(err) {
+	if err := runResumeV1Unlocking(entry.conn, conn, notFirstConn); netutils.IsOKNetworkError(err) {
 		slog.DebugContext(context.TODO(), "handling existing resumable connection", "error", err)
 	} else {
 		slog.WarnContext(context.TODO(), "handling existing resumable connection", "error", err)

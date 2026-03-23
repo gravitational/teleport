@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	log "github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func init() {
@@ -1187,7 +1188,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Dispatch the connection for processing by an appropriate database
 	// service.
 	err = s.handleConnection(ctx, tlsConn)
-	if err != nil && !utils.IsOKNetworkError(err) && !trace.IsAccessDenied(err) {
+	if err != nil && !netutils.IsOKNetworkError(err) && !trace.IsAccessDenied(err) {
 		s.log.ErrorContext(s.closeContext, "Failed to handle connection.", "error", err, "addr", conn.RemoteAddr())
 		return
 	}

@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // AuthServerConfig is auth server test config
@@ -1378,7 +1379,7 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 	}
 
 	if t.Listener != nil {
-		if err := t.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+		if err := t.Listener.Close(); err != nil && !netutils.IsUseOfClosedNetworkError(err) {
 			errs = append(errs, err)
 		}
 	}
@@ -1397,7 +1398,7 @@ func (t *TLSServer) Stop() error {
 		errs = append(errs, err)
 	}
 	if t.Listener != nil {
-		if err := t.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+		if err := t.Listener.Close(); err != nil && !netutils.IsUseOfClosedNetworkError(err) {
 			errs = append(errs, err)
 		}
 	}

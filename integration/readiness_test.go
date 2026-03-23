@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // TestReadiness is a smoke test making sure that Teleport eventually becomes ready.
@@ -58,10 +58,10 @@ func TestReadiness(t *testing.T) {
 
 	// Manually create the listeners for kube and windows.
 	kubeListener := helpers.NewListener(t, service.ListenerKube, &cfg.Fds)
-	kubeAddr, err := utils.ParseAddr(kubeListener)
+	kubeAddr, err := netutils.ParseAddr(kubeListener)
 	require.NoError(t, err)
 	windowsListener := helpers.NewListener(t, service.ListenerWindowsDesktop, &cfg.Fds)
-	windowsAddr, err := utils.ParseAddr(windowsListener)
+	windowsAddr, err := netutils.ParseAddr(windowsListener)
 
 	require.NoError(t, err)
 	rc := helpers.NewInstance(t, cfg)

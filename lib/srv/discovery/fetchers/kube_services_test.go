@@ -42,8 +42,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestKubeAppFetcher_Get(t *testing.T) {
@@ -561,7 +562,7 @@ func newTCPServer(t *testing.T, handleConn func(net.Conn)) net.Listener {
 			if err == nil {
 				go handleConn(conn)
 			}
-			if err != nil && !utils.IsOKNetworkError(err) {
+			if err != nil && !netutils.IsOKNetworkError(err) {
 				t.Error(err)
 				return
 			}

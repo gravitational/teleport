@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/winpki"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -614,7 +615,7 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 		}
 		conn, err := lis.Accept()
 		if err != nil {
-			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
+			if netutils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -766,7 +767,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		return trace.Wrap(err)
 	}
 
-	addr, err := utils.ParseHostPortAddr(desktop.GetAddr(), defaults.RDPListenPort)
+	addr, err := netutils.ParseHostPortAddr(desktop.GetAddr(), defaults.RDPListenPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}

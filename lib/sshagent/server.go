@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // Server is an SSH agent server implementation.
@@ -89,7 +89,7 @@ func (a *Server) Serve() error {
 			if !errors.As(err, &neterr) {
 				return trace.Wrap(err, "unknown error")
 			}
-			if utils.IsUseOfClosedNetworkError(neterr) {
+			if netutils.IsUseOfClosedNetworkError(neterr) {
 				return nil
 			}
 			if !neterr.Timeout() {

@@ -52,8 +52,8 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
@@ -117,7 +117,7 @@ func NewTeleportProcess(dataDir string, opts ...TestServerOptFunc) (_ *service.T
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authNetAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: authAddr}
+	authNetAddr := netutils.NetAddr{AddrNetwork: "tcp", Addr: authAddr}
 	cfg.SetToken(StaticToken)
 	cfg.SetAuthServerAddress(authNetAddr)
 
@@ -146,7 +146,7 @@ func NewTeleportProcess(dataDir string, opts ...TestServerOptFunc) (_ *service.T
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: proxyWebAddr}
+	cfg.Proxy.WebAddr = netutils.NetAddr{AddrNetwork: "tcp", Addr: proxyWebAddr}
 
 	proxySSHAddr, err := newTCPListener(service.ListenerProxySSH, &cfg.FileDescriptors)
 	if err != nil {
@@ -157,15 +157,15 @@ func NewTeleportProcess(dataDir string, opts ...TestServerOptFunc) (_ *service.T
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: proxySSHAddr}
-	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: proxyTunnelAddr}
+	cfg.Proxy.SSHAddr = netutils.NetAddr{AddrNetwork: "tcp", Addr: proxySSHAddr}
+	cfg.Proxy.ReverseTunnelListenAddr = netutils.NetAddr{AddrNetwork: "tcp", Addr: proxyTunnelAddr}
 	cfg.Proxy.DisableWebInterface = true
 
 	nodeSSHAddr, err := newTCPListener(service.ListenerNodeSSH, &cfg.FileDescriptors)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: nodeSSHAddr}
+	cfg.SSH.Addr = netutils.NetAddr{AddrNetwork: "tcp", Addr: nodeSSHAddr}
 	cfg.SSH.DisableCreateHostUser = true
 
 	// Disabling debug service for tests so that it doesn't break if the data
@@ -382,7 +382,7 @@ func WithHostname(hostname string) TestServerOptFunc {
 
 func WithSSHPublicAddrs(addrs ...string) TestServerOptFunc {
 	return WithConfig(func(cfg *servicecfg.Config) {
-		cfg.SSH.PublicAddrs = utils.MustParseAddrList(addrs...)
+		cfg.SSH.PublicAddrs = netutils.MustParseAddrList(addrs...)
 	})
 }
 
@@ -418,7 +418,7 @@ func WithProxyKube() TestServerOptFunc {
 
 		return WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Proxy.Kube.Enabled = true
-			cfg.Proxy.Kube.ListenAddr = utils.NetAddr{
+			cfg.Proxy.Kube.ListenAddr = netutils.NetAddr{
 				AddrNetwork: "tcp",
 				Addr:        addr,
 			}

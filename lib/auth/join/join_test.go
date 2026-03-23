@@ -49,7 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestMain(m *testing.M) {
@@ -134,7 +134,7 @@ func TestRegisterWithAlgorithmSuite(t *testing.T) {
 					NodeName: "testhostname",
 					Role:     types.RoleNode,
 				},
-				AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+				AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(srv.Addr().String())},
 			})
 			require.NoError(t, err, trace.DebugReport(err))
 			require.IsType(t, tc.expectPubKeyType, result.PrivateKey.Public())
@@ -229,7 +229,7 @@ func TestRegister_Bot(t *testing.T) {
 				ID: state.IdentityID{
 					Role: types.RoleBot,
 				},
-				AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+				AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(srv.Addr().String())},
 			})
 			test.assertErr(t, err)
 
@@ -326,7 +326,7 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 				ID: state.IdentityID{
 					Role: types.RoleBot,
 				},
-				AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+				AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(srv.Addr().String())},
 				Expires:     tt.requestExpires,
 			})
 			require.NoError(t, err)

@@ -52,6 +52,7 @@ import (
 	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -802,7 +803,7 @@ func (s *localCluster) handleHeartbeat(ctx context.Context, rconn *remoteConn, c
 		proxyResyncTicker.Stop()
 		logger.WarnContext(ctx, "Closing remote connection to agent")
 		s.removeRemoteConn(rconn)
-		if err := rconn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+		if err := rconn.Close(); err != nil && !netutils.IsOKNetworkError(err) {
 			logger.WarnContext(ctx, "Failed to close remote connection", "error", err)
 		}
 		if !firstHeartbeat {

@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // ConnMonitor monitors authorized connections and terminates them when
@@ -356,10 +357,10 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	}
 
 	if err != nil {
-		if !utils.IsOKNetworkError(err) {
+		if !netutils.IsOKNetworkError(err) {
 			c.log.WarnContext(ctx, "Failed to handle client connection.", "error", err)
 		}
-		if err := conn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+		if err := conn.Close(); err != nil && !netutils.IsOKNetworkError(err) {
 			c.log.WarnContext(ctx, "Failed to close client connection.", "error", err)
 		}
 		return

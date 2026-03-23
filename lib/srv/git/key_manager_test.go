@@ -33,7 +33,8 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestKeyManager_verify_github(t *testing.T) {
@@ -105,7 +106,7 @@ func TestKeyManager_verify_github(t *testing.T) {
 		require.NoError(t, err)
 		unknownHostKey, err := apisshutils.MakeRealHostCert(caSigner)
 		require.NoError(t, err)
-		require.Error(t, hostKeyCallback("github.com", utils.MustParseAddr(targetAddress), unknownHostKey.PublicKey()))
+		require.Error(t, hostKeyCallback("github.com", netutils.MustParseAddr(targetAddress), unknownHostKey.PublicKey()))
 	})
 
 	t.Run("unknown Git server type", func(t *testing.T) {

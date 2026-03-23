@@ -28,7 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // WindowsDesktopConfig specifies the configuration for the Windows Desktop
@@ -36,9 +36,9 @@ import (
 type WindowsDesktopConfig struct {
 	Enabled bool
 	// ListenAddr is the address to listed on for incoming desktop connections.
-	ListenAddr utils.NetAddr
+	ListenAddr netutils.NetAddr
 	// PublicAddrs is a list of advertised public addresses of the service.
-	PublicAddrs []utils.NetAddr
+	PublicAddrs []netutils.NetAddr
 	// ShowDesktopWallpaper determines whether desktop sessions will show a
 	// user-selected wallpaper vs a system-default, single-color wallpaper.
 	ShowDesktopWallpaper bool
@@ -82,7 +82,7 @@ type WindowsHost struct {
 	// Name that will be used in the Teleport UI
 	Name string
 	// Address of the remote Windows host
-	Address utils.NetAddr
+	Address netutils.NetAddr
 	// AD is true if the host is part of the Active Directory domain
 	AD bool
 	// Labels to be applied to the host

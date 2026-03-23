@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestRemoteClientCache(t *testing.T) {
@@ -201,7 +201,7 @@ func TestSessionCache_watcher(t *testing.T) {
 		buildType:   testModules.BuildType(),
 		proxyClient: authClient,
 		accessPoint: authClient,
-		servers: []utils.NetAddr{
+		servers: []netutils.NetAddr{
 			// An addr is required but unused.
 			{Addr: "localhost:12345", AddrNetwork: "tcp"}},
 		clock:                               clock,

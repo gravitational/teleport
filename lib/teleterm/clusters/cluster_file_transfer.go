@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type FileTransferProgressSender = func(progress *api.FileTransferProgress) error
@@ -67,7 +67,7 @@ func (c *Cluster) TransferFile(ctx context.Context, clt *client.ClusterClient, r
 	if serverUUID == "" {
 		return trace.BadParameter("server URI does not include server UUID")
 	}
-	serverAddr := &utils.NetAddr{Addr: serverUUID + ":0"}
+	serverAddr := &netutils.NetAddr{Addr: serverUUID + ":0"}
 	switch request.GetDirection() {
 	case api.FileTransferDirection_FILE_TRANSFER_DIRECTION_DOWNLOAD:
 		sftpReq.Sources.Addr = serverAddr

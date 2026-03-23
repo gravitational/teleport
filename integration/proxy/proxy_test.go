@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // TestALPNSNIProxyMultiCluster tests SSH connection in multi-cluster setup with.
@@ -443,8 +444,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 
 			config.Kube.Enabled = true
 			config.Kube.KubeconfigPath = kubeConfigPath
-			config.Kube.ListenAddr = utils.MustParseAddr(
-				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
+			config.Kube.ListenAddr = netutils.MustParseAddr(helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
 		}),
 		withRootClusterRoles(kubeRole),
 		withLeafClusterRoles(kubeRole),
@@ -557,7 +557,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 			}
 			tconf := servicecfg.MakeDefaultConfig()
 			tconf.InsecureMode = true
-			tconf.Proxy.Kube.ListenAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerProxyKube, &cfg.Fds))
+			tconf.Proxy.Kube.ListenAddr = *netutils.MustParseAddr(helpers.NewListener(t, service.ListenerProxyKube, &cfg.Fds))
 			if tt.proxyListenerMode == types.ProxyListenerMode_Multiplex {
 				cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 				tconf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -581,8 +581,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 
 			tconf.Kube.Enabled = true
 			tconf.Kube.KubeconfigPath = kubeConfigPathRoot
-			tconf.Kube.ListenAddr = utils.MustParseAddr(
-				helpers.NewListener(t, service.ListenerKube, &tconf.FileDescriptors))
+			tconf.Kube.ListenAddr = netutils.MustParseAddr(helpers.NewListener(t, service.ListenerKube, &tconf.FileDescriptors))
 
 			// Force Proxy kube server multiplexer to check required PROXY lines on all connections
 			tconf.Testing.KubeMultiplexerIgnoreSelfConnections = true
@@ -598,10 +597,10 @@ func TestKubePROXYProtocol(t *testing.T) {
 				require.NoError(t, testCluster.StopAll())
 			})
 
-			checkForTargetAddr := func(targetAddr utils.NetAddr) {
+			checkForTargetAddr := func(targetAddr netutils.NetAddr) {
 				// If PROXY protocol is required, create load balancer in front of Teleport cluster
 				if tt.proxyProtocolMode == multiplexer.PROXYProtocolOn {
-					frontend := *utils.MustParseAddr("127.0.0.1:0")
+					frontend := *netutils.MustParseAddr("127.0.0.1:0")
 					lb, err := utils.NewLoadBalancer(context.Background(), frontend)
 					require.NoError(t, err)
 					lb.PROXYHeader = []byte("PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n") // Send fake PROXY header
@@ -611,7 +610,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 
 					go lb.Serve()
 					t.Cleanup(func() { require.NoError(t, lb.Close()) })
-					targetAddr = *utils.MustParseAddr(lb.Addr().String())
+					targetAddr = *netutils.MustParseAddr(lb.Addr().String())
 				}
 
 				// Create kube client that we'll use to test that connection is working correctly.
@@ -652,7 +651,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 
 }
 
-func createALPNLocalKubeClient(t *testing.T, targetAddr utils.NetAddr, teleportCluster, kubeCluster string, k8ClientConfig *rest.Config) *kubernetes.Clientset {
+func createALPNLocalKubeClient(t *testing.T, targetAddr netutils.NetAddr, teleportCluster, kubeCluster string, k8ClientConfig *rest.Config) *kubernetes.Clientset {
 	// Generate a self-signed CA for kube local proxy.
 	localCAKey, localCACert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName: "localhost",
@@ -732,8 +731,7 @@ func TestKubeIPPinning(t *testing.T) {
 
 			config.Kube.Enabled = true
 			config.Kube.KubeconfigPath = kubeConfigPathRoot
-			config.Kube.ListenAddr = utils.MustParseAddr(
-				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
+			config.Kube.ListenAddr = netutils.MustParseAddr(helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
 		}),
 		withLeafClusterConfig(leafClusterStandardConfig(t), func(config *servicecfg.Config) {
 			config.Version = defaults.TeleportConfigVersionV3
@@ -742,8 +740,7 @@ func TestKubeIPPinning(t *testing.T) {
 
 			config.Kube.Enabled = true
 			config.Kube.KubeconfigPath = kubeConfigPathLeaf
-			config.Kube.ListenAddr = utils.MustParseAddr(
-				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
+			config.Kube.ListenAddr = netutils.MustParseAddr(helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
 		}),
 		withRootClusterRoles(kubeRole),
 		withLeafClusterRoles(kubeRole),
@@ -1740,7 +1737,7 @@ func TestALPNSNIProxyGRPCInsecure(t *testing.T) {
 	// Test register through Proxy behind a L7 load balancer.
 	t.Run("ALPN conn upgrade", func(t *testing.T) {
 		albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
-		albAddr, err := utils.ParseAddr(albProxy.Addr().String())
+		albAddr, err := netutils.ParseAddr(albProxy.Addr().String())
 		require.NoError(t, err)
 
 		mustRegisterUsingIAMMethod(t, *albAddr, provisionToken.GetName(), nodeCredentials)
@@ -1782,8 +1779,7 @@ func TestALPNSNIProxyGRPCSecure(t *testing.T) {
 			config.Version = defaults.TeleportConfigVersionV3
 			config.Kube.Enabled = true
 			config.Kube.KubeconfigPath = kubeConfigPath
-			config.Kube.ListenAddr = utils.MustParseAddr(
-				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
+			config.Kube.ListenAddr = netutils.MustParseAddr(helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
 		}),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootAndLeafClusterRoles(kubeRole),

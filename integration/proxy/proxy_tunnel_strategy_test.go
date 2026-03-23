@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type proxyTunnelStrategy struct {
@@ -284,7 +285,7 @@ func (p *proxyTunnelStrategy) makeLoadBalancer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	lbAddr := utils.MustParseAddr(net.JoinHostPort(helpers.Loopback, "0"))
+	lbAddr := netutils.MustParseAddr(net.JoinHostPort(helpers.Loopback, "0"))
 	lb, err := utils.NewLoadBalancer(ctx, *lbAddr)
 	require.NoError(t, err)
 
@@ -344,7 +345,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 		Logger:      logtest.NewLogger(),
 	})
 
-	authAddr := utils.MustParseAddr(p.auth.Auth)
+	authAddr := netutils.MustParseAddr(p.auth.Auth)
 
 	conf := servicecfg.MakeDefaultConfig()
 	conf.DebugService.Enabled = false
@@ -364,7 +365,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	conf.Proxy.WebAddr.Addr = proxy.Web
 	conf.Proxy.PeerAddress.Addr = helpers.NewListenerOn(t, helpers.Loopback, service.ListenerProxyPeer, &proxy.Fds)
 	conf.Proxy.PeerPublicAddr = conf.Proxy.PeerAddress
-	conf.Proxy.PublicAddrs = append(conf.Proxy.PublicAddrs, utils.FromAddr(p.lb.Addr()))
+	conf.Proxy.PublicAddrs = append(conf.Proxy.PublicAddrs, netutils.FromAddr(p.lb.Addr()))
 	conf.Proxy.DisableWebInterface = true
 	conf.FileDescriptors = proxy.Fds
 
@@ -405,7 +406,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 	conf.SSH.Enabled = true
-	conf.ProxyServer = utils.FromAddr(p.lb.Addr())
+	conf.ProxyServer = netutils.FromAddr(p.lb.Addr())
 
 	process, err := service.NewTeleport(conf)
 	require.NoError(t, err)
@@ -454,7 +455,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	conf.Proxy.Enabled = false
 	conf.SSH.Enabled = false
 	conf.Databases.Enabled = true
-	conf.ProxyServer = utils.FromAddr(p.lb.Addr())
+	conf.ProxyServer = netutils.FromAddr(p.lb.Addr())
 	conf.Databases.Databases = []servicecfg.Database{
 		{
 			Name:     p.cluster + "-postgres",

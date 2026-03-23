@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestMain(m *testing.M) {
@@ -57,7 +58,7 @@ func TestStartStop(t *testing.T) {
 
 	srv, err := NewServer(
 		"test",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		fn,
 		StaticHostSigners(signer),
 		AuthMethods{Password: pass("abcdef123456")},
@@ -111,7 +112,7 @@ func TestShutdown(t *testing.T) {
 
 	srv, err := NewServer(
 		"test",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		fn,
 		StaticHostSigners(signer),
 		AuthMethods{Password: pass("abcdef123456")},
@@ -163,7 +164,7 @@ func TestConfigureCiphers(t *testing.T) {
 	// create a server that only speaks aes128-ctr
 	srv, err := NewServer(
 		"test",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		fn,
 		StaticHostSigners(signer),
 		AuthMethods{Password: pass("abcdef123456")},
@@ -260,7 +261,7 @@ func TestHostSignerFIPS(t *testing.T) {
 	for _, tt := range tests {
 		_, err := NewServer(
 			"test",
-			utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+			netutils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 			fn,
 			StaticHostSigners(tt.inSigner),
 			AuthMethods{Password: pass("abcdef123456")},
@@ -298,7 +299,7 @@ func TestDynamicHostSigners(t *testing.T) {
 
 	srv, err := NewServer(
 		"test",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		NewChanHandlerFunc(func(_ context.Context, _ *ConnectionContext, nc ssh.NewChannel) {
 			err := nc.Reject(ssh.UnknownChannelType, ssh.UnknownChannelType.String())
 			assert.NoError(t, err)

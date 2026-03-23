@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	libaws "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/dynamodbutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // NewEngine create new DynamoDB engine.
@@ -93,7 +94,7 @@ type jsonErr struct {
 
 // SendError sends an error to DynamoDB client.
 func (e *Engine) SendError(err error) {
-	if e.clientConn == nil || err == nil || utils.IsOKNetworkError(err) {
+	if e.clientConn == nil || err == nil || netutils.IsOKNetworkError(err) {
 		return
 	}
 	e.Log.ErrorContext(e.Context, "DynamoDB connection error", "error", err)

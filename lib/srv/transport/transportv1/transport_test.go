@@ -49,8 +49,8 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshagent"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logtest"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestMain(m *testing.M) {
@@ -189,7 +189,7 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 	lis := bufconn.Listen(bufSize)
 	lisWithAddr = &listenerWithAddr{
 		Listener:  lis,
-		localAddr: utils.MustParseAddr("127.0.0.1:4242"),
+		localAddr: netutils.MustParseAddr("127.0.0.1:4242"),
 	}
 	t.Cleanup(func() {
 		require.NoError(t, lis.Close())
@@ -225,7 +225,7 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 			conn, err := lis.DialContext(ctx)
 			return &connWithAddr{
 				Conn: conn,
-				addr: utils.MustParseAddr("127.0.0.1:8484"),
+				addr: netutils.MustParseAddr("127.0.0.1:8484"),
 			}, err
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -281,7 +281,7 @@ func TestService_GetClusterDetails(t *testing.T) {
 				FIPS:              test.FIPS,
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
-				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
+				LocalAddr:         netutils.MustParseAddr("127.0.0.1:4242"),
 			})
 
 			resp, err := srv.Client.GetClusterDetails(context.Background(), &transportv1pb.GetClusterDetailsRequest{})
@@ -362,7 +362,7 @@ func TestService_ProxyCluster(t *testing.T) {
 				Logger:            logtest.NewLogger(),
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
-				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
+				LocalAddr:         netutils.MustParseAddr("127.0.0.1:4242"),
 			})
 
 			stream, err := srv.Client.ProxyCluster(context.Background())
@@ -512,7 +512,7 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
 				Logger:            logtest.NewLogger(),
-				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
+				LocalAddr:         netutils.MustParseAddr("127.0.0.1:4242"),
 				authzContextFn: func(info credentials.AuthInfo) (*authz.ScopedContext, error) {
 					checker, err := test.checkerFn(info)
 					if err != nil {
@@ -575,7 +575,7 @@ func TestService_ProxySSH(t *testing.T) {
 		Dialer:            sshSrv,
 		SignerFn:          fakeSigner,
 		Logger:            logtest.NewLogger(),
-		LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
+		LocalAddr:         netutils.MustParseAddr("127.0.0.1:4242"),
 		ConnectionMonitor: fakeMonitor{},
 		agentGetterFn: func(rw io.ReadWriter) sshagent.ClientGetter {
 			return func() (sshagent.Client, error) {
@@ -658,7 +658,7 @@ func TestService_ProxySSH(t *testing.T) {
 	require.NoError(t, err)
 
 	// create a new ssh client connection over a stream conn
-	addr := &utils.NetAddr{Addr: "127.0.0.1", AddrNetwork: "tcp"}
+	addr := &netutils.NetAddr{Addr: "127.0.0.1", AddrNetwork: "tcp"}
 	sshconn, chans, reqs, err := ssh.NewClientConn(
 		streamutils.NewConn(sshRW, addr, sshSrv.listener.Addr()),
 		addr.String(),
@@ -820,7 +820,7 @@ func TestService_ProxyWindowsDesktopSession(t *testing.T) {
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
 				Logger:            logtest.NewLogger(),
-				LocalAddr:         utils.MustParseAddr("127.0.0.1:4243"),
+				LocalAddr:         netutils.MustParseAddr("127.0.0.1:4243"),
 				authzContextFn: func(info credentials.AuthInfo) (*authz.ScopedContext, error) {
 					checker, err := test.checkerFn(info)
 					if err != nil {
@@ -884,7 +884,7 @@ func TestGetDestinationAddress(t *testing.T) {
 
 	for i, tt := range testCases {
 		t.Run(fmt.Sprintf("Test #%d", i), func(t *testing.T) {
-			res, err := getDestinationAddress(utils.MustParseAddr(tt.srcAddr), utils.MustParseAddr(tt.listenerAddr))
+			res, err := getDestinationAddress(netutils.MustParseAddr(tt.srcAddr), netutils.MustParseAddr(tt.listenerAddr))
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, res.String())
 		})

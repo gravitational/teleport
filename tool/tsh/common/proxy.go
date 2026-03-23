@@ -47,6 +47,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // onProxyCommandSSH creates a local ssh proxy, dialing a node and transferring
@@ -226,7 +227,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	}()
 
 	if cf.LocalProxyTunnel {
-		addr, err := utils.ParseAddr(lp.GetAddr())
+		addr, err := netutils.ParseAddr(lp.GetAddr())
 		if err != nil {
 			return trace.Wrap(err)
 		}

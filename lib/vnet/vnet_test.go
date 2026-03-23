@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 const (
@@ -114,7 +115,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	require.NoError(t, err)
 
 	errIsOK := func(err error) bool {
-		return err == nil || errors.Is(err, context.Canceled) || utils.IsOKNetworkError(err) || errors.Is(err, errFakeTUNClosed)
+		return err == nil || errors.Is(err, context.Canceled) || netutils.IsOKNetworkError(err) || errors.Is(err, errFakeTUNClosed)
 	}
 
 	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
@@ -2018,7 +2019,7 @@ func mustStartFakeWebProxy(
 			for {
 				conn, err := listener.Accept()
 				if err != nil {
-					if utils.IsOKNetworkError(err) {
+					if netutils.IsOKNetworkError(err) {
 						return nil
 					}
 					return trace.Wrap(err)
@@ -2064,7 +2065,7 @@ func mustStartFakeWebProxy(
 			}
 		},
 		Terminate: func() error {
-			if err := listener.Close(); !utils.IsOKNetworkError(err) {
+			if err := listener.Close(); !netutils.IsOKNetworkError(err) {
 				return trace.Wrap(err)
 			}
 			return nil

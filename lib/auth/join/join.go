@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/auth/join")
@@ -113,10 +114,10 @@ type RegisterParams struct {
 	ID state.IdentityID
 	// AuthServers is a list of auth servers to dial
 	// Ignored if AuthClient is provided.
-	AuthServers []utils.NetAddr
+	AuthServers []netutils.NetAddr
 	// ProxyServer is a proxy server to dial
 	// Ignored if AuthClient is provided.
-	ProxyServer utils.NetAddr
+	ProxyServer netutils.NetAddr
 	// AdditionalPrincipals is a list of additional principals to dial
 	AdditionalPrincipals []string
 	// DNSNames is a list of DNS names to add to x509 certificate
@@ -460,7 +461,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 
 // LooksLikeProxy returns true if the first specified auth server
 // to register with appears to be a proxy.
-func LooksLikeProxy(servers []utils.NetAddr) bool {
+func LooksLikeProxy(servers []netutils.NetAddr) bool {
 	if len(servers) == 0 {
 		return false
 	}
@@ -470,7 +471,7 @@ func LooksLikeProxy(servers []utils.NetAddr) bool {
 
 // proxyServerIsAuth returns true if the address given to register with
 // appears to be an auth server.
-func proxyServerIsAuth(server utils.NetAddr) bool {
+func proxyServerIsAuth(server netutils.NetAddr) bool {
 	port := server.Port(0)
 	return port == defaults.AuthListenPort
 }
@@ -632,7 +633,7 @@ func getHostAddresses(params RegisterParams) []string {
 		return []string{params.ProxyServer.String()}
 	}
 
-	return utils.NetAddrsToStrings(params.AuthServers)
+	return netutils.NetAddrsToStrings(params.AuthServers)
 }
 
 // NewAuthClient returns a new auth client built according to the register

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 var logger = logutils.NewPackageLogger(logconstants.ComponentKey, teleport.ComponentAuth)
@@ -113,7 +114,7 @@ func (m *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// determine authenticated user based on the request parameters
 	ctx := r.Context()
 	ctx = ContextWithUserCertificate(ctx, certFromConnState(r.TLS))
-	clientSrcAddr, err := utils.ParseAddr(remoteAddr)
+	clientSrcAddr, err := netutils.ParseAddr(remoteAddr)
 	if err == nil {
 		ctx = ContextWithClientSrcAddr(ctx, clientSrcAddr)
 	}

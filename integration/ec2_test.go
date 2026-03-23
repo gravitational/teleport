@@ -51,8 +51,8 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func newNodeConfig(t *testing.T, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
@@ -72,7 +72,7 @@ func newNodeConfig(t *testing.T, tokenName string, joinMethod types.JoinMethod) 
 	return config
 }
 
-func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
+func newProxyConfig(t *testing.T, authAddr netutils.NetAddr, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
 	config := servicecfg.MakeDefaultConfig()
 	config.Version = defaults.TeleportConfigVersionV3
 	config.SetToken(tokenName)

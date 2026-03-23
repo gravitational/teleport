@@ -29,6 +29,7 @@ import (
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // proxyService implements the grpc ProxyService.
@@ -67,11 +68,11 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		return trace.Wrap(err)
 	}
 
-	source := &utils.NetAddr{
+	source := &netutils.NetAddr{
 		Addr:        dial.Source.Addr,
 		AddrNetwork: dial.Source.Network,
 	}
-	destination := &utils.NetAddr{
+	destination := &netutils.NetAddr{
 		Addr:        dial.Destination.Addr,
 		AddrNetwork: dial.Destination.Network,
 	}

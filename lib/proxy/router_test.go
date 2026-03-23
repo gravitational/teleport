@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/sshagent"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 type testSite struct {
@@ -971,7 +971,7 @@ func TestRouter_DialHost(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			conn, err := tt.router.DialHost(ctx, nil /*scopePin*/, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", nil, agentGetter, createSigner)
+			conn, err := tt.router.DialHost(ctx, nil /*scopePin*/, &netutils.NetAddr{}, &netutils.NetAddr{}, "host", "0", "test", nil, agentGetter, createSigner)
 
 			var params reversetunnelclient.DialParams
 			if tt.router.localCluster != nil {
@@ -1135,7 +1135,7 @@ func TestRouter_DialWindowsDesktop(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			conn, err := tt.router.DialWindowsDesktop(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "test", nil)
+			conn, err := tt.router.DialWindowsDesktop(ctx, &netutils.NetAddr{}, &netutils.NetAddr{}, "host", "test", nil)
 			tt.assertion(t, conn, err)
 		})
 	}

@@ -36,7 +36,8 @@ import (
 	"google.golang.org/grpc/peer"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestGetCreds(t *testing.T) {
@@ -104,7 +105,7 @@ func TestTransportCredentials(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err := l.Close()
-		if err != nil && !utils.IsUseOfClosedNetworkError(err) {
+		if err != nil && !netutils.IsUseOfClosedNetworkError(err) {
 			assert.NoError(t, err)
 		}
 	})

@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func TestConvertAPIError(t *testing.T) {
@@ -107,7 +108,7 @@ func newMockInstance(t *testing.T, hostSigner ssh.Signer, listener net.Listener)
 	}
 	sshServer, err := sshutils.NewServer(
 		"gcp-vm-server",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: listener.Addr().String()},
+		netutils.NetAddr{AddrNetwork: "tcp", Addr: listener.Addr().String()},
 		mock,
 		sshutils.StaticHostSigners(hostSigner),
 		sshutils.AuthMethods{
@@ -214,7 +215,7 @@ func (m *mockListener) Accept() (net.Conn, error) {
 }
 
 func (m *mockListener) Addr() net.Addr {
-	return &utils.NetAddr{
+	return &netutils.NetAddr{
 		Addr:        "teleport.cluster.local:22",
 		AddrNetwork: "tcp",
 	}
@@ -228,8 +229,8 @@ func TestRunCommand(t *testing.T) {
 	signer, err := generateKeyPair(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	clientConn, serverConn, err := utils.DualPipeNetConn(
-		&utils.NetAddr{Addr: "server", AddrNetwork: "tcp"},
-		&utils.NetAddr{Addr: "client", AddrNetwork: "tcp"},
+		&netutils.NetAddr{Addr: "server", AddrNetwork: "tcp"},
+		&netutils.NetAddr{Addr: "client", AddrNetwork: "tcp"},
 	)
 	require.NoError(t, err)
 	mock := newMockInstance(t, signer, &mockListener{Conn: serverConn, ctx: ctx})

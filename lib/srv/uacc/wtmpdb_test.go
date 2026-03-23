@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func assertDBEntry(t *testing.T, db *sql.DB, key int64, expectUsername, expectTTY, expectAddr string, expectLoginTime, expectLogoutTime time.Time) {
@@ -59,7 +59,7 @@ func TestWtmpdb(t *testing.T) {
 	require.NoError(t, err)
 
 	// Log a user in.
-	remote := &utils.NetAddr{
+	remote := &netutils.NetAddr{
 		AddrNetwork: "tcp",
 		Addr:        "123.456.789.012",
 	}

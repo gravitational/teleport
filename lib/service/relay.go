@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func (process *TeleportProcess) initRelay() {
@@ -377,7 +378,7 @@ func (process *TeleportProcess) runRelayService() error {
 			peerListenerPort = uint16(a.Port)
 		}
 
-		hostIP, err := utils.GuessHostIP()
+		hostIP, err := netutils.GuessHostIP()
 		if err != nil {
 			return trace.Wrap(err)
 		}

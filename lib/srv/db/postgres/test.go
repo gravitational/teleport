@@ -40,8 +40,9 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // MakeTestClient returns Postgres client connection according to the provided
@@ -190,7 +191,7 @@ func (s *TestServer) Serve() error {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			if utils.IsOKNetworkError(err) {
+			if netutils.IsOKNetworkError(err) {
 				return nil
 			}
 			s.log.ErrorContext(context.Background(), "Failed to accept connection.", "error", err)

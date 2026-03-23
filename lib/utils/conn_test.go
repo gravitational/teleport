@@ -24,6 +24,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,7 +54,7 @@ func TestConnWithSrcAddr(t *testing.T) {
 	})
 
 	t.Run("valid clientSrcAddr", func(t *testing.T) {
-		addr := MustParseAddr("11.22.33.44:5566")
+		addr := netutils.MustParseAddr("11.22.33.44:5566")
 		conn := NewConnWithSrcAddr(orgConn, addr)
 
 		require.NotEqual(t, orgConn.RemoteAddr().String(), conn.RemoteAddr().String())
