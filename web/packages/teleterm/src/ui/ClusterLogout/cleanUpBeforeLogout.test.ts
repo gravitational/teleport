@@ -38,18 +38,15 @@ it('switches to another connected workspace when the active one is being logged 
   const clusterB = makeRootCluster({ uri: '/clusters/cluster-b' });
   const appContext = makeAppContext();
   appContext.addRootCluster(clusterA, { noActivate: true });
-  // clusterB is the active workspace (last added without noActivate).
   appContext.addRootCluster(clusterB);
 
-  jest.spyOn(appContext.workspacesService, 'setActiveWorkspace');
+  expect(appContext.workspacesService.getRootClusterUri()).toBe(clusterB.uri);
 
   await cleanUpBeforeLogout(appContext, clusterB.uri, {
     removeWorkspace: false,
   });
 
-  expect(appContext.workspacesService.setActiveWorkspace).toHaveBeenCalledWith(
-    clusterA.uri
-  );
+  expect(appContext.workspacesService.getRootClusterUri()).toBe(clusterA.uri);
 });
 
 it('sets active workspace to null when no other connected workspaces exist', async () => {
@@ -57,34 +54,27 @@ it('sets active workspace to null when no other connected workspaces exist', asy
   const appContext = makeAppContext();
   appContext.addRootCluster(cluster);
 
-  jest.spyOn(appContext.workspacesService, 'setActiveWorkspace');
-
   await cleanUpBeforeLogout(appContext, cluster.uri, {
     removeWorkspace: false,
   });
 
-  expect(appContext.workspacesService.setActiveWorkspace).toHaveBeenCalledWith(
-    null
-  );
+  expect(appContext.workspacesService.getRootClusterUri()).toBeUndefined();
 });
 
 it('does not switch workspace when the logged out cluster is not the active one', async () => {
   const clusterA = makeRootCluster({ uri: '/clusters/cluster-a' });
   const clusterB = makeRootCluster({ uri: '/clusters/cluster-b' });
   const appContext = makeAppContext();
-  // clusterA is the active workspace (last added without noActivate).
   appContext.addRootCluster(clusterA);
   appContext.addRootCluster(clusterB, { noActivate: true });
 
-  jest.spyOn(appContext.workspacesService, 'setActiveWorkspace');
+  expect(appContext.workspacesService.getRootClusterUri()).toBe(clusterA.uri);
 
   await cleanUpBeforeLogout(appContext, clusterB.uri, {
     removeWorkspace: false,
   });
 
-  expect(
-    appContext.workspacesService.setActiveWorkspace
-  ).not.toHaveBeenCalled();
+  expect(appContext.workspacesService.getRootClusterUri()).toBe(clusterA.uri);
 });
 
 it('removes connections belonging to the cluster and keeps connections of other clusters', async () => {
