@@ -100,13 +100,7 @@ async function startHeadlessRequestProcess(options?: {
     exited.resolve();
   });
 
-  child.once('error', error => {
-    if (error.name === 'AbortError') {
-      exited.resolve();
-      return;
-    }
-    exited.reject(error);
-  });
+  child.once('error', error => exited.reject(error));
 
   const request = await Promise.race([
     requestCreated.promise,
@@ -187,14 +181,13 @@ test('headless auth modal flows', async ({ app }) => {
 
     abortController.abort();
     await headlessDialog.waitForClose();
-    await expect(process.waitForExit()).resolves.toBeUndefined();
+    await expect(process.waitForExit()).rejects.toThrow(
+      'The operation was aborted'
+    );
   });
 
   await test.step('approving a headless command in Web UI closes the modal automatically', async () => {
-    const abortController = new AbortController();
-    await using process = await startHeadlessRequestProcess({
-      abortSignal: abortController.signal,
-    });
+    await using process = await startHeadlessRequestProcess();
     await headlessDialog.waitForVisible();
 
     await approveInWebUi(process.request.url);
