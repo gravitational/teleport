@@ -121,10 +121,9 @@
                     "cloud": {
                         "$id": "#/properties/apps/cloud",
                         "type": "string",
-                        "enum": ["GCP", "AWS", "Aure"],
+                        "enum": ["GCP", "AWS", "Azure"],
                         "default": ""
-                    },
-                    "additionalProperties": true
+                    }
                 }
             }
         },
