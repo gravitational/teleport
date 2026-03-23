@@ -99,6 +99,9 @@ type ServiceTestConfig struct {
 	// PipeAuthenticatedUsersAccess overrides Authenticated Users access mask in
 	// the named pipe DACL. If zero, SafePipeReadWriteAccess is used.
 	PipeAuthenticatedUsersAccess uint32
+	// VerifySignature overrides signature verification.
+	// If nil, verifySignature is used.
+	VerifySignature func(updatePath string) error
 }
 
 // InstallService installs the Teleport Connect privileged update service.
@@ -177,7 +180,11 @@ func (h *handler) Execute(ctx context.Context, _ []string) (err error) {
 		return trace.Wrap(err, "checking if update is upgrade")
 	}
 
-	if err = verifySignature(updatePath); err != nil {
+	verifySignatureFn := verifySignature
+	if h.testCfg.VerifySignature != nil {
+		verifySignatureFn = h.testCfg.VerifySignature
+	}
+	if err = verifySignatureFn(updatePath); err != nil {
 		return trace.Wrap(err, "verifying update signature")
 	}
 
