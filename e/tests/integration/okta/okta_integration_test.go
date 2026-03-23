@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -504,9 +505,19 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 	auth := sut.Teleport.Process.GetAuthServer()
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Verify reviewer user has okta-requester + 2 ACL reviewer roles
 		s, err := auth.GetUserLoginState(ctx, reviewerLogin)
 		require.NoError(t, err)
-		require.Len(t, s.GetRoles(), 3) // okta-requester + 2 ACL reviewer roles
+		require.Len(t, s.GetRoles(), 3)
+
+		// Verify okta-requester role has necessary search_as_roles. It is
+		// updated by Okta assignment processor async so if we don't ensure
+		// this, we may get a race where the test tries to submit an access
+		// request before okta-requester role was updated.
+		oktaRequester, err := auth.GetRole(ctx, teleport.SystemOktaRequesterRoleName)
+		require.NoError(t, err)
+		sar := oktaRequester.GetSearchAsRoles(types.Allow)
+		require.NotEmpty(t, sar)
 	}, time.Minute, time.Millisecond*100)
 
 	t.Run("app access request", func(t *testing.T) {

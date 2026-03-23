@@ -403,19 +403,21 @@ func (a *accessListSync) init(ctx context.Context) {
 
 // sync should be called after [accessListSync.init] is called.
 func (a *accessListSync) sync(ctx context.Context) {
-	err := a.importOktaNativeAssignmentsAsAccessLists(ctx)
+	importErr := a.importOktaNativeAssignmentsAsAccessLists(ctx)
 
 	a.serviceStatus.UpdateAccessListSync(ctx, a.clock.Now(),
 		int(a.appsImported.Load()),
 		int(a.groupsImported.Load()),
-		err)
+		importErr)
 
-	if err != nil {
-		a.logger.ErrorContext(ctx, "Error synchronizing assignments imported from Okta", "error", err)
+	if importErr != nil {
+		a.logger.ErrorContext(ctx, "Error synchronizing assignments imported from Okta", "error", importErr)
 	}
 	if err := a.addRolesToOktaRequester(ctx); err != nil {
 		a.logger.ErrorContext(ctx, "Error updating Okta requester role", "error", err)
 	}
+
+	a.emitAccessListSyncEvent(ctx, importErr)
 }
 
 // refreshCurrentImports will seed the current import maps with what's currently reflected
@@ -608,7 +610,6 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 	close(importCh)
 	if err != nil {
 		a.logger.ErrorContext(ctx, "Access List import will be skipped due Okta API error", "error", err)
-		a.emitAccessListSyncEvent(ctx, err)
 		return trace.Wrap(err)
 	}
 
@@ -622,8 +623,6 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 
 	// Now that we've rebuilt our maps, run the reconciler.
 	reconcileErr := a.reconcileAll(ctx)
-
-	a.emitAccessListSyncEvent(ctx, reconcileErr)
 
 	// Clear the cached Okta users so we have an up-to-date list next cycle.
 	a.clearLoadedOktaUsers()
