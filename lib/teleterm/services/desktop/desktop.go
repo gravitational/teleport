@@ -157,7 +157,7 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 	// (Username, ClientScreenSpec, ClientKeyboardLayout) depends on
 	// the server's serverProtocol selection.
 	serverProtocol := conn.ConnectionState().NegotiatedProtocol
-	var tdpServerConn *tdp.Conn
+	var tdpServerConn tdp.MessageReadWriteCloser
 	if serverProtocol == tdpb.ProtocolName {
 		// Use TDPB decoder
 		tdpServerConn = tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive))
@@ -182,6 +182,12 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 				return trace.Wrap(err, "error sending %T message", msg)
 			}
 		}
+
+		// Aside from this block, Teleport Connect will be speaking TDPB.
+		// Install a translation layer to convert inbound messages to TDPB, and
+		// outbound messages to TDP for compatibility with this legacy WDS instance.
+		tdpServerConn = tdp.NewReadWriteInterceptor(tdpServerConn, tdpb.TranslateToModern, tdpb.TranslateToLegacy)
+
 	}
 
 	fsHandle := fsRequestHandler{
@@ -206,11 +212,6 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		}
 		return nil, nil
 	}, nil)
-
-	if serverProtocol != tdpb.ProtocolName {
-		// Wrap this in another interceptor to handle TDP translation
-		serverConn = tdp.NewReadWriteInterceptor(serverConn, tdpb.TranslateToModern, tdpb.TranslateToLegacy)
-	}
 
 	tdpConnProxy := tdp.NewConnProxy(clientConn, serverConn)
 
