@@ -26,6 +26,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import { useMfa, shouldShowMfaPrompt } from 'teleport/lib/useMfa';
 import auth from 'teleport/services/auth';
+import { MFA_OPTION_WEBAUTHN } from 'teleport/services/mfa';
 
 import { validateClientRedirect } from './urlValidation';
 
@@ -44,6 +45,20 @@ export function BrowserMFA({ onRedirect = redirectTo }: BrowserMFAProps) {
       browserMfaRequestId: requestId,
     },
   });
+  
+  // Don't allow users to answer the webauthn challenge with an sso challenge.
+  // Server side checks ensure that a webauthn device will be present.
+  if (mfa.challenge) {
+    mfa.challenge = { ...mfa.challenge, ssoChallenge: null };
+  }
+
+  // Auto-submit webauthn when the challenge first appears. If it fails, the
+  // user is shown the AuthnDialog to retry.
+  useEffect(() => {
+    if (mfa.challenge?.webauthnPublicKey && mfa.attempt.status === 'processing') {
+      mfa.submit('webauthn');
+    }
+  }, [mfa.challenge]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -60,17 +75,17 @@ export function BrowserMFA({ onRedirect = redirectTo }: BrowserMFAProps) {
         }
 
         // Get the tsh redirect URL
-        const tshRedirectURL = await auth.browserMFAPut(
+        const tshRedirectUrl = await auth.browserMfaPut(
           mfa,
           requestId,
           abortController.signal
         );
 
         // Validate that it points to localhost
-        const validatedTSHRedirectURL = validateClientRedirect(tshRedirectURL);
+        validateClientRedirect(tshRedirectUrl);
 
         // Redirect to the validated URL
-        onRedirect(validatedTSHRedirectURL);
+        onRedirect(tshRedirectUrl);
       } catch (err) {
         setAttempt({
           status: 'failed',
@@ -87,17 +102,17 @@ export function BrowserMFA({ onRedirect = redirectTo }: BrowserMFAProps) {
     if (attempt.statusCode === 400) {
       return <BadRequest message={attempt.statusText} />;
     }
-    return <BrowserMFAAccessDenied statusText={attempt.statusText} />;
+    return <BrowserMfaAccessDenied statusText={attempt.statusText} />;
   }
 
   if (shouldShowMfaPrompt(mfa)) {
     return <AuthnDialog mfaState={mfa} />;
   }
 
-  return <BrowserMFAProcessing />;
+  return <BrowserMfaProcessing />;
 }
 
-export function BrowserMFAProcessing() {
+export function BrowserMfaProcessing() {
   return (
     <Flex height="180px" justifyContent="center" alignItems="center" flex="1">
       <Indicator />
@@ -109,7 +124,7 @@ interface BrowserMFAAccessDeniedProps {
   statusText: string;
 }
 
-export function BrowserMFAAccessDenied(props: BrowserMFAAccessDeniedProps) {
+export function BrowserMfaAccessDenied(props: BrowserMFAAccessDeniedProps) {
   return <AccessDenied message={props.statusText} />;
 }
 

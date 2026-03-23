@@ -347,13 +347,18 @@ func (c *CLIPrompt) promptWithFallback(ctx context.Context, chal *proto.MFAAuthe
 			"user_specified", userSpecifiedMethod,
 		)
 
-		// If the user explicitly specified this MFA method, fail now without fallback.
+		// Don't fall back if the user explicitly chose this method.
 		if userSpecifiedMethod {
 			return nil, trace.Wrap(err)
 		}
 
 		// Print error message about the failure.
-		fmt.Fprintf(c.writer(), "\nMFA authentication with %s failed: %v\n", currentMethod, err)
+		fmt.Fprintf(c.writer(), "MFA authentication with %s failed, check logs for details\n", currentMethod)
+
+		// Don't fall back if the context is done (e.g. user canceled or request timed out).
+		if ctx.Err() != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		// Disable the failed method and loop to try the next one.
 		// Fallback only moves forward in priority order: WebAuthn > SSO > Browser MFA > OTP
