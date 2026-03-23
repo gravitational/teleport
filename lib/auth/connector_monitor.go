@@ -64,7 +64,7 @@ const (
 // SAMLCertExpiryMonitorConfig is embedded in the SAMLCertExpiryMonitor to provide access
 // to the services.
 type SAMLCertExpiryMonitorConfig struct {
-	// Connectors provides methods for intereacting with SAML connectors.
+	// Connectors provides methods for interacting with SAML connectors.
 	Connectors services.Identity
 	// Alerts provides methods for managing cluster alerts.
 	Alerts services.Status
