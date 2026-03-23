@@ -793,26 +793,18 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 	require.NoError(t, err)
 	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(start))
 
-	auth := sut.Teleport.Process.GetAuthServer()
-
 	memberID := fakeOkta.provisionedUsers[4].Id
 	memberLogin := oktaUserLogin(fakeOkta.provisionedUsers[4])
 	groupID := fakeOkta.provisionedGroups[0].Id
 
-	userGroups, _, err := auth.ListUserGroups(t.Context(), 0, "")
-	require.NoError(t, err)
-	require.NotEmpty(t, userGroups)
-	group := selectUserGroupByName(userGroups, groupID)
-	require.NotNil(t, group)
-
 	const iterCount = 10
 	for range iterCount {
 		fakeOkta.AddUserToGroup(groupID, memberID)
-		m := assertUserIsAccessListMember(ctx, t, sut, group.GetName(), memberLogin)
+		m := assertUserIsAccessListMember(ctx, t, sut, groupID, memberLogin)
 		require.Equal(t, "okta-service", m.Spec.AddedBy)
 
 		fakeOkta.RemoveUserFromGroup(groupID, memberID)
-		assertUserIsNotAccessListMember(ctx, t, sut, group.GetName(), memberLogin)
+		assertUserIsNotAccessListMember(ctx, t, sut, groupID, memberLogin)
 
 		// TODO(smallinsky): Remove this check when https://github.com/gravitational/teleport.e/issues/6558 is fixed.
 		require.EventuallyWithT(t, func(t *assert.CollectT) {

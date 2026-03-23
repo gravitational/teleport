@@ -79,7 +79,7 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 
 	// Set user monitor intervals to be short to speed up tests that involve user state changes.
 	// And avoid flakiness in tests where user state changes are expected to be detected within a short time frame.
-	serviceConfig.UserMonitor.LockTTL = time.Millisecond * 100
+	serviceConfig.UserMonitor.LockTTL = time.Second
 	serviceConfig.UserMonitor.ReconcileInterval = time.Second
 
 	err := teleport.CreateEx(t, nil, serviceConfig)
