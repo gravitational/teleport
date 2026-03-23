@@ -303,7 +303,7 @@ If Identity Activity Center is enabled, the following extra configurations are r
 integration:
 
 - <Var name="aws-sqs-queue"/>: The ARN of the Amazon SQS queue subscribed to the SNS topic that receives CloudTrail notifications.
-- <Var name="aws-s3-trail-bucket"/>: The arn of the Amazon S3 bucket where CloudTrail delivers its log files.
+- <Var name="aws-s3-trail-bucket"/>: The ARN of the Amazon S3 bucket where CloudTrail delivers its log files.
 - <Var name="aws-sqs-kms-queue-key"/>: The ARN of the AWS KMS key used to encrypt messages in the SQS queue.
 - <Var name="aws-s3-kms-key"/>: The ARN of the AWS KMS key used to encrypt objects in the S3 bucket that stores CloudTrail logs.
 
@@ -337,11 +337,11 @@ integration:
           "kms:Decrypt",
           "kms:DescribeKey",
           "kms:GenerateDataKey",
-          "kms:GenerateDataKeyWithoutPlaintext",
+          "kms:GenerateDataKeyWithoutPlaintext"
       ],
       "Resources": [
         "<Var name="aws-sqs-kms-queue-key"/>",
-        "<Var name="aws-s3-kms-key"/>",
+        "<Var name="aws-s3-kms-key"/>"
       ]
     }
   ]

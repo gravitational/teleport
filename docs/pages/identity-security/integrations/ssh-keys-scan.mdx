@@ -1,7 +1,7 @@
 ---
 title: Discover Insecure SSH Access with Teleport Identity Security
 sidebar_label: SSH Keys
-description: Describes how to enable SSH Key Scanning using Identity Security to identity access patterns that use long-lived SSH keys.
+description: Describes how to enable SSH Key Scanning using Identity Security to identify access patterns that use long-lived SSH keys.
 tags:
  - how-to
  - identity-security
@@ -42,7 +42,7 @@ Together with the key fingerprint, the Teleport-protected server also sends the 
 By default, Teleport scans the `$HOME/.ssh/authorized_keys` and `$HOME/.ssh/authorized_keys2` files for authorized keys.
 Here, `$HOME` refers to the home directory of each user on the system, whether they are local or LDAP managed users.
 
-### Importing User's SSH private keys
+### Importing SSH private keys
 
 Teleport's `tsh` CLI tool can scan users' laptops for SSH private keys.
 It goes through the specified directories, defaulting to `/Users` on macOS, `/home` on Linux, and `C:\Users` on Windows,

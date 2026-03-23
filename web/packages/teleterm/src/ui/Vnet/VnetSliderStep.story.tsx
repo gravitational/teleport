@@ -52,7 +52,10 @@ type StoryProps = {
   diagReport: 'ok' | 'issues-found' | 'failed-checks';
   isWorkspacePresent: boolean;
   unexpectedShutdown: boolean;
-  windowsVNetServiceNotFound: boolean;
+  installTimeRequirementsCheck:
+    | 'success'
+    | 'windows-service-not-installed'
+    | 'windows-service-version-mismatch';
 };
 
 const defaultArgs: StoryProps = {
@@ -67,7 +70,7 @@ const defaultArgs: StoryProps = {
   diagReport: 'ok',
   isWorkspacePresent: true,
   unexpectedShutdown: false,
-  windowsVNetServiceNotFound: false,
+  installTimeRequirementsCheck: 'success',
 };
 
 const meta: Meta<StoryProps> = {
@@ -118,9 +121,14 @@ const meta: Meta<StoryProps> = {
       description:
         "If there's no workspace, the button to open the diag report is disabled.",
     },
-    windowsVNetServiceNotFound: {
-      description:
-        'When the app is installed in a per-user mode, the VNet service is not installed.',
+    installTimeRequirementsCheck: {
+      control: { type: 'radio' },
+      options: [
+        'success',
+        'windows-service-not-installed',
+        'windows-service-version-mismatch',
+      ],
+      description: 'VNet-related checks performed before startup.',
     },
   },
   render: props => <VnetSliderStep {...props} />,
@@ -130,12 +138,23 @@ export default meta;
 function VnetSliderStep(props: StoryProps) {
   const appContext = new MockAppContext({ platform: props.platform });
 
-  if (props.windowsVNetServiceNotFound) {
+  if (props.installTimeRequirementsCheck === 'windows-service-not-installed') {
     appContext.vnet.checkInstallTimeRequirements = () =>
       new MockedUnaryCall({
         status: {
           oneofKind: 'windowsServiceStatus' as const,
           windowsServiceStatus: WindowsServiceStatus.DOES_NOT_EXIST,
+        },
+      });
+  }
+  if (
+    props.installTimeRequirementsCheck === 'windows-service-version-mismatch'
+  ) {
+    appContext.vnet.checkInstallTimeRequirements = () =>
+      new MockedUnaryCall({
+        status: {
+          oneofKind: 'windowsServiceStatus' as const,
+          windowsServiceStatus: WindowsServiceStatus.VERSION_MISMATCH,
         },
       });
   }
@@ -329,12 +348,5 @@ export const SelfHostedWithManyLeavesAndZones: StoryObj<StoryProps> = {
       'teleport-leaf',
       'second-leaf.example.com',
     ],
-  },
-};
-
-export const WindowsServiceNotInstalled: StoryObj<StoryProps> = {
-  args: {
-    ...defaultArgs,
-    windowsVNetServiceNotFound: true,
   },
 };

@@ -78,7 +78,7 @@ Without special handling, concurrent updates can leave a SCIM Group (and its
 corresponding Teleport Access List) in an indeterminate state. When the Teleport
 SCIM server detects a concurrent Group update, or an update based on a now-obsolete
 revision of the SCIM group, Teleport will block the update and return the HTTP
-stats code `412 Precondition Failed`. By default, the SailPoint SCIM provisioner
+status code `412 Precondition Failed`. By default, the SailPoint SCIM provisioner
 does not automatically re-try an update when it encounters a conflict like this,
 and considers it an error.
 

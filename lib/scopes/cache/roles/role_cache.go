@@ -112,7 +112,7 @@ func (c *RoleCache) ListScopedRolesWithFilter(ctx context.Context, req *scopedac
 		case scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE:
 			getter = c.cache.PoliciesApplicableToResourceScope
 		default:
-			return nil, trace.BadParameter("unsupported or unspecified scoping mode %q in scoped role role resource scope filter", req.GetResourceScope().GetMode())
+			return nil, trace.BadParameter("unsupported or unspecified scoping mode %q in scoped role resource scope filter", req.GetResourceScope().GetMode())
 		}
 		scope = req.GetResourceScope().GetScope()
 	}

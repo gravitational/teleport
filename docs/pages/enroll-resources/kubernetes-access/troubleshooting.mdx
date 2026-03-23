@@ -125,7 +125,7 @@ another group is used instead.
 
 Per the description above, the solution is to configure a different group for
 impersonation in Teleport. This can be done by setting the role's
-`kubernetes_group` parameter to a Group that the Autopilot cluster allows to
+`kubernetes_groups` parameter to a Group that the Autopilot cluster allows to
 impersonate.
 
 The `teleport-kube-agent` chart configures a Kubernetes Group with the same access
