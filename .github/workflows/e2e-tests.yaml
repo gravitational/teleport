@@ -265,7 +265,6 @@ jobs:
           mkdir -p setup-logs
           docker pull debian:bookworm-slim 2>&1 | tee setup-logs/docker-pull.log & pid_docker=$!
 
-          corepack enable
           pnpm install --frozen-lockfile 2>&1 | tee setup-logs/pnpm-install.log & pid_pnpm=$!
 
           failed=0
