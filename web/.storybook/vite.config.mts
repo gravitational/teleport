@@ -7,4 +7,5 @@ export default defineConfig(({ mode }) => ({
     tsconfigPaths: true,
   },
   plugins: [reactPlugin(mode)],
+  assetsInclude: ['**/shared/libs/ironrdp/**/*.wasm'],
 }));
