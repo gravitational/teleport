@@ -101,6 +101,14 @@ explanations of the essential fields. Each role provides access to
 Teleport-protected servers, databases, and Kubernetes clusters, but with access
 tailored to each team and level of access.
 
+<Admonition type="warning">
+
+These roles are only examples. You must define your own roles to suit your
+organization's needs. See the [additional considerations
+below](#additional-role-considerations).
+
+</Admonition>
+
 Note how these examples use the `env`, `service`, and `team` labels we mentioned
 in [Step 2](connect.mdx):
 
@@ -347,15 +355,47 @@ $ tctl create platform-rw-prod.yaml
 </TabItem>
 </Tabs>
 
-Role fields such as `db_users`, `logins`, and `kubernetes_groups` indicate the
-principals that a user is allowed to assume on the target infrastructure. A
-principal must already exist before a user can connect to a resource.
+### Additional role considerations
 
-For example, if there is no user called `manager` on a Linux host, a user
-allowed to assume that principal with the `spec.allow.logins` field will still
-not be able to gain access. A role that allows a user to access the Ubuntu
-server we enrolled in [Step 2](connect.mdx) would need to include `ubuntu` in
-the list of permitted logins.
+When considering these example roles, you should note the following caveats:
+
+1. **Named principals must exist on the target resource.** Role fields such as
+   `db_users`, `logins`, and `kubernetes_groups` indicate the principals that a
+   user is allowed to assume on the target infrastructure. A principal must
+   already exist before a user can connect to a resource.
+
+   For example, if there is no user called `manager` on a Linux host, a user
+   allowed to assume that principal with the `spec.allow.logins` field will
+   still not be able to gain access. A role that allows a user to access the
+   Ubuntu server we enrolled in [Step 2](connect.mdx) would need to include
+   `ubuntu` in the list of permitted logins.
+
+2. **The examples do not include Teleport resource permissions.** The preset
+   `editor` role allows users to manage most Teleport resources, including users
+   and roles, with the `spec.allow.rules` field:
+
+   ```yaml
+   spec:
+     allow:
+       rules:
+       - resources:
+         - user
+         verbs:
+         - list
+         - create
+         - read
+         - update
+         - delete
+   ```
+
+   The roles we illustrated above do not include permissions to manage Teleport
+   resources.
+
+   While setting up your initial cluster configuration, you can continue using
+   your admin user. For a production cluster, we recommend managing Teleport
+   resources with infrastructure as code tools with minimal permissions to
+   manage Teleport resources. See [Infrastructure as
+   Code](../zero-trust-access/infrastructure-as-code/infrastructure-as-code.mdx).
 
 For instructions on creating custom roles and assigning roles to users, read the
 [Getting Started with Teleport Access
