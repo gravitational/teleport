@@ -55,7 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -435,7 +435,7 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 
 	go func() {
 		nConn, err := lis.Accept()
-		if utils.IsOKNetworkError(err) {
+		if netutils.IsOKNetworkError(err) {
 			return
 		}
 		assert.NoError(t, err)

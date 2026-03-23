@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 // Due to thread safety design in glibc we must serialize all access to the accounting database.
@@ -114,7 +115,7 @@ func (u *UtmpBackend) Login(ttyName, username string, remote net.Addr, ts time.T
 	if len(username) > userMaxLen {
 		return trace.BadParameter("username length exceeds OS limits")
 	}
-	addr := utils.FromAddr(remote)
+	addr := netutils.FromAddr(remote)
 	if len(addr.Host()) > hostMaxLen {
 		return trace.BadParameter("hostname length exceeds OS limits")
 	}
@@ -213,7 +214,7 @@ func (u *UtmpBackend) FailedLogin(username string, remote net.Addr, ts time.Time
 	if len(username) > userMaxLen {
 		return trace.BadParameter("username length exceeds OS limits")
 	}
-	addr := utils.FromAddr(remote)
+	addr := netutils.FromAddr(remote)
 	if len(addr.Host()) > hostMaxLen {
 		return trace.BadParameter("hostname length exceeds OS limits")
 	}

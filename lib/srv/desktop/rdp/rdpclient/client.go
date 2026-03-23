@@ -91,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func init() {
@@ -517,7 +518,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		}
 
 		msg, err := c.conn.ReadMessage()
-		if utils.IsOKNetworkError(err) {
+		if netutils.IsOKNetworkError(err) {
 			return nil
 		} else if legacy.IsNonFatalErr(err) {
 			_ = c.conn.WriteMessage(&tdpb.Alert{

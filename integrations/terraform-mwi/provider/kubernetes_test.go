@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -113,7 +114,7 @@ func setupKubernetesHarness(
 
 			cfg.Kube.Enabled = true
 			cfg.Kube.KubeconfigPath = kubeConfigPath
-			cfg.Kube.ListenAddr = utils.MustParseAddr(
+			cfg.Kube.ListenAddr = netutils.MustParseAddr(
 				helpers.NewListener(t, service.ListenerKube, &cfg.FileDescriptors))
 		}),
 		testenv.WithProxyKube(),
