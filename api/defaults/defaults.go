@@ -29,9 +29,8 @@ const (
 	// Namespace is default namespace
 	Namespace = "default"
 
-	// SSHClientVersion is the SSH client identification string used by
-	// Teleport SSH clients.
-	SSHClientVersion = "SSH-2.0-Teleport mfav1"
+	// SSHClientVersion is the SSH client identification string used by Teleport SSH clients.
+	SSHClientVersion = "SSH-2.0-Teleport_v1"
 
 	// DefaultIOTimeout is a default network IO timeout.
 	DefaultIOTimeout = 30 * time.Second
