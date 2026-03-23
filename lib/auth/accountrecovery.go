@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	logutil "github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils"
 )
 
 const (
@@ -309,7 +309,7 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 		if approvedToken.GetUsage() != types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD {
 			a.logger.DebugContext(
 				ctx, "Failed to recover account, did not receive password as expected",
-				"received_type", logutil.TypeAttr(req.GetNewAuthnCred()),
+				"received_type", logutils.TypeAttr(req.GetNewAuthnCred()),
 			)
 			return trace.AccessDenied("%s", completeRecoveryGenericErrMsg)
 		}
@@ -327,7 +327,7 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 		if approvedToken.GetUsage() != types.UserTokenUsage_USER_TOKEN_RECOVER_MFA {
 			a.logger.DebugContext(
 				ctx, "Failed to recover account, did not receive MFA register response as expected",
-				"received_type", logutil.TypeAttr(req.GetNewAuthnCred()),
+				"received_type", logutils.TypeAttr(req.GetNewAuthnCred()),
 			)
 			return trace.AccessDenied("%s", completeRecoveryGenericErrMsg)
 		}

@@ -76,7 +76,7 @@ import (
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/utils"
-	log "github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 	"github.com/gravitational/teleport/session/common/netutils"
 )
@@ -584,7 +584,7 @@ func (s *Server) stopDatabase(ctx context.Context, db types.Database, unregister
 	// Stop database object importer.
 	if err := s.cfg.DatabaseObjects.StopImporter(db.GetName()); err != nil {
 		s.log.WarnContext(ctx, "Failed to stop database object importer",
-			"db", log.StringerAttr(db),
+			"db", logutils.StringerAttr(db),
 			"error", err,
 		)
 	}
@@ -593,7 +593,7 @@ func (s *Server) stopDatabase(ctx context.Context, db types.Database, unregister
 	var errors []error
 	if err := s.stopHeartbeat(ctx, db, unregistering); err != nil {
 		s.log.WarnContext(ctx, "Failed to stop database heartbeat",
-			"db", log.StringerAttr(db),
+			"db", logutils.StringerAttr(db),
 			"unregistering", unregistering,
 			"error", err,
 		)
@@ -602,7 +602,7 @@ func (s *Server) stopDatabase(ctx context.Context, db types.Database, unregister
 
 	if err := s.stopHealthCheck(db); err != nil {
 		s.log.WarnContext(ctx, "Failed to stop database health checker",
-			"db", log.StringerAttr(db),
+			"db", logutils.StringerAttr(db),
 			"error", err,
 		)
 		errors = append(errors, err)
@@ -612,7 +612,7 @@ func (s *Server) stopDatabase(ctx context.Context, db types.Database, unregister
 		return trace.NewAggregate(errors...)
 	}
 	s.log.DebugContext(ctx, "Stopped database",
-		"db", log.StringerAttr(db),
+		"db", logutils.StringerAttr(db),
 	)
 	return nil
 }
@@ -801,7 +801,7 @@ func (s *Server) stopHeartbeat(ctx context.Context, db types.Database, deleteFro
 
 	if err := heartbeat.Close(); err != nil {
 		s.log.WarnContext(ctx, "Failed to close database heartbeat",
-			"db", log.StringerAttr(db),
+			"db", logutils.StringerAttr(db),
 			"error", err,
 		)
 		return trace.Wrap(err)
@@ -816,7 +816,7 @@ func (s *Server) stopHeartbeat(ctx context.Context, db types.Database, deleteFro
 
 	if err := s.sendUpstreamInventoryStopHeartbeat(ctx, db.GetName()); err != nil {
 		s.log.WarnContext(ctx, "Failed to stop upstream inventory database heartbeat, falling back to deleting the database heartbeat",
-			"db", log.StringerAttr(db),
+			"db", logutils.StringerAttr(db),
 			"error", err,
 		)
 		// if upstream doesn't support graceful stop and we don't remove this
@@ -824,7 +824,7 @@ func (s *Server) stopHeartbeat(ctx context.Context, db types.Database, deleteFro
 		// TODO(gavin): DELETE IN 20.0.0
 		if err := s.deleteDatabaseServer(ctx, db.GetName()); err != nil {
 			s.log.WarnContext(ctx, "Failed to delete database heartbeat",
-				"db", log.StringerAttr(db),
+				"db", logutils.StringerAttr(db),
 				"error", err,
 			)
 			return trace.Wrap(err)

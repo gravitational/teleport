@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
-	log "github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
@@ -164,9 +164,9 @@ func NewHeartbeat(cfg HeartbeatConfig) (*Heartbeat, error) {
 	}
 	h.logger.DebugContext(ctx, "Starting heartbeat with announce period",
 		"mode", cfg.Mode,
-		"keep_alive_period", log.StringerAttr(cfg.KeepAlivePeriod),
-		"announce_period", log.StringerAttr(cfg.AnnouncePeriod),
-		"check_period", log.StringerAttr(cfg.CheckPeriod),
+		"keep_alive_period", logutils.StringerAttr(cfg.KeepAlivePeriod),
+		"announce_period", logutils.StringerAttr(cfg.AnnouncePeriod),
+		"check_period", logutils.StringerAttr(cfg.CheckPeriod),
 	)
 	return h, nil
 }

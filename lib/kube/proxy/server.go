@@ -55,7 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
-	log "github.com/gravitational/teleport/session/common/logutils"
+	"github.com/gravitational/teleport/session/common/logutils"
 	"github.com/gravitational/teleport/session/common/logutils/logconstants"
 )
 
@@ -611,7 +611,7 @@ func (t *TLSServer) getTargetHealth(ctx context.Context, cluster types.KubeClust
 	}
 
 	t.log.WarnContext(ctx, "Failed to get kube cluster health",
-		"kube_cluster", log.StringerAttr(cluster),
+		"kube_cluster", logutils.StringerAttr(cluster),
 		"error", err,
 	)
 	return &types.TargetHealth{
