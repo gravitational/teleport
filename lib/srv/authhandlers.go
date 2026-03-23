@@ -771,8 +771,13 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 		// In-band MFA is optional, but MFA is required and client is using a regular cert, deny.
 		return nil, services.ErrSessionMFARequired
 
-	case !forceInBandMFA && isLegacyClient && isPerSessionMFACert:
-		// In-band MFA is optional, allow access to legacy client as long as they are using a per-session MFA cert.
+	case !forceInBandMFA && isPerSessionMFACert:
+		// In-band MFA is optional, allow access as long as they are using a per-session MFA cert. Clients don't
+		// currently support the in-band MFA flow because it is not implemented yet, so temporarily allow this path for
+		// all clients.
+		//
+		// TODO(cthach):  Restrict this case to legacy clients only once in-band MFA support is added on the
+		// client-side.
 		return perms, nil
 
 	case forceInBandMFA && isLegacyClient:
