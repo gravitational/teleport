@@ -7,8 +7,7 @@ resource "azurerm_user_assigned_identity" "teleport_identity" {
 resource "azurerm_federated_identity_credential" "teleport_identity" {
   name = "${azurerm_user_assigned_identity.teleport_identity.name}-${azurerm_kubernetes_cluster.kube_cluster.name}"
 
-  parent_id           = azurerm_user_assigned_identity.teleport_identity.id
-  resource_group_name = azurerm_user_assigned_identity.teleport_identity.resource_group_name
+  parent_id = azurerm_user_assigned_identity.teleport_identity.id
 
   audience = ["api://AzureADTokenExchange"]
 

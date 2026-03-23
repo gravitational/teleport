@@ -28,32 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/ui"
 )
 
-// ListDatabaseUsers is used to list database user suggestions when the user is attempting to
-// establish a connection to a database through Teleterm.
-//
-// The list is based on whatever we can deduce from the role set, so it's similar to the behavior of
-// `tsh db ls -v`, with the exception that Teleterm is interested only in the allowed usernames.
-func (s *Handler) ListDatabaseUsers(ctx context.Context, req *api.ListDatabaseUsersRequest) (*api.ListDatabaseUsersResponse, error) {
-	cluster, _, err := s.DaemonService.ResolveCluster(req.DbUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyClient, err := s.DaemonService.GetCachedClient(ctx, cluster.URI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	dbUsers, err := cluster.GetAllowedDatabaseUsers(ctx, proxyClient.CurrentCluster(), req.DbUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &api.ListDatabaseUsersResponse{
-		Users: dbUsers,
-	}, nil
-}
-
 // ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
 func (s *Handler) ListDatabaseServers(ctx context.Context, req *api.ListDatabaseServersRequest) (*api.ListDatabaseServersResponse, error) {
 	resp, err := s.DaemonService.ListDatabaseServers(ctx, req)
@@ -97,6 +71,8 @@ func newAPIDatabase(db clusters.Database) *api.Database {
 			Message: db.TargetHealth.Message,
 		},
 		GcpProjectId:         gcpProjectID,
+		DatabaseUsers:        db.DatabaseUsers,
+		WildcardUserAllowed:  db.WildcardUserAllowed,
 		AutoUserProvisioning: autoUserProvisioning,
 	}
 }

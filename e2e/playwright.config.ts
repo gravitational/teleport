@@ -81,6 +81,8 @@ export default defineConfig({
 
     {
       name: 'connect',
+      // Enables interacting with Web UI from Connect test flows.
+      use: browserDevices.chromium,
       testDir: './tests/connect',
       workers: 1,
     },

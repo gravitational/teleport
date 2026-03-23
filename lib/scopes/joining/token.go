@@ -21,7 +21,9 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -48,6 +50,74 @@ const (
 	// TokenUsageModeUnlimited denotes a token that can provision any number of resources.
 	TokenUsageModeUnlimited = "unlimited"
 )
+
+func validateKubernetes(kube *joiningv1.Kubernetes) error {
+	if kube == nil || len(kube.GetAllow()) == 0 {
+		return trace.BadParameter("at least one allow rule must be set")
+	}
+
+	for i, rule := range kube.GetAllow() {
+		if rule.ServiceAccount == "" {
+			return trace.BadParameter("allow[%d].service_account must be set", i)
+		}
+
+		namespace, name, found := strings.Cut(rule.ServiceAccount, ":")
+		if !found || namespace == "" || name == "" {
+			return trace.BadParameter("allow[%d].service_account should be in format \"namespace:service_account\", got %q instead", i, rule.ServiceAccount)
+		}
+
+	}
+
+	switch types.KubernetesJoinType(kube.GetType()) {
+	case types.KubernetesJoinTypeInCluster:
+		if kube.GetStaticJwks() != nil {
+			return trace.BadParameter("static_jwks must not be set when type is %q", kube.GetType())
+		}
+
+		if kube.GetOidc() != nil {
+			return trace.BadParameter("oidc must not be set when type is %q", kube.GetType())
+		}
+	case types.KubernetesJoinTypeStaticJWKS:
+		if kube.GetStaticJwks().GetJwks() == "" {
+			return trace.BadParameter("static_jwks must be set when type is %q", kube.GetType())
+		}
+		if kube.GetOidc() != nil {
+			return trace.BadParameter("oidc must not be set when type is %q", kube.GetType())
+		}
+	case types.KubernetesJoinTypeOIDC:
+		if kube.GetOidc().GetIssuer() == "" {
+			return trace.BadParameter("oidc.issuer issuer must be set when type is %q", kube.GetType())
+		}
+		if kube.GetStaticJwks() != nil {
+			return trace.BadParameter("static_jwks must not be set when type is %q", kube.GetType())
+		}
+
+		parsed, err := url.Parse(kube.GetOidc().GetIssuer())
+		if err != nil {
+			return trace.BadParameter("oidc.issuer must be a valid URL")
+		}
+
+		if parsed.Scheme == "http" {
+			if !kube.GetOidc().GetInsecureAllowHttpIssuer() {
+				return trace.BadParameter("oidc.issuer must be https:// unless insecure_allow_http_issuer is set")
+			}
+		} else if parsed.Scheme != "https" {
+			return trace.BadParameter("invalid oidc.issuer URL scheme, must be https://")
+		}
+	default:
+		return trace.BadParameter(
+			"unrecognized join type %q, must be one of (%s)",
+			kube.GetType(),
+			strings.Join([]string{
+				string(types.KubernetesJoinTypeInCluster),
+				string(types.KubernetesJoinTypeStaticJWKS),
+				string(types.KubernetesJoinTypeOIDC),
+			}, ", "),
+		)
+	}
+
+	return nil
+}
 
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
 	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
@@ -81,6 +151,8 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		if len(token.GetSpec().GetOracle().GetAllow()) == 0 {
 			return trace.BadParameter("oracle configuration must be defined for a scoped token when using the oracle join method")
 		}
+	case types.JoinMethodKubernetes:
+		return trace.Wrap(validateKubernetes(token.GetSpec().GetKubernetes()), "kubernetes join method")
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
@@ -124,8 +196,8 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(err, "validating scoped token assigned scope")
 	}
 
-	if !scopes.ResourceScope(spec.AssignedScope).IsSubjectToPolicyScope(token.GetScope()) {
-		return trace.BadParameter("scoped token assigned scope must be descendant of its resource scope")
+	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.AssignedScope) {
+		return trace.BadParameter("scoped token assigned scope must be descendant of or equivalent to the token's resource scope")
 	}
 
 	if err := validateJoinMethod(token); err != nil {
@@ -436,6 +508,38 @@ func (t *Token) GetOracle() *types.ProvisionTokenSpecV2Oracle {
 
 	return &types.ProvisionTokenSpecV2Oracle{
 		Allow: allow,
+	}
+}
+
+// GetKubernetes returns the Kubernetes-specific configuration for this token.
+func (t *Token) GetKubernetes() *types.ProvisionTokenSpecV2Kubernetes {
+	allow := make([]*types.ProvisionTokenSpecV2Kubernetes_Rule, len(t.scoped.GetSpec().GetKubernetes().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetKubernetes().GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2Kubernetes_Rule{
+			ServiceAccount: rule.GetServiceAccount(),
+		}
+	}
+
+	var staticJWKS *types.ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig
+	if jwks := t.scoped.GetSpec().GetKubernetes().GetStaticJwks().GetJwks(); jwks != "" {
+		staticJWKS = &types.ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig{
+			JWKS: jwks,
+		}
+	}
+
+	var oidcConfig *types.ProvisionTokenSpecV2Kubernetes_OIDCConfig
+	if oidc := t.scoped.GetSpec().GetKubernetes().GetOidc(); oidc != nil {
+		oidcConfig = &types.ProvisionTokenSpecV2Kubernetes_OIDCConfig{
+			Issuer:                  oidc.GetIssuer(),
+			InsecureAllowHTTPIssuer: oidc.GetInsecureAllowHttpIssuer(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2Kubernetes{
+		Allow:      allow,
+		Type:       types.KubernetesJoinType(t.scoped.GetSpec().GetKubernetes().GetType()),
+		StaticJWKS: staticJWKS,
+		OIDC:       oidcConfig,
 	}
 }
 

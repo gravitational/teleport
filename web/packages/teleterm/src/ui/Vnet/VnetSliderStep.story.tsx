@@ -37,7 +37,6 @@ import { useVnetContext, VnetContextProvider } from './vnetContext';
 import { VnetSliderStep as Component } from './VnetSliderStep';
 
 type StoryProps = {
-  platform: 'darwin' | 'win32' | 'linux';
   startVnet: 'success' | 'error' | 'processing';
   autoStart: boolean;
   appDnsZones: string[];
@@ -52,11 +51,13 @@ type StoryProps = {
   diagReport: 'ok' | 'issues-found' | 'failed-checks';
   isWorkspacePresent: boolean;
   unexpectedShutdown: boolean;
-  windowsVNetServiceNotFound: boolean;
+  installTimeRequirementsCheck:
+    | 'success'
+    | 'windows-service-not-installed'
+    | 'windows-service-version-mismatch';
 };
 
 const defaultArgs: StoryProps = {
-  platform: 'darwin',
   startVnet: 'success',
   autoStart: true,
   appDnsZones: ['teleport.example.com', 'company.test'],
@@ -67,7 +68,7 @@ const defaultArgs: StoryProps = {
   diagReport: 'ok',
   isWorkspacePresent: true,
   unexpectedShutdown: false,
-  windowsVNetServiceNotFound: false,
+  installTimeRequirementsCheck: 'success',
 };
 
 const meta: Meta<StoryProps> = {
@@ -83,10 +84,6 @@ const meta: Meta<StoryProps> = {
     },
   ],
   argTypes: {
-    platform: {
-      control: { type: 'inline-radio' },
-      options: ['darwin', 'win32', 'linux'],
-    },
     startVnet: {
       control: { type: 'inline-radio' },
       options: ['success', 'error', 'processing'],
@@ -118,9 +115,14 @@ const meta: Meta<StoryProps> = {
       description:
         "If there's no workspace, the button to open the diag report is disabled.",
     },
-    windowsVNetServiceNotFound: {
-      description:
-        'When the app is installed in a per-user mode, the VNet service is not installed.',
+    installTimeRequirementsCheck: {
+      control: { type: 'radio' },
+      options: [
+        'success',
+        'windows-service-not-installed',
+        'windows-service-version-mismatch',
+      ],
+      description: 'VNet-related checks performed before startup.',
     },
   },
   render: props => <VnetSliderStep {...props} />,
@@ -128,14 +130,25 @@ const meta: Meta<StoryProps> = {
 export default meta;
 
 function VnetSliderStep(props: StoryProps) {
-  const appContext = new MockAppContext({ platform: props.platform });
+  const appContext = new MockAppContext();
 
-  if (props.windowsVNetServiceNotFound) {
+  if (props.installTimeRequirementsCheck === 'windows-service-not-installed') {
     appContext.vnet.checkInstallTimeRequirements = () =>
       new MockedUnaryCall({
         status: {
           oneofKind: 'windowsServiceStatus' as const,
           windowsServiceStatus: WindowsServiceStatus.DOES_NOT_EXIST,
+        },
+      });
+  }
+  if (
+    props.installTimeRequirementsCheck === 'windows-service-version-mismatch'
+  ) {
+    appContext.vnet.checkInstallTimeRequirements = () =>
+      new MockedUnaryCall({
+        status: {
+          oneofKind: 'windowsServiceStatus' as const,
+          windowsServiceStatus: WindowsServiceStatus.VERSION_MISMATCH,
         },
       });
   }
@@ -329,12 +342,5 @@ export const SelfHostedWithManyLeavesAndZones: StoryObj<StoryProps> = {
       'teleport-leaf',
       'second-leaf.example.com',
     ],
-  },
-};
-
-export const WindowsServiceNotInstalled: StoryObj<StoryProps> = {
-  args: {
-    ...defaultArgs,
-    windowsVNetServiceNotFound: true,
   },
 };

@@ -67,8 +67,8 @@ app_service:
   enabled: true
   resources:
   - labels:
-    "teleport.dev/kubernetes-cluster": "main-cluster"
-    "teleport.dev/origin": "discovery-kubernetes"
+      "teleport.dev/kubernetes-cluster": "main-cluster"
+      "teleport.dev/origin": "discovery-kubernetes"
 ```
 
 Label `teleport.dev/kubernetes-cluster` should match value of `discovery_group` field in the Discovery Service config.
