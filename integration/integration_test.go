@@ -1863,61 +1863,115 @@ func (r repeatingReader) Close() error {
 	return nil
 }
 
+// cancelAfterWriter is an [io.Writer] that records the timestamp of the
+// first and last write and cancels a context once writes have spanned
+// longer than the configured threshold. It is safe for concurrent use.
+type cancelAfterWriter struct {
+	threshold time.Duration
+	cancel    context.CancelFunc
+
+	mu       sync.Mutex
+	output   []byte
+	first    time.Time
+	last     time.Time
+	canceled bool
+}
+
+func (w *cancelAfterWriter) Write(p []byte) (int, error) {
+	now := time.Now()
+
+	w.mu.Lock()
+	w.output = append(w.output, p...)
+
+	if w.first.IsZero() {
+		w.first = now
+	}
+	w.last = now
+	if !w.canceled && w.cancel != nil && now.Sub(w.first) > w.threshold {
+		w.canceled = true
+		w.cancel()
+	}
+	w.mu.Unlock()
+	return len(p), nil
+}
+
+func (w *cancelAfterWriter) firstAndLastWrite() (time.Time, time.Time) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.first, w.last
+}
+
+func (w *cancelAfterWriter) Output() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	return string(w.output)
+}
+
 // testClientIdleConnection validates that if a user is active beyond
 // the client idle timeout that the session is not terminated.
 func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
-	netConfig := types.DefaultClusterNetworkingConfig()
-	netConfig.SetClientIdleTimeout(3 * time.Second)
+	for _, mode := range []string{types.RecordAtNode, types.RecordAtProxy} {
+		t.Run(mode, func(t *testing.T) {
+			t.Parallel()
+			const idleTimeout = 3 * time.Second
+			netConfig := types.DefaultClusterNetworkingConfig()
+			netConfig.SetClientIdleTimeout(idleTimeout)
+			recConfig := types.DefaultSessionRecordingConfig()
+			recConfig.SetMode(mode)
 
-	tconf := suite.defaultServiceConfig()
-	tconf.SSH.Enabled = true
-	tconf.Auth.NetworkingConfig = netConfig
+			tconf := suite.defaultServiceConfig()
+			tconf.Auth.NetworkingConfig = netConfig
+			tconf.Auth.SessionRecordingConfig = recConfig
 
-	instance := suite.NewTeleportWithConfig(t, nil, nil, tconf)
-	t.Cleanup(func() { require.NoError(t, instance.StopAll()) })
+			instance := suite.NewTeleportWithConfig(t, nil, nil, tconf)
+			t.Cleanup(func() { require.NoError(t, instance.StopAll()) })
 
-	var output bytes.Buffer
+			// cancelAfterIdleTimeout cancels the provided context once output has
+			// been received for longer than the idle timeout. This lets allows the
+			// session to be terminated as soon as there is proof that it survived
+			// the idle timeout.
+			tw := &cancelAfterWriter{threshold: idleTimeout}
 
-	// SSH into the server, and stay active for longer than
-	// the client idle timeout.
-	sessionErr := make(chan error)
-	openSession := func() {
-		cl, err := instance.NewClient(helpers.ClientConfig{
-			Login:                suite.Me.Username,
-			Cluster:              helpers.Site,
-			Host:                 Host,
-			DisableSSHResumption: true,
+			var eg errgroup.Group
+			eg.Go(func() error {
+				// Execute a command faster than the idle timeout to stay active.
+				reader := newRepeatingReader("echo txlxport | sed 's/x/e/g'\n", 100*time.Millisecond)
+				defer func() { _ = reader.Close() }()
+				cl, err := instance.NewClient(helpers.ClientConfig{
+					Login:                suite.Me.Username,
+					Cluster:              helpers.Site,
+					Host:                 Host,
+					DisableSSHResumption: true,
+					Stdout:               tw,
+					Stdin:                reader,
+				})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				// Use a generous timeout as a safety net in case the cancelAfterWriter
+				// fails to terminate the session.
+				ctx, cancel := context.WithTimeout(t.Context(), idleTimeout*3)
+				defer cancel()
+				tw.cancel = cancel
+
+				// The test only cares that the session lived longer than the
+				// idle timeout. Ignore any errors outside of session establishment.
+				_ = cl.SSH(ctx, nil)
+				return nil
+			})
+
+			require.NoError(t, eg.Wait())
+
+			firstWrite, lastWrite := tw.firstAndLastWrite()
+			require.False(t, firstWrite.IsZero(), "session produced no output")
+			outputDuration := lastWrite.Sub(firstWrite)
+			require.Greater(t, outputDuration, idleTimeout,
+				"last output was %v after first output, expected > %v idle timeout", outputDuration, idleTimeout)
+			require.Contains(t, tw.Output(), "teleport", "output did not contain teleport")
 		})
-		if err != nil {
-			sessionErr <- trace.Wrap(err)
-			return
-		}
-		cl.Stdout = &output
-		// Execute a command faster than the idle timeout to stay active.
-		reader := newRepeatingReader("echo txlxport | sed 's/x/e/g'\n", 100*time.Millisecond)
-		defer func() { reader.Close() }()
-		cl.Stdin = reader
-
-		// Terminate the session after 2x the idle timeout
-		ctx, cancel := context.WithTimeout(t.Context(), netConfig.GetClientIdleTimeout()*2)
-		defer cancel()
-		sessionErr <- cl.SSH(ctx, nil)
 	}
-
-	go openSession()
-
-	// Wait for the sessions to end - we expect an error
-	// since we are canceling the context.
-	err := waitForError(sessionErr, time.Second*15)
-	require.Error(t, err)
-
-	// Ensure that the session was alive beyond the idle timeout by
-	// counting the number of times "teleport" was output. If the session
-	// was alive past the idle timeout, then there should be at least 30 occurrences
-	// since the command is run more frequently the idle timeout.
-	require.NotEmpty(t, output)
-	count := strings.Count(output.String(), "teleport")
-	require.Greater(t, count, 30)
 }
 
 // TestDisconnectScenarios tests multiple scenarios with client disconnects
