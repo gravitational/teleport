@@ -528,7 +528,7 @@ func TestJoinError(t *testing.T) {
 		{
 			desc: "auth direct",
 			joinParams: joinclient.JoinParams{
-				AuthServers: []netutils.NetAddr{netutils.FromAddr(authService.TLS.Listener.Addr())},
+				AuthServers: []netutils.Addr{netutils.FromAddr(authService.TLS.Listener.Addr())},
 			},
 			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
 				// Should get AccessDenied and should not fall back to joining
@@ -543,7 +543,7 @@ func TestJoinError(t *testing.T) {
 			// proxy addresses.
 			desc: "proxy as auth",
 			joinParams: joinclient.JoinParams{
-				AuthServers: []netutils.NetAddr{netutils.FromAddr(proxyListener.Addr())},
+				AuthServers: []netutils.Addr{netutils.FromAddr(proxyListener.Addr())},
 				Insecure:    true,
 			},
 			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
@@ -569,7 +569,7 @@ func TestJoinError(t *testing.T) {
 		{
 			desc: "bad auth address",
 			joinParams: joinclient.JoinParams{
-				AuthServers: []netutils.NetAddr{netutils.FromAddr(badListener.Addr())},
+				AuthServers: []netutils.Addr{netutils.FromAddr(badListener.Addr())},
 			},
 			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
 				// Should fall back to a legacy join attempt before failing.
@@ -724,7 +724,7 @@ func joinViaProxyWithSecret(
 			Role:     types.RoleInstance,
 			NodeName: "node",
 		},
-		ProxyServer: netutils.NetAddr{
+		ProxyServer: netutils.Addr{
 			AddrNetwork: addr.Network(),
 			Addr:        addr.String(),
 		},

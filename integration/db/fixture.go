@@ -132,7 +132,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	conf.SetToken("static-token-value")
 	conf.InsecureMode = true
 
-	conf.SetAuthServerAddress(netutils.NetAddr{
+	conf.SetAuthServerAddress(netutils.Addr{
 		AddrNetwork: "tcp",
 		Addr:        pack.Cluster.Web,
 	})
@@ -451,7 +451,7 @@ func (p *DatabasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 	conf.DataDir = t.TempDir()
 	conf.SetToken("static-token-value")
 	conf.DiagnosticAddr = *netutils.MustParseAddr(helpers.NewListener(t, service.ListenerDiagnostic, &conf.FileDescriptors))
-	conf.SetAuthServerAddress(netutils.NetAddr{
+	conf.SetAuthServerAddress(netutils.Addr{
 		AddrNetwork: "tcp",
 		Addr:        p.Root.Cluster.Web,
 	})

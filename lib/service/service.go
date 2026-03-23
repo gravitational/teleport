@@ -1356,7 +1356,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}
 
-	var resolverAddr netutils.NetAddr
+	var resolverAddr netutils.Addr
 	if cfg.Version == defaults.TeleportConfigVersionV3 && !cfg.ProxyServer.IsEmpty() {
 		resolverAddr = cfg.ProxyServer
 	} else {
@@ -3342,9 +3342,9 @@ func (process *TeleportProcess) GetRotation(role types.SystemRole) (*types.Rotat
 	return rotation, nil
 }
 
-func (process *TeleportProcess) proxyPublicAddr() netutils.NetAddr {
+func (process *TeleportProcess) proxyPublicAddr() netutils.Addr {
 	if len(process.Config.Proxy.PublicAddrs) == 0 {
-		return netutils.NetAddr{}
+		return netutils.Addr{}
 	}
 	return process.Config.Proxy.PublicAddrs[0]
 }
@@ -4334,7 +4334,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 	// Add default DNSNames to the dnsNames list.
 	dnsNames = append(dnsNames, auth.DefaultDNSNamesForRole(role)...)
 
-	var addrs []netutils.NetAddr
+	var addrs []netutils.Addr
 	switch role {
 	case types.RoleProxy:
 		addrs = append(process.Config.Proxy.PublicAddrs,
@@ -4343,10 +4343,10 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 			process.Config.Proxy.ReverseTunnelListenAddr,
 			process.Config.Proxy.MySQLAddr,
 			process.Config.Proxy.PeerAddress,
-			netutils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
-			netutils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
-			netutils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
-			netutils.NetAddr{Addr: reversetunnelclient.LocalKubernetes},
+			netutils.Addr{Addr: string(teleport.PrincipalLocalhost)},
+			netutils.Addr{Addr: string(teleport.PrincipalLoopbackV4)},
+			netutils.Addr{Addr: string(teleport.PrincipalLoopbackV6)},
+			netutils.Addr{Addr: reversetunnelclient.LocalKubernetes},
 		)
 		addrs = append(addrs, process.Config.Proxy.SSHPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.TunnelPublicAddrs...)
@@ -4390,10 +4390,10 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 		}
 	case types.RoleKube:
 		addrs = append(addrs,
-			netutils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
-			netutils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
-			netutils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
-			netutils.NetAddr{Addr: reversetunnelclient.LocalKubernetes},
+			netutils.Addr{Addr: string(teleport.PrincipalLocalhost)},
+			netutils.Addr{Addr: string(teleport.PrincipalLoopbackV4)},
+			netutils.Addr{Addr: string(teleport.PrincipalLoopbackV6)},
+			netutils.Addr{Addr: reversetunnelclient.LocalKubernetes},
 		)
 		addrs = append(addrs, process.Config.Kube.PublicAddrs...)
 		if process.Config.RelayServer != "" {
@@ -4403,11 +4403,11 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 		principals = append(principals, hostUUID)
 	case types.RoleWindowsDesktop:
 		addrs = append(addrs,
-			netutils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
-			netutils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
-			netutils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
-			netutils.NetAddr{Addr: reversetunnelclient.LocalWindowsDesktop},
-			netutils.NetAddr{Addr: desktop.WildcardServiceDNS},
+			netutils.Addr{Addr: string(teleport.PrincipalLocalhost)},
+			netutils.Addr{Addr: string(teleport.PrincipalLoopbackV4)},
+			netutils.Addr{Addr: string(teleport.PrincipalLoopbackV6)},
+			netutils.Addr{Addr: reversetunnelclient.LocalWindowsDesktop},
+			netutils.Addr{Addr: desktop.WildcardServiceDNS},
 		)
 		addrs = append(addrs, process.Config.WindowsDesktop.PublicAddrs...)
 	}
@@ -5365,7 +5365,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			traceClt = clt
 		}
 
-		var accessGraphAddr netutils.NetAddr
+		var accessGraphAddr netutils.Addr
 		if cfg.AccessGraph.Enabled {
 			addr, err := netutils.ParseAddr(cfg.AccessGraph.Addr)
 			if err != nil {
@@ -6307,7 +6307,7 @@ func (process *TeleportProcess) readOrInitPeerStatelessResetKey() (*quic.Statele
 // by remote trusted cluster.
 // If the proxy is running with Multiplex mode the WebPort is returned
 // where connections are forwarded to kube service by ALPN SNI router.
-func kubeDialAddr(config servicecfg.ProxyConfig, mode types.ProxyListenerMode) netutils.NetAddr {
+func kubeDialAddr(config servicecfg.ProxyConfig, mode types.ProxyListenerMode) netutils.Addr {
 	if mode == types.ProxyListenerMode_Multiplex {
 		return config.WebAddr
 	}
@@ -7165,7 +7165,7 @@ func (process *TeleportProcess) initDebugApp() {
 // SingleProcessModeResolver returns the reversetunnel.Resolver that should be used when running all components needed
 // within the same process. It's used for development and demo purposes.
 func (process *TeleportProcess) SingleProcessModeResolver(mode types.ProxyListenerMode) reversetunnelclient.Resolver {
-	return func(context.Context) (*netutils.NetAddr, types.ProxyListenerMode, error) {
+	return func(context.Context) (*netutils.Addr, types.ProxyListenerMode, error) {
 		addr, ok := process.singleProcessMode(mode)
 		if !ok {
 			return nil, mode, trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
@@ -7176,7 +7176,7 @@ func (process *TeleportProcess) SingleProcessModeResolver(mode types.ProxyListen
 
 // singleProcessMode returns true when running all components needed within
 // the same process. It's used for development and demo purposes.
-func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) (*netutils.NetAddr, bool) {
+func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) (*netutils.Addr, bool) {
 	if !process.Config.Proxy.Enabled || !process.Config.Auth.Enabled {
 		return nil, false
 	}
@@ -7185,7 +7185,7 @@ func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) 
 	}
 
 	if !process.Config.Proxy.DisableTLS && !process.Config.Proxy.DisableALPNSNIListener && mode == types.ProxyListenerMode_Multiplex {
-		var addr netutils.NetAddr
+		var addr netutils.Addr
 		switch {
 		// Use the public address if available.
 		case len(process.Config.Proxy.PublicAddrs) != 0:
@@ -7414,7 +7414,7 @@ type initSecureGRPCServerCfg struct {
 	conn            *Connector
 	limiter         *limiter.Limiter
 	listener        net.Listener
-	kubeProxyAddr   netutils.NetAddr
+	kubeProxyAddr   netutils.Addr
 	accessPoint     authclient.ProxyAccessPoint
 	lockWatcher     *services.LockWatcher
 	emitter         apievents.Emitter

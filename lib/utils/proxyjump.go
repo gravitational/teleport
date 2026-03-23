@@ -37,7 +37,7 @@ type JumpHost struct {
 	// Username to login as
 	Username string
 	// Addr is a target addr
-	Addr netutils.NetAddr
+	Addr netutils.Addr
 }
 
 // ParseProxyJump parses strings like user@host:port,bob@host:port

@@ -220,7 +220,7 @@ type PAMConfig struct {
 // UaccMetadata contains information the child needs from the parent for user accounting.
 type UaccMetadata struct {
 	// RemoteAddr is the address of the remote host.
-	RemoteAddr netutils.NetAddr `json:"remote_addr"`
+	RemoteAddr netutils.Addr `json:"remote_addr"`
 
 	// UtmpPath is the path of the system utmp database.
 	UtmpPath string `json:"utmp_path,omitempty"`

@@ -42,8 +42,8 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 	t.Parallel()
 
 	resolverFn := func(addr string) reversetunnelclient.Resolver {
-		return func(context.Context) (*netutils.NetAddr, types.ProxyListenerMode, error) {
-			return &netutils.NetAddr{
+		return func(context.Context) (*netutils.Addr, types.ProxyListenerMode, error) {
+			return &netutils.Addr{
 				Addr:        addr,
 				AddrNetwork: "tcp",
 				Path:        "",
@@ -217,8 +217,8 @@ func TestRemoteClusterTunnelManager(t *testing.T) {
 		},
 		newAgentPool: func(ctx context.Context, cfg RemoteClusterTunnelManagerConfig, cluster, addr string) (*AgentPool, error) {
 			resolverFn := func(addr string) reversetunnelclient.Resolver {
-				return func(context.Context) (*netutils.NetAddr, types.ProxyListenerMode, error) {
-					return &netutils.NetAddr{
+				return func(context.Context) (*netutils.Addr, types.ProxyListenerMode, error) {
+					return &netutils.Addr{
 						Addr:        addr,
 						AddrNetwork: "tcp",
 						Path:        "",

@@ -597,7 +597,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 				require.NoError(t, testCluster.StopAll())
 			})
 
-			checkForTargetAddr := func(targetAddr netutils.NetAddr) {
+			checkForTargetAddr := func(targetAddr netutils.Addr) {
 				// If PROXY protocol is required, create load balancer in front of Teleport cluster
 				if tt.proxyProtocolMode == multiplexer.PROXYProtocolOn {
 					frontend := *netutils.MustParseAddr("127.0.0.1:0")
@@ -651,7 +651,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 
 }
 
-func createALPNLocalKubeClient(t *testing.T, targetAddr netutils.NetAddr, teleportCluster, kubeCluster string, k8ClientConfig *rest.Config) *kubernetes.Clientset {
+func createALPNLocalKubeClient(t *testing.T, targetAddr netutils.Addr, teleportCluster, kubeCluster string, k8ClientConfig *rest.Config) *kubernetes.Clientset {
 	// Generate a self-signed CA for kube local proxy.
 	localCAKey, localCACert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName: "localhost",

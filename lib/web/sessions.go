@@ -629,7 +629,7 @@ const cachedSessionLingeringThreshold = 2 * time.Minute
 type sessionCacheOptions struct {
 	proxyClient  authclient.ClientI
 	accessPoint  authclient.ReadProxyAccessPoint
-	servers      []netutils.NetAddr
+	servers      []netutils.Addr
 	cipherSuites []uint16
 	clock        clockwork.Clock
 	// sessionLingeringThreshold specifies the time the session will linger
@@ -694,7 +694,7 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 type sessionCache struct {
 	log         *slog.Logger
 	proxyClient authclient.ClientI
-	authServers []netutils.NetAddr
+	authServers []netutils.Addr
 	accessPoint authclient.ReadProxyAccessPoint
 	closer      *utils.CloseBroadcaster
 	clusterName string

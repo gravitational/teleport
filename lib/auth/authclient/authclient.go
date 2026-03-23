@@ -42,7 +42,7 @@ type Config struct {
 	// SSH is client SSH config.
 	SSH *ssh.ClientConfig
 	// AuthServers is a list of possible auth or proxy server addresses.
-	AuthServers []netutils.NetAddr
+	AuthServers []netutils.Addr
 	// Log sets the logger for the client to use.
 	Log *slog.Logger
 	// CircuitBreakerConfig is the configuration for the auth client circuit breaker.

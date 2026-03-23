@@ -71,7 +71,7 @@ func TestAgentCertChecker(t *testing.T) {
 
 			sshServer, err := sshutils.NewServer(
 				"test",
-				netutils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+				netutils.Addr{AddrNetwork: "tcp", Addr: "localhost:0"},
 				handler,
 				sshutils.StaticHostSigners(cert),
 				sshutils.AuthMethods{NoClient: true},

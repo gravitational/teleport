@@ -971,7 +971,7 @@ func TestRouter_DialHost(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			conn, err := tt.router.DialHost(ctx, nil /*scopePin*/, &netutils.NetAddr{}, &netutils.NetAddr{}, "host", "0", "test", nil, agentGetter, createSigner)
+			conn, err := tt.router.DialHost(ctx, nil /*scopePin*/, &netutils.Addr{}, &netutils.Addr{}, "host", "0", "test", nil, agentGetter, createSigner)
 
 			var params reversetunnelclient.DialParams
 			if tt.router.localCluster != nil {
@@ -1135,7 +1135,7 @@ func TestRouter_DialWindowsDesktop(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			conn, err := tt.router.DialWindowsDesktop(ctx, &netutils.NetAddr{}, &netutils.NetAddr{}, "host", "test", nil)
+			conn, err := tt.router.DialWindowsDesktop(ctx, &netutils.Addr{}, &netutils.Addr{}, "host", "test", nil)
 			tt.assertion(t, conn, err)
 		})
 	}

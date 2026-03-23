@@ -320,7 +320,7 @@ func Connect(ctx context.Context, params ConnectParams) (net.Conn, ConnectStats,
 		stats.dialAttempts++
 		serviceConn, err := params.Dialer.Dial(reversetunnelclient.DialParams{
 			From:                  params.ClientSrcAddr,
-			To:                    &netutils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
+			To:                    &netutils.Addr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
 			OriginalClientDstAddr: params.ClientDstAddr,
 			ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), params.ClusterName),
 			ConnType:              types.DatabaseTunnel,

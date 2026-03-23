@@ -59,7 +59,7 @@ func TestWtmpdb(t *testing.T) {
 	require.NoError(t, err)
 
 	// Log a user in.
-	remote := &netutils.NetAddr{
+	remote := &netutils.Addr{
 		AddrNetwork: "tcp",
 		Addr:        "123.456.789.012",
 	}

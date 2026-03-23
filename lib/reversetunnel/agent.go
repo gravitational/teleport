@@ -74,7 +74,7 @@ type transportHandler interface {
 // sshDialer is an ssh dialer that returns an SSHClient
 type sshDialer interface {
 	// DialContext dials the given address and creates a new SSHClient.
-	DialContext(context.Context, netutils.NetAddr) (SSHClient, error)
+	DialContext(context.Context, netutils.Addr) (SSHClient, error)
 }
 
 // versionGetter gets the connected auth server version.
@@ -102,7 +102,7 @@ type SSHClient interface {
 // agentConfig represents an agent configuration.
 type agentConfig struct {
 	// addr is the target address to dial.
-	addr netutils.NetAddr
+	addr netutils.Addr
 	// keepAlive is the interval at which the agent will send heartbeats.
 	keepAlive time.Duration
 	// keepAliveCount specifies the amount of missed ping heartbeats

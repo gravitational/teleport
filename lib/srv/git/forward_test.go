@@ -348,7 +348,7 @@ func newMockGitHostingService(t *testing.T, caSigner ssh.Signer) *mockGitHosting
 	}
 	server, err := sshutils.NewServer(
 		"git.test",
-		netutils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		netutils.Addr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		m,
 		sshutils.StaticHostSigners(hostCert),
 		sshutils.AuthMethods{NoClient: true},

@@ -378,11 +378,11 @@ func (s *Server) handleStream(stream *quic.Stream, conn *quic.Conn, log *slog.Lo
 	}
 
 	nodeConn, err := s.dialer.Dial(clusterName, peerdial.DialParams{
-		From: &netutils.NetAddr{
+		From: &netutils.Addr{
 			Addr:        req.GetSource().GetAddr(),
 			AddrNetwork: req.GetSource().GetNetwork(),
 		},
-		To: &netutils.NetAddr{
+		To: &netutils.Addr{
 			Addr:        req.GetDestination().GetAddr(),
 			AddrNetwork: req.GetDestination().GetNetwork(),
 		},

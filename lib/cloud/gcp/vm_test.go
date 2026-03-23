@@ -108,7 +108,7 @@ func newMockInstance(t *testing.T, hostSigner ssh.Signer, listener net.Listener)
 	}
 	sshServer, err := sshutils.NewServer(
 		"gcp-vm-server",
-		netutils.NetAddr{AddrNetwork: "tcp", Addr: listener.Addr().String()},
+		netutils.Addr{AddrNetwork: "tcp", Addr: listener.Addr().String()},
 		mock,
 		sshutils.StaticHostSigners(hostSigner),
 		sshutils.AuthMethods{
@@ -215,7 +215,7 @@ func (m *mockListener) Accept() (net.Conn, error) {
 }
 
 func (m *mockListener) Addr() net.Addr {
-	return &netutils.NetAddr{
+	return &netutils.Addr{
 		Addr:        "teleport.cluster.local:22",
 		AddrNetwork: "tcp",
 	}
@@ -229,8 +229,8 @@ func TestRunCommand(t *testing.T) {
 	signer, err := generateKeyPair(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	clientConn, serverConn, err := utils.DualPipeNetConn(
-		&netutils.NetAddr{Addr: "server", AddrNetwork: "tcp"},
-		&netutils.NetAddr{Addr: "client", AddrNetwork: "tcp"},
+		&netutils.Addr{Addr: "server", AddrNetwork: "tcp"},
+		&netutils.Addr{Addr: "client", AddrNetwork: "tcp"},
 	)
 	require.NoError(t, err)
 	mock := newMockInstance(t, signer, &mockListener{Conn: serverConn, ctx: ctx})

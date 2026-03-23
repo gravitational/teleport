@@ -443,7 +443,7 @@ func (t *transport) DialWebsocket(network, address string) (net.Conn, error) {
 // tunnel subsystem.
 func dialAppServer(ctx context.Context, clusterClient reversetunnelclient.Cluster, server readonly.AppServer) (net.Conn, error) {
 	var from net.Addr
-	from = &netutils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"}
+	from = &netutils.Addr{AddrNetwork: "tcp", Addr: "@web-proxy"}
 	clientSrcAddr, originalDst := authz.ClientAddrsFromContext(ctx)
 	if clientSrcAddr != nil {
 		from = clientSrcAddr
@@ -451,7 +451,7 @@ func dialAppServer(ctx context.Context, clusterClient reversetunnelclient.Cluste
 
 	conn, err := clusterClient.Dial(reversetunnelclient.DialParams{
 		From:                  from,
-		To:                    &netutils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
+		To:                    &netutils.Addr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
 		OriginalClientDstAddr: originalDst,
 		ServerID:              server.GetHostID() + "." + clusterClient.GetName(),
 		ConnType:              server.GetTunnelType(),

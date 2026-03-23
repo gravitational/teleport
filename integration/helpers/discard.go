@@ -41,7 +41,7 @@ func NewDiscardServer(hostSigner ssh.Signer, listener net.Listener) (*DiscardSer
 	// create underlying ssh server
 	sshServer, err := sshutils.NewServer(
 		"integration-discard-server",
-		netutils.NetAddr{AddrNetwork: "tcp", Addr: listener.Addr().String()},
+		netutils.Addr{AddrNetwork: "tcp", Addr: listener.Addr().String()},
 		ds,
 		sshutils.StaticHostSigners(hostSigner),
 		sshutils.AuthMethods{

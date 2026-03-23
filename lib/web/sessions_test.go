@@ -201,7 +201,7 @@ func TestSessionCache_watcher(t *testing.T) {
 		buildType:   testModules.BuildType(),
 		proxyClient: authClient,
 		accessPoint: authClient,
-		servers: []netutils.NetAddr{
+		servers: []netutils.Addr{
 			// An addr is required but unused.
 			{Addr: "localhost:12345", AddrNetwork: "tcp"}},
 		clock:                               clock,

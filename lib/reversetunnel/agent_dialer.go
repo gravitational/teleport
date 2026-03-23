@@ -62,7 +62,7 @@ type agentDialer struct {
 }
 
 // DialContext creates an ssh connection to the given address.
-func (d *agentDialer) DialContext(ctx context.Context, addr netutils.NetAddr) (SSHClient, error) {
+func (d *agentDialer) DialContext(ctx context.Context, addr netutils.Addr) (SSHClient, error) {
 	// Create a dialer (that respects HTTP proxies) and connect to remote host.
 	dialer := proxy.DialerFromEnvironment(addr.Addr, d.options...)
 	pconn, err := dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, apidefaults.DefaultIOTimeout)

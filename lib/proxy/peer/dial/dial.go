@@ -30,8 +30,8 @@ type Dialer interface {
 
 // DialParams defines the target for a [Dialer.Dial].
 type DialParams struct {
-	From        *netutils.NetAddr
-	To          *netutils.NetAddr
+	From        *netutils.Addr
+	To          *netutils.Addr
 	ServerID    string
 	ConnType    types.TunnelType
 	TargetScope string

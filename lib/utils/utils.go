@@ -433,8 +433,8 @@ func CheckCertificateFormatFlag(s string) (string, error) {
 }
 
 // AddrsFromStrings returns strings list converted to address list
-func AddrsFromStrings(s apiutils.Strings, defaultPort int) ([]netutils.NetAddr, error) {
-	addrs := make([]netutils.NetAddr, len(s))
+func AddrsFromStrings(s apiutils.Strings, defaultPort int) ([]netutils.Addr, error) {
+	addrs := make([]netutils.Addr, len(s))
 	for i, val := range s {
 		addr, err := netutils.ParseHostPortAddr(val, defaultPort)
 		if err != nil {

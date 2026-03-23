@@ -102,7 +102,7 @@ func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 
 	// Test execution, running the tctl command
 	tctlCfg := &servicecfg.Config{}
-	err = tctlCfg.SetAuthServerAddresses([]netutils.NetAddr{*addr})
+	err = tctlCfg.SetAuthServerAddresses([]netutils.Addr{*addr})
 	require.NoError(t, err)
 	tctlCommand := common.TerraformCommand{}
 
@@ -176,7 +176,7 @@ func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
 
 	// Test execution, running the tctl command
 	tctlCfg := &servicecfg.Config{}
-	err = tctlCfg.SetAuthServerAddresses([]netutils.NetAddr{*addr})
+	err = tctlCfg.SetAuthServerAddresses([]netutils.Addr{*addr})
 	require.NoError(t, err)
 	tctlCommand := common.TerraformCommand{}
 
@@ -240,7 +240,7 @@ func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username stri
 	clientConfig := &authclient.Config{
 		TLS:                  tlsConfig,
 		SSH:                  sshConfig,
-		AuthServers:          []netutils.NetAddr{*authAddr},
+		AuthServers:          []netutils.Addr{*authAddr},
 		Log:                  logtest.NewLogger(),
 		CircuitBreakerConfig: breaker.Config{},
 		DialTimeout:          0,
@@ -293,7 +293,7 @@ func getAuthClientForAuth(t *testing.T, tc *helpers.TeleInstance, username strin
 	require.NoError(t, err)
 	clientConfig := &authclient.Config{
 		TLS:                  tlsConfig,
-		AuthServers:          []netutils.NetAddr{*authAddr},
+		AuthServers:          []netutils.Addr{*authAddr},
 		Log:                  logtest.NewLogger(),
 		CircuitBreakerConfig: breaker.Config{},
 		DialTimeout:          0,

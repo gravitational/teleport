@@ -103,7 +103,7 @@ func addrFromProto(a *relaypeeringv1alpha.Addr) net.Addr {
 		return nil
 	}
 
-	return &netutils.NetAddr{
+	return &netutils.Addr{
 		AddrNetwork: a.GetNetwork(),
 		Addr:        a.GetAddr(),
 	}

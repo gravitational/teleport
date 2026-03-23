@@ -114,7 +114,7 @@ func (s *APIServer) Stop() {
 	s.grpcServer.GracefulStop()
 }
 
-func newListener(hostAddr string, listeningC chan<- netutils.NetAddr) (net.Listener, error) {
+func newListener(hostAddr string, listeningC chan<- netutils.Addr) (net.Listener, error) {
 	uri, err := netutils.ParseAddr(hostAddr)
 
 	if err != nil {
@@ -137,7 +137,7 @@ func newListener(hostAddr string, listeningC chan<- netutils.NetAddr) (net.Liste
 	return lis, nil
 }
 
-func sendBoundNetworkPortToStdout(addr netutils.NetAddr) {
+func sendBoundNetworkPortToStdout(addr netutils.Addr) {
 	// Connect needs this message to know which port has been assigned to the server.
 	fmt.Printf("{CONNECT_GRPC_PORT: %v}\n", addr.Port(1))
 }

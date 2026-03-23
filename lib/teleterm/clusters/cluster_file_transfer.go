@@ -67,7 +67,7 @@ func (c *Cluster) TransferFile(ctx context.Context, clt *client.ClusterClient, r
 	if serverUUID == "" {
 		return trace.BadParameter("server URI does not include server UUID")
 	}
-	serverAddr := &netutils.NetAddr{Addr: serverUUID + ":0"}
+	serverAddr := &netutils.Addr{Addr: serverUUID + ":0"}
 	switch request.GetDirection() {
 	case api.FileTransferDirection_FILE_TRANSFER_DIRECTION_DOWNLOAD:
 		sftpReq.Sources.Addr = serverAddr

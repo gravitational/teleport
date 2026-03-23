@@ -733,7 +733,7 @@ func (s *integrationTestSuite) newTeleportIoT(t *testing.T, logins []string) *he
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = Host
 		tconf.SetToken("token")
-		tconf.SetAuthServerAddress(netutils.NetAddr{
+		tconf.SetAuthServerAddress(netutils.Addr{
 			AddrNetwork: "tcp",
 			Addr:        main.Web,
 		})
@@ -1200,7 +1200,7 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	conf.Auth.Enabled = true
 	conf.Proxy.Enabled = true
 	conf.Proxy.DisableWebService = false
-	conf.Proxy.TunnelPublicAddrs = []netutils.NetAddr{
+	conf.Proxy.TunnelPublicAddrs = []netutils.Addr{
 		{
 			// Connect on the address that refuses connection on purpose
 			// to test address fallback behavior
@@ -1363,7 +1363,7 @@ func (a *localAddr) get() net.Addr {
 	if addr != nil {
 		return *addr
 	}
-	return &netutils.NetAddr{}
+	return &netutils.Addr{}
 }
 
 // testIPPropagation makes sure that we can correctly propagate initial client IP observed by proxy.
@@ -1393,7 +1393,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 			conf.CachePolicy = servicecfg.CachePolicy{
 				Enabled: true,
 			}
-			conf.SSH.Addr = netutils.NetAddr{
+			conf.SSH.Addr = netutils.Addr{
 				Addr: helpers.NewListenerOn(t, Host, service.ListenerNodeSSH, &conf.FileDescriptors),
 			}
 			conf.Proxy.Enabled = false
@@ -3618,7 +3618,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = tunnelNodeHostname
 		tconf.SetToken("token")
-		tconf.SetAuthServerAddress(netutils.NetAddr{
+		tconf.SetAuthServerAddress(netutils.Addr{
 			AddrNetwork: "tcp",
 			Addr:        aux.Web,
 		})
@@ -4124,7 +4124,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 		tconf.Auth.Enabled = true
 
 		tconf.Proxy.Enabled = true
-		tconf.Proxy.TunnelPublicAddrs = []netutils.NetAddr{
+		tconf.Proxy.TunnelPublicAddrs = []netutils.Addr{
 			{
 				AddrNetwork: "tcp",
 				Addr:        lb.Addr().String(),
@@ -4176,7 +4176,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "cluster-main-node"
 		tconf.SetToken("token")
-		tconf.SetAuthServerAddress(netutils.NetAddr{
+		tconf.SetAuthServerAddress(netutils.Addr{
 			AddrNetwork: "tcp",
 			Addr:        proxyConfig.WebAddr,
 		})
@@ -4275,7 +4275,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 		tconf.Auth.Enabled = true
 		tconf.InsecureMode = true
 		tconf.Proxy.Enabled = true
-		tconf.Proxy.TunnelPublicAddrs = []netutils.NetAddr{
+		tconf.Proxy.TunnelPublicAddrs = []netutils.Addr{
 			{
 				AddrNetwork: "tcp",
 				Addr:        lb.Addr().String(),
@@ -4313,7 +4313,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 		tconf.Hostname = "cluster-main-node"
 		tconf.SetToken("token")
 		tconf.InsecureMode = true
-		tconf.SetAuthServerAddress(netutils.NetAddr{
+		tconf.SetAuthServerAddress(netutils.Addr{
 			AddrNetwork: "tcp",
 			Addr:        main.Web,
 		})
@@ -7569,7 +7569,7 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 			err = tunLB.Listen()
 			require.NoError(t, err)
 
-			mainConfig.Proxy.TunnelPublicAddrs = []netutils.NetAddr{*netutils.MustParseAddr(tunLB.Addr().String())}
+			mainConfig.Proxy.TunnelPublicAddrs = []netutils.Addr{*netutils.MustParseAddr(tunLB.Addr().String())}
 
 			main := suite.NewTeleportWithConfig(t, nil, nil, mainConfig)
 			t.Cleanup(func() { require.NoError(t, main.StopAll()) })
@@ -9195,12 +9195,12 @@ func testForceListenerInTunnelMode(t *testing.T, suite *integrationTestSuite) {
 		tconf.InsecureMode = true
 
 		if tunnel {
-			tconf.SetAuthServerAddress(netutils.NetAddr{
+			tconf.SetAuthServerAddress(netutils.Addr{
 				AddrNetwork: "tcp",
 				Addr:        main.Web,
 			})
 		} else {
-			tconf.SetAuthServerAddress(netutils.NetAddr{
+			tconf.SetAuthServerAddress(netutils.Addr{
 				AddrNetwork: "tcp",
 				Addr:        main.Auth,
 			})
@@ -9213,7 +9213,7 @@ func testForceListenerInTunnelMode(t *testing.T, suite *integrationTestSuite) {
 		tconf.SSH.Enabled = true
 
 		if forceListen {
-			tconf.SSH.Addr = netutils.NetAddr{
+			tconf.SSH.Addr = netutils.Addr{
 				Addr: helpers.NewListenerOn(t, Host, service.ListenerNodeSSH, &tconf.FileDescriptors),
 			}
 			tconf.SSH.ForceListen = true

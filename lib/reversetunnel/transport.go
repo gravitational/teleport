@@ -74,7 +74,7 @@ type transport struct {
 	localClusterName string
 
 	// kubeDialAddr is the address of the Kubernetes proxy.
-	kubeDialAddr netutils.NetAddr
+	kubeDialAddr netutils.Addr
 
 	// sconn is a SSH connection to the remote host. Used for dial back nodes.
 	sconn sshutils.Conn

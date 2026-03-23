@@ -70,11 +70,11 @@ func TestForwarderClusterDialer(t *testing.T) {
 				return f.localClusterDialer(kubeClusterName)
 			},
 			want: reversetunnelclient.DialParams{
-				From: &netutils.NetAddr{
+				From: &netutils.Addr{
 					Addr:        "0.0.0.0:0",
 					AddrNetwork: "tcp",
 				},
-				To: &netutils.NetAddr{
+				To: &netutils.Addr{
 					Addr:        hostname,
 					AddrNetwork: "tcp",
 				},
@@ -87,11 +87,11 @@ func TestForwarderClusterDialer(t *testing.T) {
 			name:          "remote site",
 			dialerCreator: f.remoteClusterDialer,
 			want: reversetunnelclient.DialParams{
-				From: &netutils.NetAddr{
+				From: &netutils.Addr{
 					Addr:        "0.0.0.0:0",
 					AddrNetwork: "tcp",
 				},
-				To: &netutils.NetAddr{
+				To: &netutils.Addr{
 					Addr:        reversetunnelclient.LocalKubernetes,
 					AddrNetwork: "tcp",
 				},

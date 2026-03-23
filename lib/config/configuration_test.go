@@ -2127,7 +2127,7 @@ func TestProxyKube(t *testing.T) {
 				Enabled:         true,
 				ListenAddr:      *netutils.MustParseAddr("0.0.0.0:8080"),
 				KubeconfigPath:  "/tmp/kubeconfig",
-				PublicAddrs:     []netutils.NetAddr{*netutils.MustParseAddr(constants.KubeTeleportProxyALPNPrefix + "example.com:443")},
+				PublicAddrs:     []netutils.Addr{*netutils.MustParseAddr(constants.KubeTeleportProxyALPNPrefix + "example.com:443")},
 				LegacyKubeProxy: true,
 			},
 			checkErr: require.NoError,
@@ -4405,7 +4405,7 @@ func TestApplyKubeConfig(t *testing.T) {
 			},
 			wantServiceConfig: servicecfg.KubeConfig{
 				ListenAddr:      netutils.MustParseAddr("0.0.0.0:8888"),
-				PublicAddrs:     []netutils.NetAddr{*netutils.MustParseAddr("example.com:3026"), *netutils.MustParseAddr("example.with.port.com:4444")},
+				PublicAddrs:     []netutils.Addr{*netutils.MustParseAddr("example.com:3026"), *netutils.MustParseAddr("example.with.port.com:4444")},
 				KubeconfigPath:  "path-to-kubeconfig",
 				KubeClusterName: "kube-name",
 				ResourceMatchers: []services.ResourceMatcher{

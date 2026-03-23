@@ -306,7 +306,7 @@ func TestListener(t *testing.T) {
 			config: Config{MaxConnections: 0},
 			listener: &fakeListener{
 				acceptConn: &fakeConn{
-					addr: &netutils.NetAddr{
+					addr: &netutils.Addr{
 						Addr:        "abcd",
 						AddrNetwork: "tcp",
 					},

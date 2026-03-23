@@ -247,12 +247,12 @@ func (f *Forwarder) remoteClusterDialer(clusterName string) dialContextFunc {
 			// different users.
 			// IP Pinning is based on the source IP address of the connection that
 			// we transport over HTTP headers so it's not affected.
-			From: &netutils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:0"},
+			From: &netutils.Addr{AddrNetwork: "tcp", Addr: "0.0.0.0:0"},
 			// Proxy uses reverse tunnel dialer to connect to Kubernetes in a leaf cluster
 			// and the targetKubernetes cluster endpoint is determined from the identity
 			// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
 			// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
-			To:       &netutils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalKubernetes},
+			To:       &netutils.Addr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalKubernetes},
 			ConnType: types.KubeTunnel,
 		})
 	}
@@ -342,8 +342,8 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 				// different users.
 				// IP Pinning is based on the source IP address of the connection that
 				// we transport over HTTP headers so it's not affected.
-				From:     &netutils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:0"},
-				To:       &netutils.NetAddr{AddrNetwork: "tcp", Addr: server.GetHostname()},
+				From:     &netutils.Addr{AddrNetwork: "tcp", Addr: "0.0.0.0:0"},
+				To:       &netutils.Addr{AddrNetwork: "tcp", Addr: server.GetHostname()},
 				ConnType: types.KubeTunnel,
 				ServerID: serverID,
 				ProxyIDs: server.GetProxyIDs(),

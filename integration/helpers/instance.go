@@ -577,7 +577,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		}
 	}
 	tconf.SSH.Addr.Addr = i.SSH
-	tconf.SSH.PublicAddrs = []netutils.NetAddr{
+	tconf.SSH.PublicAddrs = []netutils.Addr{
 		{
 			AddrNetwork: "tcp",
 			Addr:        Loopback,
@@ -589,13 +589,13 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	}
 	tconf.SSH.AllowFileCopying = true
 	tconf.Auth.ListenAddr.Addr = i.Auth
-	tconf.Auth.PublicAddrs = []netutils.NetAddr{
+	tconf.Auth.PublicAddrs = []netutils.Addr{
 		{
 			AddrNetwork: "tcp",
 			Addr:        i.Hostname,
 		},
 	}
-	tconf.Proxy.PublicAddrs = []netutils.NetAddr{
+	tconf.Proxy.PublicAddrs = []netutils.Addr{
 		{
 			AddrNetwork: "tcp",
 			Addr:        i.Web,
@@ -613,9 +613,9 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	if i.IsSinglePortSetup {
 		tconf.Proxy.WebAddr.Addr = i.Web
 		// Reset other addresses to ensure that teleport instance will expose only web port listener.
-		tconf.Proxy.ReverseTunnelListenAddr = netutils.NetAddr{}
-		tconf.Proxy.MySQLAddr = netutils.NetAddr{}
-		tconf.Proxy.SSHAddr = netutils.NetAddr{}
+		tconf.Proxy.ReverseTunnelListenAddr = netutils.Addr{}
+		tconf.Proxy.MySQLAddr = netutils.Addr{}
+		tconf.Proxy.SSHAddr = netutils.Addr{}
 	} else {
 		tunAddr, err := netutils.ParseAddr(i.Secrets.TunnelAddr)
 		if err != nil {
@@ -789,7 +789,7 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *servicecfg.Config, authPor
 	tconf.CachePolicy = servicecfg.CachePolicy{
 		Enabled: true,
 	}
-	tconf.SSH.PublicAddrs = []netutils.NetAddr{
+	tconf.SSH.PublicAddrs = []netutils.Addr{
 		{
 			AddrNetwork: "tcp",
 			Addr:        Loopback,
@@ -840,7 +840,7 @@ func (i *TeleInstance) StartApp(conf *servicecfg.Config) (*service.TeleportProce
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	conf.DataDir = dataDir
-	conf.SetAuthServerAddress(netutils.NetAddr{
+	conf.SetAuthServerAddress(netutils.Addr{
 		AddrNetwork: "tcp",
 		Addr:        i.Web,
 	})
@@ -894,7 +894,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 			}
 
 			cfg.DataDir = dataDir
-			cfg.SetAuthServerAddress(netutils.NetAddr{
+			cfg.SetAuthServerAddress(netutils.Addr{
 				AddrNetwork: "tcp",
 				Addr:        i.Web,
 			})
@@ -961,7 +961,7 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	conf.DataDir = dataDir
-	conf.SetAuthServerAddress(netutils.NetAddr{
+	conf.SetAuthServerAddress(netutils.Addr{
 		AddrNetwork: "tcp",
 		Addr:        i.Web,
 	})
@@ -1030,7 +1030,7 @@ func (i *TeleInstance) StartKube(t *testing.T, conf *servicecfg.Config, clusterN
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	conf.DataDir = dataDir
-	conf.SetAuthServerAddress(netutils.NetAddr{
+	conf.SetAuthServerAddress(netutils.Addr{
 		AddrNetwork: "tcp",
 		Addr:        i.Web,
 	})
@@ -1110,7 +1110,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = NewListenerOn(t, i.Hostname, service.ListenerNodeSSH, &tconf.FileDescriptors)
 	sshPort = Port(t, tconf.SSH.Addr.Addr)
-	tconf.SSH.PublicAddrs = []netutils.NetAddr{
+	tconf.SSH.PublicAddrs = []netutils.Addr{
 		{
 			AddrNetwork: "tcp",
 			Addr:        Loopback,
@@ -1197,7 +1197,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.SSHAddr.Addr = cfg.SSHAddr
-	tconf.Proxy.PublicAddrs = []netutils.NetAddr{
+	tconf.Proxy.PublicAddrs = []netutils.Addr{
 		{
 			AddrNetwork: "tcp",
 			Addr:        Loopback,

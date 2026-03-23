@@ -496,7 +496,7 @@ func Test_transport_with_integration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctxWithClientSrcAddr := authz.ContextWithClientSrcAddr(t.Context(), &netutils.NetAddr{
+	ctxWithClientSrcAddr := authz.ContextWithClientSrcAddr(t.Context(), &netutils.Addr{
 		AddrNetwork: "tcp",
 		Addr:        net.JoinHostPort("127.0.0.1", "55555"),
 	})

@@ -160,10 +160,10 @@ func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 		testenv.WithClusterName("root")(o)
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Logger = log
-			cfg.Proxy.PublicAddrs = []netutils.NetAddr{
+			cfg.Proxy.PublicAddrs = []netutils.Addr{
 				{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
 			}
-			cfg.Proxy.TunnelPublicAddrs = []netutils.NetAddr{
+			cfg.Proxy.TunnelPublicAddrs = []netutils.Addr{
 				cfg.Proxy.ReverseTunnelListenAddr,
 			}
 		})(o)

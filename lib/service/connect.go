@@ -1521,7 +1521,7 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 	return clt, &resp, nil
 }
 
-func (process *TeleportProcess) newClientDirect(authServers []netutils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*authclient.Client, *proto.PingResponse, error) {
+func (process *TeleportProcess) newClientDirect(authServers []netutils.Addr, tlsConfig *tls.Config, role types.SystemRole) (*authclient.Client, *proto.PingResponse, error) {
 	var cltParams []roundtrip.ClientParam
 	if process.Config.Testing.ClientTimeout != 0 {
 		cltParams = []roundtrip.ClientParam{

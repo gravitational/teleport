@@ -36,9 +36,9 @@ import (
 type WindowsDesktopConfig struct {
 	Enabled bool
 	// ListenAddr is the address to listed on for incoming desktop connections.
-	ListenAddr netutils.NetAddr
+	ListenAddr netutils.Addr
 	// PublicAddrs is a list of advertised public addresses of the service.
-	PublicAddrs []netutils.NetAddr
+	PublicAddrs []netutils.Addr
 	// ShowDesktopWallpaper determines whether desktop sessions will show a
 	// user-selected wallpaper vs a system-default, single-color wallpaper.
 	ShowDesktopWallpaper bool
@@ -82,7 +82,7 @@ type WindowsHost struct {
 	// Name that will be used in the Teleport UI
 	Name string
 	// Address of the remote Windows host
-	Address netutils.NetAddr
+	Address netutils.Addr
 	// AD is true if the host is part of the Active Directory domain
 	AD bool
 	// Labels to be applied to the host

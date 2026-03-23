@@ -208,7 +208,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				signOverwrite: true,
 				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{Kube: servicecfg.KubeProxyConfig{
 					Enabled:     true,
-					PublicAddrs: []netutils.NetAddr{{Addr: "proxy-from-config.example.com:3026"}},
+					PublicAddrs: []netutils.Addr{{Addr: "proxy-from-config.example.com:3026"}},
 				}}},
 			},
 			wantAddr:  "https://proxy-from-config.example.com:3026",
@@ -225,7 +225,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 					Kube: servicecfg.KubeProxyConfig{
 						Enabled: true,
 					},
-					PublicAddrs: []netutils.NetAddr{{Addr: "proxy-from-config.example.com:3080"}},
+					PublicAddrs: []netutils.Addr{{Addr: "proxy-from-config.example.com:3080"}},
 				}},
 			},
 			wantAddr:  "https://proxy-from-config.example.com:3026",
@@ -304,7 +304,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 					},
 					Proxy: servicecfg.ProxyConfig{Kube: servicecfg.KubeProxyConfig{
 						Enabled: true,
-					}, PublicAddrs: []netutils.NetAddr{{Addr: "proxy-from-config.example.com:3080"}}},
+					}, PublicAddrs: []netutils.Addr{{Addr: "proxy-from-config.example.com:3080"}}},
 				},
 			},
 			wantAddr:  "https://proxy-from-config.example.com:3080",

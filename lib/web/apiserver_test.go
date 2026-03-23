@@ -383,13 +383,13 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	nodeDataDir := t.TempDir()
 	node, err := regular.New(
 		ctx,
-		netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		netutils.Addr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		nodeID,
 		sshutils.StaticHostSigners(signer),
 		nodeClient,
 		nodeDataDir,
 		"",
-		netutils.NetAddr{},
+		netutils.Addr{},
 		nodeClient,
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
@@ -528,13 +528,13 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	// proxy server:
 	s.proxy, err = regular.New(
 		ctx,
-		netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		netutils.Addr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		sshutils.StaticHostSigners(signer),
 		s.proxyClient,
 		t.TempDir(),
 		"",
-		netutils.NetAddr{},
+		netutils.Addr{},
 		s.proxyClient,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode("", revTunServer, s.proxyClient, router),
@@ -717,13 +717,13 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 	// create SSH service:
 	node, err := regular.New(
 		context.Background(),
-		netutils.NetAddr{AddrNetwork: "tcp", Addr: address},
+		netutils.Addr{AddrNetwork: "tcp", Addr: address},
 		hostname,
 		sshutils.StaticHostSigners(signer),
 		nodeClient,
 		t.TempDir(),
 		"",
-		netutils.NetAddr{},
+		netutils.Addr{},
 		nodeClient,
 		regular.SetUUID(uuid),
 		regular.SetNamespace(apidefaults.Namespace),
@@ -8459,13 +8459,13 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	nodeDataDir := t.TempDir()
 	node, err := regular.New(
 		ctx,
-		netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		netutils.Addr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		nodeID,
 		sshutils.StaticHostSigners(hostSigners...),
 		nodeClient,
 		nodeDataDir,
 		"",
-		netutils.NetAddr{},
+		netutils.Addr{},
 		nodeClient,
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
@@ -8796,13 +8796,13 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	proxyServer, err := regular.New(
 		ctx,
-		netutils.NetAddr{AddrNetwork: proxyListener.Addr().Network(), Addr: mux.SSH().Addr().String()},
+		netutils.Addr{AddrNetwork: proxyListener.Addr().Network(), Addr: mux.SSH().Addr().String()},
 		authServer.ClusterName(),
 		sshutils.StaticHostSigners(hostSigners...),
 		client,
 		t.TempDir(),
 		"",
-		netutils.NetAddr{AddrNetwork: "tcp", Addr: "proxy-1.example.com:443"},
+		netutils.Addr{AddrNetwork: "tcp", Addr: "proxy-1.example.com:443"},
 		client,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode("", revTunServer, client, router),
@@ -8812,7 +8812,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		regular.SetClock(clock),
 		regular.SetLockWatcher(proxyLockWatcher),
 		regular.SetSessionController(sessionController),
-		regular.SetPublicAddrs([]netutils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}),
+		regular.SetPublicAddrs([]netutils.Addr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}),
 		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
@@ -8872,7 +8872,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	proxyAddr := mux.Listener.Addr()
 	addr := netutils.MustParseAddr(webServer.Listener.Addr().String())
 	handler.handler.cfg.ProxyWebAddr = *addr
-	handler.handler.cfg.ProxySSHAddr = netutils.NetAddr{AddrNetwork: proxyAddr.Network(), Addr: proxyAddr.String()}
+	handler.handler.cfg.ProxySSHAddr = netutils.Addr{AddrNetwork: proxyAddr.Network(), Addr: proxyAddr.String()}
 
 	_, sshPort, err := net.SplitHostPort(proxyAddr.String())
 	require.NoError(t, err)

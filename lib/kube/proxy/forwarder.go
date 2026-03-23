@@ -513,7 +513,7 @@ func (c *authContext) eventUserMetaWithLogin(login string) apievents.UserMetadat
 // teleportClusterClient is a client for either a k8s endpoint in local cluster or a
 // proxy endpoint in a remote cluster.
 type teleportClusterClient struct {
-	remoteAddr netutils.NetAddr
+	remoteAddr netutils.Addr
 	name       string
 	isRemote   bool
 }
@@ -866,7 +866,7 @@ func (f *Forwarder) setupContext(
 		disconnectExpiredCert:    authCtx.GetDisconnectCertExpiry(authPref),
 		teleportCluster: teleportClusterClient{
 			name:       teleportClusterName,
-			remoteAddr: netutils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
+			remoteAddr: netutils.Addr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
 			isRemote:   isRemoteCluster,
 		},
 		kubeServers:              kubeServers,

@@ -757,7 +757,7 @@ func botIdentityFromToken(
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse addr")
 		}
-		params.AuthServers = []netutils.NetAddr{*parsed}
+		params.AuthServers = []netutils.Addr{*parsed}
 	case connection.AddressKindProxy:
 		parsed, err := netutils.ParseAddr(cfg.Connection.Address)
 		if err != nil {

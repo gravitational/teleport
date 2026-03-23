@@ -3785,7 +3785,7 @@ func TestJoinCAPin(t *testing.T) {
 
 	// Attempt to join with valid CA pin, should work.
 	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []netutils.NetAddr{netutils.FromAddr(testSrv.Addr())},
+		AuthServers: []netutils.Addr{netutils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
 			NodeName: "node-name",
@@ -3800,7 +3800,7 @@ func TestJoinCAPin(t *testing.T) {
 	// Attempt to join with multiple CA pins where the auth server only
 	// matches one, should work.
 	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []netutils.NetAddr{netutils.FromAddr(testSrv.Addr())},
+		AuthServers: []netutils.Addr{netutils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
 			NodeName: "node-name",
@@ -3814,7 +3814,7 @@ func TestJoinCAPin(t *testing.T) {
 
 	// Attempt to join with invalid CA pin, should fail.
 	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []netutils.NetAddr{netutils.FromAddr(testSrv.Addr())},
+		AuthServers: []netutils.Addr{netutils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
 			NodeName: "node-name",
@@ -3828,7 +3828,7 @@ func TestJoinCAPin(t *testing.T) {
 
 	// Attempt to join with multiple invalid CA pins, should fail.
 	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []netutils.NetAddr{netutils.FromAddr(testSrv.Addr())},
+		AuthServers: []netutils.Addr{netutils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
 			NodeName: "node-name",
@@ -3861,7 +3861,7 @@ func TestJoinCAPin(t *testing.T) {
 
 	// Attempt to join with multiple CA pins, should work
 	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []netutils.NetAddr{netutils.FromAddr(testSrv.Addr())},
+		AuthServers: []netutils.Addr{netutils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
 			NodeName: "node-name",
@@ -3895,7 +3895,7 @@ func TestJoinCAPath(t *testing.T) {
 
 	// Attempt to join with nothing at the CA path, should work.
 	_, err := joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []netutils.NetAddr{netutils.FromAddr(testSrv.Addr())},
+		AuthServers: []netutils.Addr{netutils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
 			NodeName: "node-name",
@@ -3921,7 +3921,7 @@ func TestJoinCAPath(t *testing.T) {
 
 	// Attempt to join with valid CA path, should work.
 	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []netutils.NetAddr{netutils.FromAddr(testSrv.Addr())},
+		AuthServers: []netutils.Addr{netutils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
 			NodeName: "node-name",

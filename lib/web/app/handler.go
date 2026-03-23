@@ -62,7 +62,7 @@ type HandlerConfig struct {
 	// ClusterGetter holds connections to leaf clusters.
 	ClusterGetter reversetunnelclient.ClusterGetter
 	// ProxyPublicAddrs contains web proxy public addresses.
-	ProxyPublicAddrs []netutils.NetAddr
+	ProxyPublicAddrs []netutils.Addr
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
 	CipherSuites []uint16
@@ -541,7 +541,7 @@ func HasClientCert(r *http.Request) bool {
 // HasName checks if the client is attempting to connect to a
 // host that is different than the public address of the proxy. If it is, it
 // redirects back to the application launcher in the Web UI.
-func HasName(r *http.Request, proxyPublicAddrs []netutils.NetAddr) (string, bool) {
+func HasName(r *http.Request, proxyPublicAddrs []netutils.Addr) (string, bool) {
 	raddr, err := netutils.ParseAddr(r.Host)
 	if err != nil {
 		return "", false

@@ -198,7 +198,7 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 		tconf.Logger = logtest.NewLogger()
 		tconf.Hostname = tunnelNodeHostname
 		tconf.SetToken("token")
-		tconf.SetAuthServerAddress(netutils.NetAddr{
+		tconf.SetAuthServerAddress(netutils.Addr{
 			AddrNetwork: "tcp",
 			Addr:        p.leaf.Web,
 		})
@@ -643,7 +643,7 @@ func mustCreateIAMJoinProvisionToken(t *testing.T, name, awsAccountID, allowedAR
 	return provisionToken
 }
 
-func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr netutils.NetAddr, token string, credentials aws.CredentialsProvider) {
+func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr netutils.Addr, token string, credentials aws.CredentialsProvider) {
 	t.Helper()
 
 	cred, err := credentials.Retrieve(context.Background())

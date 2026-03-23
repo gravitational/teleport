@@ -49,7 +49,7 @@ func TestDefaultConfig(t *testing.T) {
 	require.True(t, config.SSH.Enabled)
 	require.True(t, config.Proxy.Enabled)
 
-	localAuthAddr := netutils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:3025"}
+	localAuthAddr := netutils.Addr{AddrNetwork: "tcp", Addr: "0.0.0.0:3025"}
 
 	// data dir, hostname and auth server
 	require.Equal(t, config.DataDir, defaults.DataDir)
@@ -505,7 +505,7 @@ func TestValidateConfig(t *testing.T) {
 					Enabled: true,
 				},
 				DataDir:     "/",
-				authServers: []netutils.NetAddr{*netutils.MustParseAddr("0.0.0.0")},
+				authServers: []netutils.Addr{*netutils.MustParseAddr("0.0.0.0")},
 			},
 			wantErr: "config: when app_service is enabled, proxy_server must be specified instead of auth_server",
 		},
@@ -517,7 +517,7 @@ func TestValidateConfig(t *testing.T) {
 					Enabled: true,
 				},
 				DataDir:     "/",
-				authServers: []netutils.NetAddr{*netutils.MustParseAddr("0.0.0.0")},
+				authServers: []netutils.Addr{*netutils.MustParseAddr("0.0.0.0")},
 			},
 			wantErr: "config: when db_service is enabled, proxy_server must be specified instead of auth_server",
 		},
@@ -632,7 +632,7 @@ func TestWebPublicAddr(t *testing.T) {
 		{
 			name: "default port",
 			config: ProxyConfig{
-				PublicAddrs: []netutils.NetAddr{
+				PublicAddrs: []netutils.Addr{
 					{Addr: "0.0.0.0", AddrNetwork: "tcp"},
 				},
 			},
@@ -641,7 +641,7 @@ func TestWebPublicAddr(t *testing.T) {
 		{
 			name: "non-default port",
 			config: ProxyConfig{
-				PublicAddrs: []netutils.NetAddr{
+				PublicAddrs: []netutils.Addr{
 					{Addr: "0.0.0.0:443", AddrNetwork: "tcp"},
 				},
 			},

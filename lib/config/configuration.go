@@ -818,7 +818,7 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2:
 		// config file has auth servers in there?
 		if len(fc.AuthServers) > 0 {
-			var parsedAddresses []netutils.NetAddr
+			var parsedAddresses []netutils.Addr
 
 			for _, as := range fc.AuthServers {
 				addr, err := netutils.ParseHostPortAddr(as, defaults.AuthListenPort)
@@ -2800,7 +2800,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			cfg.Auth.Enabled = false
 		}
 
-		authServerAddresses := make([]netutils.NetAddr, 0, len(clf.AuthServerAddr))
+		authServerAddresses := make([]netutils.Addr, 0, len(clf.AuthServerAddr))
 		for _, as := range clf.AuthServerAddr {
 			addr, err := netutils.ParseHostPortAddr(as, defaults.AuthListenPort)
 			if err != nil {
@@ -3085,7 +3085,7 @@ func isCmdLabelSpec(spec string) (types.CommandLabel, error) {
 // applyListenIP replaces all 'listen addr' settings for all services with
 // a given IP
 func applyListenIP(ip net.IP, cfg *servicecfg.Config) {
-	listeningAddresses := []*netutils.NetAddr{
+	listeningAddresses := []*netutils.Addr{
 		&cfg.Auth.ListenAddr,
 		&cfg.Proxy.SSHAddr,
 		&cfg.Proxy.WebAddr,
@@ -3101,7 +3101,7 @@ func applyListenIP(ip net.IP, cfg *servicecfg.Config) {
 
 // replaceHost takes utils.NetAddr and replaces the hostname in it, preserving
 // the original port
-func replaceHost(addr *netutils.NetAddr, newHost string) {
+func replaceHost(addr *netutils.Addr, newHost string) {
 	_, port, err := net.SplitHostPort(addr.Addr)
 	if err != nil {
 		slog.ErrorContext(context.Background(), "failed parsing address", "address", addr.Addr, "error", err)

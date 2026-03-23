@@ -152,7 +152,7 @@ type mockAgentInjection struct {
 func (m *mockAgentInjection) handleTransport(context.Context, ssh.Channel, <-chan *ssh.Request, apisshutils.Conn) {
 }
 
-func (m *mockAgentInjection) DialContext(context.Context, netutils.NetAddr) (SSHClient, error) {
+func (m *mockAgentInjection) DialContext(context.Context, netutils.Addr) (SSHClient, error) {
 	return m.client, nil
 }
 
@@ -170,7 +170,7 @@ func testAgent(t *testing.T, config agentConfig) (*agent, *mockSSHClient) {
 		require.NoError(t, err)
 	}
 
-	config.addr = netutils.NetAddr{Addr: "test-proxy-addr"}
+	config.addr = netutils.Addr{Addr: "test-proxy-addr"}
 
 	config.lease = config.tracker.TryAcquire()
 	require.NotNil(t, config.lease)
@@ -500,7 +500,7 @@ func setupMockServerAndAgent(t *testing.T, tt *testAgentTimeoutCase) (*mockHeart
 
 	sshServer, err := sshutils.NewServer(
 		"test",
-		netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		netutils.Addr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		mock,
 		sshutils.StaticHostSigners(cert),
 		sshutils.AuthMethods{NoClient: true},
@@ -518,7 +518,7 @@ func setupMockServerAndAgent(t *testing.T, tt *testAgentTimeoutCase) (*mockHeart
 	signer, err := ssh.NewSignerFromKey(priv)
 	require.NoError(t, err)
 
-	resolver := func(context.Context) (*netutils.NetAddr, types.ProxyListenerMode, error) {
+	resolver := func(context.Context) (*netutils.Addr, types.ProxyListenerMode, error) {
 		return netutils.MustParseAddr(sshServer.Addr()), types.ProxyListenerMode_Multiplex, nil
 	}
 

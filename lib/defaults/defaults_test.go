@@ -37,7 +37,7 @@ func TestMakeAddr(t *testing.T) {
 }
 
 func TestDefaultAddresses(t *testing.T) {
-	table := map[string]*netutils.NetAddr{
+	table := map[string]*netutils.Addr{
 		"tcp://0.0.0.0:3025":   AuthListenAddr(),
 		"tcp://127.0.0.1:3025": AuthConnectAddr(),
 		"tcp://0.0.0.0:3023":   ProxyListenAddr(),

@@ -28,7 +28,7 @@ import (
 // SSHConfig configures Teleport's SSH service.
 type SSHConfig struct {
 	Enabled               bool
-	Addr                  netutils.NetAddr
+	Addr                  netutils.Addr
 	Namespace             string
 	Limiter               limiter.Config
 	Labels                map[string]string
@@ -39,7 +39,7 @@ type SSHConfig struct {
 	PAM *PAMConfig
 
 	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
-	PublicAddrs []netutils.NetAddr
+	PublicAddrs []netutils.Addr
 
 	// BPF holds BPF configuration for Teleport.
 	BPF *BPFConfig

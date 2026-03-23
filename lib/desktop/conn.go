@@ -106,7 +106,7 @@ func tryConnect(ctx context.Context, desktopServiceID string, config *Connection
 
 	conn, err = config.Cluster.DialTCP(reversetunnelclient.DialParams{
 		From:                  config.ClientSrcAddr,
-		To:                    &netutils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
+		To:                    &netutils.Addr{AddrNetwork: "tcp", Addr: service.GetAddr()},
 		ConnType:              types.WindowsDesktopTunnel,
 		ServerID:              service.GetName() + "." + config.ClusterName,
 		ProxyIDs:              service.GetProxyIDs(),

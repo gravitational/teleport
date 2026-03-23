@@ -43,7 +43,7 @@ func TestStaticResolver(t *testing.T) {
 		address          string
 		mode             types.ProxyListenerMode
 		errorAssertionFn require.ErrorAssertionFunc
-		expected         *netutils.NetAddr
+		expected         *netutils.Addr
 	}{
 		{
 			name:             "invalid address yields error",
@@ -54,7 +54,7 @@ func TestStaticResolver(t *testing.T) {
 			name:             "valid address yields NetAddr",
 			address:          "localhost:80",
 			errorAssertionFn: require.NoError,
-			expected: &netutils.NetAddr{
+			expected: &netutils.Addr{
 				Addr:        "localhost:80",
 				AddrNetwork: "tcp",
 				Path:        "",
@@ -84,14 +84,14 @@ func TestResolveViaWebClient(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	fakeAddr := netutils.NetAddr{}
+	fakeAddr := netutils.Addr{}
 
 	cases := []struct {
 		name             string
-		proxyAddr        netutils.NetAddr
+		proxyAddr        netutils.Addr
 		address          string
 		errorAssertionFn require.ErrorAssertionFunc
-		expected         *netutils.NetAddr
+		expected         *netutils.Addr
 	}{
 		{
 			name:             "no addrs yields errors",
@@ -111,10 +111,10 @@ func TestResolveViaWebClient(t *testing.T) {
 		},
 		{
 			name:             "valid address yields NetAddr",
-			proxyAddr:        netutils.NetAddr{Addr: srv.Listener.Addr().String()},
+			proxyAddr:        netutils.Addr{Addr: srv.Listener.Addr().String()},
 			address:          "localhost:80",
 			errorAssertionFn: require.NoError,
-			expected: &netutils.NetAddr{
+			expected: &netutils.Addr{
 				Addr:        "localhost:80",
 				AddrNetwork: "tcp",
 				Path:        "",
@@ -144,8 +144,8 @@ func TestResolveViaWebClient(t *testing.T) {
 }
 
 func TestCachingResolver(t *testing.T) {
-	randomResolver := func(context.Context) (*netutils.NetAddr, types.ProxyListenerMode, error) {
-		return &netutils.NetAddr{
+	randomResolver := func(context.Context) (*netutils.Addr, types.ProxyListenerMode, error) {
+		return &netutils.Addr{
 			Addr:        uuid.New().String(),
 			AddrNetwork: uuid.New().String(),
 			Path:        uuid.New().String(),

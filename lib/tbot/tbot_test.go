@@ -104,10 +104,10 @@ func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 		testenv.WithClusterName("root")(o)
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Logger = log
-			cfg.Proxy.PublicAddrs = []netutils.NetAddr{
+			cfg.Proxy.PublicAddrs = []netutils.Addr{
 				{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
 			}
-			cfg.Proxy.TunnelPublicAddrs = []netutils.NetAddr{
+			cfg.Proxy.TunnelPublicAddrs = []netutils.Addr{
 				cfg.Proxy.ReverseTunnelListenAddr,
 			}
 		})(o)
@@ -660,7 +660,7 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 			defaultTestServerOpts(log)(o)
 
 			testenv.WithConfig(func(cfg *servicecfg.Config) {
-				cfg.Proxy.TunnelPublicAddrs = []netutils.NetAddr{*netutils.MustParseAddr(proxy.addr())}
+				cfg.Proxy.TunnelPublicAddrs = []netutils.Addr{*netutils.MustParseAddr(proxy.addr())}
 			})(o)
 			return nil
 		},

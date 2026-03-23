@@ -327,13 +327,13 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	nodeDir := t.TempDir()
 	srv, err := regular.New(
 		ctx,
-		netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		netutils.Addr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		sshutils.StaticHostSigners(s.signer),
 		s.nodeClient,
 		nodeDir,
 		"",
-		netutils.NetAddr{},
+		netutils.Addr{},
 		s.nodeClient,
 		regular.SetUUID(s.nodeID),
 		regular.SetNamespace(apidefaults.Namespace),

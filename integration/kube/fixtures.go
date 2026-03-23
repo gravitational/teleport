@@ -50,7 +50,7 @@ type ProxyConfig struct {
 	Impersonation       *rest.ImpersonationConfig
 	RouteToCluster      string
 	CustomTLSServerName string
-	TargetAddress       netutils.NetAddr
+	TargetAddress       netutils.Addr
 }
 
 // ProxyClient returns kubernetes client using local teleport proxy

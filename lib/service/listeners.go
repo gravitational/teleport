@@ -64,34 +64,34 @@ func (l ListenerType) Network() string {
 }
 
 // AuthAddr returns auth server endpoint, if configured and started.
-func (process *TeleportProcess) AuthAddr() (*netutils.NetAddr, error) {
+func (process *TeleportProcess) AuthAddr() (*netutils.Addr, error) {
 	return process.registeredListenerAddr(ListenerAuth)
 }
 
 // NodeSSHAddr returns the node SSH endpoint, if configured and started.
-func (process *TeleportProcess) NodeSSHAddr() (*netutils.NetAddr, error) {
+func (process *TeleportProcess) NodeSSHAddr() (*netutils.Addr, error) {
 	return process.registeredListenerAddr(ListenerNodeSSH)
 }
 
 // ProxySSHAddr returns the proxy SSH endpoint, if configured and started.
-func (process *TeleportProcess) ProxySSHAddr() (*netutils.NetAddr, error) {
+func (process *TeleportProcess) ProxySSHAddr() (*netutils.Addr, error) {
 	return process.registeredListenerAddr(ListenerProxySSH)
 }
 
 // DiagnosticAddr returns the diagnostic endpoint, if configured and started.
-func (process *TeleportProcess) DiagnosticAddr() (*netutils.NetAddr, error) {
+func (process *TeleportProcess) DiagnosticAddr() (*netutils.Addr, error) {
 	return process.registeredListenerAddr(ListenerDiagnostic)
 }
 
 // ProxyKubeAddr returns the proxy kubernetes endpoint, if configured and
 // started.
-func (process *TeleportProcess) ProxyKubeAddr() (*netutils.NetAddr, error) {
+func (process *TeleportProcess) ProxyKubeAddr() (*netutils.Addr, error) {
 	return process.registeredListenerAddr(ListenerProxyKube)
 }
 
 // ProxyWebAddr returns the proxy web interface endpoint, if configured and
 // started.
-func (process *TeleportProcess) ProxyWebAddr() (*netutils.NetAddr, error) {
+func (process *TeleportProcess) ProxyWebAddr() (*netutils.Addr, error) {
 	addr, err := process.registeredListenerAddr(ListenerProxyTunnelAndWeb)
 	if err == nil {
 		return addr, nil
@@ -101,7 +101,7 @@ func (process *TeleportProcess) ProxyWebAddr() (*netutils.NetAddr, error) {
 
 // ProxyTunnelAddr returns the proxy reverse tunnel endpoint, if configured and
 // started.
-func (process *TeleportProcess) ProxyTunnelAddr() (*netutils.NetAddr, error) {
+func (process *TeleportProcess) ProxyTunnelAddr() (*netutils.Addr, error) {
 	addr, err := process.registeredListenerAddr(ListenerProxyTunnelAndWeb)
 	if err == nil {
 		return addr, nil
@@ -110,11 +110,11 @@ func (process *TeleportProcess) ProxyTunnelAddr() (*netutils.NetAddr, error) {
 }
 
 // ProxyTunnelAddr returns the proxy peer address, if configured and started.
-func (process *TeleportProcess) ProxyPeerAddr() (*netutils.NetAddr, error) {
+func (process *TeleportProcess) ProxyPeerAddr() (*netutils.Addr, error) {
 	return process.registeredListenerAddr(ListenerProxyPeer)
 }
 
-func (process *TeleportProcess) registeredListenerAddr(typ ListenerType) (*netutils.NetAddr, error) {
+func (process *TeleportProcess) registeredListenerAddr(typ ListenerType) (*netutils.Addr, error) {
 	process.Lock()
 	defer process.Unlock()
 

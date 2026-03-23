@@ -37,7 +37,7 @@ type OpenSSHConfig struct {
 	// InstanceAddr is the connectable address of the OpenSSh instance.
 	InstanceAddr string
 	// ProxyServer is the address of the teleport proxy.
-	ProxyServer *netutils.NetAddr
+	ProxyServer *netutils.Addr
 	// Labels are labels to set on the instance.
 	Labels map[string]string
 }

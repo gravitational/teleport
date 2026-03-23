@@ -406,7 +406,7 @@ func (c *mockRemoteConnConn) Close() error {
 
 // called for logging by (*remoteConn).markInvalid()
 func (*mockRemoteConnConn) RemoteAddr() net.Addr {
-	return &netutils.NetAddr{
+	return &netutils.Addr{
 		Addr:        "localhost",
 		AddrNetwork: "tcp",
 	}
@@ -436,7 +436,7 @@ func (c *mockedSSHConn) OpenChannel(name string, data []byte) (ssh.Channel, <-ch
 }
 
 func (*mockedSSHConn) RemoteAddr() net.Addr {
-	return &netutils.NetAddr{
+	return &netutils.Addr{
 		Addr:        "localhost",
 		AddrNetwork: "tcp",
 	}

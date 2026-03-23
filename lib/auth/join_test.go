@@ -374,7 +374,7 @@ func TestJoin_Bot(t *testing.T) {
 				ID: state.IdentityID{
 					Role: types.RoleBot,
 				},
-				AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(srv.Addr().String())},
+				AuthServers: []netutils.Addr{*netutils.MustParseAddr(srv.Addr().String())},
 			})
 			test.assertErr(t, err)
 
@@ -470,7 +470,7 @@ func TestJoin_Bot_Expiry(t *testing.T) {
 				ID: state.IdentityID{
 					Role: types.RoleBot,
 				},
-				AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(srv.Addr().String())},
+				AuthServers: []netutils.Addr{*netutils.MustParseAddr(srv.Addr().String())},
 				Expires:     tt.requestExpires,
 			})
 			require.NoError(t, err)

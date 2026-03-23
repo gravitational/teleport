@@ -282,10 +282,10 @@ func TestBasicFunctionality(t *testing.T) {
 		return client.Dial(
 			uuid.NewString()+".testcluster",
 			"/example/scope",
-			&netutils.NetAddr{
+			&netutils.Addr{
 				AddrNetwork: "tcp",
 				Addr:        "1.2.3.4:56",
-			}, &netutils.NetAddr{
+			}, &netutils.Addr{
 				AddrNetwork: "tcp",
 				Addr:        "7.8.9.0:12",
 			},
@@ -341,10 +341,10 @@ func TestBasicFunctionality(t *testing.T) {
 		conn, err := client.Dial(
 			"echo.echo",
 			"/echo",
-			&netutils.NetAddr{
+			&netutils.Addr{
 				AddrNetwork: "tcp",
 				Addr:        "1.2.3.4:56",
-			}, &netutils.NetAddr{
+			}, &netutils.Addr{
 				AddrNetwork: "tcp",
 				Addr:        "7.8.9.0:12",
 			},

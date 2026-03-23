@@ -425,7 +425,7 @@ func TestProxySSHConfig(t *testing.T) {
 
 		srv, err := sshutils.NewServer(
 			"test",
-			netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+			netutils.Addr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 			handler,
 			sshutils.StaticHostSigners(hostSigner),
 			sshutils.AuthMethods{

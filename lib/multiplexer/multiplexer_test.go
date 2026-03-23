@@ -1397,7 +1397,7 @@ func Test_GetTcpAddr(t *testing.T) {
 		expected string
 	}{
 		{
-			input: &netutils.NetAddr{
+			input: &netutils.Addr{
 				Addr:        "127.0.0.1:24998",
 				AddrNetwork: "tcp",
 				Path:        "",

@@ -117,7 +117,7 @@ func NewTeleportProcess(dataDir string, opts ...TestServerOptFunc) (_ *service.T
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authNetAddr := netutils.NetAddr{AddrNetwork: "tcp", Addr: authAddr}
+	authNetAddr := netutils.Addr{AddrNetwork: "tcp", Addr: authAddr}
 	cfg.SetToken(StaticToken)
 	cfg.SetAuthServerAddress(authNetAddr)
 
@@ -146,7 +146,7 @@ func NewTeleportProcess(dataDir string, opts ...TestServerOptFunc) (_ *service.T
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cfg.Proxy.WebAddr = netutils.NetAddr{AddrNetwork: "tcp", Addr: proxyWebAddr}
+	cfg.Proxy.WebAddr = netutils.Addr{AddrNetwork: "tcp", Addr: proxyWebAddr}
 
 	proxySSHAddr, err := newTCPListener(service.ListenerProxySSH, &cfg.FileDescriptors)
 	if err != nil {
@@ -157,15 +157,15 @@ func NewTeleportProcess(dataDir string, opts ...TestServerOptFunc) (_ *service.T
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cfg.Proxy.SSHAddr = netutils.NetAddr{AddrNetwork: "tcp", Addr: proxySSHAddr}
-	cfg.Proxy.ReverseTunnelListenAddr = netutils.NetAddr{AddrNetwork: "tcp", Addr: proxyTunnelAddr}
+	cfg.Proxy.SSHAddr = netutils.Addr{AddrNetwork: "tcp", Addr: proxySSHAddr}
+	cfg.Proxy.ReverseTunnelListenAddr = netutils.Addr{AddrNetwork: "tcp", Addr: proxyTunnelAddr}
 	cfg.Proxy.DisableWebInterface = true
 
 	nodeSSHAddr, err := newTCPListener(service.ListenerNodeSSH, &cfg.FileDescriptors)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cfg.SSH.Addr = netutils.NetAddr{AddrNetwork: "tcp", Addr: nodeSSHAddr}
+	cfg.SSH.Addr = netutils.Addr{AddrNetwork: "tcp", Addr: nodeSSHAddr}
 	cfg.SSH.DisableCreateHostUser = true
 
 	// Disabling debug service for tests so that it doesn't break if the data
@@ -418,7 +418,7 @@ func WithProxyKube() TestServerOptFunc {
 
 		return WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Proxy.Kube.Enabled = true
-			cfg.Proxy.Kube.ListenAddr = netutils.NetAddr{
+			cfg.Proxy.Kube.ListenAddr = netutils.Addr{
 				AddrNetwork: "tcp",
 				Addr:        addr,
 			}

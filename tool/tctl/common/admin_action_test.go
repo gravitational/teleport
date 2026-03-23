@@ -1071,13 +1071,13 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	require.NoError(t, err)
 	authPref.SetOrigin(types.OriginDefaults)
 
-	var proxyPublicAddr netutils.NetAddr
+	var proxyPublicAddr netutils.Addr
 	process, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithAuthPreference(authPref),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			proxyPublicAddr = cfg.Proxy.WebAddr
 			proxyPublicAddr.Addr = fmt.Sprintf("localhost:%v", proxyPublicAddr.Port(0))
-			cfg.Proxy.PublicAddrs = []netutils.NetAddr{proxyPublicAddr}
+			cfg.Proxy.PublicAddrs = []netutils.Addr{proxyPublicAddr}
 		}),
 	)
 	require.NoError(t, err)
@@ -1190,7 +1190,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	require.NoError(t, err)
 	s.localAdminClient, err = authclient.Connect(ctx, &authclient.Config{
 		TLS:         localAdminTLS,
-		AuthServers: []netutils.NetAddr{*authAddr},
+		AuthServers: []netutils.Addr{*authAddr},
 		Log:         logtest.NewLogger(),
 	})
 	require.NoError(t, err)

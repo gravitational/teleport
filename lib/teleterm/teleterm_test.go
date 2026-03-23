@@ -110,7 +110,7 @@ func TestStart(t *testing.T) {
 
 			homeDir := t.TempDir()
 			certsDir := t.TempDir()
-			listeningC := make(chan netutils.NetAddr)
+			listeningC := make(chan netutils.Addr)
 
 			cfg := Config{
 				Addr:           test.addr,
@@ -154,7 +154,7 @@ func TestStart(t *testing.T) {
 // blockUntilServerAcceptsConnections dials the addr and then reads from the connection.
 // In case of a unix addr, it waits for the socket file to be created before attempting to dial.
 // In case of a tcp addr, it sets up an mTLS config for the dialer.
-func blockUntilServerAcceptsConnections(t *testing.T, addr netutils.NetAddr, certsDir string,
+func blockUntilServerAcceptsConnections(t *testing.T, addr netutils.Addr, certsDir string,
 	createClientTLSConfigFunc createClientTLSConfigFunc, connReadExpectation connReadExpectationFunc) {
 	var conn net.Conn
 	switch addr.AddrNetwork {
@@ -179,7 +179,7 @@ func blockUntilServerAcceptsConnections(t *testing.T, addr netutils.NetAddr, cer
 	require.NoError(t, err)
 }
 
-func dialUnix(t *testing.T, addr netutils.NetAddr) net.Conn {
+func dialUnix(t *testing.T, addr netutils.Addr) net.Conn {
 	sockPath := addr.Addr
 
 	// Wait for the socket to be created.
@@ -197,7 +197,7 @@ func dialUnix(t *testing.T, addr netutils.NetAddr) net.Conn {
 	return conn
 }
 
-func dialTCP(t *testing.T, addr netutils.NetAddr, certsDir string, createClientTLSConfigFunc createClientTLSConfigFunc) net.Conn {
+func dialTCP(t *testing.T, addr netutils.Addr, certsDir string, createClientTLSConfigFunc createClientTLSConfigFunc) net.Conn {
 	dialer := tls.Dialer{
 		Config: createClientTLSConfigFunc(t, certsDir),
 	}

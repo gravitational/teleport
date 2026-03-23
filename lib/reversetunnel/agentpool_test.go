@@ -81,8 +81,8 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 		HostUUID:     "test-uuid",
 		LocalCluster: "test-cluster",
 		Cluster:      "test-cluster",
-		Resolver: func(context.Context) (*netutils.NetAddr, types.ProxyListenerMode, error) {
-			return &netutils.NetAddr{}, types.ProxyListenerMode_Separate, nil
+		Resolver: func(context.Context) (*netutils.Addr, types.ProxyListenerMode, error) {
+			return &netutils.Addr{}, types.ProxyListenerMode_Separate, nil
 		},
 	})
 	require.NoError(t, err)

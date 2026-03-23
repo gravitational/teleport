@@ -117,7 +117,7 @@ type AgentPoolConfig struct {
 	// system clock is used
 	Clock clockwork.Clock
 	// KubeDialAddr is an address of a kubernetes proxy
-	KubeDialAddr netutils.NetAddr
+	KubeDialAddr netutils.Addr
 	// Server is either an SSH or application server. It can handle a connection
 	// (perform handshake and handle request).
 	Server ServerHandler
@@ -753,7 +753,7 @@ func (c *agentPoolRuntimeConfig) useALPNRouting() bool {
 	return c.proxyListenerMode == types.ProxyListenerMode_Multiplex
 }
 
-func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *netutils.NetAddr) error {
+func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *netutils.Addr) error {
 	c.updateRemoteMu.Lock()
 	defer c.updateRemoteMu.Unlock()
 

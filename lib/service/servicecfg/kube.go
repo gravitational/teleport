@@ -35,11 +35,11 @@ type KubeConfig struct {
 
 	// ListenAddr is the address to listen on for incoming kubernetes requests.
 	// Optional.
-	ListenAddr *netutils.NetAddr
+	ListenAddr *netutils.Addr
 
 	// PublicAddrs is a list of the public addresses the Teleport kubernetes
 	// service can be reached by the proxy service.
-	PublicAddrs []netutils.NetAddr
+	PublicAddrs []netutils.Addr
 
 	// KubeClusterName is the name of a kubernetes cluster this proxy is running
 	// in. If empty, defaults to the Teleport cluster name.

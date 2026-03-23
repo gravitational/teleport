@@ -72,7 +72,7 @@ func newNodeConfig(t *testing.T, tokenName string, joinMethod types.JoinMethod) 
 	return config
 }
 
-func newProxyConfig(t *testing.T, authAddr netutils.NetAddr, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
+func newProxyConfig(t *testing.T, authAddr netutils.Addr, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
 	config := servicecfg.MakeDefaultConfig()
 	config.Version = defaults.TeleportConfigVersionV3
 	config.SetToken(tokenName)

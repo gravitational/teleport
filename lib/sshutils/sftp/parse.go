@@ -35,7 +35,7 @@ type Target struct {
 	// Login is a login username.
 	Login string
 	// Addr is the host and port to copy to/from. If nil, target is a local path.
-	Addr *netutils.NetAddr
+	Addr *netutils.Addr
 	// Path is a path to copy to/from.
 	// An empty path name is valid, and it refers to the user's default directory (usually
 	// the user's home directory).
@@ -120,7 +120,7 @@ func ParseTarget(input string, port int) (Target, error) {
 	// the path will start after the first colon, unless the host is an
 	// IPv6 address
 	pathStartIdx := firstColonIdx + 1
-	var host *netutils.NetAddr
+	var host *netutils.Addr
 	// if the host begins with '[', it is most likely an IPv6 address,
 	// so attempt to parse it as such
 	afterLogin := input[hostStartIdx:]
@@ -162,7 +162,7 @@ func ParseTarget(input string, port int) (Target, error) {
 // parseIPv6Host returns the parsed host in input and the index of input
 // where the host ends. parseIPv6Host assumes the host contained in
 // input starts with '['.
-func parseIPv6Host(input string, start int) (*netutils.NetAddr, int, error) {
+func parseIPv6Host(input string, start int) (*netutils.Addr, int, error) {
 	hostStr := input[start:]
 	// if there is only one ':' in the entire input, the host isn't
 	// an IPv6 address
@@ -195,7 +195,7 @@ type Sources struct {
 	// Login is a login username.
 	Login string
 	// Addr is the host and port to copy to/from. If nil, target is a local path.
-	Addr *netutils.NetAddr
+	Addr *netutils.Addr
 	// Paths are the paths to copy from.
 	Paths []string
 }

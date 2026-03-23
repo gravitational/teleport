@@ -54,7 +54,7 @@ func (f *fakeConn) Close() error {
 }
 
 func (f *fakeConn) RemoteAddr() net.Addr {
-	return &netutils.NetAddr{
+	return &netutils.Addr{
 		Addr:        "127.0.0.1:6514",
 		AddrNetwork: "tcp",
 	}

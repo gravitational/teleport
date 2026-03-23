@@ -557,7 +557,7 @@ type standaloneBundle struct {
 // TODO(codingllama): Consider refactoring newStandaloneTeleport into a public
 // function and reusing in other places.
 func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundle {
-	randomAddr := netutils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	randomAddr := netutils.Addr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
 	staticToken := uuid.New().String()
 

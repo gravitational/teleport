@@ -45,7 +45,7 @@ type AuthConfig struct {
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
 
 	// ListenAddr is the listening address of the auth service
-	ListenAddr netutils.NetAddr
+	ListenAddr netutils.Addr
 
 	// Authorities is a set of trusted certificate authorities
 	// that will be added by this auth server on the first start
@@ -101,7 +101,7 @@ type AuthConfig struct {
 	LicenseFile string
 
 	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
-	PublicAddrs []netutils.NetAddr
+	PublicAddrs []netutils.Addr
 
 	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
 	KeyStore KeystoreConfig

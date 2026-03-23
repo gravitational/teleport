@@ -68,11 +68,11 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		return trace.Wrap(err)
 	}
 
-	source := &netutils.NetAddr{
+	source := &netutils.Addr{
 		Addr:        dial.Source.Addr,
 		AddrNetwork: dial.Source.Network,
 	}
-	destination := &netutils.NetAddr{
+	destination := &netutils.Addr{
 		Addr:        dial.Destination.Addr,
 		AddrNetwork: dial.Destination.Network,
 	}

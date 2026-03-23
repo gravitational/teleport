@@ -202,26 +202,26 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 		desc           string
 		authServerFlag []string
 		configFileFlag string
-		want           []netutils.NetAddr
+		want           []netutils.Addr
 	}{
 		{
 			desc:           "ignores agent config file and loads profile setting",
 			configFileFlag: mustWriteFileConfig(t, fileConfigAgent),
-			want:           []netutils.NetAddr{*proxyAddr},
+			want:           []netutils.Addr{*proxyAddr},
 		},
 		{
 			desc: "sets default web proxy addr without auth server flag",
-			want: []netutils.NetAddr{*proxyAddr},
+			want: []netutils.Addr{*proxyAddr},
 		},
 		{
 			desc:           "sets auth addr from auth server flag ignoring profile setting",
 			authServerFlag: []string{authAddr.String()},
-			want:           []netutils.NetAddr{*authAddr},
+			want:           []netutils.Addr{*authAddr},
 		},
 		{
 			desc:           "sets auth addr from auth server flag when profile is not found",
 			authServerFlag: []string{"site.not.in.profile.com:3080"},
-			want: []netutils.NetAddr{
+			want: []netutils.Addr{
 				{
 					Addr:        "site.not.in.profile.com:3080",
 					AddrNetwork: "tcp",

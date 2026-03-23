@@ -33,7 +33,7 @@ import (
 )
 
 // Resolver looks up reverse tunnel addresses
-type Resolver func(ctx context.Context) (*netutils.NetAddr, types.ProxyListenerMode, error)
+type Resolver func(ctx context.Context) (*netutils.Addr, types.ProxyListenerMode, error)
 
 // CachingResolver wraps the provided Resolver with one that will cache the previous result
 // for 3 seconds to reduce the number of resolutions in an effort to mitigate potentially
@@ -49,11 +49,11 @@ func CachingResolver(ctx context.Context, resolver Resolver, clock clockwork.Clo
 	}
 
 	type data struct {
-		addr *netutils.NetAddr
+		addr *netutils.Addr
 		mode types.ProxyListenerMode
 	}
 
-	return func(ctx context.Context) (*netutils.NetAddr, types.ProxyListenerMode, error) {
+	return func(ctx context.Context) (*netutils.Addr, types.ProxyListenerMode, error) {
 		d, err := utils.FnCacheGet(ctx, cache, "resolver", func(ctx context.Context) (data, error) {
 			addr, mode, err := resolver(ctx)
 
@@ -76,7 +76,7 @@ func CachingResolver(ctx context.Context, resolver Resolver, clock clockwork.Clo
 // WebClientResolver returns a Resolver which uses the web proxy to
 // discover where the SSH reverse tunnel server is running.
 func WebClientResolver(cfg *webclient.Config) Resolver {
-	return func(ctx context.Context) (*netutils.NetAddr, types.ProxyListenerMode, error) {
+	return func(ctx context.Context) (*netutils.Addr, types.ProxyListenerMode, error) {
 		mode := types.ProxyListenerMode_Separate
 		// In insecure mode, any certificate is accepted. In secure mode the hosts
 		// CAs are used to validate the certificate on the proxy.
@@ -112,7 +112,7 @@ func StaticResolver(address string, mode types.ProxyListenerMode) Resolver {
 		addr.Addr = netutils.ReplaceUnspecifiedHost(addr, defaults.HTTPListenPort)
 	}
 
-	return func(context.Context) (*netutils.NetAddr, types.ProxyListenerMode, error) {
+	return func(context.Context) (*netutils.Addr, types.ProxyListenerMode, error) {
 		return addr, mode, err
 	}
 }

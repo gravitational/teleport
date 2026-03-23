@@ -87,7 +87,7 @@ type Server struct {
 	logger *slog.Logger
 
 	namespace string
-	addr      netutils.NetAddr
+	addr      netutils.Addr
 	hostname  string
 
 	srv         *sshutils.Server
@@ -112,9 +112,9 @@ type Server struct {
 	proxyAccessPoint   authclient.ReadProxyAccessPoint
 	peerAddr           string
 
-	advertiseAddr   *netutils.NetAddr
-	proxyPublicAddr netutils.NetAddr
-	publicAddrs     []netutils.NetAddr
+	advertiseAddr   *netutils.Addr
+	proxyPublicAddr netutils.Addr
+	publicAddrs     []netutils.Addr
 
 	// server UUID gets generated once on the first start and never changes
 	// usually stored in a file inside the data dir
@@ -791,7 +791,7 @@ func SetSELinuxEnabled(enabled bool) ServerOption {
 }
 
 // SetPublicAddrs sets the server's public addresses
-func SetPublicAddrs(addrs []netutils.NetAddr) ServerOption {
+func SetPublicAddrs(addrs []netutils.Addr) ServerOption {
 	return func(s *Server) error {
 		s.publicAddrs = addrs
 		return nil
@@ -843,13 +843,13 @@ func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 // New returns an unstarted server
 func New(
 	ctx context.Context,
-	addr netutils.NetAddr,
+	addr netutils.Addr,
 	hostname string,
 	getHostSigners sshutils.GetHostSignersFunc,
 	authService srv.AccessPoint,
 	dataDir string,
 	advertiseAddr string,
-	proxyPublicAddr netutils.NetAddr,
+	proxyPublicAddr netutils.Addr,
 	auth authclient.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
@@ -1106,13 +1106,13 @@ func (s *Server) PermitUserEnvironment() bool {
 	return s.permitUserEnvironment
 }
 
-func (s *Server) setAdvertiseAddr(addr *netutils.NetAddr) {
+func (s *Server) setAdvertiseAddr(addr *netutils.Addr) {
 	s.Lock()
 	defer s.Unlock()
 	s.advertiseAddr = addr
 }
 
-func (s *Server) getAdvertiseAddr() *netutils.NetAddr {
+func (s *Server) getAdvertiseAddr() *netutils.Addr {
 	s.Lock()
 	defer s.Unlock()
 	return s.advertiseAddr

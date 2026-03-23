@@ -40,7 +40,7 @@ var parseTestCases = []struct {
 		in:   "root@remote.host:/etc/nginx.conf",
 		dest: Target{
 			Login: "root",
-			Addr: &netutils.NetAddr{
+			Addr: &netutils.Addr{
 				Addr:        "remote.host:8080",
 				AddrNetwork: "tcp",
 			},
@@ -51,7 +51,7 @@ var parseTestCases = []struct {
 		name: "spec with just the remote host",
 		in:   "remote.host:/etc/nginx.co:nf",
 		dest: Target{
-			Addr: &netutils.NetAddr{
+			Addr: &netutils.Addr{
 				Addr:        "remote.host:8080",
 				AddrNetwork: "tcp",
 			},
@@ -62,7 +62,7 @@ var parseTestCases = []struct {
 		name: "ipv6 remote destination address",
 		in:   "[::1]:/etc/nginx.co:nf",
 		dest: Target{
-			Addr: &netutils.NetAddr{
+			Addr: &netutils.Addr{
 				Addr:        "[::1]:8080",
 				AddrNetwork: "tcp",
 			},
@@ -74,7 +74,7 @@ var parseTestCases = []struct {
 		in:   "root@123.123.123.123:/var/www/html/",
 		dest: Target{
 			Login: "root",
-			Addr: &netutils.NetAddr{
+			Addr: &netutils.Addr{
 				Addr:        "123.123.123.123:8080",
 				AddrNetwork: "tcp",
 			},
@@ -86,7 +86,7 @@ var parseTestCases = []struct {
 		in:   "myusername@myremotehost.com:/home/hope/*",
 		dest: Target{
 			Login: "myusername",
-			Addr: &netutils.NetAddr{
+			Addr: &netutils.Addr{
 				Addr:        "myremotehost.com:8080",
 				AddrNetwork: "tcp",
 			},
@@ -98,7 +98,7 @@ var parseTestCases = []struct {
 		in:   "complex@example.com@remote.com:/anything.txt",
 		dest: Target{
 			Login: "complex@example.com",
-			Addr: &netutils.NetAddr{
+			Addr: &netutils.Addr{
 				Addr:        "remote.com:8080",
 				AddrNetwork: "tcp",
 			},
@@ -110,7 +110,7 @@ var parseTestCases = []struct {
 		in:   "root@remote.host:",
 		dest: Target{
 			Login: "root",
-			Addr: &netutils.NetAddr{
+			Addr: &netutils.Addr{
 				Addr:        "remote.host:8080",
 				AddrNetwork: "tcp",
 			},
@@ -121,7 +121,7 @@ var parseTestCases = []struct {
 		name: "no login and '@' in path",
 		in:   "remote.host:/some@file",
 		dest: Target{
-			Addr: &netutils.NetAddr{
+			Addr: &netutils.Addr{
 				Addr:        "remote.host:8080",
 				AddrNetwork: "tcp",
 			},
@@ -132,7 +132,7 @@ var parseTestCases = []struct {
 		name: "no login, '@' and ':' in path",
 		in:   "remote.host:/some@remote:file",
 		dest: Target{
-			Addr: &netutils.NetAddr{
+			Addr: &netutils.Addr{
 				Addr:        "remote.host:8080",
 				AddrNetwork: "tcp",
 			},
@@ -144,7 +144,7 @@ var parseTestCases = []struct {
 		in:   "complex@user@[::1]:/remote:file",
 		dest: Target{
 			Login: "complex@user",
-			Addr: &netutils.NetAddr{
+			Addr: &netutils.Addr{
 				Addr:        "[::1]:8080",
 				AddrNetwork: "tcp",
 			},
@@ -156,7 +156,7 @@ var parseTestCases = []struct {
 		in:   "user@server.com:/tmp/user-2022-03-10T09:49:23-98cd2a03/file.txt",
 		dest: Target{
 			Login: "user",
-			Addr: &netutils.NetAddr{
+			Addr: &netutils.Addr{
 				Addr:        "server.com:8080",
 				AddrNetwork: "tcp",
 			},
@@ -168,7 +168,7 @@ var parseTestCases = []struct {
 		in:   "user@server:file@",
 		dest: Target{
 			Login: "user",
-			Addr: &netutils.NetAddr{
+			Addr: &netutils.Addr{
 				Addr:        "server:8080",
 				AddrNetwork: "tcp",
 			},
@@ -180,7 +180,7 @@ var parseTestCases = []struct {
 		in:   "user@server:file[::1]name",
 		dest: Target{
 			Login: "user",
-			Addr: &netutils.NetAddr{
+			Addr: &netutils.Addr{
 				Addr:        "server:8080",
 				AddrNetwork: "tcp",
 			},
@@ -192,7 +192,7 @@ var parseTestCases = []struct {
 		in:   "user@[::1]:file[::1]name",
 		dest: Target{
 			Login: "user",
-			Addr: &netutils.NetAddr{
+			Addr: &netutils.Addr{
 				Addr:        "[::1]:8080",
 				AddrNetwork: "tcp",
 			},
@@ -204,7 +204,7 @@ var parseTestCases = []struct {
 		in:   "user@[::1]:file@[::1]@name",
 		dest: Target{
 			Login: "user",
-			Addr: &netutils.NetAddr{
+			Addr: &netutils.Addr{
 				Addr:        "[::1]:8080",
 				AddrNetwork: "tcp",
 			},

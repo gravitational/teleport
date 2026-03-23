@@ -114,10 +114,10 @@ type RegisterParams struct {
 	ID state.IdentityID
 	// AuthServers is a list of auth servers to dial
 	// Ignored if AuthClient is provided.
-	AuthServers []netutils.NetAddr
+	AuthServers []netutils.Addr
 	// ProxyServer is a proxy server to dial
 	// Ignored if AuthClient is provided.
-	ProxyServer netutils.NetAddr
+	ProxyServer netutils.Addr
 	// AdditionalPrincipals is a list of additional principals to dial
 	AdditionalPrincipals []string
 	// DNSNames is a list of DNS names to add to x509 certificate
@@ -461,7 +461,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 
 // LooksLikeProxy returns true if the first specified auth server
 // to register with appears to be a proxy.
-func LooksLikeProxy(servers []netutils.NetAddr) bool {
+func LooksLikeProxy(servers []netutils.Addr) bool {
 	if len(servers) == 0 {
 		return false
 	}
@@ -471,7 +471,7 @@ func LooksLikeProxy(servers []netutils.NetAddr) bool {
 
 // proxyServerIsAuth returns true if the address given to register with
 // appears to be an auth server.
-func proxyServerIsAuth(server netutils.NetAddr) bool {
+func proxyServerIsAuth(server netutils.Addr) bool {
 	port := server.Port(0)
 	return port == defaults.AuthListenPort
 }

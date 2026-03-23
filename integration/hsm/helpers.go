@@ -165,7 +165,7 @@ func (t *teleportService) waitingForNewEvent(ctx context.Context, name string, f
 	}
 }
 
-func (t *teleportService) authAddr(testingT *testing.T) netutils.NetAddr {
+func (t *teleportService) authAddr(testingT *testing.T) netutils.Addr {
 	addr, err := t.process.AuthAddr()
 	require.NoError(testingT, err)
 
@@ -228,7 +228,7 @@ func newAuthConfig(t *testing.T, log *slog.Logger, clock clockwork.Clock) *servi
 	config.Auth.Enabled = true
 	config.Auth.NoAudit = true
 	config.Auth.ListenAddr.Addr = net.JoinHostPort("localhost", "0")
-	config.Auth.PublicAddrs = []netutils.NetAddr{
+	config.Auth.PublicAddrs = []netutils.Addr{
 		{
 			AddrNetwork: "tcp",
 			Addr:        "localhost",
@@ -253,7 +253,7 @@ func newAuthConfig(t *testing.T, log *slog.Logger, clock clockwork.Clock) *servi
 	return config
 }
 
-func newProxyConfig(t *testing.T, authAddr netutils.NetAddr, log *slog.Logger, clock clockwork.Clock) *servicecfg.Config {
+func newProxyConfig(t *testing.T, authAddr netutils.Addr, log *slog.Logger, clock clockwork.Clock) *servicecfg.Config {
 	config := servicecfg.MakeDefaultConfig()
 	config.Version = defaults.TeleportConfigVersionV3
 	config.DataDir = t.TempDir()

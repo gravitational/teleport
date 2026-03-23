@@ -114,8 +114,8 @@ func TestDropConnections(t *testing.T) {
 	require.Error(t, err)
 }
 
-func startBackends(t *testing.T, count int) []netutils.NetAddr {
-	addrs := make([]netutils.NetAddr, 0, count)
+func startBackends(t *testing.T, count int) []netutils.Addr {
+	addrs := make([]netutils.Addr, 0, count)
 	for i := range count {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "backend %d", i+1)
@@ -127,7 +127,7 @@ func startBackends(t *testing.T, count int) []netutils.NetAddr {
 	return addrs
 }
 
-func urlToNetAddr(u string) netutils.NetAddr {
+func urlToNetAddr(u string) netutils.Addr {
 	parsed, err := url.Parse(u)
 	if err != nil {
 		panic(err)

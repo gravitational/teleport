@@ -265,7 +265,7 @@ func (s *ForwardServer) Serve() {
 	defer s.logger.DebugContext(s.cfg.ParentContext, "Finished forwarding git")
 	server, err := sshutils.NewServer(
 		teleport.ComponentForwardingGit,
-		netutils.NetAddr{}, /* empty addr, this is one time use so no use for listener*/
+		netutils.Addr{}, /* empty addr, this is one time use so no use for listener*/
 		sshutils.NewChanHandlerFunc(s.onChannel),
 		sshutils.StaticHostSigners(s.cfg.HostCertificate),
 		sshutils.AuthMethods{

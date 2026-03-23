@@ -176,7 +176,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	conn, err := h.cfg.Router.DialHost(
 		ctx,
 		ident.ScopePin,
-		&netutils.NetAddr{Addr: r.RemoteAddr},
+		&netutils.Addr{Addr: r.RemoteAddr},
 		&clientDstAddr,
 		req.serverID,
 		"0",
@@ -232,7 +232,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	}
 	remoteTarget := sftp.Target{
 		Login: req.login,
-		Addr: &netutils.NetAddr{
+		Addr: &netutils.Addr{
 			Addr: req.serverID + ":0",
 		},
 		Path: req.remoteLocation,

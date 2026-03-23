@@ -176,7 +176,7 @@ func TestTCTLTokenConfigureKubeCommand_OIDC(t *testing.T) {
 	// Test execution: create the tctl command.
 	stdout := &bytes.Buffer{}
 	tctlCfg := &servicecfg.Config{}
-	err = tctlCfg.SetAuthServerAddresses([]netutils.NetAddr{*addr})
+	err = tctlCfg.SetAuthServerAddresses([]netutils.Addr{*addr})
 	require.NoError(t, err)
 	tctlCommand := common.TokensCommand{
 		Stdout:     stdout,
@@ -280,7 +280,7 @@ func TestTCTLTokenConfigureKubeCommand_JWKS(t *testing.T) {
 	// Test execution: create the tctl command.
 	stdout := &bytes.Buffer{}
 	tctlCfg := &servicecfg.Config{}
-	err = tctlCfg.SetAuthServerAddresses([]netutils.NetAddr{*addr})
+	err = tctlCfg.SetAuthServerAddresses([]netutils.Addr{*addr})
 	require.NoError(t, err)
 	tctlCommand := common.TokensCommand{
 		Stdout:     stdout,

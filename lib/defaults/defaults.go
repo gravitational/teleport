@@ -638,52 +638,52 @@ func ConfigureLimiter(lc *limiter.Config) {
 }
 
 // AuthListenAddr returns the default listening address for the Auth service
-func AuthListenAddr() *netutils.NetAddr {
+func AuthListenAddr() *netutils.Addr {
 	return makeAddr(BindIP, AuthListenPort)
 }
 
 // AuthConnectAddr returns the default address to search for auth. service on
-func AuthConnectAddr() *netutils.NetAddr {
+func AuthConnectAddr() *netutils.Addr {
 	return makeAddr("127.0.0.1", AuthListenPort)
 }
 
 // ProxyListenAddr returns the default listening address for the SSH Proxy service
-func ProxyListenAddr() *netutils.NetAddr {
+func ProxyListenAddr() *netutils.Addr {
 	return makeAddr(BindIP, SSHProxyListenPort)
 }
 
 // KubeProxyListenAddr returns the default listening address for the Kubernetes Proxy service
-func KubeProxyListenAddr() *netutils.NetAddr {
+func KubeProxyListenAddr() *netutils.Addr {
 	return makeAddr(BindIP, KubeListenPort)
 }
 
 // ProxyWebListenAddr returns the default listening address for the Web-based SSH Proxy service
-func ProxyWebListenAddr() *netutils.NetAddr {
+func ProxyWebListenAddr() *netutils.Addr {
 	return makeAddr(BindIP, HTTPListenPort)
 }
 
 // SSHServerListenAddr returns the default listening address for the Web-based SSH Proxy service
-func SSHServerListenAddr() *netutils.NetAddr {
+func SSHServerListenAddr() *netutils.Addr {
 	return makeAddr(BindIP, SSHServerListenPort)
 }
 
 // ReverseTunnelListenAddr returns the default listening address for the SSH Proxy service used
 // by the SSH nodes to establish proxy<->ssh_node connection from behind a firewall which
 // blocks inbound connecions to ssh_nodes
-func ReverseTunnelListenAddr() *netutils.NetAddr {
+func ReverseTunnelListenAddr() *netutils.Addr {
 	return makeAddr(BindIP, SSHProxyTunnelListenPort)
 }
 
 // MetricsServiceListenAddr returns the default listening address for the metrics service
-func MetricsServiceListenAddr() *netutils.NetAddr {
+func MetricsServiceListenAddr() *netutils.Addr {
 	return makeAddr(BindIP, MetricsListenPort)
 }
 
-func ProxyPeeringListenAddr() *netutils.NetAddr {
+func ProxyPeeringListenAddr() *netutils.Addr {
 	return makeAddr(BindIP, ProxyPeeringListenPort)
 }
 
-func makeAddr(host string, port int16) *netutils.NetAddr {
+func makeAddr(host string, port int16) *netutils.Addr {
 	addrSpec := fmt.Sprintf("tcp://%s:%d", host, port)
 	retval, err := netutils.ParseAddr(addrSpec)
 	if err != nil {

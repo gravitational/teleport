@@ -94,7 +94,7 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 //
 // For single-port apps it returns the address from the URI field. For multi-port apps, it checks if
 // targetPort is included in TCP port ranges from the app spec.
-func pickDialTarget(app apitypes.Application, uriAddr *netutils.NetAddr, targetPort int) (string, error) {
+func pickDialTarget(app apitypes.Application, uriAddr *netutils.Addr, targetPort int) (string, error) {
 	switch {
 	// Regular TCP app with port in URI in app spec.
 	case len(app.GetTCPPorts()) < 1:
@@ -130,7 +130,7 @@ func pickDialTarget(app apitypes.Application, uriAddr *netutils.NetAddr, targetP
 // This can happen when the cert was generated before the app spec was changed in a way that
 // transitioned the app from multi-port to single-port. It can also happen due to a programmer error
 // where TargetPort is provided despite the app being single-port.
-func ensureZeroTargetPortOrEqualToPortFromURI(uriAddr *netutils.NetAddr, targetPort int) error {
+func ensureZeroTargetPortOrEqualToPortFromURI(uriAddr *netutils.Addr, targetPort int) error {
 	if targetPort == 0 {
 		return nil
 	}

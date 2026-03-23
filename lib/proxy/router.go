@@ -299,7 +299,7 @@ func (r *Router) DialHost(ctx context.Context, scopePin *scopesv1.Pin, clientSrc
 
 	conn, err := cluster.Dial(reversetunnelclient.DialParams{
 		From:                  clientSrcAddr,
-		To:                    &netutils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
+		To:                    &netutils.Addr{AddrNetwork: "tcp", Addr: serverAddr},
 		OriginalClientDstAddr: clientDstAddr,
 		GetUserAgent:          agentGetter,
 		AgentlessSigner:       sshSigner,

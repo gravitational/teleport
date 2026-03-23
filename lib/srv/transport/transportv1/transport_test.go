@@ -658,7 +658,7 @@ func TestService_ProxySSH(t *testing.T) {
 	require.NoError(t, err)
 
 	// create a new ssh client connection over a stream conn
-	addr := &netutils.NetAddr{Addr: "127.0.0.1", AddrNetwork: "tcp"}
+	addr := &netutils.Addr{Addr: "127.0.0.1", AddrNetwork: "tcp"}
 	sshconn, chans, reqs, err := ssh.NewClientConn(
 		streamutils.NewConn(sshRW, addr, sshSrv.listener.Addr()),
 		addr.String(),

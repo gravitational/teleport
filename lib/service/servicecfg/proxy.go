@@ -56,7 +56,7 @@ type ProxyConfig struct {
 	DisableDatabaseProxy bool
 
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
-	ReverseTunnelListenAddr netutils.NetAddr
+	ReverseTunnelListenAddr netutils.Addr
 
 	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
@@ -66,58 +66,58 @@ type ProxyConfig struct {
 	PROXYAllowDowngrade bool
 
 	// WebAddr is address for web portal of the proxy
-	WebAddr netutils.NetAddr
+	WebAddr netutils.Addr
 
 	// SSHAddr is address of ssh proxy
-	SSHAddr netutils.NetAddr
+	SSHAddr netutils.Addr
 
 	// MySQLAddr is address of MySQL proxy.
-	MySQLAddr netutils.NetAddr
+	MySQLAddr netutils.Addr
 
 	// MySQLServerVersion  allows to override the default MySQL Engine Version propagated by Teleport Proxy.
 	MySQLServerVersion string
 
 	// PostgresAddr is address of Postgres proxy.
-	PostgresAddr netutils.NetAddr
+	PostgresAddr netutils.Addr
 
 	// MongoAddr is address of Mongo proxy.
-	MongoAddr netutils.NetAddr
+	MongoAddr netutils.Addr
 
 	// PeerAddress is the proxy peering address.
-	PeerAddress netutils.NetAddr
+	PeerAddress netutils.Addr
 
 	// PeerPublicAddr is the public address the proxy advertises for proxy
 	// peering clients.
-	PeerPublicAddr netutils.NetAddr
+	PeerPublicAddr netutils.Addr
 
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
 	// for the HTTP endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
-	PublicAddrs []netutils.NetAddr
+	PublicAddrs []netutils.Addr
 
 	// SSHPublicAddrs is a list of the public addresses the proxy advertises
 	// for the SSH endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
-	SSHPublicAddrs []netutils.NetAddr
+	SSHPublicAddrs []netutils.Addr
 
 	// TunnelPublicAddrs is a list of the public addresses the proxy advertises
 	// for the tunnel endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
-	TunnelPublicAddrs []netutils.NetAddr
+	TunnelPublicAddrs []netutils.Addr
 
 	// PostgresPublicAddrs is a list of the public addresses the proxy
 	// advertises for Postgres clients.
-	PostgresPublicAddrs []netutils.NetAddr
+	PostgresPublicAddrs []netutils.Addr
 
 	// MySQLPublicAddrs is a list of the public addresses the proxy
 	// advertises for MySQL clients.
-	MySQLPublicAddrs []netutils.NetAddr
+	MySQLPublicAddrs []netutils.Addr
 
 	// MongoPublicAddrs is a list of the public addresses the proxy
 	// advertises for Mongo clients.
-	MongoPublicAddrs []netutils.NetAddr
+	MongoPublicAddrs []netutils.Addr
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
@@ -216,7 +216,7 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 // PublicPeerAddr attempts to returns the public address the proxy advertises
 // for proxy peering clients if available; otherwise, it falls back to trying to
 // guess an appropriate public address based on the listen address.
-func (c ProxyConfig) PublicPeerAddr() (*netutils.NetAddr, error) {
+func (c ProxyConfig) PublicPeerAddr() (*netutils.Addr, error) {
 	addr := &c.PeerPublicAddr
 	if !addr.IsEmpty() && !addr.IsHostUnspecified() {
 		return addr, nil
@@ -246,7 +246,7 @@ func (c ProxyConfig) PublicPeerAddr() (*netutils.NetAddr, error) {
 
 // PeerListenAddr returns the proxy peering listen address that was configured,
 // or the default one otherwise.
-func (c ProxyConfig) PeerListenAddr() *netutils.NetAddr {
+func (c ProxyConfig) PeerListenAddr() *netutils.Addr {
 	if c.PeerAddress.IsEmpty() {
 		return defaults.ProxyPeeringListenAddr()
 	}
@@ -259,7 +259,7 @@ type KubeProxyConfig struct {
 	Enabled bool
 
 	// ListenAddr is the address to listen on for incoming kubernetes requests.
-	ListenAddr netutils.NetAddr
+	ListenAddr netutils.Addr
 
 	// ClusterOverride causes all traffic to go to a specific remote
 	// cluster, used only in tests
@@ -267,7 +267,7 @@ type KubeProxyConfig struct {
 
 	// PublicAddrs is a list of the public addresses the Teleport Kube proxy can be accessed by,
 	// it also affects the host principals and routing logic
-	PublicAddrs []netutils.NetAddr
+	PublicAddrs []netutils.Addr
 
 	// KubeconfigPath is a path to kubeconfig
 	KubeconfigPath string

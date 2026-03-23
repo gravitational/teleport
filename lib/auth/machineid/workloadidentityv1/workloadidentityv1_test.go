@@ -317,7 +317,7 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthServers: []netutils.NetAddr{*netutils.MustParseAddr(tp.srv.Addr().String())},
+		AuthServers: []netutils.Addr{*netutils.MustParseAddr(tp.srv.Addr().String())},
 		KubernetesReadFileFunc: func(name string) ([]byte, error) {
 			return []byte(fakePSAT), nil
 		},

@@ -34,7 +34,7 @@ import (
 
 type hostPolicyCheckerConfig struct {
 	// publicAddrs is a list of pubic addresses to support acme for
-	publicAddrs []netutils.NetAddr
+	publicAddrs []netutils.Addr
 	// clusterGetter is used to retrieve connected Teleport clusters.
 	clusterGetter reversetunnelclient.ClusterGetter
 	// clusterName is a name of this cluster

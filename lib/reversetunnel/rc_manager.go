@@ -78,7 +78,7 @@ type RemoteClusterTunnelManagerConfig struct {
 	// this proxy over a tunnel.
 	ReverseTunnelServer reversetunnelclient.Server
 	// KubeDialAddr is an optional address of a local kubernetes proxy.
-	KubeDialAddr netutils.NetAddr
+	KubeDialAddr netutils.Addr
 	// FIPS indicates if Teleport was started in FIPS mode.
 	FIPS bool
 	// InsecureMode defines whether insecure connections are allowed.

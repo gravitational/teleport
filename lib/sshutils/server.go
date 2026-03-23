@@ -69,7 +69,7 @@ type Server struct {
 	component string
 
 	// addr is the address this server binds to and listens on
-	addr netutils.NetAddr
+	addr netutils.Addr
 
 	// listener is usually the listening TCP/IP socket
 	listener net.Listener
@@ -194,7 +194,7 @@ func SetClusterName(clusterName string) ServerOption {
 
 func NewServer(
 	component string,
-	a netutils.NetAddr,
+	a netutils.Addr,
 	h NewChanHandler,
 	getHostSigners GetHostSignersFunc,
 	ah AuthMethods,
@@ -748,7 +748,7 @@ func StaticHostSigners(hostSigners ...ssh.Signer) GetHostSignersFunc {
 	}
 }
 
-func (s *Server) checkArguments(a netutils.NetAddr, h NewChanHandler, getHostSigners GetHostSignersFunc, ah AuthMethods) error {
+func (s *Server) checkArguments(a netutils.Addr, h NewChanHandler, getHostSigners GetHostSignersFunc, ah AuthMethods) error {
 	// If the server is not in tunnel mode, an address must be specified.
 	if s.listener != nil {
 		if a.Addr == "" || a.AddrNetwork == "" {

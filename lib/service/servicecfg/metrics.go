@@ -38,7 +38,7 @@ type MetricsConfig struct {
 
 	// ListenAddr is the address to listen on for incoming metrics requests.
 	// Optional.
-	ListenAddr *netutils.NetAddr
+	ListenAddr *netutils.Addr
 
 	// MTLS turns mTLS on the metrics service on or off
 	MTLS bool

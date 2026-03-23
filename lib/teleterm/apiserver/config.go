@@ -46,7 +46,7 @@ type Config struct {
 	Clock           clockwork.Clock
 	// ListeningC propagates the address on which the gRPC server listens. Mostly useful in tests, as
 	// the Electron app gets the server port from stdout.
-	ListeningC chan<- netutils.NetAddr
+	ListeningC chan<- netutils.Addr
 }
 
 // CheckAndSetDefaults checks and sets default config values.
