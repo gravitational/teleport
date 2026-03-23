@@ -42,6 +42,7 @@ jobs:
               - '**/*.rs'
               - 'rust-toolchain.toml'
               - 'Cargo.toml'
+              - '**/Cargo.toml'
               - 'Cargo.lock'
               - 'e2e/**'
               - 'web/**'
