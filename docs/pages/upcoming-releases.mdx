@@ -30,10 +30,11 @@ We continue to support the following major versions of Teleport:
 
 We plan to release the following versions in the coming months:
 
-| Version | Date                       |
-|---------|----------------------------|
-| 18.8.0  | Week of March 23, 2026     |
-| 19.0.0  | August 2026                |
+| Version | Date                   |
+|---------|------------------------|
+| 18.8.0  | Week of March 30, 2026 |
+| 18.9.0  | Week of April 27, 2026 |
+| 19.0.0  | August 2026            |
 
 ### 18.8.0
 
@@ -56,14 +57,22 @@ access to resources.
 `tsh` will be able to delegate MFA checks (both on login and for per-session MFA) to the
 browser, enabling the use of browser based passkeys or password managers with `tsh`.
 
+### 18.9.0
+
+#### Device Bound Session Credentials for App Access
+
+Application access session cookies will be compatible with Google's
+[Device Bound Session Credentials](https://developer.chrome.com/docs/web-platform/device-bound-session-credentials),
+adding a layer of protection against session hijacking and cookie theft.
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of          | Description                                                  |
-|------------------|--------------------------------------------------------------|
-| March 30, 2026   | Teleport 18.8 will begin rollout on Cloud.                   |
-| March 30, 2026   | Teleport 18.8 agents will begin rollout to eligible tenants. |
+| Week of          | Description                                                 |
+|------------------|-------------------------------------------------------------|
+| April 6, 2026   | Teleport 18.8 will begin rollout on Cloud.                   |
+| April 6, 2026   | Teleport 18.8 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 
