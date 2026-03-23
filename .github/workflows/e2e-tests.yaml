@@ -132,6 +132,7 @@ jobs:
         run: pnpm --filter=@gravitational/e2e type-check
 
       - name: Build Teleport, tctl, and tsh
+        shell: bash
         run: |
           set -o pipefail
           cargo --version && rustc --version && echo "ARCH=$(uname -m)"
@@ -254,6 +255,7 @@ jobs:
           restore-keys: pnpm-store-${{ runner.os }}-
 
       - name: Setup e2e environment
+        shell: bash
         run: |
           set -o pipefail
           for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break || sleep 1; done
