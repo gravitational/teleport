@@ -232,7 +232,7 @@ importers:
   e2e:
     devDependencies:
       '@playwright/test':
-        specifier: 1.58.2
+        specifier: ^1.58.2
         version: 1.58.2
       '@types/node':
         specifier: ^25.5.0

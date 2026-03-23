@@ -10,7 +10,7 @@
   },
   "license": "Apache-2.0",
   "devDependencies": {
-    "@playwright/test": "1.58.2",
+    "@playwright/test": "^1.58.2",
     "@types/node": "^25.5.0",
     "cbor-x": "^1.6.4",
     "tsx": "^4.21.0",
