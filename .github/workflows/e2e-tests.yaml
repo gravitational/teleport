@@ -79,7 +79,13 @@ jobs:
 
       - name: Get Playwright version
         id: playwright-version
-        run: echo "version=$(node -p "require('./e2e/package.json').devDependencies['@playwright/test']")" >> "$GITHUB_OUTPUT"
+        run: |
+          version=$(node -p "require('./e2e/package.json').devDependencies['@playwright/test']")
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "::error::Invalid Playwright version: '$version'"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
