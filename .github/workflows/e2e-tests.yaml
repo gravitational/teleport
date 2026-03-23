@@ -117,6 +117,12 @@ jobs:
           key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: pnpm-store-${{ runner.os }}-
 
+      - name: Install node modules
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check e2e tests
+        run: pnpm --filter=@gravitational/e2e type-check
+
       - name: Build Teleport, tctl, and tsh
         run: |
           set -o pipefail
@@ -253,8 +259,6 @@ jobs:
           wait $pid_docker || { echo "::error::docker pull failed with exit code $?"; failed=1; }
           wait $pid_pnpm   || { echo "::error::pnpm install failed with exit code $?"; failed=1; }
           [ $failed -eq 0 ]
-
-          pnpm --filter=@gravitational/e2e type-check
 
       - name: Upload setup logs
         if: failure()
