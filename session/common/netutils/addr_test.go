@@ -62,7 +62,7 @@ func TestParseHostPort(t *testing.T) {
 func TestEmpty(t *testing.T) {
 	t.Parallel()
 
-	var a NetAddr
+	var a Addr
 	require.True(t, a.IsEmpty())
 }
 
@@ -261,13 +261,13 @@ func TestMarshal(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		in       *NetAddr
+		in       *Addr
 		expected string
 	}{
-		{in: &NetAddr{Addr: "localhost:5000"}, expected: "localhost:5000"},
-		{in: &NetAddr{AddrNetwork: "tcp", Addr: "localhost:5000"}, expected: "tcp://localhost:5000"},
-		{in: &NetAddr{AddrNetwork: "tcp", Addr: "localhost:5000", Path: "/path"}, expected: "tcp://localhost:5000/path"},
-		{in: &NetAddr{AddrNetwork: "unix", Path: "/path"}, expected: "unix:///path"},
+		{in: &Addr{Addr: "localhost:5000"}, expected: "localhost:5000"},
+		{in: &Addr{AddrNetwork: "tcp", Addr: "localhost:5000"}, expected: "tcp://localhost:5000"},
+		{in: &Addr{AddrNetwork: "tcp", Addr: "localhost:5000", Path: "/path"}, expected: "tcp://localhost:5000/path"},
+		{in: &Addr{AddrNetwork: "unix", Path: "/path"}, expected: "unix:///path"},
 	}
 
 	for i, testCase := range testCases {
@@ -282,15 +282,15 @@ func TestUnmarshal(t *testing.T) {
 
 	testCases := []struct {
 		in       string
-		expected *NetAddr
+		expected *Addr
 	}{
-		{in: "localhost:5000", expected: &NetAddr{AddrNetwork: "tcp", Addr: "localhost:5000"}},
-		{in: "tcp://localhost:5000/path", expected: &NetAddr{AddrNetwork: "tcp", Addr: "localhost:5000", Path: "/path"}},
-		{in: "unix:///path", expected: &NetAddr{AddrNetwork: "unix", Addr: "/path"}},
+		{in: "localhost:5000", expected: &Addr{AddrNetwork: "tcp", Addr: "localhost:5000"}},
+		{in: "tcp://localhost:5000/path", expected: &Addr{AddrNetwork: "tcp", Addr: "localhost:5000", Path: "/path"}},
+		{in: "unix:///path", expected: &Addr{AddrNetwork: "unix", Addr: "/path"}},
 	}
 
 	for i, testCase := range testCases {
-		addr := &NetAddr{}
+		addr := &Addr{}
 		err := yaml.Unmarshal([]byte(testCase.in), addr)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(addr, testCase.expected), "test case %v, %v should be unmarshalled to: %v", i, testCase.in, testCase.expected)
@@ -303,7 +303,7 @@ func TestParseMultiple(t *testing.T) {
 
 	tests := []struct {
 		in  []string
-		out []NetAddr
+		out []Addr
 	}{
 		{
 			in: []string{
@@ -311,7 +311,7 @@ func TestParseMultiple(t *testing.T) {
 				"tcp://example:587/path",
 				"[::1]:465",
 			},
-			out: []NetAddr{
+			out: []Addr{
 				{Addr: "localhost:3080", AddrNetwork: "https"},
 				{Addr: "example:587", AddrNetwork: "tcp", Path: "/path"},
 				{Addr: "[::1]:465", AddrNetwork: "tcp"},

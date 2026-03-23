@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/common/netutils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -99,7 +98,7 @@ func setupKubernetesHarness(
 		testenv.WithClusterName(teleClusterName),
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Logger = log
-			cfg.Proxy.PublicAddrs = []utils.NetAddr{
+			cfg.Proxy.PublicAddrs = []netutils.Addr{
 				{
 					AddrNetwork: "tcp",
 					Addr: net.JoinHostPort(
@@ -108,7 +107,7 @@ func setupKubernetesHarness(
 					),
 				},
 			}
-			cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+			cfg.Proxy.TunnelPublicAddrs = []netutils.Addr{
 				cfg.Proxy.ReverseTunnelListenAddr,
 			}
 

@@ -3099,7 +3099,7 @@ func applyListenIP(ip net.IP, cfg *servicecfg.Config) {
 	}
 }
 
-// replaceHost takes utils.NetAddr and replaces the hostname in it, preserving
+// replaceHost takes an address and replaces the hostname in it, preserving
 // the original port
 func replaceHost(addr *netutils.Addr, newHost string) {
 	_, port, err := net.SplitHostPort(addr.Addr)

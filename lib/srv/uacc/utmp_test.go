@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/common/netutils"
 )
 
 func assertUserPresence(t *testing.T, utmp *UtmpBackend, file, username string, present bool) {
@@ -61,7 +61,7 @@ func makeUtmpBackend(t *testing.T) *UtmpBackend {
 func TestUtmp(t *testing.T) {
 	t.Parallel()
 	utmp := makeUtmpBackend(t)
-	remote := &utils.NetAddr{
+	remote := &netutils.Addr{
 		AddrNetwork: "tcp",
 		Addr:        "123.456.789.012:0",
 	}
@@ -85,11 +85,11 @@ func TestUtmpUsernameLength(t *testing.T) {
 
 	// A 33 character long username.
 	username := strings.Repeat("a", 33)
-	err := utmp.Login("pts/99", username, &utils.NetAddr{Addr: "0.0.0.0:0"}, time.Now())
+	err := utmp.Login("pts/99", username, &netutils.Addr{Addr: "0.0.0.0:0"}, time.Now())
 	require.True(t, trace.IsBadParameter(err))
 
 	// A 32 character long username.
 	username = strings.Repeat("a", 32)
-	err = utmp.Login("pts/99", username, &utils.NetAddr{Addr: "0.0.0.0:0"}, time.Now())
+	err = utmp.Login("pts/99", username, &netutils.Addr{Addr: "0.0.0.0:0"}, time.Now())
 	require.False(t, trace.IsBadParameter(err))
 }
