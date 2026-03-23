@@ -408,6 +408,9 @@ func (s *TestServer) handleQuery(client *pgproto3.Backend, query string, pid uin
 	if query == TestErrorQuery {
 		return trace.Wrap(s.handleQueryWithError(client))
 	}
+	if query == TestMaliciousDataRowQuery {
+		return trace.Wrap(s.handleMaliciousDataRow(client))
+	}
 
 	messages := []pgproto3.BackendMessage{
 		&pgproto3.RowDescription{Fields: TestQueryResponse.FieldDescriptions},
@@ -1122,6 +1125,13 @@ const TestLongRunningQuery = "pg_sleep(forever)"
 // returns error.
 const TestErrorQuery = "select err"
 
+// TestMaliciousDataRowQuery is a stub SQL query that causes the test server to
+// send a malformed DataRow message with a negative field length. This simulates
+// the attack vector for GO-2026-4518: a compromised PostgreSQL server sending a
+// DataRow whose field length bypasses the null check (-1) and triggers a panic
+// in pgproto3/v2 DataRow.Decode via slice bounds out of range.
+const TestMaliciousDataRowQuery = "select malicious_data_row"
+
 // testSecretKey is the secret key stub for all connections, used for cancel requests.
 const testSecretKey = 1234
 
@@ -1163,4 +1173,43 @@ func processProcedureCall(query string) (schema string, procName string, argsCou
 	procName = procMatches[callProcedureRe.SubexpIndex("ProcName")]
 	argsCount = len(strings.Split(procMatches[callProcedureRe.SubexpIndex("Args")], ","))
 	return
+}
+
+// maliciousDataRowMessage is a pgproto3.BackendMessage that encodes a DataRow
+// with a negative field length of -2. This simulates GO-2026-4518: pgproto3/v2
+// DataRow.Decode treats -1 as NULL but does not guard against other negative
+// values, causing a slice bounds out of range panic in Frontend.Receive.
+//
+// Wire layout:
+//
+//	'D'                    message type
+//	0x00 0x00 0x00 0x0A   int32 body length = 10 (4 + 2 + 4)
+//	0x00 0x01              int16 field count = 1
+//	0xFF 0xFF 0xFF 0xFE   int32 field length = -2  ← triggers panic
+type maliciousDataRowMessage struct{}
+
+func (m *maliciousDataRowMessage) Decode(_ []byte) error {
+	return trace.NotImplemented("Decode is not implemented for maliciousDataRowMessage")
+}
+
+func (m *maliciousDataRowMessage) Encode(dst []byte) ([]byte, error) {
+	return append(dst,
+		'D',
+		0x00, 0x00, 0x00, 0x0A, // int32 body length = 10
+		0x00, 0x01,             // int16 field count = 1
+		0xFF, 0xFF, 0xFF, 0xFE, // int32 field length = -2
+	), nil
+}
+
+func (m *maliciousDataRowMessage) Backend() {}
+
+var _ pgproto3.BackendMessage = (*maliciousDataRowMessage)(nil)
+
+// handleMaliciousDataRow sends a well-formed RowDescription followed by a
+// DataRow whose field length is -2, replicating the GO-2026-4518 attack.
+func (s *TestServer) handleMaliciousDataRow(client *pgproto3.Backend) error {
+	return trace.Wrap(s.sendMessages(client,
+		&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte("field")}}},
+		&maliciousDataRowMessage{},
+	))
 }

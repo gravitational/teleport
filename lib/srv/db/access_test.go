@@ -305,6 +305,28 @@ func TestAccessPostgres(t *testing.T) {
 	}
 }
 
+// TestGO_2026_4518 reproduces the denial-of-service described in GO-2026-4518.
+// A compromised PostgreSQL server sends a DataRow whose field length is -2.
+// pgproto3/v2 DataRow.Decode treats only -1 as NULL; any other negative value
+// causes a slice bounds out of range panic in Frontend.Receive, which propagates
+// through pgconn back to the caller.
+func TestGO_2026_4518(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin",
+		[]string{types.Wildcard}, []string{types.Wildcard})
+
+	pgConn, err := testCtx.postgresClient(ctx, "alice", "postgres", "alice", "postgres")
+	require.NoError(t, err)
+
+	// Trigger GO-2026-4518: the malicious DataRow (field length = -2) causes
+	// pgproto3/v2 to panic in DataRow.Decode via slice bounds out of range.
+	//nolint:errcheck
+	pgConn.Exec(ctx, postgres.TestMaliciousDataRowQuery).ReadAll()
+}
+
 // TestAccessMySQL verifies access scenarios to a MySQL database based
 // on the configured RBAC rules.
 func TestAccessMySQL(t *testing.T) {
