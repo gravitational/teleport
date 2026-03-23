@@ -311,6 +311,8 @@ export { default as strapi } from './assets/strapi.svg?no-inline';
 export { default as stripeDark } from './assets/stripe-dark.svg?no-inline';
 export { default as stripeLight } from './assets/stripe-light.svg?no-inline';
 export { default as tableau } from './assets/tableau.svg?no-inline';
+export { default as temporalDark } from './assets/temporal-dark.svg?no-inline';
+export { default as temporalLight } from './assets/temporal-light.svg?no-inline';
 export { default as terraform } from './assets/terraform.svg?no-inline';
 export { default as torqDark } from './assets/torq-dark.svg?no-inline';
 export { default as torqLight } from './assets/torq-light.svg?no-inline';
