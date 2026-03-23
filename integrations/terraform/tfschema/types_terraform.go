@@ -4157,6 +4157,178 @@ func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 	}}, nil
 }
 
+// GenSchemaKubernetesClusterV3 returns tfsdk.Schema definition for KubernetesClusterV3
+func GenSchemaKubernetesClusterV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed:      true,
+			Optional:      false,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Required:      false,
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:      true,
+			Description:   "Kind is the cluster resource kind.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description:   "Name is an object name",
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					Required:      true,
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:      true,
+					Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"revision": {
+					Description: "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Metadata is the resource metadata.",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"aws": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"account_id": {
+							Description: "AccountID is a AWS Account ID.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"name": {
+							Description: "Name is a AWS EKS cluster name.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"region": {
+							Description: "Region is a AWS cloud region.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "AWS holds the required AWS information for Teleport to access the cluster.",
+					Optional:    true,
+				},
+				"azure": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"resource_group": {
+							Description: "ResourceGroup is the Azure resource group name.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"resource_name": {
+							Description: "ResourceName is the AKS cluster name.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"subscription_id": {
+							Description: "SubscriptionID is the AKS cluster SubscriptionID.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"tenant_id": {
+							Description: "TenantID is the AKS cluster Tenant ID.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Azure holds the required Azure information for Teleport to access the cluster.",
+					Optional:    true,
+				},
+				"dynamic_labels": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.MapNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"command": {
+							Description: "Command is a command to run",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"period": {
+							Description: "Period is a time between command runs",
+							Optional:    true,
+							Type:        DurationType{},
+						},
+						"result": {
+							Description: "Result captures standard output",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "DynamicLabels are the cluster's dynamic labels.",
+					Optional:    true,
+				},
+				"gcp": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"location": {
+							Description: "Location is a GKE cluster location.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"name": {
+							Description: "Name is a GCP GKE cluster name.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"project_id": {
+							Description: "ProjectID is the GKE Project ID.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "GCP holds the required GCP information for Teleport to access the cluster.",
+					Optional:    true,
+				},
+				"kubeconfig": {
+					Description: "Kubeconfig is the kubeconfig file payload that grants access to the cluster. If multiple contexts are specified, the first will be selected.",
+					Optional:    true,
+					Sensitive:   true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Spec is the resource spec.",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Description: "SubKind is an optional resource subkind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(3, 3)},
+		},
+	}}, nil
+}
+
 // GenSchemaOIDCConnectorV3 returns tfsdk.Schema definition for OIDCConnectorV3
 func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -42882,6 +43054,1321 @@ func CopyUserV2ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 				}
 				v.Unknown = false
 				tf.Attrs["status"] = v
+			}
+		}
+	}
+	return diags
+}
+
+// CopyKubernetesClusterV3FromTerraform copies contents of the source Terraform object into a target struct
+func CopyKubernetesClusterV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform_plugin_framework_types.Object, obj *github_com_gravitational_teleport_api_types.KubernetesClusterV3) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
+	{
+		a, ok := tf.Attrs["kind"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Kind"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+			} else {
+				var t string
+				if !v.Null && !v.Unknown {
+					t = string(v.Value)
+				}
+				obj.Kind = t
+			}
+		}
+	}
+	{
+		a, ok := tf.Attrs["sub_kind"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"KubernetesClusterV3.SubKind"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.SubKind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+			} else {
+				var t string
+				if !v.Null && !v.Unknown {
+					t = string(v.Value)
+				}
+				obj.SubKind = t
+			}
+		}
+	}
+	{
+		a, ok := tf.Attrs["version"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Version"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+			} else {
+				var t string
+				if !v.Null && !v.Unknown {
+					t = string(v.Value)
+				}
+				obj.Version = t
+			}
+		}
+	}
+	{
+		a, ok := tf.Attrs["metadata"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Metadata"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Metadata", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+			} else {
+				obj.Metadata = github_com_gravitational_teleport_api_types.Metadata{}
+				if !v.Null && !v.Unknown {
+					tf := v
+					obj := &obj.Metadata
+					{
+						a, ok := tf.Attrs["name"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Metadata.Name"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Metadata.Name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.Name = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["namespace"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Metadata.Namespace"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Metadata.Namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.Namespace = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["description"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Metadata.Description"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Metadata.Description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.Description = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["labels"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Metadata.Labels"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Map)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Metadata.Labels", "github.com/hashicorp/terraform-plugin-framework/types.Map"})
+							} else {
+								obj.Labels = make(map[string]string, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Metadata.Labels", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+										} else {
+											var t string
+											if !v.Null && !v.Unknown {
+												t = string(v.Value)
+											}
+											obj.Labels[k] = t
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["expires"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Metadata.Expires"})
+						} else {
+							v, ok := a.(TimeValue)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Metadata.Expires", "TimeValue"})
+							} else {
+								var t *time.Time
+								if !v.Null && !v.Unknown {
+									c := time.Time(v.Value)
+									t = &c
+								}
+								obj.Expires = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["revision"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Metadata.Revision"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.Revision = t
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	{
+		a, ok := tf.Attrs["spec"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+			} else {
+				obj.Spec = github_com_gravitational_teleport_api_types.KubernetesClusterSpecV3{}
+				if !v.Null && !v.Unknown {
+					tf := v
+					obj := &obj.Spec
+					{
+						a, ok := tf.Attrs["dynamic_labels"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.DynamicLabels"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Map)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.DynamicLabels", "github.com/hashicorp/terraform-plugin-framework/types.Map"})
+							} else {
+								obj.DynamicLabels = make(map[string]github_com_gravitational_teleport_api_types.CommandLabelV2, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.DynamicLabels", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+										} else {
+											var t github_com_gravitational_teleport_api_types.CommandLabelV2
+											if !v.Null && !v.Unknown {
+												tf := v
+												obj := &t
+												{
+													a, ok := tf.Attrs["period"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.DynamicLabels.Period"})
+													} else {
+														v, ok := a.(DurationValue)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.DynamicLabels.Period", "DurationValue"})
+														} else {
+															var t github_com_gravitational_teleport_api_types.Duration
+															if !v.Null && !v.Unknown {
+																t = github_com_gravitational_teleport_api_types.Duration(v.Value)
+															}
+															obj.Period = t
+														}
+													}
+												}
+												{
+													a, ok := tf.Attrs["command"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.DynamicLabels.Command"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.DynamicLabels.Command", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+														} else {
+															obj.Command = make([]string, len(v.Elems))
+															if !v.Null && !v.Unknown {
+																for k, a := range v.Elems {
+																	v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.DynamicLabels.Command", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																	} else {
+																		var t string
+																		if !v.Null && !v.Unknown {
+																			t = string(v.Value)
+																		}
+																		obj.Command[k] = t
+																	}
+																}
+															}
+														}
+													}
+												}
+												{
+													a, ok := tf.Attrs["result"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.DynamicLabels.Result"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.DynamicLabels.Result", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.Result = t
+														}
+													}
+												}
+											}
+											obj.DynamicLabels[k] = t
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["kubeconfig"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.Kubeconfig"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.Kubeconfig", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t []byte
+								if !v.Null && !v.Unknown {
+									t = []byte(v.Value)
+								}
+								obj.Kubeconfig = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["azure"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.Azure"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.Azure", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.Azure = github_com_gravitational_teleport_api_types.KubeAzure{}
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj := &obj.Azure
+									{
+										a, ok := tf.Attrs["resource_name"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.Azure.ResourceName"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.Azure.ResourceName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.ResourceName = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["resource_group"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.Azure.ResourceGroup"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.Azure.ResourceGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.ResourceGroup = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["tenant_id"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.Azure.TenantID"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.Azure.TenantID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.TenantID = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["subscription_id"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.Azure.SubscriptionID"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.Azure.SubscriptionID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.SubscriptionID = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["aws"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.AWS"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.AWS", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.AWS = github_com_gravitational_teleport_api_types.KubeAWS{}
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj := &obj.AWS
+									{
+										a, ok := tf.Attrs["region"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.AWS.Region"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.AWS.Region", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Region = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["account_id"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.AWS.AccountID"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.AWS.AccountID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.AccountID = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["name"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.AWS.Name"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.AWS.Name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Name = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["gcp"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.GCP"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.GCP", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.GCP = github_com_gravitational_teleport_api_types.KubeGCP{}
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj := &obj.GCP
+									{
+										a, ok := tf.Attrs["location"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.GCP.Location"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.GCP.Location", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Location = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["project_id"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.GCP.ProjectID"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.GCP.ProjectID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.ProjectID = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["name"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Spec.GCP.Name"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Spec.GCP.Name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Name = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return diags
+}
+
+// CopyKubernetesClusterV3ToTerraform copies contents of the source Terraform object into a target struct
+func CopyKubernetesClusterV3ToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_types.KubernetesClusterV3, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
+	tf.Null = false
+	tf.Unknown = false
+	if tf.Attrs == nil {
+		tf.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value)
+	}
+	{
+		t, ok := tf.AttrTypes["kind"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Kind"})
+		} else {
+			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+				if err != nil {
+					diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Kind", err})
+				}
+				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+				if !ok {
+					diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
+				v.Null = string(obj.Kind) == ""
+			}
+			v.Value = string(obj.Kind)
+			v.Unknown = false
+			tf.Attrs["kind"] = v
+		}
+	}
+	{
+		t, ok := tf.AttrTypes["sub_kind"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.SubKind"})
+		} else {
+			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+				if err != nil {
+					diags.Append(attrWriteGeneralError{"KubernetesClusterV3.SubKind", err})
+				}
+				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+				if !ok {
+					diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.SubKind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
+				v.Null = string(obj.SubKind) == ""
+			}
+			v.Value = string(obj.SubKind)
+			v.Unknown = false
+			tf.Attrs["sub_kind"] = v
+		}
+	}
+	{
+		t, ok := tf.AttrTypes["version"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Version"})
+		} else {
+			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+				if err != nil {
+					diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Version", err})
+				}
+				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+				if !ok {
+					diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
+				v.Null = string(obj.Version) == ""
+			}
+			v.Value = string(obj.Version)
+			v.Unknown = false
+			tf.Attrs["version"] = v
+		}
+	}
+	{
+		a, ok := tf.AttrTypes["metadata"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Metadata"})
+		} else {
+			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			if !ok {
+				diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Metadata", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+			} else {
+				v, ok := tf.Attrs["metadata"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+				if !ok {
+					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+						AttrTypes: o.AttrTypes,
+						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+					}
+				} else {
+					if v.Attrs == nil {
+						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+					}
+				}
+				{
+					obj := obj.Metadata
+					tf := &v
+					{
+						t, ok := tf.AttrTypes["name"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Metadata.Name"})
+						} else {
+							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Metadata.Name", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Metadata.Name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.Name) == ""
+							}
+							v.Value = string(obj.Name)
+							v.Unknown = false
+							tf.Attrs["name"] = v
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["namespace"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Metadata.Namespace"})
+						} else {
+							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Metadata.Namespace", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Metadata.Namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.Namespace) == ""
+							}
+							v.Value = string(obj.Namespace)
+							v.Unknown = false
+							tf.Attrs["namespace"] = v
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["description"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Metadata.Description"})
+						} else {
+							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Metadata.Description", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Metadata.Description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.Description) == ""
+							}
+							v.Value = string(obj.Description)
+							v.Unknown = false
+							tf.Attrs["description"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["labels"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Metadata.Labels"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Metadata.Labels", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
+							} else {
+								c, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.Map)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.Map{
+
+										ElemType: o.ElemType,
+										Elems:    make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+									}
+								}
+								if obj.Labels != nil {
+									t := o.ElemType
+									for k, a := range obj.Labels {
+										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+											if err != nil {
+												diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Metadata.Labels", err})
+											}
+											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Metadata.Labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
+											v.Null = false
+										}
+										v.Value = string(a)
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.Labels) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["labels"] = c
+							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["expires"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Metadata.Expires"})
+						} else {
+							v, ok := tf.Attrs["expires"].(TimeValue)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Metadata.Expires", err})
+								}
+								v, ok = i.(TimeValue)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Metadata.Expires", "TimeValue"})
+								}
+								v.Null = false
+							}
+							if obj.Expires == nil {
+								v.Null = true
+							} else {
+								v.Null = false
+								v.Value = time.Time(*obj.Expires)
+							}
+							v.Unknown = false
+							tf.Attrs["expires"] = v
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["revision"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Metadata.Revision"})
+						} else {
+							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Metadata.Revision", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.Revision) == ""
+							}
+							v.Value = string(obj.Revision)
+							v.Unknown = false
+							tf.Attrs["revision"] = v
+						}
+					}
+				}
+				v.Unknown = false
+				tf.Attrs["metadata"] = v
+			}
+		}
+	}
+	{
+		a, ok := tf.AttrTypes["spec"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec"})
+		} else {
+			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			if !ok {
+				diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+			} else {
+				v, ok := tf.Attrs["spec"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+				if !ok {
+					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+						AttrTypes: o.AttrTypes,
+						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+					}
+				} else {
+					if v.Attrs == nil {
+						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+					}
+				}
+				{
+					obj := obj.Spec
+					tf := &v
+					{
+						a, ok := tf.AttrTypes["dynamic_labels"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.DynamicLabels"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.DynamicLabels", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
+							} else {
+								c, ok := tf.Attrs["dynamic_labels"].(github_com_hashicorp_terraform_plugin_framework_types.Map)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.Map{
+
+										ElemType: o.ElemType,
+										Elems:    make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DynamicLabels)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DynamicLabels))
+									}
+								}
+								if obj.DynamicLabels != nil {
+									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+									for k, a := range obj.DynamicLabels {
+										v, ok := tf.Attrs["dynamic_labels"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										if !ok {
+											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+												AttrTypes: o.AttrTypes,
+												Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+											}
+										} else {
+											if v.Attrs == nil {
+												v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+											}
+										}
+										{
+											obj := a
+											tf := &v
+											{
+												t, ok := tf.AttrTypes["period"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.DynamicLabels.Period"})
+												} else {
+													v, ok := tf.Attrs["period"].(DurationValue)
+													if !ok {
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Spec.DynamicLabels.Period", err})
+														}
+														v, ok = i.(DurationValue)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.DynamicLabels.Period", "DurationValue"})
+														}
+														v.Null = false
+													}
+													v.Value = time.Duration(obj.Period)
+													v.Unknown = false
+													tf.Attrs["period"] = v
+												}
+											}
+											{
+												a, ok := tf.AttrTypes["command"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.DynamicLabels.Command"})
+												} else {
+													o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+													if !ok {
+														diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.DynamicLabels.Command", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+													} else {
+														c, ok := tf.Attrs["command"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+														if !ok {
+															c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+																ElemType: o.ElemType,
+																Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Command)),
+																Null:     true,
+															}
+														} else {
+															if c.Elems == nil {
+																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Command))
+															}
+														}
+														if obj.Command != nil {
+															t := o.ElemType
+															if len(obj.Command) != len(c.Elems) {
+																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Command))
+															}
+															for k, a := range obj.Command {
+																v, ok := tf.Attrs["command"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																	if err != nil {
+																		diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Spec.DynamicLabels.Command", err})
+																	}
+																	v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.DynamicLabels.Command", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																	}
+																	v.Null = string(a) == ""
+																}
+																v.Value = string(a)
+																v.Unknown = false
+																c.Elems[k] = v
+															}
+															if len(obj.Command) > 0 {
+																c.Null = false
+															}
+														}
+														c.Unknown = false
+														tf.Attrs["command"] = c
+													}
+												}
+											}
+											{
+												t, ok := tf.AttrTypes["result"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.DynamicLabels.Result"})
+												} else {
+													v, ok := tf.Attrs["result"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+													if !ok {
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Spec.DynamicLabels.Result", err})
+														}
+														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.DynamicLabels.Result", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
+														v.Null = string(obj.Result) == ""
+													}
+													v.Value = string(obj.Result)
+													v.Unknown = false
+													tf.Attrs["result"] = v
+												}
+											}
+										}
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.DynamicLabels) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["dynamic_labels"] = c
+							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["kubeconfig"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.Kubeconfig"})
+						} else {
+							v, ok := tf.Attrs["kubeconfig"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Spec.Kubeconfig", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.Kubeconfig", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.Kubeconfig) == ""
+							}
+							v.Value = string(obj.Kubeconfig)
+							v.Unknown = false
+							tf.Attrs["kubeconfig"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["azure"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.Azure"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.Azure", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["azure"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								{
+									obj := obj.Azure
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["resource_name"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.Azure.ResourceName"})
+										} else {
+											v, ok := tf.Attrs["resource_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Spec.Azure.ResourceName", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.Azure.ResourceName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.ResourceName) == ""
+											}
+											v.Value = string(obj.ResourceName)
+											v.Unknown = false
+											tf.Attrs["resource_name"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["resource_group"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.Azure.ResourceGroup"})
+										} else {
+											v, ok := tf.Attrs["resource_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Spec.Azure.ResourceGroup", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.Azure.ResourceGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.ResourceGroup) == ""
+											}
+											v.Value = string(obj.ResourceGroup)
+											v.Unknown = false
+											tf.Attrs["resource_group"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["tenant_id"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.Azure.TenantID"})
+										} else {
+											v, ok := tf.Attrs["tenant_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Spec.Azure.TenantID", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.Azure.TenantID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.TenantID) == ""
+											}
+											v.Value = string(obj.TenantID)
+											v.Unknown = false
+											tf.Attrs["tenant_id"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["subscription_id"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.Azure.SubscriptionID"})
+										} else {
+											v, ok := tf.Attrs["subscription_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Spec.Azure.SubscriptionID", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.Azure.SubscriptionID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.SubscriptionID) == ""
+											}
+											v.Value = string(obj.SubscriptionID)
+											v.Unknown = false
+											tf.Attrs["subscription_id"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["azure"] = v
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["aws"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.AWS"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.AWS", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["aws"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								{
+									obj := obj.AWS
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["region"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.AWS.Region"})
+										} else {
+											v, ok := tf.Attrs["region"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Spec.AWS.Region", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.AWS.Region", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Region) == ""
+											}
+											v.Value = string(obj.Region)
+											v.Unknown = false
+											tf.Attrs["region"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["account_id"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.AWS.AccountID"})
+										} else {
+											v, ok := tf.Attrs["account_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Spec.AWS.AccountID", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.AWS.AccountID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.AccountID) == ""
+											}
+											v.Value = string(obj.AccountID)
+											v.Unknown = false
+											tf.Attrs["account_id"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["name"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.AWS.Name"})
+										} else {
+											v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Spec.AWS.Name", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.AWS.Name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Name) == ""
+											}
+											v.Value = string(obj.Name)
+											v.Unknown = false
+											tf.Attrs["name"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["aws"] = v
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["gcp"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.GCP"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.GCP", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["gcp"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								{
+									obj := obj.GCP
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["location"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.GCP.Location"})
+										} else {
+											v, ok := tf.Attrs["location"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Spec.GCP.Location", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.GCP.Location", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Location) == ""
+											}
+											v.Value = string(obj.Location)
+											v.Unknown = false
+											tf.Attrs["location"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["project_id"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.GCP.ProjectID"})
+										} else {
+											v, ok := tf.Attrs["project_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Spec.GCP.ProjectID", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.GCP.ProjectID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.ProjectID) == ""
+											}
+											v.Value = string(obj.ProjectID)
+											v.Unknown = false
+											tf.Attrs["project_id"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["name"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Spec.GCP.Name"})
+										} else {
+											v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Spec.GCP.Name", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Spec.GCP.Name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Name) == ""
+											}
+											v.Value = string(obj.Name)
+											v.Unknown = false
+											tf.Attrs["name"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["gcp"] = v
+							}
+						}
+					}
+				}
+				v.Unknown = false
+				tf.Attrs["spec"] = v
 			}
 		}
 	}

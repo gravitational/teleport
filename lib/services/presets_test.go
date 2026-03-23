@@ -726,6 +726,7 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 						NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 						WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						KubernetesLabels:     map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 						Rules: []types.Rule{
 							{
 								Resources: []string{
@@ -756,6 +757,7 @@ func TestAddRoleDefaults(t *testing.T) {
 							},
 							// The missing resources got added as individual rules
 							types.NewRule(types.KindDiscoveryConfig, RW()),
+							types.NewRule(types.KindKubernetesCluster, RW()),
 							types.NewRule(types.KindAccessMonitoringRule, RW()),
 							types.NewRule(types.KindDynamicWindowsDesktop, RW()),
 							types.NewRule(types.KindStaticHostUser, RW()),
