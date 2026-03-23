@@ -198,7 +198,7 @@ jobs:
 
     container:
       image: mcr.microsoft.com/playwright:v${{ needs.build.outputs.playwright-version }}-noble
-      options: --init
+      options: --init --ipc=host
       env:
         DOCKER_HOST: tcp://docker:2375
 
