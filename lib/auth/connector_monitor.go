@@ -64,14 +64,23 @@ const (
 // SAMLCertExpiryMonitorConfig is embedded in the SAMLCertExpiryMonitor to provide access
 // to the services.
 type SAMLCertExpiryMonitorConfig struct {
+	// Connectors provides methods for intereacting with SAML connectors.
 	Connectors services.Identity
-	Alerts     services.Status
-	Events     types.Events
-	Backend    backend.Backend
-	Clock      clockwork.Clock
-	Logger     *slog.Logger
+	// Alerts provides methods for managing cluster alerts.
+	Alerts services.Status
+	// Events provides the watch mechanism to respond to SAML connector events.
+	Events types.Events
+	// Backend is used to specify on which backend to acquire a lock for the monitor sync.
+	Backend backend.Backend
+	// Clock provides the time source for the ticker and expiry calculations.
+	Clock clockwork.Clock
+	// Logger provides the default logger to use. Logger is optional if CheckAndSetDefaults is called.
+	Logger *slog.Logger
 }
 
+// CheckAndSetDefaults checks the fields on the SAMLCertExpiryMonitorConfig.
+// For any missing required fields, it returns an error.
+// For any missing optional fields, it sets a default.
 func (c *SAMLCertExpiryMonitorConfig) CheckAndSetDefaults() error {
 	switch {
 	case c.Connectors == nil:
@@ -200,20 +209,26 @@ func (m *SAMLCertExpiryMonitor) runSyncLoop(ctx context.Context, ticker clockwor
 func (m *SAMLCertExpiryMonitor) reconcileAlerts(ctx context.Context) error {
 	alerts := map[string]string{}
 
+	// For each of the SAML connectors, we check the certs stored in the various locations:
+	//  - SAML entity descriptor XML on the connector.
+	//  - Cert field on the connector.
+	//  - TODO(nixpig): Signing key pair field on the connector.
 	for connector, err := range m.Connectors.RangeSAMLConnectorsWithOptions(ctx, "", "", false, types.SAMLConnectorValidationFollowURLs(false)) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
+		// Get and validate the certs from the SAML entity descriptor.
 		certs, err := services.CheckSAMLEntityDescriptor(connector.GetEntityDescriptor())
 		if err != nil {
-			slog.ErrorContext(ctx, "Failed to check SAML entity descriptor", "connector", connector.GetName(), "error", err)
+			m.Logger.ErrorContext(ctx, "Failed to check SAML entity descriptor", "connector", connector.GetName(), "error", err)
 		}
 
+		// Get and validate the cert from the SAML connector Cert field.
 		if connector.GetCert() != "" {
 			cert, err := tlsca.ParseCertificatePEM([]byte(connector.GetCert()))
 			if err != nil {
-				slog.ErrorContext(ctx, "Failed to parse certificate defined in cert", "connector", connector.GetName(), "error", err)
+				m.Logger.ErrorContext(ctx, "Failed to parse certificate defined in cert", "connector", connector.GetName(), "error", err)
 			} else {
 				certs = append(certs, cert)
 			}
@@ -230,7 +245,7 @@ func (m *SAMLCertExpiryMonitor) reconcileAlerts(ctx context.Context) error {
 
 	for id, message := range alerts {
 		if err := m.upsertAlert(ctx, id, message); err != nil {
-			slog.ErrorContext(ctx, "Failed to upsert connector expiry alert", "alert_id", id, "error", err)
+			m.Logger.ErrorContext(ctx, "Failed to upsert connector expiry alert", "alert_id", id, "error", err)
 			// If we were unable to upsert the alert, remove it from the map so we don't
 			// delete any existing corresponding cluster alert.
 			delete(alerts, id)
@@ -253,7 +268,7 @@ func (m *SAMLCertExpiryMonitor) reconcileAlerts(ctx context.Context) error {
 		}
 
 		if err := m.Alerts.DeleteClusterAlert(ctx, id); err != nil && !trace.IsNotFound(err) {
-			slog.ErrorContext(ctx, "Failed to delete cluster alert", "alert_id", clusterAlert.GetName(), "error", err)
+			m.Logger.ErrorContext(ctx, "Failed to delete cluster alert", "alert_id", clusterAlert.GetName(), "error", err)
 		}
 	}
 
