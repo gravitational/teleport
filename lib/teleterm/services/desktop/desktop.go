@@ -342,7 +342,9 @@ func (d *fsRequestHandler) handleSharedDirectoryInfoRequest(completionID uint32,
 			CompletionId: completionID,
 			ErrorCode:    uint32(SharedDirectoryErrCodeDoesNotExist),
 			Operation: &tdpbv1.SharedDirectoryResponse_Info_{
-				Info: &tdpbv1.SharedDirectoryResponse_Info{},
+				Info: &tdpbv1.SharedDirectoryResponse_Info{
+					Fso: &tdpbv1.FileSystemObject{},
+				},
 			},
 		}))
 	}
