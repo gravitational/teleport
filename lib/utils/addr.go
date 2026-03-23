@@ -29,8 +29,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/gravitational/trace"
-
-	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 // NetAddr is network address that includes network, optional path and
@@ -78,11 +76,6 @@ func (a *NetAddr) IsLocal() bool {
 		return false
 	}
 	return IsLocalhost(host)
-}
-
-// IsLoopback returns true if this is a loopback address
-func (a *NetAddr) IsLoopback() bool {
-	return apiutils.IsLoopback(a.Addr)
 }
 
 // IsHostUnspecified returns true if this address' host is unspecified.
