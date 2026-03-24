@@ -245,6 +245,38 @@ spec:
       ssh: strict
 ```
 
+<details>
+<summary>Tracking best-effort recording failures</summary>
+
+In `best_effort` mode, you can track failed session recordings by examining the
+logs for the Teleport service recording the session. Depending on the recording
+mode (see the next section), this is either the SSH Service or Proxy Service.
+
+When a session recording failure takes place in `best_effort` mode, the service
+will emit one of the following log messages. If the Teleport service could not
+initialize the recording, e.g., because of an issue with the configured data
+directory, you will see the following message:
+
+```
+Failed to initialize session recording, disabling it for this session.
+```
+
+The Teleport service emits the log with an `error` field that indicates the
+underlying cause.
+
+On a failure to write the session recording to disk, the Teleport service emits
+the following log:
+
+```
+Failed to write to session recorder, disabling session recording.
+```
+
+If you are concerned about failed session recordings, you can use a log
+management platform to aggregate the counts of these messages across Teleport
+services.
+
+</details>
+
 ### Enable Recording Proxy Mode
 
 Edit the Auth Service configuration file as follows:
