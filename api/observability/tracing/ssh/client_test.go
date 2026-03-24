@@ -22,8 +22,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"

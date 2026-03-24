@@ -480,11 +480,15 @@ linters:
         text: stscreds.NewCredentials
       - linters:
           - forbidigo
-        path: teleport/api/observability/tracing/ssh/client.go
+        path: api/observability/tracing/ssh/client.go
         text: ssh.NewClient
       - linters:
           - forbidigo
-        path: teleport/api/observability/tracing/ssh/ssh.go
+        path: api/observability/tracing/ssh/client_test.go
+        text: ssh.NewClientConn
+      - linters:
+          - forbidigo
+        path: api/observability/tracing/ssh/ssh.go
         text: ssh.NewClientConn
     paths:
       - (^|/)node_modules/
