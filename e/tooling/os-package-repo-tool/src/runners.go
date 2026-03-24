@@ -121,6 +121,7 @@ func NewYumRunner() (*YumRunner, error) {
 				"7",
 				"8",
 				"9",
+				"10",
 			},
 			"centos": { // See https://endoflife.date/centos for details
 				"7",
