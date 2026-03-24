@@ -65,7 +65,12 @@ test.describe('state restoration from disk', () => {
     const temp = await fs.mkdtempDisposable(
       path.join(os.tmpdir(), 'connect-e2e-state-')
     );
-    await fs.cp(loggedInSnapshotPath, temp.path, { recursive: true });
+    try {
+      await fs.cp(loggedInSnapshotPath, temp.path, { recursive: true });
+    } catch (error) {
+      temp.remove();
+      throw error;
+    }
     return temp;
   }
 
