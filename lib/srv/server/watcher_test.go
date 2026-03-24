@@ -321,6 +321,87 @@ func TestWatcherHooks(t *testing.T) {
 	}
 }
 
+func TestWatcherPerInstanceTap(t *testing.T) {
+	t.Parallel()
+
+	t.Run("tap with default forwarding sends to InstancesC", func(t *testing.T) {
+		t.Parallel()
+
+		w := NewWatcher[mockInstance](t.Context(),
+			WithPerInstanceTapFn[mockInstance](func(instances []mockInstance) {
+				assert.Len(t, instances, 1)
+				assert.Equal(t, "i-1", instances[0].ID)
+			}),
+		)
+
+		done := make(chan struct{})
+		go func() {
+			w.sendInstancesOrLogError([]mockInstance{{ID: "i-1"}}, nil)
+			close(done)
+		}()
+
+		select {
+		case got := <-w.InstancesC:
+			assert.Equal(t, "i-1", got.ID)
+		case <-time.After(time.Second):
+			t.Fatal("expected forwarded instance on InstancesC")
+		}
+
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("sendInstancesOrLogError did not return")
+		}
+	})
+
+	t.Run("tap with replacing hook runs tap then hook without default forwarding", func(t *testing.T) {
+		t.Parallel()
+
+		order := make([]string, 0, 2)
+		w := NewWatcher[mockInstance](t.Context(),
+			WithPerInstanceTapFn[mockInstance](func(instances []mockInstance) {
+				assert.Len(t, instances, 1)
+				assert.Equal(t, "i-2", instances[0].ID)
+				order = append(order, "tap")
+			}),
+			WithPerInstanceHookFn[mockInstance](func(instances []mockInstance) {
+				assert.Len(t, instances, 1)
+				assert.Equal(t, "i-2", instances[0].ID)
+				order = append(order, "hook")
+			}),
+		)
+
+		w.sendInstancesOrLogError([]mockInstance{{ID: "i-2"}}, nil)
+
+		assert.Equal(t, []string{"tap", "hook"}, order)
+		select {
+		case got := <-w.InstancesC:
+			t.Fatalf("did not expect default forwarding, got instance %v", got)
+		default:
+		}
+	})
+
+	t.Run("error path does not run tap or hook", func(t *testing.T) {
+		t.Parallel()
+
+		tapCalled := false
+		hookCalled := false
+		w := NewWatcher[mockInstance](t.Context(),
+			WithPerInstanceTapFn[mockInstance](func([]mockInstance) {
+				tapCalled = true
+			}),
+			WithPerInstanceHookFn[mockInstance](func([]mockInstance) {
+				hookCalled = true
+			}),
+		)
+
+		w.sendInstancesOrLogError(nil, trace.BadParameter("boom"))
+
+		assert.False(t, tapCalled)
+		assert.False(t, hookCalled)
+	})
+}
+
 func TestWatcherShutdown(t *testing.T) {
 	t.Parallel()
 
