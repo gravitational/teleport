@@ -805,7 +805,7 @@ func requireAllFieldsHavePresence(t *testing.T, msg proto.Message) {
 
 func requireAllFieldsHavePresenceRecursive(t *testing.T, descriptor protoreflect.MessageDescriptor) {
 	fields := descriptor.Fields()
-	for i := 0; i < fields.Len(); i++ {
+	for i := range fields.Len() {
 		field := fields.Get(i)
 
 		// recursively check nested fields.
