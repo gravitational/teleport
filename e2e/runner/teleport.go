@@ -164,6 +164,8 @@ type TeleportNodeConfig struct {
 	AuthServerHost string
 	AuthServerPort int
 	SSHServerPort  int
+	NodeName       string
+	Labels         map[string]string
 }
 
 func generateTeleportNodeConfig(templatePath, outPath string, data *TeleportNodeConfig) (string, error) {

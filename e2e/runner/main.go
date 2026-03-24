@@ -354,6 +354,8 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 					AuthServerHost: dockerHost,
 					AuthServerPort: inst.authPort,
 					SSHServerPort:  inst.sshPort,
+					NodeName:       "docker-node",
+					Labels:         map[string]string{"env": "example"},
 				})
 				if err != nil {
 					return fmt.Errorf("failed to generate node config for %s: %w", inst.browser, err)
@@ -366,6 +368,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 					tctlBin:            config.tctlBin,
 					teleportConfigPath: inst.teleportConfigPath,
 					logFilePath:        filepath.Join(config.e2eDir, "docker-node-"+inst.browser+".log"),
+					nodeName:           "docker-node",
 					imageName:          nodeImage,
 					containerName:      "teleport-e2e-node-" + inst.browser,
 					configPath:         nodeConfigPath,
