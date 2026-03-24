@@ -47,8 +47,13 @@
             },
             {
               "type": "doc",
+              "id": "get-started/sso",
+              "label": "Step 4: Set Up Single Sign-On"
+            },
+            {
+              "type": "doc",
               "id": "get-started/audit",
-              "label": "Step 4: Monitor Audit Logs"
+              "label": "Step 5: Monitor Audit Logs"
             }
           ]
         },
