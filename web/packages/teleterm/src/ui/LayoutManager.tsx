@@ -29,6 +29,7 @@ import { TopBar } from 'teleterm/ui/TopBar';
 export function LayoutManager() {
   const topBarConnectMyComputerRef = useRef<HTMLDivElement>(null);
   const topBarAccessRequestRef = useRef<HTMLDivElement>(null);
+  const desktopSessionControlsRef = useRef<HTMLDivElement>(null);
 
   return (
     <Flex flex="1" flexDirection="column" minHeight={0}>
@@ -46,11 +47,13 @@ export function LayoutManager() {
         <TabHostContainer
           topBarConnectMyComputerRef={topBarConnectMyComputerRef}
           topBarAccessRequestRef={topBarAccessRequestRef}
+          desktopSessionControlsRef={desktopSessionControlsRef}
         />
         <NotificationsHost />
       </Flex>
       <AccessRequestCheckout />
       <StatusBar
+        desktopSessionControlsRef={desktopSessionControlsRef}
         onAssumedRolesClick={() => {
           // This is a little hacky, but has one advantage:
           // we don't need to expose a way to open/close the popover.

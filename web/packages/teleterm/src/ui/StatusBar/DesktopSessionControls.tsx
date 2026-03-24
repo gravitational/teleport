@@ -23,13 +23,12 @@ import { Clipboard, FolderShared } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import ActionMenu from 'shared/components/DesktopSession/ActionMenu';
 import { AlertDropdown } from 'shared/components/DesktopSession/AlertDropdown';
-
-import type { DesktopSessionStatusBarState } from 'teleterm/ui/services/activeDesktopSession/activeDesktopSessionService';
+import type { DesktopSessionControlsRenderProps } from 'shared/components/DesktopSession/DesktopSession';
 
 export function DesktopSessionControls({
   status,
 }: {
-  status: DesktopSessionStatusBarState;
+  status: DesktopSessionControlsRenderProps;
 }) {
   const theme = useTheme();
 

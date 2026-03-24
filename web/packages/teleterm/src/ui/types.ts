@@ -24,7 +24,6 @@ import {
   TshdEventContextBridgeService,
 } from 'teleterm/types';
 import { CommandLauncher } from 'teleterm/ui/commandLauncher';
-import { ActiveDesktopSessionService } from 'teleterm/ui/services/activeDesktopSession/activeDesktopSessionService';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
@@ -43,7 +42,6 @@ import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 export interface IAppContext {
-  activeDesktopSessionService: ActiveDesktopSessionService;
   clustersService: ClustersService;
   modalsService: ModalsService;
   notificationsService: NotificationsService;

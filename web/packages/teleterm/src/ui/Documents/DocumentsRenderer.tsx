@@ -57,13 +57,21 @@ import { WorkspaceContextProvider } from './workspaceContext';
 export function DocumentsRenderer(props: {
   topBarConnectMyComputerRef: MutableRefObject<HTMLDivElement>;
   topBarAccessRequestRef: MutableRefObject<HTMLDivElement>;
+  desktopSessionControlsRef: MutableRefObject<HTMLDivElement>;
 }) {
   const { workspacesService } = useAppContext();
 
   function renderDocuments(documentsService: DocumentsService) {
     return documentsService.getDocuments().map(doc => {
       const isActiveDoc = workspacesService.isDocumentActive(doc.uri);
-      return <MemoizedDocument doc={doc} visible={isActiveDoc} key={doc.uri} />;
+      return (
+        <MemoizedDocument
+          doc={doc}
+          visible={isActiveDoc}
+          key={doc.uri}
+          desktopSessionControlsRef={props.desktopSessionControlsRef}
+        />
+      );
     });
   }
 
@@ -131,8 +139,12 @@ const DocumentsContainer = styled.div<{ isVisible?: boolean }>`
   display: ${props => (props.isVisible ? 'contents' : 'none')};
 `;
 
-function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
-  const { doc, visible } = props;
+function MemoizedDocument(props: {
+  doc: types.Document;
+  visible: boolean;
+  desktopSessionControlsRef: MutableRefObject<HTMLDivElement>;
+}) {
+  const { doc, visible, desktopSessionControlsRef } = props;
 
   return useMemo(() => {
     switch (doc.kind) {
@@ -176,7 +188,13 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
       case 'doc.vnet_info':
         return <DocumentVnetInfo doc={doc} visible={visible} />;
       case 'doc.desktop_session':
-        return <DocumentDesktopSession doc={doc} visible={visible} />;
+        return (
+          <DocumentDesktopSession
+            doc={doc}
+            visible={visible}
+            desktopSessionControlsRef={desktopSessionControlsRef}
+          />
+        );
       default:
         doc satisfies types.DocumentBlank;
         return (
@@ -187,5 +205,5 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
           </Document>
         );
     }
-  }, [visible, doc]);
+  }, [visible, doc, desktopSessionControlsRef]);
 }

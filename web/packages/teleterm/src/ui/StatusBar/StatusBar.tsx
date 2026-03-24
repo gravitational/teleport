@@ -17,7 +17,7 @@
  */
 
 import { UseQueryResult } from '@tanstack/react-query';
-import { Fragment, useCallback } from 'react';
+import { Fragment, MutableRefObject, useCallback } from 'react';
 import { useTheme } from 'styled-components';
 
 import { ButtonPrimary, Flex, Text } from 'design';
@@ -30,12 +30,13 @@ import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/Connec
 
 import { AccessRequestCheckoutButton } from './AccessRequestCheckoutButton';
 import { statusBarHeight } from './constants';
-import { DesktopSessionControls } from './DesktopSessionControls';
 import { ShareFeedback } from './ShareFeedback';
-import { useActiveDesktopSession } from './useActiveDesktopSession';
 import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
 
-export function StatusBar(props: { onAssumedRolesClick(): void }) {
+export function StatusBar(props: {
+  onAssumedRolesClick(): void;
+  desktopSessionControlsRef: MutableRefObject<HTMLDivElement>;
+}) {
   const breadcrumbs = useActiveDocumentClusterBreadcrumbs();
   const theme = useTheme();
   const rootClusterUri = useStoreSelector(
@@ -45,7 +46,6 @@ export function StatusBar(props: { onAssumedRolesClick(): void }) {
 
   const assumed = useAssumedRequests(rootClusterUri);
   const assumedRolesText = getAssumedRoles(assumed);
-  const desktopSessionStatus = useActiveDesktopSession();
 
   return (
     <Flex
@@ -129,9 +129,11 @@ export function StatusBar(props: { onAssumedRolesClick(): void }) {
             </Text>
           </ButtonPrimary>
         )}
-        {desktopSessionStatus?.isConnected && (
-          <DesktopSessionControls status={desktopSessionStatus} />
-        )}
+        <Flex
+          ref={props.desktopSessionControlsRef}
+          alignItems="center"
+          height="100%"
+        />
         <AccessRequestCheckoutButton />
         <ShareFeedback />
       </Flex>

@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback } from 'react';
+import React from 'react';
 
 import { Attempt } from 'shared/hooks/useAsync';
-import { ButtonState, TdpClient } from 'shared/libs/tdp';
+import { TdpClient } from 'shared/libs/tdp';
 
 import { DesktopSession } from './DesktopSession';
-import useDesktopSession from './useDesktopSession';
+import { DesktopSessionControlsRenderProps } from './DesktopSession';
+import TopBar from './TopBar';
 
 export type DesktopSessionWithSharingProps = {
   client: TdpClient;
@@ -45,32 +46,27 @@ export type DesktopSessionWithSharingProps = {
  * so it can publish session state to the status bar.
  */
 export function DesktopSessionWithSharing({
-  client,
-  aclAttempt,
-  browserSupportsSharing,
-  ...rest
+  ...props
 }: DesktopSessionWithSharingProps) {
-  const sharing = useDesktopSession(client, aclAttempt, browserSupportsSharing);
-
-  const handleCtrlAltDel = useCallback(() => {
-    client.sendKeyboardInput('ControlLeft', ButtonState.DOWN);
-    client.sendKeyboardInput('AltLeft', ButtonState.DOWN);
-    client.sendKeyboardInput('Delete', ButtonState.DOWN);
-  }, [client]);
-
-  const handleDisconnect = useCallback(() => {
-    client.shutdown();
-  }, [client]);
-
   return (
     <DesktopSession
-      client={client}
-      aclAttempt={aclAttempt}
-      {...rest}
-      {...sharing}
-      onCtrlAltDel={handleCtrlAltDel}
-      onDisconnect={handleDisconnect}
-      showTopBar={true}
+      {...props}
+      renderControls={(controls: DesktopSessionControlsRenderProps) => (
+        <TopBar
+          isConnected={controls.isConnected}
+          onDisconnect={controls.onDisconnect}
+          userHost={`${props.username} on ${props.desktop}`}
+          canShareDirectory={controls.canShareDirectory}
+          isSharingDirectory={controls.isSharingDirectory}
+          isSharingClipboard={controls.isSharingClipboard}
+          clipboardSharingMessage={controls.clipboardSharingMessage}
+          onShareDirectory={controls.onShareDirectory}
+          onCtrlAltDel={controls.onCtrlAltDel}
+          alerts={controls.alerts}
+          onRemoveAlert={controls.onRemoveAlert}
+          latency={controls.latencyStats}
+        />
+      )}
     />
   );
 }

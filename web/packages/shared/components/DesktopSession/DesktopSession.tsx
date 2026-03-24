@@ -17,6 +17,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ReactNode } from 'react';
 
 import {
   Alert,
@@ -44,7 +45,6 @@ import {
 } from 'shared/hooks/useAsync';
 import {
   ButtonState,
-  ClipboardData,
   ScrollAxis,
   TdpClient,
   useListener,
@@ -52,22 +52,20 @@ import {
 import { TdpError } from 'shared/libs/tdp/client';
 
 import { InputHandler } from './InputHandler';
-import TopBar from './TopBar';
 import {
   clipboardSharingMessage,
   directorySharingPossible,
   isSharingClipboard,
   isSharingDirectory,
-  type ClipboardSharingState,
-  type DirectorySharingState,
 } from './useDesktopSession';
+import useDesktopSession from './useDesktopSession';
 
 export interface DesktopSessionProps {
   client: TdpClient;
-  /** Username for display purposes. */
-  username: string;
   /** Desktop name for display purposes. */
   desktop: string;
+  /** Determines if the browser client support directory and clipboard sharing. */
+  browserSupportsSharing: boolean;
   /**
    * Injects a custom component that overrides other connection states.
    * Useful for per-session MFA, which differs between Web UI and Connect.
@@ -84,41 +82,44 @@ export interface DesktopSessionProps {
    * Spec can be found here: https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
    */
   keyboardLayout?: number;
-  showTopBar?: boolean;
-  clipboardSharingState: ClipboardSharingState;
-  directorySharingState: DirectorySharingState;
-  clearSharing(): void;
-  onShareDirectory(): void;
+  renderControls(props: DesktopSessionControlsRenderProps): ReactNode;
+}
+
+export interface DesktopSessionControlsRenderProps {
+  canShareDirectory: boolean;
+  isSharingDirectory: boolean;
+  isSharingClipboard: boolean;
+  clipboardSharingMessage: string;
+  onShareDirectory: VoidFunction;
+  onCtrlAltDel: VoidFunction;
+  onDisconnect: VoidFunction;
   alerts: ToastNotificationItem[];
   onRemoveAlert(id: string): void;
-  addAlert(alert: Omit<ToastNotificationItem, 'id'>): void;
-  sendLocalClipboardToRemote(): void;
-  onClipboardData(clipboardData: ClipboardData): void;
-  onCtrlAltDel(): void;
-  onDisconnect(): void;
+  isConnected: boolean;
+  latencyStats: Latency;
 }
 
 export function DesktopSession({
   client,
-  username,
   desktop,
   aclAttempt,
   hasAnotherSession,
   customConnectionState,
   keyboardLayout = 0,
-  showTopBar,
-  clipboardSharingState,
-  directorySharingState,
-  clearSharing,
-  onShareDirectory,
-  alerts,
-  onRemoveAlert,
-  addAlert,
-  sendLocalClipboardToRemote,
-  onClipboardData,
-  onCtrlAltDel,
-  onDisconnect,
+  renderControls,
+  browserSupportsSharing,
 }: DesktopSessionProps) {
+  const {
+    directorySharingState,
+    onClipboardData,
+    sendLocalClipboardToRemote,
+    clipboardSharingState,
+    clearSharing,
+    onShareDirectory,
+    alerts,
+    onRemoveAlert,
+    addAlert,
+  } = useDesktopSession(client, aclAttempt, browserSupportsSharing);
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
 
@@ -349,6 +350,25 @@ export function DesktopSession({
     customConnectionState?.({ retry: onRetry })
   );
 
+  function handleCtrlAltDel() {
+    client.sendKeyboardInput('ControlLeft', ButtonState.DOWN);
+    client.sendKeyboardInput('AltLeft', ButtonState.DOWN);
+    client.sendKeyboardInput('Delete', ButtonState.DOWN);
+  }
+
+  const controlsProps: DesktopSessionControlsRenderProps = {
+    canShareDirectory: directorySharingPossible(directorySharingState),
+    isSharingDirectory: isSharingDirectory(directorySharingState),
+    isSharingClipboard: isSharingClipboard(clipboardSharingState),
+    clipboardSharingMessage: clipboardSharingMessage(clipboardSharingState),
+    onShareDirectory,
+    onCtrlAltDel: handleCtrlAltDel,
+    onDisconnect: () => client.shutdown(),
+    alerts,
+    onRemoveAlert,
+    isConnected: screenState.state === 'canvas-visible',
+    latencyStats,
+  };
   return (
     <Flex
       flexDirection="column"
@@ -359,24 +379,7 @@ export function DesktopSession({
         height: 100%;
       `}
     >
-      {showTopBar && (
-        <TopBar
-          isConnected={screenState.state === 'canvas-visible'}
-          onDisconnect={onDisconnect}
-          userHost={`${username} on ${desktop}`}
-          canShareDirectory={directorySharingPossible(directorySharingState)}
-          isSharingDirectory={isSharingDirectory(directorySharingState)}
-          isSharingClipboard={isSharingClipboard(clipboardSharingState)}
-          clipboardSharingMessage={clipboardSharingMessage(
-            clipboardSharingState
-          )}
-          onShareDirectory={onShareDirectory}
-          onCtrlAltDel={onCtrlAltDel}
-          alerts={alerts}
-          onRemoveAlert={onRemoveAlert}
-          latency={latencyStats}
-        />
-      )}
+      {renderControls(controlsProps)}
 
       {/* The UI states below (except the loading indicator) take up space.*/}
       {/* They're hidden while the canvas is visible, so when `connect()` reads the screen size, */}
