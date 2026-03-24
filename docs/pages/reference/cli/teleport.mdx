@@ -383,7 +383,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|PROFILES|none (optional)|Comma-separated profile names to be exported. Supported profiles: allocs,block,cmdline,profile,trace,goroutine,heap,mutex,threadcreate. Default: goroutine,heap,profile|
+|PROFILES|none (optional)|Comma-separated profile names to be exported. Supported profiles: allocs,block,cmdline,goroutine,heap,mutex,profile,threadcreate,trace. Default: goroutine,heap,profile|
 
 ## teleport debug readyz
 
@@ -483,7 +483,7 @@ service.
 Usage:
 
 ```code
-$ teleport integration configure access-graph aws-iam --role=ROLE [<flags>]
+$ teleport integration configure access-graph aws-iam [<flags>]
 ```
 
 Flags:
@@ -506,7 +506,7 @@ service.
 Usage:
 
 ```code
-$ teleport integration configure access-graph azure --managed-identity=MANAGED-IDENTITY --role-name=ROLE-NAME [<flags>]
+$ teleport integration configure access-graph azure [<flags>]
 ```
 
 Flags:
@@ -525,7 +525,7 @@ Adds required IAM permissions to connect to AWS using App Access.
 Usage:
 
 ```code
-$ teleport integration configure aws-app-access-iam --role=ROLE [<flags>]
+$ teleport integration configure aws-app-access-iam [<flags>]
 ```
 
 Flags:
@@ -544,7 +544,7 @@ to access AWS APIs.
 Usage:
 
 ```code
-$ teleport integration configure awsoidc-idp --cluster=CLUSTER --name=NAME --role=ROLE --proxy-public-url=PROXY-PUBLIC-URL [<flags>]
+$ teleport integration configure awsoidc-idp [<flags>]
 ```
 
 Flags:
@@ -566,7 +566,7 @@ Configure AWS IAM Roles Anywhere Integration by creating resources in AWS.
 Usage:
 
 ```code
-$ teleport integration configure awsra-trust-anchor --cluster=CLUSTER --name=NAME --trust-anchor=TRUST-ANCHOR --trust-anchor-cert-b64=TRUST-ANCHOR-CERT-B64 --sync-profile=SYNC-PROFILE --sync-role=SYNC-ROLE [<flags>]
+$ teleport integration configure awsra-trust-anchor [<flags>]
 ```
 
 Flags:
@@ -588,7 +588,7 @@ Configures Azure / Entra ID OIDC integration.
 Usage:
 
 ```code
-$ teleport integration configure azure-oidc --proxy-public-addr=PROXY-PUBLIC-ADDR --auth-connector-name=AUTH-CONNECTOR-NAME [<flags>]
+$ teleport integration configure azure-oidc [<flags>]
 ```
 
 Flags:
@@ -607,7 +607,7 @@ Create the required IAM Roles for the AWS OIDC Deploy Service.
 Usage:
 
 ```code
-$ teleport integration configure deployservice-iam --cluster=CLUSTER --name=NAME --aws-region=AWS-REGION --role=ROLE --task-role=TASK-ROLE [<flags>]
+$ teleport integration configure deployservice-iam [<flags>]
 ```
 
 Flags:
@@ -630,7 +630,7 @@ SSM.
 Usage:
 
 ```code
-$ teleport integration configure ec2-ssm-iam --role=ROLE --aws-region=AWS-REGION --cluster=CLUSTER --name=NAME [<flags>]
+$ teleport integration configure ec2-ssm-iam [<flags>]
 ```
 
 Flags:
@@ -653,7 +653,7 @@ Adds required IAM permissions for enrollment of EKS clusters to Teleport.
 Usage:
 
 ```code
-$ teleport integration configure eks-iam --aws-region=AWS-REGION --role=ROLE [<flags>]
+$ teleport integration configure eks-iam [<flags>]
 ```
 
 Flags:
@@ -673,7 +673,7 @@ External Audit Storage logs.
 Usage:
 
 ```code
-$ teleport integration configure externalauditstorage --aws-region=AWS-REGION --cluster-name=CLUSTER-NAME --integration=INTEGRATION --role=ROLE --policy=POLICY --session-recordings=SESSION-RECORDINGS --audit-events=AUDIT-EVENTS --athena-results=ATHENA-RESULTS --athena-workgroup=ATHENA-WORKGROUP --glue-database=GLUE-DATABASE --glue-table=GLUE-TABLE [<flags>]
+$ teleport integration configure externalauditstorage [<flags>]
 ```
 
 Flags:
@@ -702,7 +702,7 @@ Adds required IAM permissions to List RDS Databases (Instances and Clusters).
 Usage:
 
 ```code
-$ teleport integration configure listdatabases-iam --aws-region=AWS-REGION --role=ROLE [<flags>]
+$ teleport integration configure listdatabases-iam [<flags>]
 ```
 
 Flags:
@@ -721,7 +721,7 @@ Configures GCP Workforce Identity Federation pool and SAML provider.
 Usage:
 
 ```code
-$ teleport integration configure samlidp gcp-workforce --org-id=ORG-ID --pool-name=POOL-NAME --pool-provider-name=POOL-PROVIDER-NAME --idp-metadata-url=IDP-METADATA-URL
+$ teleport integration configure samlidp gcp-workforce [<flags>]
 ```
 
 Flags:
@@ -741,7 +741,7 @@ Bedrock.
 Usage:
 
 ```code
-$ teleport integration configure session-summaries bedrock --role=ROLE [<flags>]
+$ teleport integration configure session-summaries bedrock [<flags>]
 ```
 
 Flags:
@@ -826,7 +826,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--advertise-ip`|none|IP to advertise to clients if running behind NAT|
-|`--apply-on-startup`|none|Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: \[user token cluster_networking_config cluster_auth_preference bot role\].|
+|`--apply-on-startup`|none|Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: \[bot cluster_auth_preference cluster_networking_config role token user\].|
 |`--auth-server`|none|Address of the auth server \[127.0.0.1:3025\]|
 |`--bootstrap`|none|Path to a non-empty YAML file containing bootstrap resources (ignored if already initialized)|
 |`--ca-pin`|none|CA pin to validate the Auth Server (can be repeated for multiple pins)|

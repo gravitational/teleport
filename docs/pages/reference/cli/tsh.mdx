@@ -537,7 +537,7 @@ Opens a browser and retrieves your login from GitHub.
 Usage:
 
 ```code
-$ tsh git login --github-org=GITHUB-ORG [<flags>]
+$ tsh git login [<flags>]
 ```
 
 Flags:
@@ -861,7 +861,7 @@ Flags:
 |`--request-reason`|none|Reason for requesting additional roles.|
 |`--request-reviewers`|none|Suggested reviewers for role request.|
 |`--request-roles`|none|Request one or more extra roles.|
-|`--scope`|none|Scope pins credentials to a given scope.|
+|`--scope`|none|Scope pins credentials to a given scope. Use "" to explicitly remove scoping.|
 |`-v`, `--[no-]verbose`|`false`|Show extra status information.|
 
 Arguments:
@@ -1342,7 +1342,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g. 2023-12-12T23:20:50.52Z).|
+|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).|
 |`--max-duration`|none|How long the access should be granted for.|
 |`--[no-]nowait`|`false`|Finish without waiting for request resolution.|
 |`--reason`|none|Reason for requesting.|
@@ -1354,7 +1354,7 @@ Flags:
 
 ## tsh request drop
 
-Drop one more Access Requests from current identity.
+Drop one or more Access Requests from current identity.
 
 Usage:
 
@@ -1401,7 +1401,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g. 2023-12-12T23:20:50.52Z).|
+|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).|
 |`--[no-]approve`|`false`|Review proposes approval.|
 |`--[no-]deny`|`false`|Review proposes denial.|
 |`--reason`|none|Review reason message.|
@@ -1498,7 +1498,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--dirs`|`/Users/`|Directories to scan.|
+|`--dirs`|`<system dependent: /home/, /Users/, or C:\\Users\\>`|Directories to scan.|
 |`--skip-paths`|none|Paths to directories or files to skip. Supports for matching patterns.|
 
 ## tsh scopes ls
@@ -1695,13 +1695,13 @@ $ tsh vnet-ssh-autoconfig
 
 ## tsh workload-identity issue-x509
 
-Use Teleport Workload Identity to issue an X509 credential write it to a local
-directory.
+Use Teleport Workload Identity to issue an X509 credential and write it to a
+local directory.
 
 Usage:
 
 ```code
-$ tsh workload-identity issue-x509 --output=OUTPUT [<flags>]
+$ tsh workload-identity issue-x509 [<flags>]
 ```
 
 Flags:

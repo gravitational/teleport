@@ -465,7 +465,7 @@ authorities.
 Usage:
 
 ```code
-$ tctl auth crl --type=TYPE [<flags>]
+$ tctl auth crl [<flags>]
 ```
 
 Flags:
@@ -540,7 +540,7 @@ Create an identity file(s) for a given user.
 Usage:
 
 ```code
-$ tctl auth sign --out=OUT [<flags>]
+$ tctl auth sign [<flags>]
 ```
 
 Flags:
@@ -1109,7 +1109,7 @@ Test expression evaluation of attribute mapping.
 Usage:
 
 ```code
-$ tctl idp saml test-attribute-mapping --users=USERS --sp=SP [<flags>]
+$ tctl idp saml test-attribute-mapping [<flags>]
 ```
 
 Flags:
@@ -1318,7 +1318,7 @@ Create a cluster notification.
 Usage:
 
 ```code
-$ tctl notifications create --title=TITLE --content=CONTENT [<flags>]
+$ tctl notifications create [<flags>]
 ```
 
 Flags:
@@ -1441,7 +1441,7 @@ Install an AWS IAM Identity Center integration.
 Usage:
 
 ```code
-$ tctl plugins install awsic --access-list-default-owner=ACCESS-LIST-DEFAULT-OWNER --scim-url=SCIM-URL --scim-token=SCIM-TOKEN --instance-region=INSTANCE-REGION --instance-arn=INSTANCE-ARN [<flags>]
+$ tctl plugins install awsic [<flags>]
 ```
 
 Flags:
@@ -1474,7 +1474,7 @@ Install an Microsoft Entra ID integration.
 Usage:
 
 ```code
-$ tctl plugins install entraid --default-owner=DEFAULT-OWNER [<flags>]
+$ tctl plugins install entraid [<flags>]
 ```
 
 Flags:
@@ -1533,7 +1533,7 @@ Install an Okta integration.
 Usage:
 
 ```code
-$ tctl plugins install okta --org=ORG --saml-connector=SAML-CONNECTOR [<flags>]
+$ tctl plugins install okta [<flags>]
 ```
 
 Flags:
@@ -1562,7 +1562,7 @@ Install a Teleport SCIM plugin.
 Usage:
 
 ```code
-$ tctl plugins install scim --connector=CONNECTOR [<flags>]
+$ tctl plugins install scim [<flags>]
 ```
 
 Flags:
@@ -1715,7 +1715,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--annotations`|none|Resolution attributes \<key\>=\<val\>\[,...\]|
-|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g. 2023-12-12T23:20:50.52Z)|
+|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)|
 |`--delegator`|none|Optional delegating identity|
 |`--reason`|none|Optional reason message|
 |`--roles`|none|Override requested roles \<role\>\[,...\]|
@@ -1815,7 +1815,7 @@ Review an Access Request.
 Usage:
 
 ```code
-$ tctl requests review --author=AUTHOR [<flags>] <request-id>
+$ tctl requests review [<flags>] <request-id>
 ```
 
 Flags:
@@ -1909,7 +1909,7 @@ Create a scoped invitation token.
 Usage:
 
 ```code
-$ tctl scoped tokens add --type=TYPE [<flags>]
+$ tctl scoped tokens add [<flags>]
 ```
 
 Flags:
@@ -1966,7 +1966,7 @@ Configure GitHub auth connector.
 Usage:
 
 ```code
-$ tctl sso configure github --teams-to-roles=org,team,role1,role2,... --id=ID --secret=SECRET [<flags>]
+$ tctl sso configure github [<flags>]
 ```
 
 Flags:
@@ -1991,7 +1991,7 @@ Configure OIDC auth connector, optionally using a preset. Available presets:
 Usage:
 
 ```code
-$ tctl sso configure oidc --claims-to-roles=name,value,role1,role2,... --secret=SECRET [<flags>]
+$ tctl sso configure oidc [<flags>]
 ```
 
 Flags:
@@ -2025,7 +2025,7 @@ Configure SAML auth connector, optionally using a preset. Available presets:
 Usage:
 
 ```code
-$ tctl sso configure saml --attributes-to-roles=ATTRIBUTES-TO-ROLES [<flags>]
+$ tctl sso configure saml [<flags>]
 ```
 
 Flags:
@@ -2101,7 +2101,7 @@ $ tctl status
 
 ## tctl terraform env
 
-Obtain certificates and load them into environments variables. This creates a
+Obtain certificates and load them into environment variables. This creates a
 temporary MachineID bot.
 
 Usage:
@@ -2125,7 +2125,7 @@ Create a invitation token.
 Usage:
 
 ```code
-$ tctl tokens add --type=TYPE [<flags>]
+$ tctl tokens add [<flags>]
 ```
 
 Flags:
@@ -2151,7 +2151,7 @@ Teleport cluster.
 Usage:
 
 ```code
-$ tctl tokens configure-kube --service-account=SERVICE-ACCOUNT [<flags>]
+$ tctl tokens configure-kube [<flags>]
 ```
 
 Flags:
@@ -2163,7 +2163,7 @@ Flags:
 |`--context`|none|Kubernetes context to use. When not set, defaults to the active context.|
 |`-f`, `--[no-]force`|`false`|Force the token creation, even if the token already exists|
 |`-j`, `--join-with`|`auto`|Kubernetes joining type, possible values are 'oidc', 'jwks', and 'auto'. See https://goteleport.com/docs/reference/join-methods/#kubernetes-kubernetes for more details.|
-|`-n`, `--namespace`|`teleport`|Namespace of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is release namespace.|
+|`-n`, `--namespace`|`teleport`|Namespace of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is the release namespace.|
 |`-o`, `--out`|`./values.yaml`|Path of the output file.|
 |`-s`, `--service-account`|none|Name of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is the release name.|
 |`--token-name`|none|Optional name of the created join token. When not set, default to '\<CLUSTER_NAME\>(-\<BOT_NAME\>)'|
@@ -2256,7 +2256,7 @@ Generate a user invitation token [Teleport local users only].
 Usage:
 
 ```code
-$ tctl users add --roles=ROLES [<flags>] <account>
+$ tctl users add [<flags>] <account>
 ```
 
 Flags:
@@ -2397,14 +2397,14 @@ Create a new revocation.
 Usage:
 
 ```code
-$ tctl workload-identity revocations add --serial=SERIAL --type=TYPE --reason=REASON [<flags>]
+$ tctl workload-identity revocations add [<flags>]
 ```
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--expires-at`|none|Time that the revocation should expire, usually this should match the expiry time of the credential. This should be specified using RFC3339 e.g. '2024-02-05T15:04:00Z'. If unspecified, the time 1 week from now is used.|
+|`--expires-at`|none|Time that the revocation should expire, usually this should match the expiry time of the credential. This should be specified using RFC3339 e.g '2024-02-05T15:04:00Z'. If unspecified, the time 1 week from now is used.|
 |`--reason`|none|Reason for revocation.|
 |`--serial`|none|Serial number of the certificate to revoke.|
 |`--type`|none|Type of credential to revoke (x509)|
@@ -2443,7 +2443,7 @@ Delete a revocation.
 Usage:
 
 ```code
-$ tctl workload-identity revocations rm --serial=SERIAL --type=TYPE
+$ tctl workload-identity revocations rm [<flags>]
 ```
 
 Flags:

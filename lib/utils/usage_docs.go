@@ -61,43 +61,80 @@ func formatThreeColMarkdownTable(rows [][3]string) string {
 	return buf.String()
 }
 
-// flagsToRows outputs data for a table that lists flags, their default
-// values, and help texts.
-func flagsToRows(f []*kingpin.FlagModel) [][3]string {
-	rows := [][3]string{}
-
-	for _, flag := range f {
-		// Skip hidden flags and flags whose only purpose is to expose
-		// YAML-based default env variables.
-		if flag.Hidden || flag.Name == flag.Envar {
-			continue
+// makeFlagsToRows returns a template function that outputs data for a table
+// that lists flags, their default values, and help texts. Hidden flags are
+// shown if they belong to fullCommand in the overrides map.
+func makeFlagsToRows(overrides []hiddenFlagOverride) func(fullCommand string, f []*kingpin.FlagModel) [][3]string {
+	// maps full commands to the set of flag names that are unhidden
+	cmdToFlags := make(map[string]map[string]struct{})
+	for _, o := range overrides {
+		if _, ok := cmdToFlags[o.FullCommand]; !ok {
+			cmdToFlags[o.FullCommand] = make(map[string]struct{})
 		}
-		flagString := ""
-		flagName := flag.Name
-		if flag.IsBoolFlag() {
-			flagName = "[no-]" + flagName
-		}
-		if flag.Short != 0 {
-			flagString += fmt.Sprintf("`-%c`, `--%s`", flag.Short, flagName)
-		} else {
-			flagString += fmt.Sprintf("`--%s`", flagName)
-		}
-
-		rows = append(rows, [3]string{
-			flagString,
-			formatDefaultFlagValue(flag),
-			formatHelp(flag.Help),
-		})
+		cmdToFlags[o.FullCommand][o.Flag] = struct{}{}
 	}
-	return rows
+
+	return func(fullCommand string, f []*kingpin.FlagModel) [][3]string {
+		rows := [][3]string{}
+		overriddenFlags := cmdToFlags[fullCommand]
+
+		for _, flag := range f {
+			// Skip flags whose only purpose is to expose
+			// YAML-based default env variables.
+			if flag.Name == flag.Envar {
+				continue
+			}
+			// Skip hidden flags unless overridden for this command.
+			if flag.Hidden {
+				if _, ok := overriddenFlags[flag.Name]; !ok {
+					continue
+				}
+			}
+			flagString := ""
+			flagName := flag.Name
+			if flag.IsBoolFlag() {
+				flagName = "[no-]" + flagName
+			}
+			if flag.Short != 0 {
+				flagString += fmt.Sprintf("`-%c`, `--%s`", flag.Short, flagName)
+			} else {
+				flagString += fmt.Sprintf("`--%s`", flagName)
+			}
+
+			rows = append(rows, [3]string{
+				flagString,
+				formatDefaultFlagValue(flag),
+				formatHelp(flag.Help),
+			})
+		}
+		return rows
+	}
 }
 
-// anyVisibleFlags returns whether any flags in f are visible, i.e., should be
-// included in a table of flags.
-func anyVisibleFlags(f []*kingpin.FlagModel) bool {
-	return slices.ContainsFunc(f, func(m *kingpin.FlagModel) bool {
-		return !m.Hidden
-	})
+// makeAnyVisibleFlags returns a template function that reports whether any
+// flags in f are visible, i.e., should be included in a table of flags.
+// Hidden flags count as visible if they belong to fullCommand in the overrides
+// map.
+func makeAnyVisibleFlags(overrides []hiddenFlagOverride) func(fullCommand string, f []*kingpin.FlagModel) bool {
+	// maps full commands to the set of flag names that are unhidden
+	cmdToFlags := make(map[string]map[string]struct{})
+	for _, o := range overrides {
+		if _, ok := cmdToFlags[o.FullCommand]; !ok {
+			cmdToFlags[o.FullCommand] = make(map[string]struct{})
+		}
+		cmdToFlags[o.FullCommand][o.Flag] = struct{}{}
+	}
+
+	return func(fullCommand string, f []*kingpin.FlagModel) bool {
+		overriddenFlags := cmdToFlags[fullCommand]
+		return slices.ContainsFunc(f, func(m *kingpin.FlagModel) bool {
+			if !m.Hidden {
+				return true
+			}
+			_, ok := overriddenFlags[m.Name]
+			return ok
+		})
+	}
 }
 
 // anyEnvVarsForCmd indicates whether at least one of the arguments and flags
@@ -250,6 +287,34 @@ func formatUsageArg(arg *kingpin.ArgModel) string {
 	return ret
 }
 
+// formatUsageCodeFence returns a complete usage code fence, e.g.:
+//
+//	```code
+//	$ tsh ssh [<flags>] [<host>]
+//	```
+//
+// anyFlags controls whether "[<flags>]" is included; hidden args are omitted.
+// A non-empty cmds appends " <command> [<args> ...]" for top-level app usage.
+func formatUsageCodeFence(cmdName string, anyFlags bool, args []*kingpin.ArgModel, cmds []*kingpin.CmdModel) string {
+	var b strings.Builder
+	b.WriteString("```code\n$ ")
+	b.WriteString(cmdName)
+	if anyFlags {
+		b.WriteString(" [<flags>]")
+	}
+	for _, arg := range args {
+		if !arg.Hidden {
+			b.WriteString(" ")
+			b.WriteString(formatUsageArg(arg))
+		}
+	}
+	if len(cmds) > 0 {
+		b.WriteString(" <command> [<args> ...]")
+	}
+	b.WriteString("\n```\n")
+	return b.String()
+}
+
 // formatHelp prints help text to include in a Markdown table cell. It escapes
 // curly, angle, and square braces to avoid breaking the MDX parser, and it
 // escapes pipes to avoid breaking the cell.
@@ -268,7 +333,7 @@ func formatHelp(help string) string {
 // docsUsageTemplatePath points to a help text template for CLI reference
 // documentation. Intended to be used as the argument to
 // *kingpin.Application.UsageTemplate.
-var docsUsageTemplatePath = filepath.Join("lib", "utils", "docs-usage.md.tmpl")
+var docsUsageTemplatePath = filepath.Join("lib", "utils", "usage_docs.md.tmpl")
 
 // updateAppUsageTemplatePath updates the app usage template to print a reference
 // guide for the CLI application. It reads the template from r and uses the
@@ -308,6 +373,8 @@ func updateAppUsageTemplate(r io.Reader, config generatorConfig, app *kingpin.Ap
 
 	replaceFlagDefaults := makeDefaultFlagValueOverrider(config.FlagDefaultOverrides)
 	replaceArgDefaults := makeDefaultArgValueOverrider(config.ArgDefaultOverrides)
+	flagsToRows := makeFlagsToRows(config.HiddenFlagOverrides)
+	anyVisibleFlags := makeAnyVisibleFlags(config.HiddenFlagOverrides)
 
 	// We override the default app description with a custom description
 	// that is better suited to the docs.
@@ -321,6 +388,7 @@ func updateAppUsageTemplate(r io.Reader, config generatorConfig, app *kingpin.Ap
 		"FlagsToRows":                 flagsToRows,
 		"FormatThreeColMarkdownTable": formatThreeColMarkdownTable,
 		"FormatUsageArg":              formatUsageArg,
+		"FormatUsageCodeFence":        formatUsageCodeFence,
 		"ReplaceFlagDefaults":         replaceFlagDefaults,
 		"ReplaceArgDefaults":          replaceArgDefaults,
 		"SortCommandsByName":          sortCommandsByName,
@@ -340,6 +408,7 @@ type generatorConfig struct {
 	EnvVars              map[string]envVarDefault `yaml:"env_vars"`
 	FlagDefaultOverrides []flagDefaultOverride    `yaml:"flag_default_overrides"`
 	ArgDefaultOverrides  []argDefaultOverride     `yaml:"arg_default_overrides"`
+	HiddenFlagOverrides  []hiddenFlagOverride     `yaml:"hidden_flag_overrides"`
 }
 
 type flagDefaultOverride struct {
@@ -352,6 +421,11 @@ type argDefaultOverride struct {
 	FullCommand string `yaml:"full_command"`
 	Arg         string `yaml:"arg"`
 	Value       string `yaml:"value"`
+}
+
+type hiddenFlagOverride struct {
+	FullCommand string `yaml:"full_command"`
+	Flag        string `yaml:"arg"`
 }
 
 // loadConfig loads possible default environment variables defined in a YAML file
