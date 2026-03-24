@@ -34,7 +34,9 @@ export function LoginFailed() {
       <Route path={cfg.routes.loginErrorUnauthorized}>
         <LoginFailedComponent message="You are not authorized, please contact your SSO administrator." />
       </Route>
-      <Route component={LoginFailed} />
+      <Route>
+        <LoginFailedComponent />
+      </Route>
     </Switch>
   );
 }

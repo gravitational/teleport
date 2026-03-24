@@ -6179,7 +6179,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting TLS ALPN SNI proxy server on.", "listen_address", logutils.StringerAttr(listeners.alpn.Addr()))
 			if err := alpnServer.Serve(process.ExitContext()); err != nil {
-				logger.WarnContext(process.ExitContext(), "TLS ALPN SNI proxy proxy server exited with error.", "error", err)
+				logger.WarnContext(process.ExitContext(), "TLS ALPN SNI proxy server exited with error.", "error", err)
 			}
 			return nil
 		})
@@ -6200,7 +6200,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy.reverseTunnel", func() error {
 				logger.InfoContext(process.ExitContext(), "Starting TLS ALPN SNI reverse tunnel proxy server.", "listen_address", listeners.reverseTunnelALPN.Addr())
 				if err := reverseTunnelALPNServer.Serve(process.ExitContext()); err != nil {
-					logger.WarnContext(process.ExitContext(), "TLS ALPN SNI proxy proxy on reverse tunnel server exited with error.", "error", err)
+					logger.WarnContext(process.ExitContext(), "TLS ALPN SNI proxy on reverse tunnel server exited with error.", "error", err)
 				}
 				return nil
 			})

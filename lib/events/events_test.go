@@ -289,6 +289,10 @@ var eventsMap = map[string]apievents.AuditEvent{
 	SCIMUpdateEvent:                               &apievents.SCIMResourceEvent{},
 	SCIMDeleteEvent:                               &apievents.SCIMResourceEvent{},
 	SCIMPatchEvent:                                &apievents.SCIMResourceEvent{},
+	CertAuthOverrideCreateEvent:                   &apievents.CertAuthorityOverrideEvent{},
+	CertAuthOverrideUpdateEvent:                   &apievents.CertAuthorityOverrideEvent{},
+	CertAuthOverrideUpsertEvent:                   &apievents.CertAuthorityOverrideEvent{},
+	CertAuthOverrideDeleteEvent:                   &apievents.CertAuthorityOverrideEvent{},
 }
 
 // TestJSON tests JSON marshal events

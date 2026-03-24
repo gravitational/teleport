@@ -64,6 +64,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		// saml_idp_service_provider objects using tctl for any build. We
 		// therefore enable it here unconditionally to mirror tctl behavior.
 		{"TeleportSAMLIdPServiceProviderV1", NewSAMLIdPServiceProviderV1Reconciler},
+		{"TeleportScopedTokenV1", NewScopedTokenV1Reconciler},
 	}
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)

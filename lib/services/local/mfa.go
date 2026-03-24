@@ -35,6 +35,11 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
+// ValidatedMFAChallengeExpiry is the TTL for ValidatedMFAChallenge resources. This value is chosen to be long enough to
+// allow for replication to leaf clusters and retries of replication in the event of transient errors, but short enough
+// to ensure that stale challenges don't persist indefinitely if they fail to replicate.
+const ValidatedMFAChallengeExpiry = 5 * time.Minute
+
 // MFAService implements the storage layer for MFA resources.
 type MFAService struct {
 	logger  *slog.Logger
@@ -89,7 +94,7 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 	svc := s.service.WithPrefix(targetCluster)
 
 	// All validated MFA challenges must expire after 5 minutes.
-	chal.Metadata.SetExpiry(time.Now().Add(5 * time.Minute))
+	chal.Metadata.SetExpiry(time.Now().Add(ValidatedMFAChallengeExpiry))
 
 	res, err := svc.CreateResource(ctx, challenge)
 	if err != nil {
@@ -156,6 +161,10 @@ func (s *MFAService) ListValidatedMFAChallenges(
 type validatedMFAChallenge mfav1.ValidatedMFAChallenge
 
 func (r *validatedMFAChallenge) GetMetadata() *headerv1.Metadata {
+	if r == nil || r.Metadata == nil {
+		return &headerv1.Metadata{}
+	}
+
 	return types.LegacyTo153Metadata(*r.Metadata)
 }
 
@@ -225,15 +234,24 @@ func checkValidatedMFAChallenge(chal *validatedMFAChallenge) error {
 
 type validatedMFAChallengeParser struct {
 	baseParser
+
+	filter types.ValidatedMFAChallengeFilter
 }
 
-func newValidatedMFAChallengeParser() *validatedMFAChallengeParser {
+func newValidatedMFAChallengeParser(filter map[string]string) *validatedMFAChallengeParser {
+	var parsedFilter types.ValidatedMFAChallengeFilter
+
+	parsedFilter.FromMap(filter)
+
 	return &validatedMFAChallengeParser{
 		baseParser: newBaseParser(backend.ExactKey(types.KindValidatedMFAChallenge)),
+		filter:     parsedFilter,
 	}
 }
 
 func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource, error) {
+	var chal *mfav1.ValidatedMFAChallenge
+
 	switch event.Type {
 	case types.OpDelete:
 		// Inflate key components into a challenge so consumers can access the backend key structure directly from the
@@ -245,7 +263,7 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
 
-		chal := &mfav1.ValidatedMFAChallenge{
+		chal = &mfav1.ValidatedMFAChallenge{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
 			Metadata: &types.Metadata{
@@ -257,8 +275,6 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 			},
 		}
 
-		return types.LegacyMetadataToResource(chal), nil
-
 	case types.OpPut:
 		resource, err := UnmarshalValidatedMFAChallenge(
 			event.Item.Value,
@@ -269,11 +285,17 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 			return nil, trace.Wrap(err)
 		}
 
-		chal := (*mfav1.ValidatedMFAChallenge)(resource)
-
-		return types.LegacyMetadataToResource(chal), nil
+		chal = (*mfav1.ValidatedMFAChallenge)(resource)
 
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
+
+	// If the filter specifies a target cluster and it doesn't match the challenge's target cluster, this event is not
+	// relevant to the watcher and should be ignored.
+	if p.filter.TargetCluster != "" && !p.filter.Match(chal.GetSpec().GetTargetCluster()) {
+		return nil, nil
+	}
+
+	return types.LegacyMetadataToResource(chal), nil
 }

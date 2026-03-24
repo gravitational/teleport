@@ -86,10 +86,15 @@ func NewValidatedMFAChallengeWatcher(
 		return resp.GetValidatedChallenges(), resp.GetNextPageToken(), nil
 	}
 
+	filter := &types.ValidatedMFAChallengeFilter{
+		TargetCluster: cfg.ClusterName,
+	}
+
 	w, err := services.NewGenericResourceWatcher(
 		ctx,
 		services.GenericWatcherConfig[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]{
 			ResourceKind:          types.KindValidatedMFAChallenge,
+			ResourceFilter:        filter.IntoMap(),
 			ResourceWatcherConfig: *cfg.ResourceWatcherConfig,
 			CloneFunc:             apiutils.CloneProtoMsg[*mfav1.ValidatedMFAChallenge],
 			ReadOnlyFunc:          apiutils.CloneProtoMsg[*mfav1.ValidatedMFAChallenge],
@@ -107,7 +112,7 @@ func NewValidatedMFAChallengeWatcher(
 				).String()
 			},
 			DeleteKey: func(resource types.Resource) string {
-				chal, err := convertResource[*mfav1.ValidatedMFAChallenge](resource)
+				chal, err := types.ConvertResource[*mfav1.ValidatedMFAChallenge](resource)
 				if err != nil {
 					return resource.GetMetadata().Description + resource.GetName()
 				}
@@ -126,21 +131,8 @@ func NewValidatedMFAChallengeWatcher(
 		return nil, trace.Wrap(err)
 	}
 
+	// Inject kind filter into watcher to scope it to the cluster. This ensures that the watcher will only receive
+	// events for ValidatedMFAChallenges with the correct target cluster.
+
 	return w, nil
-}
-
-// convertResource is a generic helper func that converts a [types.Resource] by direct type assertion or assertion to an
-// [types.Resource153UnwrapperT].
-// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
-func convertResource[T any](resource types.Resource) (T, error) {
-	switch resource := resource.(type) {
-	case interface{ UnwrapT() T }:
-		return resource.UnwrapT(), nil
-
-	case T:
-		return resource, nil
-	}
-
-	var zero T
-	return zero, trace.BadParameter("expected resource type %T, got %T", zero, resource)
 }

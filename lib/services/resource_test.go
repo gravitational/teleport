@@ -325,27 +325,27 @@ func TestConvertResource(t *testing.T) {
 
 	t.Run("converts legacy to RFD 153 resource", func(t *testing.T) {
 		resource := types.Resource153ToLegacy(healthCfg)
-		got, err := convertResource[*healthcheckconfigv1.HealthCheckConfig](resource)
+		got, err := types.ConvertResource[*healthcheckconfigv1.HealthCheckConfig](resource)
 		require.NoError(t, err)
 		require.Equal(t, healthCfg, got)
 	})
 
 	t.Run("converts legacy to legacy", func(t *testing.T) {
 		resource := user.DeepCopy()
-		got, err := convertResource[*types.UserV2](types.Resource(resource))
+		got, err := types.ConvertResource[*types.UserV2](types.Resource(resource))
 		require.NoError(t, err)
 		require.Equal(t, user, got)
 	})
 
 	t.Run("handles unexpected RFD 153 resource", func(t *testing.T) {
 		resource := types.Resource153ToLegacy(healthCfg)
-		_, err := convertResource[*types.Server](resource)
+		_, err := types.ConvertResource[*types.Server](resource)
 		require.ErrorContains(t, err, "expected resource type *types.Server, got *types.resource153ToLegacyAdapter")
 	})
 
 	t.Run("handles unexpected legacy resource", func(t *testing.T) {
 		resource := user.DeepCopy()
-		_, err := convertResource[*types.Server](types.Resource(resource))
+		_, err := types.ConvertResource[*types.Server](types.Resource(resource))
 		require.ErrorContains(t, err, "expected resource type *types.Server, got *types.UserV2")
 	})
 }

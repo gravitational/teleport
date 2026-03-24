@@ -17,7 +17,7 @@
  */
 
 import { ReactNode } from 'react';
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink } from 'react-router';
 import styled from 'styled-components';
 
 import { Link as ExternalLink, Flex, Label, Text } from 'design';

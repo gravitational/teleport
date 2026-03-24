@@ -30,15 +30,17 @@ export function AddBots() {
       <Switch>
         <Route
           path={cfg.getBotsNewRoute(BotFlowType.GitHubActionsSsh)}
-          component={GitHubActionsSshFlow}
+          element={<GitHubActionsSshFlow />}
         />
         <Route
           path={cfg.getBotsNewRoute(BotFlowType.GitHubActionsK8s)}
-          component={GitHubActionsK8s}
+          element={<GitHubActionsK8s />}
         />
-        <Redirect
+        <Route
           path={cfg.getBotsNewRoute()}
-          to={`${cfg.getIntegrationEnrollRoute()}?tags=bot`}
+          element={
+            <Redirect to={`${cfg.getIntegrationEnrollRoute()}?tags=bot`} />
+          }
         />
       </Switch>
     </FeatureBox>

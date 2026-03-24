@@ -25,14 +25,17 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
@@ -817,4 +820,98 @@ func TestScopedRoleAssignmentInteraction(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+}
+
+// TestScopedRoleInteractionWithAccessListGrants verifies the expected
+// interaction between access list grants and scoped role writes. Namely:
+//   - scoped roles cannot update their assignable scopes if that would
+//     invalidate an assignment from an access list
+//   - scoped roles cannot be deleted if they are assigned from an access list
+func TestScopedRoleInteractionWithAccessListGrants(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{Context: ctx, Clock: clock})
+	require.NoError(t, err)
+	defer bk.Close()
+
+	accessListService := newAccessListService(t, bk, modulestest.EnterpriseModules())
+	scopedAccessService := NewScopedAccessService(bk)
+
+	// Create a base scoped role to update.
+	role := &scopedaccessv1.ScopedRole{
+		Kind: scopedaccess.KindScopedRole,
+		Metadata: &headerv1.Metadata{
+			Name: "testrole",
+		},
+		Scope: "/",
+		Spec: &scopedaccessv1.ScopedRoleSpec{
+			AssignableScopes: []string{
+				"/test/member",
+				"/test/owner",
+			},
+		},
+		Version: types.V1,
+	}
+	createRoleResp, err := scopedAccessService.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{Role: role})
+	require.NoError(t, err)
+
+	// Create an access list that grants the scoped role.
+	al := newAccessList(t, "testlist", clock, withOwnerRequires(accesslist.Requires{}), withMemberRequires(accesslist.Requires{}))
+	al.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
+		{
+			Role:  "testrole",
+			Scope: "/test/member",
+		},
+	}
+	al.Spec.OwnerGrants.ScopedRoles = []accesslist.ScopedRoleGrant{
+		{
+			Role:  "testrole",
+			Scope: "/test/owner",
+		},
+	}
+	_, err = accessListService.UpsertAccessList(ctx, al)
+	require.NoError(t, err)
+
+	alm := newAccessListMember(t, "testlist", "alice")
+	_, err = accessListService.UpsertAccessListMember(ctx, alm)
+	require.NoError(t, err)
+
+	// Cannot update the scoped role if it would invalidate the existing member grant.
+	updatedRole := apiutils.CloneProtoMsg(createRoleResp.GetRole())
+	updatedRole.Spec.AssignableScopes = []string{"/test/owner"}
+	_, err = scopedAccessService.UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{Role: updatedRole})
+	require.Error(t, err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	require.ErrorContains(t, err, `would invalidate access list "testlist" spec.grants`)
+
+	// Cannot update the scoped role if it would invalidate the existing owner grant.
+	updatedRole = apiutils.CloneProtoMsg(createRoleResp.GetRole())
+	updatedRole.Spec.AssignableScopes = []string{"/test/member"}
+	_, err = scopedAccessService.UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{Role: updatedRole})
+	require.Error(t, err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	require.ErrorContains(t, err, `would invalidate access list "testlist" spec.owner_grants`)
+
+	// Cannot delete a scoped role granted by an access list.
+	_, err = scopedAccessService.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
+		Name:     "testrole",
+		Revision: createRoleResp.GetRole().GetMetadata().GetRevision(),
+	})
+	require.Error(t, err)
+	require.ErrorAs(t, err, new(*trace.CompareFailedError))
+	require.ErrorContains(t, err, `while access list "testlist"`)
+
+	// After deleting the access list, the scoped role can be updated or deleted.
+	err = accessListService.DeleteAccessList(ctx, al.GetName())
+	require.NoError(t, err)
+	updateRoleResp, err := scopedAccessService.UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{Role: updatedRole})
+	require.NoError(t, err)
+	_, err = scopedAccessService.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
+		Name:     "testrole",
+		Revision: updateRoleResp.GetRole().GetMetadata().GetRevision(),
+	})
+	require.NoError(t, err)
 }

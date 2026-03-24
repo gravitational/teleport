@@ -31,6 +31,7 @@ import (
 	"net/http/httptest"
 	"sort"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -4643,61 +4644,50 @@ func TestListResources(t *testing.T) {
 }
 
 func TestCustomRateLimiting(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
 	tests := []struct {
 		name  string
 		burst int
-		fn    func(*authclient.Client) error
+		fn    func(context.Context, *authclient.Client) error
 	}{
 		{
 			name: "RPC ChangeUserAuthentication",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{})
 				return err
 			},
 		},
 		{
-			name:  "RPC CreateAuthenticateChallenge",
-			burst: defaults.LimiterBurst,
-			fn: func(clt *authclient.Client) error {
-				_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
-				return err
-			},
-		},
-		{
 			name: "RPC GetAccountRecoveryToken",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.GetAccountRecoveryToken(ctx, &proto.GetAccountRecoveryTokenRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC StartAccountRecovery",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC VerifyAccountRecovery",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.VerifyAccountRecovery(ctx, &proto.VerifyAccountRecoveryRequest{})
 				return err
 			},
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
+		synctestCase := func(t *testing.T) {
 			// Create new instance per test case, to troubleshoot which test case
 			// specifically failed, otherwise multiple cases can fail from running
 			// cases in parallel.
-			srv := newTestTLSServer(t)
+			srv := newTestTLSServer(t, withBufconnListener())
+			defer srv.Close()
 			clt, err := srv.NewClient(authtest.TestNop())
 			require.NoError(t, err)
+			defer clt.Close()
 
 			var attempts int
 			if test.burst == 0 {
@@ -4707,13 +4697,83 @@ func TestCustomRateLimiting(t *testing.T) {
 			}
 
 			for range attempts {
-				err = test.fn(clt)
-				require.False(t, trace.IsLimitExceeded(err), "got err = %v, want non-IsLimitExceeded", err)
+				err = test.fn(t.Context(), clt)
+				require.NotErrorAs(t, err, new(*trace.LimitExceededError))
 			}
 
-			err = test.fn(clt)
-			require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+			err = test.fn(t.Context(), clt)
+			require.ErrorAs(t, err, new(*trace.LimitExceededError))
+		}
+		t.Run(test.name, func(t *testing.T) {
+			synctest.Test(t, synctestCase)
 		})
+	}
+
+	t.Run("unauthenticated CreateAuthenticateChallenge", func(t *testing.T) {
+		synctest.Test(t, synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge)
+	})
+}
+
+func synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge(t *testing.T) {
+	ctx := t.Context()
+
+	srv := newTestTLSServer(t, withBufconnListener())
+	defer srv.Close()
+	clt, err := srv.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+	defer clt.Close()
+
+	nonContextUserRequest := &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+			UserCredentials: new(proto.UserCredentials),
+		},
+	}
+	contextUserRequest := &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: new(proto.ContextUser),
+		},
+	}
+
+	for range defaults.LimiterBurst {
+		_, err := clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
+	}
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+
+	time.Sleep(defaults.LimiterPeriod)
+
+	for range defaults.LimiterBurst - defaults.LimiterAverage {
+		_, err := clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
+	}
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+
+	require.Greater(t, 1000*defaults.LimiterAverage, defaults.LimiterBurst,
+		"Waiting 1000 periods should bring us to LimiterBurst but no higher")
+	time.Sleep(1000 * defaults.LimiterPeriod)
+
+	for range defaults.LimiterBurst {
+		_, err := clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
+	}
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+
+	// no time has passed, but we can do a full burst and more if we pretend to
+	// have a user context (the request will fail, but not due to the rate
+	// limiter)
+
+	for range defaults.LimiterBurst + 1 {
+		_, err := clt.CreateAuthenticateChallenge(ctx, contextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
 	}
 }
 

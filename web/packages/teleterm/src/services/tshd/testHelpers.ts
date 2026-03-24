@@ -65,6 +65,8 @@ export const makeDatabase = (
   addr: '',
   labels: [],
   gcpProjectId: '',
+  databaseUsers: [],
+  wildcardUserAllowed: false,
   ...props,
 });
 
@@ -375,7 +377,7 @@ export const makeAuthSettings = (
 ): AuthSettings => ({
   localAuthEnabled: true,
   authProviders: [],
-  hasMessageOfTheDay: false,
+  messageOfTheDay: '',
   authType: 'local',
   allowPasswordless: false,
   localConnectorName: '',

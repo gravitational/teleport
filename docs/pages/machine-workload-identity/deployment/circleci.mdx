@@ -114,7 +114,7 @@ configuration later.
 value of `[Bot]` states that this token grants access to a Machine & Workload
 Identity bot.
 - `spec.join_method` defines the join method the token is applicable for. Since
-this guide only focuses on CircleCI, you will set this to to `circleci`.
+this guide only focuses on CircleCI, you will set this to `circleci`.
 - `spec.circleci.allow` is used to set rules for what CircleCI runs will be able
 to authenticate by using the token.
 
@@ -152,7 +152,7 @@ Replace:
 
 - <Var name="example.teleport.sh"/> with the address of your Teleport Proxy or
   Auth Service. Prefer using the address of a Teleport Proxy.
-- `example-bot` with the name of the token you created in the second step
+- `example-bot` with the name of the token you created in the second step.
 
 Now, the CircleCI pipeline can be defined. Before the pipeline can use `tbot`,
 it must be available within the environment. For this example, we'll show

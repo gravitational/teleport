@@ -190,6 +190,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newCrownJewelParser()
 		case types.KindPlugin:
 			parser = newPluginParser(kind.LoadSecrets)
+		case types.KindSAMLConnector:
+			parser = newSAMLConnectorParser(kind.LoadSecrets)
 		case types.KindSAMLIdPServiceProvider:
 			parser = newSAMLIDPServiceProviderParser()
 		case types.KindUserGroup:
@@ -282,7 +284,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		case types.KindWorkloadCluster:
 			parser = newWorkloadClusterParser()
 		case types.KindValidatedMFAChallenge:
-			parser = newValidatedMFAChallengeParser()
+			parser = newValidatedMFAChallengeParser(kind.Filter)
 		default:
 			if watch.AllowPartialSuccess {
 				continue

@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import renderHook from 'design/utils/renderHook';
 
@@ -98,7 +97,7 @@ test('active document id', async () => {
   });
 
   const countBefore = ctx.getDocuments();
-  const wrapper = makeWrapper('/web/cluster/two/console/node/server-123/root');
+  const wrapper = makeWrapper(doc.url);
   const { current } = renderHook(() => useTabRouting(ctx), { wrapper });
   const countAfter = ctx.getDocuments();
   expect(doc.id).toBe(current.activeDocId);
@@ -113,7 +112,7 @@ test('active document id, document url with query parameters', async () => {
   });
 
   const countBefore = ctx.getDocuments();
-  const wrapper = makeWrapper('/web/cluster/cluster1/console/kube/exec/kube1/');
+  const wrapper = makeWrapper(doc.url);
   const { current } = renderHook(() => useTabRouting(ctx), { wrapper });
   const countAfter = ctx.getDocuments();
   expect(doc.id).toBe(current.activeDocId);
@@ -122,10 +121,15 @@ test('active document id, document url with query parameters', async () => {
 
 function makeWrapper(route: string) {
   return function MockedContextProviders(props: any) {
-    const history = createMemoryHistory({
-      initialEntries: [route],
-    });
-
-    return <Router history={history} {...props} />;
+    return (
+      <MemoryRouter initialEntries={[route]}>
+        <Routes>
+          <Route
+            path="/web/cluster/:clusterId/console/*"
+            element={props.children}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
   };
 }

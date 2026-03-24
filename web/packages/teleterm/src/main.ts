@@ -135,7 +135,12 @@ async function initializeApp(): Promise<void> {
   // TODO(gzdunek): DELETE IN 20.0.0. Users should already migrate to the new location.
   // Also remove TshHomeMigrationBanner component, relevant properties from app_state.json,
   // and address the TODO in teleport-connect.mdx > ##Troubleshooting.
-  await migrateOldTshHomeOnce(logger, tshHome, appStateFileStorage);
+  await migrateOldTshHomeOnce(
+    logger,
+    tshHome,
+    appStateFileStorage,
+    settings.userDataDir
+  );
 
   let mainProcess: MainProcess;
   try {
@@ -371,9 +376,10 @@ function showDialogWithError(title: string, unknownError: unknown) {
 async function migrateOldTshHomeOnce(
   logger: Logger,
   tshHome: string,
-  appStorage: FileStorage
+  appStorage: FileStorage,
+  userDataDir: string
 ): Promise<void> {
-  const oldTshHome = path.resolve(app.getPath('userData'), 'tsh');
+  const oldTshHome = path.resolve(userDataDir, 'tsh');
   const tshHomeMigrationKey = 'tshHomeMigration';
   const tshMigration: TshHomeMigration =
     appStorage.get()?.[tshHomeMigrationKey];

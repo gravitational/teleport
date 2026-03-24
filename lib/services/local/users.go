@@ -537,7 +537,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 			return trace.Wrap(err)
 		}
 
-		if !services.UsersEquals(existingWithoutSecrets, currentWithoutSecrets) {
+		if !existingWithoutSecrets.IsEqual(currentWithoutSecrets) {
 			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
 		}
 
@@ -2286,6 +2286,53 @@ func keyAttestationDataFingerprint(pubDER []byte) string {
 	sha256sum := sha256.Sum256(pubDER)
 	encodedSHA := base64.RawURLEncoding.EncodeToString(sha256sum[:])
 	return encodedSHA
+}
+
+func newSAMLConnectorParser(loadSecrets bool) *samlConnectorParser {
+	return &samlConnectorParser{
+		baseParser:  newBaseParser(backend.ExactKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix)),
+		loadSecrets: loadSecrets,
+	}
+}
+
+type samlConnectorParser struct {
+	baseParser
+	loadSecrets bool
+}
+
+func (p *samlConnectorParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.ExactKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.SAMLConnectorV2{
+			Kind:    types.KindSAMLConnector,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		connector, err := services.UnmarshalSAMLConnectorWithValidationOptions(
+			event.Item.Value,
+			[]types.SAMLConnectorValidationOption{types.SAMLConnectorValidationFollowURLs(false)},
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !p.loadSecrets {
+			return connector.WithoutSecrets(), nil
+		}
+		return connector, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }
 
 const (

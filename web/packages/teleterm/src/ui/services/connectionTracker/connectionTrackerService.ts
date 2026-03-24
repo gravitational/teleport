@@ -197,12 +197,12 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
           return assertUnreachable(s);
       }
     });
-    await Promise.all([
+    await Promise.all(
       connections.map(async connection => {
         await this.disconnectItem(connection.id);
         await this.removeItem(connection.id);
-      }),
-    ]);
+      })
+    );
   }
 
   dispose(): void {

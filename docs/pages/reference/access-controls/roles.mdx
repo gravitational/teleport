@@ -327,7 +327,7 @@ allow:
         - auth_connector
       verbs: [list, create, read, update, delete]
     # Session: Provides access to Session Recordings.
-    # e.g If session read is false, users can't play the recordings
+    # e.g. If session read is false, users can't play the recordings
     # It is possible to restrict "list" but to allow "read" (in this case a user will
     # be able to replay a session using `tsh play` if they know the session ID).
     - resources:
@@ -787,7 +787,7 @@ Principals a user can assume on infrastructure resources:
 - `windows_desktop_logins`
 
 Teleport principals that a user can impersonate:
-- `impersonate.rules`
+- `impersonate.roles`
 - `impersonate.users`
 
 #### Functions

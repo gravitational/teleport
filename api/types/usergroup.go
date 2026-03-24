@@ -39,6 +39,8 @@ type UserGroup interface {
 	SetApplications([]string)
 	// Clone creates a copy of the group.
 	Clone() UserGroup
+	// IsEqual determines if two user group resources are equivalent to one another.
+	IsEqual(UserGroup) bool
 }
 
 var _ ResourceWithLabels = (*UserGroupV1)(nil)

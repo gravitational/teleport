@@ -17,8 +17,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { useHistory } from 'react-router';
-import { Link as InternalRouteLink } from 'react-router-dom';
+import { Link as InternalRouteLink, useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex, Text } from 'design';
@@ -85,16 +84,16 @@ type Filters = {
 };
 
 export function IntegrationList(props: Props) {
-  const history = useHistory();
+  const navigate = useNavigate();
 
   function handleRowClick(row: IntegrationLike) {
     if ('isManagedByTerraform' in row && row.isManagedByTerraform) {
-      history.push(cfg.getIaCIntegrationRoute(row.kind, row.name));
+      navigate(cfg.getIaCIntegrationRoute(row.kind, row.name));
       return;
     }
 
     if (!statusKinds.includes(row.kind)) return;
-    history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
+    navigate(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
   function getRowStyle(row: IntegrationLike): React.CSSProperties {
@@ -259,12 +258,10 @@ export function IntegrationList(props: Props) {
                     <MenuButton>
                       <MenuItem
                         as={InternalRouteLink}
-                        to={{
-                          pathname: cfg.getIntegrationEnrollRoute(
-                            IntegrationKind.ExternalAuditStorage
-                          ),
-                          state: { continueDraft: true },
-                        }}
+                        to={cfg.getIntegrationEnrollRoute(
+                          IntegrationKind.ExternalAuditStorage
+                        )}
+                        state={{ continueDraft: true }}
                       >
                         Continue Setup...
                       </MenuItem>

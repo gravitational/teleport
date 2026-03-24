@@ -123,7 +123,7 @@ OpenAI-compatible proxies.
 | `grpc_client_msg_sent_total`                           | counter   | Teleport Proxy | Total number of gRPC stream messages sent by the client.                                                                                 |
 | `proxy_connection_limit_exceeded_total`                | counter   | Teleport Proxy | Number of connections that exceeded the Proxy Service connection limit.                                                                  |
 | `proxy_peer_client_dial_error_total`                   | counter   | Teleport Proxy | Total number of errors encountered dialing peer Proxy Service instances.                                                                 |
-| `proxy_peer_client_connections`                        | gauge     | Teleport Proxy | Number of currently opened connection to proxy Proxy Service instances.                                                                  |
+| `proxy_peer_client_connections`                        | gauge     | Teleport Proxy | Number of currently opened connection to Proxy Service instances.                                                                  |
 | `proxy_peer_client_rpc`                                | gauge     | Teleport Proxy | Number of current client RPC requests.                                                                                                   |
 | `proxy_peer_client_rpc_total`                          | counter   | Teleport Proxy | Total number of client RPC requests.                                                                                                     |
 | `proxy_peer_client_rpc_duration_seconds`               | histogram | Teleport Proxy | Duration in seconds of RPCs sent by the client.                                                                                          |
@@ -196,7 +196,7 @@ The following table identifies all metrics available for incoming connections.
 | `teleport_kubernetes_server_exec_sessions_total`            | counter   | Teleport Kubernetes Proxy | Total number of kubectl exec sessions.              |
 | `teleport_kubernetes_server_portforward_in_flight_sessions` | gauge     | Teleport Kubernetes Proxy | Number of active kubectl portforward sessions.      |
 | `teleport_kubernetes_server_portforward_sessions_total`     | counter   | Teleport Kubernetes Proxy | Number of active kubectl portforward sessions.      |
-| `teleport_kubernetes_server_join_in_flight_sessions`        | gauge     | Teleport Kubernetes Proxy | Number of active joining sessions,                  |
+| `teleport_kubernetes_server_join_in_flight_sessions`        | gauge     | Teleport Kubernetes Proxy | Number of active joining sessions.                  |
 | `teleport_kubernetes_server_join_sessions_total`            | counter   | Teleport Kubernetes Proxy | Total number of joining sessions.                   |
 
 
@@ -233,7 +233,7 @@ The following table identifies all metrics available for incoming connections.
 | `teleport_kubernetes_server_exec_sessions_total`            | counter   | Teleport Kubernetes Service | Total number of kubectl exec sessions.              |
 | `teleport_kubernetes_server_portforward_in_flight_sessions` | gauge     | Teleport Kubernetes Service | Number of active kubectl portforward sessions.      |
 | `teleport_kubernetes_server_portforward_sessions_total`     | counter   | Teleport Kubernetes Service | Number of active kubectl portforward sessions.      |
-| `teleport_kubernetes_server_join_in_flight_sessions`        | gauge     | Teleport Kubernetes Service | Number of active joining sessions,                  |
+| `teleport_kubernetes_server_join_in_flight_sessions`        | gauge     | Teleport Kubernetes Service | Number of active joining sessions.                  |
 | `teleport_kubernetes_server_join_sessions_total`            | counter   | Teleport Kubernetes Service | Total number of joining sessions.                   |
 
 ## All Teleport instances

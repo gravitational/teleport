@@ -23,12 +23,13 @@ import { expect } from '../test';
 const TERMINAL_TIMEOUT = 10_000;
 
 export class TerminalPage {
-  private readonly input = this.page.getByRole('textbox', {
-    name: 'Terminal input',
-  });
-  private readonly terminal = this.page.getByTestId('terminal');
+  private readonly input;
+  private readonly terminal;
 
-  constructor(private page: Page) {}
+  constructor(private page: Page) {
+    this.input = page.getByRole('textbox', { name: 'Terminal input' });
+    this.terminal = page.getByTestId('terminal');
+  }
 
   async waitForReady() {
     await expect(this.input).toBeVisible({ timeout: TERMINAL_TIMEOUT });
@@ -38,11 +39,9 @@ export class TerminalPage {
     await this.input.pressSequentially(command + '\n');
   }
 
-  async expectSnapshot(name: string) {
-    await this.page.waitForTimeout(500);
-    await expect(this.terminal).toHaveScreenshot(name, {
+  async waitForText(text: string) {
+    await expect(this.terminal).toContainText(text, {
       timeout: TERMINAL_TIMEOUT,
-      maxDiffPixelRatio: 0.02,
     });
   }
 }

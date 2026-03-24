@@ -14,8 +14,6 @@ tags:
 
 Teleport Workload Identity issues short-lived cryptographic identities to workloads, enabling them to securely authenticate and communicate with other workloads or cloud provider APIs.
 
-Teleport Workload Identity issues short-lived cryptographic identities to workloads, enabling them to securely authenticate and communicate with other workloads or cloud provider APIs.
-
 This guide walks you through deploying the Machine & Workload Identity agent `tbot` on an Amazon EC2 instance and setting up Machine and Workload Identity (MWI).
 By the end, you'll have a working `tbot` service that issues SPIFFE-compatible credentials to workloads running on your EC2 instance.
 
@@ -39,7 +37,7 @@ Download and install the appropriate Teleport package for your platform:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 2/8. Create a Bot
+## Step 2/7. Create a Bot
 
 **This step is completed on your local machine.**
 
@@ -125,7 +123,7 @@ Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy Service or
   Auth Service. Prefer using the address of a Teleport Proxy Service instance.
-- `example-bot` with the name of the token you created in the second step.
+- `example-bot` with the name of the token you created in the third step.
 
 (!docs/pages/includes/machine-id/daemon.mdx!)
 
@@ -231,7 +229,7 @@ This confirms that workloads can successfully connect to the Workload API and re
 ## Step 7/7. Configuring your workload to use the Workload API
 
 Now that you know that the Workload API is behaving as expected, you can configure your workload to use it. 
-The exact steps will depend on the workload. In cases where you have used the SPIFFE SDKs, you can configure the`SPIFFE_ENDPOINT_SOCKET` 
+The exact steps will depend on the workload. In cases where you have used the SPIFFE SDKs, you can configure the `SPIFFE_ENDPOINT_SOCKET` 
 environment variable to point to the socket created by `tbot`.
 
 ## Next steps

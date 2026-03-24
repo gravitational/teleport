@@ -118,6 +118,8 @@ type AuthServerConfig struct {
 	// KeystoreConfig is configuration for the CA keystore.
 	KeystoreConfig servicecfg.KeystoreConfig
 	InsecureMode   bool
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -143,6 +145,12 @@ func (cfg *AuthServerConfig) CheckAndSetDefaults() error {
 	if cfg.UploadHandler == nil {
 		cfg.UploadHandler = eventstest.NewMemoryUploader()
 	}
+
+	if cfg.Modules == nil {
+		// TODO(tross) return an error after all callers are updated
+		cfg.Modules = modules.GetModules()
+	}
+
 	return nil
 }
 
@@ -336,8 +344,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 
 	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
 		Backend: srv.Backend,
-		// TODO(tross): replace with cfg.Modules
-		Modules: modules.GetModules(),
+		Modules: cfg.Modules,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -351,8 +358,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(tross): replace with cfg.Modules.BuildType
-	authority, err := authority.NewKeygen(modules.GetModules().BuildType(), cfg.Clock.Now)
+	authority, err := authority.NewKeygen(cfg.Modules.BuildType(), cfg.Clock.Now)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -744,6 +750,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 			Generation:       id.Identity.Generation,
 			Renewable:        identity.Renewable,
 			Usage:            identity.AcceptedUsage,
+			Scope:            identity.Scope,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -919,6 +926,13 @@ func WithBufconnListener() TestTLSServerOption {
 	}
 }
 
+// WithoutJoinV1 disables the new join gRPC service while keeping legacy join registered.
+func WithoutJoinV1() TestTLSServerOption {
+	return func(cfg *TLSServerConfig) {
+		cfg.APIConfig.DisableJoinV1 = true
+	}
+}
+
 // NewRemoteClient creates new client to the remote server using identity
 // generated for this certificate authority
 func (a *AuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, pool *x509.CertPool) (*authclient.Client, error) {
@@ -1058,6 +1072,7 @@ type TestIdentity struct {
 	RouteToCluster string
 	Renewable      bool
 	Generation     uint64
+	Scope          string
 }
 
 // TestUser returns TestIdentity for local user. Note that this constructor only produces a
@@ -1065,6 +1080,20 @@ type TestIdentity struct {
 // auto-populate roles.  Prefer using TestUserWithRoles for most usecases.
 func TestUser(username string) TestIdentity {
 	return TestUserWithRoles(username, nil)
+}
+
+// TestScopedUser returns a TestIdentity for a local user with a scoped identity
+// pinned to the given scope.
+func TestScopedUser(username string, scope string) TestIdentity {
+	return TestIdentity{
+		I: authz.LocalUser{
+			Username: username,
+			Identity: tlsca.Identity{
+				Username: username,
+			},
+		},
+		Scope: scope,
+	}
 }
 
 // TestUserWithRoles returns a local user TestIdentity with the specified username and roles.
@@ -1287,7 +1316,7 @@ func (t *TLSServer) NewClientWithCert(clientCert tls.Certificate) (*authclient.C
 
 // NewClient returns new client to test server authenticated with identity
 func (t *TLSServer) NewClient(identity TestIdentity) (*authclient.Client, error) {
-	if localUser, ok := identity.I.(authz.LocalUser); ok && len(localUser.Identity.Groups) == 0 {
+	if localUser, ok := identity.I.(authz.LocalUser); ok && len(localUser.Identity.Groups) == 0 && identity.Scope == "" {
 		user, err := t.AuthServer.AuthServer.GetUser(context.TODO(), localUser.Username, false)
 		if err != nil {
 			return nil, trace.Wrap(err)

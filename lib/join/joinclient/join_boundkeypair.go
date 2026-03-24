@@ -28,15 +28,13 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	authjoin "github.com/gravitational/teleport/lib/auth/join"
+	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/jwt"
 )
 
 type (
-	BoundKeypairParams = authjoin.BoundKeypairParams
-	GetSignerFunc      = authjoin.GetSignerFunc
-	KeygenFunc         = authjoin.KeygenFunc
 	BoundKeypairResult = authjoin.BoundKeypairRegisterResult
 )
 
@@ -64,16 +62,23 @@ func boundKeypairJoin(
 	// At this point the ServerInit message has already been received, this
 	// function needs to send the BoundKeyPairInit and then handle any
 	// challenges and rotation requests.
+
+	state := joinParams.BoundKeypairState
+	if state == nil {
+		return nil, trace.BadParameter("bound keypair state is required for bound keypair joining")
+	}
+
+	bkClientParams := state.GetClientParams(joinParams.BoundKeypairRegistrationSecret)
+
 	boundKeypairInit := &messages.BoundKeypairInit{
 		ClientParams:      clientParams,
-		InitialJoinSecret: joinParams.BoundKeypairParams.RegistrationSecret,
-		PreviousJoinState: joinParams.BoundKeypairParams.PreviousJoinState,
+		InitialJoinSecret: bkClientParams.RegistrationSecret,
+		PreviousJoinState: bkClientParams.PreviousJoinState,
 	}
 	if err := stream.Send(boundKeypairInit); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	bkParams := joinParams.BoundKeypairParams
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
@@ -81,10 +86,25 @@ func boundKeypairJoin(
 		}
 		switch kind := msg.(type) {
 		case *messages.BotResult:
-			// Return the final result.
+			// Received join result, store and return.
+			if kind.BoundKeypairResult == nil {
+				return nil, trace.BadParameter("register result missing required bound keypair response")
+			}
+
+			if err := state.UpdateFromRegisterResult(
+				kind.BoundKeypairResult.PublicKey,
+				kind.BoundKeypairResult.JoinState,
+			); err != nil {
+				return nil, trace.Wrap(err, "updating local bound keypair state")
+			}
+
+			if err := state.Store(ctx); err != nil {
+				return nil, trace.Wrap(err, "storing updated bound keypair state")
+			}
+
 			return kind, nil
 		case *messages.BoundKeypairChallenge:
-			solution, err := solveBoundKeypairChallenge(bkParams, kind)
+			solution, err := solveBoundKeypairChallenge(state, kind)
 			if err != nil {
 				sendGivingUpErr := stream.Send(&messages.GivingUp{
 					Reason: messages.GivingUpReasonChallengeSolutionFailed,
@@ -102,7 +122,7 @@ func boundKeypairJoin(
 			}
 		case *messages.BoundKeypairRotationRequest:
 			newPubkey, err := handleBoundKeypairRotationRequest(
-				ctx, joinParams.Log, bkParams, kind,
+				ctx, joinParams.Log, state, kind,
 			)
 			if err != nil {
 				sendGivingUpErr := stream.Send(&messages.GivingUp{
@@ -125,8 +145,8 @@ func boundKeypairJoin(
 	}
 }
 
-func solveBoundKeypairChallenge(bkParams *BoundKeypairParams, challengeMsg *messages.BoundKeypairChallenge) ([]byte, error) {
-	signer, err := bkParams.GetSigner(string(challengeMsg.PublicKey))
+func solveBoundKeypairChallenge(state boundkeypair.ClientState, challengeMsg *messages.BoundKeypairChallenge) ([]byte, error) {
+	signer, err := state.GetSigner(challengeMsg.PublicKey)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not lookup signer for public key %s", string(challengeMsg.PublicKey))
 	}
@@ -162,20 +182,16 @@ func solveBoundKeypairChallenge(bkParams *BoundKeypairParams, challengeMsg *mess
 func handleBoundKeypairRotationRequest(
 	ctx context.Context,
 	log *slog.Logger,
-	bkParams *BoundKeypairParams,
+	state boundkeypair.ClientState,
 	rotationRequest *messages.BoundKeypairRotationRequest,
 ) ([]byte, error) {
-	if bkParams.RequestNewKeypair == nil {
-		return nil, trace.BadParameter("RequestNewKeypair is required")
-	}
-
 	log.InfoContext(ctx, "Server has requested keypair rotation", "suite", rotationRequest.SignatureAlgorithmSuite)
 
 	suite, err := types.SignatureAlgorithmSuiteFromString(rotationRequest.SignatureAlgorithmSuite)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	newSigner, err := bkParams.RequestNewKeypair(ctx, cryptosuites.StaticAlgorithmSuite(suite))
+	newSigner, err := state.RequestNewKeypair(ctx, cryptosuites.StaticAlgorithmSuite(suite))
 	if err != nil {
 		return nil, trace.Wrap(err, "requesting new keypair")
 	}

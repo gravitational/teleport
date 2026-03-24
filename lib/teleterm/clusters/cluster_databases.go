@@ -54,6 +54,10 @@ type Database struct {
 	TargetHealth types.TargetHealth
 	// AutoUserProvisioning contains auto-user provisioning information.
 	AutoUserProvisioning *AutoUserProvisioning
+	// DatabaseUsers is a list of allowed database users that Teleport RBAC permits the user to connect as.
+	DatabaseUsers []string
+	// WildcardUserAllowed is true when the user's role grants db_users: ["*"].
+	WildcardUserAllowed bool
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal
@@ -115,31 +119,6 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.Clus
 
 	dbCert, err := result.KeyRing.DBTLSCert(routeToDatabase.ServiceName)
 	return dbCert, trace.Wrap(err)
-}
-
-// GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.
-func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, authClient authclient.ClientI, dbURI string) ([]string, error) {
-	dbResourceURI, err := uri.ParseDBURI(dbURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	accessChecker, err := c.NewAccessChecker(ctx, authClient)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	db, err := c.GetDatabase(ctx, authClient, dbResourceURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	dbUsers, err := accessChecker.EnumerateDatabaseUsers(db)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return dbUsers.Allowed(), nil
 }
 
 // ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").

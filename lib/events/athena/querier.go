@@ -208,7 +208,7 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 			limit:     req.Limit,
 			order:     req.Order,
 			startKey:  startKeyset,
-			filter:    searchEventsFilter{eventTypes: req.EventTypes},
+			filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search},
 			sessionID: "",
 		})
 		return events, keyset, trace.Wrap(err)
@@ -220,7 +220,7 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 		limit:     req.Limit,
 		order:     req.Order,
 		startKey:  startKeyset,
-		filter:    searchEventsFilter{eventTypes: req.EventTypes},
+		filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search},
 		sessionID: "",
 	})
 	return events, keyset, trace.Wrap(err)
@@ -662,6 +662,7 @@ func (q *querier) searchEvents(ctx context.Context, req searchEventsRequest) ([]
 
 type searchEventsFilter struct {
 	eventTypes []string
+	search     string
 	condition  utils.FieldsCondition
 }
 
@@ -673,7 +674,8 @@ type queryBuilder struct {
 // withTicks wraps string with ticks.
 // string params in athena need to be wrapped by "ticks".
 func withTicks(in string) string {
-	return fmt.Sprintf("'%s'", in)
+	escaped := strings.ReplaceAll(in, "'", "''")
+	return fmt.Sprintf("'%s'", escaped)
 }
 
 func sliceWithTicks(ss []string) []string {
@@ -738,6 +740,12 @@ func prepareQuery(params searchParams) (query string, execParams []string, err e
 		qb.Append(eventsTypesInQuery,
 			sliceWithTicks(params.filter.eventTypes)...,
 		)
+	}
+
+	if params.filter.search != "" {
+		for term := range strings.FieldsSeq(strings.ToLower(params.filter.search)) {
+			qb.Append(" AND strpos(lower(event_data), ?) > 0", withTicks(term))
+		}
 	}
 
 	if params.order == types.EventOrderAscending {

@@ -12,7 +12,7 @@ tags:
 You can protect a server with Teleport by running the Teleport SSH Service on
 the server and enrolling it in your Teleport cluster. 
 
-This guides shows you how to:
+This guide shows you how to:
 
 - Enroll a server in your Teleport cluster.
 - SSH into a server using Teleport.
@@ -34,6 +34,24 @@ modify your node's machine image to install and run the Teleport SSH Service as
 per the instructions in this guide. Do not run the SSH Service as a Kubernetes
 pod, as there is no guarantee that the SSH Service pod is running on a server
 that a user intends to access.
+
+```mermaid
+architecture-beta
+    group priv(carbon-virtual-private-cloud)[Private Network]
+    group priv2(carbon-virtual-private-cloud)[Teleport Cloud or Private Network]
+    group server(carbon-bare-metal-server)[Linux Server] in priv
+
+    service audit_log(carbon-ibm-db2)[Teleport Audit Log] in priv2
+    service auth(teleport-logo-purple)[Teleport Auth Service] in priv2
+    service client(carbon-user)[SSH Client]
+    service proxy(teleport-logo-purple)[Teleport Proxy Service]
+    service ssh_service(teleport-logo-purple)[Teleport SSH Service] in server
+
+    ssh_service:L --> R:proxy
+    client:R --> L:proxy
+    proxy:B <--> T:auth
+    auth:R --> L:audit_log
+```
 
 ## Prerequisites
 

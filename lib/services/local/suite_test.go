@@ -98,7 +98,7 @@ func userSlicesEqual(t *testing.T, a []types.User, b []types.User) {
 }
 
 func usersEqual(t *testing.T, a types.User, b types.User) {
-	require.True(t, services.UsersEquals(a, b), cmp.Diff(a, b))
+	require.True(t, a.IsEqual(b), cmp.Diff(a, b))
 }
 
 func newUser(name string, roles []string) types.User {
@@ -2294,6 +2294,42 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				return out[0]
 			},
 		},
+		{
+			name: "SAMLConnector",
+			kind: types.WatchKind{
+				Kind: types.KindSAMLConnector,
+			},
+			crud: func(ctx context.Context) types.Resource {
+				connector, err := types.NewSAMLConnector("test-saml-connector", types.SAMLConnectorSpecV2{
+					Display:                  "SAML",
+					Issuer:                   "http://example.com",
+					SSO:                      "https://example.com/saml/sso",
+					AssertionConsumerService: "https://localhost/acs",
+					Audience:                 "https://localhost/aud",
+					ServiceProviderIssuer:    "https://localhost/iss",
+					AttributesToRoles: []types.AttributeMapping{
+						{Name: "groups", Value: "admin", Roles: []string{"admin"}},
+					},
+					Cert: fixtures.TLSCACertPEM,
+					SigningKeyPair: &types.AsymmetricKeyPair{
+						PrivateKey: fixtures.TLSCAKeyPEM,
+						Cert:       fixtures.TLSCACertPEM,
+					},
+				})
+				require.NoError(t, err)
+
+				_, err = s.WebS.CreateSAMLConnector(ctx, connector)
+				require.NoError(t, err)
+
+				out, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), false)
+				require.NoError(t, err)
+
+				err = s.WebS.DeleteSAMLConnector(ctx, connector.GetName())
+				require.NoError(t, err)
+
+				return out
+			},
+		},
 	}
 	// this also tests the partial success mode by requesting an unknown kind
 	s.runEventsTests(t, testCases, types.Watch{
@@ -2497,17 +2533,33 @@ skiploop:
 
 		ExpectResource(t, w, 3*time.Second, resource)
 
-		meta := resource.GetMetadata()
-		header := &types.ResourceHeader{
-			Kind:    resource.GetKind(),
-			SubKind: resource.GetSubKind(),
-			Version: resource.GetVersion(),
-			Metadata: types.Metadata{
-				Name:      meta.Name,
-				Namespace: meta.Namespace,
-			},
+		// Explicitly handle watchers that emit a concrete type on delete, rather than
+		// a ResourceHeader.
+		var deleteResource types.Resource
+		switch r := resource.(type) {
+		case *types.SAMLConnectorV2:
+			meta := r.GetMetadata()
+			deleteResource = &types.SAMLConnectorV2{
+				Kind:    r.GetKind(),
+				Version: r.GetVersion(),
+				Metadata: types.Metadata{
+					Name:      meta.Name,
+					Namespace: meta.Namespace,
+				},
+			}
+		default:
+			meta := r.GetMetadata()
+			deleteResource = &types.ResourceHeader{
+				Kind:    r.GetKind(),
+				SubKind: r.GetSubKind(),
+				Version: r.GetVersion(),
+				Metadata: types.Metadata{
+					Name:      meta.Name,
+					Namespace: meta.Namespace,
+				},
+			}
 		}
-		ExpectDeleteResource(t, w, 3*time.Second, header)
+		ExpectDeleteResource(t, w, 3*time.Second, deleteResource)
 	}
 }
 
