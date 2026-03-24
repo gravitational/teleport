@@ -92,7 +92,7 @@ type TerraformCommand struct {
 func (c *TerraformCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	tfCmd := app.Command("terraform", "Helpers to run the Teleport Terraform Provider.")
 
-	c.envCmd = tfCmd.Command("env", "Obtain certificates and load them into environments variables. This creates a temporary MachineID bot.")
+	c.envCmd = tfCmd.Command("env", "Obtain certificates and load them into environment variables. This creates a temporary MachineID bot.")
 	c.envCmd.Flag(
 		"resource-prefix",
 		fmt.Sprintf("Resource prefix to use when creating the Terraform role and bots. Defaults to [%s]", terraformHelperDefaultResourcePrefix),
