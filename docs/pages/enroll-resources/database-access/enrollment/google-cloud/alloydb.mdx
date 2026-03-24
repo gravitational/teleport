@@ -296,10 +296,6 @@ db_service:
           endpoint_type: public  # private | public | psc
 ```
 
-Alternatively, you can register the database using a dynamic resource instead of generating a static configuration file. 
-This approach is useful if you manage Teleport resources declaratively (for example, with GitOps, Terraform, or the Kubernetes Operator),
-since it allows you to define and manage database access as code.
-
 Create `alloydb.yaml`:
 
 ```yaml
