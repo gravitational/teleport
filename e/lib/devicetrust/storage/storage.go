@@ -68,7 +68,7 @@ type Params struct {
 	Logger       *slog.Logger
 	Backend      backend.Backend
 	UsersService UsersService
-
+	Modules      modules.Modules
 	// BCryptCostOverride allows overriding the default bcrypt cost.
 	BCryptCostOverride int
 }
@@ -79,6 +79,7 @@ type S struct {
 	backend    backend.Backend
 	users      UsersService
 	bcryptCost int
+	modules    modules.Modules
 }
 
 // New returns a new Device Trust storage instance.
@@ -88,6 +89,8 @@ func New(params Params) (*S, error) {
 		return nil, trace.BadParameter("param Backend required")
 	case params.UsersService == nil:
 		return nil, trace.BadParameter("param UsersService required")
+	case params.Modules == nil:
+		return nil, trace.BadParameter("param Modules required")
 	}
 
 	cost := bcrypt.DefaultCost
@@ -105,6 +108,7 @@ func New(params Params) (*S, error) {
 		backend:    params.Backend,
 		users:      params.UsersService,
 		bcryptCost: cost,
+		modules:    params.Modules,
 	}, nil
 }
 
@@ -1382,7 +1386,7 @@ func (s *S) EnrollDevice(
 
 	// Verify limits if the account is usage-based, otherwise just update.
 	var completeEnrollFn func() error
-	if f := modules.GetModules().Features(); f.IsUsageBasedBilling {
+	if f := s.modules.Features(); f.IsUsageBasedBilling {
 		completeEnrollFn = func() error {
 			return backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 				LockConfiguration: backend.LockConfiguration{
@@ -1795,7 +1799,7 @@ func (s *S) getDevicesUsage(ctx context.Context, limit int) (*DevicesUsage, erro
 // method is exposed so we can avoid starting a costly enrollment ceremony if
 // the limits are already reached.
 func (s *S) VerifyEnrolledDevicesLimit(ctx context.Context) error {
-	f := modules.GetModules().Features()
+	f := s.modules.Features()
 	deviceEntitlement := f.GetEntitlement(entitlements.DeviceTrust)
 	if deviceEntitlement.Limit == 0 {
 		return nil // unlimited

@@ -710,6 +710,7 @@ func registerDeviceTrustService(logger *slog.Logger, s *grpc.Server, authGRPC *a
 		Logger:       logger,
 		Backend:      authGRPC.GetBackend(),
 		UsersService: authServer.Services,
+		Modules:      modules.GetModules(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

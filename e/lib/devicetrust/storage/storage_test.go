@@ -3865,23 +3865,26 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 }
 
 func TestS_DevicesUsageLimit(t *testing.T) {
-	// Don't t.Parallel! Uses modules.SetTestModules.
+	t.Parallel()
 
 	const devicesLimit = 3
-	features := modules.GetModules().Features()
-	features.IsUsageBasedBilling = true
-	features.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{
-		Enabled: true,
-		Limit:   devicesLimit,
-	}
-	modulestest.SetTestModules(t, modulestest.Modules{
+	m := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
-		TestFeatures:  features,
-	})
+		TestFeatures: modules.Features{
+			IsUsageBasedBilling: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DeviceTrust:            {Enabled: true, Limit: devicesLimit},
+				entitlements.MobileDeviceManagement: {Enabled: true},
+			},
+		},
+	}
 
 	// Lock acquisition for usage-based enrollments requires a RealClock, the test
 	// will deadlock otherwise.
-	env := mustNewEnv(withClock(clockwork.NewRealClock()))
+	env := mustNewEnv(
+		withClock(clockwork.NewRealClock()),
+		withModules(m),
+	)
 	defer env.Close()
 
 	s := env.S
@@ -3969,12 +3972,8 @@ func TestS_DevicesUsageLimit(t *testing.T) {
 	})
 
 	// Add limit back to Device Trust & disable Identity
-	features.Entitlements[entitlements.Identity] = modules.EntitlementInfo{Enabled: false, Limit: 0}
-	features.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: true, Limit: 1}
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures:  features,
-	})
+	m.TestFeatures.Entitlements[entitlements.Identity] = modules.EntitlementInfo{Enabled: false, Limit: 0}
+	m.TestFeatures.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: true, Limit: 1}
 	t.Run("VerifyEnrolledDevicesLimit/denied", func(t *testing.T) {
 		if err := s.VerifyEnrolledDevicesLimit(ctx); !trace.IsAccessDenied(err) {
 			t.Errorf("VerifyEnrolledDevicesLimit returned err=%v, want AccessDenied/devices limit failure", err)
@@ -4829,9 +4828,9 @@ type storageEnv struct {
 	Clock           clocki.FakeClock
 	IdentityService *local.IdentityService
 	S               *storage.S
-
-	memClock clockwork.Clock // actual mem clock, always set.
-	mem      *memory.Memory
+	modules         *modulestest.Modules
+	memClock        clockwork.Clock // actual mem clock, always set.
+	mem             *memory.Memory
 }
 
 func (e *storageEnv) Close() error {
@@ -4842,6 +4841,10 @@ func (e *storageEnv) Close() error {
 }
 
 type opt func(*storageEnv)
+
+func withModules(m *modulestest.Modules) opt {
+	return func(env *storageEnv) { env.modules = m }
+}
 
 func withClock(clock clockwork.Clock) opt {
 	return func(env *storageEnv) { env.memClock = clock }
@@ -4856,7 +4859,9 @@ func mustNewEnv(opts ...opt) *storageEnv {
 }
 
 func newEnv(opts ...opt) (*storageEnv, error) {
-	env := &storageEnv{}
+	env := &storageEnv{
+		modules: modulestest.EnterpriseModules(),
+	}
 	for _, opt := range opts {
 		opt(env)
 	}
@@ -4900,6 +4905,7 @@ func newEnv(opts ...opt) (*storageEnv, error) {
 		Backend:            env.mem,
 		UsersService:       env.IdentityService,
 		BCryptCostOverride: bcrypt.MinCost,
+		Modules:            env.modules,
 	})
 	if err != nil {
 		return nil, err

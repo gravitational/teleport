@@ -69,6 +69,7 @@ type E struct {
 	emitter                apievents.Emitter
 	limiter                devicetrustv1.RateLimiter
 	closers                []func() error
+	modules                *modulestest.Modules
 }
 
 // Close tears down the test environment.
@@ -85,6 +86,11 @@ func (e *E) Close() error {
 
 // Opt is a creation option for [E].
 type Opt func(*E)
+
+// WithModules customizes the [E] modules.
+func WithModules(m *modulestest.Modules) Opt {
+	return func(e *E) { e.modules = m }
+}
 
 // WithAugmentCertsFunc customizes the [E] augment certs function.
 func WithAugmentCertsFunc(f AugmentContextCertsFunc) Opt {
@@ -121,38 +127,14 @@ func WithLimiter(l devicetrustv1.RateLimiter) Opt {
 	return func(e *E) { e.limiter = l }
 }
 
-// MustNew creates a new [E] or panics.
-// Prefer [NewUsingT], as it configures [modulestest.Modules] automatically.
-func MustNew(opts ...Opt) *E {
-	env, err := New(opts...)
-	if err != nil {
-		panic(err)
-	}
-	return env
-}
-
 // NewUsingT creates a new [E] using t to report failures or register the
 // appropriate cleanups.
-// Additionally, it also sets [modulestest.SetTestModules] to an Enterprise build
-// type.
 func NewUsingT(t *testing.T, opts ...Opt) *E {
 	env, err := New(opts...)
 	if err != nil {
 		t.Fatalf("Failed to create testenv.E: %v", err)
 	}
 	t.Cleanup(func() { _ = env.Close() })
-
-	// Set the build to Enterprise (required by a few OSS checks) and enable the
-	// device trust feature.
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DeviceTrust:            {Enabled: true},
-				entitlements.MobileDeviceManagement: {Enabled: true},
-			},
-		},
-	})
 
 	return env
 }
@@ -167,6 +149,15 @@ func New(opts ...Opt) (*E, error) {
 		authorizer:             &noopAuthorizer{},
 		emitter:                &noopEmitter{},
 		limiter:                &noopLimiter{},
+		modules: &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.DeviceTrust:            {Enabled: true},
+					entitlements.MobileDeviceManagement: {Enabled: true},
+				},
+			},
+		},
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -200,6 +191,7 @@ func New(opts ...Opt) (*E, error) {
 		Backend:            mem,
 		UsersService:       e.IdentityService,
 		BCryptCostOverride: bcrypt.MinCost,
+		Modules:            e.modules,
 	})
 	if err != nil {
 		return nil, err
@@ -220,7 +212,7 @@ func New(opts ...Opt) (*E, error) {
 		Emitter:             e.emitter,
 		Limiter:             e.limiter,
 		Storage:             dtStorage,
-		Modules:             modulestest.EnterpriseModules(),
+		Modules:             e.modules,
 	})
 	if err != nil {
 		return nil, err

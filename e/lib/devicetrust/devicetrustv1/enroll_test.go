@@ -641,19 +641,22 @@ func TestService_EnrollDevice(t *testing.T) {
 }
 
 func TestService_EnrollDevice_usageBasedLimits(t *testing.T) {
-	env := testenv.NewUsingT(t)
+	t.Parallel()
+
+	const devicesLimit = 3
+	env := testenv.NewUsingT(t, testenv.WithModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			IsUsageBasedBilling: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DeviceTrust:            {Enabled: true, Limit: devicesLimit},
+				entitlements.MobileDeviceManagement: {Enabled: true},
+			},
+		},
+	}))
 
 	devices := env.DevicesClient
 	ctx := context.Background()
-
-	// Set usage-based and device limits.
-	// This is safe to do because NewUsingT sets modulestest.Modules when called.
-	// We'll also rely on the already-registered cleanup.
-	m := modules.GetModules().(*modulestest.Modules)
-	m.TestFeatures.IsUsageBasedBilling = true
-	const devicesLimit = 3
-	m.TestFeatures.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: true, Limit: devicesLimit}
-	modules.SetModules(m)
 
 	// 1. Register limit+1 devices. This is allowed.
 	var allDevs []*devicepb.Device

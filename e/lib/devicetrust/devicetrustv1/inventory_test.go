@@ -1181,10 +1181,17 @@ func TestService_SyncInventory_missingDevices(t *testing.T) {
 }
 
 func TestService_SyncInventory_usageBasedDisallowed(t *testing.T) {
-	env := testenv.NewUsingT(t)
+	t.Parallel()
 
-	m := modules.GetModules().(*modulestest.Modules)
-	m.TestFeatures.Entitlements[entitlements.MobileDeviceManagement] = modules.EntitlementInfo{Enabled: false}
+	env := testenv.NewUsingT(t, testenv.WithModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DeviceTrust:            {Enabled: true},
+				entitlements.MobileDeviceManagement: {Enabled: false},
+			},
+		},
+	}))
 
 	devices := env.DevicesClient
 	ctx := context.Background()

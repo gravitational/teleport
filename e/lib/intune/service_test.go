@@ -35,6 +35,7 @@ var source = &devicepb.DeviceSource{Name: "intune", Origin: devicepb.DeviceOrigi
 // TestRun_fullSync runs a full sync once and verifies that only valid devices are pushed to
 // Teleport.
 func TestRun_fullSync(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 2, 3, 4, 5, 0, time.UTC))
 	env := testenv.MustNew(t, &testenv.Config{
 		Clock:          clock,
@@ -147,6 +148,7 @@ func TestRun_fullSync(t *testing.T) {
 // TestRun_partialSync runs two partial syncs. It verifies that partial syncs use the highest
 // observed LastSyncDateTime to fetch devices during syncs and that they don't delete devices.
 func TestRun_partialSync(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 2, 3, 4, 5, 0, time.UTC))
 	env := testenv.MustNew(t, &testenv.Config{
 		Clock:          clock,
@@ -244,6 +246,7 @@ func TestRun_partialSync(t *testing.T) {
 // TestRun_fullSyncThenPartialSync verifies that the partial sync uses the highest observed
 // lastSyncDateTime from the full sync to fetch only a small subset of devices from Intune.
 func TestRun_fullSyncThenPartialSync(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 2, 3, 4, 5, 0, time.UTC))
 	env := testenv.MustNew(t, &testenv.Config{
 		Clock:          clock,
@@ -354,6 +357,7 @@ func TestRun_fullSyncThenPartialSync(t *testing.T) {
 // inventory. The service is supposed to check if the device indeed doesn't exist in Intune before
 // removing it from Teleport's inventory.
 func TestRun_deviceConfirmation(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 2, 3, 4, 5, 0, time.UTC))
 	env := testenv.MustNew(t, &testenv.Config{
 		Clock:          clock,

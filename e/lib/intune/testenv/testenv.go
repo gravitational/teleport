@@ -19,9 +19,6 @@ import (
 	dtenv "github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/e/lib/intune/api"
 	intunefake "github.com/gravitational/teleport/e/lib/intune/fake"
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest" //nolint:depguard // This is a test package.
 )
 
 // DefaultApps are the app credentials added by default to the fake Intune API.
@@ -48,8 +45,7 @@ type Env struct {
 // Config provides values needed by [Env].
 type Config struct {
 	Clock clockwork.Clock
-	// DeviceTrustEnv makes [Env] prepare a test environment for Device Trust as well. This includes
-	// changing the build type to Enterprise.
+	// DeviceTrustEnv makes [Env] prepare a test environment for Device Trust as well.
 	DeviceTrustEnv bool
 }
 
@@ -57,19 +53,6 @@ type Config struct {
 // Automatically cleans up [Env] when the test finishes.
 func MustNew(t *testing.T, config *Config) *Env {
 	t.Helper()
-
-	if config.DeviceTrustEnv {
-		// Set build type and features.
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.DeviceTrust:            {Enabled: true},
-					entitlements.MobileDeviceManagement: {Enabled: true},
-				},
-			},
-		})
-	}
 
 	level := slog.LevelError + 1 // Silence logging by default.
 	if testing.Verbose() {

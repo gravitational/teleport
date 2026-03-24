@@ -1090,7 +1090,7 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 		return trace.Wrap(err)
 	}
 
-	if f := modules.GetModules().Features(); !f.GetEntitlement(entitlements.MobileDeviceManagement).Enabled {
+	if f := s.modules.Features(); !f.GetEntitlement(entitlements.MobileDeviceManagement).Enabled {
 		// TODO(sshah): update event type once Intune integration is supported.
 		s.emitDeviceLimitEvent(prehogv1alpha.LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF)
 		return trace.AccessDenied(
@@ -1494,7 +1494,7 @@ func (s *Service) authorize(ctx context.Context) (*authz.Context, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.DeviceTrust).Enabled {
+	if !s.modules.Features().GetEntitlement(entitlements.DeviceTrust).Enabled {
 		return nil, trace.AccessDenied("this Teleport cluster is not licensed for device trust, please contact the cluster administrator")
 	}
 

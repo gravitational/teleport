@@ -56,9 +56,18 @@ const (
 )
 
 func TestService_authz(t *testing.T) {
+	t.Parallel()
 	authorizer := &fakeAuthorizer{}
-	env := testenv.NewUsingT(t, testenv.WithAuthorizer(authorizer))
-
+	testModules := &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DeviceTrust:            {Enabled: true},
+				entitlements.MobileDeviceManagement: {Enabled: true},
+			},
+		},
+	}
+	env := testenv.NewUsingT(t, testenv.WithAuthorizer(authorizer), testenv.WithModules(testModules))
 	devices := env.DevicesClient
 	ctx := context.Background()
 
@@ -281,9 +290,7 @@ func TestService_authz(t *testing.T) {
 		})
 	}
 
-	// Safe because NewUsingT sets a modulestest.Module.
-	m := modules.GetModules().(*modulestest.Modules)
-	m.TestFeatures.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: false}
+	testModules.TestFeatures.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: false}
 
 	// Test system behavior when the feature is disabled.
 	// The check is bundled with user authz, so it's easy to test it here.
@@ -2484,14 +2491,21 @@ func TestService_dataDriftErrorsRedacted(t *testing.T) {
 }
 
 func TestService_GetResourceDevicesUsage(t *testing.T) {
-	env := testenv.NewUsingT(t)
+	t.Parallel()
+	m := &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DeviceTrust:            {Enabled: true},
+				entitlements.MobileDeviceManagement: {Enabled: true},
+			},
+		},
+	}
+	env := testenv.NewUsingT(t, testenv.WithModules(m))
 
 	devices := env.DevicesClient
 	service := env.DevicesService
 	ctx := context.Background()
-
-	// Safe because of NewUsingT.
-	m := modules.GetModules().(*modulestest.Modules)
 
 	// Enroll a device so the count is not zero.
 	if _, _, err := createAndEnroll(ctx, devices, &devicepb.Device{
@@ -2595,6 +2609,8 @@ func assertEvents(t *testing.T, got []apievents.AuditEvent, want []wantEvent) {
 }
 
 func TestService_EnrollDevice_issuesDevicesLimitEvent(t *testing.T) {
+	t.Parallel()
+
 	var emittedEvents []usagereporter.Anonymizable
 	fakeAnonymizeAndSubmit := func(events ...usagereporter.Anonymizable) {
 		emittedEvents = append(emittedEvents, events...)
@@ -2602,14 +2618,19 @@ func TestService_EnrollDevice_issuesDevicesLimitEvent(t *testing.T) {
 	env := testenv.NewUsingT(
 		t,
 		testenv.WithAnonymizeAndSubmitFunc(fakeAnonymizeAndSubmit),
+		testenv.WithModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				IsUsageBasedBilling: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.DeviceTrust:            {Enabled: true, Limit: 1},
+					entitlements.MobileDeviceManagement: {Enabled: true},
+				},
+			},
+		}),
 	)
 	devicesClient := env.DevicesClient
 	ctx := context.Background()
-
-	// Safe because of NewUsingT.
-	m := modules.GetModules().(*modulestest.Modules)
-	m.TestFeatures.IsUsageBasedBilling = true
-	m.TestFeatures.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: true, Limit: 1}
 
 	if _, _, err := createAndEnroll(ctx, devicesClient, &devicepb.Device{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
