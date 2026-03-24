@@ -41,7 +41,7 @@ func externalAuditStorageHandler() Handler {
 		getHandler:    getExternalAuditStorage,
 		createHandler: createExternalAuditStorage,
 		deleteHandler: deleteExternalAuditStorage,
-		singleton:     true,
+		singleton:     false,
 		mfaRequired:   false,
 		description:   "Configures External Audit Storage settings",
 	}
@@ -112,7 +112,7 @@ func deleteExternalAuditStorage(ctx context.Context, client *authclient.Client, 
 			return trace.Wrap(err)
 		}
 		fmt.Printf("cluster External Audit Storage configuration has been disabled\n")
-	} else {
+	} else { // Note: deletes 'draft' if the user supplies any name other than 'cluster'
 		if err := client.ExternalAuditStorageClient().DeleteDraftExternalAuditStorage(ctx); err != nil {
 			return trace.Wrap(err)
 		}
