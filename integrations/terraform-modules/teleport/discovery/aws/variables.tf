@@ -25,34 +25,49 @@ variable "teleport_discovery_group_name" {
 }
 
 variable "match_aws_resource_types" {
-  description = "AWS resource types to match when discovering resources with Teleport. Valid values are: `ec2`."
+  description = "Deprecated legacy input. Use aws_matchers instead. AWS resource types to match when discovering resources with Teleport."
   type        = list(string)
-  nullable    = false
+  default     = null
+  nullable    = true
 
   validation {
-    condition = alltrue([
+    condition = var.match_aws_resource_types == null || alltrue([
       for rt in var.match_aws_resource_types :
       contains([
-        # TODO(gavin): add module support for all resource types
-        # "docdb",
         "ec2",
-        # "eks",
-        # "elasticache-serverless",
-        # "elasticache",
-        # "memorydb",
-        # "opensearch",
-        # "rds",
-        # "rdsproxy",
-        # "redshift-serverless",
-        # "redshift"
+        "eks",
       ], rt)
     ])
-    error_message = format(
-      "Allowed values for match_aws_resource_types are: %s.",
-      join(", ", [
-        "ec2",
-      ])
-    )
+    error_message = "Allowed values for match_aws_resource_types are: ec2, eks."
+  }
+}
+
+variable "aws_matchers" {
+  description = "AWS resource discovery matchers."
+  type = list(object({
+    types   = list(string)
+    regions = list(string)
+    tags    = optional(map(list(string)), { "*" : ["*"] })
+  }))
+  default  = null
+  nullable = true
+
+  validation {
+    condition = var.aws_matchers == null || alltrue(flatten([
+      for matcher in var.aws_matchers : [
+        for rt in matcher.types :
+        contains(["ec2", "eks"], rt)
+      ]
+    ]))
+    error_message = "Allowed values for aws_matchers.types are: ec2, eks."
+  }
+
+  validation {
+    condition = var.aws_matchers == null || !anytrue([
+      for matcher in var.aws_matchers :
+      contains(matcher.types, "eks") && contains(matcher.regions, "*")
+    ])
+    error_message = "EKS discovery does not support wildcard regions. Specify explicit regions for EKS matchers."
   }
 }
 
@@ -96,17 +111,17 @@ variable "aws_iam_policy_document" {
 }
 
 variable "match_aws_regions" {
-  description = "AWS regions to discover. The default matches all AWS regions."
+  description = "Deprecated legacy input. Use aws_matchers instead. AWS regions to discover. The default matches all AWS regions."
   type        = list(string)
-  default     = ["*"]
-  nullable    = false
+  default     = null
+  nullable    = true
 }
 
 variable "match_aws_tags" {
-  description = "AWS resource tags to match when discovering resources with Teleport. The default matches all discovered AWS resources."
+  description = "Deprecated legacy input. Use aws_matchers instead. AWS resource tags to match when discovering resources with Teleport. The default matches all discovered AWS resources."
   type        = map(list(string))
-  default     = { "*" : ["*"] }
-  nullable    = false
+  default     = null
+  nullable    = true
 }
 
 variable "aws_iam_policy_name" {

@@ -12,10 +12,75 @@ locals {
     role_arn    = var.discovery_service_iam_credential_source.trust_role.role_arn,
     external_id = var.discovery_service_iam_credential_source.trust_role.external_id,
   }, null)
+
+  legacy_aws_matcher = var.match_aws_resource_types == null ? [] : [
+    {
+      types   = var.match_aws_resource_types
+      regions = coalesce(var.match_aws_regions, ["*"])
+      tags    = coalesce(var.match_aws_tags, { "*" : ["*"] })
+    }
+  ]
+
+  effective_aws_matchers = var.aws_matchers != null ? var.aws_matchers : local.legacy_aws_matcher
+
+  aws_matchers = [
+    for matcher in local.effective_aws_matchers : merge(
+      {
+        types       = matcher.types
+        regions     = matcher.regions
+        tags        = try(matcher.tags, { "*" : ["*"] })
+        assume_role = local.trust_role
+        integration = (
+          local.use_oidc_integration
+          ? try(teleport_integration.aws_oidc[0].metadata.name, local.teleport_integration_name)
+          : ""
+        )
+      },
+      contains(matcher.types, "ec2") ? {
+        install = {
+          enroll_mode      = 1 # INSTALL_PARAM_ENROLL_MODE_SCRIPT
+          install_teleport = true
+          join_method      = "iam"
+          join_token       = local.teleport_provision_token_name
+          script_name      = "default-installer"
+          sshd_config      = "/etc/ssh/sshd_config"
+        }
+        ssm = {
+          document_name = "AWS-RunShellScript"
+        }
+      } : {}
+    )
+  ]
+
+  aws_matcher_types = distinct(flatten([
+    for matcher in local.aws_matchers : matcher.types
+  ]))
+  aws_matcher_regions = distinct(flatten([
+    for matcher in local.aws_matchers : matcher.regions
+  ]))
 }
 
 resource "teleport_discovery_config" "aws" {
   count = local.create ? 1 : 0
+
+  lifecycle {
+    precondition {
+      condition = (
+        (var.aws_matchers != null && length(var.aws_matchers) > 0) ||
+        (var.match_aws_resource_types != null && length(var.match_aws_resource_types) > 0)
+      )
+      error_message = "Set either aws_matchers or match_aws_resource_types."
+    }
+    precondition {
+      condition = !(
+        var.aws_matchers != null &&
+        length(var.aws_matchers) > 0 &&
+        var.match_aws_resource_types != null &&
+        length(var.match_aws_resource_types) > 0
+      )
+      error_message = "Use either aws_matchers or the legacy match_aws_* variables, not both."
+    }
+  }
 
   header = {
     version = "v1"
@@ -28,27 +93,6 @@ resource "teleport_discovery_config" "aws" {
 
   spec = {
     discovery_group = var.teleport_discovery_group_name
-    aws = [{
-      assume_role = local.trust_role
-      install = {
-        enroll_mode      = 1 # INSTALL_PARAM_ENROLL_MODE_SCRIPT
-        install_teleport = true
-        join_method      = "iam"
-        join_token       = local.teleport_provision_token_name
-        script_name      = "default-installer"
-        sshd_config      = "/etc/ssh/sshd_config"
-      }
-      integration = (
-        local.use_oidc_integration
-        ? try(teleport_integration.aws_oidc[0].metadata.name, local.teleport_integration_name)
-        : ""
-      )
-      regions = var.match_aws_regions
-      ssm = {
-        document_name = "AWS-RunShellScript"
-      }
-      tags  = var.match_aws_tags
-      types = var.match_aws_resource_types
-    }]
+    aws             = local.aws_matchers
   }
 }

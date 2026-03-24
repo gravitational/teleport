@@ -1,9 +1,3 @@
-## Teleport AWS Account Discovery Example
-
-Configuration in this directory creates AWS and Teleport resources necessary for Teleport to discover resources in a single AWS account.
-
-In addition, the example uses a custom AWS IAM policy to narrow the scope of permissions for Teleport Discovery Service instances.
-
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -16,9 +10,7 @@ In addition, the example uses a custom AWS IAM policy to narrow the scope of per
 
 ## Providers
 
-| Name | Version |
-|------|---------|
-| aws | >= 5.0 |
+No providers.
 
 ## Modules
 
@@ -28,9 +20,7 @@ In addition, the example uses a custom AWS IAM policy to narrow the scope of per
 
 ## Resources
 
-| Name | Type |
-|------|------|
-| [aws_iam_policy_document.teleport_discovery_service_single_account](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+No resources.
 
 ## Inputs
 
@@ -38,7 +28,5 @@ No inputs.
 
 ## Outputs
 
-| Name | Description |
-|------|-------------|
-| aws\_discovery | n/a |
+No outputs.
 <!-- END_TF_DOCS -->
