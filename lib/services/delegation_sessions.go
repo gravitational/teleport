@@ -101,7 +101,7 @@ func ValidateDelegationResourceSpec(s *delegationv1.DelegationResourceSpec) erro
 	}
 
 	switch s.GetKind() {
-	case types.KindApp, types.KindDatabase, types.KindNode, types.KindKubernetesCluster, types.Wildcard:
+	case types.KindApp, types.KindDatabase, types.KindNode, types.KindKubernetesCluster, types.KindWindowsDesktop, types.KindGitServer, types.Wildcard:
 	case "":
 		return trace.BadParameter("kind is required")
 	default:
