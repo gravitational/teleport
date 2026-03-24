@@ -600,7 +600,7 @@ func (a *Server) generateInitialBotCerts(
 		TTL:            expires.Sub(a.GetClock().Now()),
 		SSHPublicKey:   sshPubKey,
 		TLSPublicKey:   tlsPubKey,
-		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to generateInitialBotCerts (likely not necessary until bot scoping work begins).
+		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker), // TODO(fspmarshall/scopes): add scoping support to generateInitialBotCerts (likely not necessary until bot scoping work begins).
 		Traits:         accessInfo.Traits,
 		Renewable:      renewable,
 		IncludeHostCA:  true,

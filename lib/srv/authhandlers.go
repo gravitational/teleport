@@ -952,15 +952,10 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 	}
 
 	// build an access checker context based on the provided scoped identity.
-	scopedCheckerContext, err := services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName, a.c.AccessPoint.ScopedRoleReader())
+	checkerContext, err := services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName, a.c.AccessPoint.ScopedRoleReader())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// even though this function isn't currently polymorphic over scoped vs unscoped identities,
-	// we use the split context here so that in the future it will be easy to refactor this function to
-	// accept unscoped identities as well.
-	checkerContext := services.NewScopedSplitAccessCheckerContext(scopedCheckerContext)
 
 	state, err := checkerContext.AccessStateFromSSHIdentity(ctx, ident, a.c.AccessPoint)
 	if err != nil {
@@ -989,9 +984,9 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 
 	// perform the primary node access check and exfiltrate the checker if successful
 	// for use in calculating the remaining fields of the permit.
-	var checker *services.SplitAccessChecker
-	if err := checkerContext.Decision(ctx, agentScope, func(c *services.SplitAccessChecker) error {
-		if err := c.Common().CheckAccessToSSHServer(
+	var checker *services.ScopedAccessChecker
+	if err := checkerContext.Decision(ctx, agentScope, func(c *services.ScopedAccessChecker) error {
+		if err := c.SSH().CheckAccessToSSHServer(
 			target,
 			state,
 			osUser,
@@ -1018,39 +1013,44 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		return nil, trace.Wrap(err)
 	}
 
-	privateKeyPolicy, err := checker.Common().PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	privateKeyPolicy, err := checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	lockTargets := services.SSHAccessLockTargets(clusterName, target.GetName(), osUser, accessInfo, ident)
 
-	hostSudoers, err := checker.Common().HostSudoers(target)
+	hostSudoers, err := checker.SSH().HostSudoers(target)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var bpfEvents []string
-	for event := range checker.Common().EnhancedRecordingSet() {
+	for event := range checker.SSH().EnhancedRecordingSet() {
 		bpfEvents = append(bpfEvents, event)
 	}
 
-	hostUsersDecision, err := checker.Common().HostUsers(target)
+	hostUsersDecision, err := checker.SSH().HostUsers(target)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clientIdleTimeout, err := checker.SSH().AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &decisionpb.SSHAccessPermit{
-		ForwardAgent:          checker.Common().CheckAgentForward(osUser) == nil,
-		X11Forwarding:         checker.Common().PermitX11Forwarding(),
-		MaxConnections:        checker.Common().MaxConnections(),
-		MaxSessions:           checker.Common().MaxSessions(),
-		SshFileCopy:           checker.Common().CanCopyFiles(),
-		PortForwardMode:       checker.Common().SSHPortForwardMode(),
-		ClientIdleTimeout:     durationpb.New(checker.Common().AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())),
-		DisconnectExpiredCert: timestampFromGoTime(getDisconnectExpiredCertFromSSHIdentityScoped(checker, authPref, ident)),
-		SessionRecordingMode:  string(checker.Common().SessionRecordingMode(constants.SessionRecordingServiceSSH)),
-		LockingMode:           string(checker.Common().LockingMode(authPref.GetLockingMode())),
+		ForwardAgent:          checker.SSH().CheckAgentForward(osUser) == nil,
+		X11Forwarding:         checker.SSH().PermitX11Forwarding(),
+		MaxConnections:        checker.SSH().MaxConnections(),
+		MaxSessions:           checker.SSH().MaxSessions(),
+		SshFileCopy:           checker.SSH().CanCopyFiles(),
+		PortForwardMode:       checker.SSH().SSHPortForwardMode(),
+		ClientIdleTimeout:     durationpb.New(clientIdleTimeout),
+		DisconnectExpiredCert: timestampFromGoTime(getDisconnectExpiredCertFromSSHIdentityScoped(checker.SSH(), authPref, ident)),
+		SessionRecordingMode:  string(checker.SSH().SessionRecordingMode()),
+		LockingMode:           string(checker.LockingMode(authPref.GetLockingMode())),
 		PrivateKeyPolicy:      string(privateKeyPolicy),
 		LockTargets:           decision.LockTargetsToProto(lockTargets),
 		MappedRoles:           accessInfo.Roles,
@@ -1231,10 +1231,10 @@ func getDisconnectExpiredCertFromSSHIdentity(
 	authPref types.AuthPreference,
 	identity *sshca.Identity,
 ) time.Time {
-	return getDisconnectExpiredCertFromSSHIdentityScoped(services.NewUnscopedSplitAccessChecker(checker), authPref, identity)
+	return getDisconnectExpiredCertFromSSHIdentityScoped(services.NewScopedAccessCheckerFromUnscoped(checker).SSH(), authPref, identity)
 }
 
-func getDisconnectExpiredCertFromSSHIdentityScoped(checker *services.SplitAccessChecker, authPref types.AuthPreference, identity *sshca.Identity) time.Time {
+func getDisconnectExpiredCertFromSSHIdentityScoped(checker *services.SSHAccessChecker, authPref types.AuthPreference, identity *sshca.Identity) time.Time {
 	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
 	// the PreviousIdentityExpires value of the certificate will be used, which is the
 	// expiry of the certificate used to issue the short lived MFA verified certificate.
@@ -1242,7 +1242,7 @@ func getDisconnectExpiredCertFromSSHIdentityScoped(checker *services.SplitAccess
 	// See https://github.com/gravitational/teleport/issues/18544
 
 	// If the session doesn't need to be disconnected on cert expiry just return the default value.
-	if !checker.Common().AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+	if !checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
 		return time.Time{}
 	}
 
