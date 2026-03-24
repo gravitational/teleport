@@ -273,6 +273,10 @@ func (p *playwrightRunner) startEnv(inst *browserInstance) ([]string, error) {
 		env = append(env, fmt.Sprintf("E2E_LEAF_PROXY_URL=https://localhost:%d/web", inst.leafProxyPort))
 	}
 
+	if leafCluster.enabled && sshNode.enabled && p.config.licenseFile != "" {
+		env = append(env, "E2E_ACCESS_REQUESTS=true")
+	}
+
 	return env, nil
 }
 
