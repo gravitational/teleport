@@ -241,6 +241,7 @@ func (m *SAMLCertExpiryMonitor) reconcileAlerts(ctx context.Context) {
 	clusterAlerts, err := m.Alerts.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
 	if err != nil {
 		m.Logger.ErrorContext(ctx, "Failed to get cluster alerts", "error", err)
+		return
 	}
 
 	for _, clusterAlert := range clusterAlerts {
