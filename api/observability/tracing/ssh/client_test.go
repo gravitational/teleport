@@ -23,11 +23,11 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api"
 )
 
 func TestIsTracingSupported(t *testing.T) {
