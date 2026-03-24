@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net/http"
 	"net/url"
@@ -103,6 +104,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	libevents "github.com/gravitational/teleport/lib/events"
 	libstream "github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/loglimit"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -119,6 +121,179 @@ import (
 func TestMain(m *testing.M) {
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
+}
+
+func TestShouldLogEC2IAMPermissionWarning(t *testing.T) {
+	t.Parallel()
+
+	fakeClock := clockwork.NewFakeClockAt(time.Date(2026, time.March, 20, 0, 0, 0, 0, time.UTC))
+	pollInterval := 5 * time.Minute
+	srv := &Server{
+		Config: &Config{clock: fakeClock, PollInterval: pollInterval},
+		ec2IAMWarningLimiter: loglimit.NewKeyedLimiter(loglimit.KeyedLimiterConfig{
+			Clock:           fakeClock,
+			SweepInterval:   ec2IAMWarningSweepInterval(pollInterval),
+			StaleMultiplier: ec2IAMWarningStaleMultiplier,
+		}),
+	}
+
+	baseErr := &server.EC2IAMPermissionError{
+		Integration:         "my-integration",
+		AccountID:           "123456789012",
+		Region:              "eu-west-2",
+		IssueType:           usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+		DiscoveryConfigName: "dc-1",
+		Err:                 trace.AccessDenied("User is not authorized to perform: ec2:DescribeInstances"),
+	}
+
+	t.Run("first call allowed", func(t *testing.T) {
+		require.True(t, srv.shouldLogEC2IAMPermissionWarning(baseErr))
+	})
+
+	t.Run("duplicate suppressed", func(t *testing.T) {
+		require.False(t, srv.shouldLogEC2IAMPermissionWarning(baseErr))
+	})
+
+	t.Run("different error same key suppressed", func(t *testing.T) {
+		sameContextDifferentErr := &server.EC2IAMPermissionError{
+			Integration:         baseErr.Integration,
+			AccountID:           baseErr.AccountID,
+			Region:              baseErr.Region,
+			IssueType:           baseErr.IssueType,
+			DiscoveryConfigName: baseErr.DiscoveryConfigName,
+			Err:                 trace.AccessDenied("User is not authorized to perform: account:ListRegions"),
+		}
+		require.False(t, srv.shouldLogEC2IAMPermissionWarning(sameContextDifferentErr))
+	})
+
+	t.Run("different region allowed", func(t *testing.T) {
+		differentRegion := &server.EC2IAMPermissionError{
+			Integration:         baseErr.Integration,
+			AccountID:           baseErr.AccountID,
+			Region:              "us-west-2",
+			IssueType:           baseErr.IssueType,
+			DiscoveryConfigName: baseErr.DiscoveryConfigName,
+			Err:                 trace.AccessDenied("User is not authorized to perform: ec2:DescribeInstances"),
+		}
+		require.True(t, srv.shouldLogEC2IAMPermissionWarning(differentRegion))
+	})
+
+	t.Run("different config same key suppressed", func(t *testing.T) {
+		sameKeyDifferentConfig := &server.EC2IAMPermissionError{
+			Integration:         baseErr.Integration,
+			AccountID:           baseErr.AccountID,
+			Region:              baseErr.Region,
+			IssueType:           baseErr.IssueType,
+			DiscoveryConfigName: "dc-2",
+			Err:                 trace.AccessDenied("User is not authorized to perform: ec2:DescribeInstances"),
+		}
+		require.False(t, srv.shouldLogEC2IAMPermissionWarning(sameKeyDifferentConfig))
+	})
+
+	t.Run("suppressed within window", func(t *testing.T) {
+		fakeClock.Advance(10 * time.Minute)
+		require.False(t, srv.shouldLogEC2IAMPermissionWarning(baseErr))
+	})
+
+	t.Run("allowed after window expires", func(t *testing.T) {
+		fakeClock.Advance(5 * time.Minute)
+		require.True(t, srv.shouldLogEC2IAMPermissionWarning(baseErr))
+	})
+
+	t.Run("nil returns false", func(t *testing.T) {
+		require.False(t, srv.shouldLogEC2IAMPermissionWarning(nil))
+	})
+}
+
+func TestShouldLogEC2IAMPermissionWarning_StaleSweep(t *testing.T) {
+	t.Parallel()
+
+	fakeClock := clockwork.NewFakeClockAt(time.Date(2026, time.March, 20, 0, 0, 0, 0, time.UTC))
+	pollInterval := 5 * time.Minute
+	srv := &Server{
+		Config: &Config{clock: fakeClock, PollInterval: pollInterval},
+		ec2IAMWarningLimiter: loglimit.NewKeyedLimiter(loglimit.KeyedLimiterConfig{
+			Clock:           fakeClock,
+			SweepInterval:   ec2IAMWarningSweepInterval(pollInterval),
+			StaleMultiplier: ec2IAMWarningStaleMultiplier,
+		}),
+	}
+
+	makeErr := func(suffix string) *server.EC2IAMPermissionError {
+		return &server.EC2IAMPermissionError{
+			Integration:         "my-integration",
+			AccountID:           "123456789012",
+			Region:              "eu-west-2",
+			IssueType:           fmt.Sprintf("%s-%s", usertasks.AutoDiscoverEC2IssuePermAccountDenied, suffix),
+			DiscoveryConfigName: "dc-1",
+			Err:                 trace.AccessDenied("User is not authorized to perform: ec2:DescribeInstances"),
+		}
+	}
+
+	require.True(t, srv.shouldLogEC2IAMPermissionWarning(makeErr("old")))
+
+	// Advance beyond stale duration so first key becomes evictable.
+	fakeClock.Advance(31 * time.Minute)
+	require.True(t, srv.shouldLogEC2IAMPermissionWarning(makeErr("new")))
+
+	// Trigger sweep after sweep interval has elapsed.
+	fakeClock.Advance(15 * time.Minute)
+	require.True(t, srv.shouldLogEC2IAMPermissionWarning(makeErr("sweep")))
+	require.True(t, srv.shouldLogEC2IAMPermissionWarning(makeErr("old")))
+}
+
+func TestEC2IAMWarningKeyStringIsUnambiguous(t *testing.T) {
+	t.Parallel()
+
+	// These would collide with a naive NUL-joined serialization.
+	keyA := ec2IAMWarningKey{
+		integration: "my-int\x00suffix",
+		accountID:   "123456789012",
+		region:      "us-west-2",
+		issueType:   usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+	}
+	keyB := ec2IAMWarningKey{
+		integration: "my-int",
+		accountID:   "suffix\x00123456789012",
+		region:      "us-west-2",
+		issueType:   usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+	}
+
+	require.NotEqual(t, keyA.String(), keyB.String())
+}
+
+func TestHandleEC2WatcherResults_NilGuards(t *testing.T) {
+	t.Parallel()
+
+	fakeClock := clockwork.NewFakeClockAt(time.Date(2026, time.March, 20, 0, 0, 0, 0, time.UTC))
+	pollInterval := 5 * time.Minute
+	srv := &Server{
+		Config: &Config{
+			clock:        fakeClock,
+			PollInterval: pollInterval,
+			Log:          slog.Default(),
+		},
+		ctx: t.Context(),
+		ec2IAMWarningLimiter: loglimit.NewKeyedLimiter(loglimit.KeyedLimiterConfig{
+			Clock:           fakeClock,
+			SweepInterval:   ec2IAMWarningSweepInterval(pollInterval),
+			StaleMultiplier: ec2IAMWarningStaleMultiplier,
+		}),
+	}
+
+	t.Run("nil result skipped", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			srv.handleEC2WatcherResults([]*server.EC2DiscoveryResult{nil})
+		})
+	})
+
+	t.Run("nil permission error skipped", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			srv.handleEC2WatcherResults([]*server.EC2DiscoveryResult{
+				{PermissionErrors: []*server.EC2IAMPermissionError{nil}},
+			})
+		})
+	})
 }
 
 type mockSSMClient struct {
@@ -139,13 +314,32 @@ type mockEmitter struct {
 	eventHandler func(*testing.T, events.AuditEvent, *Server)
 	server       *Server
 	t            *testing.T
+	mu           sync.Mutex
+	emitted      []events.AuditEvent
 }
 
 func (me *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
+	me.mu.Lock()
+	me.emitted = append(me.emitted, event)
+	me.mu.Unlock()
+
 	if me.eventHandler != nil {
 		me.eventHandler(me.t, event, me.server)
 	}
 	return nil
+}
+
+func (me *mockEmitter) EmittedByType(eventType string) []events.AuditEvent {
+	me.mu.Lock()
+	defer me.mu.Unlock()
+
+	var filtered []events.AuditEvent
+	for _, evt := range me.emitted {
+		if evt.GetType() == eventType {
+			filtered = append(filtered, evt)
+		}
+	}
+	return filtered
 }
 
 type mockUsageReporter struct {
@@ -184,10 +378,15 @@ type mockEC2Client struct {
 	err    error
 }
 
+// Compile-time check that the mock satisfies the API used by discovery tests.
+var _ ec2.DescribeInstancesAPIClient = (*mockEC2Client)(nil)
+
 func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.DescribeInstancesInput, opts ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
+	// Unlike the server package mock, this integration-style test mock returns
+	// pre-shaped outputs so tests can focus on discovery service behavior.
 	return m.output, nil
 }
 
@@ -1416,6 +1615,359 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 
 		return len(allNodes) != 1
 	}, 2*time.Second, 50*time.Millisecond)
+}
+
+func TestEC2PermissionTaskAuditCadence_CreateThenUpdate(t *testing.T) {
+	t.Parallel()
+	const defaultDiscoveryGroup = "dc001"
+
+	ctx := context.Background()
+	logger := logtest.NewLogger()
+	fakeClock := clockwork.NewFakeClock()
+
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: fakeClock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+	tlsServer, err := testAuthServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+	identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
+	authClient, err := tlsServer.NewClient(identity)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+	discoveryConfigName := "dc-ec2-audit-cadence"
+	discoveryCfg, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: discoveryConfigName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS: []types.AWSMatcher{
+				{
+					Types:       []string{"ec2"},
+					Regions:     []string{"us-west-2"},
+					Tags:        map[string]utils.Strings{"teleport": {"yes"}},
+					Integration: "my-integration",
+					Params: &types.InstallerParams{
+						EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+					},
+					SSM: &types.AWSSSM{DocumentName: "document"},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.NoError(t, discoveryCfg.CheckAndSetDefaults())
+	_, err = tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, discoveryCfg)
+	require.NoError(t, err)
+
+	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{Name: "my-integration"}, &types.AWSOIDCIntegrationSpecV1{
+		RoleARN: "arn:aws:iam::123456789012:role/teleport",
+	})
+	require.NoError(t, err)
+	testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{
+		integrations: map[string]types.Integration{
+			awsOIDCIntegration.GetName(): awsOIDCIntegration,
+		},
+	}
+	_, err = tlsServer.Auth().CreateIntegration(ctx, awsOIDCIntegration)
+	require.NoError(t, err)
+
+	emitter := &mockEmitter{}
+	fakeConfigProvider := mocks.AWSConfigProvider{
+		OIDCIntegrationClient: tlsServer.Auth(),
+	}
+
+	discoveryServer, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
+		GetEC2Client: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+			return &mockEC2Client{err: trace.AccessDenied("User is not authorized to perform: ec2:DescribeInstances")}, nil
+		},
+		GetSSMClient: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error) {
+			return &mockSSMClient{}, nil
+		},
+		AWSConfigProvider: &fakeConfigProvider,
+		AWSFetchersClients: &mockFetchersClients{
+			AWSConfigProvider: fakeConfigProvider,
+		},
+		ClusterFeatures:  func() proto.Features { return proto.Features{} },
+		KubernetesClient: fake.NewClientset(),
+		AccessPoint:      getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, authClient.IntegrationAWSOIDCClient()),
+		Matchers:         Matchers{},
+		Emitter:          emitter,
+		Log:              logger,
+		DiscoveryGroup:   defaultDiscoveryGroup,
+		clock:            fakeClock,
+		PollInterval:     5 * time.Second,
+	})
+	require.NoError(t, err)
+
+	listUserTasks := func() ([]*usertasksv1.UserTask, error) {
+		var allTasks []*usertasksv1.UserTask
+		nextToken := ""
+		for {
+			tasks, nextTokenResp, err := tlsServer.Auth().UserTasks.ListUserTasks(ctx, 0, nextToken, &usertasksv1.ListUserTasksFilters{})
+			if err != nil {
+				return nil, err
+			}
+			allTasks = append(allTasks, tasks...)
+			if nextTokenResp == "" {
+				return allTasks, nil
+			}
+			nextToken = nextTokenResp
+		}
+	}
+	listUserTaskAuditEvents := func() ([]events.AuditEvent, error) {
+		events, _, err := testAuthServer.AuditLog.SearchEvents(ctx, libevents.SearchEventsRequest{
+			From:       time.Time{},
+			To:         fakeClock.Now().Add(24 * time.Hour),
+			EventTypes: []string{libevents.UserTaskCreateEvent, libevents.UserTaskUpdateEvent},
+			Limit:      1000,
+			Order:      types.EventOrderAscending,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return events, nil
+	}
+
+	go discoveryServer.Start()
+	t.Cleanup(discoveryServer.Stop)
+	discoveryServer.notifyDiscoveryConfigChanged()
+
+	var taskName string
+	require.Eventually(t, func() bool {
+		fakeClock.Advance(discoveryServer.PollInterval)
+
+		tasks, err := listUserTasks()
+		if err != nil {
+			return false
+		}
+		for _, task := range tasks {
+			if task.GetSpec().GetIssueType() != usertasks.AutoDiscoverEC2IssuePermAccountDenied {
+				continue
+			}
+			taskName = task.GetMetadata().GetName()
+			return taskName != ""
+		}
+		return false
+	}, 10*time.Second, 50*time.Millisecond)
+
+	advancesRemaining := 3
+	require.Eventually(t, func() bool {
+		if advancesRemaining > 0 {
+			fakeClock.Advance(discoveryServer.PollInterval)
+			advancesRemaining--
+		}
+		auditEvents, err := listUserTaskAuditEvents()
+		if err != nil {
+			return false
+		}
+
+		sawCreate := false
+		for _, evt := range auditEvents {
+			switch event := evt.(type) {
+			case *events.UserTaskCreate:
+				if event.ResourceMetadata.Name == taskName {
+					sawCreate = true
+				}
+			case *events.UserTaskUpdate:
+				if sawCreate && event.ResourceMetadata.Name == taskName {
+					return true
+				}
+			}
+		}
+
+		return false
+	}, 10*time.Second, 50*time.Millisecond)
+}
+
+func TestEC2PermissionOrgDenied_TaskScopeAndAuditCadence(t *testing.T) {
+	t.Parallel()
+	const defaultDiscoveryGroup = "dc001"
+
+	ctx := context.Background()
+	logger := logtest.NewLogger()
+	fakeClock := clockwork.NewFakeClock()
+
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: fakeClock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+	tlsServer, err := testAuthServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+	identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
+	authClient, err := tlsServer.NewClient(identity)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+	discoveryConfigName := "dc-ec2-org-denied-cadence"
+	discoveryCfg, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: discoveryConfigName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS: []types.AWSMatcher{
+				{
+					Types:       []string{"ec2"},
+					Regions:     []string{"us-west-2", "us-east-1"},
+					Tags:        map[string]utils.Strings{"teleport": {"yes"}},
+					Integration: "my-integration",
+					Params: &types.InstallerParams{
+						EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+					},
+					SSM: &types.AWSSSM{DocumentName: "document"},
+					AssumeRole: &types.AssumeRole{
+						RoleName: "MyRole",
+					},
+					Organization: &types.AWSOrganizationMatcher{
+						OrganizationID: "o-abcdefghij",
+						OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+							Include: []string{types.Wildcard},
+						},
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.NoError(t, discoveryCfg.CheckAndSetDefaults())
+	_, err = tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, discoveryCfg)
+	require.NoError(t, err)
+
+	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{Name: "my-integration"}, &types.AWSOIDCIntegrationSpecV1{
+		RoleARN: "arn:aws:iam::123456789012:role/teleport",
+	})
+	require.NoError(t, err)
+	testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{
+		integrations: map[string]types.Integration{
+			awsOIDCIntegration.GetName(): awsOIDCIntegration,
+		},
+	}
+	_, err = tlsServer.Auth().CreateIntegration(ctx, awsOIDCIntegration)
+	require.NoError(t, err)
+
+	emitter := &mockEmitter{}
+	fakeConfigProvider := mocks.AWSConfigProvider{
+		OIDCIntegrationClient: tlsServer.Auth(),
+	}
+
+	discoveryServer, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
+		GetEC2Client: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+			return &mockEC2Client{output: &ec2.DescribeInstancesOutput{}}, nil
+		},
+		GetSSMClient: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error) {
+			return &mockSSMClient{}, nil
+		},
+		GetAWSOrganizationsClient: func(ctx context.Context, opts ...awsconfig.OptionsFn) (liborganizations.OrganizationsClient, error) {
+			return &mockOrganizationsClient{err: trace.AccessDenied("User is not authorized to perform: organizations:ListRoots")}, nil
+		},
+		AWSConfigProvider: &fakeConfigProvider,
+		AWSFetchersClients: &mockFetchersClients{
+			AWSConfigProvider: fakeConfigProvider,
+		},
+		ClusterFeatures:  func() proto.Features { return proto.Features{} },
+		KubernetesClient: fake.NewClientset(),
+		AccessPoint:      getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, authClient.IntegrationAWSOIDCClient()),
+		Matchers:         Matchers{},
+		Emitter:          emitter,
+		Log:              logger,
+		DiscoveryGroup:   defaultDiscoveryGroup,
+		clock:            fakeClock,
+		PollInterval:     5 * time.Second,
+	})
+	require.NoError(t, err)
+
+	listUserTasks := func() ([]*usertasksv1.UserTask, error) {
+		var allTasks []*usertasksv1.UserTask
+		nextToken := ""
+		for {
+			tasks, nextTokenResp, err := tlsServer.Auth().UserTasks.ListUserTasks(ctx, 0, nextToken, &usertasksv1.ListUserTasksFilters{})
+			if err != nil {
+				return nil, err
+			}
+			allTasks = append(allTasks, tasks...)
+			if nextTokenResp == "" {
+				return allTasks, nil
+			}
+			nextToken = nextTokenResp
+		}
+	}
+	listUserTaskAuditEvents := func() ([]events.AuditEvent, error) {
+		events, _, err := testAuthServer.AuditLog.SearchEvents(ctx, libevents.SearchEventsRequest{
+			From:       time.Time{},
+			To:         fakeClock.Now().Add(24 * time.Hour),
+			EventTypes: []string{libevents.UserTaskCreateEvent, libevents.UserTaskUpdateEvent},
+			Limit:      1000,
+			Order:      types.EventOrderAscending,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return events, nil
+	}
+
+	go discoveryServer.Start()
+	t.Cleanup(discoveryServer.Stop)
+	discoveryServer.notifyDiscoveryConfigChanged()
+
+	var orgDeniedTaskName string
+	require.Eventually(t, func() bool {
+		fakeClock.Advance(discoveryServer.PollInterval)
+
+		tasks, err := listUserTasks()
+		if err != nil {
+			return false
+		}
+
+		orgDeniedTasks := 0
+		for _, task := range tasks {
+			if task.GetSpec().GetIssueType() == usertasks.AutoDiscoverEC2IssuePermOrgDenied {
+				orgDeniedTasks++
+				orgDeniedTaskName = task.GetMetadata().GetName()
+				if task.GetSpec().GetDiscoverEc2().GetRegion() != "" {
+					return false
+				}
+			}
+		}
+		return orgDeniedTasks == 1 && orgDeniedTaskName != ""
+	}, 10*time.Second, 50*time.Millisecond)
+	require.NotEmpty(t, orgDeniedTaskName)
+
+	advancesRemaining := 3
+	require.Eventually(t, func() bool {
+		if advancesRemaining > 0 {
+			fakeClock.Advance(discoveryServer.PollInterval)
+			advancesRemaining--
+		}
+		auditEvents, err := listUserTaskAuditEvents()
+		if err != nil {
+			return false
+		}
+
+		sawCreate := false
+		for _, evt := range auditEvents {
+			switch event := evt.(type) {
+			case *events.UserTaskCreate:
+				if event.ResourceMetadata.Name == orgDeniedTaskName {
+					sawCreate = true
+				}
+			case *events.UserTaskUpdate:
+				if sawCreate && event.ResourceMetadata.Name == orgDeniedTaskName {
+					return true
+				}
+			}
+		}
+
+		return false
+	}, 10*time.Second, 50*time.Millisecond)
 }
 
 func newMockKubeService(name, namespace, externalName string, labels, annotations map[string]string, ports []corev1.ServicePort) *corev1.Service {
@@ -3525,6 +4077,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.Empty(t, cmp.Diff(expectedTask, tasks[0],
 					protocmp.Transform(),
 					protocmp.IgnoreFields(&headerv1.Metadata{}, "expires", "revision"),
+					protocmp.IgnoreFields(&usertasksv1.UserTask{}, "status"),
 					protocmp.IgnoreFields(&usertasksv1.DiscoverAzureVMInstance{}, "sync_time"),
 				))
 			},
@@ -4192,10 +4745,25 @@ type eksClustersEnroller interface {
 
 type combinedDiscoveryClient struct {
 	*auth.Server
+	client authclient.ClientI
 	eksClustersEnroller
 	discoveryConfigStatusUpdater interface {
 		UpdateDiscoveryConfigStatus(context.Context, string, discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
 	}
+}
+
+func (d *combinedDiscoveryClient) UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error) {
+	if d.client != nil {
+		return d.client.UserTasksServiceClient().UpsertUserTask(ctx, req)
+	}
+	return d.Server.UserTasks.UpsertUserTask(ctx, req)
+}
+
+func (d *combinedDiscoveryClient) GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error) {
+	if d.client != nil {
+		return d.client.UserTasksServiceClient().GetUserTask(ctx, name)
+	}
+	return d.Server.UserTasks.GetUserTask(ctx, name)
 }
 
 func (d *combinedDiscoveryClient) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
@@ -4213,11 +4781,11 @@ func (d *combinedDiscoveryClient) UpdateDiscoveryConfigStatus(ctx context.Contex
 }
 
 func getDiscoveryAccessPointWithEKSEnroller(authServer *auth.Server, authClient authclient.ClientI, eksEnroller eksClustersEnroller) authclient.DiscoveryAccessPoint {
-	return &combinedDiscoveryClient{Server: authServer, eksClustersEnroller: eksEnroller, discoveryConfigStatusUpdater: authClient.DiscoveryConfigClient()}
+	return &combinedDiscoveryClient{Server: authServer, client: authClient, eksClustersEnroller: eksEnroller, discoveryConfigStatusUpdater: authClient.DiscoveryConfigClient()}
 }
 
 func getDiscoveryAccessPoint(authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
-	return &combinedDiscoveryClient{Server: authServer, eksClustersEnroller: authClient.IntegrationAWSOIDCClient(), discoveryConfigStatusUpdater: authClient.DiscoveryConfigClient()}
+	return &combinedDiscoveryClient{Server: authServer, client: authClient, eksClustersEnroller: authClient.IntegrationAWSOIDCClient(), discoveryConfigStatusUpdater: authClient.DiscoveryConfigClient()}
 }
 
 type fakeAccessPoint struct {
@@ -4499,4 +5067,3 @@ func TestGenInstancesLogStr(t *testing.T) {
 		})
 	}
 }
-
