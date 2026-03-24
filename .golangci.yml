@@ -478,6 +478,14 @@ linters:
           - forbidigo
         path: lib/utils/aws/stsutils/stscreds_v1.go
         text: stscreds.NewCredentials
+      - linters:
+          - forbidigo
+        path: teleport/api/observability/tracing/ssh/client.go
+        text: ssh.NewClient
+      - linters:
+          - forbidigo
+        path: teleport/api/observability/tracing/ssh/ssh.go
+        text: ssh.NewClientConn
     paths:
       - (^|/)node_modules/
       - ^api/gen/

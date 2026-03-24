@@ -518,7 +518,7 @@ func TestNewClientConnWithTimeoutSetsClientVersion(t *testing.T) {
 		},
 	)
 
-	tcpConn, err := net.Dial("tcp", srv.listener.Addr().String())
+	tcpConn, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", srv.listener.Addr().String())
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		tcpConn.Close()
