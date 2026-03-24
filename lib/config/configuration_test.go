@@ -5093,15 +5093,6 @@ func TestDiscoveryConfig(t *testing.T) {
 				Tags: map[string]apiutils.Strings{
 					"discover_teleport": []string{"yes"},
 				},
-				Params: &types.InstallerParams{
-					JoinMethod:      types.JoinMethodIAM,
-					JoinToken:       "aws-discovery-iam-token",
-					SSHDConfig:      "/etc/ssh/sshd_config",
-					ScriptName:      "default-installer",
-					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
-				},
-				SSM: &types.AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 				AssumeRole: &types.AssumeRole{
 					RoleARN:    "",
 					ExternalID: "externalid123",
