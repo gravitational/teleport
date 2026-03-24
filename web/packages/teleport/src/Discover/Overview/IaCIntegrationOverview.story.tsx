@@ -18,16 +18,13 @@
 
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
-import { Route } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 
-import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
-import {
-  ToastNotificationProvider,
-  ToastNotifications,
-} from 'shared/components/ToastNotification';
+import { ToastNotifications } from 'shared/components/ToastNotification';
 
 import cfg from 'teleport/config';
 import { ContentMinWidth } from 'teleport/Main/Main';
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 import { IaCIntegrationOverview } from './IaCIntegrationOverview';
@@ -44,18 +41,14 @@ const path = cfg.routes.integrationOverview;
 
 function Component() {
   return (
-    <MemoryRouter initialEntries={initialEntries}>
-      <ToastNotificationProvider>
-        <ToastNotifications />
-        <InfoGuidePanelProvider>
-          <ContentMinWidth>
-            <Route path={path}>
-              <IaCIntegrationOverview />
-            </Route>
-          </ContentMinWidth>
-        </InfoGuidePanelProvider>
-      </ToastNotificationProvider>
-    </MemoryRouter>
+    <TeleportProviderBasic initialEntries={initialEntries}>
+      <ToastNotifications />
+      <ContentMinWidth>
+        <Routes>
+          <Route path={path} element={<IaCIntegrationOverview />} />
+        </Routes>
+      </ContentMinWidth>
+    </TeleportProviderBasic>
   );
 }
 
