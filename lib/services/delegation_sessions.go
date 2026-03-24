@@ -68,9 +68,9 @@ func ValidateDelegationSession(p *delegationv1.DelegationSession) error {
 		} else {
 			hasExplicit = true
 		}
-	}
-	if hasWildcard && hasExplicit {
-		return trace.BadParameter("spec.resources: wildcard is mutually exclusive with explicit resources")
+		if hasWildcard && hasExplicit {
+			return trace.BadParameter("spec.resources: wildcard is mutually exclusive with explicit resources")
+		}
 	}
 
 	if len(p.GetSpec().GetAuthorizedUsers()) == 0 {
