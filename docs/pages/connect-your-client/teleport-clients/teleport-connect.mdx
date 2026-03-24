@@ -827,6 +827,12 @@ $ "%PROGRAMFILES%\Teleport Connect\Teleport Connect.exe" --connect-debug
 # Per-user install:
 $ "%LOCALAPPDATA%\Programs\Teleport Connect\Teleport Connect.exe" --connect-debug
 ````
+
+In case of failed per-machine updates, you will need to collect the logs from the `TeleportConnectUpdater` service.
+To do this, open Event Viewer from the Start menu.
+From the sidebar on the left, select Event Viewer (Local) → Applications and Services Logs →
+Teleport. From the sidebar on the right, select "Save All Events As…". Save the logs as .evtx file.
+If Event Viewer asks about Display Information, choose "No display information".
 </TabItem>
 </Tabs>
 
