@@ -66,7 +66,7 @@ type issueX509Command struct {
 
 func newIssueX509Command(parent *kingpin.CmdClause) *issueX509Command {
 	cmd := &issueX509Command{
-		CmdClause: parent.Command("issue-x509", "Use Teleport Workload Identity to issue an X509 credential write it to a local directory."),
+		CmdClause: parent.Command("issue-x509", "Use Teleport Workload Identity to issue an X509 credential and write it to a local directory."),
 	}
 
 	cmd.Flag(
