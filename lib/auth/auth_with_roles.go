@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"fmt"
@@ -6225,6 +6226,44 @@ func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.Delete
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+// Only the session owner can set the DBSC public key on their session, and only
+// if the key has not already been set (one-time binding).
+func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, publicKey []byte) error {
+	const iterationLimit = 3
+	for range iterationLimit {
+		session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !authz.IsCurrentUser(a.context, session.GetUser()) {
+			return trace.AccessDenied("only session owner can set DBSC public key")
+		}
+
+		// DBSC public key can only be set once to prevent rebinding to a different key.
+		if existingKey := session.GetDBSCPublicKey(); len(existingKey) > 0 {
+			// Allow idempotent retries with the same key.
+			if bytes.Equal(existingKey, publicKey) {
+				return nil
+			}
+			return trace.AccessDenied("DBSC public key already set for this session")
+		}
+
+		session.SetDBSCPublicKey(publicKey)
+		if err := a.authServer.UpdateAppSession(ctx, session); err != nil {
+			if trace.IsCompareFailed(err) {
+				continue
+			}
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+
+	return trace.LimitExceeded("failed to update app session in %v iterations", iterationLimit)
 }
 
 // DeleteSnowflakeSession removes a Snowflake web session.
