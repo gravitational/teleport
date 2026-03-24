@@ -1515,4 +1515,3 @@ func TestEC2DiscoveryResultCollectError(t *testing.T) {
 		require.Empty(t, result.PermissionErrors)
 	})
 }
-
