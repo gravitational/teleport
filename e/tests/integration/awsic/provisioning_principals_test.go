@@ -2,6 +2,7 @@ package awsic
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/principal"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
@@ -18,6 +21,84 @@ import (
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
 )
+
+func TestGroupMemberProvisioning(t *testing.T) {
+	ctx := t.Context()
+
+	// GIVEN a SCIM client configured to fail the first deletion attempt for
+	// both users and groups to simulate a transient downstream error. This is
+	// in order to assert that a failed provisioning will self-heal on a subsequent
+	// provisioning attempt.
+	unifiedClient := ictest.NewUnifiedMockClient(icsdk.NewMockedAWSState())
+	setupMockAWSICEnvironment(t, unifiedClient.ViaAPI(), unifiedClient.ViaSCIM())
+
+	// GIVEN a Teleport cluster with the Identity Center integration running in
+	// full hand-off mode.
+	allUsers := []string{"alice", "bob", "claire", "dave", "erica", "fred"}
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "admin", "editor"),
+		common.WithRole(t, "aws-access-all-areas",
+			common.WithAccountAssignment(types.Allow, "*", "*")),
+		common.WithUser(t, "alice", "requester"),
+		common.WithUser(t, "bob", "requester"),
+		common.WithUser(t, "claire", "requester"),
+		common.WithUser(t, "dave", "requester"),
+		common.WithUser(t, "erica", "requester"),
+		common.WithUser(t, "fred", "requester"),
+	)
+	auth := sut.Teleport.Process.GetAuthServer()
+	aclService := sut.Teleport.Process.GetAuthServer().AccessListsInternal
+	mustSetupAWSIdentityCenterIntegration(t, sut.GetClusterClientForUser(t, "admin").AuthClient)
+
+	// EXPECT the IC service to start up and provision alice and the Group1
+	// access list before we proceed with the deletion test
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			// All users must be provisioned into AWS Identity Center
+			for _, n := range allUsers {
+				assertPrincipalAssignment(ctx, t, auth, principal.GetIDForUserName(n),
+					hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
+				)
+			}
+		},
+		10*time.Second, 100*time.Millisecond,
+		"Initial provisioning must complete")
+
+	// WHEN I create a simple Access List
+	simpleACL := common.CreateAccessList(t, sut,
+		common.WithName("simple-access-list"),
+		common.WithTitle("Simple Access List"),
+		common.WithOwners("admin"),
+		common.WithGrants(accesslist.Grants{Roles: []string{"aws-access-all-areas"}}),
+		common.WithMembers("alice", "bob", "claire"))
+
+	// EXPECT that a corresponding group is created in Identity Center
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		requireICGroup(ctx, t, unifiedClient.ViaAPI(), simpleACL.Spec.Title,
+			withMembers("alice", "bob", "claire"))
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// WHEN I modify the Access Lists' members...
+	members := common.GetAccessListMembers(t, sut, simpleACL.GetName())
+	members = slices.DeleteFunc(members, func(m *accesslist.AccessListMember) bool {
+		return m.Spec.MembershipKind == accesslist.MembershipKindUser &&
+			m.Spec.Name == "bob"
+	})
+	members = append(members,
+		common.NewAccessListMember(t, simpleACL.GetName(), "dave", accesslist.MembershipKindUser),
+		common.NewAccessListMember(t, simpleACL.GetName(), "fred", accesslist.MembershipKindUser))
+	var err error
+	simpleACL, _, err = aclService.UpsertAccessListWithMembers(ctx, simpleACL, members)
+	require.NoError(t, err)
+
+	// EXPECT that a corresponding group member list is updated in Identity Center
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		requireICGroup(ctx, t, unifiedClient.ViaAPI(), simpleACL.Spec.Title,
+			withMembers("alice", "claire", "dave", "fred"))
+	}, 10*time.Second, 100*time.Millisecond)
+}
 
 // failFirstNDeletesSCIMClient is a [scimsdk.Client] that wraps an underlying
 // client and makes the first N calls to DeleteUser and DeleteGroup return a

@@ -54,8 +54,11 @@ type Client interface {
 	ListGroups(ctx context.Context, queryOptions ...QueryOption) (*ListGroupResponse, error)
 	// ReplaceGroupName replace the group display name.
 	ReplaceGroupName(ctc context.Context, group *Group) error
-	// ReplaceGroupMembers updates the members of a group.
-	ReplaceGroupMembers(ctx context.Context, id string, members []*GroupMember) error
+	// ListGroupMembers returns the current members of a group.
+	ListGroupMembers(ctx context.Context, id string) ([]*GroupMember, error)
+	// PatchGroupMembers updates the downstream group, applying the [toAdd] and [toRemove]
+	// lists via SCIM patches
+	PatchGroupMembers(ctx context.Context, id string, toAdd, toRemove []*GroupMember) error
 	// GetGroupByDisplayName returns a group by display name.
 	GetGroupByDisplayName(ctx context.Context, displayName string) (*Group, error)
 	// GetUserByUserName returns a user by username.
@@ -425,80 +428,92 @@ func (c *client) ReplaceGroupName(ctx context.Context, group *Group) error {
 		},
 	}
 
-	payload, err := json.Marshal(patch)
+	return trace.Wrap(c.sendPatch(ctx, u, patch))
+}
+
+// ListGroupMembers returns the current members of a group by fetching it from
+// the SCIM server.
+func (c *client) ListGroupMembers(ctx context.Context, id string) ([]*GroupMember, error) {
+	group, err := c.GetGroup(ctx, id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return group.Members, nil
+}
+
+// PatchGroupMembers updates the members of a group using the supplied
+// [toAdd] and [toRemove] lists.
+func (c *client) PatchGroupMembers(ctx context.Context, groupID string, toAdd, toRemove []*GroupMember) error {
+	url, err := c.endpointURL("Groups", groupID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	resp, err := c.do(ctx, u, http.MethodPatch, bytes.NewReader(payload))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer resp.Body.Close()
+	for len(toAdd) > 0 || len(toRemove) > 0 {
+		batchSlotsLeft := c.maxPageSize
+		patch := PatchOperations{
+			Schemas: []string{PatchOpSchema},
+		}
 
-	switch resp.StatusCode {
-	case http.StatusOK, http.StatusNoContent:
-	default:
-		return decodeError(resp)
+		var pageToRemove []*GroupMember
+		pageToRemove, toRemove, batchSlotsLeft = takePage(toRemove, batchSlotsLeft)
+		if len(pageToRemove) > 0 {
+			patch.Operations = append(patch.Operations, PatchOp{
+				Operation: OpRemove,
+				Path:      "members",
+				Value:     pageToRemove,
+			})
+		}
+
+		var pageToAdd []*GroupMember
+		pageToAdd, toAdd, _ = takePage(toAdd, batchSlotsLeft)
+		if len(pageToAdd) > 0 {
+			patch.Operations = append(patch.Operations, PatchOp{
+				Operation: OpAdd,
+				Path:      "members",
+				Value:     pageToAdd,
+			})
+		}
+
+		if err := c.sendPatch(ctx, url, patch); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
 }
 
-// ReplaceGroupMembers replaces the members of a group.
-// if members is empty, it will remove all members from the group.
-// The HTTP PATCH method is used to replace the members of a group.
-func (c *client) ReplaceGroupMembers(ctx context.Context, id string, members []*GroupMember) error {
-	u, err := c.endpointURL("Groups", id)
+func takePage(src []*GroupMember, slotsRemainingInBatch int) ([]*GroupMember, []*GroupMember, int) {
+	pageSize := min(len(src), slotsRemainingInBatch)
+	if pageSize == 0 {
+		return nil, src, slotsRemainingInBatch
+	}
+
+	if len(src) <= pageSize {
+		return src, nil, slotsRemainingInBatch - len(src)
+	}
+
+	return src[:pageSize], src[pageSize:], slotsRemainingInBatch - pageSize
+}
+
+// sendPatch serializes and sends a PatchOperations request, returning an error
+// if the response indicates failure.
+func (c *client) sendPatch(ctx context.Context, u *url.URL, patch PatchOperations) error {
+	payload, err := json.Marshal(patch)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	patchOp := OpReplace
-	if len(members) == 0 {
-		// AWS (at least) will not set an empty member list via OpReplace. In
-		// order to clear the member list, we have to specifically `remove` it.
-		patchOp = OpRemove
+	resp, err := c.do(ctx, u, http.MethodPatch, bytes.NewReader(payload))
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
-	// Beware the odd post-loop condition test here. We need to go through this
-	// *loop at least once* to handle the case where `groupMembers` is empty,
-	// and we need to delete all users in the downstream group.
-	for ok := true; ok; ok = len(members) > 0 {
-		var membersPage []*GroupMember
-		membersPage, members = takePage(members, c.maxPageSize)
-
-		res := PatchOperations{
-			Schemas: []string{PatchOpSchema},
-			Operations: []PatchOp{
-				{
-					Operation: patchOp,
-					Path:      "members",
-					Value:     membersPage,
-				},
-			},
-		}
-		payload, err := json.Marshal(res)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resp, err := c.do(ctx, u, http.MethodPatch, bytes.NewReader(payload))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		// Close the response body immediately after the request is done..
-		resp.Body.Close()
-		switch resp.StatusCode {
-		case http.StatusOK, http.StatusNoContent:
-		default:
-			return decodeError(resp)
-		}
-		// See https://docs.aws.amazon.com/singlesignon/latest/developerguide/patchgroup.html
-		// * A maximum of 100 membership changes are allowed in a single request.
-		// Bypass this limitation by appending the next 100 members to the group.
-		patchOp = OpAdd
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusNoContent:
+		return nil
+	default:
+		return decodeError(resp)
 	}
-	return nil
 }
 
 func (c *client) endpointURL(paths ...string) (*url.URL, error) {
@@ -617,11 +632,4 @@ func (c *client) do(ctx context.Context, u *url.URL, httpMethod string, r io.Rea
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
-}
-
-func takePage[S ~[]T, T any](src S, pageSize int) (S, S) {
-	if len(src) <= pageSize {
-		return src, nil
-	}
-	return src[:pageSize], src[pageSize:]
 }

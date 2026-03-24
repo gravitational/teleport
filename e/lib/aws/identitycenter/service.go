@@ -121,8 +121,11 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 	}
 
 	svc.provisioner, err = provisioning.NewService(provisioning.ServiceConfig{
-		DownstreamID:              IdentityCenterDownstreamID,
-		SCIMClient:                config.Provisioning.SCIMClient,
+		DownstreamID: IdentityCenterDownstreamID,
+		// Wrap the SCIM client so that ListGroupMembers uses the AWS Identity
+		// Center API rather than SCIM, since the SCIM API does not reliably
+		// return group membership data for AWS IC.
+		SCIMClient:                newICSCIMClient(config.Provisioning.SCIMClient, config.ICClient),
 		StateSvc:                  config.Provisioning.StateSvc,
 		StateSvcCache:             config.Provisioning.StateSvcCache,
 		UsersCache:                config.Provisioning.UsersSvcCache,

@@ -205,25 +205,32 @@ func TestUnifiedClientMock(t *testing.T) {
 		require.Equal(t, "Updated Display Name", remoteGroup.DisplayName)
 	})
 
-	t.Run("ReplaceGroupMember", func(t *testing.T) {
+	t.Run("PatchGroupMembers", func(t *testing.T) {
 		client := NewUnifiedMockClient(sdk.NewMockedAWSState(
 			sdk.WithUser("alice", "alice@example.com"),
 			sdk.WithUser("bob", "bob@example.com"),
 			sdk.WithUser("carol", "carol@example.com"),
 			sdk.WithUser("dave", "dave@example.com"),
-			sdk.WithGroup("group1", "Group1", "alice", "bob"),
+			sdk.WithUser("erica", "erica@example.com"),
+			sdk.WithGroup("group1", "Group1", "alice", "bob", "carol"),
 		))
 
-		err := client.ViaSCIM().ReplaceGroupMembers(t.Context(), "group1", []*scimsdk.GroupMember{
-			{ExternalID: "carol"},
-			{ExternalID: "dave"},
-		})
+		err := client.ViaSCIM().PatchGroupMembers(t.Context(), "group1",
+			[]*scimsdk.GroupMember{
+				{ExternalID: "dave"},
+				{ExternalID: "erica"},
+			},
+			[]*scimsdk.GroupMember{
+				{ExternalID: "alice"},
+				{ExternalID: "carol"},
+			})
 		require.NoError(t, err)
 
 		requireNoGroupMembershipsForUser(t, client, "alice")
-		requireNoGroupMembershipsForUser(t, client, "bob")
-		requireUserIsMemberOfGroups(t, client, "carol", "group1")
+		requireNoGroupMembershipsForUser(t, client, "carol")
+		requireUserIsMemberOfGroups(t, client, "bob", "group1")
 		requireUserIsMemberOfGroups(t, client, "dave", "group1")
+		requireUserIsMemberOfGroups(t, client, "erica", "group1")
 	})
 
 	t.Run("DeleteGroup", func(t *testing.T) {

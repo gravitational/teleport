@@ -2,7 +2,6 @@ package sdk
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -12,8 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/gravitational/trace"
-
-	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
 type InstanceDescriber interface {
@@ -216,7 +213,7 @@ func (c *client) ListGroupMemberships(ctx context.Context, groupID string) ([]*G
 			MaxResults:      &maxResult,
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(traceError(err))
 		}
 
 		for _, v := range resp.GroupMemberships {
@@ -619,21 +616,4 @@ func (c *client) ValidateResourceSyncCredential(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// traceError converts AWS sdk v2 error type to trace error.
-// AccessDeniedException error is converted to bad parameter error.
-// Other error types are returned as their respective trace error types
-// converted by ConvertRequestFailureError.
-func traceError(err error) error {
-	var ssoAdminErr *ssoadmintypes.AccessDeniedException
-	var idStoreErr *identitystoretypes.AccessDeniedException
-	if errors.As(err, &ssoAdminErr) {
-		return trace.BadParameter("Invalid credential. %s", err.Error())
-	}
-	if errors.As(err, &idStoreErr) {
-		return trace.BadParameter("Invalid credential. %s", err.Error())
-	}
-
-	return libcloudaws.ConvertRequestFailureError(err)
 }

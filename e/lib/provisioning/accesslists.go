@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/api/types/common"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/lib/accesslists"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func (p *provisioner) provisionAccessList(
@@ -63,7 +64,7 @@ func (p *provisioner) provisionAccessList(
 		}
 	}
 
-	if err := p.scimClient.ReplaceGroupMembers(ctx, state.GetStatus().ExternalId, groupMembers); err != nil {
+	if err := p.reconcileGroupMembers(ctx, state, groupMembers); err != nil {
 		if trace.IsNotFound(err) {
 			log.WarnContext(ctx, "Downstream group has been deleted or moved")
 			return nil, &missingPrincipalError{state: state}
@@ -77,6 +78,82 @@ func (p *provisioner) provisionAccessList(
 	}
 
 	return provisionedState, nil
+}
+
+func (p *provisioner) fetchGroupMembers(ctx context.Context, groupExternalID string) (map[string]*scimsdk.GroupMember, error) {
+	members, err := p.scimClient.ListGroupMembers(ctx, groupExternalID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result := make(map[string]*scimsdk.GroupMember, len(members))
+	for _, m := range members {
+		result[m.ExternalID] = m
+	}
+
+	return result, nil
+}
+
+func (p *provisioner) reconcileGroupMembers(ctx context.Context, state *provisioningv1.PrincipalState, groupMembers []*scimsdk.GroupMember) error {
+	log := p.log.With(principalStateAttr(state))
+	log.DebugContext(ctx, "Reconciling group member list")
+
+	groupExternalID := state.GetStatus().GetExternalId()
+
+	// Fetch the group's existing member list. While this list can technically be
+	// updated while we're working on it, the member list is periodically reconciled
+	// so any spurious changes we don't catch here will be detected and handled on
+	// the next reconciliation.
+	currentMembers, err := p.fetchGroupMembers(ctx, groupExternalID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Compute the diffs required to bring the group's current member list up to
+	// the desired member list
+	toAdd, toRemove := reconcileMemberLists(currentMembers, groupMembers)
+
+	if len(toAdd) == 0 && len(toRemove) == 0 {
+		log.DebugContext(ctx, "Member list already matches. No PATCH required.")
+		return nil
+	}
+
+	log.DebugContext(ctx, "Patching member list",
+		"users_to_add", len(toAdd),
+		"users_to_remove", len(toRemove))
+
+	// Issue the SCIM patch requests to bring the user lists
+	return trace.Wrap(p.scimClient.PatchGroupMembers(ctx, groupExternalID, toAdd, toRemove))
+}
+
+// reconcileMemberLists computes the add & remove deltas required to bring
+// [currentMembers] up to [updatedMembers], returning a list of members to add
+// and a list of members to remove.
+//
+// The order of the [toAdd] and [toRemove] member lists is undefined.
+func reconcileMemberLists(currentMembers map[string]*scimsdk.GroupMember, updatedMembers []*scimsdk.GroupMember) (toAdd []*scimsdk.GroupMember, toRemove []*scimsdk.GroupMember) {
+	desiredMembers := set.NewWithCapacity[string](len(updatedMembers))
+	for _, m := range updatedMembers {
+		// Deduplicate the desired members list as we go. If the `updatedMembers`
+		// list was created from a nested Access List, then a user may be listed
+		// multiple times depending on how many of the constituent Access Lists
+		// they are a member of.
+		if desiredMembers.Contains(m.ExternalID) {
+			continue
+		}
+		desiredMembers.Add(m.ExternalID)
+		if _, exists := currentMembers[m.ExternalID]; !exists {
+			toAdd = append(toAdd, m)
+		}
+	}
+
+	for id, m := range currentMembers {
+		if !desiredMembers.Contains(id) {
+			toRemove = append(toRemove, m)
+		}
+	}
+
+	return
 }
 
 func (p *provisioner) adoptOrCreateDownstreamGroup(

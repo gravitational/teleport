@@ -7,6 +7,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils/set"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // NewSCIMClientMock creates a new mock SCIM client.
@@ -32,6 +35,63 @@ func (s *ClientMock) UpdateGroup(ctx context.Context, group *Group) (*Group, err
 	}
 	s.Groups[group.ID] = group
 	return group, nil
+}
+
+func (s *ClientMock) AddGroupMembers(ctx context.Context, groupID string, members ...*GroupMember) error {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	var group *Group
+	var exists bool
+
+	if group, exists = s.Groups[groupID]; !exists {
+		return trace.NotFound("group with ID %q not found", groupID)
+	}
+
+	existingMembers := set.New(sliceutils.Map(group.Members, (*GroupMember).GetExternalID)...)
+	for _, candidate := range members {
+		if existingMembers.Contains(candidate.ExternalID) {
+			continue
+		}
+		existingMembers.Add(candidate.ExternalID)
+		group.Members = append(group.Members, candidate)
+	}
+
+	return nil
+}
+
+func (s *ClientMock) DeleteGroupMembers(ctx context.Context, groupID string, members ...*GroupMember) error {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	var group *Group
+	var exists bool
+
+	if group, exists = s.Groups[groupID]; !exists {
+		return trace.NotFound("group with ID %q not found", groupID)
+	}
+
+	condemned := set.New(sliceutils.Map(members, (*GroupMember).GetExternalID)...)
+	group.Members = slices.DeleteFunc(group.Members, func(m *GroupMember) bool {
+		return condemned.Contains(m.ExternalID)
+	})
+
+	return nil
+}
+
+func (s *ClientMock) SetGroupMembers(ctx context.Context, groupID string, members ...*GroupMember) error {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	var group *Group
+	var exists bool
+
+	if group, exists = s.Groups[groupID]; !exists {
+		return trace.NotFound("group with ID %q not found", groupID)
+	}
+
+	group.Members = slices.Clone(members)
+	return nil
 }
 
 func (s *ClientMock) GetUser(ctx context.Context, id string) (*User, error) {
@@ -158,8 +218,21 @@ func (s *ClientMock) ReplaceGroupName(ctx context.Context, group *Group) error {
 	return nil
 }
 
-// ReplaceGroupMembers replaces a group's members.
-func (s *ClientMock) ReplaceGroupMembers(ctx context.Context, id string, members []*GroupMember) error {
+// ListGroupMembers returns the current members of a group.
+func (s *ClientMock) ListGroupMembers(ctx context.Context, id string) ([]*GroupMember, error) {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	group, exists := s.Groups[id]
+	if !exists {
+		return nil, trace.NotFound("group with ID %q not found", id)
+	}
+	return slices.Clone(group.Members), nil
+}
+
+// PatchGroupMembers updates a group's member list by applying the supplied
+// [toAdd] and [toRemove] lists.
+func (s *ClientMock) PatchGroupMembers(ctx context.Context, id string, toAdd, toRemove []*GroupMember) error {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
@@ -167,16 +240,24 @@ func (s *ClientMock) ReplaceGroupMembers(ctx context.Context, id string, members
 	if !exists {
 		return trace.NotFound("group with ID %q not found", id)
 	}
-	validMembers := make([]*GroupMember, 0, len(members))
-	for _, m := range members {
+
+	// Remove all items in the toRemove list
+	condemned := set.NewWithCapacity[string](len(toRemove))
+	for _, m := range toRemove {
+		condemned.Add(m.ExternalID)
+	}
+	group.Members = slices.DeleteFunc(group.Members, func(m *GroupMember) bool {
+		return condemned.Contains(m.ExternalID)
+	})
+
+	for _, m := range toAdd {
 		u, ok := s.Users[m.ExternalID]
 		if ok {
 			validMember := *m
 			validMember.Display = u.DisplayName
-			validMembers = append(validMembers, &validMember)
+			group.Members = append(group.Members, &validMember)
 		}
 	}
-	group.Members = validMembers
 	return nil
 }
 

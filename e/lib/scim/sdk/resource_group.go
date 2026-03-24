@@ -13,6 +13,11 @@ type GroupMember struct {
 	Type string `json:"type,omitempty"`
 }
 
+// GetExternalID fetches the downstream system's for this member
+func (m *GroupMember) GetExternalID() string {
+	return m.ExternalID
+}
+
 // Group represents a SCIM Group resource.
 type Group struct {
 	// ID is a unique identifier for a Group as defined by the Service Provider.

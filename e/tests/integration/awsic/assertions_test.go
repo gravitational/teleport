@@ -413,3 +413,63 @@ func requireICUser(ctx context.Context, t require.TestingT, client icsdk.Client,
 	}
 	t.FailNow()
 }
+
+type icGroupAssertion func(context.Context, assert.TestingT, icsdk.Client, *icsdk.Group) bool
+
+func withMembers(expectedMembers ...string) icGroupAssertion {
+	return func(ctx context.Context, t assert.TestingT, client icsdk.Client, group *icsdk.Group) bool {
+		groupMembers, err := client.ListGroupMemberships(ctx, group.ID)
+		if !assert.NoError(t, err) {
+			return false
+		}
+
+		users, err := client.ListUsers(ctx)
+		if !assert.NoError(t, err) {
+			return false
+		}
+
+		userLookup := make(map[string]*icsdk.User)
+		for _, u := range users {
+			userLookup[u.ID] = u
+		}
+
+		var actualMembers []string
+		for _, gm := range groupMembers {
+			user, ok := userLookup[gm.MemberID]
+			if !assert.True(t, ok, "No user with ID %q in mock Identity Center Data", gm.MemberID) {
+				return false
+			}
+			actualMembers = append(actualMembers, user.UserName)
+		}
+
+		return assert.ElementsMatch(t, expectedMembers, actualMembers)
+	}
+}
+
+func assertICGroup(ctx context.Context, t assert.TestingT, client icsdk.Client, displayName string, assertions ...icGroupAssertion) bool {
+	groups, err := client.ListGroups(ctx)
+	if !assert.NoError(t, err) {
+		return false
+	}
+	i := slices.IndexFunc(groups, func(g *icsdk.Group) bool { return g.DisplayName == displayName })
+	if !assert.NotEqual(t, -1, i, "Group with display name %q should exist in Identity Center", displayName) {
+		return false
+	}
+	group := groups[i]
+	for _, assertionFn := range assertions {
+		if !assertionFn(ctx, t, client, group) {
+			return false
+		}
+	}
+	return true
+}
+
+func requireICGroup(ctx context.Context, t require.TestingT, client icsdk.Client, displayName string, assertions ...icGroupAssertion) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
+	if assertICGroup(ctx, t, client, displayName, assertions...) {
+		return
+	}
+	t.FailNow()
+}

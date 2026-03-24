@@ -9,6 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 const (
@@ -22,8 +24,9 @@ func TestSCIMSDKClient(t *testing.T) {
 	}
 	ctx := context.Background()
 	cfg := &Config{
-		Endpoint: os.Getenv(awsScimEndpointEnv),
-		Token:    os.Getenv(awsScimTokenEnv),
+		Endpoint:        os.Getenv(awsScimEndpointEnv),
+		Token:           os.Getenv(awsScimTokenEnv),
+		IntegrationType: types.PluginTypeAWSIdentityCenter,
 	}
 
 	cli, err := New(cfg)
@@ -111,10 +114,12 @@ func testSCIMIntegration(t *testing.T, ctx context.Context, cli Client) {
 	require.NoError(t, err)
 	require.Equal(t, "TestGroup", testGroup.DisplayName)
 
-	err = cli.ReplaceGroupMembers(ctx, testGroup.ID, []*GroupMember{
-		{ExternalID: aliceUser.ID},
-		{ExternalID: richardUser.ID},
-	})
+	err = cli.PatchGroupMembers(ctx, testGroup.ID,
+		[]*GroupMember{
+			{ExternalID: aliceUser.ID},
+			{ExternalID: richardUser.ID},
+		},
+		nil)
 	require.NoError(t, err)
 
 	var members []*GroupMember
@@ -123,7 +128,10 @@ func testSCIMIntegration(t *testing.T, ctx context.Context, cli Client) {
 		members = append(members, &GroupMember{ExternalID: v.ID})
 	}
 
-	err = cli.ReplaceGroupMembers(ctx, testGroup.ID, members)
+	err = cli.PatchGroupMembers(ctx, testGroup.ID, members, []*GroupMember{
+		{ExternalID: aliceUser.ID},
+		{ExternalID: richardUser.ID},
+	})
 	require.NoError(t, err)
 
 	g, err := cli.GetGroup(ctx, testGroup.ID)
@@ -131,7 +139,7 @@ func testSCIMIntegration(t *testing.T, ctx context.Context, cli Client) {
 	require.Equal(t, testGroup.ID, g.ID)
 
 	g.DisplayName = "TestGroupUpdated"
-	_, err = cli.UpdateGroup(ctx, g)
+	err = cli.ReplaceGroupName(ctx, g)
 	require.NoError(t, err)
 
 	u, err = cli.GetUser(ctx, richardUser.ID)

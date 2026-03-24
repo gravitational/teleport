@@ -12,6 +12,7 @@ import (
 
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -148,6 +149,14 @@ func (s *scimClientMock) GetGroup(_ context.Context, id string) (*scimsdk.Group,
 	return s.toSCIMGroup(icGroup), nil
 }
 
+func (s *scimClientMock) toICGroup(scimGroup *scimsdk.Group) *icsdk.Group {
+	return &icsdk.Group{
+		DisplayName:     scimGroup.DisplayName,
+		ID:              scimGroup.ID,
+		IdentityStoreID: string(s.Info.IdentityStoreID),
+	}
+}
+
 func (s *scimClientMock) toSCIMGroup(icGroup *icsdk.Group) *scimsdk.Group {
 	var scimMembers []*scimsdk.GroupMember
 	for _, m := range s.GroupMemberships[icGroup.ID] {
@@ -282,8 +291,15 @@ func (s *scimClientMock) ListUsers(_ context.Context, queryOptions ...scimsdk.Qu
 }
 
 // CreateGroup creates a new group.
-func (s *scimClientMock) CreateGroup(_ context.Context, group *scimsdk.Group) (*scimsdk.Group, error) {
-	return nil, trace.NotImplemented("UnifiedClientMock.CreateGroup")
+func (s *scimClientMock) CreateGroup(_ context.Context, scimGroup *scimsdk.Group) (*scimsdk.Group, error) {
+	g := s.toICGroup(scimGroup)
+	g.ID = uuid.NewString()
+
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	s.Groups = append(s.Groups, g)
+
+	return s.toSCIMGroup(g), nil
 }
 
 // DeleteGroup deletes a group.
@@ -352,8 +368,30 @@ func (s *scimClientMock) ReplaceGroupName(_ context.Context, group *scimsdk.Grou
 	return nil
 }
 
-// ReplaceGroupMembers replaces a group's members.
-func (s *scimClientMock) ReplaceGroupMembers(_ context.Context, id string, members []*scimsdk.GroupMember) error {
+// ListGroupMembers returns the current members of a group using the IC group
+// membership data.
+func (s *scimClientMock) ListGroupMembers(_ context.Context, id string) ([]*scimsdk.GroupMember, error) {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	if s.getGroupByID(id) == nil {
+		return nil, trace.NotFound("group with ID %q not found", id)
+	}
+
+	icMembers := s.GroupMemberships[id]
+	members := make([]*scimsdk.GroupMember, 0, len(icMembers))
+	for _, m := range icMembers {
+		members = append(members, &scimsdk.GroupMember{
+			ExternalID: m.MemberID,
+			Type:       scimsdk.ResourceTypeUser,
+		})
+	}
+	return members, nil
+}
+
+// PatchGroupMembers replaces a group's members applies the supplied [toAdd] and
+// [toRemove] lists to the mocked AWS state
+func (s *scimClientMock) PatchGroupMembers(_ context.Context, id string, toAdd, toRemove []*scimsdk.GroupMember) error {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
@@ -361,9 +399,19 @@ func (s *scimClientMock) ReplaceGroupMembers(_ context.Context, id string, membe
 	if icGroup == nil {
 		return trace.NotFound("group with ID %q not found", id)
 	}
+	icMembers := s.GroupMemberships[id]
 
-	icMembers := make([]*icsdk.GroupMember, 0, len(members))
-	for _, scimMember := range members {
+	// Remove all items in the toRemove list
+	condemned := set.NewWithCapacity[string](len(toRemove))
+	for _, m := range toRemove {
+		condemned.Add(m.ExternalID)
+	}
+	icMembers = slices.DeleteFunc(icMembers, func(m *icsdk.GroupMember) bool {
+		return condemned.Contains(m.MemberID)
+	})
+
+	// Add all of the members in the toAdd list
+	for _, scimMember := range toAdd {
 		icMember := s.getUserByID(scimMember.ExternalID)
 		if icMember != nil {
 			icMembers = append(icMembers, &icsdk.GroupMember{MemberID: aws.ToString(icMember.UserId)})

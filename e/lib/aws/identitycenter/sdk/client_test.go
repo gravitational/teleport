@@ -2,6 +2,8 @@ package sdk
 
 import (
 	"context"
+	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -11,6 +13,8 @@ import (
 	orgtypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
+	"github.com/aws/smithy-go"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -38,9 +42,18 @@ func TestClientConnection(t *testing.T) {
 	require.NoError(t, err)
 	require.ElementsMatch(t, groups, gResp)
 
-	gWithMembersResp, err := c.ListGroupMemberships(ctx, "g1")
-	require.NoError(t, err)
-	require.ElementsMatch(t, groupMembers, gWithMembersResp)
+	t.Run("ListGroupMemberships", func(t *testing.T) {
+		t.Run("Lists members", func(t *testing.T) {
+			gWithMembersResp, err := c.ListGroupMemberships(ctx, "g1")
+			require.NoError(t, err)
+			require.ElementsMatch(t, groupMembers, gWithMembersResp)
+		})
+
+		t.Run("Returns trace NotFound on unknown group", func(t *testing.T) {
+			_, err := c.ListGroupMemberships(ctx, "no-such-group")
+			require.True(t, trace.IsNotFound(err), "Expected trace.NotFoundError, got %T, %v", err, err)
+		})
+	})
 
 	aWithPSetARNsResp, err := c.ListPermissionSetARNsForAccount(ctx, "a1")
 	require.NoError(t, err)
@@ -100,6 +113,16 @@ func (mockAWSClient) ListUsers(ctx context.Context, params *identitystore.ListUs
 }
 
 func (mockAWSClient) ListGroupMemberships(ctx context.Context, params *identitystore.ListGroupMembershipsInput, optFns ...func(*identitystore.Options)) (*identitystore.ListGroupMembershipsOutput, error) {
+	gid := aws.ToString(params.GroupId)
+	if slices.IndexFunc(groups, func(g *Group) bool { return g.ID == gid }) == -1 {
+		return nil, mockAWSError(http.StatusBadRequest, "identitystore", "ListGroupMemberships",
+			&idstoretypes.ResourceNotFoundException{
+				Message:      aws.String("GROUP Not Found"),
+				ResourceType: "GROUP",
+				RequestId:    aws.String("some-request-id"),
+			})
+	}
+
 	return &identitystore.ListGroupMembershipsOutput{
 		GroupMemberships: toGroupMemberships(groupMembers),
 	}, nil
@@ -207,6 +230,19 @@ func (mockAWSClient) DeleteAccountAssignment(ctx context.Context, req *ssoadmin.
 			PermissionSetArn: req.PermissionSetArn,
 		},
 	}, nil
+}
+
+// mockAWSError wraps an underlying error in an approximation of the error chain
+// returned from the AWS client on error.
+func mockAWSError(httpStatus int, serviceID, operationName string, rootErr error) error {
+	return &smithy.OperationError{
+		ServiceID:     serviceID,
+		OperationName: operationName,
+		Err: &smithyhttp.ResponseError{
+			Response: &smithyhttp.Response{Response: &http.Response{StatusCode: httpStatus}},
+			Err:      rootErr,
+		},
+	}
 }
 
 const accountAssignmentRequestID = "some request id"
