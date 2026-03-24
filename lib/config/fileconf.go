@@ -2617,6 +2617,11 @@ type UIConfig struct {
 	// which means resources the user has access to and resources they can request will be shown in the
 	// resources UI. If set to `accessible_only`, only resources the user already has access to will be shown.
 	ShowResources constants.ShowResources `yaml:"show_resources,omitempty"`
+	// ShowBeamsOnboarding determines if the Web UI should show the Beams
+	// onboarding take-over UI after a user signs-in. It exists in addition to
+	// the beams feature flag (entitlement) and should be disregarded if the
+	// beams feature is not enabled.
+	ShowBeamsOnboarding bool `yaml:"show_beams_onboarding"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates

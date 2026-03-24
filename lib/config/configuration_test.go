@@ -1274,6 +1274,71 @@ func TestUIConfig_ShowResources(t *testing.T) {
 	}
 }
 
+func TestUIConfig_ShowBeamsOnboarding(t *testing.T) {
+	tests := []struct {
+		desc     string
+		config   string
+		expected bool
+	}{
+		{
+			desc: "sets default value",
+			config: strings.Join([]string{
+				"proxy_service:",
+				"  ui: {}",
+			}, "\n"),
+			expected: false,
+		},
+		{
+			desc: "respects true",
+			config: strings.Join([]string{
+				"proxy_service:",
+				"  ui:",
+				"    show_beams_onboarding: true",
+			}, "\n"),
+			expected: true,
+		},
+		{
+			desc: "respects false",
+			config: strings.Join([]string{
+				"proxy_service:",
+				"  ui:",
+				"    show_beams_onboarding: false",
+			}, "\n"),
+			expected: false,
+		},
+		{
+			desc: "respects yes",
+			config: strings.Join([]string{
+				"proxy_service:",
+				"  ui:",
+				"    show_beams_onboarding: yes",
+			}, "\n"),
+			expected: true,
+		},
+		{
+			desc: "respects no",
+			config: strings.Join([]string{
+				"proxy_service:",
+				"  ui:",
+				"    show_beams_onboarding: no",
+			}, "\n"),
+			expected: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			conf, err := ReadConfig(bytes.NewBufferString(test.config))
+			require.NoError(t, err)
+			require.NotNil(t, conf)
+
+			cfg := servicecfg.MakeDefaultConfig()
+			err = applyProxyConfig(conf, cfg)
+			require.NoError(t, err)
+			require.Equal(t, test.expected, cfg.Proxy.UI.ShowBeamsOnboarding)
+		})
+	}
+}
+
 func TestProxyMustJoinViaAuth(t *testing.T) {
 	cfg := servicecfg.MakeDefaultConfig()
 
