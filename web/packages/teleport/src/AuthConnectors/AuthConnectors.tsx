@@ -220,11 +220,11 @@ export const InfoGuide = ({ isGitHub = false }) => (
         isGitHub
           ? {
               title: 'Configure GitHub connector',
-              href: 'https://goteleport.com/docs/admin-guides/access-controls/sso/github-sso/',
+              href: 'https://goteleport.com/docs/zero-trust-access/sso/integrate-idp/github-sso/',
             }
           : {
               title: 'Samples of different connectors',
-              href: 'https://goteleport.com/docs/admin-guides/access-controls/sso/',
+              href: 'https://goteleport.com/docs/zero-trust-access/sso/integrate-idp/#integrating-your-provider',
             },
       ]}
     />
