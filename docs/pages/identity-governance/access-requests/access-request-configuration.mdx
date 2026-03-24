@@ -579,9 +579,11 @@ The owners of an Access List are suggested when the following conditions are met
  - The Access List can be applied to the Access Request.
  - The Access List owners are allowed to review requests for the requested roles.
 
-For short-term requests, an Access List is applicable when its member grants include a role that allows requesting one of the requested roles.
+For [short-term requests](./access-requests.mdx), an Access List is applicable when its member grants include a role that allows requesting one of the requested roles.
 
-For long-term requests, an Access List is applicable when the Access List directly grants one of the requested roles.
+For [long-term requests](../access-lists/access-lists.mdx), an Access List is applicable when the Access List directly grants one of the requested roles.
+
+For resource requests, this means the Access List grants a role that allows requesting the role that grants access to the requested resources.
 
 Note that in both cases those owners still need to have an appropriate Teleport role that 
 allows them to review such Access Requests.
@@ -797,4 +799,4 @@ Requests with the key `my-annotation`.
 
 For a full description of the configuration options within a Teleport role,
 refer to the [Access Controls
-Reference](../../reference/access-controls/roles.mdx).
+Reference](../../reference/access-c ntrols/roles.mdx).
