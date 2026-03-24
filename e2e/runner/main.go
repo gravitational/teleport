@@ -469,7 +469,7 @@ spec:
 						AuthServerHost: dockerHost,
 						AuthServerPort: inst.authPort,
 						SSHServerPort:  inst.sshPort,
-						NodeName:       "docker-node",
+						NodeName:       "docker-root-node",
 						Labels:         map[string]string{"env": "example"},
 					})
 					if err != nil {
@@ -483,7 +483,7 @@ spec:
 						tctlBin:            config.tctlBin,
 						teleportConfigPath: inst.teleportConfigPath,
 						logFilePath:        filepath.Join(config.e2eDir, "docker-node-"+inst.browser+".log"),
-						nodeName:           "docker-node",
+						nodeName:           "docker-root-node",
 						imageName:          nodeImage,
 						containerName:      "teleport-e2e-node-" + inst.browser,
 						configPath:         nodeConfigPath,
@@ -498,7 +498,7 @@ spec:
 							AuthServerHost: dockerHost,
 							AuthServerPort: inst.leafAuthPort,
 							SSHServerPort:  inst.leafSSHPort,
-							NodeName:       "leaf-node",
+							NodeName:       "docker-leaf-node",
 							Labels:         map[string]string{"cluster": "leaf"},
 						})
 						if err != nil {
@@ -512,7 +512,7 @@ spec:
 							tctlBin:            config.tctlBin,
 							teleportConfigPath: inst.leafTeleportConfigPath,
 							logFilePath:        filepath.Join(config.e2eDir, "leaf-node-"+inst.browser+".log"),
-							nodeName:           "leaf-node",
+							nodeName:           "docker-leaf-node",
 							imageName:          nodeImage,
 							containerName:      "teleport-e2e-leaf-node-" + inst.browser,
 							configPath:         nodeConfigPath,

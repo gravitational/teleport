@@ -23,7 +23,10 @@ test('verify that a user can SSH into a node', async ({
 }) => {
   await unifiedResourcesPage.goto();
 
-  const terminal = await unifiedResourcesPage.connect('docker-node', 'root');
+  const terminal = await unifiedResourcesPage.connect(
+    'docker-root-node',
+    'root'
+  );
 
   await terminal.waitForReady();
   await terminal.exec('ls /');
