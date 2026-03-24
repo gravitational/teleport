@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -149,7 +150,7 @@ func requireClusterAlerts(t *testing.T, ctx context.Context, srv *auth.Server, w
 
 		samlCount := 0
 		for _, alert := range alerts {
-			if alert.GetName() == "unrelated-alert" {
+			if !strings.HasPrefix(alert.GetName(), auth.SAMLCertExpiryAlertID) {
 				continue
 			}
 			require.Equal(t, types.AlertSeverity_MEDIUM, alert.Spec.Severity)
