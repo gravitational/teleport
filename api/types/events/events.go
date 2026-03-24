@@ -2826,6 +2826,11 @@ func (m *WorkloadClusterCreate) TrimToMaxSize(maxSize int) AuditEvent {
 		return m
 	}
 
+	// This should never happen, but guard to prevent panics
+	if m.Payload == nil {
+		return m
+	}
+
 	out := utils.CloneProtoMsg(m)
 	out.Payload = nil
 
