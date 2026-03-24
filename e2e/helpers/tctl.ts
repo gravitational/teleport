@@ -51,8 +51,9 @@ export function deleteUser(username: string) {
   tctl('users', 'rm', username);
 }
 
-export function tctlCreate(yaml: string) {
-  execFileSync(tctlBin, ['create', '-f', '/dev/stdin', '-c', teleportConfig], {
+export function tctlCreate(yaml: string, opts: { config?: string } = {}) {
+  const config = opts.config ?? teleportConfig;
+  execFileSync(tctlBin, ['create', '-f', '/dev/stdin', '-c', config], {
     input: yaml,
     encoding: 'utf-8',
     stdio: ['pipe', 'pipe', 'ignore'],
