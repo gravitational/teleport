@@ -1644,8 +1644,8 @@ func (a *ServerWithRoles) scopedListUnifiedResources(ctx context.Context, req *p
 			serverScope = server.Scope
 		}
 
-		if err := a.scopedContext.CheckerContext.Decision(ctx, serverScope, func(checker *services.SplitAccessChecker) error {
-			return checker.Common().CanAccessSSHServer(server)
+		if err := a.scopedContext.CheckerContext.Decision(ctx, serverScope, func(checker *services.ScopedAccessChecker) error {
+			return checker.SSH().CanAccessSSHServer(server)
 		}); err == nil {
 			return true, nil
 		} else if !trace.IsAccessDenied(err) {
@@ -2432,8 +2432,8 @@ func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.SplitAccessChecker) error {
-			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindAuthServer, types.VerbList, types.VerbRead)
+		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindAuthServer, types.VerbList, types.VerbRead)
 		}); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2457,8 +2457,8 @@ func (a *ServerWithRoles) ListAuthServers(ctx context.Context, pageSize int, pag
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.SplitAccessChecker) error {
-			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindAuthServer, types.VerbList, types.VerbRead)
+		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindAuthServer, types.VerbList, types.VerbRead)
 		}); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -2498,8 +2498,8 @@ func (a *ServerWithRoles) GetProxies() ([]types.Server, error) {
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.SplitAccessChecker) error {
-			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindProxy, types.VerbList, types.VerbRead)
+		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindProxy, types.VerbList, types.VerbRead)
 		}); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2523,8 +2523,8 @@ func (a *ServerWithRoles) ListProxyServers(ctx context.Context, pageSize int, pa
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.SplitAccessChecker) error {
-			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindProxy, types.VerbList, types.VerbRead)
+		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindProxy, types.VerbList, types.VerbRead)
 		}); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -3850,7 +3850,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		AWSRoleARN:                       req.RouteToApp.AWSRoleARN,
 		AzureIdentity:                    req.RouteToApp.AzureIdentity,
 		GCPServiceAccount:                req.RouteToApp.GCPServiceAccount,
-		CheckerContext:                   services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to generateUserCerts.
+		CheckerContext:                   services.NewScopedAccessCheckerContextFromUnscoped(checker), // TODO(fspmarshall/scopes): add scoping support to generateUserCerts.
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
 		LoginIP:                a.context.Identity.GetIdentity().LoginIP,
