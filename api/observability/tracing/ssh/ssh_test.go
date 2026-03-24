@@ -35,6 +35,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
@@ -61,7 +62,7 @@ func (s *server) GetClient(t *testing.T) (ssh.Conn, <-chan ssh.NewChannel, <-cha
 	conn, err := net.Dial("tcp", s.listener.Addr().String())
 	require.NoError(t, err)
 
-	sconn, nc, r, err := ssh.NewClientConn(conn, "", &ssh.ClientConfig{
+	sconn, nc, r, err := NewClientConnWithTimeout(t.Context(), conn, "", &ssh.ClientConfig{
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(s.cSigner)},
 		HostKeyCallback: ssh.FixedHostKey(s.hSigner.PublicKey()),
 	})
@@ -314,13 +315,14 @@ func TestClient(t *testing.T) {
 
 			tp := sdktrace.NewTracerProvider()
 			conn, chans, reqs := srv.GetClient(t)
-			client := NewClient(
+			client, err := NewClient(
 				conn,
 				chans,
 				reqs,
 				tracing.WithTracerProvider(tp),
 				tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})),
 			)
+			require.NoError(t, err)
 			require.Equal(t, tt.tracingSupported, client.capability)
 
 			ctx, span := tp.Tracer("test").Start(context.Background(), "test")
@@ -488,4 +490,52 @@ func TestNewClientConnTimeout(t *testing.T) {
 		require.ErrorIs(t, err, context.DeadlineExceeded, "expected context deadline exceeded error, got: %v", err)
 	})
 
+}
+
+func TestNewClientConnWithTimeoutSetsClientVersion(t *testing.T) {
+	t.Parallel()
+
+	clientVersionC := make(chan string, 1)
+
+	// Create server to capture the client version string sent by the client during handshake.
+	srv := newServer(
+		t,
+		tracingSupportedVersion,
+		func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+			select {
+			case <-t.Context().Done():
+				return
+
+			case clientVersionC <- string(conn.ClientVersion()):
+			}
+
+			go ssh.DiscardRequests(requests)
+
+			for ch := range channels {
+				err := ch.Reject(ssh.Prohibited, "no channels allowed")
+				assert.NoError(t, err)
+			}
+		},
+	)
+
+	tcpConn, err := net.Dial("tcp", srv.listener.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		tcpConn.Close()
+	})
+
+	config := &ssh.ClientConfig{
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(srv.cSigner)},
+		ClientVersion:   "invalid-version",
+		HostKeyCallback: ssh.FixedHostKey(srv.hSigner.PublicKey()),
+	}
+
+	sshConn, _, _, err := NewClientConnWithTimeout(t.Context(), tcpConn, srv.listener.Addr().String(), config)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		sshConn.Close()
+	})
+
+	require.Equal(t, api.SSHClientVersion(), config.ClientVersion)
+	require.Equal(t, api.SSHClientVersion(), <-clientVersionC)
 }

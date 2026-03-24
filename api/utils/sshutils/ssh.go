@@ -29,6 +29,7 @@ import (
 	"regexp"
 	"strings"
 
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -282,13 +283,13 @@ func RunSSH(ctx context.Context, addr, command string, cfg *ssh.ClientConfig, op
 		return nil, nil, trace.Wrap(err)
 	}
 
-	clientConn, newCh, requestsCh, err := ssh.NewClientConn(conn, addr, cfg)
+	sshClient, err := tracessh.NewClientWithTimeout(ctx, conn, addr, cfg)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	sshClient := ssh.NewClient(clientConn, newCh, requestsCh)
 	defer sshClient.Close()
-	session, err := sshClient.NewSession()
+
+	session, err := sshClient.NewSession(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -299,7 +300,7 @@ func RunSSH(ctx context.Context, addr, command string, cfg *ssh.ClientConfig, op
 	session.Stdout = &stdout
 	var stderr bytes.Buffer
 	session.Stderr = &stderr
-	err = session.Run(command)
+	err = session.Run(ctx, command)
 	return stdout.Bytes(), stderr.Bytes(), trace.Wrap(err)
 }
 

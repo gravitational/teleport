@@ -346,6 +346,12 @@ linters:
         - pattern: ^semver\.New$
           pkg: ^github.com/coreos/go-semver/semver$
           msg: construct a semver.Version manually or use semver.NewVersion
+        - pattern: ^ssh\.NewClient$
+          pkg: ^golang\.org/x/crypto/ssh$
+          msg: Use tracessh.NewClientWithTimeout or tracessh.NewClient to construct ssh.Client with proper defaults
+        - pattern: ^ssh\.NewClientConn$
+          pkg: ^golang\.org/x/crypto/ssh$
+          msg: Use tracessh.NewClientConn to construct ssh.Conn with proper defaults
       analyze-types: true
     misspell:
       locale: US

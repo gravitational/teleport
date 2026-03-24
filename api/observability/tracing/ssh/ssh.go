@@ -27,6 +27,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 )
@@ -163,6 +164,10 @@ func NewClientConnWithTimeout(ctx context.Context, conn net.Conn, addr string, c
 		),
 	)
 	defer span.End()
+
+	// Set the SSH client version to include the Teleport version and supported features. This intentionally overrides
+	// any client version set by the caller to ensure consistency.
+	config.ClientVersion = api.SSHClientVersion()
 
 	// ssh.ClientConfig.Timeout is not the total timeout for the connection
 	// establishment, including DNS resolution, TCP connection, but it doesn't
