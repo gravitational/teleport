@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/go-ldap/ldap/v3"
+	"github.com/russellhaering/gosaml2/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -67,15 +68,19 @@ func (r *referrals) clear() {
 // wherein a given host, when searched, returns either
 // LDAP entries or referrals.
 type topology struct {
-	servers  map[string]result
-	searches map[string]int
+	servers     map[string]result
+	searches    map[string]int
+	openClients map[string]struct{}
 }
 
 func (t *topology) clear() {
 	clear(t.searches)
+	clear(t.openClients)
 }
 
-func (t topology) newSearcher(_ context.Context, name string) (searcher, error) {
+func (t topology) newSearcher(_ context.Context, name string) (searcher, func() error, error) {
+	id := uuid.NewV4().String()
+	t.openClients[id] = struct{}{}
 	return searcherFunc(func(ctx context.Context, searchRequest *ldap.SearchRequest) (entries []*ldap.Entry, referrals []string, err error) {
 		res, ok := t.servers[name]
 		t.searches[name] += 1
@@ -84,7 +89,7 @@ func (t topology) newSearcher(_ context.Context, name string) (searcher, error) 
 		}
 
 		return res.entries, res.referral, ctx.Err()
-	}), nil
+	}), func() error { delete(t.openClients, id); return nil }, nil
 }
 
 func TestRecursiveSearch(t *testing.T) {
@@ -133,7 +138,8 @@ func TestRecursiveSearch(t *testing.T) {
 				}},
 			},
 		},
-		searches: map[string]int{},
+		searches:    map[string]int{},
+		openClients: map[string]struct{}{},
 	}
 
 	t.Run("successful search", func(t *testing.T) {
@@ -149,12 +155,15 @@ func TestRecursiveSearch(t *testing.T) {
 		}
 
 		// Start the search from the "root" mock LDAPS server
-		root, _ := top.newSearcher(t.Context(), "root")
+		root, closer, _ := top.newSearcher(t.Context(), "root")
+		closer()
 		entries, err := testSearch.start(t.Context(), root)
 		require.NoError(t, err)
 		assert.Len(t, entries, 1)
 		// Should have followed all 5 referrals
 		assert.Len(t, testSearch.referrals, 5)
+		// All client handles closed
+		assert.Empty(t, top.openClients)
 	})
 
 	t.Run("max referrals exceeded", func(t *testing.T) {
@@ -174,7 +183,8 @@ func TestRecursiveSearch(t *testing.T) {
 		}
 
 		// Start the search from the "root" mock LDAPS server
-		root, _ := top.newSearcher(t.Context(), "root")
+		root, closer, _ := top.newSearcher(t.Context(), "root")
+		closer()
 		entries, err := testSearch.start(t.Context(), root)
 		assert.NoError(t, err)
 		assert.Empty(t, entries)
@@ -185,6 +195,8 @@ func TestRecursiveSearch(t *testing.T) {
 		}
 		// Validates that c.lab.local was never resolved
 		assert.NotContains(t, refs.resolves, "c.lab.local")
+		// All client handles closed
+		assert.Empty(t, top.openClients)
 	})
 
 	t.Run("max hosts exceeded", func(t *testing.T) {
@@ -205,7 +217,8 @@ func TestRecursiveSearch(t *testing.T) {
 		}
 
 		// Start the search from the "root" mock LDAPS server
-		root, _ := top.newSearcher(t.Context(), "root")
+		root, closer, _ := top.newSearcher(t.Context(), "root")
+		closer()
 		entries, err := testSearch.start(t.Context(), root)
 		assert.NoError(t, err)
 		assert.Empty(t, entries)
@@ -215,6 +228,8 @@ func TestRecursiveSearch(t *testing.T) {
 		// Validates that b.lab.local was never resolved because the search failed
 		// before this referral was discovered.
 		assert.NotContains(t, refs.resolves, "b.lab.local")
+		// All client handles closed
+		assert.Empty(t, top.openClients)
 	})
 
 	t.Run("max depth exceeded", func(t *testing.T) {
@@ -234,7 +249,8 @@ func TestRecursiveSearch(t *testing.T) {
 		}
 
 		// Start the search from the "root" mock LDAPS server
-		root, _ := top.newSearcher(t.Context(), "root")
+		root, closer, _ := top.newSearcher(t.Context(), "root")
+		closer()
 		entries, err := testSearch.start(t.Context(), root)
 		assert.NoError(t, err)
 		assert.Empty(t, entries)
@@ -242,6 +258,8 @@ func TestRecursiveSearch(t *testing.T) {
 			assert.Contains(t, testSearch.referrals, key)
 		}
 		assert.NotContains(t, refs.resolves, "noresolve.com")
+		// All client handles closed
+		assert.Empty(t, top.openClients)
 	})
 
 	t.Run("context cancellation returns error", func(t *testing.T) {
@@ -262,10 +280,13 @@ func TestRecursiveSearch(t *testing.T) {
 
 		cancel()
 		// Start the search from the "root" mock LDAPS server
-		root, _ := top.newSearcher(t.Context(), "root")
+		root, closer, _ := top.newSearcher(t.Context(), "root")
+		closer()
 		entries, err := testSearch.start(subCtx, root)
 		assert.Error(t, err)
 		assert.Empty(t, entries)
+		// All client handles closed
+		assert.Empty(t, top.openClients)
 	})
 
 	t.Run("cycles skipped", func(t *testing.T) {
@@ -278,7 +299,8 @@ func TestRecursiveSearch(t *testing.T) {
 		}
 
 		cycleTopology := topology{
-			searches: map[string]int{},
+			searches:    map[string]int{},
+			openClients: map[string]struct{}{},
 			servers: map[string]result{
 				"root":   result{referral: []string{"ldaps://a.lab.local"}},
 				"hosta1": result{referral: []string{"ldaps://b.lab.local"}},
@@ -300,12 +322,15 @@ func TestRecursiveSearch(t *testing.T) {
 		}
 
 		// Start the search from the "root" mock LDAPS server
-		root, _ := top.newSearcher(t.Context(), "root")
+		root, closer, _ := top.newSearcher(t.Context(), "root")
+		closer()
 		entries, err := testSearch.start(t.Context(), root)
 		require.NoError(t, err)
 		assert.Empty(t, entries)
 		// Referral and associated host are only resolved/searched once
 		assert.Equal(t, 1, cycleRefs.resolves["a.lab.local"])
 		assert.Equal(t, 1, cycleTopology.searches["hosta1"])
+		// All client handles closed
+		assert.Empty(t, top.openClients)
 	})
 }

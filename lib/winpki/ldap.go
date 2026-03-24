@@ -416,8 +416,9 @@ type recursiveSearch struct {
 	maxHosts uint
 	// The actual LDAP query being performed.
 	request *ldap.SearchRequest
-	// constructor for new searcher (wrapped LDAP client)
-	newSearcher func(context.Context, string) (searcher, error)
+	// constructor for new searcher (wrapped LDAP client) and associated close function
+	// to be called when the searcher is no longer needed.
+	newSearcher func(context.Context, string) (searcher, func() error, error)
 	// A resolver to use for SRV lookups when resolving domain referrals.
 	resolver resolver
 	logger   *slog.Logger
@@ -462,21 +463,26 @@ referralLoop:
 		hosts := ref.resolve(ctx, r.resolver)
 		r.logger.InfoContext(ctx, "Chasing referral", "referral", ref.raw, "hosts", hosts)
 		for _, host := range hosts[:min(uint(len(hosts)), r.maxHosts)] {
-			// We're intentionally ignoring most errors while chasing referrals,
-			// but we should still be cognizant of context cancellations and deadlines.
-			if ctx.Err() != nil {
-				return nil, ctx.Err()
-			}
+			entries, err := func() ([]*ldap.Entry, error) {
+				newClient, closer, err := r.newSearcher(ctx, host)
+				if err != nil {
+					r.logger.InfoContext(ctx, "Failed to dial LDAPS server while chasing referral", "error", err, "hostname", host)
+					return nil, err
+				}
+				defer closer()
 
-			newClient, err := r.newSearcher(ctx, host)
-			if err != nil {
-				r.logger.InfoContext(ctx, "Failed to dial LDAPS server while chasing referral", "error", err, "hostname", host)
-				continue
-			}
+				entries, err := r.run(ctx, newClient, depth+1)
+				if err != nil {
+					r.logger.InfoContext(ctx, "Failed to execute LDAPS query while chasing referral", "error", err, "hostname", host)
+					return nil, err
+				}
+				return entries, nil
+			}()
 
-			entries, err := r.run(ctx, newClient, depth+1)
 			if err != nil {
-				r.logger.InfoContext(ctx, "Failed to execute LDAPS query while chasing referral", "error", err, "hostname", host)
+				if errors.Is(err, context.Canceled) {
+					return nil, err
+				}
 				continue
 			}
 
@@ -484,6 +490,7 @@ referralLoop:
 				r.logger.InfoContext(ctx, "Terminating referral chase after successfully finding entries", "referral", ref.raw, "host", host)
 				return entries, nil
 			}
+
 			// We successfully contacted the referred domain, but it simply didn't
 			// have the data we're looking for. We don't need to continue contacting
 			// other hosts belonging to the same referral/domain.
@@ -513,12 +520,12 @@ func (l *LDAPClient) RecursiveReadWithFilter(ctx context.Context, dn string, fil
 			attrs,
 			nil, // no Controls)
 		),
-		newSearcher: func(ctx context.Context, host string) (searcher, error) {
+		newSearcher: func(ctx context.Context, host string) (searcher, func() error, error) {
 			client, err := DialLDAP(ctx, &LDAPConfig{
 				Addr:   host,
 				Logger: l.cfg.Logger,
 			}, l.credentials)
-			return ldapSearcher(client), err
+			return ldapSearcher(client), client.Close, err
 		},
 		resolver: net.DefaultResolver,
 		logger:   l.cfg.Logger,
