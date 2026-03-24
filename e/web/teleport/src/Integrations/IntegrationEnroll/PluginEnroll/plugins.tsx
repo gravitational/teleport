@@ -606,7 +606,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             Ensure that your ServiceNow account includes the{' '}
             <Link
               target="_blank"
-              href="https://docs.servicenow.com/en-US/bundle/vancouver-it-service-management/page/product/incident-management/task/req-itsm-roles-inci-mgmt.html"
+              href="https://www.servicenow.com/docs/r/it-service-management/incident-management/req-itsm-roles-inci-mgmt.html"
             >
               ITSM Roles plugin
             </Link>
@@ -616,7 +616,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           <li>
             <Link
               target="_blank"
-              href="https://docs.servicenow.com/bundle/vancouver-platform-administration/page/administer/roles/task/t_CreateARole.html"
+              href="https://www.servicenow.com/docs/r/platform-administration/user-administration/t_CreateARole.html"
             >
               Create a ServiceNow role
             </Link>{' '}
@@ -626,7 +626,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           <li>
             <Link
               target="_blank"
-              href="https://docs.servicenow.com/bundle/vancouver-platform-administration/page/administer/roles/task/t_AddARoleToAnExistingRole.html"
+              href="https://www.servicenow.com/docs/r/platform-administration/user-administration/t_AddARoleToAnExistingRole.html"
             >
               Edit the role you created
             </Link>{' '}
@@ -636,7 +636,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             Follow the{' '}
             <Link
               target="_blank"
-              href="https://docs.servicenow.com/en-US/bundle/vancouver-platform-administration/page/administer/users-and-groups/task/t_CreateAUser.html"
+              href="https://www.servicenow.com/docs/r/platform-administration/user-administration/t_CreateAUser.html"
             >
               ServiceNow documentation
             </Link>{' '}
@@ -646,7 +646,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           <li>
             <Link
               target="_blank"
-              href="https://docs.servicenow.com/bundle/vancouver-platform-administration/page/administer/users-and-groups/task/t_AssignARoleToAUser.html"
+              href="https://www.servicenow.com/docs/r/platform-administration/user-administration/t_AssignARoleToAUser.html"
             >
               Assign the role you created
             </Link>{' '}
@@ -1145,7 +1145,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           Follow the{' '}
           <Link
             target="_blank"
-            href="https://discord.com/developers/docs/getting-started"
+            href="https://docs.discord.com/developers/quick-start/getting-started"
           >
             Discord documentation
           </Link>{' '}
