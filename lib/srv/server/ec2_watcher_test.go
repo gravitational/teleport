@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -37,6 +38,7 @@ import (
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	liborganizations "github.com/gravitational/teleport/lib/utils/aws/organizations"
@@ -47,10 +49,16 @@ type mockEC2Client struct {
 	err    error
 }
 
+// Compile-time check that the mock satisfies the same API surface used by the
+// EC2 fetcher tests.
+var _ ec2.DescribeInstancesAPIClient = (*mockEC2Client)(nil)
+
 func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.DescribeInstancesInput, opts ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
+	// This mock intentionally applies AWS-side filtering semantics so the unit
+	// tests validate fetcher filter behavior, not only happy-path wiring.
 	var output ec2.DescribeInstancesOutput
 	for _, res := range m.output.Reservations {
 		var instances []ec2types.Instance
@@ -805,6 +813,173 @@ func TestEC2WatcherWithMixedResults(t *testing.T) {
 	}
 }
 
+func TestEC2WatcherWithOrganizationListRegionsAccessDeniedUsesPerAccountScope(t *testing.T) {
+	t.Parallel()
+
+	organizationID := "o-abcdefghij"
+	matchers := []types.AWSMatcher{
+		{
+			Params: &types.InstallerParams{
+				InstallTeleport: true,
+			},
+			Types:       []string{"ec2"},
+			Regions:     []string{types.Wildcard},
+			Tags:        map[string]utils.Strings{"teleport": {"yes"}},
+			SSM:         &types.AWSSSM{},
+			Integration: "my-integration",
+			AssumeRole: &types.AssumeRole{
+				RoleName: "MyRole",
+			},
+			Organization: &types.AWSOrganizationMatcher{
+				OrganizationID: organizationID,
+				OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+					Include: []string{types.Wildcard},
+				},
+			},
+		},
+	}
+
+	organizationsGetter := func(ctx context.Context, opts ...awsconfig.OptionsFn) (liborganizations.OrganizationsClient, error) {
+		return &mockOrganizationsClient{
+			organizationID: organizationID,
+			rootOUID:       "r-123",
+			ouItems: map[string]ouItem{
+				"r-123": {
+					innerOUs: []string{},
+					innerAccounts: []string{
+						"000000000001",
+						"000000000002",
+					},
+				},
+			},
+		}, nil
+	}
+
+	regionsListerGetter := func(ctx context.Context, opts ...awsconfig.OptionsFn) (account.ListRegionsAPIClient, error) {
+		return &mockAWSAccountClient{
+			responseError: trace.AccessDenied("User is not authorized to perform: account:ListRegions"),
+		}, nil
+	}
+
+	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
+		Matchers: matchers,
+		PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
+			return "proxy.example.com:3080", nil
+		},
+		EC2ClientGetter: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+			return &mockEC2Client{output: &ec2.DescribeInstancesOutput{}}, nil
+		},
+		RegionsListerGetter:    regionsListerGetter,
+		AWSOrganizationsGetter: organizationsGetter,
+	})
+	require.NoError(t, err)
+
+	watcher := NewWatcher[*EC2DiscoveryResult](t.Context())
+	watcher.SetFetchers("", fetchers)
+
+	go watcher.Run()
+
+	select {
+	case result := <-watcher.InstancesC:
+		require.NotNil(t, result)
+		require.Empty(t, result.Instances)
+		require.Len(t, result.PermissionErrors, 2)
+
+		var gotAccountIDs []string
+		for _, permErr := range result.PermissionErrors {
+			require.Equal(t, usertasks.AutoDiscoverEC2IssuePermAccountDenied, permErr.IssueType)
+			require.Equal(t, "my-integration", permErr.Integration)
+			require.Empty(t, permErr.Region)
+			gotAccountIDs = append(gotAccountIDs, permErr.AccountID)
+		}
+
+		require.ElementsMatch(t, []string{"000000000001", "000000000002"}, gotAccountIDs)
+	case <-t.Context().Done():
+		require.Fail(t, "context canceled")
+	}
+
+	select {
+	case result := <-watcher.InstancesC:
+		require.Fail(t, "unexpected result: %v", result)
+	default:
+	}
+}
+
+func TestEC2WatcherWithOrgAccessDenied(t *testing.T) {
+	t.Parallel()
+
+	organizationID := "o-abcdefghij"
+	matchers := []types.AWSMatcher{
+		{
+			Params: &types.InstallerParams{
+				InstallTeleport: true,
+			},
+			Types:   []string{"ec2"},
+			Regions: []string{"us-west-2"},
+			Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+			SSM:     &types.AWSSSM{},
+			AssumeRole: &types.AssumeRole{
+				RoleName: "MyRole",
+			},
+			Integration: "my-integration",
+			Organization: &types.AWSOrganizationMatcher{
+				OrganizationID: organizationID,
+				OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+					Include: []string{types.Wildcard},
+				},
+			},
+		},
+	}
+
+	organizationsGetter := func(ctx context.Context, opts ...awsconfig.OptionsFn) (liborganizations.OrganizationsClient, error) {
+		return &mockAccessDeniedOrganizationsClient{}, nil
+	}
+
+	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
+		Matchers: matchers,
+		PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
+			return "proxy.example.com:3080", nil
+		},
+		EC2ClientGetter: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+			return &mockEC2Client{output: &ec2.DescribeInstancesOutput{}}, nil
+		},
+		AWSOrganizationsGetter: organizationsGetter,
+	})
+	require.NoError(t, err)
+
+	watcher := NewWatcher[*EC2DiscoveryResult](t.Context())
+	watcher.SetFetchers("", fetchers)
+
+	go watcher.Run()
+
+	select {
+	case result := <-watcher.InstancesC:
+		require.NotNil(t, result)
+		require.Empty(t, result.Instances)
+		require.Len(t, result.PermissionErrors, 1)
+		require.Equal(t, usertasks.AutoDiscoverEC2IssuePermOrgDenied, result.PermissionErrors[0].IssueType)
+		require.Equal(t, "my-integration", result.PermissionErrors[0].Integration)
+	case <-t.Context().Done():
+		require.Fail(t, "context canceled")
+	}
+}
+
+// mockAccessDeniedOrganizationsClient returns AccessDenied from
+// ListRoots, simulating an org-level permission failure.
+type mockAccessDeniedOrganizationsClient struct{}
+
+func (m *mockAccessDeniedOrganizationsClient) ListRoots(ctx context.Context, input *organizations.ListRootsInput, opts ...func(*organizations.Options)) (*organizations.ListRootsOutput, error) {
+	return nil, trace.AccessDenied("not authorized to perform: organizations:ListRoots")
+}
+
+func (m *mockAccessDeniedOrganizationsClient) ListChildren(ctx context.Context, input *organizations.ListChildrenInput, opts ...func(*organizations.Options)) (*organizations.ListChildrenOutput, error) {
+	return nil, trace.AccessDenied("not authorized to perform: organizations:ListChildren")
+}
+
+func (m *mockAccessDeniedOrganizationsClient) ListAccountsForParent(ctx context.Context, input *organizations.ListAccountsForParentInput, opts ...func(*organizations.Options)) (*organizations.ListAccountsForParentOutput, error) {
+	return nil, trace.AccessDenied("not authorized to perform: organizations:ListAccountsForParent")
+}
+
 func TestMatchersToEC2InstanceFetchers(t *testing.T) {
 	ec2ClientGetter := func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 		return nil, errors.New("ec2 client getter invocation must not fail when creating fetchers")
@@ -985,6 +1160,121 @@ func TestToEC2Instances(t *testing.T) {
 	}
 }
 
+func TestAccountIDFromRoleARN(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		roleARN       string
+		wantAccountID string
+		wantErr       require.ErrorAssertionFunc
+	}{
+		{
+			name:          "empty ARN",
+			roleARN:       "",
+			wantAccountID: "",
+			wantErr:       require.NoError,
+		},
+		{
+			name:          "valid ARN",
+			roleARN:       "arn:aws:iam::123456789012:role/teleport",
+			wantAccountID: "123456789012",
+			wantErr:       require.NoError,
+		},
+		{
+			name:          "invalid ARN",
+			roleARN:       "invalid-arn",
+			wantAccountID: "",
+			wantErr:       require.Error,
+		},
+		{
+			name:          "ARN without account ID",
+			roleARN:       "arn:aws:iam:::role/teleport",
+			wantAccountID: "",
+			wantErr:       require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accountID, err := accountIDFromRoleARN(tt.roleARN)
+			tt.wantErr(t, err)
+			require.Equal(t, tt.wantAccountID, accountID)
+		})
+	}
+}
+
+func TestSyntheticAccountIDIsUnambiguous(t *testing.T) {
+	t.Parallel()
+
+	base := syntheticAccountID("invalid-arn", "my-int", "us-west-2")
+	require.NotEmpty(t, base)
+	require.Contains(t, base, "unknown-account-")
+
+	// Fallback account IDs are deterministic for the same scope.
+	require.Equal(t, base, syntheticAccountID("invalid-arn", "my-int", "us-west-2"))
+
+	// Field boundaries are preserved even when values contain delimiters.
+	delimiterCollisionLeft := syntheticAccountID("scope-a|scope-b", "my-int", "")
+	delimiterCollisionRight := syntheticAccountID("scope-a", "scope-b|my-int", "")
+	require.NotEqual(t, delimiterCollisionLeft, delimiterCollisionRight)
+
+	// Empty fields retain positional meaning.
+	integrationOnlyScope := syntheticAccountID("", "my-int", "")
+	roleOnlyScope := syntheticAccountID("my-int", "", "")
+	require.NotEqual(t, integrationOnlyScope, roleOnlyScope)
+
+	// Distinct scopes must remain distinct even when the same non-empty values
+	// appear shifted between positions.
+	integrationRegionScope := syntheticAccountID("", "my-int", "us-west-2")
+	roleIntegrationScope := syntheticAccountID("my-int", "us-west-2", "")
+	require.NotEqual(t, integrationRegionScope, roleIntegrationScope)
+}
+
+func TestAccountIDFromRoleARNOrWarn(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.Default()
+	ctx := context.Background()
+
+	valid := accountIDFromRoleARNOrWarn(ctx, logger, "arn:aws:iam::123456789012:role/teleport", "my-int", "us-west-2")
+	require.Equal(t, "123456789012", valid)
+
+	invalid := accountIDFromRoleARNOrWarn(ctx, logger, "invalid-arn", "my-int", "us-west-2")
+	require.NotEmpty(t, invalid)
+	require.Contains(t, invalid, "unknown-account-")
+
+	// Fallback account IDs are deterministic for the same scope.
+	invalidAgain := accountIDFromRoleARNOrWarn(ctx, logger, "invalid-arn", "my-int", "us-west-2")
+	require.Equal(t, invalid, invalidAgain)
+
+	emptyRole := accountIDFromRoleARNOrWarn(ctx, logger, "", "my-int", "us-west-2")
+	require.NotEmpty(t, emptyRole)
+	require.Contains(t, emptyRole, "unknown-account-")
+
+	noScope := accountIDFromRoleARNOrWarn(ctx, logger, "", "", "")
+	require.NotEmpty(t, noScope)
+	require.Contains(t, noScope, "unknown-account-")
+
+	// Region remains part of fallback scoping when account ID is unknown.
+	otherRegion := accountIDFromRoleARNOrWarn(ctx, logger, "", "my-int", "us-east-1")
+	require.NotEqual(t, emptyRole, otherRegion)
+
+	// Integration remains part of fallback scoping when account ID is unknown.
+	otherIntegration := accountIDFromRoleARNOrWarn(ctx, logger, "", "other-int", "us-west-2")
+	require.NotEqual(t, emptyRole, otherIntegration)
+
+	// Field boundaries are preserved even when values contain delimiters.
+	delimiterCollisionLeft := accountIDFromRoleARNOrWarn(ctx, logger, "scope-a|scope-b", "my-int", "")
+	delimiterCollisionRight := accountIDFromRoleARNOrWarn(ctx, logger, "scope-a", "scope-b|my-int", "")
+	require.NotEqual(t, delimiterCollisionLeft, delimiterCollisionRight)
+
+	// Empty fields retain positional meaning.
+	integrationOnlyScope := accountIDFromRoleARNOrWarn(ctx, logger, "", "my-int", "")
+	roleOnlyScope := accountIDFromRoleARNOrWarn(ctx, logger, "my-int", "", "")
+	require.NotEqual(t, integrationOnlyScope, roleOnlyScope)
+}
+
 func TestSSMRunCommandParameters(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
@@ -1113,7 +1403,7 @@ func TestSSMRunCommandParameters(t *testing.T) {
 func TestEC2IAMPermissionError(t *testing.T) {
 	t.Parallel()
 
-	t.Run("implements error interface with context", func(t *testing.T) {
+	t.Run("with region and integration", func(t *testing.T) {
 		underlyingErr := errors.New("access denied")
 		permErr := &EC2IAMPermissionError{
 			Integration:         "my-integration",
@@ -1124,15 +1414,15 @@ func TestEC2IAMPermissionError(t *testing.T) {
 			Err:                 underlyingErr,
 		}
 
-		// Error message should include context
 		errMsg := permErr.Error()
+		require.Contains(t, errMsg, "my-integration")
 		require.Contains(t, errMsg, "123456789012")
 		require.Contains(t, errMsg, "us-west-2")
 		require.Contains(t, errMsg, "ec2-perm-account-denied")
 		require.Contains(t, errMsg, "access denied")
 	})
 
-	t.Run("error without region", func(t *testing.T) {
+	t.Run("without region", func(t *testing.T) {
 		underlyingErr := errors.New("org access denied")
 		permErr := &EC2IAMPermissionError{
 			Integration: "my-integration",
@@ -1142,19 +1432,34 @@ func TestEC2IAMPermissionError(t *testing.T) {
 		}
 
 		errMsg := permErr.Error()
+		require.Contains(t, errMsg, "my-integration")
 		require.Contains(t, errMsg, "123456789012")
 		require.Contains(t, errMsg, "ec2-perm-org-denied")
 		require.NotContains(t, errMsg, "region")
 	})
 
-	t.Run("unwrap returns underlying error", func(t *testing.T) {
+	t.Run("unwrap", func(t *testing.T) {
 		underlyingErr := errors.New("access denied")
 		permErr := &EC2IAMPermissionError{Err: underlyingErr}
 
 		require.ErrorIs(t, permErr, underlyingErr)
 	})
 
-	t.Run("errors.As finds permission error", func(t *testing.T) {
+	t.Run("without integration", func(t *testing.T) {
+		permErr := &EC2IAMPermissionError{
+			AccountID: "123456789012",
+			Region:    "us-west-2",
+			IssueType: "ec2-perm-account-denied",
+			Err:       errors.New("access denied"),
+		}
+
+		errMsg := permErr.Error()
+		require.NotContains(t, errMsg, "integration")
+		require.Contains(t, errMsg, "123456789012")
+		require.Contains(t, errMsg, "us-west-2")
+	})
+
+	t.Run("errors.As through trace.Wrap", func(t *testing.T) {
 		underlyingErr := errors.New("access denied")
 		permErr := &EC2IAMPermissionError{
 			AccountID: "123456789012",
@@ -1162,7 +1467,6 @@ func TestEC2IAMPermissionError(t *testing.T) {
 			Err:       underlyingErr,
 		}
 
-		// Wrap the error
 		wrappedErr := trace.Wrap(permErr)
 
 		var found *EC2IAMPermissionError
@@ -1174,7 +1478,7 @@ func TestEC2IAMPermissionError(t *testing.T) {
 func TestEC2DiscoveryResultCollectError(t *testing.T) {
 	t.Parallel()
 
-	t.Run("collects permission error", func(t *testing.T) {
+	t.Run("direct permission error", func(t *testing.T) {
 		result := &EC2DiscoveryResult{}
 		permErr := &EC2IAMPermissionError{
 			AccountID: "123456789012",
@@ -1188,7 +1492,7 @@ func TestEC2DiscoveryResultCollectError(t *testing.T) {
 		require.Equal(t, "123456789012", result.PermissionErrors[0].AccountID)
 	})
 
-	t.Run("collects wrapped permission error", func(t *testing.T) {
+	t.Run("wrapped permission error", func(t *testing.T) {
 		result := &EC2DiscoveryResult{}
 		permErr := &EC2IAMPermissionError{
 			AccountID: "123456789012",
@@ -1202,7 +1506,7 @@ func TestEC2DiscoveryResultCollectError(t *testing.T) {
 		require.Len(t, result.PermissionErrors, 1)
 	})
 
-	t.Run("does not collect non-permission error", func(t *testing.T) {
+	t.Run("non-permission error ignored", func(t *testing.T) {
 		result := &EC2DiscoveryResult{}
 		regularErr := errors.New("some other error")
 
@@ -1212,47 +1516,3 @@ func TestEC2DiscoveryResultCollectError(t *testing.T) {
 	})
 }
 
-func TestEC2DiscoveryResultHelpers(t *testing.T) {
-	t.Parallel()
-
-	t.Run("HasInstances", func(t *testing.T) {
-		empty := &EC2DiscoveryResult{}
-		require.False(t, empty.HasInstances())
-
-		withInstances := &EC2DiscoveryResult{
-			Instances: []*EC2Instances{{Region: "us-west-2"}},
-		}
-		require.True(t, withInstances.HasInstances())
-	})
-
-	t.Run("HasErrors", func(t *testing.T) {
-		empty := &EC2DiscoveryResult{}
-		require.False(t, empty.HasErrors())
-
-		withErrors := &EC2DiscoveryResult{
-			PermissionErrors: []*EC2IAMPermissionError{{AccountID: "123"}},
-		}
-		require.True(t, withErrors.HasErrors())
-	})
-
-	t.Run("IsEmpty", func(t *testing.T) {
-		empty := &EC2DiscoveryResult{}
-		require.True(t, empty.IsEmpty())
-
-		withInstances := &EC2DiscoveryResult{
-			Instances: []*EC2Instances{{Region: "us-west-2"}},
-		}
-		require.False(t, withInstances.IsEmpty())
-
-		withErrors := &EC2DiscoveryResult{
-			PermissionErrors: []*EC2IAMPermissionError{{AccountID: "123"}},
-		}
-		require.False(t, withErrors.IsEmpty())
-
-		withBoth := &EC2DiscoveryResult{
-			Instances:        []*EC2Instances{{Region: "us-west-2"}},
-			PermissionErrors: []*EC2IAMPermissionError{{AccountID: "123"}},
-		}
-		require.False(t, withBoth.IsEmpty())
-	})
-}
