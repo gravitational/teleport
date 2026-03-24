@@ -19,7 +19,6 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/plugins/filter"
@@ -36,7 +35,7 @@ const (
 
 func startEntraIDService(ctx context.Context, reg *metrics.Registry, process *service.TeleportProcess, statusSink common.StatusSink, spec *types.PluginEntraIDSettings, integrationSpec *types.AzureOIDCIntegrationSpecV1) error {
 	logger := process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentEntraID, process.GetID()))
-	features := modules.GetModules().Features()
+	features := process.Config.Modules.Features()
 	if !features.GetEntitlement(entitlements.Identity).Enabled {
 		logger.ErrorContext(ctx, "Entra ID service requires Teleport Identity Governance. Entra ID sync will not run.")
 		return nil

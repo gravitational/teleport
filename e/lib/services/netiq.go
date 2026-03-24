@@ -11,7 +11,6 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 )
 
@@ -25,7 +24,7 @@ const (
 
 func startnetIQService(ctx context.Context, process *service.TeleportProcess, statusSink common.StatusSink, spec *types.PluginNetIQSettings, credentials []types.PluginStaticCredentials) error {
 	logger := process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentNetIQ, process.GetID()))
-	features := modules.GetModules().Features()
+	features := process.Config.Modules.Features()
 	if !features.GetEntitlement(entitlements.Policy).Enabled {
 		logger.ErrorContext(ctx, "NetIQ service requires Teleport Identity Security.")
 		return nil
