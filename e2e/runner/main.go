@@ -27,6 +27,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -122,6 +123,7 @@ type e2eConfig struct {
 
 	nodeConfigTemplate     string
 	teleportConfigTemplate string
+	leafConfigTemplate     string
 	stateTemplate          string
 
 	// teleportBuildDir is the directory in which to run `make build/teleport`.
@@ -151,6 +153,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		certsDir:               filepath.Join(e2eDir, "certs"),
 		stateTemplate:          filepath.Join(e2eDir, "config", "state.yaml.tmpl"),
 		teleportConfigTemplate: filepath.Join(e2eDir, "config", "teleport.yaml.tmpl"),
+		leafConfigTemplate:     filepath.Join(e2eDir, "config", "leaf.yaml.tmpl"),
 		nodeConfigTemplate:     filepath.Join(e2eDir, "node", "node.yaml.tmpl"),
 		connectAppDir:          filepath.Join(filepath.Dir(e2eDir), "web", "packages", "teleterm"),
 		connectTshBinPath:      filepath.Join(filepath.Dir(e2eDir), "build", "tsh-e2e-webauthnmock"),
@@ -208,9 +211,24 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		if sshNode.enabled {
 			portTargets = append(portTargets, &inst.sshPort)
 		}
+		if leafCluster.enabled {
+			portTargets = append(portTargets, &inst.leafProxyPort, &inst.leafAuthPort)
+			if sshNode.enabled {
+				portTargets = append(portTargets, &inst.leafSSHPort)
+			}
+		}
 	}
 	if ci := config.connectInstance; ci != nil {
 		portTargets = append(portTargets, &ci.proxyPort, &ci.authPort)
+		if sshNode.enabled {
+			portTargets = append(portTargets, &ci.sshPort)
+		}
+		if leafCluster.enabled {
+			portTargets = append(portTargets, &ci.leafProxyPort, &ci.leafAuthPort)
+			if sshNode.enabled {
+				portTargets = append(portTargets, &ci.leafSSHPort)
+			}
+		}
 	}
 
 	if err := allocatePorts(portTargets...); err != nil {
@@ -320,68 +338,199 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 
 		defer func() {
 			for _, inst := range allInstances {
+				if inst.leafNode != nil {
+					inst.leafNode.stop(context.Background())
+				}
 				if inst.node != nil {
 					inst.node.stop(context.Background())
 				}
 			}
 			for _, inst := range allInstances {
+				if inst.leafTeleport != nil {
+					inst.leafTeleport.stop()
+				}
 				if inst.teleport != nil {
 					inst.teleport.stop()
 				}
 			}
 		}()
 
-		if sshNode.enabled {
-			slog.Info("running with SSH node fixture enabled")
+		if leafCluster.enabled {
+			slog.Info("running with leaf cluster fixture enabled")
 
-			nodeBin := config.teleportBin
-			if runtime.GOOS != "linux" {
-				buildDir := config.teleportBuildDir
-				if buildDir == "" {
-					buildDir = config.repoRoot
+			for _, inst := range allInstances {
+				inst.leafDataDir = filepath.Join(e2eDir, "data", inst.browser+"-leaf")
+
+				inst.log.Debug("cleaning leaf data directory", "path", inst.leafDataDir)
+				if err := os.RemoveAll(inst.leafDataDir); err != nil {
+					return fmt.Errorf("failed to clean leaf data directory for %s: %w", inst.browser, err)
 				}
-				nodeBin = filepath.Join(buildDir, "build", "teleport-node")
-			}
 
-			dockerHost, err := resolveDockerHost()
-			if err != nil {
-				return fmt.Errorf("resolving docker host: %w", err)
-			}
-
-			for _, inst := range config.instances {
-				outPath := filepath.Join(e2eDir, "node", inst.browser+"-node.yaml")
-				nodeConfigPath, err := generateTeleportNodeConfig(config.nodeConfigTemplate, outPath, &TeleportNodeConfig{
-					AuthServerHost: dockerHost,
-					AuthServerPort: inst.authPort,
-					SSHServerPort:  inst.sshPort,
-					NodeName:       "docker-node",
-					Labels:         map[string]string{"env": "example"},
+				outPath := filepath.Join(e2eDir, "config", inst.browser+"-leaf.yaml")
+				lcfg, err := generateTeleportConfig(config.leafConfigTemplate, outPath, &TeleportConfig{
+					DataDir:        inst.leafDataDir,
+					AuthServerPort: inst.leafAuthPort,
+					ProxyPort:      inst.leafProxyPort,
+					KeyFilePath:    filepath.Join(config.certsDir, keyFileName),
+					CertFilePath:   filepath.Join(config.certsDir, certFileName),
+					LicenseFile:    config.licenseFile,
+					LogLevel:       config.teleportLogLevel,
 				})
 				if err != nil {
-					return fmt.Errorf("failed to generate node config for %s: %w", inst.browser, err)
+					return fmt.Errorf("failed to generate leaf Teleport config for %s: %w", inst.browser, err)
 				}
-				inst.log.Debug("generated Teleport node config", "path", nodeConfigPath)
-
-				inst.node = &dockerNode{
-					log:                inst.log,
-					sshPort:            inst.sshPort,
-					tctlBin:            config.tctlBin,
-					teleportConfigPath: inst.teleportConfigPath,
-					logFilePath:        filepath.Join(config.e2eDir, "docker-node-"+inst.browser+".log"),
-					nodeName:           "docker-node",
-					imageName:          nodeImage,
-					containerName:      "teleport-e2e-node-" + inst.browser,
-					configPath:         nodeConfigPath,
-					teleportBin:        nodeBin,
-				}
-			}
-
-			if err := pullImage(ctx, nodeImage); err != nil {
-				return fmt.Errorf("pulling docker image: %w", err)
+				inst.leafTeleportConfigPath = lcfg
+				inst.log.Debug("generated leaf Teleport config", "path", lcfg)
 			}
 
 			g, gctx := errgroup.WithContext(ctx)
-			for _, inst := range config.instances {
+			for _, inst := range allInstances {
+				leaf := &teleportInstance{
+					log:         inst.log,
+					teleportBin: config.teleportBin,
+					proxyPort:   inst.leafProxyPort,
+					configPath:  inst.leafTeleportConfigPath,
+					insecure:    true,
+				}
+				if config.isCI || config.quiet {
+					leaf.logFile = filepath.Join(config.e2eDir, "teleport-"+inst.browser+"-leaf.log")
+					inst.log.Debug("redirecting leaf Teleport logs to file", "path", leaf.logFile)
+				}
+				inst.leafTeleport = leaf
+
+				g.Go(func() error {
+					if err := leaf.start(ctx); err != nil {
+						return fmt.Errorf("failed to start leaf Teleport for %s: %w", inst.browser, err)
+					}
+					if err := leaf.waitReady(gctx, 30*time.Second); err != nil {
+						return fmt.Errorf("leaf Teleport for %s failed to become ready: %w", inst.browser, err)
+					}
+					return nil
+				})
+			}
+			if err := g.Wait(); err != nil {
+				return err
+			}
+
+			// Create the trusted cluster resource on each leaf, pointing to the root.
+			for _, inst := range allInstances {
+				trustedClusterYAML := fmt.Sprintf(`kind: trusted_cluster
+version: v2
+metadata:
+  name: teleport-e2e
+spec:
+  enabled: true
+  token: foo
+  web_proxy_addr: localhost:%d
+  role_map:
+    - remote: access
+      local: [access]
+    - remote: editor
+      local: [editor]
+`, inst.proxyPort)
+
+				inst.log.Debug("creating trusted cluster resource on leaf")
+				cmd := exec.CommandContext(ctx, config.tctlBin, "create", "-f", "/dev/stdin",
+					"-c", inst.leafTeleportConfigPath)
+				cmd.Stdin = strings.NewReader(trustedClusterYAML)
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("failed to create trusted cluster for %s: %w\n%s", inst.browser, err, out)
+				}
+			}
+
+		}
+
+		// Start SSH nodes and wait for leaf cluster tunnels in parallel.
+		if sshNode.enabled || leafCluster.enabled {
+			var nodeBin string
+			var dockerHost string
+
+			if sshNode.enabled {
+				slog.Info("running with SSH node fixture enabled")
+
+				nodeBin = config.teleportBin
+				if runtime.GOOS != "linux" {
+					buildDir := config.teleportBuildDir
+					if buildDir == "" {
+						buildDir = config.repoRoot
+					}
+					nodeBin = filepath.Join(buildDir, "build", "teleport-node")
+				}
+
+				var err error
+				dockerHost, err = resolveDockerHost()
+				if err != nil {
+					return fmt.Errorf("resolving docker host: %w", err)
+				}
+
+				for _, inst := range allInstances {
+					outPath := filepath.Join(e2eDir, "node", inst.browser+"-node.yaml")
+					nodeConfigPath, err := generateTeleportNodeConfig(config.nodeConfigTemplate, outPath, &TeleportNodeConfig{
+						AuthServerHost: dockerHost,
+						AuthServerPort: inst.authPort,
+						SSHServerPort:  inst.sshPort,
+						NodeName:       "docker-node",
+						Labels:         map[string]string{"env": "example"},
+					})
+					if err != nil {
+						return fmt.Errorf("failed to generate node config for %s: %w", inst.browser, err)
+					}
+					inst.log.Debug("generated Teleport node config", "path", nodeConfigPath)
+
+					inst.node = &dockerNode{
+						log:                inst.log,
+						sshPort:            inst.sshPort,
+						tctlBin:            config.tctlBin,
+						teleportConfigPath: inst.teleportConfigPath,
+						logFilePath:        filepath.Join(config.e2eDir, "docker-node-"+inst.browser+".log"),
+						nodeName:           "docker-node",
+						imageName:          nodeImage,
+						containerName:      "teleport-e2e-node-" + inst.browser,
+						configPath:         nodeConfigPath,
+						teleportBin:        nodeBin,
+					}
+				}
+
+				if leafCluster.enabled {
+					for _, inst := range allInstances {
+						outPath := filepath.Join(e2eDir, "node", inst.browser+"-leaf-node.yaml")
+						nodeConfigPath, err := generateTeleportNodeConfig(config.nodeConfigTemplate, outPath, &TeleportNodeConfig{
+							AuthServerHost: dockerHost,
+							AuthServerPort: inst.leafAuthPort,
+							SSHServerPort:  inst.leafSSHPort,
+							NodeName:       "leaf-node",
+							Labels:         map[string]string{"cluster": "leaf"},
+						})
+						if err != nil {
+							return fmt.Errorf("failed to generate leaf node config for %s: %w", inst.browser, err)
+						}
+						inst.log.Debug("generated leaf node config", "path", nodeConfigPath)
+
+						inst.leafNode = &dockerNode{
+							log:                inst.log,
+							sshPort:            inst.leafSSHPort,
+							tctlBin:            config.tctlBin,
+							teleportConfigPath: inst.leafTeleportConfigPath,
+							logFilePath:        filepath.Join(config.e2eDir, "leaf-node-"+inst.browser+".log"),
+							nodeName:           "leaf-node",
+							imageName:          nodeImage,
+							containerName:      "teleport-e2e-leaf-node-" + inst.browser,
+							configPath:         nodeConfigPath,
+							teleportBin:        nodeBin,
+						}
+					}
+				}
+
+				if err := pullImage(ctx, nodeImage); err != nil {
+					return fmt.Errorf("pulling docker image: %w", err)
+				}
+			}
+
+			g, gctx := errgroup.WithContext(ctx)
+			for _, inst := range allInstances {
+				if inst.node == nil {
+					continue
+				}
 				g.Go(func() error {
 					if err := inst.node.start(gctx); err != nil {
 						return fmt.Errorf("failed to start docker node for %s: %w", inst.browser, err)
@@ -391,6 +540,42 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 					}
 					return nil
 				})
+			}
+			for _, inst := range allInstances {
+				if inst.leafNode != nil {
+					g.Go(func() error {
+						if err := inst.leafNode.start(gctx); err != nil {
+							return fmt.Errorf("failed to start leaf docker node for %s: %w", inst.browser, err)
+						}
+						if err := inst.leafNode.waitJoined(gctx, 30*time.Second); err != nil {
+							return fmt.Errorf("leaf docker node for %s failed to join cluster: %w", inst.browser, err)
+						}
+						return nil
+					})
+				}
+				if leafCluster.enabled {
+					g.Go(func() error {
+						tunnelStart := time.Now()
+						inst.log.Info("waiting for leaf cluster tunnel to come online")
+						// The auth service refreshes the list of remote clusters every 40s, so this is going to
+						// take a while.
+						// https://github.com/gravitational/teleport/blob/71850948ec686c9c178544f98caf53a912842250/lib/auth/auth.go#L1948-L1965
+						isLeafClusterOnline := func(ctx context.Context) (bool, error) {
+							cmd := exec.CommandContext(ctx, config.tctlBin, "get", "rc/teleport-e2e-leaf",
+								"-c", inst.teleportConfigPath)
+							out, err := cmd.Output()
+							if err != nil {
+								return false, nil
+							}
+							return strings.Contains(string(out), "connection: online"), nil
+						}
+						if err := pollUntil(gctx, 90*time.Second, 2*time.Second, isLeafClusterOnline); err != nil {
+							return fmt.Errorf("leaf cluster tunnel failed to come online for %s: %w", inst.browser, err)
+						}
+						inst.log.Info("leaf cluster tunnel is online", "elapsed", time.Since(tunnelStart).Round(time.Second))
+						return nil
+					})
+				}
 			}
 			if err := g.Wait(); err != nil {
 				return err

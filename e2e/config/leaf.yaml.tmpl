@@ -1,0 +1,40 @@
+{{- /*gotype: github.com/gravitational/teleport/e2e/runner.TeleportConfig */ -}}
+version: v3
+teleport:
+  nodename: teleport-e2e-leaf
+  auth_token: foo
+  data_dir: {{ .DataDir }}
+  log:
+    output: stderr
+    severity: {{ .LogLevel }}
+    format:
+      output: text
+  auth_server: localhost:{{ .AuthServerPort }}
+
+auth_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:{{ .AuthServerPort }}
+  proxy_listener_mode: multiplex
+  cluster_name: teleport-e2e-leaf
+  tokens:
+    - "node:foo"
+{{- if .LicenseFile }}
+  license_file: {{ .LicenseFile }}
+{{- end }}
+  authentication:
+    type: local
+    second_factors: ["webauthn"]
+    webauthn:
+      rp_id: "localhost"
+
+ssh_service:
+  enabled: "no"
+
+proxy_service:
+  enabled: "yes"
+  public_addr: localhost:{{ .ProxyPort }}
+  acme: {}
+  web_listen_addr: 0.0.0.0:{{ .ProxyPort }}
+  https_keypairs:
+    - key_file: {{ .KeyFilePath }}
+      cert_file: {{ .CertFilePath }}

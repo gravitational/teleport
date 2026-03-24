@@ -30,6 +30,7 @@ import (
 )
 
 var sshNode = registerFixture("ssh-node", "start and connect a Teleport SSH node, runs in Docker")
+var leafCluster = registerFixture("leaf-cluster", "start a leaf Teleport cluster connected via trusted cluster")
 var connect = registerFixture("connect", "build Teleport Connect")
 
 var validBrowsers = []string{"chromium", "firefox", "webkit"}

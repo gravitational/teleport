@@ -34,6 +34,15 @@ type browserInstance struct {
 	teleportConfigPath string
 	teleport           *teleportInstance
 	node               *dockerNode
+
+	// Leaf cluster fields, populated when --with-leaf-cluster is enabled.
+	leafProxyPort          int
+	leafAuthPort           int
+	leafSSHPort            int
+	leafDataDir            string
+	leafTeleportConfigPath string
+	leafTeleport           *teleportInstance
+	leafNode               *dockerNode
 }
 
 var browserColors = map[string]string{

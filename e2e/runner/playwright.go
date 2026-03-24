@@ -269,6 +269,10 @@ func (p *playwrightRunner) startEnv(inst *browserInstance) ([]string, error) {
 	env = append(env, "E2E_CONNECT_TSH_BIN="+p.config.connectTshBinPath)
 	env = append(env, "E2E_CONNECT_APP_DIR="+p.config.connectAppDir)
 
+	if inst.leafProxyPort != 0 {
+		env = append(env, fmt.Sprintf("E2E_LEAF_PROXY_URL=https://localhost:%d/web", inst.leafProxyPort))
+	}
+
 	return env, nil
 }
 

@@ -41,6 +41,7 @@ type teleportInstance struct {
 	proxyPort   int
 	configPath  string
 	stateFile   string
+	insecure    bool
 	logFile     string // empty means stdout/stderr
 
 	cmd      *exec.Cmd
@@ -50,7 +51,14 @@ type teleportInstance struct {
 }
 
 func (t *teleportInstance) start(ctx context.Context) error {
-	t.cmd = exec.CommandContext(ctx, t.teleportBin, "start", "-c", t.configPath, "--bootstrap", t.stateFile)
+	args := []string{"start", "-c", t.configPath}
+	if t.stateFile != "" {
+		args = append(args, "--bootstrap", t.stateFile)
+	}
+	if t.insecure {
+		args = append(args, "--insecure")
+	}
+	t.cmd = exec.CommandContext(ctx, t.teleportBin, args...)
 
 	if t.logFile != "" {
 		f, err := os.Create(t.logFile)
