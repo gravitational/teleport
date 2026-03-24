@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
@@ -29,7 +28,6 @@ import {
   Subtitle1,
   Text,
 } from 'design';
-import { copyToClipboard } from 'design/utils/copyToClipboard';
 import FieldInput from 'shared/components/FieldInput';
 import { InfoGuideContainer } from 'shared/components/SlidingSidePanel/InfoGuide';
 import Validation from 'shared/components/Validation';
@@ -40,22 +38,14 @@ import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
 import { useNoMinWidth } from 'teleport/Main';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
-import { ApiError } from 'teleport/services/api/parseError';
 import {
   Regions as AwsRegion,
   IntegrationKind,
-  integrationService,
 } from 'teleport/services/integrations';
-import { userEventService } from 'teleport/services/userEvent';
-import {
-  IntegrationEnrollCodeType,
-  IntegrationEnrollEvent,
-  IntegrationEnrollEventData,
-  IntegrationEnrollKind,
-  IntegrationEnrollStep,
-} from 'teleport/services/userEvent/types';
+import { IntegrationEnrollKind } from 'teleport/services/userEvent/types';
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
+import { useEnrollCloudIntegration } from '../Shared';
 import { DeploymentMethodSection } from './DeploymentMethodSection';
 import {
   ContentWithSidePanel,
@@ -72,42 +62,21 @@ import { ResourcesSection } from './ResourcesSection';
 import { buildTerraformConfig } from './tf_module';
 import { Ec2Config, WildcardRegion } from './types';
 
-const INTEGRATION_CHECK_RETRIES = 6;
-const INTEGRATION_CHECK_RETRY_DELAY = 5000;
-
 export function EnrollAws() {
   useNoMinWidth();
 
-  const [eventId] = useState(() => crypto.randomUUID());
-
-  function emitEvent(
-    event: IntegrationEnrollEvent,
-    extra?: Partial<IntegrationEnrollEventData>
-  ) {
-    userEventService.captureIntegrationEnrollEvent({
-      event,
-      eventData: {
-        id: eventId,
-        kind: IntegrationEnrollKind.AwsCloud,
-        ...extra,
-      },
-    });
-  }
-
-  useEffect(() => {
-    emitEvent(IntegrationEnrollEvent.Started);
-    // Only send once on init.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const { clusterVersion } = useClusterVersion();
 
-  const [integrationName, setIntegrationName] = useState(() => {
-    const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(4)))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-    return `aws-integration-${randomHex}`;
-  });
+  const {
+    integrationName,
+    setIntegrationName,
+    copyTerraformConfig,
+    integrationExists,
+    isFetching,
+    isError,
+    checkIntegration,
+    cancelCheckIntegration,
+  } = useEnrollCloudIntegration(IntegrationEnrollKind.AwsCloud);
 
   const [regions, setRegions] = useState<WildcardRegion | AwsRegion[]>([
     '*',
@@ -132,44 +101,6 @@ export function EnrollAws() {
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [activeInfoGuideTab, setActiveInfoGuideTab] =
     useState<InfoGuideTab>('terraform');
-
-  const integrationQueryKey = ['integration', integrationName];
-
-  const {
-    data: integrationData,
-    isFetching,
-    isError,
-    refetch,
-  } = useQuery({
-    queryKey: integrationQueryKey,
-    queryFn: ({ signal }) =>
-      integrationService.fetchIntegration(integrationName, signal),
-    enabled: false,
-    retry: (failureCount, error: unknown) => {
-      const shouldRetry =
-        failureCount < INTEGRATION_CHECK_RETRIES &&
-        error instanceof ApiError &&
-        error.response.status === 404;
-      return shouldRetry;
-    },
-    retryDelay: INTEGRATION_CHECK_RETRY_DELAY,
-    gcTime: 0,
-  });
-
-  const queryClient = useQueryClient();
-
-  const checkIntegration = () => {
-    emitEvent(IntegrationEnrollEvent.Step, {
-      step: IntegrationEnrollStep.VerifyIntegration,
-    });
-    refetch().then(result => {
-      if (result.isSuccess) {
-        emitEvent(IntegrationEnrollEvent.Complete);
-      }
-    });
-  };
-
-  const integrationExists = !!integrationData;
 
   const onInfoGuideClick = (section: InfoGuideTab) => {
     if (isPanelOpen && activeInfoGuideTab === section) {
@@ -223,10 +154,7 @@ export function EnrollAws() {
                 terraformConfig={terraformConfig}
                 handleCopy={() => {
                   if (validator.validate() && terraformConfig) {
-                    copyToClipboard(terraformConfig);
-                    emitEvent(IntegrationEnrollEvent.CodeCopy, {
-                      codeType: IntegrationEnrollCodeType.Terraform,
-                    });
+                    copyTerraformConfig(terraformConfig);
                   }
                 }}
                 integrationExists={integrationExists}
@@ -236,10 +164,7 @@ export function EnrollAws() {
                     checkIntegration();
                   }
                 }}
-                handleCancelCheckIntegration={() => {
-                  queryClient.cancelQueries({ queryKey: integrationQueryKey });
-                  queryClient.resetQueries({ queryKey: integrationQueryKey });
-                }}
+                handleCancelCheckIntegration={cancelCheckIntegration}
                 isCheckingIntegration={isFetching}
                 checkIntegrationError={isError}
               />
@@ -295,10 +220,7 @@ export function EnrollAws() {
                   terraformConfig={terraformConfig}
                   handleCopy={() => {
                     if (validator.validate() && terraformConfig) {
-                      copyToClipboard(terraformConfig);
-                      emitEvent(IntegrationEnrollEvent.CodeCopy, {
-                        codeType: IntegrationEnrollCodeType.Terraform,
-                      });
+                      copyTerraformConfig(terraformConfig);
                     }
                   }}
                 />
