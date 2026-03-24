@@ -2369,9 +2369,9 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"allow_browser_authentication": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"allow_cli_auth_via_browser": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
-					Description:   "AllowBrowserAuthentication enables/disables browser-based authentication for authenticating CLI sessions. When set to false, authentication flows that require a browser will be disabled. Defaults to true.",
+					Description:   "AllowCLIAuthViaBrowser enables/disables browser-based authentication for authenticating CLI sessions. When set to false, authentication flows that require a browser will be disabled. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				}),
@@ -25748,11 +25748,11 @@ func CopyAuthPreferenceV2FromTerraform(_ context.Context, tf github_com_hashicor
 						}
 					}
 					{
-						a, ok := tf.Attrs["allow_browser_authentication"]
+						a, ok := tf.Attrs["allow_cli_auth_via_browser"]
 						if !ok {
-							diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.AllowBrowserAuthentication"})
+							diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.AllowCLIAuthViaBrowser"})
 						}
-						CopyFromBoolOption(diags, a, &obj.AllowBrowserAuthentication)
+						CopyFromBoolOption(diags, a, &obj.AllowCLIAuthViaBrowser)
 					}
 				}
 			}
@@ -27124,12 +27124,12 @@ func CopyAuthPreferenceV2ToTerraform(ctx context.Context, obj *github_com_gravit
 						}
 					}
 					{
-						t, ok := tf.AttrTypes["allow_browser_authentication"]
+						t, ok := tf.AttrTypes["allow_cli_auth_via_browser"]
 						if !ok {
-							diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.AllowBrowserAuthentication"})
+							diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.AllowCLIAuthViaBrowser"})
 						} else {
-							v := CopyToBoolOption(diags, obj.AllowBrowserAuthentication, t, tf.Attrs["allow_browser_authentication"])
-							tf.Attrs["allow_browser_authentication"] = v
+							v := CopyToBoolOption(diags, obj.AllowCLIAuthViaBrowser, t, tf.Attrs["allow_cli_auth_via_browser"])
+							tf.Attrs["allow_cli_auth_via_browser"] = v
 						}
 					}
 				}
