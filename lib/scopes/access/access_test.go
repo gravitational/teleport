@@ -838,3 +838,30 @@ func TestScopedRoleSpecFieldsHavePresence(t *testing.T) {
 	t.Parallel()
 	requireAllFieldsHavePresence(t, (*scopedaccessv1.ScopedRoleSpec)(nil))
 }
+
+// TestScopedRoleSpecTopLevelFieldsAreMessages verifies that all top-level fields of ScopedRoleSpec
+// are message types (singular or repeated), with the exception of assignable_scopes which is
+// grandfathered in. This policy exists to ensure that top-level spec fields remain extensible and
+// composable over time. Scalar and enum fields added at the top level cannot be grouped or namespaced
+// after the fact without breaking changes, whereas message fields can always grow new sub-fields.
+// If you are adding a new top-level field to ScopedRoleSpec and this test fails, wrap it in a message.
+func TestScopedRoleSpecTopLevelFieldsAreMessages(t *testing.T) {
+	t.Parallel()
+
+	// grandfathered fields that predate this policy and are exempt from the requirement.
+	grandfathered := map[protoreflect.Name]bool{
+		"assignable_scopes": true,
+	}
+
+	descriptor := (*scopedaccessv1.ScopedRoleSpec)(nil).ProtoReflect().Descriptor()
+	fields := descriptor.Fields()
+	for i := range fields.Len() {
+		field := fields.Get(i)
+		if grandfathered[field.Name()] {
+			continue
+		}
+		require.Equal(t, protoreflect.MessageKind, field.Kind(),
+			"top-level field %s.%s must be a message type (singular or repeated), not a scalar or enum; wrap it in a message or add it to an existing one",
+			descriptor.FullName(), field.Name())
+	}
+}

@@ -67,7 +67,7 @@ func newFakeScopedAuthorizer(t *testing.T, accessInfo *services.AccessInfo, read
 					Name: accessInfo.Username,
 				},
 			},
-			CheckerContext: services.NewScopedSplitAccessCheckerContext(scopedCtx),
+			CheckerContext: scopedCtx,
 		},
 	}
 }
@@ -88,7 +88,7 @@ func newFakeUnscopedAuthorizer(t *testing.T, accessInfo *services.AccessInfo, re
 					Name: accessInfo.Username,
 				},
 			},
-			CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker),
+			CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker),
 		},
 	}
 }
@@ -181,12 +181,10 @@ func TestRoleBasics(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
 					},
 				},
 			},
@@ -200,12 +198,10 @@ func TestRoleBasics(t *testing.T) {
 			Scope: "/prod",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/prod"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
 					},
 				},
 			},
@@ -272,12 +268,10 @@ func TestRoleBasics(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
 					},
 				},
 			},
@@ -302,12 +296,10 @@ func TestRoleBasics(t *testing.T) {
 			Scope: "/prod",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/prod"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
 					},
 				},
 			},
@@ -441,12 +433,10 @@ func TestAssignmentBasics(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
 					},
 				},
 			},
@@ -460,12 +450,10 @@ func TestAssignmentBasics(t *testing.T) {
 			Scope: "/prod",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/prod"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
 					},
 				},
 			},
