@@ -28,9 +28,6 @@ type isLeaderGetter interface {
 }
 
 const (
-	// defaultTimeBetweenAssignmentProcessLoops is the default interval between assignment processing loops.
-	defaultTimeBetweenAssignmentProcessLoops time.Duration = 5 * time.Minute
-
 	// The amount of time that must pass before a failed assignment can be retried.
 	timeBeforeFailedRetry time.Duration = 5 * time.Minute
 
@@ -64,14 +61,13 @@ type accessListService interface {
 
 // assignmentProcessor will process an Okta assignment, updating its status along the way.
 type assignmentProcessor struct {
-	timeBetweenAssignmentProcessLoops time.Duration
-	leader                            isLeaderGetter
-	logger                            *slog.Logger
-	clock                             clockwork.Clock
-	oktaOrgURL                        string
-	hostID                            string
-	emitter                           apievents.Emitter
-	accessPoint                       assignmentProcessorAccessPoint
+	leader      isLeaderGetter
+	logger      *slog.Logger
+	clock       clockwork.Clock
+	oktaOrgURL  string
+	hostID      string
+	emitter     apievents.Emitter
+	accessPoint assignmentProcessorAccessPoint
 	// syncedAppServers are shared with [Service]. They should not be modified.
 	syncedAppServers *utils.SyncMap[string, types.AppServer]
 	// syncedUserGroups are shared with [Service]. They should not be modified.
@@ -83,7 +79,12 @@ type assignmentProcessor struct {
 	assignmentClient   *assignmentClient
 	stopCh             chan struct{}
 
-	userTargetCounterMu sync.Mutex
+	// timeBetweenAssignmentProcessLoops is the amount of time that has to pass between running
+	// the assignments process loop. It also determines how often the cached Okta assignments
+	// client is invalidated. This setting can be configured with the
+	// okta.sync_settings.time_between_assignment_process_loops Okta plugin value.
+	timeBetweenAssignmentProcessLoops time.Duration
+	userTargetCounterMu               sync.Mutex
 	// In the event of multiple assignments targeting the same user and group/application, we'll maintain
 	// a counter of active assignments. When this counter reaches 0 during a cleanup, the Okta API will
 	// be called. Otherwise, the assignment will be marked cleaned up but the Okta API will not be called
@@ -110,41 +111,13 @@ func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssi
 		assignmentClient:                  newAssignmentClient(svc.logger, svc.client),
 		stopCh:                            make(chan struct{}, 1),
 		userTargetCounter:                 map[string]map[string]struct{}{},
-		timeBetweenAssignmentProcessLoops: getTimeBetweenAssignmentProcessLoops(svc.plugin),
+		timeBetweenAssignmentProcessLoops: svc.timeBetweenAssignmentProcessLoops,
 	}
 }
 
 // start will start the processor loop, which is used for retrying assignment processing.
 func (a *assignmentProcessor) start(ctx context.Context) {
 	go a.loop(ctx)
-}
-
-// getTimeBetweenAssignmentProcessLoops returns the amount of time that will pass between running the assignment process loop.
-func getTimeBetweenAssignmentProcessLoops(p types.Plugin) time.Duration {
-	if p == nil {
-		return defaultTimeBetweenAssignmentProcessLoops
-	}
-
-	pluginV1, ok := p.(*types.PluginV1)
-	if !ok {
-		return defaultTimeBetweenAssignmentProcessLoops
-	}
-
-	v := pluginV1.Spec.GetOkta().GetSyncSettings().TimeBetweenAssignmentProcessLoops
-	if v == "" {
-		return defaultTimeBetweenAssignmentProcessLoops
-	}
-
-	d, err := time.ParseDuration(v)
-	if err != nil {
-		slog.ErrorContext(context.Background(), "Failed to parse custom assignment processing interval, falling back to default value",
-			"value", v,
-			"default_interval", defaultTimeBetweenAssignmentProcessLoops,
-			"error", err,
-		)
-		return defaultTimeBetweenAssignmentProcessLoops
-	}
-	return d
 }
 
 // loop runs the main body of the processing loop.
@@ -184,8 +157,11 @@ func (a *assignmentProcessor) stop() {
 
 // processAllAssignments will iterate through and process all of the assignments.
 func (a *assignmentProcessor) processAllAssignments(ctx context.Context) {
-	id := newAssignmentProcessorIDGen(a.clock.Now())
+	loopID := newLoopID(sourceTimer, a.clock.Now())
 	assignments := a.assignmentGetter()
+
+	a.logger.DebugContext(ctx, "Started processing Okta assignments", "loop_id", loopID)
+	defer a.logger.DebugContext(ctx, "Finished processing Okta assignments", "loop_id", loopID)
 
 	// Rebuild the target counter in a fresh loop.
 	a.rebuildTargetCounter(assignments)
@@ -194,7 +170,7 @@ func (a *assignmentProcessor) processAllAssignments(ctx context.Context) {
 		// processAssignment does not return error, it only returns a
 		// result to signal if the assignment was processed or not so the
 		// return value can be ignored here.
-		_ = a.processAssignment(ctx, id, assignment, sourceTimer)
+		_ = a.processAssignment(ctx, loopID, assignment, sourceTimer)
 	}
 }
 
@@ -210,7 +186,7 @@ const (
 // processAssignment processes the assignment creating Okta-side assignments according to the spec.
 // If the assignment has a cleanup time set in the past it will be scheduled for cleanup and
 // eventually removed from the backend.
-func (a *assignmentProcessor) processAssignment(ctx context.Context, id string, assignment types.OktaAssignment, source processorSource) processAssignmentResult {
+func (a *assignmentProcessor) processAssignment(ctx context.Context, loopID string, assignment types.OktaAssignment, source processorSource) processAssignmentResult {
 	// Skip processing if the leadership has not been acquired.
 	if !a.leader.IsLeader() {
 		return processAssignmentSkipped
@@ -220,7 +196,7 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, id string, 
 	defer cancel()
 
 	logger := a.logger.With(
-		"loop_id", string(source)+":"+id,
+		"loop_id", loopID,
 		"assignment", assignment.GetName(),
 		"user", assignment.GetUser(),
 	)
@@ -682,8 +658,8 @@ const (
 	sourceTimer   processorSource = "timer"
 )
 
-func newAssignmentProcessorIDGen(time time.Time) string {
-	return time.UTC().Format("02150405") // ddhhmmss
+func newLoopID(source processorSource, time time.Time) string {
+	return string(source) + ":" + time.UTC().Format("02150405") // ddhhmmss
 }
 
 // TODO(kopiczko) Move to OSS lib/utils/log (https://github.com/gravitational/teleport/pull/62057)

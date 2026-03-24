@@ -285,6 +285,87 @@ func TestService_CleanupOkta(t *testing.T) {
 	require.Empty(t, cmp.Diff(roles, backendRoles, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
+func Test_oktaHandler_validatePlugin(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name         string
+		oktaSettings *types.PluginOktaSettings
+		errMatcher   func(error) bool
+		errContains  string
+	}
+
+	for _, tt := range []testCase{
+		{
+			name: "malformed TimeBetweenImports",
+			oktaSettings: &types.PluginOktaSettings{
+				SyncSettings: &types.PluginOktaSyncSettings{
+					TimeBetweenImports: "not_a_duration",
+				},
+			},
+			errMatcher:  trace.IsBadParameter,
+			errContains: "time_between_imports is not valid",
+		},
+		{
+			name: "malformed TimeBetweenAssignmentProcessLoops",
+			oktaSettings: &types.PluginOktaSettings{
+				SyncSettings: &types.PluginOktaSyncSettings{
+					TimeBetweenAssignmentProcessLoops: "not_a_duration",
+				},
+			},
+			errMatcher:  trace.IsBadParameter,
+			errContains: "time_between_assignment_process_loops is not valid",
+		},
+		{
+			name: "TimeBetweenAssignmentProcessLoops longer than TimeBetweenImports",
+			oktaSettings: &types.PluginOktaSettings{
+				SyncSettings: &types.PluginOktaSyncSettings{
+					TimeBetweenImports:                "1m",
+					TimeBetweenAssignmentProcessLoops: "1m6s",
+				},
+			},
+			errMatcher:  trace.IsBadParameter,
+			errContains: "time_between_assignment_process_loops cannot be longer than time_between_imports",
+		},
+		{
+			name: "TimeBetweenAssignmentProcessLoops longer than implicit TimeBetweenImports",
+			oktaSettings: &types.PluginOktaSettings{
+				SyncSettings: &types.PluginOktaSyncSettings{
+					// TimeBetweenImports is 30m by default
+					TimeBetweenAssignmentProcessLoops: "30m1s",
+				},
+			},
+			errMatcher:  trace.IsBadParameter,
+			errContains: "time_between_assignment_process_loops cannot be longer than time_between_imports",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			plugin := newTestOktaPlugin(tt.oktaSettings)
+			err := oktaPluginHandler{}.validatePlugin(t.Context(), plugin, nil)
+			if tt.errMatcher == nil && tt.errContains == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.errContains)
+			require.True(t, tt.errMatcher(err))
+		})
+	}
+}
+
+func newTestOktaPlugin(oktaSettings *types.PluginOktaSettings) *types.PluginV1 {
+	return types.NewPluginV1(
+		types.Metadata{
+			Name: types.PluginTypeOkta,
+		},
+		types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_Okta{
+				Okta: oktaSettings,
+			},
+		},
+		nil,
+	)
+}
+
 func newOktaAssignment(t *testing.T, name string) types.OktaAssignment {
 	t.Helper()
 

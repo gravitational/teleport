@@ -681,10 +681,10 @@ func testTickerUpdates(t *testing.T) {
 	svc, _ := newTestService(t, ap, newTestOktaClient())
 	clock := clockwork.NewFakeClock()
 	svc.clock = clock
-	svc.timeBetweenSyncs = time.Second * 10
+	svc.timeBetweenImports = time.Second * 10
 
 	interval := svc.getSynchronizerInterval(ctx)
-	require.Equal(t, svc.timeBetweenSyncs, interval)
+	require.Equal(t, svc.timeBetweenImports, interval)
 
 	// Set the time between syncs to 300 seconds
 	pref, err := ap.GetAuthPreference(ctx)
@@ -702,7 +702,7 @@ func testTickerUpdates(t *testing.T) {
 	require.NoError(t, err)
 
 	interval = svc.getSynchronizerInterval(ctx)
-	require.Equal(t, svc.timeBetweenSyncs, interval)
+	require.Equal(t, svc.timeBetweenImports, interval)
 }
 
 func addGroup(t *testing.T, name, origin, orgURL string, ap authclient.OktaAccessPoint) {

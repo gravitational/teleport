@@ -12,6 +12,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -275,4 +277,36 @@ func (s *Service) getOktaRoleNames(ctx context.Context) ([]string, error) {
 	}
 
 	return names, nil
+}
+
+type oktaPluginHandler struct{}
+
+// updatePlugin implements [pluginHandler] for the default handler.
+func (oktaPluginHandler) validatePlugin(_ context.Context, plugin *types.PluginV1, _ *auth.Server) error {
+	oktaSettings := plugin.Spec.GetOkta()
+	if oktaSettings == nil {
+		return trace.BadParameter("plugin %q does not have Okta settings", plugin.GetName())
+	}
+
+	timeBetweenImports, err := oktaplugin.GetTimeBetweenImports(oktaSettings.GetSyncSettings())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	timeBetweenAssignmentProcessLoops, err := oktaplugin.GetTimeBetweenAssignmentProcessLoops(oktaSettings.GetSyncSettings())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if timeBetweenAssignmentProcessLoops > timeBetweenImports {
+		return trace.BadParameter("time_between_assignment_process_loops cannot be longer than time_between_imports")
+	}
+
+	return nil
+}
+
+// updatePlugin implements [pluginHandler] for the default handler. Simply
+// preserves the old status block in the new plugin record
+func (oktaPluginHandler) updatePlugin(newP, oldP *types.PluginV1) error {
+	return trace.Wrap(defaultHandler{}.updatePlugin(newP, oldP))
 }

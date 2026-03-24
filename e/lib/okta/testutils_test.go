@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
+	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
@@ -259,20 +260,22 @@ func newTestConfig(t *testing.T, ap *testAccessPoint, options ...testServiceOpt)
 	require.NoError(t, err)
 
 	config := Config{
-		Logger:           slog.Default(),
-		Leader:           &mockIsLeader{true},
-		TLSConfig:        generateTestTLSConfig(t, testHostID, nil),
-		Authorizer:       authorizer,
-		ClusterName:      testClusterName,
-		Hostname:         testHostname,
-		HostID:           testHostID,
-		AccessPoint:      ap,
-		Access:           ap,
-		AccessLists:      ap,
-		Emitter:          emitter,
-		OktaAPIEndpoint:  "dummy",
-		ConnectorService: ap,
-		AuthProvider:     oktaapi.NewSSWSAuthProvider("dummy"),
+		Logger:                            slog.Default(),
+		Leader:                            &mockIsLeader{true},
+		TLSConfig:                         generateTestTLSConfig(t, testHostID, nil),
+		Authorizer:                        authorizer,
+		ClusterName:                       testClusterName,
+		Hostname:                          testHostname,
+		HostID:                            testHostID,
+		AccessPoint:                       ap,
+		Access:                            ap,
+		AccessLists:                       ap,
+		Emitter:                           emitter,
+		OktaAPIEndpoint:                   "dummy",
+		TimeBetweenImports:                oktaplugin.DefaultTimeBetweenImports,
+		TimeBetweenAssignmentProcessLoops: oktaplugin.DefaultTimeBetweenAssignmentProcessLoops,
+		ConnectorService:                  ap,
+		AuthProvider:                      oktaapi.NewSSWSAuthProvider("dummy"),
 		SyncSettings: types.PluginOktaSyncSettings{
 			SsoConnectorId:       "dummy-connector-id",
 			SyncUsers:            true,

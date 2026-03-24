@@ -357,6 +357,7 @@ var defaultPluginHandlers = map[types.PluginType]pluginHandler{
 	types.PluginTypeEntraID:           pluginHandlerFn{fn: validateEntraIDPlugin},
 	types.PluginTypeEmail:             pluginHandlerFn{fn: validateEmailPlugin},
 	types.PluginTypeAWSIdentityCenter: awsicPluginHandler{},
+	types.PluginTypeOkta:              oktaPluginHandler{},
 	types.PluginTypeSCIM:              scimPluginHandler{},
 
 	// Any plugin resource type using the default handler implicitly passes
@@ -373,7 +374,6 @@ var defaultPluginHandlers = map[types.PluginType]pluginHandler{
 	types.PluginTypeMattermost: defaultHandler{},
 	types.PluginTypeMSTeams:    defaultHandler{},
 	types.PluginTypeNetIQ:      defaultHandler{},
-	types.PluginTypeOkta:       defaultHandler{},
 	types.PluginTypeOpenAI:     defaultHandler{},
 	types.PluginTypeOpsgenie:   defaultHandler{},
 	types.PluginTypePagerDuty:  defaultHandler{},

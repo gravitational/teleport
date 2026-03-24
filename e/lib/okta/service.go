@@ -51,11 +51,6 @@ const (
 	oktaAppServerHostID = "okta-integration"
 )
 
-var (
-	// oktaDefaultTimeBetweenSyncs to running synchronizations every half hour.
-	oktaDefaultTimeBetweenSyncs = 30 * time.Minute
-)
-
 // ProxyGetter is an interface for retrieving proxy IDs.
 type ProxyGetter interface {
 	GetProxyIDs() []string
@@ -102,8 +97,16 @@ type Config struct {
 	// OktaAPIEndpoint is the API endpoint to use for interacting with Okta.
 	OktaAPIEndpoint string
 
-	// TimeBetweenSyncs is the amount of time between synchronization calls.
-	TimeBetweenSyncs time.Duration
+	// TimeBetweenImports is the amount of time between Okta to Teleport periodic syncs. This
+	// setting can be configured with the okta.sync_settings.time_between_imports Okta plugin
+	// value.
+	TimeBetweenImports time.Duration
+
+	// TimeBetweenAssignmentProcessLoops is the amount of time that has to pass between running
+	// the assignments process loop. It also determines how often the cached Okta assignments
+	// client is invalidated. This setting can be configured with the
+	// okta.sync_settings.time_between_assignment_process_loops Okta plugin value.
+	TimeBetweenAssignmentProcessLoops time.Duration
 
 	// BackendTasksPerSecond is the number of backend modifying tasks that can be run per second.
 	BackendTasksPerSecond int
@@ -180,8 +183,11 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.ConnectorService == nil {
 		return trace.BadParameter("ConnectorService service is missing")
 	}
-	if c.TimeBetweenSyncs == 0 {
-		c.TimeBetweenSyncs = oktaDefaultTimeBetweenSyncs
+	if c.TimeBetweenImports == 0 {
+		return trace.BadParameter("TimeBetweenImports not set")
+	}
+	if c.TimeBetweenAssignmentProcessLoops == 0 {
+		return trace.BadParameter("TimeBetweenAssignmentProcessLoops not set")
 	}
 	if c.BackendTasksPerSecond == 0 {
 		// Default to running 5 backend tasks per second.
@@ -240,7 +246,6 @@ func (c *Config) CheckAndSetDefaults() error {
 // Service is the core data for the Okta integration service. The running
 // service synchronizes data with an upstream Okta IdP.
 type Service struct {
-	plugin     types.Plugin
 	leader     isLeaderGetter
 	logger     *slog.Logger
 	clock      clockwork.Clock
@@ -304,7 +309,16 @@ type Service struct {
 	groupNameRegexes     []regexAndPriorityLabels
 	appNameRegexes       []regexAndPriorityLabels
 
-	timeBetweenSyncs time.Duration
+	// timeBetweenImports is the amount of time between Okta to Teleport periodic syncs. This
+	// setting can be configured with the okta.sync_settings.time_between_imports Okta plugin
+	// value.
+	timeBetweenImports time.Duration
+
+	// timeBetweenAssignmentProcessLoops is the amount of time that has to pass between running
+	// the assignments process loop. It also determines how often the cached Okta assignments
+	// client is invalidated. This setting can be configured with the
+	// okta.sync_settings.time_between_assignment_process_loops Okta plugin value.
+	timeBetweenAssignmentProcessLoops time.Duration
 
 	assignmentReconciler *assignmentReconciler
 
@@ -447,34 +461,34 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 	}
 
 	s := &Service{
-		plugin:                  config.Plugin,
-		leader:                  config.Leader,
-		connectorService:        config.ConnectorService,
-		logger:                  config.Logger,
-		clock:                   config.Clock,
-		authorizer:              config.Authorizer,
-		clusterName:             config.ClusterName,
-		hostname:                config.Hostname,
-		hostID:                  config.HostID,
-		accessPoint:             config.AccessPoint,
-		accessLists:             config.AccessLists,
-		client:                  oktaClient,
-		orgURL:                  strings.TrimSuffix(oktaClient.GetOrgUrl(), "/"),
-		emitter:                 config.Emitter,
-		rateLimiter:             rate.NewLimiter(rate.Every(time.Second/time.Duration(config.BackendTasksPerSecond)), 1),
-		groupIRMapping:          map[string]prioritizedLabels{},
-		applicationIRMapping:    map[string]prioritizedLabels{},
-		groupNameRegexes:        []regexAndPriorityLabels{},
-		appNameRegexes:          []regexAndPriorityLabels{},
-		timeBetweenSyncs:        config.TimeBetweenSyncs,
-		syncStoppedCh:           make(chan struct{}, 1),
-		stopCh:                  make(chan struct{}, 1),
-		ssoConnectorID:          config.SyncSettings.SsoConnectorId,
-		oktaSAMLAppID:           config.SyncSettings.AppId,
-		userSyncSource:          config.SyncSettings.GetUserSyncSource(),
-		assignDefaultRoles:      config.SyncSettings.GetAssignDefaultRoles(),
-		disableOktaAppGroupSync: config.SyncSettings.DisableSyncAppGroups,
-		serviceStatus:           serviceStatus,
+		leader:                            config.Leader,
+		connectorService:                  config.ConnectorService,
+		logger:                            config.Logger,
+		clock:                             config.Clock,
+		authorizer:                        config.Authorizer,
+		clusterName:                       config.ClusterName,
+		hostname:                          config.Hostname,
+		hostID:                            config.HostID,
+		accessPoint:                       config.AccessPoint,
+		accessLists:                       config.AccessLists,
+		client:                            oktaClient,
+		orgURL:                            strings.TrimSuffix(oktaClient.GetOrgUrl(), "/"),
+		emitter:                           config.Emitter,
+		rateLimiter:                       rate.NewLimiter(rate.Every(time.Second/time.Duration(config.BackendTasksPerSecond)), 1),
+		groupIRMapping:                    map[string]prioritizedLabels{},
+		applicationIRMapping:              map[string]prioritizedLabels{},
+		groupNameRegexes:                  []regexAndPriorityLabels{},
+		appNameRegexes:                    []regexAndPriorityLabels{},
+		timeBetweenImports:                config.TimeBetweenImports,
+		timeBetweenAssignmentProcessLoops: config.TimeBetweenAssignmentProcessLoops,
+		syncStoppedCh:                     make(chan struct{}, 1),
+		stopCh:                            make(chan struct{}, 1),
+		ssoConnectorID:                    config.SyncSettings.SsoConnectorId,
+		oktaSAMLAppID:                     config.SyncSettings.AppId,
+		userSyncSource:                    config.SyncSettings.GetUserSyncSource(),
+		assignDefaultRoles:                config.SyncSettings.GetAssignDefaultRoles(),
+		disableOktaAppGroupSync:           config.SyncSettings.DisableSyncAppGroups,
+		serviceStatus:                     serviceStatus,
 	}
 	s.tlsConfig = app.CopyAndConfigureTLS(s.logger, s.accessPoint, config.TLSConfig)
 
@@ -547,7 +561,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 			Emitter:               config.Emitter,
 			Access:                config.Access,
 			AccessLists:           config.AccessLists,
-			SyncInterval:          config.TimeBetweenSyncs,
+			SyncInterval:          config.TimeBetweenImports,
 			OrgURL:                s.orgURL,
 			Owners:                config.SyncSettings.DefaultOwners,
 			AppsGetter:            s.appServers.Clone,

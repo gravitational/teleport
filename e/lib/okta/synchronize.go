@@ -121,7 +121,7 @@ func (s *Service) emitSyncError(ctx context.Context, err error) {
 
 // getSynchronizerInterval creates the ticker for the synchronizer.
 func (s *Service) getSynchronizerInterval(ctx context.Context) time.Duration {
-	timeBetweenSyncs := s.timeBetweenSyncs
+	timeBetweenSyncs := s.timeBetweenImports
 	pref, err := s.accessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Error getting configure okta sync interval, using default", "default_interval", timeBetweenSyncs, "error", err)

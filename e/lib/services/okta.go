@@ -17,12 +17,12 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/leader"
+	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cache"
-	libplugin "github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -179,7 +179,12 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	}
 	oktaLeader.Start(ctx)
 
-	timeBetweenImports, err := libplugin.OktaParseTimeBetweenImports(&settings.syncSettings)
+	timeBetweenImports, err := oktaplugin.GetTimeBetweenImports(&settings.syncSettings)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	timeBetweenAssignmentProcessLoops, err := oktaplugin.GetTimeBetweenAssignmentProcessLoops(&settings.syncSettings)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -190,28 +195,29 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	}
 
 	oktaService, err := okta.New(ctx, okta.Config{
-		Leader:             oktaLeader,
-		ConnectorService:   conn.Client,
-		Logger:             process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentOkta, logComponent)),
-		Clock:              process.Clock,
-		TLSConfig:          tlsConfig,
-		Authorizer:         authorizer,
-		ClusterName:        clusterName,
-		Hostname:           process.Config.Hostname,
-		HostID:             conn.HostUUID(),
-		Emitter:            asyncEmitter,
-		AccessPoint:        accessPoint,
-		Access:             conn.Client,
-		AccessLists:        conn.Client.AccessListClient(),
-		OktaAPIEndpoint:    settings.orgUrl,
-		PluginStatusSink:   settings.pluginStatusSink,
-		TimeBetweenSyncs:   timeBetweenImports,
-		SyncSettings:       settings.syncSettings,
-		SCIMEnabled:        settings.scimEnabled,
-		AuthProvider:       settings.authProvider,
-		AssignmentsService: conn.Client.OktaClient(),
-		TestHTTPClient:     clt,
-		Plugin:             settings.plugin,
+		Leader:                            oktaLeader,
+		ConnectorService:                  conn.Client,
+		Logger:                            process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentOkta, logComponent)),
+		Clock:                             process.Clock,
+		TLSConfig:                         tlsConfig,
+		Authorizer:                        authorizer,
+		ClusterName:                       clusterName,
+		Hostname:                          process.Config.Hostname,
+		HostID:                            conn.HostUUID(),
+		Emitter:                           asyncEmitter,
+		AccessPoint:                       accessPoint,
+		Access:                            conn.Client,
+		AccessLists:                       conn.Client.AccessListClient(),
+		OktaAPIEndpoint:                   settings.orgUrl,
+		PluginStatusSink:                  settings.pluginStatusSink,
+		TimeBetweenImports:                timeBetweenImports,
+		TimeBetweenAssignmentProcessLoops: timeBetweenAssignmentProcessLoops,
+		SyncSettings:                      settings.syncSettings,
+		SCIMEnabled:                       settings.scimEnabled,
+		AuthProvider:                      settings.authProvider,
+		AssignmentsService:                conn.Client.OktaClient(),
+		TestHTTPClient:                    clt,
+		Plugin:                            settings.plugin,
 	})
 	if err != nil {
 		return trace.Wrap(err)
