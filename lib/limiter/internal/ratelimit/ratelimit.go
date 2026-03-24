@@ -76,8 +76,9 @@ func New(config TokenLimiterConfig) (*TokenLimiter, error) {
 	// in ServeHTTP never touches bucketSets.
 	if config.Rates.Len() > 0 {
 		bucketSets, err := utils.NewFnCache(utils.FnCacheConfig{
-			// The default TTL here is not super important because we
-			// set the TTL explicitly for each entry we insert.
+			// The default TTL only drives the cleanup sweep interval
+			// (TTL * 16). All entries use their own TTL via
+			// FnCacheGetWithTTL in consumeRates.
 			TTL:   10 * time.Second,
 			Clock: config.Clock,
 		})
