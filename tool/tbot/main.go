@@ -79,7 +79,7 @@ func Run(args []string, stdout io.Writer) error {
 	startCmd := app.Command("start", "Starts an instance of tbot.")
 
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
-	configureCmd.Flag("output", "Path to write the generated configuration file to rather. If unspecified, the generated configuration is written to stdout.").Short('o').StringVar(&configureOutPath)
+	configureCmd.Flag("output", "Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.").Short('o').StringVar(&configureOutPath)
 
 	keypairCmd := app.Command("keypair", "Manage keypairs for bound-keypair joining")
 
