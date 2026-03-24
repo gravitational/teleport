@@ -19,10 +19,13 @@
 package pinning
 
 import (
+	"context"
 	"iter"
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -473,4 +476,160 @@ func enumerateRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, effectSegm
 	}
 
 	return true
+}
+
+// PruneAssignmentTree prunes the assignment tree s.t. its encoded size is less than or equal to the specified
+// maximum. This is necessary in order to prevent excessively large assignment trees from causing certificate
+// size issues. The *strategy* of pruning has been devised to allow for "graceful degradation", consistent
+// with the rules and philosophy of scoping. When an assignment tree is too large, the assignments with the
+// deepest Scope of Origin (i.e. those assignments theoretically authored/owned by the admins of least authority)
+// are preferentially pruned.
+//
+// It is important to understand that this is a rough approximation of the ideal pruning strategy. And admin in
+// `/staging/west` always outranks an admin in `/staging/west/testing`, however it isn't necessarily true that
+// an admin in `/staging/west` actually outranks an admin at `/prod/west/testing`. What we have selected is the
+// most *straightforward* pruning strategy that meaningfully respects scope hierarchy, but relative ranking of
+// orthogonal scopes is ambiguous. We think what we have here is an acceptable approximation, espectially because,
+// thanks to scope pinning, scenarios where this pruning strategy fails are likely easily addressable by simply pinning
+// to a more specific scope (e.g. pinning to `/prod` to avoid having assignments in `/staging` count toward the size of
+// the pin).
+//
+// Note that the pruning strategy prunes entire Scope of Origin depth levels as a unit. For example, if a pin contains
+// assignments originating from `/prod`, `/staging`, `/prod/west`, and `/staging/west`, and exceeds the maximum size,
+// all 2-depth assignments (i.e. those originating from `/prod/west` and `/staging/west`) will be pruned, even if only
+// pruning a subset would have brought the pin within the size constraint. This was done because we judged picking and
+// choosing individual assignments to be pruned to be a potentially surprising and hazardous. One alternative that was
+// considered but not implemented was to do a weighted pruning within each depth level, prioritizing pruning specific
+// origin scopes within a given depth based on their size. In the above example, this would mean that we might prune
+// all assignments from `/staging/west` and retain all assignments from `/prod/west` if the former contained more
+// assignments than the latter. This approach was not taken because it added significant complexity without wholly
+// solving the orthogonal ranking problem, but may be something to revisit if the scenarios where it performs better
+// end up being more common in practice than we anticipate.
+func PruneAssignmentTree(ctx context.Context, pin *scopesv1.Pin, maxBytes int) (prunedCount int) {
+	if pin == nil || pin.AssignmentTree == nil {
+		return 0
+	}
+
+	// check if pruning is actually needed
+	initialSize := proto.Size(pin.AssignmentTree)
+	if initialSize <= maxBytes {
+		return 0
+	}
+
+	// get count of assignments before pruning
+	initialCount := countAssignments(pin.AssignmentTree)
+
+	currentSize := initialSize
+
+	// iteratively prune the deepest depth level until we fit within the size limit
+	for {
+		// find the deepest Scope of Origin depth currently contained in the tree
+		maxDepth := maxAssignmentDepth(pin.AssignmentTree)
+		if maxDepth == 0 {
+			slog.WarnContext(ctx, "assignment tree exceeds prescribed size limit but will not be pruned further due to all remaining assignments originating from root scope",
+				"pin_scope", pin.GetScope(),
+				"initial_size", initialSize,
+				"current_size", currentSize,
+				"max_size", maxBytes,
+				"initial_count", initialCount,
+				"current_count", countAssignments(pin.AssignmentTree),
+			)
+			// note that the pin may still contain root level assignments. we opt not to prune
+			// those as they would render the pin (and therefore the resulting certificate)
+			// effectively useless.
+			break
+		}
+
+		// prune the tree in-place
+		pruneTreeToDepth(pin.AssignmentTree, maxDepth-1)
+
+		currentSize = proto.Size(pin.AssignmentTree)
+		if currentSize <= maxBytes {
+			// we've pruned enough to fit within the size limit
+			break
+		}
+	}
+
+	// return total number of assignments pruned
+	return initialCount - countAssignments(pin.AssignmentTree)
+}
+
+// maxAssignmentDepth returns the maximum Scope of Origin depth present in the assignment tree.
+// Depth is the number of segments in the Scope of Origin (e.g., "/" = 0, "/staging" = 1).
+// Returns 0 for an empty tree or a tree containing only root-level assignments.
+func maxAssignmentDepth(tree *scopesv1.AssignmentNode) int {
+	if tree == nil {
+		return 0
+	}
+	return maxDepthOfAssignmentNode(tree, 0)
+}
+
+// maxDepthOfAssignmentNode recursively traverses the assignment tree to find the maximum depth
+// at which any assignments exist.
+func maxDepthOfAssignmentNode(node *scopesv1.AssignmentNode, depth int) int {
+	// maxDepth tracks the maximum depth found among child nodes
+	maxDepth := depth
+	for _, child := range node.Children {
+		maxDepth = max(maxDepth, maxDepthOfAssignmentNode(child, depth+1))
+	}
+
+	return maxDepth
+}
+
+// countAssignments counts the total number of role assignments encoded in the assignment tree.
+func countAssignments(tree *scopesv1.AssignmentNode) int {
+	if tree == nil {
+		return 0
+	}
+	return countAssignmentsInTree(tree)
+}
+
+// countAssignmentsInTree recursively counts role assignments in the assignment tree.
+func countAssignmentsInTree(node *scopesv1.AssignmentNode) int {
+	count := 0
+
+	// count roles in this node's role tree
+	if node.RoleTree != nil {
+		count += countRolesInTree(node.RoleTree)
+	}
+
+	// recursively count in children
+	for _, child := range node.Children {
+		count += countAssignmentsInTree(child)
+	}
+
+	return count
+}
+
+// countRolesInTree recursively counts roles in a role tree node.
+func countRolesInTree(node *scopesv1.RoleNode) int {
+	count := len(node.Roles)
+
+	// recursively count in children
+	for _, child := range node.Children {
+		count += countRolesInTree(child)
+	}
+
+	return count
+}
+
+// pruneTreeToDepth prunes the assignment tree in-place to remove all assignment nodes
+// deeper than the specified maxDepth. Assignment nodes at depth <= maxDepth are preserved.
+func pruneTreeToDepth(tree *scopesv1.AssignmentNode, maxDepth int) {
+	pruneAssignmentNodeToDepth(tree, maxDepth, 0)
+}
+
+// pruneAssignmentNodeToDepth recursively prunes assignment nodes, removing children
+// that exceed the maximum allowed depth.
+func pruneAssignmentNodeToDepth(node *scopesv1.AssignmentNode, maxDepth, currentDepth int) {
+	if currentDepth == maxDepth {
+		// This is the last level we want to keep, remove all children
+		node.Children = nil
+		return
+	}
+
+	// currentDepth < maxDepth, so recursively prune children
+	for _, child := range node.Children {
+		pruneAssignmentNodeToDepth(child, maxDepth, currentDepth+1)
+	}
 }

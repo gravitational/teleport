@@ -1269,3 +1269,67 @@ func TestEnforcementPointsForResourceScope(t *testing.T) {
 		})
 	}
 }
+
+// TestDepth verifies that Depth returns the correct number of segments for various scopes
+// and matches the behavior of len(Split(scope)).
+func TestDepth(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		scope         string
+		expectedDepth int
+	}{
+		{
+			name:          "root scope",
+			scope:         "/",
+			expectedDepth: 0,
+		},
+		{
+			name:          "empty scope",
+			scope:         "",
+			expectedDepth: 0,
+		},
+		{
+			name:          "single segment",
+			scope:         "/staging",
+			expectedDepth: 1,
+		},
+		{
+			name:          "two segments",
+			scope:         "/staging/west",
+			expectedDepth: 2,
+		},
+		{
+			name:          "three segments",
+			scope:         "/staging/west/rack",
+			expectedDepth: 3,
+		},
+		{
+			name:          "deep hierarchy",
+			scope:         "/a/b/c/d/e/f",
+			expectedDepth: 6,
+		},
+		{
+			name:          "scope with trailing slash (invalid but handled gracefully)",
+			scope:         "/staging/",
+			expectedDepth: 1,
+		},
+		{
+			name:          "scope without leading slash (invalid but handled gracefully)",
+			scope:         "staging/west",
+			expectedDepth: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Depth(tt.scope)
+			require.Equal(t, tt.expectedDepth, got, "depth should match expected value")
+
+			// as a sanity-check, verify that Depth matches the behavior of len(Split(scope))
+			splitLen := len(Split(tt.scope))
+			require.Equal(t, splitLen, got, "Depth should match len(Split(scope))")
+		})
+	}
+}

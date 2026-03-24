@@ -275,6 +275,24 @@ func Split(scope string) []string {
 	return strings.Split(trimForSplit(scope), separator)
 }
 
+// Depth returns the depth of a scope (i.e., the number of segments) e.g. `Depth("/a/b/c")` returns 3,
+// `Depth("/")` returns 0, etc. This is equivalent to `len(Split(scope))` but avoids allocation.
+//
+// Note that this function does not perform validation and is deliberately more relaxed about
+// its inputs than our validation functions allow.
+func Depth(scope string) int {
+	if scope == "" || scope == separator {
+		return 0
+	}
+
+	trimmed := trimForSplit(scope)
+	if trimmed == "" {
+		return 0
+	}
+
+	return strings.Count(trimmed, separator) + 1
+}
+
 func trimForSplit(scope string) string {
 	return strings.TrimSuffix(strings.TrimPrefix(scope, separator), separator)
 }
