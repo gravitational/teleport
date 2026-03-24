@@ -6775,6 +6775,11 @@ message UIConfigSpecV1 {
     (gogoproto.jsontag) = "show_resources,omitempty",
     (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.ShowResources"
   ];
+  // ShowBeamsOnboarding determines if the Web UI should show the Beams
+  // onboarding take-over UI after a user signs-in. It exists in addition to
+  // the beams feature flag (entitlement) and should be disregarded if the
+  // beams feature is not enabled.
+  bool ShowBeamsOnboarding = 3 [(gogoproto.jsontag) = "show_beams_onboarding"];
 }
 
 // InstallerV1 represents an installer script resource. Used to

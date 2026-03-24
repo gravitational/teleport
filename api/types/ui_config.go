@@ -36,6 +36,10 @@ type UIConfig interface {
 	GetScrollbackLines() int32
 	// SetScrollbackLines sets the amount of scrollback lines the terminal remembers
 	SetScrollbackLines(int32)
+	// GetShowBeamsOnboarding returns the beams onboarding enabled flag.
+	GetShowBeamsOnboarding() bool
+	// SetShowBeamsOnboarding sets the beams onboarding enabled flag.
+	SetShowBeamsOnboarding(bool)
 
 	String() string
 	// Clone returns a copy of the config.
@@ -140,4 +144,17 @@ func (c *UIConfigV1) SetScrollbackLines(lines int32) {
 func (c *UIConfigV1) setStaticFields() {
 	c.Kind = KindUIConfig
 	c.Version = V1
+	c.Metadata = Metadata{
+		Name: "ui-config",
+	}
+}
+
+// GetBeamsOnboarding returns the configuration for the Beams onboarding experience.
+func (c *UIConfigV1) GetShowBeamsOnboarding() bool {
+	return c.Spec.ShowBeamsOnboarding
+}
+
+// SetBeamsOnboarding sets the configuration for the Beams onboarding experience.
+func (c *UIConfigV1) SetShowBeamsOnboarding(enabled bool) {
+	c.Spec.ShowBeamsOnboarding = enabled
 }
