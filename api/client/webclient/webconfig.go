@@ -128,6 +128,11 @@ type UIConfig struct {
 	// which means resources the user has access to and resources they can request will be shown in the
 	// resources UI. If set to `accessible_only`, only resources the user already has access to will be shown.
 	ShowResources constants.ShowResources `json:"showResources,omitempty"`
+	// ShowBeamsOnboarding determines if the Web UI should show the Beams
+	// onboarding take-over UI after a user signs-in. It exists in addition to
+	// the beams feature flag (entitlement) and should be disregarded if the
+	// beams feature is not enabled.
+	ShowBeamsOnboarding bool `json:"showBeamsOnboarding,omitempty"`
 }
 
 // WebConfigAuthProvider describes auth. provider
