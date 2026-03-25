@@ -637,10 +637,10 @@ func configureClusterForMFA(t *testing.T, env *webPack, spec *types.AuthPreferen
 	}
 }
 
-func validateSSHLoginResponse(t *testing.T, resp []byte, expectedSubjectSSHPub ssh.PublicKey, expectedSubjectTLSPub crypto.PublicKey) *authclient.SSHLoginResponse {
+func validateSSHLoginResponse(t *testing.T, resp []byte, expectedSubjectSSHPub ssh.PublicKey, expectedSubjectTLSPub crypto.PublicKey) *authclient.CLILoginResponse {
 	t.Helper()
 
-	var loginResp authclient.SSHLoginResponse
+	var loginResp authclient.CLILoginResponse
 	require.NoError(t, json.Unmarshal(resp, &loginResp))
 	assert.NotEmpty(t, loginResp.Username)
 	assert.NotEmpty(t, loginResp.HostSigners)

@@ -506,7 +506,7 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeade
 }
 
 // SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.
-func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authclient.SSHLoginResponse, error) {
+func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authclient.CLILoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -536,7 +536,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 		return nil, trace.Wrap(err)
 	}
 
-	var out authclient.SSHLoginResponse
+	var out authclient.CLILoginResponse
 	err = json.Unmarshal(re.Bytes(), &out)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -550,7 +550,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 // end user.
 //
 // Returns the SSH certificate if authn is successful or an error.
-func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) (*authclient.SSHLoginResponse, error) {
+func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) (*authclient.CLILoginResponse, error) {
 	webClient, webURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -620,7 +620,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 		return nil, trace.Wrap(err)
 	}
 
-	loginResp := &authclient.SSHLoginResponse{}
+	loginResp := &authclient.CLILoginResponse{}
 	if err := json.Unmarshal(loginRespJSON.Bytes(), loginResp); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -631,7 +631,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 // If the credentials are valid, the proxy will return a challenge. We then
 // prompt the user to provide 2nd factor and pass the response to the proxy.
 // If the authentication succeeds, we will get a temporary certificate back.
-func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLoginResponse, error) {
+func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.CLILoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -673,7 +673,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 		return nil, trace.Wrap(err)
 	}
 
-	loginResp := &authclient.SSHLoginResponse{}
+	loginResp := &authclient.CLILoginResponse{}
 	return loginResp, trace.Wrap(json.Unmarshal(loginRespJSON.Bytes(), loginResp))
 }
 

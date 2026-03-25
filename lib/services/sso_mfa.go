@@ -35,4 +35,6 @@ type SSOMFASessionData struct {
 	ConnectorType string `json:"connector_type,omitempty"`
 	// ChallengeExtensions are Teleport extensions that apply to this SSO MFA session.
 	ChallengeExtensions *mfatypes.ChallengeExtensions `json:"challenge_extensions"`
+	// ClientRedirectURL is the redirect URL for the client
+	ClientRedirectURL string `json:"client_redirect_url,omitempty"`
 }

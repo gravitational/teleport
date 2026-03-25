@@ -3772,7 +3772,7 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 				return nil, trace.BadParameter("headless disallowed by cluster settings")
 			}
 			if tc.AllowHeadless {
-				return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+				return func(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {
 					return tc.headlessLogin(ctx, keyRing)
 				}, nil
 			}
@@ -3788,7 +3788,7 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 				return tc.pwdlessLogin, nil
 			}
 
-			return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+			return func(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {
 				return tc.localLogin(ctx, keyRing, pr.Auth.SecondFactor)
 			}, nil
 		default:
@@ -3966,7 +3966,7 @@ func (tc *TeleportClient) canDefaultToPasswordless(pr *webclient.PingResponse) b
 }
 
 // SSHLoginFunc is a function which carries out authn with an auth server and returns an auth response.
-type SSHLoginFunc func(context.Context, *KeyRing) (*authclient.SSHLoginResponse, error)
+type SSHLoginFunc func(context.Context, *KeyRing) (*authclient.CLILoginResponse, error)
 
 // SSHLogin uses the given login function to login the client. This function handles
 // private key logic and parsing the resulting auth response.
@@ -3978,7 +3978,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	)
 	defer span.End()
 
-	var response *authclient.SSHLoginResponse
+	var response *authclient.CLILoginResponse
 	keyRing, err := tc.loginWithHardwareKeyRetry(ctx, func(ctx context.Context, keyRing *KeyRing) error {
 		var err error
 		response, err = sshLoginFunc(ctx, keyRing)
@@ -4171,7 +4171,7 @@ func (tc *TeleportClient) NewSSHLogin(keyRing *KeyRing) (SSHLogin, error) {
 	}, nil
 }
 
-func (tc *TeleportClient) pwdlessLogin(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+func (tc *TeleportClient) pwdlessLogin(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/pwdlessLogin",
@@ -4203,7 +4203,7 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, keyRing *KeyRing) (*
 }
 
 // localLogin asks for a password and performs an MFA ceremony.
-func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, _ constants.SecondFactorType) (*authclient.SSHLoginResponse, error) {
+func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, _ constants.SecondFactorType) (*authclient.CLILoginResponse, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/localLogin",
@@ -4230,7 +4230,7 @@ func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, _ co
 	return response, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {
 	if tc.MockHeadlessLogin != nil {
 		return tc.MockHeadlessLogin(ctx, keyRing)
 	}
@@ -4271,13 +4271,13 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (
 }
 
 // SSOLoginFunc is a function used in tests to mock SSO logins.
-type SSOLoginFunc func(ctx context.Context, connectorID string, keyRing *KeyRing, protocol string) (*authclient.SSHLoginResponse, error)
+type SSOLoginFunc func(ctx context.Context, connectorID string, keyRing *KeyRing, protocol string) (*authclient.CLILoginResponse, error)
 
 // SSOLoginFn returns a function that will carry out SSO login. A browser window will be opened
 // for the user to authenticate through SSO. On completion they will be redirected to a success
 // page and the resulting login session will be captured and returned.
 func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType string) SSHLoginFunc {
-	return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+	return func(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {
 		if tc.MockSSOLogin != nil {
 			// sso login response is being mocked for testing purposes
 			return tc.MockSSOLogin(ctx, connectorID, keyRing, connectorType)

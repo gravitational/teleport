@@ -1414,9 +1414,9 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// SSHLoginResponse is a response returned by web proxy, it preserves backwards compatibility
+// CLILoginResponse is a response returned by web proxy, it preserves backwards compatibility
 // on the wire, which is the primary reason for non-matching json tags
-type SSHLoginResponse struct {
+type CLILoginResponse struct {
 	// User contains a logged-in user information
 	Username string `json:"username"`
 	// Cert is a PEM encoded  signed certificate
@@ -1432,7 +1432,14 @@ type SSHLoginResponse struct {
 	// ClientOptions contains some options that the cluster wants the client to
 	// use.
 	ClientOptions ClientOptions `json:"client_options"`
+	// BrowserMFAWebauthnResponse is a webauthn response for the browser MFA flow
+	// Exists in SSHLoginResponse as this is the payload used by the SSO redirector
+	// (lib/client/sso/redirector.go).
+	BrowserMFAWebauthnResponse *wantypes.CredentialAssertionResponse `json:"browser_mfa_webauthn_response,omitempty"`
 }
+
+// TODO(danielashare): Remove this alias once e no longer references it
+type SSHLoginResponse = CLILoginResponse
 
 // ClientOptions contains options passed from the control plane to the client at
 // login time.
@@ -1591,7 +1598,7 @@ type ClientI interface {
 	AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error)
 	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 	// short-lived certificates as a result
-	AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error)
+	AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*CLILoginResponse, error)
 
 	// Ping gets basic info about the auth server.
 	Ping(ctx context.Context) (proto.PingResponse, error)

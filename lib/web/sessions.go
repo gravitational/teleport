@@ -953,7 +953,7 @@ func (s *sessionCache) AuthenticateWebUser(
 
 func (s *sessionCache) AuthenticateSSHUser(
 	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *authclient.ForwardedClientMetadata,
-) (*authclient.SSHLoginResponse, error) {
+) (*authclient.CLILoginResponse, error) {
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
 		Scope:          c.Scope,

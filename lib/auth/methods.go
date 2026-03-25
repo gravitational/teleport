@@ -744,7 +744,7 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
 // certificates for the public key in req.
-func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
+func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.CLILoginResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -854,7 +854,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		a.logger.WarnContext(ctx, "Failed to calculate client options for local login", "username", user.GetName(), "error", err)
 	}
 
-	return &authclient.SSHLoginResponse{
+	return &authclient.CLILoginResponse{
 		Username:      user.GetName(),
 		Cert:          certs.SSH,
 		TLSCert:       certs.TLS,
