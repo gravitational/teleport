@@ -49,6 +49,8 @@ jobs:
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
+              - '.pnpmfile.cjs'
+              - '.npmrc'
               - 'tsconfig*.json'
               - 'gen/proto/ts/**'
               - '.github/actions/prepare-workspace/action.yml'
