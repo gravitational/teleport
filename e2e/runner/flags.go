@@ -69,6 +69,7 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	modes.register("browse-connect", "open a signed-in Teleport Connect app for manual testing", modeBrowseConnect)
 	modes.register("report", "download and open a Playwright report for a PR (pass PR number as argument)", modeReport)
 	modes.register("test-results", "download test results and open a trace for a PR (pass PR number and trace path as arguments)", modeTestResults)
+	modes.register("github-report", "publish test results as GitHub annotations, job summary, and PR comment (CI only)", modeGitHubReport)
 
 	flag.BoolVar(&f.verbose, "v", false, "enable debug logging")
 	flag.BoolVar(&f.noBuild, "no-build", false, "skip make binaries")                          // useful for running during development to avoid rebuilding Teleport every time

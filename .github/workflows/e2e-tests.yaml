@@ -266,6 +266,11 @@ jobs:
         run: xvfb-run e2e/runner/e2e --no-build --full
         env:
           E2E_CALLER_DIR: ${{ github.workspace }}
+
+      - name: Publish GitHub report
+        if: ${{ !cancelled() }}
+        run: e2e/runner/e2e --github-report
+        env:
           GITHUB_TOKEN: ${{ github.token }}
 
       - name: Upload Playwright report

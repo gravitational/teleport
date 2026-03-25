@@ -55,6 +55,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	if mode == modeGitHubReport {
+		if err := writeGitHubReport(e2eDir); err != nil {
+			slog.Error("failed to write GitHub report", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if mode == modeReport || mode == modeTestResults {
 		repo := flags.reportRepo
 		if repo == "" {
@@ -95,12 +103,6 @@ func main() {
 		reset.Stderr = os.Stderr
 		reset.Run()
 		tty.Close()
-	}
-
-	if isCI {
-		if err := writeGitHubReport(e2eDir); err != nil {
-			slog.Error("failed to write GitHub report", "error", err)
-		}
 	}
 
 	if !flags.quiet {
