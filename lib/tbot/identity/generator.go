@@ -240,6 +240,10 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 
 	log := cmp.Or(o.logger, g.logger)
 
+	if len(o.roles) != 0 && o.delegationSessionID != "" {
+		return nil, trace.BadParameter("delegation sessions and explicit roles are mutually-exclusive")
+	}
+
 	if len(o.roles) == 0 {
 		if o.currentIdentity != nil {
 			// If the caller provided an impersonated identity, take its roles.
