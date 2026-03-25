@@ -36,8 +36,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	apissh "github.com/gravitational/teleport/api/ssh"
 )
 
 const testPayload = "test"
@@ -541,7 +541,7 @@ func TestNewClientConnWithTimeoutSetsClientVersion(t *testing.T) {
 		require.Fail(t, "test timed out while waiting for client version")
 
 	case version := <-clientVersionC:
-		require.EqualValues(t, version, api.SSHClientVersion(), "version sent at handshake did not match Teleport version")
+		require.EqualValues(t, version, apissh.ClientVersion(), "version sent at handshake did not match Teleport version")
 	}
 }
 
@@ -600,7 +600,7 @@ func TestCloneOrNewClientConfigReturnsNewConfigIfNil(t *testing.T) {
 	config := cloneOrNewClientConfig(nil)
 
 	require.NotNil(t, config)
-	require.Equal(t, api.SSHClientVersion(), config.ClientVersion)
+	require.Equal(t, apissh.ClientVersion(), config.ClientVersion)
 }
 
 // TestCloneOrNewClientConfigSSHConfigShape locks the upstream ssh.ClientConfig and ssh.Config shapes in place. If

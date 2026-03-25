@@ -28,9 +28,9 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	apissh "github.com/gravitational/teleport/api/ssh"
 )
 
 const (
@@ -251,13 +251,13 @@ func cloneOrNewClientConfig(config *ssh.ClientConfig) *ssh.ClientConfig {
 		configCopy.Ciphers = slices.Clone(config.Ciphers)
 		configCopy.MACs = slices.Clone(config.MACs)
 
-		configCopy.ClientVersion = api.SSHClientVersion()
+		configCopy.ClientVersion = apissh.ClientVersion()
 
 		return &configCopy
 	}
 
 	return &ssh.ClientConfig{
-		ClientVersion: api.SSHClientVersion(),
+		ClientVersion: apissh.ClientVersion(),
 	}
 }
 
