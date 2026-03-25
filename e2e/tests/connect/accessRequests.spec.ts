@@ -225,7 +225,6 @@ test.describe('access requests', () => {
     return launchFromSnapshot(requesterSnapshot);
   }
 
-  // oxlint-disable-next-line eslint/no-unused-vars
   async function launchAsReviewer() {
     return launchFromSnapshot(reviewerSnapshot);
   }
@@ -300,6 +299,38 @@ test.describe('access requests', () => {
 
       // Verify we can't review our own request.
       await expect(page.getByText('Submit Review')).not.toBeVisible();
+    });
+
+    await test.step('reviewer approves the request with a message', async () => {
+      await using app = await launchAsReviewer();
+      const { page } = app;
+
+      await page.getByTitle('Access Requests').click();
+      await page.getByText('View Access Requests').click();
+
+      // Open the pending request.
+      await page.getByRole('button', { name: 'View' }).first().click();
+
+      // Approve the request with a message.
+      await page.getByLabel(/Approve short-term access/).click();
+      await page
+        .getByPlaceholder('Optional message...')
+        .fill('Approved for testing');
+      await page.getByRole('button', { name: 'Submit Review' }).click();
+
+      // Verify the review stamp and message appear.
+      await expect(page.getByText('APPROVED')).toBeVisible();
+      await expect(page.getByText('Approved for testing')).toBeVisible();
+    });
+
+    await test.step('requester sees the approved request', async () => {
+      await using app = await launchAsRequester();
+      const { page } = app;
+
+      await page.getByTitle('Access Requests').click();
+      await page.getByText('View Access Requests').click();
+
+      await expect(page.getByText('APPROVED')).toBeVisible();
     });
   });
 });
