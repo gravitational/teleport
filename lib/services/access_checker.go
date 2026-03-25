@@ -550,7 +550,7 @@ func (a *accessChecker) DelegationSessionID() string {
 	return a.info.DelegationSessionID
 }
 
-// blockedInDelegationSession checks whether the given verb is disallowed
+// blockedInDelegationSession checks whether the given action is disallowed
 // because the caller is in a Delegation Session with restricted access to
 // specific resources only.
 //
@@ -562,18 +562,32 @@ func (a *accessChecker) DelegationSessionID() string {
 // If the Delegation Session has a "wildcard" resource selector, the user
 // has explicitly allowed the session user to take on *all* of their
 // permissions, including destructive administrative actions.
-func (a *accessChecker) blockedInDelegationSession(verb string) bool {
+func (a *accessChecker) blockedInDelegationSession(kind, verb string) bool {
 	if a.DelegationSessionID() == "" || len(a.GetAllowedResourceAccessIDs()) == 0 {
 		return false
 	}
 
-	switch verb {
-	// These verbs are allowed to enable `tsh ls`, etc.
-	case types.VerbList, types.VerbRead, types.VerbReadNoSecrets:
-		return false
-	default:
-		return true
+	// Collect all the resource kinds the session has access to.
+	allowedKinds := set.New[string]()
+	for _, id := range a.GetAllowedResourceAccessIDs() {
+		allowedKinds.Add(id.GetResourceID().Kind)
 	}
+
+	// Also add the implied resource kinds (e.g. app -> app_server).
+	impliedKinds := map[string][]string{
+		types.KindApp:               []string{types.KindAppServer},
+		types.KindDatabase:          []string{types.KindDatabaseServer},
+		types.KindKubernetesCluster: []string{types.KindKubeServer},
+	}
+	for parent, children := range impliedKinds {
+		if allowedKinds.Contains(parent) {
+			allowedKinds.Add(children...)
+		}
+	}
+
+	// These verbs are allowed to enable `tsh ls`, etc.
+	allowedVerbs := set.New(types.VerbList, types.VerbRead, types.VerbReadNoSecrets)
+	return !allowedKinds.Contains(kind) || !allowedVerbs.Contains(verb)
 }
 
 // CheckAccessToRule checks access to a rule within a namespace.
@@ -582,7 +596,7 @@ func (a *accessChecker) blockedInDelegationSession(verb string) bool {
 // restricted access to specific resources from inheriting the user's destructive
 // admin/rule based privileges
 func (a *accessChecker) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string) error {
-	if a.blockedInDelegationSession(verb) {
+	if a.blockedInDelegationSession(resource, verb) {
 		return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
 	}
 	return a.RoleSet.CheckAccessToRule(ctx, namespace, resource, verb)
@@ -591,7 +605,7 @@ func (a *accessChecker) CheckAccessToRule(ctx RuleContext, namespace string, res
 // GuessIfAccessIsPossible guesses if access is possible for an entire category
 // of resources.
 func (a *accessChecker) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string) error {
-	if a.blockedInDelegationSession(verb) {
+	if a.blockedInDelegationSession(resource, verb) {
 		return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
 	}
 	return a.RoleSet.GuessIfAccessIsPossible(ctx, namespace, resource, verb)
