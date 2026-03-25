@@ -606,7 +606,10 @@ export const formatters: Formatters = {
     type: 'app.session.start',
     desc: 'App Session Started',
     format: event => {
-      const { user, app_name, aws_role_arn } = event;
+      const { user, app_name, aws_role_arn, app_uri } = event;
+      if ((app_uri as string)?.startsWith('beamegress://')) {
+        return `User [${user}] initiated beam egress to [${app_uri}] via beam [${app_name}]`;
+      }
       if (aws_role_arn) {
         return `User [${user}] has connected to AWS console [${app_name}]`;
       }
@@ -617,7 +620,10 @@ export const formatters: Formatters = {
     type: 'app.session.start',
     desc: 'App Session Start Failed',
     format: event => {
-      const { user, app_name, message } = event;
+      const { user, app_name, message, app_uri } = event;
+      if ((app_uri as string)?.startsWith('beamegress://')) {
+        return `User [${user}] failed beam egress to [${app_uri}] via beam [${app_name}]: ${message}`;
+      }
       return `User [${user}] failed to connect to application [${app_name}]: ${message}`;
     },
   },

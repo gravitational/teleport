@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -43,7 +44,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -1796,6 +1799,23 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = service.Summarizer.UpsertInferenceModel(ctx, r.UnwrapT())
 		case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
 			_, err = service.WorkloadIdentities.UpsertWorkloadIdentity(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*beamsv1.Beam]:
+			if os.Getenv("TELEPORT_UNSTABLE_BEAM_APPLY_ON_STARTUP") != "yes" {
+				return trace.NotImplemented("applying beam resources on startup requires TELEPORT_UNSTABLE_BEAM_APPLY_ON_STARTUP=yes")
+			}
+			if service.Beams == nil {
+				return trace.NotImplemented("beams not supported in this build")
+			}
+			_, err = service.Beams.UpsertBeam(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*delegationv1.DelegationSession]:
+			if os.Getenv("TELEPORT_UNSTABLE_BEAM_APPLY_ON_STARTUP") != "yes" {
+				return trace.NotImplemented("applying delegation session resources on startup requires TELEPORT_UNSTABLE_BEAM_APPLY_ON_STARTUP=yes")
+			}
+			if service.DelegationSessions == nil {
+				return trace.NotImplemented("delegation sessions not supported in this build")
+			}
+			_ = service.DelegationSessions.DeleteDelegationSession(ctx, r.UnwrapT().GetMetadata().GetName())
+			_, err = service.DelegationSessions.CreateDelegationSession(ctx, r.UnwrapT())
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

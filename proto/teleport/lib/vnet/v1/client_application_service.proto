@@ -133,7 +133,20 @@ message ResolveFQDNResponse {
     // MatchedDatabase will be set when the query matched a database using the
     // <db-user>.<db-service-name>.db.<proxy-addr> pattern.
     MatchedDatabase matched_database = 4;
+    // MatchedRejected will be set when the query matched but the connection
+    // should be rejected. VNet will assign a VNet IP (so DNS succeeds) but
+    // TCP connections to that IP will receive a RST. Used in restricted mode
+    // to block connections to domains not explicitly handled by VNet.
+    MatchedRejected matched_rejected = 5;
   }
+}
+
+// MatchedRejected signals that VNet should assign a VNet IP for the FQDN but
+// reject any TCP connection to it with a RST.
+message MatchedRejected {
+  // Ipv4CidrRange is the CIDR range from which an IPv4 address should be
+  // assigned so that the DNS reply points into VNet's address space.
+  string ipv4_cidr_range = 1;
 }
 
 // MatchedTCPApp holds info about a TCP app that matched a query.

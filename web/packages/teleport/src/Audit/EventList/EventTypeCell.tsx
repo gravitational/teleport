@@ -377,12 +377,20 @@ export default function renderTypeCell(event: Event) {
   const isLLMSession =
     event.code === eventCodes.APP_SESSION_START &&
     rawEvent?.app_uri?.startsWith('llm://');
+
+  const isBeamEgressSession =
+    (event.code === eventCodes.APP_SESSION_START ||
+      event.code === eventCodes.APP_SESSION_START_FAILURE) &&
+    rawEvent?.app_uri?.startsWith('beamegress://');
+
   const Icon =
     isUserBeamSession &&
     (event.code === eventCodes.SESSION_START ||
       event.code === eventCodes.SESSION_END)
       ? Icons.Planet
-      : EventIconMap[event.code] || Icons.ListThin;
+      : isBeamEgressSession
+        ? Icons.Planet
+        : EventIconMap[event.code] || Icons.ListThin;
 
   const iconProps = {
     p: 1,
@@ -403,9 +411,22 @@ export default function renderTypeCell(event: Event) {
             ? 'Beam Session Ended'
             : isLLMSession
               ? 'LLM Session Started'
-              : event.codeDesc}
+              : isBeamEgressSession &&
+                  event.code === eventCodes.APP_SESSION_START
+                ? 'Beam Egress Started'
+                : isBeamEgressSession &&
+                    event.code === eventCodes.APP_SESSION_START_FAILURE
+                  ? 'Beam Egress Failed'
+                  : event.codeDesc}
         {isBeam && (
           <HoverTooltip tipContent={beamTooltip}>
+            <Label kind="secondary" ml={2}>
+              Beams
+            </Label>
+          </HoverTooltip>
+        )}
+        {isBeamEgressSession && (
+          <HoverTooltip tipContent="Beam egress connection">
             <Label kind="secondary" ml={2}>
               Beams
             </Label>

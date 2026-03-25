@@ -27,6 +27,7 @@ import (
 
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/vnet/dns"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
@@ -47,6 +48,12 @@ type EmbeddedVNetConfig struct {
 	// ConfigureHost is called to update the host's routing table and DNS
 	// resolver configuration.
 	ConfigureHost func(ctx context.Context, cfg EmbeddedVNetHostConfig) error
+
+	// UpstreamNameserverSource, if set, overrides the default OS nameserver
+	// source used to forward unhandled DNS queries. Useful when the OS
+	// resolver file has been replaced (e.g. to point at VNet itself) and a
+	// stable upstream must be read from an alternative path.
+	UpstreamNameserverSource dns.UpstreamNameserverSource
 }
 
 // EmbeddedApplicationService is a subset of vnetv1.ClientApplicationServiceClient
@@ -95,9 +102,10 @@ type EmbeddedVNetHostConfig struct {
 
 // EmbeddedVNet is an embeded/single-process application of vnet.
 type EmbeddedVNet struct {
-	device        tun.Device
-	client        *clientApplicationServiceClient
-	configureHost func(context.Context, EmbeddedVNetHostConfig) error
+	device                   tun.Device
+	client                   *clientApplicationServiceClient
+	configureHost            func(context.Context, EmbeddedVNetHostConfig) error
+	upstreamNameserverSource dns.UpstreamNameserverSource
 }
 
 // NewEmbeddedVNet creates an embedded vnet with the given configuration.
@@ -124,7 +132,8 @@ func NewEmbeddedVNet(cfg EmbeddedVNetConfig) (*EmbeddedVNet, error) {
 			},
 			closer: io.NopCloser(bytes.NewReader([]byte{})),
 		},
-		configureHost: cfg.ConfigureHost,
+		configureHost:            cfg.ConfigureHost,
+		upstreamNameserverSource: cfg.UpstreamNameserverSource,
 	}, nil
 }
 
@@ -133,6 +142,9 @@ func (vnet *EmbeddedVNet) Run(ctx context.Context) error {
 	stackConfig, err := newNetworkStackConfig(ctx, vnet.device, vnet.client)
 	if err != nil {
 		return trace.Wrap(err, "creating network stack config")
+	}
+	if vnet.upstreamNameserverSource != nil {
+		stackConfig.upstreamNameserverSource = vnet.upstreamNameserverSource
 	}
 
 	stack, err := newNetworkStack(stackConfig)

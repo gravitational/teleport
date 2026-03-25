@@ -126,6 +126,11 @@ const (
 
 	// ProtocolMCP is TLS ALPN protocol value used to indicate MCP connections.
 	ProtocolMCP Protocol = "teleport-mcp"
+
+	// ProtocolBeamEgress is TLS ALPN protocol value used to indicate beam
+	// egress connections, where tbot vnet proxies outbound traffic from inside
+	// a beam to an allowed external domain.
+	ProtocolBeamEgress Protocol = "teleport-beam-egress"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
@@ -148,6 +153,7 @@ var SupportedProtocols = WithPingProtocols(
 		ProtocolProxyGRPCSecure,
 		ProtocolMCP,
 		ProtocolHTTPSInMTLS,
+		ProtocolBeamEgress,
 	}, DatabaseProtocols...),
 )
 
@@ -254,6 +260,7 @@ var ProtocolsWithPingSupport = append(
 	DatabaseProtocols,
 	ProtocolTCP,
 	ProtocolMCP,
+	ProtocolBeamEgress,
 )
 
 // WithPingProtocols adds Ping protocols to the list for each protocol that

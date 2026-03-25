@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"log/slog"
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -78,7 +79,9 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 	// the public address of an app on any port and be routed to the port from the URI.
 	//
 	// https://github.com/gravitational/teleport/blob/master/rfd/0182-multi-port-tcp-app-access.md#vnet-with-single-port-apps
-	if len(h.cfg.appInfo.GetApp().GetTCPPorts()) == 0 {
+	// Beam egress apps need the real port preserved so the proxy can dial the
+	// correct host:port on the external network.
+	if len(h.cfg.appInfo.GetApp().GetTCPPorts()) == 0 && !isBeamEgressApp(h.cfg.appInfo.GetApp()) {
 		localPort = 0
 	}
 	lp, ok := h.portToLocalProxy[localPort]
@@ -192,7 +195,14 @@ func (m *localProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalP
 
 // IsVNetApp returns true if the app type is supported by VNet.
 func IsVNetApp(app types.Application) bool {
-	return app.IsTCP() || app.IsHTTP() || app.IsLLM() || isMCPStreamableHTTPApp(app)
+	return isBeamEgressApp(app) || app.IsTCP() || app.IsHTTP() || app.IsLLM() || isMCPStreamableHTTPApp(app)
+}
+
+// isBeamEgressApp returns true if the app is a beam egress target, identified
+// by a beamegress:// URI. These are synthetic apps created by tbot's embedded
+// VNet service for beam-allowed external domains.
+func isBeamEgressApp(app types.Application) bool {
+	return strings.HasPrefix(app.GetURI(), "beamegress://")
 }
 
 // isMCPStreamableHTTPApp returns true if the app is an MCP server using the
@@ -204,6 +214,9 @@ func isMCPStreamableHTTPApp(app types.Application) bool {
 // vnetALPNProtocol returns the ALPN protocol VNet should use for the given app.
 // TCP apps use ProtocolTCP; all others (HTTP, LLM, MCP streamable HTTP) use ProtocolHTTPSInMTLS.
 func vnetALPNProtocol(app types.Application) alpncommon.Protocol {
+	if isBeamEgressApp(app) {
+		return alpncommon.ProtocolBeamEgress
+	}
 	if app.IsTCP() {
 		return alpncommon.ProtocolTCP
 	}

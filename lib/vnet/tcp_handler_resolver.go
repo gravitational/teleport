@@ -95,6 +95,12 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 		// without sending any traffic through VNet.
 		return nil, errNoTCPHandler
 	}
+	if matchedRejected := resp.GetMatchedRejected(); matchedRejected != nil {
+		return &tcpHandlerSpec{
+			ipv4CIDRRange: matchedRejected.GetIpv4CidrRange(),
+			tcpHandler:    &rejectedTCPHandler{},
+		}, nil
+	}
 	if matchedCluster := resp.GetMatchedCluster(); matchedCluster != nil {
 		// We know the query matched a cluster, but we won't know until we get a
 		// TCP connection if this may match an SSH node or an app that may be
@@ -175,6 +181,13 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 		return trace.Wrap(err, "resolving target in undecidedHandler")
 	}
 	log := log.With("fqdn", h.cfg.fqdn)
+	if resp.GetMatchedRejected() != nil {
+		// The application service explicitly rejected this FQDN (e.g. restricted
+		// mode). Return an error without calling connector() so that the caller's
+		// deferred req.Complete(true) sends a TCP RST to the client.
+		log.DebugContext(ctx, "Rejecting connection to FQDN", "fqdn", h.cfg.fqdn)
+		return trace.AccessDenied("connection rejected by VNet policy for %s", h.cfg.fqdn)
+	}
 	if matchedTCPApp := resp.GetMatchedTcpApp(); matchedTCPApp != nil {
 		// If matched a TCP app, build a tcpAppHandler that will be used for this
 		// and all subsequent connections to this address.
@@ -257,4 +270,20 @@ func (h *webAppHandler) handleTCPConnector(ctx context.Context, localPort uint16
 		return trace.Wrap(err, "accepting incoming TCP conn")
 	}
 	return trace.Wrap(utils.ProxyConn(ctx, localConn, proxyConn))
+}
+
+// rejectedTCPHandler is a tcpHandler that rejects TCP connections immediately.
+// It completes the TCP handshake via connector() and then closes the connection,
+// so the client sees an immediate reset rather than a timeout. Sending RST
+// before the SYN-ACK (by not calling connector) is silently dropped by Linux's
+// connection tracking since no state entry exists yet.
+type rejectedTCPHandler struct{}
+
+func (h *rejectedTCPHandler) handleTCPConnector(_ context.Context, _ uint16, connector func() (net.Conn, error)) error {
+	conn, err := connector()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	conn.Close()
+	return trace.AccessDenied("connection rejected by restricted VNet policy")
 }

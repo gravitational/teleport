@@ -5576,6 +5576,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				},
 			})
 		}
+
+		// TODO(beams): Move this to a dedicated beam egress service package
+		// once the design stabilizes.
+		alpnRouter.Add(newBeamEgressHandler(beamEgressHandlerConfig{
+			clusterName: conn.ClusterName(),
+			beamsClient: conn.Client.BeamsServiceClient(),
+			emitter:     asyncEmitter,
+			logger:      logger,
+		}).handlerDecs())
 	}
 
 	var peerAddrString string

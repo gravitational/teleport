@@ -3,6 +3,7 @@ package vnet
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"log/slog"
 	"net"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	beamscommon "github.com/gravitational/teleport/lib/beams/common"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/client"
@@ -29,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/vnet"
+	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
 func ServiceBuilder(cfg *Config, alpnUpgradeCache *internal.ALPNUpgradeCache) bot.ServiceBuilder {
@@ -103,6 +106,13 @@ func (s *Service) Run(ctx context.Context) error {
 		return trace.Wrap(err, "resolving link for TUN device")
 	}
 
+	// In restricted mode, pass a nil upstream nameserver source so VNet returns
+	// NXDOMAIN for unmatched domains rather than forwarding to an upstream resolver.
+	var upstreamNameserverSource dns.UpstreamNameserverSource
+	if s.cfg.Restricted {
+		upstreamNameserverSource = staticNameserverSource(nil)
+	}
+
 	// Note: we wrap this function in a sync.Once because we expect the routes
 	// and DNS zones to stay the same in beams, and it avoids the complexity of
 	// handling any errors. For using vnet outside of beams, we should probably
@@ -142,13 +152,15 @@ func (s *Service) Run(ctx context.Context) error {
 				return trace.Wrap(err, "adding route from %s to TUN device", cidr)
 			}
 		}
+
 		return nil
 	}
 
 	// Create embedded vnet network stack.
 	var once sync.Once
 	vn, err := vnet.NewEmbeddedVNet(vnet.EmbeddedVNetConfig{
-		Device: dev,
+		Device:                   dev,
+		UpstreamNameserverSource: upstreamNameserverSource,
 		ApplicationService: &applicationService{
 			botIdentity:         impersonatedIdentity,
 			client:              impersonatedClient,
@@ -158,6 +170,8 @@ func (s *Service) Run(ctx context.Context) error {
 			proxyPinger:         s.proxyPinger,
 			delegationSessionID: s.cfg.DelegationSessionID,
 			allowedDomains:      s.allowedDomains,
+			restricted:          s.cfg.Restricted,
+			beamID:              s.cfg.BeamID,
 			logger:              s.log,
 		},
 		ConfigureHost: func(ctx context.Context, cfg vnet.EmbeddedVNetHostConfig) error {
@@ -278,11 +292,17 @@ type applicationService struct {
 	proxyPinger         connection.ProxyPinger
 	delegationSessionID string
 	allowedDomains      *domainAllowlist
+	restricted          bool
+	beamID              string
 	logger              *slog.Logger
 }
 
 func (s *applicationService) ResolveFQDN(ctx context.Context, req *vnetv1.ResolveFQDNRequest) (*vnetv1.ResolveFQDNResponse, error) {
 	fqdn := req.GetFqdn()
+	start := time.Now()
+	defer func() {
+		s.logger.DebugContext(ctx, "ResolveFQDN done", "fqdn", fqdn, "elapsed", time.Since(start))
+	}()
 
 	proxyAddr, err := s.proxyAddr(ctx)
 	if err != nil {
@@ -295,13 +315,54 @@ func (s *applicationService) ResolveFQDN(ctx context.Context, req *vnetv1.Resolv
 		return nil, trace.NotFound("proxy address should be resolved upstream")
 	}
 
+	fqdnHost := strings.TrimSuffix(fqdn, ".")
+
 	switch {
-	case s.allowedDomains.contains(fqdn):
-		// FQDN is allowlisted.
+	case beamscommon.EgressFQDNAllowed(s.allowedDomains.all(), fqdn):
+		s.logger.InfoContext(ctx, "=== FQDN matched beam egress allowlist",
+			"fqdn", fqdn,
+			"fqdn_host", fqdnHost,
+			"beam_id", s.beamID,
+			"allowed_domains", s.allowedDomains.all(),
+		)
+		// FQDN is allowlisted. If we have a beam ID, return a beam egress
+		// handler that will proxy the connection through the proxy.
+		if s.beamID != "" {
+			alpnRequired, err := s.alpnUpgradeCache.IsUpgradeRequired(ctx, proxyAddr, false)
+			if err != nil {
+				return nil, trace.Wrap(err, "determining if ALPN upgrade is required")
+			}
+			s.logger.InfoContext(ctx, "=== Resolving beam egress",
+				"fqdn_host", fqdnHost,
+				"proxy_addr", proxyAddr,
+				"alpn_required", alpnRequired,
+			)
+			return s.resolveBeamEgress(fqdnHost, proxyAddr, alpnRequired), nil
+		}
 	case strings.HasSuffix(fqdn, proxyHostname):
 		// TODO: should we explicitly allowlist the "normal" Teleport apps like
 		// the LLM proxy?
 	default:
+		// For beam VNet, resolve all FQDNs to a beam egress handler regardless
+		// of whether they're currently in the allowlist. The allowlist is
+		// re-checked at connection time (proxy side), so domains added later
+		// via `tsh beam allow` take effect immediately on the next connection.
+		if s.beamID != "" {
+			alpnRequired, err := s.alpnUpgradeCache.IsUpgradeRequired(ctx, proxyAddr, false)
+			if err != nil {
+				return nil, trace.Wrap(err, "determining if ALPN upgrade is required")
+			}
+			return s.resolveBeamEgress(fqdnHost, proxyAddr, alpnRequired), nil
+		}
+		if s.restricted {
+			return &vnetv1.ResolveFQDNResponse{
+				Match: &vnetv1.ResolveFQDNResponse_MatchedRejected{
+					MatchedRejected: &vnetv1.MatchedRejected{
+						Ipv4CidrRange: typesvnet.DefaultIPv4CIDRRange,
+					},
+				},
+			}, nil
+		}
 		return nil, trace.NotFound("fqdn %q is not in beam allowlist")
 	}
 
@@ -415,7 +476,54 @@ func (s *applicationService) GetTargetOSConfiguration(ctx context.Context, in *v
 	}, nil
 }
 
+// resolveBeamEgress returns a MatchedTCPApp for a beam-allowed external domain.
+// The synthetic app uses a beamegress:// URI so that the VNet TCP handler
+// picks up ProtocolBeamEgress ALPN and GetAppCert issues the right cert.
+func (s *applicationService) resolveBeamEgress(fqdnHost, proxyAddr string, alpnRequired bool) *vnetv1.ResolveFQDNResponse {
+	app := &types.AppV3{
+		Metadata: types.Metadata{Name: s.beamID},
+		Spec: types.AppSpecV3{
+			URI:        "beamegress://" + fqdnHost,
+			PublicAddr: fqdnHost,
+		},
+	}
+	return &vnetv1.ResolveFQDNResponse{
+		Match: &vnetv1.ResolveFQDNResponse_MatchedTcpApp{
+			MatchedTcpApp: &vnetv1.MatchedTCPApp{
+				AppInfo: &vnetv1.AppInfo{
+					AppKey: &vnetv1.AppKey{
+						Name: s.beamID,
+					},
+					App:           app,
+					Ipv4CidrRange: typesvnet.DefaultIPv4CIDRRange,
+					DialOptions: &vnetv1.DialOptions{
+						WebProxyAddr:            proxyAddr,
+						AlpnConnUpgradeRequired: alpnRequired,
+						Sni:                     hostname(proxyAddr),
+						InsecureSkipVerify:      true,
+					},
+				},
+			},
+		},
+	}
+}
+
 func (s *applicationService) GetAppCert(ctx context.Context, req *vnetv1.ReissueAppCertRequest) (*tls.Certificate, error) {
+	app := req.GetAppInfo().GetApp()
+
+	// Beam egress apps carry a beamegress:// URI. Issue a cert that encodes
+	// the beam ID (Name) and the target host:port (URI/PublicAddr) so the
+	// proxy's beamEgressHandler can validate against the beam allow-list.
+	if strings.HasPrefix(app.GetURI(), "beamegress://") {
+		s.logger.InfoContext(ctx, "=== GetAppCert: issuing beam egress cert",
+			"app_uri", app.GetURI(),
+			"app_public_addr", app.GetPublicAddr(),
+			"target_port", req.GetTargetPort(),
+			"beam_id", s.beamID,
+		)
+		return s.getBeamEgressCert(ctx, app.GetPublicAddr(), uint16(req.GetTargetPort()))
+	}
+
 	route := vnet.RouteToApp(req.GetAppInfo(), uint16(req.GetTargetPort()))
 
 	id, err := s.identityGenerator.Generate(ctx,
@@ -425,6 +533,40 @@ func (s *applicationService) GetAppCert(ctx context.Context, req *vnetv1.Reissue
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "issuing app certificate")
+	}
+
+	return id.TLSCert, nil
+}
+
+// getBeamEgressCert issues a TLS cert whose RouteToApp.Name carries the beam ID
+// and whose PublicAddr encodes the target host:port. The proxy reads these to
+// validate the beam allow-list and forward the connection.
+// Note: URI is not encoded in the TLS cert so the proxy uses PublicAddr.
+func (s *applicationService) getBeamEgressCert(ctx context.Context, targetHost string, targetPort uint16) (*tls.Certificate, error) {
+	hostPort := fmt.Sprintf("%s:%d", targetHost, targetPort)
+	egressURI := "beamegress://" + hostPort
+
+	s.logger.InfoContext(ctx, "=== getBeamEgressCert: generating cert",
+		"target_host", targetHost,
+		"target_port", targetPort,
+		"host_port", hostPort,
+		"egress_uri", egressURI,
+		"beam_id", s.beamID,
+		"cluster_name", s.botIdentity.Get().ClusterName,
+	)
+
+	id, err := s.identityGenerator.Generate(ctx,
+		identity.WithLifetime(s.credentialLifetime.TTL, s.credentialLifetime.RenewalInterval),
+		identity.WithRouteToApp(proto.RouteToApp{
+			Name:        s.beamID,
+			PublicAddr:  hostPort,
+			ClusterName: s.botIdentity.Get().ClusterName,
+			URI:         egressURI,
+		}),
+		identity.WithDelegation(s.delegationSessionID),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "issuing beam egress certificate")
 	}
 
 	return id.TLSCert, nil
@@ -469,7 +611,10 @@ func (s *applicationService) getDatabase(ctx context.Context, name string) (type
 }
 
 func (s *applicationService) proxyAddr(ctx context.Context) (string, error) {
+	start := time.Now()
+	s.logger.DebugContext(ctx, "proxyAddr: pinging proxy")
 	proxyPong, err := s.proxyPinger.Ping(ctx)
+	s.logger.DebugContext(ctx, "proxyAddr: ping done", "elapsed", time.Since(start), "error", err)
 	if err != nil {
 		return "", trace.Wrap(err, "pinging proxy")
 	}
@@ -500,3 +645,14 @@ func fullyQualify(domain string) string {
 	}
 	return domain + "."
 }
+
+// staticNameserverSource is a dns.UpstreamNameserverSource that always returns
+// a fixed list of nameserver addresses. Used when upstream_nameserver is set
+// in the tbot vnet config to avoid reading /etc/resolv.conf.
+type staticNameserverSource []string
+
+func (s staticNameserverSource) UpstreamNameservers(_ context.Context) ([]string, error) {
+	return []string(s), nil
+}
+
+var _ dns.UpstreamNameserverSource = staticNameserverSource(nil)

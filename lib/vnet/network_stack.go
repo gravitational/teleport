@@ -378,7 +378,6 @@ func (ns *networkStack) handleTCP(req *tcp.ForwarderRequest) {
 
 	id := req.ID()
 	slog := ns.slog.With("request", id)
-	slog.DebugContext(ctx, "Handling TCP connection.")
 	defer slog.DebugContext(ctx, "Finished handling TCP connection.")
 
 	handler, ok := ns.getTCPHandler(id.LocalAddress)
