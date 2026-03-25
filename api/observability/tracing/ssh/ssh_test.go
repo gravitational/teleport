@@ -492,30 +492,6 @@ func TestNewClientConnTimeout(t *testing.T) {
 
 }
 
-func TestDialNilConfig(t *testing.T) {
-	t.Parallel()
-
-	cli, err := Dial(t.Context(), "tcp", "127.0.0.1:1", nil)
-	require.ErrorIs(t, err, trace.BadParameter("missing SSH client config"))
-	require.Nil(t, cli)
-}
-
-func TestNewClientConnWithTimeoutNilConfig(t *testing.T) {
-	t.Parallel()
-
-	clientConn, serverConn := net.Pipe()
-	t.Cleanup(func() {
-		clientConn.Close()
-		serverConn.Close()
-	})
-
-	conn, chans, reqs, err := NewClientConnWithTimeout(t.Context(), clientConn, "example.com:22", nil)
-	require.ErrorIs(t, err, trace.BadParameter("missing SSH client config"))
-	require.Nil(t, conn)
-	require.Nil(t, chans)
-	require.Nil(t, reqs)
-}
-
 func TestNewClientConnWithTimeoutSetsClientVersion(t *testing.T) {
 	t.Parallel()
 
@@ -568,7 +544,7 @@ func TestNewClientConnWithTimeoutSetsClientVersion(t *testing.T) {
 	}
 }
 
-func TestCloneClientConfig(t *testing.T) {
+func TestCloneOrNewClientConfigClonesNonNilConfig(t *testing.T) {
 	t.Parallel()
 
 	type mockAuthMethod struct {
@@ -596,7 +572,7 @@ func TestCloneClientConfig(t *testing.T) {
 		Timeout:           time.Nanosecond,
 	}
 
-	clonedConfig := cloneClientConfig(config)
+	clonedConfig := cloneOrNewClientConfig(config)
 
 	require.NotSame(t, config, clonedConfig)
 	require.Equal(t, config.Rand, clonedConfig.Rand)
@@ -612,7 +588,16 @@ func TestCloneClientConfig(t *testing.T) {
 	require.NotNil(t, clonedConfig.BannerCallback)
 	require.ErrorIs(t, clonedConfig.BannerCallback("message"), mockError)
 	require.NotNil(t, clonedConfig.HostKeyCallback)
-	require.Equal(t, config.ClientVersion, clonedConfig.ClientVersion)
+	require.NotEqual(t, config.ClientVersion, clonedConfig.ClientVersion)
 	require.Equal(t, config.Timeout, clonedConfig.Timeout)
 	require.Equal(t, config.HostKeyAlgorithms, clonedConfig.HostKeyAlgorithms)
+}
+
+func TestCloneOrNewClientConfigReturnsNewConfigIfNil(t *testing.T) {
+	t.Parallel()
+
+	config := cloneOrNewClientConfig(nil)
+
+	require.NotNil(t, config)
+	require.Equal(t, api.SSHClientVersion(), config.ClientVersion)
 }

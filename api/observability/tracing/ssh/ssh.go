@@ -109,10 +109,6 @@ func ContextFromNewChannel(nch ssh.NewChannel, opts ...tracing.Option) (context.
 // to incoming channels and requests, use net.Dial with NewClientConn
 // instead.
 func Dial(ctx context.Context, network, addr string, config *ssh.ClientConfig, opts ...tracing.Option) (*Client, error) {
-	if config == nil {
-		return nil, trace.BadParameter("missing SSH client config")
-	}
-
 	tracer := tracing.NewConfig(opts).TracerProvider.Tracer(instrumentationName)
 	ctx, span := tracer.Start(
 		ctx,
@@ -128,15 +124,21 @@ func Dial(ctx context.Context, network, addr string, config *ssh.ClientConfig, o
 	)
 	defer span.End()
 
+	// Ensure we copy the config to avoid mutating the caller's config.
+	config = cloneOrNewClientConfig(config)
+
 	dialer := net.Dialer{Timeout: config.Timeout}
+
 	conn, err := dialer.DialContext(ctx, network, addr)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
+
 	c, err := NewClientWithTimeout(ctx, conn, addr, config, opts...)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
+
 	return c, nil
 }
 
@@ -153,10 +155,6 @@ func Dial(ctx context.Context, network, addr string, config *ssh.ClientConfig, o
 // - If == 0: a default timeout of 30 seconds is used to avoid hanging connections.
 // - If < 0: only the context’s deadline or cancellation is used.
 func NewClientConnWithTimeout(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig, opts ...tracing.Option) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
-	if config == nil {
-		return nil, nil, nil, trace.BadParameter("missing SSH client config")
-	}
-
 	tracer := tracing.NewConfig(opts).TracerProvider.Tracer(instrumentationName)
 	ctx, span := tracer.Start( //nolint:staticcheck,ineffassign // keeping shadowed ctx to avoid accidental missing in the future
 		ctx,
@@ -174,10 +172,8 @@ func NewClientConnWithTimeout(ctx context.Context, conn net.Conn, addr string, c
 	)
 	defer span.End()
 
-	// Set the SSH client version to include the Teleport version and supported features.
-	configCopy := cloneClientConfig(config)
-	configCopy.ClientVersion = api.SSHClientVersion()
-	config = configCopy
+	// Ensure we copy the config to avoid mutating the caller's config.
+	config = cloneOrNewClientConfig(config)
 
 	// ssh.ClientConfig.Timeout is not the total timeout for the connection
 	// establishment, including DNS resolution, TCP connection, but it doesn't
@@ -244,15 +240,25 @@ func NewClientConnWithTimeout(ctx context.Context, conn net.Conn, addr string, c
 	return c, chans, reqs, nil
 }
 
-func cloneClientConfig(config *ssh.ClientConfig) *ssh.ClientConfig {
-	configCopy := *config
-	configCopy.Auth = slices.Clone(config.Auth)
-	configCopy.HostKeyAlgorithms = slices.Clone(config.HostKeyAlgorithms)
-	configCopy.KeyExchanges = slices.Clone(config.KeyExchanges)
-	configCopy.Ciphers = slices.Clone(config.Ciphers)
-	configCopy.MACs = slices.Clone(config.MACs)
+// cloneOrNewClientConfig returns a copy of the provided ssh.ClientConfig with proper defaults set, or a new
+// ssh.ClientConfig with defaults if the provided config is nil.
+func cloneOrNewClientConfig(config *ssh.ClientConfig) *ssh.ClientConfig {
+	if config != nil {
+		configCopy := *config
+		configCopy.Auth = slices.Clone(config.Auth)
+		configCopy.HostKeyAlgorithms = slices.Clone(config.HostKeyAlgorithms)
+		configCopy.KeyExchanges = slices.Clone(config.KeyExchanges)
+		configCopy.Ciphers = slices.Clone(config.Ciphers)
+		configCopy.MACs = slices.Clone(config.MACs)
 
-	return &configCopy
+		configCopy.ClientVersion = api.SSHClientVersion()
+
+		return &configCopy
+	}
+
+	return &ssh.ClientConfig{
+		ClientVersion: api.SSHClientVersion(),
+	}
 }
 
 // peerAttr returns attributes about the peer address.
