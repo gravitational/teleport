@@ -69,27 +69,29 @@ func ParseSSHClientVersion(clientVersion string) (*semver.Version, []string, err
 		return nil, nil, trace.BadParameter("invalid version %q: missing Teleport version", clientVersion)
 	}
 
-	parts := strings.Split(rest, " ")
-	switch {
-	case slices.Contains(parts, ""):
+	if strings.HasPrefix(rest, " ") ||
+		strings.HasSuffix(rest, " ") ||
+		strings.Contains(rest, "  ") {
 		return nil, nil, trace.BadParameter("invalid version %q: unexpected whitespace", clientVersion)
+	}
 
-	case len(parts) > 2:
+	versionPart, featuresPart, hasFeatures := strings.Cut(rest, " ")
+	if hasFeatures && strings.Contains(featuresPart, " ") {
 		return nil, nil, trace.BadParameter(`invalid version %q: expected "<version>" or "<version> <feature[,feature...]>"`, clientVersion)
 	}
 
-	version, err := semver.NewVersion(parts[0])
+	version, err := semver.NewVersion(versionPart)
 	if err != nil {
-		return nil, nil, trace.BadParameter("invalid version %q: invalid semantic version %q: %v", clientVersion, parts[0], err)
+		return nil, nil, trace.BadParameter("invalid version %q: invalid semantic version %q: %v", clientVersion, versionPart, err)
 	}
 
-	if len(parts) == 1 {
+	if !hasFeatures {
 		return version, nil, nil
 	}
 
-	features := strings.Split(parts[1], ",")
+	features := strings.Split(featuresPart, ",")
 	if slices.Contains(features, "") {
-		return nil, nil, trace.BadParameter("invalid version %q: empty feature name in %q", clientVersion, parts[1])
+		return nil, nil, trace.BadParameter("invalid version %q: empty feature name in %q", clientVersion, featuresPart)
 	}
 
 	return version, features, nil
