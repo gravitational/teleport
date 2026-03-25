@@ -24,11 +24,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-
 	"google.golang.org/protobuf/types/known/timestamppb"
+
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // CreateDelegationSession creates a delegation session.
@@ -68,8 +69,10 @@ func (s *SessionService) CreateDelegationSession(
 	spec := session.GetSpec()
 	resources := spec.GetResources()
 
-	// Read user from the backend to get the current roles and traits.
-	user, err := s.userGetter.GetUser(ctx, authCtx.User.GetName(), false)
+	// Read user login state from the backend to get current roles, traits, and
+	// any enriched identity from external providers (e.g. GitHub). Falls back
+	// to the plain user if no login state exists.
+	user, err := services.GetUserOrLoginState(ctx, s.userGetter, authCtx.User.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
