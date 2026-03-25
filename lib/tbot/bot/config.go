@@ -20,6 +20,7 @@ package bot
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
@@ -51,6 +52,12 @@ type Config struct {
 	// CredentialLifetime controls the TTL and renewal interval of the bot's
 	// internal credentials.
 	CredentialLifetime CredentialLifetime
+
+	// Leeway is a duration added to local system time when checking for expired
+	// certificates in certain cases, particularly with app and database
+	// tunnels. It can be useful to account for clock drift, or if a negative
+	// duration is provided, to simulate clock drift.
+	Leeway time.Duration `yaml:"leeway,omitempty"`
 
 	// FIPS controls whether the bot will run in a mode designed to comply with
 	// Federal Information Processing Standards.

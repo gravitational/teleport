@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -45,6 +46,7 @@ func TunnelServiceBuilder(
 	cfg *TunnelConfig,
 	connCfg connection.Config,
 	defaultCredentialLifetime bot.CredentialLifetime,
+	leeway time.Duration,
 ) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -53,6 +55,7 @@ func TunnelServiceBuilder(
 		svc := &TunnelService{
 			connCfg:                   connCfg,
 			defaultCredentialLifetime: defaultCredentialLifetime,
+			leeway:                    leeway,
 			cfg:                       cfg,
 			proxyPinger:               deps.ProxyPinger,
 			botClient:                 deps.Client,
@@ -74,6 +77,7 @@ func TunnelServiceBuilder(
 type TunnelService struct {
 	connCfg                   connection.Config
 	defaultCredentialLifetime bot.CredentialLifetime
+	leeway                    time.Duration
 	cfg                       *TunnelConfig
 	proxyPinger               connection.ProxyPinger
 	log                       *slog.Logger
@@ -139,18 +143,38 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 	}
 	s.log.DebugContext(ctx, "Issued initial certificate for local proxy.")
 
+	// Attempt to provide a sensible cap for leeway values based on the
+	// configured and actual cert TTLs. This check is simple and imperfect, and
+	// the right set of unreasonable values can still trigger vaguely bad
+	// behavior.
+	issuedCertTTL := dbCert.Leaf.NotAfter.Sub(dbCert.Leaf.NotBefore)
+	effectiveConfiguredLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
+	realTTL := min(issuedCertTTL, effectiveConfiguredLifetime.TTL)
+
+	leeway := s.leeway
+	if leeway >= realTTL {
+		s.log.WarnContext(ctx,
+			"leeway is greater than the credential lifetime and will be "+
+				"ignored, be aware of potential failures due to clock drift",
+			"configured_ttl", effectiveConfiguredLifetime.TTL,
+			"configured_leeway", leeway,
+			"issued_cert_ttl", issuedCertTTL,
+		)
+		leeway = 0
+	}
+
 	middleware := internal.ALPNProxyMiddleware{
 		OnNewConnectionFunc: func(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 			ctx, span := tracer.Start(ctx, "TunnelService/OnNewConnection")
 			defer span.End()
 
 			// Check if the certificate needs reissuing, if so, reissue.
-			if err := lp.CheckDBCert(ctx, tlsca.RouteToDatabase{
+			if err := lp.CheckDBCertWithLeeway(ctx, tlsca.RouteToDatabase{
 				ServiceName: routeToDatabase.ServiceName,
 				Protocol:    routeToDatabase.Protocol,
 				Database:    routeToDatabase.Database,
 				Username:    routeToDatabase.Username,
-			}); err != nil {
+			}, leeway); err != nil {
 				s.log.InfoContext(ctx, "Certificate for tunnel needs reissuing.", "reason", err.Error())
 				cert, err := s.issueCert(ctx, routeToDatabase)
 				if err != nil {
@@ -300,7 +324,12 @@ func (s *TunnelService) issueCert(
 	}
 	s.log.InfoContext(ctx, "Certificate issued for tunnel proxy.")
 
-	return ident.TLSCert, nil
+	// The leaf isn't appended by the stdlib, so add it here so we can inspect
+	// the TTL downstream.
+	cert := ident.TLSCert
+	cert.Leaf = ident.X509Cert
+
+	return cert, nil
 }
 
 // String returns a human-readable string that can uniquely identify the
