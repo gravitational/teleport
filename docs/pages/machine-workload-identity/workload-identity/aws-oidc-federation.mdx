@@ -172,7 +172,7 @@ resource "aws_s3_bucket" "example" {
 
 1. Browse to S3
 1. Select "Create bucket"
-1. Enter a meaningful, unique name for your bucket, e.g `workload-id-demo`
+1. Enter a meaningful, unique name for your bucket, e.g. `workload-id-demo`
 1. Leave other settings as default
 1. Click "Create bucket".
 
@@ -442,10 +442,10 @@ web_identity_token_file=/opt/workload-identity/jwt_svid
 
 Configure the following environment variables:
 
-- `AWS_ROLE_ARN`: The ARN of the role you created earlier, e.g 
+- `AWS_ROLE_ARN`: The ARN of the role you created earlier, e.g. 
   `arn:aws:iam::123456789012:role/workload-id-demo`
 - `AWS_WEB_IDENTITY_TOKEN_FILE`: The path to the JWT file that `tbot` is writing,
-  e.g `/opt/workload-identity/jwt_svid`
+  e.g. `/opt/workload-identity/jwt_svid`
 
 </TabItem>
 </Tabs>
