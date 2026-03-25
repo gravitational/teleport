@@ -1609,18 +1609,8 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		return trace.Wrap(err)
 	}
 
-	// Start execution. If the program failed to start, send that result back.
-	result, err := execRequest.Start(ctx, channel)
-	if err != nil {
+	if err := execRequest.Start(ctx, channel); err != nil {
 		return trace.Wrap(err)
-	}
-	if result != nil {
-		s.logger.DebugContext(
-			ctx, "Exec request completed.",
-			"request", execRequest,
-			"result", result,
-		)
-		scx.SendExecResult(ctx, *result)
 	}
 
 	bpfEnabled := scx.srv.GetBPF().Enabled()

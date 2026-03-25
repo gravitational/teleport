@@ -930,7 +930,7 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 
 	t.Logf("running %q", command)
 
-	_, err := scx.execRequest.Start(ctx, channel)
+	err := scx.execRequest.Start(ctx, channel)
 	require.NoError(t, err)
 
 	t.Log("reading audit session ID")

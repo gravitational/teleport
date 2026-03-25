@@ -77,7 +77,7 @@ type Exec interface {
 	SetCommand(string)
 
 	// Start will start the execution of the command.
-	Start(ctx context.Context, channel ssh.Channel) (*ExecResult, error)
+	Start(ctx context.Context, channel ssh.Channel) error
 
 	// Wait will block while the command executes.
 	Wait() ExecResult
@@ -155,36 +155,35 @@ func (e *localExec) SetCommand(command string) {
 	e.Command = command
 }
 
-// Start launches the given command returns (nil, nil) if successful.
-// ExecResult is only used to communicate an error while launching.
-func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult, error) {
+// Start launches the given command.
+func (e *localExec) Start(ctx context.Context, channel ssh.Channel) error {
 	logger := e.Ctx.Logger.With("command", e.GetCommand())
 
 	// Parse the command to see if it is scp.
 	err := e.transformSecureCopy()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// Create pipes to capture stdio of the shell (grandchild) process, closing our
 	// side of each pipe after starting the command.
 	shellStdinR, shellStdinW, err := os.Pipe()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	defer shellStdinR.Close()
 	e.Ctx.AddCloser(shellStdinW)
 
 	shellStdoutR, shellStdoutW, err := os.Pipe()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	defer shellStdoutW.Close()
 	e.Ctx.AddCloser(shellStdoutR)
 
 	shellStderrR, shellStderrW, err := os.Pipe()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	defer shellStderrW.Close()
 	e.Ctx.AddCloser(shellStderrR)
@@ -192,13 +191,13 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	// Create the command that will actually execute.
 	e.Cmd, err = ConfigureCommand(e.Ctx, shellStdinR, shellStdoutW, shellStderrW)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// Capture stderr.
 	stderrR, stderrW, err := os.Pipe()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	defer stderrW.Close()
 	e.Cmd.Stderr = stderrW
@@ -228,16 +227,14 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	if err != nil {
 		logger.WarnContext(ctx, "Local command failed to start", "error", err)
 
-		execResult := ExecResult{
+		// Emit the result of execution to the audit log
+		emitExecAuditEvent(e.Ctx, ExecResult{
 			Command: e.GetCommand(),
 			Code:    teleport.RemoteCommandFailure,
 			Error:   err,
-		}
+		})
 
-		// Emit the result of execution to the audit log
-		emitExecAuditEvent(e.Ctx, execResult)
-
-		return &execResult, trace.ConvertSystemError(err)
+		return trace.ConvertSystemError(err)
 	}
 	// Close our half of the write pipe since it is only to be used by the child process.
 	// Not closing prevents being signaled when the child closes its half.
@@ -269,7 +266,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 
 	logger.InfoContext(ctx, "Started local command execution")
 
-	return nil, nil
+	return nil
 }
 
 // Wait will block while the command executes.
@@ -434,9 +431,8 @@ func (e *remoteExec) SetCommand(command string) {
 	e.command = command
 }
 
-// Start launches the given command returns (nil, nil) if successful.
-// ExecResult is only used to communicate an error while launching.
-func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, error) {
+// Start launches the given command.
+func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) error {
 	if _, err := checkSCPAllowed(e.ctx, e.GetCommand()); err != nil {
 		e.ctx.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
 			Metadata: apievents.Metadata{
@@ -448,7 +444,7 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 			ServerMetadata: e.ctx.GetServer().EventMetadata(),
 			Error:          err.Error(),
 		})
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// hook up stdout/err the channel so the user can interact with the command
@@ -456,7 +452,7 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 	e.session.Stderr = ch.Stderr()
 	inputWriter, err := e.session.StdinPipe()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	go func() {
@@ -469,10 +465,10 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 
 	err = e.session.Start(ctx, e.command)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	return nil, nil
+	return nil
 }
 
 // Wait will block while the command executes.
