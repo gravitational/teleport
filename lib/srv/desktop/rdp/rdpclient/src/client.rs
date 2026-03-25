@@ -969,7 +969,7 @@ impl Client {
 
     fn x224_lock(
         x224_processor: &Arc<Mutex<x224::Processor>>,
-    ) -> Result<MutexGuard<x224::Processor>, SessionError> {
+    ) -> Result<MutexGuard<'_, x224::Processor>, SessionError> {
         x224_processor
             .lock()
             .map_err(|err| reason_err!(function!(), "PoisonError: {:?}", err))
@@ -977,7 +977,7 @@ impl Client {
 
     fn resize_manager_lock(
         pending_resize: &Arc<Mutex<PendingResize>>,
-    ) -> Result<MutexGuard<PendingResize>, SessionError> {
+    ) -> Result<MutexGuard<'_, PendingResize>, SessionError> {
         pending_resize
             .lock()
             .map_err(|err| reason_err!(function!(), "PoisonError: {:?}", err))
