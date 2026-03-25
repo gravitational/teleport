@@ -326,14 +326,48 @@ test.describe('access requests', () => {
       await expect(page.getByText('Approved for testing')).toBeVisible();
     });
 
-    await test.step('requester sees the approved request', async () => {
+    await test.step('requester assumes the request and connects to SSH node', async () => {
       await using app = await launchAsRequester();
       const { page } = app;
 
+      // Assume the request.
       await page.getByTitle('Access Requests').click();
       await page.getByText('View Access Requests').click();
 
       await expect(page.getByText('APPROVED')).toBeVisible();
+
+      const assumeRolesButton = page.getByRole('button', {
+        name: 'Assume Roles',
+      });
+      await assumeRolesButton.click();
+      await expect(assumeRolesButton).not.toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Assumed' })
+      ).toBeDisabled();
+
+      // Navigate to the tab with resources and connect to the SSH node.
+      const clusterTab = page.locator(
+        '[role="tab"][data-doc-kind="doc.cluster"]'
+      );
+      await clusterTab.click();
+      // Assuming a request should automatically refresh available resources in doc.cluster tabs
+      // that were already opened, making it possible to connect to the SSH node without refreshing
+      // the list.
+      await page.getByRole('button', { name: 'Connect', exact: true }).click();
+      const loginInput = page.getByPlaceholder('Search logins…');
+      await expect(loginInput).toBeVisible();
+      await loginInput.fill('root');
+      await loginInput.press('Enter');
+      const currentTab = page.locator('[role="tab"][aria-selected="true"]');
+      await expect(currentTab).toHaveText('root@docker-root-node');
+
+      const terminal = page.locator('.xterm');
+      const terminalInput = page.getByRole('textbox', {
+        name: 'Terminal input',
+      });
+      await expect(terminalInput).toBeVisible();
+      await terminalInput.pressSequentially(`echo foobar | rev\n`);
+      await expect(terminal).toContainText(`raboof`);
     });
   });
 
