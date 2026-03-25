@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -114,17 +113,16 @@ Same as above, but using JSON output:
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	rc.CreateHandlers = map[string]ResourceCreateHandler{
-		types.KindTrustedCluster:       rc.createTrustedCluster,
-		types.KindExternalAuditStorage: rc.createExternalAuditStorage,
-		types.KindNetworkRestrictions:  rc.createNetworkRestrictions,
-		types.KindLoginRule:            rc.createLoginRule,
-		types.KindDevice:               rc.createDevice,
-		types.KindOktaImportRule:       rc.createOktaImportRule,
-		types.KindIntegration:          rc.createIntegration,
-		types.KindSecurityReport:       rc.createSecurityReport,
-		types.KindCrownJewel:           rc.createCrownJewel,
-		types.KindPlugin:               rc.createPlugin,
-		types.KindHealthCheckConfig:    rc.createHealthCheckConfig,
+		types.KindTrustedCluster:      rc.createTrustedCluster,
+		types.KindNetworkRestrictions: rc.createNetworkRestrictions,
+		types.KindLoginRule:           rc.createLoginRule,
+		types.KindDevice:              rc.createDevice,
+		types.KindOktaImportRule:      rc.createOktaImportRule,
+		types.KindIntegration:         rc.createIntegration,
+		types.KindSecurityReport:      rc.createSecurityReport,
+		types.KindCrownJewel:          rc.createCrownJewel,
+		types.KindPlugin:              rc.createPlugin,
+		types.KindHealthCheckConfig:   rc.createHealthCheckConfig,
 	}
 	rc.UpdateHandlers = map[string]ResourceCreateHandler{
 		types.KindCrownJewel:        rc.updateCrownJewel,
@@ -429,27 +427,6 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 	return nil
 }
 
-// createExternalAuditStorage implements `tctl create external_audit_storage` command.
-func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	draft, err := services.UnmarshalExternalAuditStorage(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	externalAuditClient := client.ExternalAuditStorageClient()
-	if rc.force {
-		if _, err := externalAuditClient.UpsertDraftExternalAuditStorage(ctx, draft); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("External Audit Storage configuration has been updated\n")
-	} else {
-		if _, err := externalAuditClient.CreateDraftExternalAuditStorage(ctx, draft); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("External Audit Storage configuration has been created\n")
-	}
-	return nil
-}
-
 // createNetworkRestrictions implements `tctl create net_restrict.yaml` command.
 func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newNetRestricts, err := services.UnmarshalNetworkRestrictions(raw.Raw, services.DisallowUnknown())
@@ -709,18 +686,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("semaphore '%s/%s' has been deleted\n", rc.ref.SubKind, rc.ref.Name)
-	case types.KindExternalAuditStorage:
-		if rc.ref.Name == types.MetaNameExternalAuditStorageCluster {
-			if err := client.ExternalAuditStorageClient().DisableClusterExternalAuditStorage(ctx); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("cluster External Audit Storage configuration has been disabled\n")
-		} else {
-			if err := client.ExternalAuditStorageClient().DeleteDraftExternalAuditStorage(ctx); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("draft External Audit Storage configuration has been deleted\n")
-		}
 	case types.KindDatabaseServer:
 		servers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
 		if err != nil {
@@ -1110,43 +1075,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &userGroupCollection{userGroups: resources}, nil
-	case types.KindExternalAuditStorage:
-		out := []*externalauditstorage.ExternalAuditStorage{}
-		name := rc.ref.Name
-		switch name {
-		case "":
-			cluster, err := client.ExternalAuditStorageClient().GetClusterExternalAuditStorage(ctx)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					return nil, trace.Wrap(err)
-				}
-			} else {
-				out = append(out, cluster)
-			}
-			draft, err := client.ExternalAuditStorageClient().GetDraftExternalAuditStorage(ctx)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					return nil, trace.Wrap(err)
-				}
-			} else {
-				out = append(out, draft)
-			}
-			return &externalAuditStorageCollection{externalAuditStorages: out}, nil
-		case types.MetaNameExternalAuditStorageCluster:
-			cluster, err := client.ExternalAuditStorageClient().GetClusterExternalAuditStorage(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &externalAuditStorageCollection{externalAuditStorages: []*externalauditstorage.ExternalAuditStorage{cluster}}, nil
-		case types.MetaNameExternalAuditStorageDraft:
-			draft, err := client.ExternalAuditStorageClient().GetDraftExternalAuditStorage(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &externalAuditStorageCollection{externalAuditStorages: []*externalauditstorage.ExternalAuditStorage{draft}}, nil
-		default:
-			return nil, trace.BadParameter("unsupported resource name for external_audit_storage, valid for get are: '', %q, %q", types.MetaNameExternalAuditStorageDraft, types.MetaNameExternalAuditStorageCluster)
-		}
 	case types.KindIntegration:
 		if rc.ref.Name != "" {
 			ig, err := client.GetIntegration(ctx, rc.ref.Name)
