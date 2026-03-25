@@ -317,6 +317,9 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 			TlsPublicKey:        req.TLSPublicKey,
 			Expires:             timestamppb.New(req.Expires),
 		}
+		if req.RouteToCluster != o.currentIdentity.ClusterName {
+			return nil, trace.BadParameter("delegation sessions cannot be used with leaf clusters")
+		}
 		switch {
 		case req.RouteToApp.Name != "":
 			route := req.GetRouteToApp()
