@@ -15,6 +15,7 @@
 package api
 
 import (
+	"errors"
 	"slices"
 	"strings"
 
@@ -51,7 +52,7 @@ func SSHClientVersion() string {
 // ErrNonTeleportSSHVersion is returned by ParseSSHClientVersion when the provided SSH client version
 // string does not have the expected Teleport prefix. The client is either not a Teleport client or is an older Teleport
 // version that did not set a client version string.
-var ErrNonTeleportSSHVersion = trace.BadParameter("SSH client version is not a Teleport version")
+var ErrNonTeleportSSHVersion = errors.New("SSH client version is not a Teleport version")
 
 // ParseSSHClientVersion parses the given SSH client version string and extracts the Teleport version and supported
 // features.
