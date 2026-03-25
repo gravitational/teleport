@@ -495,8 +495,9 @@ func TestNewClientConnTimeout(t *testing.T) {
 func TestDialNilConfig(t *testing.T) {
 	t.Parallel()
 
-	_, err := Dial(t.Context(), "tcp", "127.0.0.1:1", nil)
+	cli, err := Dial(t.Context(), "tcp", "127.0.0.1:1", nil)
 	require.ErrorIs(t, err, trace.BadParameter("missing SSH client config"))
+	require.Nil(t, cli)
 }
 
 func TestNewClientConnWithTimeoutNilConfig(t *testing.T) {
@@ -508,30 +509,28 @@ func TestNewClientConnWithTimeoutNilConfig(t *testing.T) {
 		serverConn.Close()
 	})
 
-	_, _, _, err := NewClientConnWithTimeout(t.Context(), clientConn, "example.com:22", nil)
+	conn, chans, reqs, err := NewClientConnWithTimeout(t.Context(), clientConn, "example.com:22", nil)
 	require.ErrorIs(t, err, trace.BadParameter("missing SSH client config"))
+	require.Nil(t, conn)
+	require.Nil(t, chans)
+	require.Nil(t, reqs)
 }
 
 func TestNewClientConnWithTimeoutSetsClientVersion(t *testing.T) {
 	t.Parallel()
 
-	clientVersionC := make(chan string, 1)
+	clientVersionC := make(chan []byte, 1)
 
 	// Create server to capture the client version string sent by the client during handshake.
 	srv := newServer(
 		t,
 		tracingSupportedVersion,
-		func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
-			select {
-			case <-t.Context().Done():
-				return
+		func(conn *ssh.ServerConn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
+			clientVersionC <- conn.ClientVersion()
 
-			case clientVersionC <- string(conn.ClientVersion()):
-			}
+			go ssh.DiscardRequests(reqs)
 
-			go ssh.DiscardRequests(requests)
-
-			for ch := range channels {
+			for ch := range chans {
 				err := ch.Reject(ssh.Prohibited, "no channels allowed")
 				assert.NoError(t, err)
 			}
@@ -550,12 +549,70 @@ func TestNewClientConnWithTimeoutSetsClientVersion(t *testing.T) {
 		HostKeyCallback: ssh.FixedHostKey(srv.hSigner.PublicKey()),
 	}
 
-	sshConn, _, _, err := NewClientConnWithTimeout(t.Context(), tcpConn, srv.listener.Addr().String(), config)
+	sshConn, chans, reqs, err := NewClientConnWithTimeout(t.Context(), tcpConn, srv.listener.Addr().String(), config)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		sshConn.Close()
 	})
 
-	require.Equal(t, "invalid-version", config.ClientVersion)
-	require.Equal(t, api.SSHClientVersion(), <-clientVersionC)
+	require.NotNil(t, chans)
+	require.NotNil(t, reqs)
+	require.Equal(t, "invalid-version", config.ClientVersion, "original client version should not be modified")
+
+	select {
+	case <-t.Context().Done():
+		require.Fail(t, "test timed out while waiting for client version")
+
+	case version := <-clientVersionC:
+		require.EqualValues(t, version, api.SSHClientVersion(), "version sent at handshake did not match Teleport version")
+	}
+}
+
+func TestCloneClientConfig(t *testing.T) {
+	t.Parallel()
+
+	type mockAuthMethod struct {
+		ssh.AuthMethod
+	}
+
+	mockError := errors.New("test error")
+
+	config := &ssh.ClientConfig{
+		Config: ssh.Config{
+			Rand:           rand.Reader,
+			RekeyThreshold: 1,
+			KeyExchanges:   []string{"kex1", "kex2"},
+			Ciphers:        []string{"cipher1", "cipher2"},
+			MACs:           []string{"mac1", "mac2"},
+		},
+		User: "alice",
+		Auth: []ssh.AuthMethod{
+			mockAuthMethod{},
+		},
+		HostKeyCallback:   func(hostname string, remote net.Addr, key ssh.PublicKey) error { return mockError },
+		BannerCallback:    func(message string) error { return mockError },
+		ClientVersion:     "test-client-version",
+		HostKeyAlgorithms: []string{"algo1", "algo2"},
+		Timeout:           time.Nanosecond,
+	}
+
+	clonedConfig := cloneClientConfig(config)
+
+	require.NotSame(t, config, clonedConfig)
+	require.Equal(t, config.Rand, clonedConfig.Rand)
+	require.Equal(t, config.RekeyThreshold, clonedConfig.RekeyThreshold)
+	require.Equal(t, config.KeyExchanges, clonedConfig.KeyExchanges)
+	require.Equal(t, config.Ciphers, clonedConfig.Ciphers)
+	require.Equal(t, config.MACs, clonedConfig.MACs)
+	require.Equal(t, config.User, clonedConfig.User)
+	require.NotEmpty(t, clonedConfig.Auth, config.Auth)
+	require.IsType(t, mockAuthMethod{}, clonedConfig.Auth[0])
+	require.NotNil(t, clonedConfig.HostKeyCallback)
+	require.ErrorIs(t, clonedConfig.HostKeyCallback("hostname", nil, nil), mockError)
+	require.NotNil(t, clonedConfig.BannerCallback)
+	require.ErrorIs(t, clonedConfig.BannerCallback("message"), mockError)
+	require.NotNil(t, clonedConfig.HostKeyCallback)
+	require.Equal(t, config.ClientVersion, clonedConfig.ClientVersion)
+	require.Equal(t, config.Timeout, clonedConfig.Timeout)
+	require.Equal(t, config.HostKeyAlgorithms, clonedConfig.HostKeyAlgorithms)
 }

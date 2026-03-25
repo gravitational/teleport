@@ -89,10 +89,10 @@ func TestNewClientVersionMismatch(t *testing.T) {
 	srv := newServer(
 		t,
 		tracingSupportedVersion,
-		func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
-			go ssh.DiscardRequests(requests)
+		func(conn *ssh.ServerConn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
+			go ssh.DiscardRequests(reqs)
 
-			for ch := range channels {
+			for ch := range chans {
 				err := ch.Reject(ssh.Prohibited, "no channels allowed")
 				assert.NoError(t, err)
 			}
