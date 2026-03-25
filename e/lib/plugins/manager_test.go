@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cloud/imds"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -222,6 +223,9 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 		TeleportClient: &auth.Server{},
 		ParentProcess: &service.TeleportProcess{
 			SyncGatherers: metrics.NewSyncGatherers(),
+			Config: &servicecfg.Config{
+				Modules: modulestest.EnterpriseModules(),
+			},
 		},
 	}
 
@@ -477,7 +481,7 @@ func TestInstanceFactory(t *testing.T) {
 	}
 
 	// GIVEN a running Teleport Cluster...
-	process := testAuthProcess(t)
+	process := testAuthProcess(t, withModules(modulestest.EnterpriseModules()))
 	require.NoError(t, process.Start())
 
 	for _, tc := range testCases {
@@ -597,7 +601,8 @@ func TestInstanceFactory(t *testing.T) {
 }
 
 type testAuthOptions struct {
-	clock clockwork.Clock
+	clock   clockwork.Clock
+	modules *modulestest.Modules
 }
 
 type testAuthOption func(*testAuthOptions)
@@ -608,9 +613,16 @@ func withClock(clock clockwork.Clock) testAuthOption {
 	}
 }
 
+func withModules(m *modulestest.Modules) testAuthOption {
+	return func(tao *testAuthOptions) {
+		tao.modules = m
+	}
+}
+
 func testAuthProcess(t *testing.T, opts ...testAuthOption) *service.TeleportProcess {
 	options := &testAuthOptions{
-		clock: clockwork.NewFakeClock(),
+		clock:   clockwork.NewFakeClock(),
+		modules: modulestest.OSSModules(),
 	}
 	for _, opt := range opts {
 		opt(options)
@@ -626,6 +638,7 @@ func testAuthProcess(t *testing.T, opts ...testAuthOption) *service.TeleportProc
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	cfg.Modules = options.modules
 
 	process, err := service.NewTeleport(cfg)
 	require.NoError(t, err)

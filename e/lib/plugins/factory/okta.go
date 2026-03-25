@@ -14,7 +14,6 @@ import (
 	oktausermonitor "github.com/gravitational/teleport/e/lib/okta/usermonitor"
 	"github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 )
 
@@ -103,7 +102,7 @@ func Okta(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Deleg
 	// TODO: Propagate license changes to Okta hosted plugin runtime.
 	// Currently, if license gets upgraded, okta service will still be
 	// running with stale settings (unless it was restarted).
-	oktaSpec.SyncSettings.SyncUsers = oktaSpec.SyncSettings.SyncUsers && modules.GetModules().Features().GetEntitlement(entitlements.OktaUserSync).Enabled
+	oktaSpec.SyncSettings.SyncUsers = oktaSpec.SyncSettings.SyncUsers && deps.ParentProcess.Config.Modules.Features().GetEntitlement(entitlements.OktaUserSync).Enabled
 	oktaSpec.SyncSettings.DisableSyncAppGroups = oktaSpec.SyncSettings.DisableSyncAppGroups || selectedOktaCreds.ApiTokenForSCIMOnly
 	return func(ctx context.Context) error {
 		// Bind Okta Plugin monitor lifecycle to the plugin runtime.
