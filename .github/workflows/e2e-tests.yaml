@@ -64,7 +64,7 @@ jobs:
   build:
     name: Build Teleport
     needs: changes
-    if: ${{ needs.changes.outputs.changed == 'true' }}
+    if: ${{ needs.changes.outputs.changed == 'true' && !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-22.04-16core
     timeout-minutes: 30
 
