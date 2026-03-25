@@ -227,6 +227,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		promptSSO:      chal.SSOChallenge != nil,
 		promptBrowser:  chal.BrowserMFAChallenge != nil,
 	}
+	fmt.Printf("promptBrowser: %v\n", state.promptBrowser)
 
 	// No prompt to run, no-op.
 	if !state.promptOTP && !state.promptWebauthn && !state.promptSSO && !state.promptBrowser {
@@ -528,11 +529,19 @@ func (w *webauthnPromptWithOTP) PromptPIN() (string, error) {
 }
 
 func (c *CLIPrompt) promptSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	resp, err := c.cfg.SSOMFACeremony.Run(ctx, chal)
+	// MFACeremony.Run can handle either SSO or Browser MFA. It defaults to SSO MFA,
+	// but to be safe, copy and remove the Browser MFA challenge here.
+	ssoChal := *chal
+	ssoChal.BrowserMFAChallenge = nil
+	resp, err := c.cfg.SSOMFACeremony.Run(ctx, &ssoChal)
 	return resp, trace.Wrap(err)
 }
 
 func (c *CLIPrompt) promptBrowser(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	resp, err := c.cfg.SSOMFACeremony.Run(ctx, chal)
+	// MFACeremony.Run can handle either SSO or Browser MFA. It defaults to SSO MFA,
+	// so remove copy and remove the SSO challenge so Browser MFA is used.
+	browserChal := *chal
+	browserChal.SSOChallenge = nil
+	resp, err := c.cfg.SSOMFACeremony.Run(ctx, &browserChal)
 	return resp, trace.Wrap(err)
 }

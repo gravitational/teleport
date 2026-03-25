@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useParams } from 'react-router';
 
 import { Flex, Indicator } from 'design';
@@ -26,7 +26,6 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import { useMfa, shouldShowMfaPrompt } from 'teleport/lib/useMfa';
 import auth from 'teleport/services/auth';
-import { MFA_OPTION_WEBAUTHN } from 'teleport/services/mfa';
 
 import { validateClientRedirect } from './urlValidation';
 
@@ -45,20 +44,25 @@ export function BrowserMFA({ onRedirect = redirectTo }: BrowserMFAProps) {
       browserMfaRequestId: requestId,
     },
   });
-  
+
   // Don't allow users to answer the webauthn challenge with an sso challenge.
   // Server side checks ensure that a webauthn device will be present.
-  if (mfa.challenge) {
-    mfa.challenge = { ...mfa.challenge, ssoChallenge: null };
-  }
+  const challenge = useMemo(
+    () => mfa.challenge ? { ...mfa.challenge, ssoChallenge: null } : mfa.challenge,
+    [mfa.challenge]
+  );
+
 
   // Auto-submit webauthn when the challenge first appears. If it fails, the
   // user is shown the AuthnDialog to retry.
   useEffect(() => {
-    if (mfa.challenge?.webauthnPublicKey && mfa.attempt.status === 'processing') {
+    if (
+      challenge?.webauthnPublicKey &&
+      mfa.attempt.status === 'processing'
+    ) {
       mfa.submit('webauthn');
     }
-  }, [mfa.challenge]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [challenge]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -105,8 +109,8 @@ export function BrowserMFA({ onRedirect = redirectTo }: BrowserMFAProps) {
     return <BrowserMfaAccessDenied statusText={attempt.statusText} />;
   }
 
-  if (shouldShowMfaPrompt(mfa)) {
-    return <AuthnDialog mfaState={mfa} />;
+  if (shouldShowMfaPrompt({ ...mfa, challenge})) {
+    return <AuthnDialog mfaState={{ ...mfa, challenge }} />;
   }
 
   return <BrowserMfaProcessing />;
