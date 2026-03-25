@@ -21,7 +21,11 @@ locals {
     }
   ]
 
-  effective_aws_matchers = var.aws_matchers != null ? var.aws_matchers : local.legacy_aws_matcher
+  effective_aws_matchers = (
+    var.aws_matchers != null && length(var.aws_matchers) > 0
+    ? var.aws_matchers
+    : local.legacy_aws_matcher
+  )
 
   aws_matchers = [
     for matcher in local.effective_aws_matchers : merge(
@@ -79,6 +83,14 @@ resource "teleport_discovery_config" "aws" {
         length(var.match_aws_resource_types) > 0
       )
       error_message = "Use either aws_matchers or the legacy match_aws_* variables, not both."
+    }
+    precondition {
+      condition = !(
+        var.match_aws_resource_types != null &&
+        contains(var.match_aws_resource_types, "eks") &&
+        (var.match_aws_regions == null || contains(var.match_aws_regions, "*"))
+      )
+      error_message = "EKS discovery does not support wildcard regions. Set match_aws_regions to explicit regions when discovering EKS, or use aws_matchers instead."
     }
   }
 
