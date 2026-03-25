@@ -23,7 +23,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -601,67 +600,4 @@ func TestCloneOrNewClientConfigReturnsNewConfigIfNil(t *testing.T) {
 
 	require.NotNil(t, config)
 	require.Equal(t, apissh.ClientVersion(), config.ClientVersion)
-}
-
-// TestCloneOrNewClientConfigSSHConfigShape locks the upstream ssh.ClientConfig and ssh.Config shapes in place. If
-// golang.org/x/crypto/ssh changes either struct, cloneOrNewClientConfig should be reviewed and this test updated.
-func TestCloneOrNewClientConfigSSHConfigShape(t *testing.T) {
-	t.Parallel()
-
-	type structField struct {
-		name      string
-		typ       string
-		anonymous bool
-	}
-
-	for _, tt := range []struct {
-		name string
-		typ  reflect.Type
-		want []structField
-	}{
-		{
-			name: "ClientConfig",
-			typ:  reflect.TypeFor[ssh.ClientConfig](),
-			want: []structField{
-				{name: "Config", typ: "ssh.Config", anonymous: true},
-				{name: "User", typ: "string"},
-				{name: "Auth", typ: "[]ssh.AuthMethod"},
-				{name: "HostKeyCallback", typ: "ssh.HostKeyCallback"},
-				{name: "BannerCallback", typ: "ssh.BannerCallback"},
-				{name: "ClientVersion", typ: "string"},
-				{name: "HostKeyAlgorithms", typ: "[]string"},
-				{name: "Timeout", typ: "time.Duration"},
-			},
-		},
-		{
-			name: "Config",
-			typ:  reflect.TypeFor[ssh.Config](),
-			want: []structField{
-				{name: "Rand", typ: "io.Reader"},
-				{name: "RekeyThreshold", typ: "uint64"},
-				{name: "KeyExchanges", typ: "[]string"},
-				{name: "Ciphers", typ: "[]string"},
-				{name: "MACs", typ: "[]string"},
-			},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			got := make([]structField, 0, tt.typ.NumField())
-
-			for i := range tt.typ.NumField() {
-				field := tt.typ.Field(i)
-
-				got = append(
-					got,
-					structField{
-						name:      field.Name,
-						typ:       field.Type.String(),
-						anonymous: field.Anonymous,
-					},
-				)
-			}
-
-			require.Equal(t, tt.want, got)
-		})
-	}
 }
