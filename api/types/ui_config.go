@@ -144,9 +144,8 @@ func (c *UIConfigV1) SetScrollbackLines(lines int32) {
 func (c *UIConfigV1) setStaticFields() {
 	c.Kind = KindUIConfig
 	c.Version = V1
-	c.Metadata = Metadata{
-		Name: "ui-config",
-	}
+	// UIConfig is a singleton resource with a static name
+	c.Metadata.Name = "ui-config"
 }
 
 // GetBeamsOnboarding returns the configuration for the Beams onboarding experience.
