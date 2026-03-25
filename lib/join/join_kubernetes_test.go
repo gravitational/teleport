@@ -226,7 +226,7 @@ func TestJoinKubernetes(t *testing.T) {
 			"matching-explicit-in-cluster",
 			implicitInClusterPT,
 			func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, "kubernetes token did not match any allow rules")
+				require.ErrorContains(t, err, "kubernetes OIDC token did not match any allow rules")
 			},
 		},
 		{
@@ -242,7 +242,7 @@ func TestJoinKubernetes(t *testing.T) {
 			"user-token",
 			implicitInClusterPT,
 			func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, "kubernetes token did not match any allow rules")
+				require.ErrorContains(t, err, "kubernetes OIDC token did not match any allow rules")
 			},
 		},
 		{
@@ -256,7 +256,7 @@ func TestJoinKubernetes(t *testing.T) {
 			"jwks-mismatched-service-account",
 			staticJWKSPT,
 			func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, "kubernetes token did not match any allow rules")
+				require.ErrorContains(t, err, "kubernetes OIDC token did not match any allow rules")
 			},
 		},
 		{
@@ -278,7 +278,7 @@ func TestJoinKubernetes(t *testing.T) {
 			oidcAllowMismatchToken,
 			oidcPT,
 			func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, "kubernetes token did not match any allow rules")
+				require.ErrorContains(t, err, "kubernetes OIDC token did not match any allow rules")
 			},
 		},
 		{

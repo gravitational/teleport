@@ -148,5 +148,5 @@ func checkKubernetesAllowRules(allow []*types.ProvisionTokenSpecV2Kubernetes_Rul
 		return nil
 	}
 
-	return trace.AccessDenied("kubernetes token did not match any allow rules")
+	return trace.AccessDenied("kubernetes OIDC token did not match any allow rules configured in the Teleport join token")
 }
