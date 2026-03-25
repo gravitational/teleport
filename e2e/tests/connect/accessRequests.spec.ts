@@ -79,6 +79,9 @@ spec:
   allow:
     review_requests:
       roles: ['*']
+    rules:
+      - resources: [access_request]
+        verbs: [list, read, delete]
 version: v3`,
   `kind: role
 metadata:
@@ -331,6 +334,76 @@ test.describe('access requests', () => {
       await page.getByText('View Access Requests').click();
 
       await expect(page.getByText('APPROVED')).toBeVisible();
+    });
+  });
+
+  test('role-based request: deny and delete', async () => {
+    await test.step('requester creates a request', async () => {
+      await using app = await launchAsRequester();
+      const { page } = app;
+
+      await page.getByTitle('Access Requests').click();
+      await page.getByText('New Role Request').click();
+
+      await page
+        .getByRole('row', { name: /allow-roles-and-nodes/ })
+        .getByRole('button', { name: /Request Access/ })
+        .click();
+
+      await page.getByRole('button', { name: 'Proceed to request' }).click();
+
+      const checkoutPanel = page.locator('[data-testid="request-checkout"]');
+      await checkoutPanel
+        .getByRole('button', { name: 'Submit Request' })
+        .click();
+
+      await expect(
+        page.getByText('Resources Requested Successfully')
+      ).toBeVisible();
+    });
+
+    await test.step('reviewer denies and deletes the request', async () => {
+      await using app = await launchAsReviewer();
+      const { page } = app;
+
+      await page.getByTitle('Access Requests').click();
+      await page.getByText('View Access Requests').click();
+
+      await page.getByRole('button', { name: 'View' }).click();
+
+      // Capture the short request ID from the active tab title.
+      const tabTitle = await page
+        .locator('[role="tab"][aria-selected="true"]')
+        .textContent();
+      const shortId = tabTitle?.replace('Access Request: ', '') || '';
+      expect(shortId).not.toBe('');
+
+      // Deny the request with a message.
+      await page.getByLabel(/Reject request/).click();
+      await page
+        .getByPlaceholder('Optional message...')
+        .fill('Denied for testing');
+      await page.getByRole('button', { name: 'Submit Review' }).click();
+
+      // Verify the request shows as denied with the message.
+      await expect(page.getByText('DENIED', { exact: true })).toBeVisible();
+      await expect(page.getByText('Denied for testing')).toBeVisible();
+
+      // Delete the denied request — confirm in the dialog.
+      await page.getByRole('button', { name: 'Delete' }).click();
+      await page.getByRole('button', { name: 'Delete Request' }).click();
+
+      // Verify we navigated back to the request list.
+      const activeTab = page.locator('[role="tab"][aria-selected="true"]');
+      await expect(activeTab).toHaveText('Access Requests');
+
+      // Refresh until the deleted request disappears.
+      await expect(async () => {
+        await page.getByRole('button', { name: 'Refresh' }).click();
+        await expect(page.getByText(shortId)).not.toBeVisible({
+          timeout: 500,
+        });
+      }).toPass();
     });
   });
 });
