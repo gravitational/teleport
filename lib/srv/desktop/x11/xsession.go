@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -20,7 +21,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func GetAvailableXSessions() (map[string]string, error) {
+// GetAvailableXSessions return xsessions available in the system with optional filtering
+func GetAvailableXSessions(included, excluded *regexp.Regexp) (map[string]string, error) {
 	path, exists := os.LookupEnv("TELEPORT_XSESSIONS_PATH")
 	if !exists {
 		path = "/usr/share/xsessions"
@@ -31,7 +33,15 @@ func GetAvailableXSessions() (map[string]string, error) {
 		return nil, trace.Wrap(err)
 	}
 	for _, entry := range dirEntries {
-		if !strings.HasSuffix(entry.Name(), ".desktop") {
+		var found bool
+		var fileName string
+		if fileName, found = strings.CutSuffix(entry.Name(), ".desktop"); !found {
+			continue
+		}
+		if included != nil && !included.MatchString(fileName) {
+			continue
+		}
+		if excluded != nil && excluded.MatchString(fileName) {
 			continue
 		}
 		file, err := os.Open(filepath.Join(path, entry.Name()))
@@ -57,13 +67,26 @@ func GetAvailableXSessions() (map[string]string, error) {
 	return entries, nil
 }
 
+// XSessionConfig is configuration used for starting xsession for specified user.
 type XSessionConfig struct {
-	Logger    *slog.Logger
-	Command   string
-	Username  string
-	Login     string
-	LogConfig *srv.ChildLogConfig
-	Display   string
+	Logger *slog.Logger
+
+	// ChildLogConfig contains logger configuration for the child process.
+	ChildLogConfig *srv.ChildLogConfig
+
+	// Command is command to execute to start xsession.
+	Command string
+
+	// Username is the username associated with the Teleport identity.
+	Username string
+
+	// Login is the local *nix account.
+	Login string
+
+	// Display is X11 display string (:N) to use for connection to X11 server.
+	Display string
+	// AuthorityFile is XAuthority file used to secure connection to X11 server.
+	AuthorityFile string
 }
 
 // StartTeleportExecXSession reexecs the current Teleport binary using
@@ -103,7 +126,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 	// If the log writer is a file, we can pass it directly to the child
 	// process to write to. Otherwise, we need to create a pipe to the child
 	// process and stream the logs to the log writer.
-	logCfg := cfg.LogConfig
+	logCfg := cfg.ChildLogConfig
 
 	if fileWriter, ok := logCfg.Writer.(*os.File); ok {
 		logw = fileWriter
@@ -134,6 +157,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 
 	env := envutils.SafeEnv{}
 	env.AddTrusted("DISPLAY", cfg.Display)
+	env.AddTrusted("XAUTHORITY", cfg.AuthorityFile)
 
 	cmdmsg := &srv.ExecCommand{
 		Command:         cfg.Command,
@@ -142,13 +166,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 		Login:           cfg.Login,
 		Username:        cfg.Username,
 		Environment:     env,
-		LogConfig: srv.ExecLogConfig{
-			Level:        logCfg.Level,
-			Format:       logCfg.Format,
-			ExtraFields:  logCfg.ExtraFields,
-			EnableColors: logCfg.EnableColors,
-			Padding:      logCfg.Padding,
-		},
+		LogConfig:       logCfg.ExecLogConfig,
 	}
 
 	cmd := exec.CommandContext(ctx, executable, teleport.ExecSubCommand)
