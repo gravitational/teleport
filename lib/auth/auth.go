@@ -7576,7 +7576,15 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		LoadAllCAs:              a.loadAllCAs,
 		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
 		LicenseExpiry:           &licenseExpiry,
+		ScopesStatus:            scopesStatusFromFeatureFlag(),
 	}, nil
+}
+
+func scopesStatusFromFeatureFlag() proto.ScopesStatus {
+	if scopes.FeatureEnabled() {
+		return proto.ScopesStatus_SCOPES_STATUS_ENABLED
+	}
+	return proto.ScopesStatus_SCOPES_STATUS_DISABLED
 }
 
 type maintenanceWindowCacheKey struct {
