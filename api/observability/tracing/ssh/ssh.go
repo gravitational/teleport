@@ -123,6 +123,10 @@ func Dial(ctx context.Context, network, addr string, config *ssh.ClientConfig, o
 	)
 	defer span.End()
 
+	if config == nil {
+		return nil, trace.BadParameter("missing SSH client config")
+	}
+
 	dialer := net.Dialer{Timeout: config.Timeout}
 	conn, err := dialer.DialContext(ctx, network, addr)
 	if err != nil {
@@ -148,6 +152,10 @@ func Dial(ctx context.Context, network, addr string, config *ssh.ClientConfig, o
 // - If == 0: a default timeout of 30 seconds is used to avoid hanging connections.
 // - If < 0: only the context’s deadline or cancellation is used.
 func NewClientConnWithTimeout(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig, opts ...tracing.Option) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
+	if config == nil {
+		return nil, nil, nil, trace.BadParameter("missing SSH client config")
+	}
+
 	tracer := tracing.NewConfig(opts).TracerProvider.Tracer(instrumentationName)
 	ctx, span := tracer.Start( //nolint:staticcheck,ineffassign // keeping shadowed ctx to avoid accidental missing in the future
 		ctx,
@@ -165,9 +173,10 @@ func NewClientConnWithTimeout(ctx context.Context, conn net.Conn, addr string, c
 	)
 	defer span.End()
 
-	// Set the SSH client version to include the Teleport version and supported features. This intentionally overrides
-	// any client version set by the caller to ensure consistency.
-	config.ClientVersion = api.SSHClientVersion()
+	// Set the SSH client version to include the Teleport version and supported features.
+	configCopy := *config
+	configCopy.ClientVersion = api.SSHClientVersion()
+	config = &configCopy
 
 	// ssh.ClientConfig.Timeout is not the total timeout for the connection
 	// establishment, including DNS resolution, TCP connection, but it doesn't

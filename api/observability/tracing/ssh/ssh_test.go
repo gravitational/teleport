@@ -492,6 +492,30 @@ func TestNewClientConnTimeout(t *testing.T) {
 
 }
 
+func TestDialNilConfig(t *testing.T) {
+	t.Parallel()
+
+	_, err := Dial(t.Context(), "tcp", "127.0.0.1:1", nil)
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorContains(t, err, "missing SSH client config")
+}
+
+func TestNewClientConnWithTimeoutNilConfig(t *testing.T) {
+	t.Parallel()
+
+	clientConn, serverConn := net.Pipe()
+	t.Cleanup(func() {
+		clientConn.Close()
+		serverConn.Close()
+	})
+
+	_, _, _, err := NewClientConnWithTimeout(t.Context(), clientConn, "example.com:22", nil)
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorContains(t, err, "missing SSH client config")
+}
+
 func TestNewClientConnWithTimeoutSetsClientVersion(t *testing.T) {
 	t.Parallel()
 
@@ -536,6 +560,6 @@ func TestNewClientConnWithTimeoutSetsClientVersion(t *testing.T) {
 		sshConn.Close()
 	})
 
-	require.Equal(t, api.SSHClientVersion(), config.ClientVersion)
+	require.Equal(t, "invalid-version", config.ClientVersion)
 	require.Equal(t, api.SSHClientVersion(), <-clientVersionC)
 }
