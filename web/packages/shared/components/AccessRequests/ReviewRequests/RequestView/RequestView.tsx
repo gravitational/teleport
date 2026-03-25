@@ -333,7 +333,7 @@ export function RequestView({
           )}
         </Box>
         {/* Right box contains reviewers and threshold list */}
-        <Box flex="0 1 260px" minWidth="120px">
+        <Box as="section" flex="0 1 260px" minWidth="120px">
           <Reviewers reviewers={request.reviewers} />
           <Box mt={3} ml={1}>
             <Text typography="body3" color="text.slightlyMuted">
