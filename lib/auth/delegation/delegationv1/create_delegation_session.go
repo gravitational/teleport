@@ -1,0 +1,96 @@
+/*
+ * Teleport
+ * Copyright (C) 2026  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package delegationv1
+
+import (
+	"context"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/api/types"
+)
+
+// CreateDelegationSession creates a delegation session.
+func (s *SessionService) CreateDelegationSession(
+	ctx context.Context,
+	req *delegationv1.CreateDelegationSessionRequest,
+) (*delegationv1.DelegationSession, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// This is a security-sensitive action, so require MFA.
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetTtl() == nil {
+		return nil, trace.BadParameter("ttl: is required")
+	}
+	if err := req.GetTtl().CheckValid(); err != nil {
+		return nil, trace.BadParameter("ttl: %v", err)
+	}
+	if req.GetTtl().AsDuration() <= 0 {
+		return nil, trace.BadParameter("ttl: is required")
+	}
+
+	session := &delegationv1.DelegationSession{
+		Kind:    types.KindDelegationSession,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:    uuid.NewString(),
+			Expires: timestamppb.New(time.Now().Add(req.GetTtl().AsDuration())),
+		},
+		Spec: req.GetSpec(),
+	}
+	spec := session.GetSpec()
+	resources := spec.GetResources()
+
+	// Read user from the backend to get the current roles and traits.
+	user, err := s.userGetter.GetUser(ctx, authCtx.User.GetName(), false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if user.GetName() != spec.GetUser() {
+		return nil, trace.AccessDenied("cannot create a delegation session for a different user")
+	}
+
+	if !wildcardPermissions(resources) {
+		// Perform a best-effort check to see if the delegating user has access
+		// to the required resources, so we can surface problems early.
+		if err := s.bestEffortCheckResourceAccess(ctx, user, resources); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// The session expiry, resource list, allowed users, etc. is checked by
+	// the backend service which calls ValidateDelegationSession.
+	session, err = s.sessionWriter.CreateDelegationSession(ctx, session)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
+}
