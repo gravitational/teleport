@@ -1,7 +1,6 @@
 ---
 title: "Step 1 - Sign up for Teleport Enterprise Cloud"
 description: "Sign up for Teleport Enterprise Cloud and deploy your hosted cluster."
-toc_max_heading_level: 2
 tags:
   - get-started
   - platform-wide
@@ -38,8 +37,8 @@ The signup flow creates a local Teleport user with the following preset roles:
 
 Since this user has almost total privileges, you should treat this identity as a
 fallback after completing initial setup operations. In Step 3 of the Get Started
-series, we will show you how to set up a more authentication and role-based
-access control for day-to-day Teleport usage.
+series, we will show you how to set up a more granular authentication and
+role-based access control for day-to-day Teleport usage.
 
 ### Create a backup local user
 
@@ -47,9 +46,12 @@ We recommend having more than one local user to prevent lockout. As with the
 default user, we recommend treating this identity as a fallback, rather than
 relying on it for day-to-day usage:
 
+1. Install `tctl` on your system. `tctl` is a client tool for configuring the
+   Teleport Auth Service. To install `tctl`, visit [Download Client
+   Tools](https://goteleport.com/download/client-tools/), select your platform,
+   and choose "CLI Client Tools" in the **Download Type** menu.
 
-1. On your workstation, run the following command. `tctl` is a client tool for
-   configuring the Teleport Auth Service:
+1. On your workstation, run the following command:
 
    ```code
    $ sudo tctl users add teleport-admin-backup --roles=editor,access,auditor --logins=root,ubuntu,ec2-user
