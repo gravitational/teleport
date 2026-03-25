@@ -31,6 +31,8 @@ import (
 	"strings"
 
 	"golang.org/x/sync/errgroup"
+
+	"github.com/gravitational/teleport/api"
 )
 
 type playwrightRunner struct {
@@ -242,7 +244,6 @@ func (p *playwrightRunner) openConnectAuthenticated(ctx context.Context) error {
 	return p.pnpm(ctx, []string{"exec", "tsx", "scripts/open-connect.ts"}, env)
 }
 
-
 // startEnv builds the environment variables that Playwright tests need,
 // including START_URL, credentials, and tctl paths for invite URL generation.
 func (p *playwrightRunner) startEnv(inst *browserInstance) ([]string, error) {
@@ -265,6 +266,7 @@ func (p *playwrightRunner) startEnv(inst *browserInstance) ([]string, error) {
 	env = append(env, "E2E_TCTL_BIN="+p.config.tctlBin)
 	env = append(env, "E2E_TELEPORT_CONFIG="+inst.teleportConfigPath)
 	env = append(env, "E2E_BROWSERS="+strings.Join(p.config.browsers, ","))
+	env = append(env, "E2E_TELEPORT_VERSION="+api.Version)
 
 	env = append(env, "E2E_CONNECT_TSH_BIN="+p.config.connectTshBinPath)
 	env = append(env, "E2E_CONNECT_APP_DIR="+p.config.connectAppDir)
