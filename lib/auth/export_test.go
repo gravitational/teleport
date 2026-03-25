@@ -70,6 +70,9 @@ const (
 
 	MaxUserAgentLen = maxUserAgentLen
 	ForwardedTag    = forwardedTag
+
+	SAMLCertExpiryTimeframe = samlCertExpiryTimeframe
+	SAMLCertExpiryAlertID   = samlCertExpiryAlertIDPrefix
 )
 
 var (

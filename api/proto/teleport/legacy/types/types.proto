@@ -4897,6 +4897,10 @@ message WebSessionSpecV2 {
   // TLSPriv is the TLS private key for the user, in PEM-encoded PKCS#1 or PKCS#8
   // format. If unset, then Priv is used as both the SSH and TLS private key.
   bytes TLSPriv = 15 [(gogoproto.jsontag) = "tls_priv,omitempty"];
+  // DBSCPublicKey is the device-bound public key (JWK format) for Device Bound
+  // Session Credentials. When set, session refresh requires proof of possession
+  // of the corresponding private key. See https://www.w3.org/TR/dbsc/
+  bytes DBSCPublicKey = 16 [(gogoproto.jsontag) = "dbsc_public_key,omitempty"];
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
