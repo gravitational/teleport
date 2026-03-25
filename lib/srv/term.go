@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"os/user"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -150,6 +151,9 @@ type terminal struct {
 	// reexec and shell processes. This is necessary due to the use of custom pipes,
 	// which exec.Cmd does not wait for closure of in cmd.Wait().
 	waitForOutputStreams sync.WaitGroup
+	// childStderr is stderr read from the child process which may be populated once
+	// waitForOutputStreams completes.
+	childStderr string
 
 	pid int
 
@@ -238,6 +242,7 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 			return
 		}
 
+		t.childStderr = childErr
 		if _, err := io.WriteString(errorWriter, childErr); err != nil {
 			t.serverContext.Logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to all parties", "error", err)
 		}
@@ -267,7 +272,7 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 
 // Wait will block until the terminal is complete.
 func (t *terminal) Wait() ExecResult {
-	err := t.cmd.Wait()
+	exitErr := t.cmd.Wait()
 	t.waitForOutputStreams.Wait()
 
 	var cmd string
@@ -275,11 +280,17 @@ func (t *terminal) Wait() ExecResult {
 		cmd = execRequest.GetCommand()
 	}
 
-	return ExecResult{
-		Code:    exitCode(err),
+	result := ExecResult{
+		Code:    exitCode(exitErr),
 		Command: cmd,
-		Error:   err,
+		Error:   exitErr,
 	}
+
+	if t.childStderr != "" {
+		result.Error = errors.New(strings.TrimRight(t.childStderr, "\r\n"))
+	}
+
+	return result
 }
 
 // ReadAuditSessionID reads the unique audit session ID of the process

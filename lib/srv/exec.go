@@ -141,6 +141,9 @@ type localExec struct {
 	// reexec and shell processes. This is necessary due to the use of custom pipes,
 	// which exec.Cmd does not wait for closure of in cmd.Wait().
 	waitForOutputStreams sync.WaitGroup
+	// childStderr is stderr read from the child process which may be populated once
+	// waitForOutputStreams completes.
+	childStderr string
 
 	pid int
 }
@@ -217,6 +220,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) error {
 			return
 		}
 
+		e.childStderr = childErr
 		if _, err := io.WriteString(channel, childErr); err != nil {
 			logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to client", "error", err)
 		}
@@ -276,24 +280,28 @@ func (e *localExec) Wait() ExecResult {
 	}
 
 	// Block until the command is finished executing.
-	err := e.Cmd.Wait()
+	exitErr := e.Cmd.Wait()
 	e.waitForOutputStreams.Wait()
-	if err != nil {
-		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command failed", "error", err)
+	if exitErr != nil {
+		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command failed", "error", exitErr)
 	} else {
 		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command successfully executed")
 	}
 
-	execResult := ExecResult{
+	result := ExecResult{
 		Command: e.GetCommand(),
-		Code:    exitCode(err),
-		Error:   err,
+		Code:    exitCode(exitErr),
+		Error:   exitErr,
+	}
+
+	if e.childStderr != "" {
+		result.Error = errors.New(strings.TrimRight(e.childStderr, "\r\n"))
 	}
 
 	// Emit the result of execution to the Audit Log.
-	emitExecAuditEvent(e.Ctx, execResult)
+	emitExecAuditEvent(e.Ctx, result)
 
-	return execResult
+	return result
 }
 
 // ReadAuditSessionID reads the unique audit session ID of the process
