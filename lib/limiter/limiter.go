@@ -71,11 +71,15 @@ func (l *Limiter) GetNumConnection(token string) (int64, error) {
 }
 
 func (l *Limiter) RegisterRequest(token string) error {
-	return l.rateLimiter.RegisterRequest(token, nil)
+	return l.rateLimiter.RegisterRequest(token)
 }
 
-func (l *Limiter) RegisterRequestWithCustomRate(token string, customRate *ratelimit.RateSet) error {
-	return l.rateLimiter.RegisterRequest(token, customRate)
+// Deprecated: RegisterRequestWithCustomRate ignores the custom rate
+// and delegates to RegisterRequest. Use a dedicated Limiter per
+// concern instead. This method exists only for backwards
+// compatibility with enterprise callers.
+func (l *Limiter) RegisterRequestWithCustomRate(token string, _ *RateSet) error {
+	return l.RegisterRequest(token)
 }
 
 func (l *Limiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -113,37 +117,23 @@ func (l *Limiter) RegisterRequestAndConnection(token string) (func(), error) {
 
 type RateSet = ratelimit.RateSet
 
-// NewRateSet crates an empty `RateSet` instance.
+// NewRateSet creates an empty RateSet instance.
 func NewRateSet() *RateSet { return ratelimit.NewRateSet() }
 
 // UnaryServerInterceptor returns a gRPC unary interceptor which
 // rate limits by client IP.
 func (l *Limiter) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
-	return l.UnaryServerInterceptorWithCustomRate(func(string) *RateSet {
-		return nil
-	})
-}
-
-// CustomRateFunc is a function type which returns a custom rate set
-// for a given endpoint string.
-type CustomRateFunc func(endpoint string) *RateSet
-
-// UnaryServerInterceptorWithCustomRate returns a gRPC unary interceptor which
-// rate limits by client IP. Accepts a CustomRateFunc to set custom rates for
-// specific gRPC methods.
-func (l *Limiter) UnaryServerInterceptorWithCustomRate(customRate CustomRateFunc) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 		peerInfo, ok := peer.FromContext(ctx)
 		if !ok {
 			return nil, trace.AccessDenied("missing peer info")
 		}
 
-		// Limit requests per second and simultaneous connection by client IP.
 		clientIP, err := clientIPFromAddr(peerInfo.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := l.RegisterRequestWithCustomRate(clientIP, customRate(info.FullMethod)); err != nil {
+		if err := l.RegisterRequest(clientIP); err != nil {
 			return nil, trace.LimitExceeded("rate limit exceeded")
 		}
 		if err := l.connectionLimiter.AcquireConnection(clientIP); err != nil {
@@ -174,6 +164,16 @@ func (l *Limiter) StreamServerInterceptor(srv any, serverStream grpc.ServerStrea
 	}
 	defer l.connectionLimiter.ReleaseConnection(clientIP)
 	return handler(srv, serverStream)
+}
+
+// ClientIPFromContext extracts the client IP from the gRPC peer in
+// the given context.
+func ClientIPFromContext(ctx context.Context) (string, error) {
+	peerInfo, ok := peer.FromContext(ctx)
+	if !ok {
+		return "", trace.AccessDenied("missing peer info")
+	}
+	return clientIPFromAddr(peerInfo.Addr)
 }
 
 func clientIPFromAddr(addr net.Addr) (string, error) {
