@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"maps"
 	"net/http"
 	"strings"
 	"sync"
@@ -129,22 +130,63 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	// Check if filtering is needed before buffering the entire response.
 	// If the user has wildcard access and no denied resources, we can skip
 	// buffering and directly forward the response for better performance.
-	filterWrapper := newResourceFilterer(sess.metaResource, sess.codecFactory, allowedResources, deniedResources, f.log)
-	if filterWrapper == nil {
-		// No filtering needed - use direct forwarding with status recording only.
-		// This avoids buffering the entire response in memory and the subsequent
-		// deserialization/re-serialization overhead.
+	if containsWildcard(allowedResources) && len(deniedResources) == 0 {
 		rw := httplib.NewResponseStatusRecorder(w)
 		sess.forwarder.ServeHTTP(rw, req)
 		return rw.Status(), nil
 	}
 
-	// Filtering is needed - buffer the response in memory.
-	// Creates a memory response writer that collects the response status, headers
-	// and payload into memory.
+	// Build the matcher once; used by both the streaming JSON path and the
+	// buffered object-level filter fallback.
+	matcher := newMatcher(sess.metaResource, allowedResources, deniedResources, f.log)
+	filterWrapper := newResourceFilterer(sess.metaResource, sess.codecFactory, matcher, f.log)
+
+	// Filtering is needed. Pipe the upstream response through so we can
+	// inspect headers and choose the filter path without buffering the body.
+	pipeReader, pipeWriter := io.Pipe()
+	hc := newHeaderCapturer(pipeWriter)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		sess.forwarder.ServeHTTP(hc, req)
+		pipeWriter.Close()
+	}()
+
+	// Wait for upstream to send headers.
+	select {
+	case <-hc.wroteHeader:
+	case <-done:
+		pipeReader.Close()
+		return http.StatusBadGateway, trace.ConnectionProblem(nil, "upstream closed without response")
+	}
+
+	// For JSON responses, stream-filter directly to the client without buffering.
+	status := hc.status
+	contentType := responsewriters.GetContentTypeHeader(hc.headers)
+	if status >= http.StatusOK && status <= http.StatusPartialContent && strings.Contains(contentType, "application/json") {
+		maps.Copy(w.Header(), hc.headers)
+		w.Header().Del("Content-Length")
+		w.WriteHeader(status)
+
+		// Note: if streamFilterJSON fails mid-write, the client receives a truncated
+		// JSON response with a 200 status (already sent above). There is no way to
+		// signal an error to the client at this point. This is inherent to streaming.
+		err := streamFilterJSON(pipeReader, w, matcher, sess.metaResource.requestedResource.apiGroup)
+		pipeReader.Close()
+		<-done
+		return status, trace.Wrap(err)
+	}
+
+	// Non-JSON (e.g. protobuf) or error response: buffer and use object-level filter.
 	memBuffer := responsewriters.NewMemoryResponseWriter()
-	// Forward the request to the target cluster.
-	sess.forwarder.ServeHTTP(memBuffer, req)
+	maps.Copy(memBuffer.Header(), hc.headers)
+	memBuffer.WriteHeader(status)
+	_, copyErr := io.Copy(memBuffer.Buffer(), pipeReader)
+	pipeReader.Close()
+	<-done
+	if copyErr != nil {
+		return status, trace.Wrap(copyErr)
+	}
 
 	// filterBuffer filters the response to exclude resources the user doesn't have access to.
 	// The filtered payload will be written into memBuffer again.
@@ -228,8 +270,7 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 		newResourceFilterer(
 			sess.metaResource,
 			sess.codecFactory,
-			allowedResources,
-			deniedResources,
+			newMatcher(sess.metaResource, allowedResources, deniedResources, f.log),
 			f.log,
 		),
 	)

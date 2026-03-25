@@ -825,7 +825,7 @@ func BenchmarkFilterObj(b *testing.B) {
 
 	newFilterer := func(b *testing.B, items []map[string]any, allowed, denied []types.KubernetesResource, useFastMatcher bool) (*resourceFilterer, *unstructured.Unstructured) {
 		b.Helper()
-		wrapper := newResourceFilterer(mr, &globalKubeCodecs, allowed, denied, log)
+		wrapper := newResourceFilterer(mr, &globalKubeCodecs, newMatcher(mr, allowed, denied, log), log)
 		filter, err := wrapper(responsewriters.DefaultContentType, 200)
 		require.NoError(b, err)
 		rf := filter.(*resourceFilterer)
