@@ -22,6 +22,9 @@ The Teleport cluster consists of two services:
 - **Teleport Proxy Service:** The cluster frontend, which handles user requests,
   forwards user credentials to the Auth Service, and communicates with Teleport
   instances that enable access to specific resources in your infrastructure.
+- **Teleport SSH Service:** An SSH server that enforces Teleport access
+  controls, records sessions, and logs activity as Teleport audit events,
+  enabling you to protect a Linux server with Teleport.
 
 ![Architecture of the setup you will complete in this
 guide](../../img/linux-server-diagram.png)
