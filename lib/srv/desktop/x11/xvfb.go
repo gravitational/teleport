@@ -322,10 +322,10 @@ func (x *Backend) processClipboardEvents() {
 				data := asciiRE.ReplaceAllLiteralString(string(data), "")
 				xproto.ChangeProperty(x.conn, xproto.PropModeReplace, event.Requestor, event.Property, xproto.AtomString, 8, uint32(len(data)), []byte(data))
 			case x.targetsAtom:
-				atoms := make([]byte, 8)
-				binary.LittleEndian.PutUint32(atoms, uint32(x.utf8Atom))
-				binary.LittleEndian.PutUint32(atoms[4:], xproto.AtomString)
-				xproto.ChangeProperty(x.conn, xproto.PropModeReplace, event.Requestor, event.Property, xproto.AtomString, 8, uint32(len(atoms)), atoms)
+				atoms := make([]byte, 0, 8)
+				atoms = binary.LittleEndian.AppendUint32(atoms, uint32(x.utf8Atom))
+				atoms = binary.LittleEndian.AppendUint32(atoms, xproto.AtomString)
+				xproto.ChangeProperty(x.conn, xproto.PropModeReplace, event.Requestor, event.Property, xproto.AtomAtom, 32, 2, atoms)
 			default:
 				event.Property = xproto.AtomNone
 			}
@@ -494,10 +494,17 @@ func (x *Backend) Resize(width, height uint16) error {
 	if width > maxWidth || height > maxHeight {
 		return trace.BadParameter("invalid size %dx%d, maximum size is %dx%d", width, height, maxWidth, maxHeight)
 	}
+
+	if found, err := x.setScreenSize(width, height); err != nil {
+		return trace.Wrap(err)
+	} else if found {
+		return nil
+	}
+
 	conn := x.conn
 	root := x.root()
 
-	modeName := fmt.Sprintf("mode%d", modeCount.Inc())
+	modeName := fmt.Sprintf("m%d", modeCount.Inc())
 
 	id, err := conn.NewId()
 	if err != nil {
@@ -519,28 +526,39 @@ func (x *Backend) Resize(width, height uint16) error {
 	if err := randr.AddOutputModeChecked(conn, screenResources.Outputs[0], mode.Mode).Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	screen, err := randr.GetScreenInfo(conn, root).Reply()
-	if err != nil {
+
+	if found, err := x.setScreenSize(width, height); err != nil {
 		return trace.Wrap(err)
+	} else if found {
+		return nil
+	}
+
+	return trace.NotFound("could not find a screen with width %d and height %d", width, height)
+}
+
+func (x *Backend) setScreenSize(width, height uint16) (bool, error) {
+	screen, err := randr.GetScreenInfo(x.conn, x.root()).Reply()
+	if err != nil {
+		return false, trace.Wrap(err)
 	}
 	for i := 0; i < len(screen.Sizes); i++ {
 		if screen.Sizes[i].Width == width && screen.Sizes[i].Height == height {
-			_, err := randr.SetScreenConfig(conn, root, 0, screen.ConfigTimestamp, uint16(i), screen.Rotation, screen.Rate).Reply()
+			_, err := randr.SetScreenConfig(x.conn, x.root(), 0, screen.ConfigTimestamp, uint16(i), screen.Rotation, screen.Rate).Reply()
 			if err != nil {
-				return trace.Wrap(err)
+				return false, trace.Wrap(err)
 			}
 
 			// Recalculate physical dimensions to preserve DPI
 			widthMm := pixelsToMm(width)
 			heightMm := pixelsToMm(height)
-			if err := randr.SetScreenSizeChecked(conn, root, width, height, widthMm, heightMm).Check(); err != nil {
-				return trace.Wrap(err)
+			if err := randr.SetScreenSizeChecked(x.conn, x.root(), width, height, widthMm, heightMm).Check(); err != nil {
+				return false, trace.Wrap(err)
 			}
 
-			return nil
+			return true, nil
 		}
 	}
-	return trace.Errorf("could not find a screen with width %d and height %d", width, height)
+	return false, nil
 }
 
 // SetClipboardData stores clipboard data and claims clipboard ownership.

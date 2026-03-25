@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/srv"
@@ -95,6 +94,9 @@ type XSessionConfig struct {
 // It wires the same control-pipe protocol used by SSH reexecs in
 // lib/srv/reexec.go.
 func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.Cmd, error) {
+	if cfg.ChildLogConfig == nil {
+		return nil, trace.BadParameter("missing parameter ChildLogConfig")
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -196,32 +198,10 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := waitForChildReadySignal(readyr, 1*time.Second); err != nil {
+	if err := srv.WaitForSignal(ctx, readyr, srv.ChildReadyWaitTimeout); err != nil {
 		_ = cmd.Cancel()
 		return nil, trace.Wrap(err)
 	}
 
 	return cmd, nil
-}
-
-func waitForChildReadySignal(f *os.File, timeout time.Duration) error {
-	waitCh := make(chan error, 1)
-	go func() {
-		_, err := f.Read(make([]byte, 1))
-		if err == io.EOF {
-			waitCh <- nil
-			return
-		}
-		waitCh <- err
-	}()
-
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	select {
-	case err := <-waitCh:
-		return trace.Wrap(err)
-	case <-timer.C:
-		return trace.LimitExceeded("timed out waiting for teleport reexec readiness signal")
-	}
 }
