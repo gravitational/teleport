@@ -160,11 +160,11 @@ func TestMFACeremony_SSO(t *testing.T) {
 			}
 
 			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-				if cfg.MFACeremony == nil {
+				if cfg.CallbackCeremony == nil {
 					return nil, trace.BadParameter("expected mfa ceremony")
 				}
 
-				return cfg.MFACeremony.Run(ctx, chal)
+				return cfg.CallbackCeremony.Run(ctx, chal)
 			})
 		},
 		MFACeremonyConstructor: func(ctx context.Context) (mfa.CallbackCeremony, error) {
@@ -218,11 +218,11 @@ func TestMFACeremony_BrowserMFA(t *testing.T) {
 			}
 
 			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-				if cfg.MFACeremony == nil {
+				if cfg.CallbackCeremony == nil {
 					return nil, trace.BadParameter("expected mfa ceremony")
 				}
 
-				return cfg.MFACeremony.Run(ctx, chal)
+				return cfg.CallbackCeremony.Run(ctx, chal)
 			})
 		},
 		MFACeremonyConstructor: func(ctx context.Context) (mfa.CallbackCeremony, error) {
