@@ -3500,7 +3500,7 @@ func TestConstructSSHResponse(t *testing.T) {
 	plaintext, err := key.Open([]byte(rawresp.Query().Get("response")))
 	require.NoError(t, err)
 
-	var resp *authclient.SSHLoginResponse
+	var resp *authclient.CLILoginResponse
 	err = json.Unmarshal(plaintext, &resp)
 	require.NoError(t, err)
 	require.Equal(t, "foo", resp.Username)
@@ -10999,7 +10999,7 @@ func stateTokenFromConsoleLoginResponse(t *testing.T, responseBody []byte) strin
 // - in a query param
 // - in a redirect URL
 // - in an HTML document
-func sshLoginResponseFromCallbackResponse(t *testing.T, responseBody io.Reader, secretKey secret.Key) *authclient.SSHLoginResponse {
+func sshLoginResponseFromCallbackResponse(t *testing.T, responseBody io.Reader, secretKey secret.Key) *authclient.CLILoginResponse {
 	// First pull the URL from the HTML meta redirect.
 	redirectURL, err := app.GetURLFromMetaRedirect(responseBody)
 	require.NoError(t, err)
@@ -11015,7 +11015,7 @@ func sshLoginResponseFromCallbackResponse(t *testing.T, responseBody io.Reader, 
 	require.NoError(t, err, "unencrypting github callback response")
 
 	// Then unmarshal the JSON.
-	var sshLoginResponse authclient.SSHLoginResponse
+	var sshLoginResponse authclient.CLILoginResponse
 	require.NoError(t, json.Unmarshal(callbackPlaintext, &sshLoginResponse))
 	return &sshLoginResponse
 }
