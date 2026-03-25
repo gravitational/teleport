@@ -32,8 +32,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
@@ -1132,8 +1132,8 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	modernClientConn := &mockConnMetadata{clientVersion: []byte(apidefaults.SSHClientVersion)}
-	legacyClientConn := &mockConnMetadata{clientVersion: []byte("SSH-2.0-OpenSSH_9.9")}
+	modernClientConn := &mockConnMetadata{clientVersion: []byte(api.SSHClientVersion())}
+	legacyClientConn := &mockConnMetadata{clientVersion: []byte("SSH-2.0-Go")}
 
 	t.Run("no access permit returns original permissions", func(t *testing.T) {
 		ah := &AuthHandlers{}

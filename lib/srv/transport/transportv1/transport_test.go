@@ -39,7 +39,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 
-	"github.com/gravitational/teleport/api"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -1035,7 +1034,6 @@ func (s *sshServer) clientConfig() *ssh.ClientConfig {
 	return &ssh.ClientConfig{
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(s.cSigner)},
 		HostKeyCallback: ssh.FixedHostKey(s.hSigner.PublicKey()),
-		ClientVersion:   api.SSHClientVersion(),
 	}
 }
 

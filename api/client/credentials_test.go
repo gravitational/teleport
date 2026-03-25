@@ -536,10 +536,6 @@ func TestDynamicIdentityFileCreds(t *testing.T) {
 	expiry, ok = cred.Expiry()
 	require.True(t, ok, "expiry should be known when we build creds from an identity file")
 	require.Equal(t, newExpiry, expiry)
-
-	sshConfig, err := cred.SSHClientConfig()
-	require.NoError(t, err)
-	require.Equal(t, defaults.SSHClientVersion, sshConfig.ClientVersion)
 }
 
 func ExampleDynamicIdentityFileCreds() {

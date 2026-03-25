@@ -29,7 +29,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -228,7 +227,6 @@ func (p *sshProvider) sessionSSHConfig(
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(certSigner)},
 		User:            user,
 		HostKeyCallback: hostKeyCallback,
-		ClientVersion:   defaults.SSHClientVersion,
 	}, nil
 }
 

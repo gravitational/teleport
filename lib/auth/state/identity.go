@@ -206,7 +206,6 @@ func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
 		User:            i.ID.HostUUID,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
 		HostKeyCallback: callback,
-		ClientVersion:   apidefaults.SSHClientVersion,
 		Timeout:         apidefaults.DefaultIOTimeout,
 	}, nil
 }

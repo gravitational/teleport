@@ -38,8 +38,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -768,9 +768,15 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v %v", key.Type(), sshutils.Fingerprint(key))
 	}
 
+	var inBandMFASupported bool
+	inBandMFASupported, err = api.IsSSHFeatureSupported(string(conn.ClientVersion()), "mfav1")
+	if err != nil && !trace.IsBadParameter(api.ErrNonTeleportSSHVersion) {
+		return nil, trace.Wrap(err)
+	}
+
 	var (
 		forceInBandMFA      = os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes"
-		isModernClient      = string(conn.ClientVersion()) == defaults.SSHClientVersion
+		isModernClient      = inBandMFASupported
 		isLegacyClient      = !isModernClient
 		isRegularSSHCert    = ident.MFAVerified == "" && !ident.PrivateKeyPolicy.MFAVerified()
 		isPerSessionMFACert = !isRegularSSHCert

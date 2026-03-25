@@ -181,7 +181,6 @@ func (f *Facade) SSHClientConfig() (*ssh.ClientConfig, error) {
 			}),
 		},
 		HostKeyCallback: hostKeyCallback,
-		ClientVersion:   apidefaults.SSHClientVersion,
 		Timeout:         apidefaults.DefaultIOTimeout,
 		// We use this because we can't always guarantee that a user will have
 		// a principal other than this (they may not have access to SSH nodes)

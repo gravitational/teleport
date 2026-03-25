@@ -3327,7 +3327,6 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			HostKeyCallback: hostKeyCallback,
 			Auth:            authMethods,
 			Timeout:         tc.SSHDialTimeout,
-			ClientVersion:   apidefaults.SSHClientVersion,
 		},
 		proxyAddress: proxyAddr,
 		clusterName:  clusterName,
