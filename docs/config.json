@@ -3527,7 +3527,7 @@
     },
     {
       "source": "/installation/amazon-ec2/",
-      "destination": "/zero-trust-access/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
+      "destination": "/installation/single-machine/amazon-ec2/",
       "permanent": true
     },
     {
