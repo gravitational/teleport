@@ -33,15 +33,21 @@ timeout = "10s"
 batch = 20
 
 [forward.fluentd]
-cert = "testdata/fake-file"
-key = "testdata/fake-file"
-ca = "testdata/fake-file"
-url = "https://localhost:8888/test.log"
-session-url = "https://localhost:8888/session"
+ca = "/home/bob/event-handler/ca.crt"
+cert = "/home/bob/event-handler/client.crt"
+key = "/home/bob/event-handler/client.key"
+url = "https://fluentd.example.com:8888/test.log"
+# The Event Handler appends `.<session-id>.log` to `session-url` when sending
+# session recording events. For example, if `session-url` is
+# `https://fluentd.example.com:8888/session`, the actual requests are sent to
+# paths like `/session.<session-id>.log`. Ensure that your log collector's
+# tag matching or routing rules account for this suffix (e.g., use `session.*`
+# as a match pattern in Fluentd or Fluent Bit).
+session-url = "https://fluentd.example.com:8888/session"
 
 [teleport]
 addr = "localhost:3025"
-identity = "testdata/fake-file"
+identity = "path/identity-file"
 refresh.enabled = true
 refresh.interval = "2m"
 ```
