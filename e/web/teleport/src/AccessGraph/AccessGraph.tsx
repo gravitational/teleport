@@ -3,7 +3,7 @@
 // It will download the access graph library from the CDN and then render the component
 
 import { Location } from 'history';
-import { ComponentType, lazy, Suspense, useCallback } from 'react';
+import { ComponentType, lazy, Suspense, useCallback, useEffect } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useLocation, useNavigate } from 'react-router';
 
@@ -74,6 +74,17 @@ export function AccessGraph() {
 
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Access Graph uses its own createBrowserRouter instance. In React Router 7, pushState
+  // detection is unreliable when multiple router instances coexist.
+  // Dispatch a popstate event so Access Graph's router picks up URL changes triggered by
+  // Teleport's navigation.
+  // TODO(ryan): Pass through the router instance to Access Graph and remove this workaround.
+  useEffect(() => {
+    window.dispatchEvent(
+      new PopStateEvent('popstate', { state: window.history.state })
+    );
+  }, [location.pathname, location.search]);
 
   const onRouteChange = useCallback(
     (next: Location) => {
