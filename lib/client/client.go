@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -347,9 +348,6 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			conn.Close()
-			// TODO(codingllama): Improve error message below for device trust.
-			//  An alternative we have here is querying the cluster to check if device
-			//  trust is required, a check similar to `IsMFARequired`.
 			log.InfoContext(ctx, "Access denied connecting to host",
 				"login", sshConfig.User,
 				"target_host", nodeName,
@@ -359,7 +357,7 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 			if h, _, err := net.SplitHostPort(nodeName); err == nil {
 				host = h
 			}
-			return nil, trace.AccessDenied("access denied to %v connecting to %v", sshConfig.User, host)
+			return nil, newNodeAccessDeniedError(err, sshConfig.User, host, tc)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -708,6 +706,29 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 			return
 		}
 	}
+}
+
+func newNodeAccessDeniedError(err error, login, host string, tc *TeleportClient) error {
+	switch {
+	case strings.Contains(err.Error(), dtauthz.ErrTrustedDeviceRequired.Error()):
+		return trace.AccessDenied(
+			"access denied to %v connecting to %v: access to this resource requires a trusted device; if this device is already enrolled, log in again to authenticate it, otherwise use 'tsh device enroll'",
+			login,
+			host,
+		)
+
+	case tc != nil:
+		profile, profileErr := tc.ProfileStatus()
+		if profileErr == nil && !dtauthz.HasDeviceTrustExtensions(profile.Extensions) {
+			return trace.AccessDenied(
+				"access denied to %v connecting to %v: this resource may require a trusted device; if this device is already enrolled, log in again to authenticate it, otherwise use 'tsh device enroll'",
+				login,
+				host,
+			)
+		}
+	}
+
+	return trace.AccessDenied("access denied to %v connecting to %v", login, host)
 }
 
 // newClientConn is a wrapper around ssh.NewClientConn

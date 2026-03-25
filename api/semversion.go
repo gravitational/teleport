@@ -33,7 +33,8 @@ func SemVer() *semver.Version {
 	}
 }
 
-const sshVersionPrefix = "SSH-2.0-Teleport_"
+// SSHVersionPrefix is the prefix for the SSH client version string used by Teleport SSH clients.
+const SSHVersionPrefix = "SSH-2.0-Teleport_"
 
 // SSHClientVersion returns the SSH client identification string used by Teleport SSH clients.
 //
@@ -44,7 +45,7 @@ const sshVersionPrefix = "SSH-2.0-Teleport_"
 // Features are comma-separated flags indicated supported features of the client:
 // - mfav1: Client supports in-band MFA (RFD 234).
 func SSHClientVersion() string {
-	return sshVersionPrefix + Version + " " + "mfav1"
+	return SSHVersionPrefix + Version + " " + "mfav1"
 }
 
 // ParseSSHClientVersion parses the given SSH client version string and extracts the Teleport version and supported
@@ -53,9 +54,9 @@ func SSHClientVersion() string {
 // It returns the parsed Teleport version as a [semver.Version], a slice of supported features, and an error if the
 // version string is malformed.
 func ParseSSHClientVersion(clientVersion string) (*semver.Version, []string, error) {
-	rest, ok := strings.CutPrefix(clientVersion, sshVersionPrefix)
+	rest, ok := strings.CutPrefix(clientVersion, SSHVersionPrefix)
 	if !ok {
-		return nil, nil, trace.BadParameter("invalid version %q: expected %q prefix", clientVersion, sshVersionPrefix)
+		return nil, nil, trace.BadParameter("invalid version %q: expected %q prefix", clientVersion, SSHVersionPrefix)
 	}
 
 	if rest == "" {
@@ -86,4 +87,15 @@ func ParseSSHClientVersion(clientVersion string) (*semver.Version, []string, err
 	}
 
 	return version, features, nil
+}
+
+// IsSSHFeatureSupported checks if the given SSH client version string indicates support for the specified feature. If
+// the version string is malformed, an error is returned.
+func IsSSHFeatureSupported(clientVersion, feature string) (bool, error) {
+	_, features, err := ParseSSHClientVersion(clientVersion)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return slices.Contains(features, feature), nil
 }

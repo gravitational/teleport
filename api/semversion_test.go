@@ -1,4 +1,4 @@
-// Copyright 2025 Gravitational, Inc.
+// Copyright 2026 Gravitational, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package api
+package api_test
 
 import (
 	"testing"
@@ -20,6 +20,8 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api"
 )
 
 // this is a static assertion that the shape of semver.Version hasn't changed
@@ -37,22 +39,22 @@ var _ semver.Version = struct {
 func TestSemVersion(t *testing.T) {
 	t.Parallel()
 
-	v, err := semver.NewVersion(Version)
+	v, err := semver.NewVersion(api.Version)
 	require.NoError(t, err)
-	require.Equal(t, SemVer(), v)
+	require.Equal(t, api.SemVer(), v)
 }
 
 func TestSSHClientVersion(t *testing.T) {
 	t.Parallel()
 
-	expected := "SSH-2.0-Teleport_" + Version + " mfav1"
-	require.Equal(t, expected, SSHClientVersion())
+	expected := api.SSHVersionPrefix + api.Version + " mfav1"
+	require.Equal(t, expected, api.SSHClientVersion())
 }
 
 func TestParseSSHClientVersion(t *testing.T) {
 	t.Parallel()
 
-	version, features, err := ParseSSHClientVersion("SSH-2.0-Teleport_19.1.2-dev.1+meta mfav1,foo")
+	version, features, err := api.ParseSSHClientVersion(api.SSHVersionPrefix + "19.1.2-dev.1+meta mfav1,foo")
 	require.NoError(t, err)
 	require.Equal(t, []string{"mfav1", "foo"}, features)
 
@@ -75,7 +77,7 @@ func TestParseSSHClientVersionErrors(t *testing.T) {
 			wantErr: trace.BadParameter(
 				"invalid version %q: expected %q prefix",
 				"SSH-2.0-OpenSSH_9.9.9",
-				sshVersionPrefix,
+				api.SSHVersionPrefix,
 			),
 		},
 		{
@@ -130,10 +132,56 @@ func TestParseSSHClientVersionErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			version, features, err := ParseSSHClientVersion(tt.clientVersion)
+			version, features, err := api.ParseSSHClientVersion(tt.clientVersion)
 			require.ErrorIs(t, err, tt.wantErr)
 			require.Nil(t, version)
 			require.Nil(t, features)
 		})
 	}
+}
+
+func TestIsSSHFeatureSupported(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name          string
+		clientVersion string
+		feature       string
+		want          bool
+	}{
+		{
+			name:          "supported feature",
+			clientVersion: api.SSHVersionPrefix + "19.1.2-dev.1+meta mfav1,foo",
+			feature:       "mfav1",
+			want:          true,
+		},
+		{
+			name:          "unsupported feature",
+			clientVersion: api.SSHVersionPrefix + "19.1.2-dev.1+meta mfav1,foo",
+			feature:       "bar",
+			want:          false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := api.IsSSHFeatureSupported(tt.clientVersion, tt.feature)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestIsSSHFeatureSupportedErrors(t *testing.T) {
+	t.Parallel()
+
+	got, err := api.IsSSHFeatureSupported("SSH-2.0-OpenSSH_9.9.9", "mfav1")
+	require.ErrorIs(
+		t,
+		err,
+		trace.BadParameter(
+			"invalid version %q: expected %q prefix",
+			"SSH-2.0-OpenSSH_9.9.9",
+			api.SSHVersionPrefix,
+		),
+	)
+	require.False(t, got)
 }
