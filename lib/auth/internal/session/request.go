@@ -65,6 +65,9 @@ type NewWebSessionRequest struct {
 	Scope string
 	// Usage identifies the intended usage of the session.
 	Usage types.WebSessionUsage
+	// DelegationSessionID is the ID of the Delegation Session this session is
+	// being created for.
+	DelegationSessionID string
 }
 
 // CheckAndSetDefaults validates the request and sets defaults.

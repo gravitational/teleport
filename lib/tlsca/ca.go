@@ -236,6 +236,10 @@ type Identity struct {
 	// authenticated.
 	OriginClusterName string
 
+	// DelegationSessionID is the identifier of the Delegation Session this
+	// certificate was created for.
+	DelegationSessionID string
+
 	// ImmutableLabelHash is the hash of the immutable labels that have been
 	// applied to the identity.
 	ImmutableLabelHash string
@@ -643,6 +647,9 @@ var (
 	// ImmutableLabelHashASN1ExtensionOID is an extension OID that contains the
 	// immuable label hash used to verify immutable labels.
 	ImmutableLabelHashASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 27}
+	// DelegationSessionIDASN1ExtensionOID is an extension OID that contains the
+	// identifier of the Delegation Session this certificate was created for.
+	DelegationSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 28}
 
 	// WebSessionIDASN1ExtensionOID is an extension OID that contains the
 	// web session ID associated with this identity, if any.
@@ -1003,6 +1010,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AgentScopeASN1ExtensionOID,
 				Value: id.AgentScope,
+			})
+	}
+
+	if id.DelegationSessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DelegationSessionIDASN1ExtensionOID,
+				Value: id.DelegationSessionID,
 			})
 	}
 
@@ -1370,6 +1385,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.AgentScope = val
 			}
+			id.AgentScope = attr.Value.(string)
+		case attr.Type.Equal(DelegationSessionIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.DelegationSessionID = val
+			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
@@ -1523,6 +1543,11 @@ func (id *Identity) IsMFAVerified() bool {
 // IsBot returns whether this identity belongs to a bot.
 func (id *Identity) IsBot() bool {
 	return id.BotName != ""
+}
+
+// IsDelegationSession returns whether this identity was created for a Delegation Session.
+func (id *Identity) IsDelegationSession() bool {
+	return id.DelegationSessionID != ""
 }
 
 // CertificateRequest is a X.509 signing certificate request
