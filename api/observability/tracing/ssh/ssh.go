@@ -127,7 +127,10 @@ func Dial(ctx context.Context, network, addr string, config *ssh.ClientConfig, o
 	defer span.End()
 
 	// Ensure we copy the config to avoid mutating the caller's config.
-	config = cloneOrNewClientConfig(config)
+	config, err := cloneClientConfig(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	dialer := net.Dialer{Timeout: config.Timeout}
 
@@ -175,7 +178,10 @@ func NewClientConnWithTimeout(ctx context.Context, conn net.Conn, addr string, c
 	defer span.End()
 
 	// Ensure we copy the config to avoid mutating the caller's config.
-	config = cloneOrNewClientConfig(config)
+	config, err := cloneClientConfig(config)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
 
 	// ssh.ClientConfig.Timeout is not the total timeout for the connection
 	// establishment, including DNS resolution, TCP connection, but it doesn't
@@ -262,25 +268,24 @@ var _ ssh.ClientConfig = struct {
 	Timeout           time.Duration
 }{}
 
-// cloneOrNewClientConfig returns a copy of the provided ssh.ClientConfig with proper defaults set, or a new
-// ssh.ClientConfig with defaults if the provided config is nil.
-func cloneOrNewClientConfig(config *ssh.ClientConfig) *ssh.ClientConfig {
-	if config != nil {
-		configCopy := *config
-		configCopy.Auth = slices.Clone(config.Auth)
-		configCopy.HostKeyAlgorithms = slices.Clone(config.HostKeyAlgorithms)
-		configCopy.KeyExchanges = slices.Clone(config.KeyExchanges)
-		configCopy.Ciphers = slices.Clone(config.Ciphers)
-		configCopy.MACs = slices.Clone(config.MACs)
-
-		configCopy.ClientVersion = apissh.ClientVersion()
-
-		return &configCopy
+// cloneClientConfig returns a deep copy of the provided ssh.ClientConfig with proper defaults set. If the provided
+// config is nil, an error is returned.
+func cloneClientConfig(config *ssh.ClientConfig) (*ssh.ClientConfig, error) {
+	if config == nil {
+		return nil, trace.BadParameter("config must not be nil")
 	}
 
-	return &ssh.ClientConfig{
-		ClientVersion: apissh.ClientVersion(),
-	}
+	configCopy := *config
+	configCopy.Auth = slices.Clone(config.Auth)
+	configCopy.HostKeyAlgorithms = slices.Clone(config.HostKeyAlgorithms)
+	configCopy.KeyExchanges = slices.Clone(config.KeyExchanges)
+	configCopy.Ciphers = slices.Clone(config.Ciphers)
+	configCopy.MACs = slices.Clone(config.MACs)
+
+	// Ensure the Teleport version is properly set.
+	configCopy.ClientVersion = apissh.ClientVersion()
+
+	return &configCopy, nil
 }
 
 // peerAttr returns attributes about the peer address.

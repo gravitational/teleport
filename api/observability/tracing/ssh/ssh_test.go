@@ -544,7 +544,7 @@ func TestNewClientConnWithTimeoutSetsClientVersion(t *testing.T) {
 	}
 }
 
-func TestCloneOrNewClientConfigClonesNonNilConfig(t *testing.T) {
+func TestCloneClientConfigClonesNonNilConfig(t *testing.T) {
 	t.Parallel()
 
 	type mockAuthMethod struct {
@@ -572,7 +572,8 @@ func TestCloneOrNewClientConfigClonesNonNilConfig(t *testing.T) {
 		Timeout:           time.Nanosecond,
 	}
 
-	clonedConfig := cloneOrNewClientConfig(config)
+	clonedConfig, err := cloneClientConfig(config)
+	require.NoError(t, err)
 
 	require.NotSame(t, config, clonedConfig)
 	require.Equal(t, config.Rand, clonedConfig.Rand)
@@ -593,11 +594,34 @@ func TestCloneOrNewClientConfigClonesNonNilConfig(t *testing.T) {
 	require.Equal(t, config.HostKeyAlgorithms, clonedConfig.HostKeyAlgorithms)
 }
 
-func TestCloneOrNewClientConfigReturnsNewConfigIfNil(t *testing.T) {
+func TestCloneClientConfigReturnsNewConfigIfNil(t *testing.T) {
 	t.Parallel()
 
-	config := cloneOrNewClientConfig(nil)
+	config, err := cloneClientConfig(nil)
+	require.ErrorIs(t, trace.BadParameter("config must not be nil"), err)
+	require.Nil(t, config)
+}
 
-	require.NotNil(t, config)
-	require.Equal(t, apissh.ClientVersion(), config.ClientVersion)
+func TestDialNilConfig(t *testing.T) {
+	t.Parallel()
+
+	cli, err := Dial(t.Context(), "tcp", "127.0.0.1:1", nil)
+	require.ErrorIs(t, err, trace.BadParameter("config must not be nil"))
+	require.Nil(t, cli)
+}
+
+func TestNewClientConnWithTimeoutNilConfig(t *testing.T) {
+	t.Parallel()
+
+	clientConn, serverConn := net.Pipe()
+	t.Cleanup(func() {
+		clientConn.Close()
+		serverConn.Close()
+	})
+
+	conn, chans, reqs, err := NewClientConnWithTimeout(t.Context(), clientConn, "teleport.dev:22", nil)
+	require.ErrorIs(t, err, trace.BadParameter("config must not be nil"))
+	require.Nil(t, conn)
+	require.Nil(t, chans)
+	require.Nil(t, reqs)
 }
