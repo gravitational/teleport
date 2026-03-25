@@ -127,7 +127,7 @@ pipelines:
             - curl "https://<Var name="example.teleport.sh"/>:443/scripts/install.sh" | bash
 
             # Run `tbot` in identity mode for SSH access
-            - tbot start identity --destination=./tbot-user --join-method=bitbucket --proxy-server=<Var name="example.teleport.sh"/>:443 --token=bot-bitbucket --oneshot
+            - tbot start identity --destination=./tbot-user --join-method=bitbucket --proxy-server=<Var name="example.teleport.sh"/>:443 --token=example-bot --oneshot
 
             # Make use of the generated SSH credentials
             - ssh -F ./tbot-user/ssh_config user@node.example.teleport.sh echo "hello world"
