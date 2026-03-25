@@ -5013,6 +5013,7 @@ message OneOf {
     events.InferencePolicyUpdate InferencePolicyUpdate = 245;
     events.InferencePolicyDelete InferencePolicyDelete = 246;
     events.SessionSummarized SessionSummarized = 247;
+    events.CertAuthorityOverrideEvent CertAuthorityOverrideEvent = 248;
   }
 }
 
@@ -9699,6 +9700,12 @@ message WorkloadClusterCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Payload contains the workload cluster data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }
 
 // WorkloadClusterUpdate is emitted when a workload cluster is updated.
@@ -9736,6 +9743,12 @@ message WorkloadClusterUpdate {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+
+  // Payload contains the workload cluster data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
   ];
 }
 

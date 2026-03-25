@@ -156,8 +156,10 @@ type ClientInitFunc func(cf *CLIConf) (*client.TeleportClient, error)
 
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
-	// Scope constrains the current operation to a specific target scope
+	// Scope constrains the current operation to a specific target scope. A scope of "" descopes the user.
 	Scope string
+	// ScopeSetByUser specifies whether the flag was set by the user.
+	ScopeSetByUser bool
 	// UserHost contains "[login]@hostname" argument to SSH command
 	UserHost string
 	// Commands to execute on a remote host
@@ -1034,7 +1036,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	aws.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 
 	// Generate AWS profiles via AWS Identity Center integration.
-	awsProfile := app.Command("aws-profile", "Write AWS profiles retrieved from the AWS IAM Identity Center integration to the AWS config file.")
+	awsProfile := app.Command("aws-profile", "Generate AWS config profiles by syncing with your integrated AWS IAM Identity Center account(s). Other profiles in the config file are left untouched.")
 	awsProfile.Flag("aws-sso-region", "AWS region for SSO. Auto-detected from cluster if not specified.").StringVar(&cf.AWSSSORegion)
 	awsProfile.Flag("dry-run", "Print the configuration that will be applied without modifying the AWS config file.").BoolVar(&cf.DryRun)
 
@@ -1117,12 +1119,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for.").Required().StringVar(&cf.AppName)
-	proxyApp.Flag("port", "Specifies the listening port used by by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
+	proxyApp.Flag("port", "Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	proxyMCP := proxy.Command("mcp", "Start local proxy for MCP access.")
 	proxyMCP.Arg("app", "The name of the MCP application to start local proxy for.").Required().StringVar(&cf.AppName)
-	proxyMCP.Flag("port", "Specifies the listening port used by by the proxy app listener.").Short('p').StringVar(&cf.LocalProxyPortMapping)
+	proxyMCP.Flag("port", "Specifies the listening port used by the proxy app listener.").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyMCP.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
@@ -1273,7 +1275,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	login.Flag("request-nowait", "Finish without waiting for request resolution.").BoolVar(&cf.NoWait)
 	login.Flag("request-id", "Login with the roles requested in the given request.").StringVar(&cf.RequestID)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
-	login.Flag("scope", "Scope pins credentials to a given scope.").StringVar(&cf.Scope)
+	login.Flag("scope", `Scope pins credentials to a given scope. Use "" to explicitly remove scoping.`).
+		IsSetByUser(&cf.ScopeSetByUser).
+		StringVar(&cf.Scope)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to.").StringVar(&cf.KubernetesCluster)
 	login.Flag("verbose", "Show extra status information.").Short('v').BoolVar(&cf.Verbose)
@@ -1465,7 +1469,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	headlessApprove.Arg("request id", "Headless authentication request ID.").StringVar(&cf.HeadlessAuthenticationID)
 	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately.").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
 
-	reqDrop := req.Command("drop", "Drop one more Access Requests from current identity.")
+	reqDrop := req.Command("drop", "Drop one or more Access Requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests).").Default("*").StringsVar(&cf.RequestIDs)
 	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster.").Interspersed(false)
 	// This hack is required in order to accept any args for tsh kubectl.
@@ -2238,6 +2242,35 @@ func serializeVersion(format string, proxyVersion string, proxyPublicAddress str
 	return string(out), trace.Wrap(err)
 }
 
+// resolveScope determines the target scope based on the CLI flag state and the current
+// profile. It returns the desired scope string and whether the scope differs from the profile's
+// current scope. The 3 cases are:
+//  1. --scope not provided at all -> inherit profile.ScopePin.Scope, scopeChanged = false
+//  2. --scope="" -> explicitly descope, scopeChanged = (profile.ScopePin.Scope != "")
+//  3. --scope=/foo -> switch to /foo, scopeChanged = (profile.ScopePin.Scope != "/foo")
+func resolveScope(cf *CLIConf, profile *client.ProfileStatus) (string, bool) {
+	// --scope was explicitly set by the user
+	if cf.ScopeSetByUser {
+		// passing in "" descopes
+		targetScope := cf.Scope
+
+		currentScope := ""
+		if profile != nil && profile.ScopePin != nil {
+			currentScope = profile.ScopePin.Scope
+		}
+
+		return targetScope, targetScope != currentScope
+	}
+
+	// --scope not provided, inherit from profile.
+	if profile != nil && profile.ScopePin != nil {
+		return profile.ScopePin.Scope, false
+	}
+
+	return "", false
+
+}
+
 // onLogin logs in with remote proxy and gets signed certificates
 func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	showAlerts := true
@@ -2275,6 +2308,10 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		}
 	}
 
+	// Resolve the desired scope based on CLI flags and current profile state.
+	targetScope, scopeChanged := resolveScope(cf, profile)
+	cf.Scope = targetScope
+
 	if cf.Scope != "" {
 		// auto-request behavior is incompatible with scopes
 		autoRequest = false
@@ -2287,10 +2324,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		if err := scopes.StrongValidate(cf.Scope); err != nil {
 			return trace.Wrap(err)
 		}
-
-		// TODO(fspmarshall/scopes): this is a clunky way to handle the forced reauth on scope change,
-		// look into doing something smarter.
-		profile, profiles = nil, nil
 	}
 
 	// make the teleport client and retrieve the certificate from the proxy:
@@ -2328,8 +2361,8 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		}
 	}
 
-	// client is already logged in and profile is not expired
-	if profile != nil && !profile.IsExpired(time.Now()) {
+	// client is already logged in and profile is not expired and scope hasn't changed
+	if profile != nil && !profile.IsExpired(time.Now()) && !scopeChanged {
 		switch {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
@@ -4992,8 +5025,9 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		c.RemoteForwardPorts = rPorts
 	}
 
-	// TODO(fspmarshall/scopes): decide if we want some kind of persistence for the CLI arg.
-	c.Scope = cf.Scope
+	if cf.ScopeSetByUser || cf.Scope != "" {
+		c.Scope = cf.Scope
+	}
 
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName

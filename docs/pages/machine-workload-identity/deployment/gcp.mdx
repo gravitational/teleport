@@ -138,7 +138,7 @@ Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
   Auth Service. Prefer using the address of a Teleport Proxy.
-- `example-bot` with the name of the token you created in the second step.
+- `example-bot` with the name of the token you created in the third step.
 - `/opt/machine-id` with a path to a directory where `tbot` should write the
   short-lived credentials. Ensure that the user `tbot` is running and has the
   appropriate permissions to create this directory.
@@ -156,7 +156,7 @@ On the host where you have deployed `tbot`, run the following, replacing
 path to the `identity` file within your configured directory:
 
 ```code
-$ tsh --proxy example.teleport.sh:443 -i /opt/machine-id/identity status                                                                                                                                                                                                                                         127 ↵
+$ tsh --proxy example.teleport.sh:443 -i /opt/machine-id/identity status
 > Profile URL:        https://example.teleport.sh:443
 Logged in as:       bot-example
 Cluster:            example.teleport.sh

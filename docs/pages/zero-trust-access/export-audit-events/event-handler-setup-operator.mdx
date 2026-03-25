@@ -1,0 +1,119 @@
+---
+title: Set up the Teleport Event Handler Plugin with the Teleport Kubernetes Operator
+sidebar_label: Event Handler Setup (Kubernetes Operator)
+sidebar_position: 2
+description: Set up Teleport Event Handler plugin with credentials to access events API, using the Teleport Kubernetes Operator.
+tags:
+ - how-to
+ - zero-trust
+ - audit
+ - mwi
+ - infrastructure-identity
+ - infrastructure-as-code
+---
+
+In this guide, we will set up the Teleport Event Handler plugin with credentials
+to authenticate to the Teleport cluster and access the events API.
+
+We will deploy the Teleport Event Handler plugin using the `teleport-plugin-event-handler` Helm chart
+and configure it to use the Teleport Kubernetes Operator to generate the credentials.
+
+If your Teleport cluster does not have the Teleport Kubernetes Operator deployed, follow the
+[guide to set up the Teleport Kubernetes Operator
+](../../zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator.mdx).
+If you wish to deploy the Teleport Event Handler Plugin in Kubernetes without the Teleport Kubernetes
+Operator, see [Set up the Event Handler with tctl](event-handler-setup.mdx).
+
+## How it works
+
+The Event Handler plugin is a binary that runs independently of your Teleport
+cluster. It authenticates to your Teleport cluster using mutual TLS to begin forwarding events.
+
+The Teleport Kubernetes Operator is a Teleport client that you
+install using the `teleport-operator` Helm chart. It is responsible for managing
+the Teleport resources to set up Machine & Workload Identity, `tbot`, for the
+`teleport-plugin-event-handler` Helm chart. This will generate the credentials to establish
+the mutual TLS connection between the Event Handler and the Teleport cluster.
+
+## Prerequisites
+
+- A running Teleport cluster. If you want to get started with Teleport,
+  [sign up](https://goteleport.com/signup) for a free trial or [set up a demo
+  environment](../../get-started/deploy-community.mdx).
+
+- Docker version v(=docker.version=).
+
+- A Kubernetes cluster to run the Teleport Event Handler plugin.
+
+- [Teleport Kubernetes Operator](../../zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator.mdx)
+running in the Kubernetes cluster where you will install the plugin.
+
+- [Helm](https://helm.sh/docs/intro/quickstart/)
+
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
+
+- On your workstation, create a folder called `event-handler`, to hold configuration files and plugin state:
+
+  ```code
+  $ mkdir -p event-handler
+  $ cd event-handler
+  ```
+
+## Step 1/2. Install the Event Handler plugin
+
+To allow Helm to install charts that are hosted in the Teleport Helm repository, use `helm repo add`:
+
+```code
+$ helm repo add teleport (=teleport.helm_repo_url=)
+```
+
+To update the cache of charts from the remote repository, run `helm repo update`:
+
+```code
+$ helm repo update
+```
+
+## Step 2/2. Set up the Event Handler plugin
+
+In this section, you will set up the Teleport Event Handler plugin 
+and generate credentials that the plugin will use for authentication.
+
+### Generate a starter config file
+
+Generate a configuration file with placeholder values for the Teleport Event
+Handler plugin.
+
+(!docs/pages/includes/plugins/configure-event-handler-helm.mdx!)
+
+(!docs/pages/includes/plugins/configure-event-handler-output.mdx!)
+
+If you have an existing Fluentd setup with TLS, issue a client certificate and
+key from the same certificate authority for the Teleport Event Handler to use.
+
+(!docs/pages/includes/plugins/rbac-operator-event-handler.mdx plugin="teleport-plugin-event-handler"!)
+
+## Next steps
+
+You have now configured the Teleport Event Handler plugin with credentials to access the Teleport events API.
+
+If you are new to exporting audit events with Teleport, read [Forwarding Events
+with Fluentd](fluentd.mdx) to learn the basics of how our
+Event Handler plugin works. While this guide focuses on Fluentd, the Event
+Handler plugin can export audit events to any endpoint that ingests JSON
+messages via HTTP.
+
+Next, read our guides to setting up the Event Handler plugin to export audit
+events to your solution of choice:
+
+- [Export Teleport Audit Events with the Elastic
+  Stack](elastic-stack.mdx): How to configure the Event
+  Handler plugin to forward Teleport audit logs to Logstash for ingestion in
+  Elasticsearch so you can explore them in Kibana.
+- [Export Teleport Audit Events with Panther](panther.mdx):
+  How to configure the Event Handler plugin to send logs to Panther via Fluentd
+  so you can explore your audit events in Panther.
+- [Export Teleport Audit Events with Splunk](splunk.mdx):
+  How to configure the Event Handler plugin to send logs to Splunk's Universal
+  Forwarder so you can explore your audit events in Splunk.
+- [Export Teleport Audit Events with Datadog](datadog.mdx):
+  How to configure the Event Handler plugin to export audit logs to Datadog via Fluentd.

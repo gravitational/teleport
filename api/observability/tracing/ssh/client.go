@@ -29,6 +29,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -66,7 +67,7 @@ func NewClientWithTimeout(ctx context.Context, conn net.Conn, addr string, confi
 		return nil, err
 	}
 
-	return NewClient(c, chans, reqs, opts...), nil
+	return NewClient(c, chans, reqs, opts...)
 }
 
 // NewClient creates a new Client.
@@ -77,7 +78,16 @@ func NewClientWithTimeout(ctx context.Context, conn net.Conn, addr string, confi
 // payloads will be wrapped in an Envelope with tracing context. All Session
 // and Channel created from the returned Client will honor the clients view
 // of whether they should provide tracing context.
-func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request, opts ...tracing.Option) *Client {
+func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request, opts ...tracing.Option) (*Client, error) {
+	// Defensive check to ensure that the client version is properly set to include Teleport version and features.
+	if !bytes.Equal([]byte(api.SSHClientVersion()), c.ClientVersion()) {
+		return nil, trace.BadParameter(
+			"SSH client version must be set to %q, got %q (this is a bug)",
+			api.SSHClientVersion(),
+			c.ClientVersion(),
+		)
+	}
+
 	clt := &Client{
 		Client:          ssh.NewClient(c, chans, reqs),
 		opts:            opts,
@@ -89,7 +99,7 @@ func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request
 		clt.capability = tracingSupported
 	}
 
-	return clt
+	return clt, nil
 }
 
 // DialContext initiates a connection to the addr from the remote host.

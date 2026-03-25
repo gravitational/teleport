@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router';
 
 import { Alert } from 'design';
 import { ArrowForward, BellRinging } from 'design/Icon';
@@ -35,7 +35,7 @@ export function TaskAlert({
   kind?: IntegrationKind;
   taskType?: AwsResource;
 }) {
-  const history = useHistory();
+  const navigate = useNavigate();
   if (pendingTasksCount == 0) {
     return null;
   }
@@ -52,7 +52,7 @@ export function TaskAlert({
             <ArrowForward size={18} ml={2} />
           </>
         ),
-        onClick: () => history.push(cfg.getIntegrationTasksRoute(kind, name)),
+        onClick: () => navigate(cfg.getIntegrationTasksRoute(kind, name)),
       }}
     >
       {pendingTasksCount} pending tasks

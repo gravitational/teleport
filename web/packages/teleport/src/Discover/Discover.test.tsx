@@ -16,9 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
-
-import { enableMswServer, render, screen, server } from 'design/utils/testing';
+import { enableMswServer, screen, server } from 'design/utils/testing';
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
@@ -38,6 +36,7 @@ import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import { renderWithMemoryRouter } from 'teleport/test/helpers/router';
 import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
@@ -77,20 +76,19 @@ const create = ({ initialEntry = '', preferredResource }: createProps) => {
   const userAcl = getAcl();
   const ctx = createTeleportContext({ customAcl: userAcl });
 
-  return render(
-    <MemoryRouter
-      initialEntries={[
+  return renderWithMemoryRouter(
+    <TeleportContextProvider ctx={ctx}>
+      <FeaturesContextProvider value={getOSSFeatures()}>
+        <InfoGuidePanelProvider>
+          <Discover />
+        </InfoGuidePanelProvider>
+      </FeaturesContextProvider>
+    </TeleportContextProvider>,
+    {
+      initialEntries: [
         { pathname: cfg.routes.discover, state: { entity: initialEntry } },
-      ]}
-    >
-      <TeleportContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={getOSSFeatures()}>
-          <InfoGuidePanelProvider>
-            <Discover />
-          </InfoGuidePanelProvider>
-        </FeaturesContextProvider>
-      </TeleportContextProvider>
-    </MemoryRouter>
+      ],
+    }
   );
 };
 
@@ -288,18 +286,17 @@ const renderUpdate = (props: DiscoverUpdateProps) => {
     },
   ];
 
-  return render(
-    <MemoryRouter
-      initialEntries={[
+  return renderWithMemoryRouter(
+    <TeleportContextProvider ctx={ctx}>
+      <InfoGuidePanelProvider>
+        <DiscoverComponent eViewConfigs={testViews} updateFlow={props} />
+      </InfoGuidePanelProvider>
+    </TeleportContextProvider>,
+    {
+      initialEntries: [
         { pathname: cfg.routes.discover, state: { entity: '' } },
-      ]}
-    >
-      <TeleportContextProvider ctx={ctx}>
-        <InfoGuidePanelProvider>
-          <DiscoverComponent eViewConfigs={testViews} updateFlow={props} />
-        </InfoGuidePanelProvider>
-      </TeleportContextProvider>
-    </MemoryRouter>
+      ],
+    }
   );
 };
 

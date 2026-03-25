@@ -21,6 +21,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"net/netip"
 	"os"
 	"sync"
 
@@ -49,6 +50,7 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, logComponent)
 
 const (
 	logComponent                     = "vnet"
+	dnsLogComponent                  = "dns"
 	nicID                            = 1
 	mtu                              = 1500
 	tcpReceiveBufferSize             = 0 // 0 means a default will be used.
@@ -161,6 +163,8 @@ type networkStack struct {
 	// dnsServer is the VNet's local DNS server that can handle UDP DNS
 	// requests.
 	dnsServer *dns.Server
+	// upstreamFilter removes VNet DNS addresses from upstream nameserver lists.
+	upstreamFilter *filteredUpstreamSource
 
 	// tcpHandlerResolver resolves FQDNs to a TCP handler that will be used to handle all future TCP
 	// connections to IP addresses that will be assigned to that FQDN.
@@ -181,6 +185,55 @@ type networkStack struct {
 	state state
 
 	slog *slog.Logger
+}
+
+type filteredUpstreamSource struct {
+	base    dns.UpstreamNameserverSource
+	mu      sync.RWMutex
+	exclude map[string]struct{}
+	slog    *slog.Logger
+}
+
+// filteredUpstreamSource wraps an upstream source and excludes addresses added via AddExclude.
+// It is mainly used to filter VNet's own DNS addresses.
+func newFilteredUpstreamSource(base dns.UpstreamNameserverSource, slog *slog.Logger) *filteredUpstreamSource {
+	return &filteredUpstreamSource{
+		base:    base,
+		exclude: make(map[string]struct{}),
+		slog:    slog,
+	}
+}
+
+func (f *filteredUpstreamSource) AddExclude(addr string) {
+	if addr == "" {
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.exclude[addr] = struct{}{}
+}
+
+func (f *filteredUpstreamSource) UpstreamNameservers(ctx context.Context) ([]string, error) {
+	nameservers, err := f.base.UpstreamNameservers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	f.slog.DebugContext(ctx, "Loaded upstream nameservers (pre-filter)", "nameservers", nameservers)
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	if len(f.exclude) == 0 {
+		f.slog.DebugContext(ctx, "Loaded upstream nameservers (post-filter)", "nameservers", nameservers)
+		return nameservers, nil
+	}
+	filtered := make([]string, 0, len(nameservers))
+	for _, nameserver := range nameservers {
+		if _, ok := f.exclude[nameserver]; ok {
+			continue
+		}
+		filtered = append(filtered, nameserver)
+	}
+	f.slog.DebugContext(ctx, "Loaded upstream nameservers (post-filter)", "nameservers", filtered)
+	return filtered, nil
 }
 
 type state struct {
@@ -215,7 +268,8 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	slog := slog.With(teleport.ComponentKey, logComponent)
+	logger := slog.With(teleport.ComponentKey, logComponent)
+	dnsLogger := slog.With(teleport.ComponentKey, teleport.Component(logComponent, dnsLogComponent))
 
 	stack, linkEndpoint, err := createStack()
 	if err != nil {
@@ -234,17 +288,26 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 		tcpHandlerResolver: cfg.tcpHandlerResolver,
 		destroyed:          make(chan struct{}),
 		state:              newState(),
-		slog:               slog,
+		slog:               logger,
 	}
 
 	upstreamNameserverSource := cfg.upstreamNameserverSource
 	if upstreamNameserverSource == nil {
-		upstreamNameserverSource, err = dns.NewOSUpstreamNameserverSource()
+		upstreamNameserverSource, err = dns.NewOSUpstreamNameserverSource(dnsLogger)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	dnsServer, err := dns.NewServer(ns, upstreamNameserverSource)
+	upstreamFilter := newFilteredUpstreamSource(upstreamNameserverSource, dnsLogger)
+	ns.upstreamFilter = upstreamFilter
+	if cfg.dnsIPv6 != (tcpip.Address{}) {
+		addr, ok := netip.AddrFromSlice(cfg.dnsIPv6.AsSlice())
+		if !ok {
+			return nil, trace.Errorf("error parsing IPv6 DNS address %v", cfg.dnsIPv6)
+		}
+		upstreamFilter.AddExclude(dns.AddrWithDNSPort(addr))
+	}
+	dnsServer, err := dns.NewServer(ns, upstreamFilter, dnsLogger)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -260,7 +323,7 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 		if err := ns.assignUDPHandler(cfg.dnsIPv6, dnsServer); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		slog.DebugContext(context.Background(), "Serving DNS on IPv6.", "dns_addr", cfg.dnsIPv6)
+		logger.DebugContext(context.Background(), "Serving DNS on IPv6.", "dns_addr", cfg.dnsIPv6)
 	}
 
 	return ns, nil
@@ -556,6 +619,13 @@ func (ns *networkStack) assignUDPHandler(addr tcpip.Address, handler udpHandler)
 // addDNSAddress adds a DNS handler at the given IP.
 func (ns *networkStack) addDNSAddress(ip net.IP) error {
 	slog.DebugContext(context.Background(), "Serving DNS on IPv4.", "dns_addr", ip.String())
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return trace.Errorf("error parsing IPv4 DNS address %s", ip.String())
+	}
+	if ns.upstreamFilter != nil {
+		ns.upstreamFilter.AddExclude(dns.AddrWithDNSPort(addr))
+	}
 	return trace.Wrap(ns.assignUDPHandler(tcpip.AddrFromSlice(ip), ns.dnsServer),
 		"adding UDP handler at %s", ip.String())
 }

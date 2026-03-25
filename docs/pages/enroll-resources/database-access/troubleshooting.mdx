@@ -34,7 +34,7 @@ The command used to generate a new certificate is `tctl auth sign`. For example,
 to create a certificate for PostgreSQL, the command looks like this:
 
 ```code
-# Export Teleport's certificate authority and a generate certificate/key pair
+# Export Teleport's certificate authority and a generated certificate/key pair
 # for host db.example.com with a 3-month validity period.
 
 $ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h

@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
@@ -1495,7 +1496,7 @@ func TestSSH(t *testing.T) {
 				},
 			}
 
-			sshConn, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(tc.dialAddr, strconv.Itoa(tc.dialPort)), clientConfig)
+			sshConn, chans, reqs, err := tracessh.NewClientConnWithTimeout(t.Context(), conn, net.JoinHostPort(tc.dialAddr, strconv.Itoa(tc.dialPort)), clientConfig)
 			assert.Equal(t, tc.expectBannerMessages, bannerMessages, "actual banner messages did not match the expected")
 			if tc.expectSSHHandshakeToFail {
 				assert.Error(t, err, "expected SSH handshake to fail")
@@ -1525,7 +1526,7 @@ func TestSSH(t *testing.T) {
 		for range connections {
 			conn, err := p.dialHost(ctx, "node.root1.example.com", 22)
 			require.NoError(t, err)
-			sshConn, _, _, err := ssh.NewClientConn(conn, "node.root1.example.com:22", clientConfig)
+			sshConn, _, _, err := tracessh.NewClientConnWithTimeout(t.Context(), conn, "node.root1.example.com:22", clientConfig)
 			require.NoError(t, err)
 			sshConn.Close()
 			expectReportedSSHSessions.Add(1)
@@ -1689,7 +1690,7 @@ func TestPriority(t *testing.T) {
 			HostKeyCallback: certChecker.CheckHostKey,
 		}
 
-		sshConn, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort("node.leaf.example.com", "22"), clientConfig)
+		sshConn, chans, reqs, err := tracessh.NewClientConnWithTimeout(t.Context(), conn, net.JoinHostPort("node.leaf.example.com", "22"), clientConfig)
 		require.NoError(t, err)
 		defer sshConn.Close()
 

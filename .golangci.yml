@@ -93,8 +93,6 @@ linters:
             - '!**/e/lib/auth/saml.go'
             - '!**lib/services/compare.go'
             - '!**/lib/services/local/access_list.go'
-            - '!**/lib/services/local/users.go'
-            - '!**/lib/services/user.go'
           deny:
             - pkg: github.com/google/go-cmp/cmp
               desc: '"github.com/google/go-cmp/cmp" should only be used in tests'
@@ -204,6 +202,7 @@ linters:
             - '!**/integrations/lib/testing/**'
             - '!**/integrations/operator/controllers/resources/testlib/**.go'
             - '!**/lib/auth/authtest/**'
+            - '!**/lib/services/samltest/**'
           deny:
             - pkg: github.com/gravitational/teleport/e/lib/aws/identitycenter/test
               desc: testing packages should not be imported outside of _test.go files
@@ -279,6 +278,7 @@ linters:
             - '!**/lib/teleterm/gatewaytest/**'
             - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
+            - '!**/lib/services/samltest/**'
           deny:
             - pkg: github.com/stretchr/testify
               desc: testify should not be imported outside of test code
@@ -319,6 +319,7 @@ linters:
             - '!**/lib/utils/cli.go'
             - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
+            - '!**/lib/services/samltest/**'
           deny:
             - pkg: testing
               desc: testing should not be imported outside of tests
@@ -348,6 +349,12 @@ linters:
         - pattern: ^semver\.New$
           pkg: ^github.com/coreos/go-semver/semver$
           msg: construct a semver.Version manually or use semver.NewVersion
+        - pattern: ^ssh\.NewClient$
+          pkg: ^golang\.org/x/crypto/ssh$
+          msg: Use tracessh.NewClientWithTimeout or tracessh.NewClient to construct ssh.Client with proper defaults
+        - pattern: ^ssh\.NewClientConn$
+          pkg: ^golang\.org/x/crypto/ssh$
+          msg: Use tracessh.NewClientConn to construct ssh.Conn with proper defaults
       analyze-types: true
     misspell:
       locale: US
@@ -474,6 +481,18 @@ linters:
           - forbidigo
         path: lib/utils/aws/stsutils/stscreds_v1.go
         text: stscreds.NewCredentials
+      - linters:
+          - forbidigo
+        path: api/observability/tracing/ssh/client.go
+        text: ssh.NewClient
+      - linters:
+          - forbidigo
+        path: api/observability/tracing/ssh/client_test.go
+        text: ssh.NewClientConn
+      - linters:
+          - forbidigo
+        path: api/observability/tracing/ssh/ssh.go
+        text: ssh.NewClientConn
     paths:
       - (^|/)node_modules/
       - ^api/gen/

@@ -29,7 +29,6 @@ import {
 } from 'teleport/services/userPreferences/userPreferences';
 import { BearerToken } from 'teleport/services/websession';
 import { getPrefersDark } from 'teleport/ThemeProvider';
-import type { RecommendFeature } from 'teleport/types';
 
 import { CloudUserInvites, KeysEnum, LocalStorageSurvey } from './types';
 
@@ -38,7 +37,6 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.THEME,
   KeysEnum.USER_PREFERENCES,
   KeysEnum.ACCESS_LIST_PREFERENCES,
-  KeysEnum.RECOMMEND_FEATURE,
   KeysEnum.LICENSE_ACKNOWLEDGED,
   KeysEnum.USERS_NOT_EQUAL_TO_MAU_ACKNOWLEDGED,
   KeysEnum.USE_NEW_ROLE_EDITOR,
@@ -48,6 +46,7 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.SESSION_RECORDINGS_DENSITY,
   KeysEnum.ENABLE_TELEMETRY,
   KeysEnum.SESSION_RECORDINGS_DISMISSED_CTA,
+  KeysEnum.IDENTITY_SECURITY_RECOMMENDATIONS_UNIFIED_RESOURCES_CTA_SEEN,
 ];
 
 const RECENT_HISTORY_MAX_LENGTH = 10;
@@ -249,17 +248,6 @@ export const storageService = {
   broadcast(messageType, messageBody) {
     window.localStorage.setItem(messageType, messageBody);
     window.localStorage.removeItem(messageType);
-  },
-
-  // setRecommendFeature persists states used to determine if
-  // given feature needs to be recommended to the user.
-  // Currently, it only shows a red dot in the side navigation menu.
-  setRecommendFeature(d: RecommendFeature) {
-    window.localStorage.setItem(KeysEnum.RECOMMEND_FEATURE, JSON.stringify(d));
-  },
-
-  getFeatureRecommendationStatus(): RecommendFeature {
-    return this.getParsedJSONValue(KeysEnum.RECOMMEND_FEATURE, null);
   },
 
   getAccessGraphEnabled(): boolean {

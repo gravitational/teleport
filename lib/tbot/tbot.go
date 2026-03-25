@@ -243,7 +243,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		// Convert the service config into the actual service type.
 		switch svcCfg := svcCfg.(type) {
 		case *database.TunnelConfig:
-			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
+			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, b.cfg.Leeway))
 		case *example.Config:
 			services = append(services, example.ServiceBuilder(svcCfg))
 		case *ssh.MultiplexerConfig:
@@ -270,7 +270,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		case *clientcredentials.UnstableConfig:
 			services = append(services, clientcredentials.ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.TunnelConfig:
-			services = append(services, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
+			services = append(services, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, b.cfg.Leeway))
 		case *application.ProxyServiceConfig:
 			services = append(services, application.ProxyServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, alpnUpgradeCache))
 		case *workloadidentitysvc.X509OutputConfig:
@@ -292,6 +292,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		Onboarding:         b.cfg.Onboarding,
 		InternalStorage:    b.cfg.Storage.Destination,
 		CredentialLifetime: b.cfg.CredentialLifetime,
+		Leeway:             b.cfg.Leeway,
 		FIPS:               b.cfg.FIPS,
 		Logger:             b.log,
 		ReloadCh:           b.cfg.ReloadCh,

@@ -991,13 +991,66 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	wg.Wait()
 }
 
-// TestInstanceSelfRepair tests a node that first starts up with only the Proxy
-// service and joins the cluster with a token valid only for role Proxy, and
-// then restarts with the SSH service now enabled and a token valid only for
-// role Node. The instance identity should self-repair on the second startup to
-// get a certificate with both the Proxy and Node system roles.
+// TestInstanceSelfRepair exercises instance self-repair across both the new
+// join service and legacy fallback, with a second token that either contains
+// only the newly required role or all required roles.
 func TestInstanceSelfRepair(t *testing.T) {
-	// Setup: create an auth server with two tokens, one proxy proxies and one for nodes.
+	for _, tc := range []struct {
+		name   string
+		params instanceSelfRepairParams
+	}{
+		{
+			name: "new join service/second token only has newly required role",
+			params: instanceSelfRepairParams{
+				rejoinTokenRoles:      []types.SystemRole{types.RoleNode},
+				expectedRejoinedRoles: []string{types.RoleProxy.String(), types.RoleNode.String()},
+			},
+		},
+		{
+			name: "new join service/second token has all required roles",
+			params: instanceSelfRepairParams{
+				rejoinTokenRoles:      []types.SystemRole{types.RoleProxy, types.RoleNode},
+				expectedRejoinedRoles: []string{types.RoleProxy.String(), types.RoleNode.String()},
+			},
+		},
+		{
+			name: "legacy fallback/second token only has newly required role",
+			params: instanceSelfRepairParams{
+				// Disable the new join service to force a fallback to the
+				// legacy join method.
+				tlsServerOpts: []authtest.TestTLSServerOption{authtest.WithoutJoinV1()},
+				// Despite the instance identity being unable to gain the
+				// Node role not available in the new token, the process
+				// should still be able to get a working node identity.
+				rejoinTokenRoles:      []types.SystemRole{types.RoleNode},
+				expectedRejoinedRoles: []string{types.RoleProxy.String()},
+			},
+		},
+		{
+			name: "legacy fallback/second token has all required roles",
+			params: instanceSelfRepairParams{
+				tlsServerOpts: []authtest.TestTLSServerOption{authtest.WithoutJoinV1()},
+				// With both roles available in the token, the Instance
+				// identity will end up with both roles.
+				rejoinTokenRoles:      []types.SystemRole{types.RoleProxy, types.RoleNode},
+				expectedRejoinedRoles: []string{types.RoleProxy.String(), types.RoleNode.String()},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testInstanceSelfRepair(t, tc.params)
+		})
+	}
+}
+
+type instanceSelfRepairParams struct {
+	tlsServerOpts         []authtest.TestTLSServerOption
+	rejoinTokenRoles      []types.SystemRole
+	expectedRejoinedRoles []string
+}
+
+func testInstanceSelfRepair(t *testing.T, params instanceSelfRepairParams) {
+	// Setup: create an auth server with two tokens, one for proxies and one for nodes.
 	const clusterName = "testcluster"
 	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:         makeTempDir(t),
@@ -1006,7 +1059,7 @@ func TestInstanceSelfRepair(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
-	tlsServer, err := testAuthServer.NewTestTLSServer()
+	tlsServer, err := testAuthServer.NewTestTLSServer(params.tlsServerOpts...)
 	require.NoError(t, err)
 	defer tlsServer.Close()
 
@@ -1015,11 +1068,11 @@ func TestInstanceSelfRepair(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, testAuthServer.AuthServer.UpsertToken(t.Context(), proxyToken))
-	sshToken, err := types.NewProvisionTokenFromSpec("sshToken", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
-		Roles: []types.SystemRole{types.RoleNode},
+	rejoinToken, err := types.NewProvisionTokenFromSpec("rejoinToken", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
+		Roles: params.rejoinTokenRoles,
 	})
 	require.NoError(t, err)
-	require.NoError(t, testAuthServer.AuthServer.UpsertToken(t.Context(), sshToken))
+	require.NoError(t, testAuthServer.AuthServer.UpsertToken(t.Context(), rejoinToken))
 
 	logger := logtest.NewLogger()
 	dataDir := makeTempDir(t)
@@ -1056,8 +1109,8 @@ func TestInstanceSelfRepair(t *testing.T) {
 	require.NotNil(t, connector)
 	id := connector.clientState.Load().identity
 	require.Equal(t, types.RoleInstance, id.ID.Role)
-	require.Equal(t, []string{types.RoleProxy.String()}, id.SystemRoles)
-	originalHostID := id.ID.HostID()
+	require.ElementsMatch(t, []string{types.RoleProxy.String()}, id.SystemRoles)
+	originalHostID := id.ID.HostUUID
 
 	// Close the original process.
 	require.NoError(t, process.Close())
@@ -1066,7 +1119,7 @@ func TestInstanceSelfRepair(t *testing.T) {
 	// Start up a new process using the same data dir so that it has access to
 	// the previous Instance and Proxy certs, but enable the SSH service and
 	// provide the token that allows only role Node.
-	process = newStartedProcess(sshToken.GetName(), true)
+	process = newStartedProcess(rejoinToken.GetName(), true)
 
 	// Get the new Instance identity and make sure it includes both the Proxy
 	// and Node system roles.
@@ -1075,21 +1128,21 @@ func TestInstanceSelfRepair(t *testing.T) {
 	require.NotNil(t, instanceConnector)
 	instanceID := instanceConnector.clientState.Load().identity
 	require.Equal(t, types.RoleInstance, instanceID.ID.Role)
-	assert.ElementsMatch(t, []string{types.RoleProxy.String(), types.RoleNode.String()}, instanceID.SystemRoles)
+	require.ElementsMatch(t, params.expectedRejoinedRoles, instanceID.SystemRoles)
 	// Make sure the host ID has not changed.
-	assert.Equal(t, instanceID.ID.HostID(), originalHostID)
+	require.Equal(t, originalHostID, instanceID.ID.HostUUID)
 
 	// Make sure the SSH identity becomes available.
 	sshConnector, err := process.WaitForConnector(SSHIdentityEvent, logger)
 	require.NoError(t, err)
 	require.NotNil(t, sshConnector)
 	sshID := sshConnector.clientState.Load().identity
-	require.Equal(t, types.RoleNode, sshID.ID.Role)
+	assert.Equal(t, types.RoleNode, sshID.ID.Role)
 	// Make sure the host ID matches the original instance host ID.
-	assert.Equal(t, sshID.ID.HostID(), originalHostID)
+	assert.Equal(t, originalHostID, sshID.ID.HostUUID)
 	// Make sure the SSH cert has all expected principals.
 	expectSSHPrincipals := expectedSSHPrincipals(sshID.ID.HostID(), hostName, clusterName)
-	require.ElementsMatch(t, expectSSHPrincipals, sshID.Cert.ValidPrincipals)
+	assert.ElementsMatch(t, expectSSHPrincipals, sshID.Cert.ValidPrincipals)
 
 	// Close the process to clean up.
 	require.NoError(t, process.Close())

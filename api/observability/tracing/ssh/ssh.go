@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
@@ -27,6 +28,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 )
@@ -122,15 +124,21 @@ func Dial(ctx context.Context, network, addr string, config *ssh.ClientConfig, o
 	)
 	defer span.End()
 
+	// Ensure we copy the config to avoid mutating the caller's config.
+	config = cloneOrNewClientConfig(config)
+
 	dialer := net.Dialer{Timeout: config.Timeout}
+
 	conn, err := dialer.DialContext(ctx, network, addr)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
+
 	c, err := NewClientWithTimeout(ctx, conn, addr, config, opts...)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
+
 	return c, nil
 }
 
@@ -163,6 +171,9 @@ func NewClientConnWithTimeout(ctx context.Context, conn net.Conn, addr string, c
 		),
 	)
 	defer span.End()
+
+	// Ensure we copy the config to avoid mutating the caller's config.
+	config = cloneOrNewClientConfig(config)
 
 	// ssh.ClientConfig.Timeout is not the total timeout for the connection
 	// establishment, including DNS resolution, TCP connection, but it doesn't
@@ -227,6 +238,27 @@ func NewClientConnWithTimeout(ctx context.Context, conn net.Conn, addr string, c
 	}
 
 	return c, chans, reqs, nil
+}
+
+// cloneOrNewClientConfig returns a copy of the provided ssh.ClientConfig with proper defaults set, or a new
+// ssh.ClientConfig with defaults if the provided config is nil.
+func cloneOrNewClientConfig(config *ssh.ClientConfig) *ssh.ClientConfig {
+	if config != nil {
+		configCopy := *config
+		configCopy.Auth = slices.Clone(config.Auth)
+		configCopy.HostKeyAlgorithms = slices.Clone(config.HostKeyAlgorithms)
+		configCopy.KeyExchanges = slices.Clone(config.KeyExchanges)
+		configCopy.Ciphers = slices.Clone(config.Ciphers)
+		configCopy.MACs = slices.Clone(config.MACs)
+
+		configCopy.ClientVersion = api.SSHClientVersion()
+
+		return &configCopy
+	}
+
+	return &ssh.ClientConfig{
+		ClientVersion: api.SSHClientVersion(),
+	}
 }
 
 // peerAttr returns attributes about the peer address.

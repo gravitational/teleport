@@ -35,6 +35,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
@@ -61,7 +62,7 @@ func (s *server) GetClient(t *testing.T) (ssh.Conn, <-chan ssh.NewChannel, <-cha
 	conn, err := net.Dial("tcp", s.listener.Addr().String())
 	require.NoError(t, err)
 
-	sconn, nc, r, err := ssh.NewClientConn(conn, "", &ssh.ClientConfig{
+	sconn, nc, r, err := NewClientConnWithTimeout(t.Context(), conn, "", &ssh.ClientConfig{
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(s.cSigner)},
 		HostKeyCallback: ssh.FixedHostKey(s.hSigner.PublicKey()),
 	})
@@ -314,13 +315,14 @@ func TestClient(t *testing.T) {
 
 			tp := sdktrace.NewTracerProvider()
 			conn, chans, reqs := srv.GetClient(t)
-			client := NewClient(
+			client, err := NewClient(
 				conn,
 				chans,
 				reqs,
 				tracing.WithTracerProvider(tp),
 				tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})),
 			)
+			require.NoError(t, err)
 			require.Equal(t, tt.tracingSupported, client.capability)
 
 			ctx, span := tp.Tracer("test").Start(context.Background(), "test")
@@ -488,4 +490,114 @@ func TestNewClientConnTimeout(t *testing.T) {
 		require.ErrorIs(t, err, context.DeadlineExceeded, "expected context deadline exceeded error, got: %v", err)
 	})
 
+}
+
+func TestNewClientConnWithTimeoutSetsClientVersion(t *testing.T) {
+	t.Parallel()
+
+	clientVersionC := make(chan []byte, 1)
+
+	// Create server to capture the client version string sent by the client during handshake.
+	srv := newServer(
+		t,
+		tracingSupportedVersion,
+		func(conn *ssh.ServerConn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
+			clientVersionC <- conn.ClientVersion()
+
+			go ssh.DiscardRequests(reqs)
+
+			for ch := range chans {
+				err := ch.Reject(ssh.Prohibited, "no channels allowed")
+				assert.NoError(t, err)
+			}
+		},
+	)
+
+	tcpConn, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", srv.listener.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		tcpConn.Close()
+	})
+
+	config := &ssh.ClientConfig{
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(srv.cSigner)},
+		ClientVersion:   "invalid-version",
+		HostKeyCallback: ssh.FixedHostKey(srv.hSigner.PublicKey()),
+	}
+
+	sshConn, chans, reqs, err := NewClientConnWithTimeout(t.Context(), tcpConn, srv.listener.Addr().String(), config)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		sshConn.Close()
+	})
+
+	require.NotNil(t, chans)
+	require.NotNil(t, reqs)
+	require.Equal(t, "invalid-version", config.ClientVersion, "original client version should not be modified")
+
+	select {
+	case <-t.Context().Done():
+		require.Fail(t, "test timed out while waiting for client version")
+
+	case version := <-clientVersionC:
+		require.EqualValues(t, version, api.SSHClientVersion(), "version sent at handshake did not match Teleport version")
+	}
+}
+
+func TestCloneOrNewClientConfigClonesNonNilConfig(t *testing.T) {
+	t.Parallel()
+
+	type mockAuthMethod struct {
+		ssh.AuthMethod
+	}
+
+	mockError := errors.New("test error")
+
+	config := &ssh.ClientConfig{
+		Config: ssh.Config{
+			Rand:           rand.Reader,
+			RekeyThreshold: 1,
+			KeyExchanges:   []string{"kex1", "kex2"},
+			Ciphers:        []string{"cipher1", "cipher2"},
+			MACs:           []string{"mac1", "mac2"},
+		},
+		User: "alice",
+		Auth: []ssh.AuthMethod{
+			mockAuthMethod{},
+		},
+		HostKeyCallback:   func(hostname string, remote net.Addr, key ssh.PublicKey) error { return mockError },
+		BannerCallback:    func(message string) error { return mockError },
+		ClientVersion:     "test-client-version",
+		HostKeyAlgorithms: []string{"algo1", "algo2"},
+		Timeout:           time.Nanosecond,
+	}
+
+	clonedConfig := cloneOrNewClientConfig(config)
+
+	require.NotSame(t, config, clonedConfig)
+	require.Equal(t, config.Rand, clonedConfig.Rand)
+	require.Equal(t, config.RekeyThreshold, clonedConfig.RekeyThreshold)
+	require.Equal(t, config.KeyExchanges, clonedConfig.KeyExchanges)
+	require.Equal(t, config.Ciphers, clonedConfig.Ciphers)
+	require.Equal(t, config.MACs, clonedConfig.MACs)
+	require.Equal(t, config.User, clonedConfig.User)
+	require.NotEmpty(t, clonedConfig.Auth, config.Auth)
+	require.IsType(t, mockAuthMethod{}, clonedConfig.Auth[0])
+	require.NotNil(t, clonedConfig.HostKeyCallback)
+	require.ErrorIs(t, clonedConfig.HostKeyCallback("hostname", nil, nil), mockError)
+	require.NotNil(t, clonedConfig.BannerCallback)
+	require.ErrorIs(t, clonedConfig.BannerCallback("message"), mockError)
+	require.NotNil(t, clonedConfig.HostKeyCallback)
+	require.NotEqual(t, config.ClientVersion, clonedConfig.ClientVersion)
+	require.Equal(t, config.Timeout, clonedConfig.Timeout)
+	require.Equal(t, config.HostKeyAlgorithms, clonedConfig.HostKeyAlgorithms)
+}
+
+func TestCloneOrNewClientConfigReturnsNewConfigIfNil(t *testing.T) {
+	t.Parallel()
+
+	config := cloneOrNewClientConfig(nil)
+
+	require.NotNil(t, config)
+	require.Equal(t, api.SSHClientVersion(), config.ClientVersion)
 }

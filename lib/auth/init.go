@@ -452,6 +452,8 @@ type InitConfig struct {
 	// This helps eliminate timing attacks by ensuring that all recovery attempts
 	// with codes do a bcrypt comparison.
 	FakeRecoveryCodeHash []byte
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -464,6 +466,11 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	}
 	if cfg.HostUUID == "" {
 		return nil, trace.BadParameter("HostUUID: host UUID can not be empty")
+	}
+
+	// TODO(tross): return an error once modules are injected everywhere.
+	if cfg.Modules == nil {
+		cfg.Modules = modules.GetModules()
 	}
 
 	asrv, err := NewServer(&cfg, opts...)

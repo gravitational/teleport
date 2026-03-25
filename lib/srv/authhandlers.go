@@ -390,6 +390,7 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 		"remote_addr", conn.RemoteAddr(),
 		"user", conn.User(),
 		"fingerprint", fingerprint,
+		"client_version", conn.ClientVersion(),
 	)
 
 	cert, ok := key.(*ssh.Certificate)

@@ -114,7 +114,10 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 	emptyRequests := make(chan *ssh.Request)
 	close(emptyRequests)
 
-	client := tracessh.NewClient(conn, chans, emptyRequests)
+	client, err := tracessh.NewClient(conn, chans, emptyRequests)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &sshClient{
 		Client:         client,

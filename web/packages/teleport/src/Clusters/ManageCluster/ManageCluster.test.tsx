@@ -17,7 +17,7 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter, Route } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import {
   enableMswServer,
@@ -41,13 +41,18 @@ enableMswServer();
 function renderElement(element, ctx) {
   return render(
     <MemoryRouter initialEntries={[`/clusters/cluster-id`]}>
-      <Route path="/clusters/:clusterId">
-        <InfoGuidePanelProvider>
-          <ContentMinWidth>
-            <ContextProvider ctx={ctx}>{element}</ContextProvider>
-          </ContentMinWidth>
-        </InfoGuidePanelProvider>
-      </Route>
+      <Routes>
+        <Route
+          path="/clusters/:clusterId"
+          element={
+            <InfoGuidePanelProvider>
+              <ContentMinWidth>
+                <ContextProvider ctx={ctx}>{element}</ContextProvider>
+              </ContentMinWidth>
+            </InfoGuidePanelProvider>
+          }
+        />
+      </Routes>
     </MemoryRouter>
   );
 }

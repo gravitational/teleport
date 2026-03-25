@@ -164,6 +164,13 @@ export interface ResourceCreateEvent {
      * @generated from protobuf field: prehog.v1alpha.DiscoveredDatabaseMetadata database = 4;
      */
     database?: DiscoveredDatabaseMetadata;
+    /**
+     * discovery_config_name is the anonymized name of the DiscoveryConfig that triggered discovery.
+     * Empty for teleport.yaml matcher configuration.
+     *
+     * @generated from protobuf field: string discovery_config_name = 5;
+     */
+    discoveryConfigName: string;
 }
 /**
  * DiscoveredDatabaseMetadata contains additional database information.
@@ -2959,6 +2966,15 @@ export interface UserTaskStateEvent {
      * @generated from protobuf field: int32 instances_count = 4;
      */
     instancesCount: number;
+    /**
+     * discovery_config_name is the anonymized name of the DiscoveryConfig used when
+     * the issue was created.
+     *
+     * PostHog property: tp.usertask.discovery_config_name
+     *
+     * @generated from protobuf field: string discovery_config_name = 5;
+     */
+    discoveryConfigName: string;
 }
 /**
  * AccessRequestCreateEvent is emitted when an Access Request is created.
@@ -3160,6 +3176,45 @@ export interface SessionSummaryCreateEvent {
      * @generated from protobuf field: bool is_cloud_default_model = 7;
      */
     isCloudDefaultModel: boolean;
+}
+/**
+ * DiscoveryConfigEvent is emitted when a DiscoveryConfig resource is created, updated, or deleted.
+ *
+ * PostHog event: tp.discovery.config
+ *
+ * @generated from protobuf message prehog.v1alpha.DiscoveryConfigEvent
+ */
+export interface DiscoveryConfigEvent {
+    /**
+     * action is the operation performed on the DiscoveryConfig.
+     *
+     * @generated from protobuf field: prehog.v1alpha.DiscoveryConfigAction action = 1;
+     */
+    action: DiscoveryConfigAction;
+    /**
+     * discovery_config_name is the anonymized name of the DiscoveryConfig.
+     *
+     * @generated from protobuf field: string discovery_config_name = 2;
+     */
+    discoveryConfigName: string;
+    /**
+     * resource_types is the list of resource types configured for discovery (e.g., "ec2", "rds", "eks").
+     *
+     * @generated from protobuf field: repeated string resource_types = 3;
+     */
+    resourceTypes: string[];
+    /**
+     * cloud_providers is the list of cloud providers the config has matchers for.
+     *
+     * @generated from protobuf field: repeated string cloud_providers = 4;
+     */
+    cloudProviders: string[];
+    /**
+     * creation_method specifies the flow used to create the config ("iac" or "guided")
+     *
+     * @generated from protobuf field: string creation_method = 5;
+     */
+    creationMethod: string;
 }
 /**
  * @generated from protobuf message prehog.v1alpha.SubmitEventRequest
@@ -3804,6 +3859,12 @@ export interface SubmitEventRequest {
          */
         sessionSummaryAccessEvent: SessionSummaryAccessEvent;
     } | {
+        oneofKind: "discoveryConfig";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.DiscoveryConfigEvent discovery_config = 107;
+         */
+        discoveryConfig: DiscoveryConfigEvent;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -4411,7 +4472,19 @@ export enum IntegrationEnrollKind {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES = 29;
      */
-    MACHINE_ID_GITHUB_ACTIONS_KUBERNETES = 29
+    MACHINE_ID_GITHUB_ACTIONS_KUBERNETES = 29,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_AWS_CLOUD = 30;
+     */
+    AWS_CLOUD = 30,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_AZURE_CLOUD = 31;
+     */
+    AZURE_CLOUD = 31,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_GOOGLE_CLOUD = 32;
+     */
+    GOOGLE_CLOUD = 32
 }
 /**
  * IntegrationEnrollStep defines inner configuration steps
@@ -4477,7 +4550,13 @@ export enum IntegrationEnrollStep {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_MWIGHAK8S_WELCOME = 12;
      */
-    MWIGHAK8S_WELCOME = 12
+    MWIGHAK8S_WELCOME = 12,
+    /**
+     * General integration setup steps
+     *
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_VERIFY_INTEGRATION = 13;
+     */
+    VERIFY_INTEGRATION = 13
 }
 /**
  * IntegrationEnrollStatusCode defines status code for an integration enroll step.
@@ -4715,6 +4794,29 @@ export enum LicenseLimit {
      */
     DEVICE_TRUST_TEAM_USAGE = 2
 }
+/**
+ * DiscoveryConfigAction is the action performed on a DiscoveryConfig.
+ *
+ * @generated from protobuf enum prehog.v1alpha.DiscoveryConfigAction
+ */
+export enum DiscoveryConfigAction {
+    /**
+     * @generated from protobuf enum value: DISCOVERY_CONFIG_ACTION_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_CONFIG_ACTION_CREATE = 1;
+     */
+    CREATE = 1,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_CONFIG_ACTION_UPDATE = 2;
+     */
+    UPDATE = 2,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_CONFIG_ACTION_DELETE = 3;
+     */
+    DELETE = 3
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class UserLoginEvent$Type extends MessageType<UserLoginEvent> {
     constructor() {
@@ -4919,7 +5021,8 @@ class ResourceCreateEvent$Type extends MessageType<ResourceCreateEvent> {
             { no: 1, name: "resource_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "resource_origin", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "cloud_provider", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "database", kind: "message", T: () => DiscoveredDatabaseMetadata }
+            { no: 4, name: "database", kind: "message", T: () => DiscoveredDatabaseMetadata },
+            { no: 5, name: "discovery_config_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ResourceCreateEvent>): ResourceCreateEvent {
@@ -4927,6 +5030,7 @@ class ResourceCreateEvent$Type extends MessageType<ResourceCreateEvent> {
         message.resourceType = "";
         message.resourceOrigin = "";
         message.cloudProvider = "";
+        message.discoveryConfigName = "";
         if (value !== undefined)
             reflectionMergePartial<ResourceCreateEvent>(this, message, value);
         return message;
@@ -4947,6 +5051,9 @@ class ResourceCreateEvent$Type extends MessageType<ResourceCreateEvent> {
                     break;
                 case /* prehog.v1alpha.DiscoveredDatabaseMetadata database */ 4:
                     message.database = DiscoveredDatabaseMetadata.internalBinaryRead(reader, reader.uint32(), options, message.database);
+                    break;
+                case /* string discovery_config_name */ 5:
+                    message.discoveryConfigName = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4972,6 +5079,9 @@ class ResourceCreateEvent$Type extends MessageType<ResourceCreateEvent> {
         /* prehog.v1alpha.DiscoveredDatabaseMetadata database = 4; */
         if (message.database)
             DiscoveredDatabaseMetadata.internalBinaryWrite(message.database, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* string discovery_config_name = 5; */
+        if (message.discoveryConfigName !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.discoveryConfigName);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -11400,7 +11510,8 @@ class UserTaskStateEvent$Type extends MessageType<UserTaskStateEvent> {
             { no: 1, name: "task_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "issue_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "state", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "instances_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+            { no: 4, name: "instances_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 5, name: "discovery_config_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<UserTaskStateEvent>): UserTaskStateEvent {
@@ -11409,6 +11520,7 @@ class UserTaskStateEvent$Type extends MessageType<UserTaskStateEvent> {
         message.issueType = "";
         message.state = "";
         message.instancesCount = 0;
+        message.discoveryConfigName = "";
         if (value !== undefined)
             reflectionMergePartial<UserTaskStateEvent>(this, message, value);
         return message;
@@ -11429,6 +11541,9 @@ class UserTaskStateEvent$Type extends MessageType<UserTaskStateEvent> {
                     break;
                 case /* int32 instances_count */ 4:
                     message.instancesCount = reader.int32();
+                    break;
+                case /* string discovery_config_name */ 5:
+                    message.discoveryConfigName = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -11454,6 +11569,9 @@ class UserTaskStateEvent$Type extends MessageType<UserTaskStateEvent> {
         /* int32 instances_count = 4; */
         if (message.instancesCount !== 0)
             writer.tag(4, WireType.Varint).int32(message.instancesCount);
+        /* string discovery_config_name = 5; */
+        if (message.discoveryConfigName !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.discoveryConfigName);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -11757,6 +11875,85 @@ class SessionSummaryCreateEvent$Type extends MessageType<SessionSummaryCreateEve
  */
 export const SessionSummaryCreateEvent = new SessionSummaryCreateEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class DiscoveryConfigEvent$Type extends MessageType<DiscoveryConfigEvent> {
+    constructor() {
+        super("prehog.v1alpha.DiscoveryConfigEvent", [
+            { no: 1, name: "action", kind: "enum", T: () => ["prehog.v1alpha.DiscoveryConfigAction", DiscoveryConfigAction, "DISCOVERY_CONFIG_ACTION_"] },
+            { no: 2, name: "discovery_config_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "resource_types", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "cloud_providers", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "creation_method", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<DiscoveryConfigEvent>): DiscoveryConfigEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.action = 0;
+        message.discoveryConfigName = "";
+        message.resourceTypes = [];
+        message.cloudProviders = [];
+        message.creationMethod = "";
+        if (value !== undefined)
+            reflectionMergePartial<DiscoveryConfigEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DiscoveryConfigEvent): DiscoveryConfigEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* prehog.v1alpha.DiscoveryConfigAction action */ 1:
+                    message.action = reader.int32();
+                    break;
+                case /* string discovery_config_name */ 2:
+                    message.discoveryConfigName = reader.string();
+                    break;
+                case /* repeated string resource_types */ 3:
+                    message.resourceTypes.push(reader.string());
+                    break;
+                case /* repeated string cloud_providers */ 4:
+                    message.cloudProviders.push(reader.string());
+                    break;
+                case /* string creation_method */ 5:
+                    message.creationMethod = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DiscoveryConfigEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* prehog.v1alpha.DiscoveryConfigAction action = 1; */
+        if (message.action !== 0)
+            writer.tag(1, WireType.Varint).int32(message.action);
+        /* string discovery_config_name = 2; */
+        if (message.discoveryConfigName !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.discoveryConfigName);
+        /* repeated string resource_types = 3; */
+        for (let i = 0; i < message.resourceTypes.length; i++)
+            writer.tag(3, WireType.LengthDelimited).string(message.resourceTypes[i]);
+        /* repeated string cloud_providers = 4; */
+        for (let i = 0; i < message.cloudProviders.length; i++)
+            writer.tag(4, WireType.LengthDelimited).string(message.cloudProviders[i]);
+        /* string creation_method = 5; */
+        if (message.creationMethod !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.creationMethod);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.DiscoveryConfigEvent
+ */
+export const DiscoveryConfigEvent = new DiscoveryConfigEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
     constructor() {
         super("prehog.v1alpha.SubmitEventRequest", [
@@ -11862,7 +12059,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 103, name: "ui_integration_enroll_code_copy_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollCodeCopyEvent },
             { no: 104, name: "ui_integration_enroll_link_click_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollLinkClickEvent },
             { no: 105, name: "session_summary_create_event", kind: "message", oneof: "event", T: () => SessionSummaryCreateEvent },
-            { no: 106, name: "session_summary_access_event", kind: "message", oneof: "event", T: () => SessionSummaryAccessEvent }
+            { no: 106, name: "session_summary_access_event", kind: "message", oneof: "event", T: () => SessionSummaryAccessEvent },
+            { no: 107, name: "discovery_config", kind: "message", oneof: "event", T: () => DiscoveryConfigEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -12488,6 +12686,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         sessionSummaryAccessEvent: SessionSummaryAccessEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).sessionSummaryAccessEvent)
                     };
                     break;
+                case /* prehog.v1alpha.DiscoveryConfigEvent discovery_config */ 107:
+                    message.event = {
+                        oneofKind: "discoveryConfig",
+                        discoveryConfig: DiscoveryConfigEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).discoveryConfig)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -12809,6 +13013,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.SessionSummaryAccessEvent session_summary_access_event = 106; */
         if (message.event.oneofKind === "sessionSummaryAccessEvent")
             SessionSummaryAccessEvent.internalBinaryWrite(message.event.sessionSummaryAccessEvent, writer.tag(106, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.DiscoveryConfigEvent discovery_config = 107; */
+        if (message.event.oneofKind === "discoveryConfig")
+            DiscoveryConfigEvent.internalBinaryWrite(message.event.discoveryConfig, writer.tag(107, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

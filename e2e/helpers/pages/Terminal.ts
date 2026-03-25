@@ -39,11 +39,9 @@ export class TerminalPage {
     await this.input.pressSequentially(command + '\n');
   }
 
-  async expectSnapshot(name: string) {
-    await this.page.waitForTimeout(500);
-    await expect(this.terminal).toHaveScreenshot(name, {
+  async waitForText(text: string) {
+    await expect(this.terminal).toContainText(text, {
       timeout: TERMINAL_TIMEOUT,
-      maxDiffPixelRatio: 0.02,
     });
   }
 }
