@@ -148,6 +148,7 @@ type collections struct {
 	plugins                            *collection[types.Plugin, pluginIndex]
 	appAuthConfig                      *collection[*appauthconfigv1.AppAuthConfig, appAuthConfigIndex]
 	beams                              *collection[*beamsv1.Beam, beamIndex]
+	clusterBeamConfig                  *collection[*beamsv1.ClusterBeamConfig, clusterBeamConfigIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -786,6 +787,13 @@ func setupCollections(c Config) (*collections, error) {
 			}
 			out.beams = collect
 			out.byKind[resourceKind] = out.beams
+		case types.KindClusterBeamConfig:
+			collect, err := newClusterBeamConfigCollection(c.ClusterBeamConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.clusterBeamConfig = collect
+			out.byKind[resourceKind] = out.clusterBeamConfig
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)

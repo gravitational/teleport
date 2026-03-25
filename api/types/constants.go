@@ -555,6 +555,12 @@ const (
 	// KindBeam is an ephemeral compute environment.
 	KindBeam = "beam"
 
+	// KindClusterBeamConfig is the cluster-wide configuration for beams.
+	KindClusterBeamConfig = "cluster_beam_config"
+
+	// MetaNameClusterBeamConfig is the singleton resource name for the cluster beam config.
+	MetaNameClusterBeamConfig = "cluster-beam-config"
+
 	// MetaNameBackendInfo name backend info entity.
 	MetaNameBackendInfo = "backend-info"
 

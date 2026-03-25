@@ -3075,6 +3075,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Plugin = services.Plugins
 	cfg.AppAuthConfig = services.AppAuthConfig
 	cfg.Beams = services.Beams
+	cfg.ClusterBeamConfig = services.ClusterBeamConfig
 
 	return accesspoint.NewCache(cfg)
 }

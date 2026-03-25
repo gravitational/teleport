@@ -51,6 +51,7 @@ func Handlers() map[string]Handler {
 		types.KindBotInstance:                        botInstanceHandler(),
 		types.KindCertAuthority:                      certAuthorityHandler(),
 		types.KindClusterAuthPreference:              authPreferenceHandler(),
+		types.KindClusterBeamConfig:                  clusterBeamConfigHandler(),
 		types.KindClusterMaintenanceConfig:           clusterMaintenanceConfigHandler(),
 		types.KindClusterNetworkingConfig:            networkingConfigHandler(),
 		types.KindConnectors:                         connectorsHandler(),

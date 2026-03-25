@@ -36,6 +36,10 @@ message ProvisionBeamRequest {
   TbotConfig tbot = 2;
   // BeamAlias is the user-friendly identifier for the beam.
   string beam_alias = 3;
+  // OpenAIAppName is the Teleport app name for the OpenAI-compatible API proxy.
+  string openai_app_name = 4;
+  // AnthropicAppName is the Teleport app name for the Anthropic API proxy.
+  string anthropic_app_name = 5;
 }
 
 // ProvisionBeameResponse is the result of provisioning a beam.

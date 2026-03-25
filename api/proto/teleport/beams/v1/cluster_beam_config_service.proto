@@ -1,0 +1,55 @@
+// Copyright 2026 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.beams.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/beams/v1/beam_config.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
+
+// ClusterBeamConfigService manages the cluster-wide beam configuration.
+service ClusterBeamConfigService {
+  // GetClusterBeamConfig returns the cluster-wide beam configuration.
+  rpc GetClusterBeamConfig(GetClusterBeamConfigRequest) returns (ClusterBeamConfig);
+
+  // CreateClusterBeamConfig creates the cluster-wide beam configuration.
+  rpc CreateClusterBeamConfig(CreateClusterBeamConfigRequest) returns (ClusterBeamConfig);
+
+  // UpdateClusterBeamConfig updates the cluster-wide beam configuration.
+  rpc UpdateClusterBeamConfig(UpdateClusterBeamConfigRequest) returns (ClusterBeamConfig);
+
+  // DeleteClusterBeamConfig removes the cluster-wide beam configuration.
+  rpc DeleteClusterBeamConfig(DeleteClusterBeamConfigRequest) returns (google.protobuf.Empty);
+}
+
+// GetClusterBeamConfigRequest is the request for GetClusterBeamConfig.
+message GetClusterBeamConfigRequest {}
+
+// CreateClusterBeamConfigRequest is the request for CreateClusterBeamConfig.
+message CreateClusterBeamConfigRequest {
+  // Config is the cluster beam configuration to create.
+  ClusterBeamConfig config = 1;
+}
+
+// UpdateClusterBeamConfigRequest is the request for UpdateClusterBeamConfig.
+message UpdateClusterBeamConfigRequest {
+  // Config is the cluster beam configuration to update.
+  ClusterBeamConfig config = 1;
+}
+
+// DeleteClusterBeamConfigRequest is the request for DeleteClusterBeamConfig.
+message DeleteClusterBeamConfigRequest {}

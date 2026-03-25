@@ -117,6 +117,7 @@ type Config struct {
 	Plugin                  services.Plugins
 	AppAuthConfig           services.AppAuthConfigReader
 	Beams                   services.BeamReader
+	ClusterBeamConfig       services.ClusterBeamConfigReader
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -205,6 +206,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		Plugin:                  cfg.Plugin,
 		AppAuthConfig:           cfg.AppAuthConfig,
 		Beams:                   cfg.Beams,
+		ClusterBeamConfig:       cfg.ClusterBeamConfig,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))

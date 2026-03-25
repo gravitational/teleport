@@ -90,6 +90,7 @@ type Services struct {
 	services.SigstorePolicies
 	services.HealthCheckConfig
 	services.Beams
+	services.ClusterBeamConfig
 	services.AppAuthConfig
 	services.BackendInfoService
 	services.VnetConfigService
