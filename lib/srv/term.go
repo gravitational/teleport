@@ -146,9 +146,11 @@ type terminal struct {
 	// the process running in the shell should be killed.
 	terminateFD *os.File
 
-	// childStderrDone is closed when child process stderr is fully read and
-	// propagated to the SSH session stderr stream.
-	childStderrDone chan struct{}
+	// waitForOutputStreams is closed when child reexec and shell processes have
+	// their stderr/stdout fully consumed by io.Copy goroutines. This is necessary
+	// due to the use of custom pipes, which exec.Cmd does not wait for closure of
+	// in Wait().
+	waitForOutputStreams sync.WaitGroup
 
 	pid int
 
@@ -222,9 +224,7 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 	defer stderrw.Close()
 	t.cmd.Stderr = stderrw
 
-	t.childStderrDone = make(chan struct{})
-	go func() {
-		defer close(t.childStderrDone)
+	t.waitForOutputStreams.Go(func() {
 		defer stderrr.Close()
 
 		childErr, err := reexec.ReadChildError(stderrr)
@@ -237,9 +237,9 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 		}
 
 		if _, err := io.WriteString(errorWriter, childErr); err != nil {
-			t.serverContext.Logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to client", "error", err)
+			t.serverContext.Logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to all parties", "error", err)
 		}
-	}()
+	})
 
 	// Close the TTY before returning to ensure that our half of the pipe is
 	// closed. This ensures that reading from the PTY will unblock when the
@@ -266,15 +266,7 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 // Wait will block until the terminal is complete.
 func (t *terminal) Wait() (*ExecResult, error) {
 	err := t.cmd.Wait()
-
-	// Wait a moment for the session stderr to propagate to connected parties. In the case of
-	// one or more parties being slow/blocking the stderr write, ensure the session still ends promptly.
-	select {
-	case <-t.childStderrDone:
-	case <-time.After(time.Second):
-		t.log.WarnContext(t.serverContext.cancelContext, "Failed to propagate child process stderr to client before ending the session")
-	}
-
+	t.waitForOutputStreams.Wait()
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
