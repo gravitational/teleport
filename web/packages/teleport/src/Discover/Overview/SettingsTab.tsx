@@ -28,7 +28,6 @@ import Validation from 'shared/components/Validation';
 import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel/SlidingSidePanel';
 import { DeploymentMethodSection } from 'teleport/Integrations/Enroll/Cloud/Aws/DeploymentMethodSection';
 import {
-  ConfigurationScopeSection,
   Divider,
   IntegrationSection,
 } from 'teleport/Integrations/Enroll/Cloud/Aws/EnrollAws';
@@ -38,11 +37,12 @@ import {
   InfoGuideTitle,
   TerraformInfoGuide,
 } from 'teleport/Integrations/Enroll/Cloud/Aws/InfoGuide';
-import { RegionsSection } from 'teleport/Integrations/Enroll/Cloud/Aws/RegionsSection';
 import { ResourcesSection } from 'teleport/Integrations/Enroll/Cloud/Aws/ResourcesSection';
 import { buildTerraformConfig } from 'teleport/Integrations/Enroll/Cloud/Aws/tf_module';
 import {
-  Ec2Config,
+  ServiceConfig,
+  ServiceConfigs,
+  ServiceType,
   WildcardRegion,
 } from 'teleport/Integrations/Enroll/Cloud/Aws/types';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
@@ -71,12 +71,22 @@ export function SettingsTab({
   const integrationName = stats.name;
   const { clusterVersion } = useClusterVersion();
 
-  const { data: ec2Rules, isLoading } = useQuery({
+  const { data: ec2Rules, isLoading: isLoadingEc2 } = useQuery({
     queryKey: ['integrationRules', stats.name, AwsResource.ec2],
     queryFn: () =>
       integrationService.fetchIntegrationRules(
         integrationName,
         AwsResource.ec2
+      ),
+    enabled: true,
+  });
+
+  const { data: eksRules, isLoading: isLoadingEks } = useQuery({
+    queryKey: ['integrationRules', stats.name, AwsResource.eks],
+    queryFn: () =>
+      integrationService.fetchIntegrationRules(
+        integrationName,
+        AwsResource.eks
       ),
     enabled: true,
   });
@@ -98,10 +108,11 @@ export function SettingsTab({
       : (regions as Regions[]);
   };
 
-  const getEc2ConfigFromRules = (
+  const getConfigFromRules = (
     rules?: IntegrationDiscoveryRule[]
-  ): Ec2Config => ({
+  ): ServiceConfig => ({
     enabled: rules !== undefined && rules.length > 0,
+    regions: getRegionsFromRules(rules),
     tags:
       rules && rules.length > 0
         ? rules[0].labelMatcher.map(l => ({
@@ -111,28 +122,32 @@ export function SettingsTab({
         : [],
   });
 
-  const [updatedRegions, setRegions] = useState<
-    WildcardRegion | Regions[] | null
-  >(null);
-  const [updatedEc2Config, setEc2Config] = useState<Ec2Config | null>(null);
+  const [updatedConfigs, setUpdatedConfigs] = useState<Partial<ServiceConfigs>>(
+    {}
+  );
 
-  const regions = updatedRegions ?? getRegionsFromRules(ec2Rules?.rules);
-  const ec2Config = updatedEc2Config ?? getEc2ConfigFromRules(ec2Rules?.rules);
+  const configs: ServiceConfigs = {
+    ec2: updatedConfigs.ec2 ?? getConfigFromRules(ec2Rules?.rules),
+    eks: updatedConfigs.eks ?? getConfigFromRules(eksRules?.rules),
+  };
+
+  const updateConfig = (type: ServiceType, config: ServiceConfig) => {
+    setUpdatedConfigs(prev => ({ ...prev, [type]: config }));
+  };
 
   const terraformConfig = useMemo(
     () =>
       buildTerraformConfig({
         integrationName,
-        regions: regions,
-        ec2Config: ec2Config,
+        configs,
         version: clusterVersion,
       }),
-    [integrationName, regions, ec2Config, clusterVersion]
+    [integrationName, configs, clusterVersion]
   );
 
   const isPanelOpen = activeInfoGuideTab !== null;
 
-  if (isLoading) {
+  if (isLoadingEc2 || isLoadingEks) {
     return (
       <Flex justifyContent="center" mt={6}>
         <Indicator />
@@ -164,16 +179,10 @@ export function SettingsTab({
                 />
               </Box>
               <Divider />
-              <Box>
-                <ConfigurationScopeSection />
-              </Box>
-              <Divider />
               <ResourcesSection
-                ec2Config={ec2Config}
-                onEc2Change={setEc2Config}
+                configs={configs}
+                onConfigChange={updateConfig}
               />
-              <Divider />
-              <RegionsSection regions={regions} onChange={setRegions} />
               <Divider />
               <DeploymentMethodSection
                 terraformConfig={terraformConfig}

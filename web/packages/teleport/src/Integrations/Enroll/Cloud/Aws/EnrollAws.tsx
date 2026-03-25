@@ -38,10 +38,7 @@ import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
 import { useNoMinWidth } from 'teleport/Main';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
-import {
-  Regions as AwsRegion,
-  IntegrationKind,
-} from 'teleport/services/integrations';
+import { IntegrationKind } from 'teleport/services/integrations';
 import { IntegrationEnrollKind } from 'teleport/services/userEvent/types';
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
@@ -54,13 +51,18 @@ import {
   InfoGuideTab,
   InfoGuideTitle,
   PANEL_WIDTH,
+  responsivePanelWidth,
   TerraformInfoGuide,
 } from './InfoGuide';
 import { Prerequisites } from './Prerequisites';
-import { RegionsSection } from './RegionsSection';
 import { ResourcesSection } from './ResourcesSection';
 import { buildTerraformConfig } from './tf_module';
-import { Ec2Config, WildcardRegion } from './types';
+import {
+  ServiceConfig,
+  ServiceConfigs,
+  ServiceType,
+  WildcardRegion,
+} from './types';
 
 export function EnrollAws() {
   useNoMinWidth();
@@ -78,24 +80,23 @@ export function EnrollAws() {
     cancelCheckIntegration,
   } = useEnrollCloudIntegration(IntegrationEnrollKind.AwsCloud);
 
-  const [regions, setRegions] = useState<WildcardRegion | AwsRegion[]>([
-    '*',
-  ] as WildcardRegion);
-
-  const [ec2Config, setEc2Config] = useState<Ec2Config>({
-    enabled: true,
-    tags: [],
+  const [configs, setConfigs] = useState<ServiceConfigs>({
+    ec2: { enabled: true, regions: ['*'] as WildcardRegion, tags: [] },
+    eks: { enabled: false, regions: [], tags: [] },
   });
+
+  const updateConfig = (type: ServiceType, config: ServiceConfig) => {
+    setConfigs(prev => ({ ...prev, [type]: config }));
+  };
 
   const terraformConfig = useMemo(
     () =>
       buildTerraformConfig({
         integrationName,
-        regions,
-        ec2Config,
+        configs,
         version: clusterVersion,
       }),
-    [integrationName, regions, ec2Config, clusterVersion]
+    [integrationName, configs, clusterVersion]
   );
 
   const [isPanelOpen, setIsPanelOpen] = useState(true);
@@ -115,17 +116,16 @@ export function EnrollAws() {
     <Validation>
       {({ validator }) => (
         <Box pt={3}>
-          <ContentWithSidePanel
-            isPanelOpen={isPanelOpen}
-            panelWidth={PANEL_WIDTH}
-          >
-            <Flex justifyContent="space-between" alignItems="start" mb={1}>
+          <FlexibleContent isPanelOpen={isPanelOpen} panelWidth={PANEL_WIDTH}>
+            <Flex justifyContent="space-between" alignItems="center" mb={1}>
               <Header>Connect Amazon Web Services</Header>
-              <InfoGuideSwitch
-                isPanelOpen={isPanelOpen}
-                activeTab={activeInfoGuideTab}
-                onSwitch={onInfoGuideClick}
-              />
+              <Box mt={1}>
+                <InfoGuideSwitch
+                  isPanelOpen={isPanelOpen}
+                  activeTab={activeInfoGuideTab}
+                  onSwitch={onInfoGuideClick}
+                />
+              </Box>
             </Flex>
             <Subtitle1 mb={3}>
               Connect your AWS account to automatically discover and enroll
@@ -141,14 +141,10 @@ export function EnrollAws() {
                 disabled={isFetching}
               />
               <Divider />
-              <ConfigurationScopeSection />
-              <Divider />
               <ResourcesSection
-                ec2Config={ec2Config}
-                onEc2Change={setEc2Config}
+                configs={configs}
+                onConfigChange={updateConfig}
               />
-              <Divider />
-              <RegionsSection regions={regions} onChange={setRegions} />
               <Divider />
               <DeploymentMethodSection
                 terraformConfig={terraformConfig}
@@ -197,9 +193,9 @@ export function EnrollAws() {
                 Back
               </ButtonSecondary>
             </Box>
-          </ContentWithSidePanel>
+          </FlexibleContent>
 
-          <SlidingSidePanel
+          <FlexibleSidePanel
             isVisible={isPanelOpen}
             skipAnimation={false}
             panelWidth={PANEL_WIDTH}
@@ -228,7 +224,7 @@ export function EnrollAws() {
                 <InfoGuideContent />
               )}
             </InfoGuideContainer>
-          </SlidingSidePanel>
+          </FlexibleSidePanel>
         </Box>
       )}
     </Validation>
@@ -271,35 +267,6 @@ export function IntegrationSection({
   );
 }
 
-export function ConfigurationScopeSection() {
-  return (
-    <>
-      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={3}>
-        <CircleNumber>2</CircleNumber>
-        Configuration Scope
-      </Flex>
-      <Text ml={4}>Single AWS Account</Text>
-      <Text ml={4} mb={3} color="text.slightlyMuted">
-        Discover resources from one specific AWS account. Additional accounts
-        require separate integration setup. <br />
-        Best for: Single-account environments or testing.
-      </Text>
-      <Box ml={4} borderColor="interactive.tonal.neutral.0">
-        <Box
-          pl={4}
-          borderLeft="2px solid"
-          borderColor="interactive.tonal.neutral.0"
-        >
-          <Text fontSize={2}>
-            IAM resources used for discovery in Teleport will be created using
-            the account configured for your AWS Terraform provider.
-          </Text>
-        </Box>
-      </Box>
-    </>
-  );
-}
-
 export const Container = styled(Flex)`
   border-radius: 8px;
   background: ${props => props.theme.colors.levels.elevated};
@@ -331,4 +298,16 @@ export const Divider = styled.hr`
   margin-bottom: ${p => p.theme.space[3]}px;
   border: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[0]};
   width: 100%;
+`;
+
+const FlexibleContent = styled(ContentWithSidePanel)`
+  && {
+    margin-right: ${p => (p.isPanelOpen ? responsivePanelWidth : '0')};
+  }
+`;
+
+const FlexibleSidePanel = styled(SlidingSidePanel)`
+  && {
+    width: ${responsivePanelWidth};
+  }
 `;

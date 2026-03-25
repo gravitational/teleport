@@ -40,6 +40,11 @@ import { CopyTerraformButton } from './DeploymentMethodSection';
 
 export const PANEL_WIDTH = 500;
 
+// Responsive panel width: grows beyond 500px when viewport
+// has more than 800px of space for the form content.
+export const responsivePanelWidth =
+  'clamp(500px, calc(100vw - var(--sidenav-width, 84px) - 800px), 700px)';
+
 export type InfoGuideTab = 'info' | 'terraform' | null;
 
 export const ContentWithSidePanel = styled(Box)<{
@@ -69,13 +74,7 @@ export function TerraformInfoGuide({
   const validator = useValidation();
 
   return (
-    <Flex
-      ml={-3}
-      width={`${PANEL_WIDTH - 2}px`}
-      flexDirection="column"
-      height="600px"
-      position="sticky"
-    >
+    <Flex mx={-3} flexDirection="column" height="600px" position="sticky">
       <LiveTextEditor
         data={[{ content: terraformConfig, type: 'terraform' }]}
       />

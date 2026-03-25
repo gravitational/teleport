@@ -81,26 +81,12 @@ export function DeploymentMethodSection({
 
   return (
     <>
-      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
-        <CircleNumber>5</CircleNumber>
-        Deployment Method
+      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={3}>
+        <CircleNumber>3</CircleNumber>
+        Apply Terraform
       </Flex>
-      <Box ml={4} mb={3}>
-        <Text mb={3}>
-          Deploy the required IAM resources in your AWS account using Terraform.
-        </Text>
-        <Text fontSize={3} fontWeight="regular">
-          Terraform
-        </Text>
-        <Text>
-          Automatically provision IAM roles and policies using Infrastructure as
-          Code.
-          <br />
-          Best for: Teams managing infrastructure with Terraform.
-        </Text>
-      </Box>
 
-      <Box ml={6}>
+      <Box ml={4}>
         <Flex flexDirection="column" mb={3} gap={2}>
           <Text bold={true} fontSize="14px">
             1. Add the Teleport AWS Discovery module to your Terraform
