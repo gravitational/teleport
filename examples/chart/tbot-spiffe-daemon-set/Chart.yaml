@@ -1,4 +1,4 @@
-.version: &version "19.0.0-prealpha.2"
+.version: &version "19.0.0-dev.gus-tempotest.1"
 
 name: tbot-spiffe-daemon-set
 apiVersion: v2
