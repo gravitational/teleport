@@ -28,17 +28,26 @@ locals {
     ]
   )
 
-  eks_actions = [
+  eks_read_actions = [
     "eks:ListClusters",
     "eks:DescribeCluster",
     "eks:ListAccessEntries",
+    "eks:DescribeAccessEntry",
+  ]
+  eks_write_actions = [
     "eks:CreateAccessEntry",
     "eks:DeleteAccessEntry",
     "eks:AssociateAccessPolicy",
     "eks:TagResource",
-    "eks:DescribeAccessEntry",
     "eks:UpdateAccessEntry",
   ]
+  # EKS access-entry mutations are only used on the non-integration fetch path.
+  # With OIDC enabled, this module sets matcher.integration and discovery stays
+  # read-only for EKS.
+  eks_actions = concat(
+    local.eks_read_actions,
+    local.use_oidc_integration ? [] : local.eks_write_actions
+  )
 
   policy_actions = concat(
     local.uses_ec2 ? local.ec2_actions : [],
