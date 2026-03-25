@@ -312,7 +312,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		})
 	}
 
-	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
+	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeBuilder(otelaws.DynamoDBAttributeBuilder))
 
 	dynamoClient := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
 
