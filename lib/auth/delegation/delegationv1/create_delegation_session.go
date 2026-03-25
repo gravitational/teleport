@@ -32,6 +32,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+// sessionMaxTTL is the maximum length of delegation session you can create
+// using the CreateDelegationSession RPC. A week is chosen to allow for long-
+// running AI agents, etc.
+const sessionMaxTTL = 7 * 24 * time.Hour
+
 // CreateDelegationSession creates a delegation session.
 func (s *SessionService) CreateDelegationSession(
 	ctx context.Context,
@@ -53,8 +58,13 @@ func (s *SessionService) CreateDelegationSession(
 	if err := req.GetTtl().CheckValid(); err != nil {
 		return nil, trace.BadParameter("ttl: %v", err)
 	}
-	if req.GetTtl().AsDuration() <= 0 {
+
+	ttl := req.GetTtl().AsDuration()
+	if ttl <= 0 {
 		return nil, trace.BadParameter("ttl: is required")
+	}
+	if ttl > sessionMaxTTL {
+		return nil, trace.BadParameter("ttl: cannot be more than %d hours", sessionMaxTTL/time.Hour)
 	}
 
 	session := &delegationv1.DelegationSession{

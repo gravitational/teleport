@@ -223,6 +223,30 @@ func TestSessionService_CreateSession(t *testing.T) {
 		require.True(t, trace.IsBadParameter(err))
 		require.ErrorContains(t, err, "ttl: is required")
 	})
+
+	t.Run("ttl too large", func(t *testing.T) {
+		service, pack := sessionServiceTestPack(t)
+
+		pack.authenticateUser(t,
+			"bob",
+			authz.AdminActionAuthMFAVerified,
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					AppLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+				},
+			},
+		)
+
+		_, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
+			Spec: newDelegationSessionSpec("bob"),
+			Ttl:  durationpb.New(14 * 24 * time.Hour),
+		})
+		require.Error(t, err)
+		require.True(t, trace.IsBadParameter(err))
+		require.ErrorContains(t, err, "ttl: cannot be more than 168 hours")
+	})
 }
 
 func newDelegationSessionSpec(
