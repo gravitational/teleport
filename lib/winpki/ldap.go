@@ -358,14 +358,14 @@ type ldapReferral struct {
 	// the raw referral received from LDAP server
 	raw string
 	// the result of parsing the raw referral as a URL
-	url url.URL
+	url *url.URL
 }
 
 func newLDAPReferral(ref string) (ldapReferral, error) {
 	u, err := url.Parse(ref)
 	return ldapReferral{
 		raw: ref,
-		url: *u,
+		url: u,
 	}, err
 }
 
