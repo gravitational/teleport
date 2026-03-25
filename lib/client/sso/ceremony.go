@@ -20,12 +20,12 @@ package sso
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
@@ -122,58 +122,60 @@ func (m *MFACeremony) GetProxyAddress() string {
 	return m.ProxyAddress
 }
 
-// Run the SSO MFA ceremony.
+// Run the SSO/Browser MFA ceremony.
 func (m *MFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	var ssoChallenge *proto.SSOChallenge
-	var browserChallenge *proto.BrowserMFAChallenge
-	var isBrowser bool
-
+	// The proxy will only ever return one of SSO or Browser challenge. However,
+	// check for SSO challenge first as it takes priority over browser MFA.
 	switch {
-	case chal.BrowserMFAChallenge != nil:
-		browserChallenge = chal.BrowserMFAChallenge
-		isBrowser = true
 	case chal.SSOChallenge != nil:
-		ssoChallenge = chal.SSOChallenge
-	default:
-		return nil, trace.BadParameter("no SSO or Browser challenge provided")
-	}
-
-	var redirectURL string
-	if isBrowser {
-		fmt.Println(browserChallenge.RequestId)
-		redirectURL = "https://" + m.ProxyAddress + WebBrowserMFAPath + browserChallenge.RequestId
-	} else {
-		redirectURL = ssoChallenge.RedirectUrl
-	}
-
-	if err := m.HandleRedirect(ctx, redirectURL); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp := &proto.MFAAuthenticateResponse{}
-	if isBrowser {
-		webauthnResp, err := m.GetCallbackWebauthn(ctx)
-		if err != nil {
+		if err := m.HandleRedirect(ctx, chal.SSOChallenge.RedirectUrl); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		browserResp := &proto.BrowserMFAResponse{
-			RequestId:        browserChallenge.RequestId,
-			WebauthnResponse: wantypes.CredentialAssertionResponseToProto(webauthnResp),
-		}
-		resp.Response = &proto.MFAAuthenticateResponse_Browser{Browser: browserResp}
-	} else {
+
 		mfaToken, err := m.GetCallbackMFAToken(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		ssoResp := &proto.SSOResponse{
-			RequestId: ssoChallenge.RequestId,
-			Token:     mfaToken,
-		}
-		resp.Response = &proto.MFAAuthenticateResponse_SSO{SSO: ssoResp}
-	}
 
-	return resp, nil
+		return &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_SSO{
+				SSO: &proto.SSOResponse{
+					RequestId: chal.SSOChallenge.RequestId,
+					Token:     mfaToken,
+				},
+			},
+		}, nil
+	case chal.BrowserMFAChallenge != nil:
+		redirectURL, err := apiutils.ParseURL(m.ProxyAddress)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if redirectURL == nil {
+			return nil, trace.BadParameter("proxy address is required for browser MFA")
+		}
+		redirectURL.Scheme = "https"
+		redirectURL.Path = WebBrowserMFAPath + chal.BrowserMFAChallenge.RequestId
+
+		if err := m.HandleRedirect(ctx, redirectURL.String()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		webauthnResp, err := m.GetCallbackWebauthn(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Browser{
+				Browser: &proto.BrowserMFAResponse{
+					RequestId:        chal.BrowserMFAChallenge.RequestId,
+					WebauthnResponse: wantypes.CredentialAssertionResponseToProto(webauthnResp),
+				},
+			},
+		}, nil
+	default:
+		return nil, trace.BadParameter("no SSO or Browser challenge provided")
+	}
 }
 
 // Close closes resources associated with the SSO MFA ceremony.
