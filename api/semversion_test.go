@@ -74,7 +74,7 @@ func TestParseSSHClientVersionErrors(t *testing.T) {
 		{
 			name:          "invalid prefix",
 			clientVersion: "SSH-2.0-OpenSSH_9.9.9",
-			wantErr:       api.ErrNonTeleportSSHVersion,
+			wantErr:       api.NonTeleportSSHVersionError{},
 		},
 		{
 			name:          "missing version",
@@ -170,6 +170,6 @@ func TestIsSSHFeatureSupportedErrors(t *testing.T) {
 	t.Parallel()
 
 	got, err := api.IsSSHFeatureSupported("SSH-2.0-OpenSSH_9.9.9", "mfav1")
-	require.ErrorIs(t, err, api.ErrNonTeleportSSHVersion)
+	require.ErrorIs(t, err, api.NonTeleportSSHVersionError{})
 	require.False(t, got)
 }
