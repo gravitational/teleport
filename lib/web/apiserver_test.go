@@ -6651,10 +6651,45 @@ func TestDesktopActive(t *testing.T) {
 	check("\"active\":true")
 }
 
+func TestDecodeURLPathParamField(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "string with special characters encoded",
+			input:    "foo-bar.baz_qux%2B10%40testing.com",
+			expected: "foo-bar.baz_qux+10@testing.com",
+		},
+		{
+			name:     "string with special characters NOT encoded",
+			input:    "foo-bar.baz_qux+10@testing.com",
+			expected: "foo-bar.baz_qux+10@testing.com",
+		},
+		{
+			name:     "string with special characters double encoded",
+			input:    "foo-bar.baz_qux%252B10%2540testing.com",
+			expected: "foo-bar.baz_qux%2B10%40testing.com",
+		},
+		{
+			name:     "plain string",
+			input:    "llama",
+			expected: "llama",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, decodeURLPathParamField(tt.input))
+		})
+	}
+}
+
 func TestGetUserOrResetToken(t *testing.T) {
 	env := newWebPack(t, 1)
 	ctx := context.Background()
-	username := "someuser"
+	username := "foo-bar.baz_qux+10@testing.com"
 
 	// Create a username.
 	teleUser, err := types.NewUser(username)
@@ -6681,7 +6716,8 @@ func TestGetUserOrResetToken(t *testing.T) {
 	_, err = env.server.Auth().UpsertRole(ctx, fooRole)
 	require.NoError(t, err)
 
-	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", username), url.Values{})
+	encodedUsername := "foo-bar.baz_qux%2B10%40testing.com"
+	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", encodedUsername), url.Values{})
 	require.NoError(t, err)
 	require.Contains(t, string(resp.Bytes()), "login1")
 

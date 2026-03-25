@@ -61,7 +61,7 @@ const service = {
   },
 
   fetchUser(username: string) {
-    return api.get(cfg.getUserWithUsernameUrl(username)).then(makeUser);
+    return api.get(cfg.getUserWithUsernameTemporaryPatchedUrl(username)).then(makeUser);
   },
 
   // TODO(rudream): DELETE IN v21.0
