@@ -1135,6 +1135,17 @@ const cfg = {
     return generatePath(cfg.api.userWithUsernamePath, { username });
   },
 
+  // TODO(kimlisa): DELETE IN v21 and replace with getUserWithUsernameUrl.
+  // React Router v7 auto encodes dynamic segments in path (v6 version did not).
+  // The upgrade surfaced a backend bug where path params were not getting auto decoded which
+  // is the default behavior of go's httprouter.Params.ByName() b/c path params for this
+  // particular endpoint are being manually set.
+  // This is a temporary patch that does not encode segments (same behavior pre-React Router v7)
+  // to provide backwards compatibility.
+  getUserWithUsernameTemporaryPatchedUrl(username: string) {
+     return cfg.api.userWithUsernamePath.replace(':username', username)
+  },
+
   getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
     return generatePath(cfg.api.activeAndPendingSessionsPath, { clusterId });
   },
