@@ -60,7 +60,7 @@ type Terminal interface {
 	Run(ctx context.Context, errorWriter io.Writer) error
 
 	// Wait will block until the terminal is complete.
-	Wait() (*ExecResult, error)
+	Wait() ExecResult
 
 	// ReadAuditSessionID reads the unique audit session ID of the process
 	// that will be used to correlate audit events to the SSH session for
@@ -266,27 +266,20 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 }
 
 // Wait will block until the terminal is complete.
-func (t *terminal) Wait() (*ExecResult, error) {
+func (t *terminal) Wait() ExecResult {
 	err := t.cmd.Wait()
 	t.waitForOutputStreams.Wait()
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			status := exitErr.Sys().(syscall.WaitStatus)
-			return &ExecResult{Code: status.ExitStatus(), Command: t.cmd.Path}, nil
-		}
-		return nil, err
+
+	var cmd string
+	if execRequest, err := t.serverContext.GetExecRequest(); err == nil {
+		cmd = execRequest.GetCommand()
 	}
 
-	status, ok := t.cmd.ProcessState.Sys().(syscall.WaitStatus)
-	if !ok {
-		return nil, trace.Errorf("unknown exit status: %T(%v)", t.cmd.ProcessState.Sys(), t.cmd.ProcessState.Sys())
+	return ExecResult{
+		Code:    exitCode(err),
+		Command: cmd,
+		Error:   err,
 	}
-
-	return &ExecResult{
-		Code:    status.ExitStatus(),
-		Command: t.cmd.Path,
-	}, nil
 }
 
 // ReadAuditSessionID reads the unique audit session ID of the process
@@ -630,32 +623,18 @@ func (t *remoteTerminal) Run(ctx context.Context, _ io.Writer) error {
 	return nil
 }
 
-func (t *remoteTerminal) Wait() (*ExecResult, error) {
-	execRequest, err := t.ctx.GetExecRequest()
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (t *remoteTerminal) Wait() ExecResult {
+	var execCmd string
+	if execRequest, err := t.ctx.GetExecRequest(); err == nil {
+		execCmd = execRequest.GetCommand()
 	}
 
-	err = t.session.Wait()
-	if err != nil {
-		var exitErr *ssh.ExitError
-		if errors.As(err, &exitErr) {
-			return &ExecResult{
-				Code:    exitErr.ExitStatus(),
-				Command: execRequest.GetCommand(),
-			}, err
-		}
-
-		return &ExecResult{
-			Code:    teleport.RemoteCommandFailure,
-			Command: execRequest.GetCommand(),
-		}, err
+	err := t.session.Wait()
+	return ExecResult{
+		Command: execCmd,
+		Code:    exitCode(err),
+		Error:   err,
 	}
-
-	return &ExecResult{
-		Code:    teleport.RemoteCommandSuccess,
-		Command: execRequest.GetCommand(),
-	}, nil
 }
 
 func (t *remoteTerminal) ReadAuditSessionID() (uint32, error) {

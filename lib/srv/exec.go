@@ -63,6 +63,9 @@ type ExecResult struct {
 
 	// Code is return code that execution of the command resulted in.
 	Code int
+
+	// Error is a launch error or exit error from the child process.
+	Error error
 }
 
 // Exec executes an "exec" request.
@@ -77,7 +80,7 @@ type Exec interface {
 	Start(ctx context.Context, channel ssh.Channel) (*ExecResult, error)
 
 	// Wait will block while the command executes.
-	Wait() *ExecResult
+	Wait() ExecResult
 
 	// ReadAuditSessionID reads the unique audit session ID of the process
 	// that will be used to correlate audit events to the SSH session for
@@ -225,13 +228,16 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	if err != nil {
 		logger.WarnContext(ctx, "Local command failed to start", "error", err)
 
-		// Emit the result of execution to the audit log
-		emitExecAuditEvent(e.Ctx, e.GetCommand(), err)
-
-		return &ExecResult{
+		execResult := ExecResult{
 			Command: e.GetCommand(),
-			Code:    exitCode(err),
-		}, trace.ConvertSystemError(err)
+			Code:    teleport.RemoteCommandFailure,
+			Error:   err,
+		}
+
+		// Emit the result of execution to the audit log
+		emitExecAuditEvent(e.Ctx, execResult)
+
+		return &execResult, trace.ConvertSystemError(err)
 	}
 	// Close our half of the write pipe since it is only to be used by the child process.
 	// Not closing prevents being signaled when the child closes its half.
@@ -267,7 +273,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 }
 
 // Wait will block while the command executes.
-func (e *localExec) Wait() *ExecResult {
+func (e *localExec) Wait() ExecResult {
 	if e.Cmd.Process == nil {
 		e.Ctx.Logger.ErrorContext(e.Ctx.CancelContext(), "No process")
 	}
@@ -281,13 +287,14 @@ func (e *localExec) Wait() *ExecResult {
 		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command successfully executed")
 	}
 
-	// Emit the result of execution to the Audit Log.
-	emitExecAuditEvent(e.Ctx, e.GetCommand(), err)
-
-	execResult := &ExecResult{
+	execResult := ExecResult{
 		Command: e.GetCommand(),
 		Code:    exitCode(err),
+		Error:   err,
 	}
+
+	// Emit the result of execution to the Audit Log.
+	emitExecAuditEvent(e.Ctx, execResult)
 
 	return execResult
 }
@@ -469,7 +476,7 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 }
 
 // Wait will block while the command executes.
-func (e *remoteExec) Wait() *ExecResult {
+func (e *remoteExec) Wait() ExecResult {
 	// Block until the command is finished executing.
 	err := e.session.Wait()
 	if err != nil {
@@ -478,13 +485,16 @@ func (e *remoteExec) Wait() *ExecResult {
 		e.ctx.Logger.DebugContext(e.ctx.CancelContext(), "Remote command successfully executed")
 	}
 
-	// Emit the result of execution to the Audit Log.
-	emitExecAuditEvent(e.ctx, e.command, err)
-
-	return &ExecResult{
-		Command: e.GetCommand(),
+	result := ExecResult{
+		Command: e.command,
 		Code:    exitCode(err),
+		Error:   err,
 	}
+
+	// Emit the result of execution to the Audit Log.
+	emitExecAuditEvent(e.ctx, result)
+
+	return result
 }
 
 func (e *remoteExec) ReadAuditSessionID() (uint32, error) { return 0, nil }
@@ -502,7 +512,7 @@ func (e *remoteExec) PID() int {
 //
 // Note: to ensure that the event is recorded ctx.session must be used
 // instead of ctx.srv.
-func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
+func emitExecAuditEvent(ctx *ServerContext, result ExecResult) {
 	// Create common fields for event.
 	serverMeta := ctx.GetServer().EventMetadata()
 	sessionMeta := ctx.GetSessionMetadata()
@@ -514,22 +524,22 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	}
 
 	commandMeta := apievents.CommandMetadata{
-		Command: cmd,
+		Command: result.Command,
 		// Due to scp being inherently vulnerable to command injection, always
 		// make sure the full command and exit code is recorded for accountability.
 		// For more details, see the following.
 		//
 		// https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=327019
 		// https://bugzilla.mindrot.org/show_bug.cgi?id=1998
-		ExitCode: strconv.Itoa(exitCode(execErr)),
+		ExitCode: strconv.Itoa(result.Code),
 	}
 
-	if execErr != nil {
-		commandMeta.Error = execErr.Error()
+	if result.Error != nil {
+		commandMeta.Error = result.Error.Error()
 	}
 
 	// Parse the exec command to find out if it was SCP or not.
-	path, action, isSCP, err := parseSecureCopy(cmd)
+	path, action, isSCP, err := parseSecureCopy(result.Command)
 	if err != nil {
 		ctx.Logger.WarnContext(ctx.srv.Context(), "Unable to parse scp command", "error", err)
 		return
@@ -553,13 +563,13 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 
 		switch action {
 		case events.SCPActionUpload:
-			if execErr != nil {
+			if result.Error != nil {
 				scpEvent.Code = events.SCPUploadFailureCode
 			} else {
 				scpEvent.Code = events.SCPUploadCode
 			}
 		case events.SCPActionDownload:
-			if execErr != nil {
+			if result.Error != nil {
 				scpEvent.Code = events.SCPDownloadFailureCode
 			} else {
 				scpEvent.Code = events.SCPDownloadCode
@@ -580,7 +590,7 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 			ConnectionMetadata: connectionMeta,
 			CommandMetadata:    commandMeta,
 		}
-		if execErr != nil {
+		if result.Error != nil {
 			execEvent.Code = events.ExecFailureCode
 		} else {
 			execEvent.Code = events.ExecCode
